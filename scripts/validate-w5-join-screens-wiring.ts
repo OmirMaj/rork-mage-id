@@ -320,7 +320,7 @@ console.log('\n#137 / #48 — selections:');
     && !/\bsaveSelectionOption\(/.test(sel) && !/\bchooseSelectionOption\(/.test(sel) && !/\bdeleteSelectionCategory\(/.test(sel));
   ok('the photo edit sends no unitPrice (it cannot un-choose or re-total)',
     /saveSelectionOptionDetailed\(\{ id: option\.id, categoryId: option\.categoryId, productName: option\.productName, productUrl: url\.trim\(\), imageUrl \}\)/.test(sel));
-  ok('queued and failed are said', /'Saved offline'/.test(sel) && /showAlert\('Not chosen', res\.message\)/.test(sel));
+  ok('queued and failed are said', /'Saved Offline'/.test(sel) && /showAlert\('Not Chosen', res\.message\)/.test(sel));
   ok('exceeded / decided also read the chosen total', /chosen\.total > category\.budget/.test(sel) && /opts\.some\(o => o\.isChosen\)/.test(sel));
 }
 

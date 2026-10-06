@@ -133,13 +133,13 @@ export function recordSignatureOutcomeMessage(o: RecordSignatureOutcome): { titl
   switch (o.kind) {
     case 'signed': return null;
     case 'offline': return {
-      title: 'No connection',
-      body: 'Nothing was recorded — the contract is still Sent. Try again when you have signal; keep the signed page.',
+      title: 'No Connection',
+      body: 'Nothing was recorded. The contract is still Sent. Try again when you have signal; keep the signed page.',
     };
     case 'not_sent': return o.homeownerSigned || o.status === 'signed'
-      ? { title: 'Already signed', body: 'Your client has already signed this contract, in their portal or on another device. Nothing was changed.' }
-      : { title: 'Not recorded', body: `This contract is ${o.status ?? 'no longer on file'}, not Sent, so a client signature can't be recorded on it.` };
-    case 'failed': return { title: 'Signature not recorded', body: "The signature wasn't saved. The contract is still Sent. Check your connection and try again." };
+      ? { title: 'Already Signed', body: 'Your client has already signed this contract, in their portal or on another device. Nothing was changed.' }
+      : { title: 'Not Recorded', body: `This contract is ${o.status ?? 'no longer on file'}, not Sent, so a client signature can't be recorded on it.` };
+    case 'failed': return { title: 'Signature Not Recorded', body: "The signature wasn't saved. The contract is still Sent. Check your connection and try again." };
   }
 }
 
@@ -147,6 +147,6 @@ export function recordSignatureOutcomeMessage(o: RecordSignatureOutcome): { titl
 export function homeownerSignatureMethodLabel(sig: Pick<ContractSignature, 'method'> | undefined): string | null {
   if (!sig?.method) return null;
   if (sig.method === 'in_person') return 'Signed in person on the contractor\'s device';
-  if (sig.method === 'paper') return 'Signed on paper — photo of the signed page on file';
+  if (sig.method === 'paper') return 'Signed on paper, photo of the signed page on file';
   return 'Signed in the client portal';
 }

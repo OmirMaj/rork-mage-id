@@ -121,7 +121,7 @@ const TILE_ENTRY = [{ trade: 'Tile', provenance: 'earned' as const }];
   ok('the capability renders its own review card', /renderReview:/.test(cap) && /EstimateCopilotReview/.test(cap));
   const review = src('components/copilot/EstimateCopilotReview.tsx');
   ok('the review shows the total, the split and each line’s badge', /copilot-estimate-total/.test(review) && /markupSourceLabel\(markup\.source\)/.test(review) && /'your cost'/.test(review) && /'MAGE estimate'/.test(review));
-  ok('the review says it replaces an existing estimate and relabels the button', /replaceWarning\(/.test(review) && /'Replace estimate'/.test(review));
+  ok('the review says it replaces an existing estimate and relabels the button', /replaceWarning\(/.test(review) && /'Replace Estimate'/.test(review));
   ok('Build is disabled until a markup exists, and says why', /disabled=\{!markup\}/.test(review) && /Pick a markup first\. Build turns on once you set what you charge\./.test(review));
   const price = src('utils/copilot/estimate/estimatePrice.ts');
   ok('the pricing call is metered as quickEstimate', /checkAILimit\([^)]*'quickEstimate'\)/.test(price) && /recordAIUsage\(reqTier, 'quickEstimate'\)/.test(price));

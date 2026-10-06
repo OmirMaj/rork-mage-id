@@ -114,7 +114,7 @@ export default function ConditionEditor({
 
   const confirmDelete = useCallback(() => {
     if (!condition) return;
-    const stays = isPushed ? ' The estimate line stays — remove it in the estimate.' : '';
+    const stays = isPushed ? ' The estimate line stays. Remove it in the estimate.' : '';
     showAlert('Delete condition?', `"${condition.name}" and its measurements come off this takeoff.${stays}`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => onDelete(condition.id) },
@@ -124,7 +124,7 @@ export default function ConditionEditor({
   // Enter saves; Esc closes. Dialog scope: only while this is mounted (open).
   useHotkeys([
     { combo: 'escape', handler: onClose, label: 'Close', group: 'Condition' },
-    { combo: 'enter', handler: save, allowInInput: true, label: 'Save condition', group: 'Condition' },
+    { combo: 'enter', handler: save, allowInInput: true, label: 'Save Condition', group: 'Condition' },
   ], { scope: 'dialog' });
 
   const pickTrade = (label: string) => {
@@ -137,25 +137,25 @@ export default function ConditionEditor({
       visible
       onClose={onClose}
       size="dialog"
-      title={condition ? 'Edit condition' : 'New condition'}
+      title={condition ? 'Edit Condition' : 'New Condition'}
       primaryAction={{ label: 'Save', onPress: save, disabled: !!reason, disabledReason: reason ?? undefined, testID: 'takeoffws-editor-save' }}
       secondaryAction={{ label: 'Cancel', onPress: onClose }}
       destructiveAction={condition ? { label: 'Delete', onPress: confirmDelete, testID: 'takeoffws-editor-delete' } : undefined}
       testID="takeoffws-editor"
     >
       <View style={styles.nameRow}>
-        <View style={[styles.swatch, { backgroundColor: color }]} accessibilityLabel="Condition colour" />
+        <View style={[styles.swatch, { backgroundColor: color }]} accessibilityLabel="Condition Colour" />
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder="e.g. LVT flooring"
+          placeholder="LVT flooring"
           placeholderTextColor={t.textMuted}
           style={styles.input}
-          accessibilityLabel="Condition name"
+          accessibilityLabel="Condition Name"
           testID="takeoffws-editor-name"
         />
       </View>
-      <View style={styles.swatches} accessibilityRole="radiogroup" accessibilityLabel="Condition colour">
+      <View style={styles.swatches} accessibilityRole="radiogroup" accessibilityLabel="Condition Colour">
         {TAKEOFF_CONDITION_PALETTE.map((hex, i) => {
           const on = hex.toUpperCase() === color.toUpperCase();
           return (
@@ -202,7 +202,7 @@ export default function ConditionEditor({
           );
         })}
       </View>
-      {hasMeasurements ? <Text style={styles.hint}>The type is locked — this condition already has measurements.</Text> : null}
+      {hasMeasurements ? <Text style={styles.hint}>The type is locked. This condition already has measurements.</Text> : null}
 
       <Text style={styles.label}>Trade</Text>
       {trades.length > 0 ? (
@@ -217,7 +217,7 @@ export default function ConditionEditor({
           })}
         </View>
       ) : (
-        <Text style={styles.hint}>{`Your cost book has no ${unit} trades yet — type a rate below.`}</Text>
+        <Text style={styles.hint}>{`Your cost book has no ${unit} trades yet. Type a rate below.`}</Text>
       )}
       {bookPrice?.matched && bookPrice.rate != null ? (
         <View style={styles.bookRow}>
@@ -228,7 +228,7 @@ export default function ConditionEditor({
           ) : null}
         </View>
       ) : trade ? (
-        <Text style={styles.hint}>{`No ${unit} rate for ${trade} in your book yet — type one below.`}</Text>
+        <Text style={styles.hint}>{`No ${unit} rate for ${trade} in your book yet. Type one below.`}</Text>
       ) : null}
 
       <Text style={styles.label}>{`Rate override ($ / ${unit})`}</Text>
@@ -239,7 +239,7 @@ export default function ConditionEditor({
         placeholderTextColor={t.textMuted}
         keyboardType="decimal-pad"
         style={styles.input}
-        accessibilityLabel="Rate override"
+        accessibilityLabel="Rate Override"
         testID="takeoffws-editor-rate"
       />
 
@@ -261,7 +261,7 @@ export default function ConditionEditor({
 
       {kind === 'linear' ? (
         <>
-          <Text style={styles.label}>Wall height, ft (optional)</Text>
+          <Text style={styles.label}>Wall Height, Ft (Optional)</Text>
           <TextInput
             value={heightText}
             onChangeText={setHeightText}
@@ -269,7 +269,7 @@ export default function ConditionEditor({
             placeholderTextColor={t.textMuted}
             keyboardType="decimal-pad"
             style={styles.input}
-            accessibilityLabel="Wall height in feet"
+            accessibilityLabel="Wall Height in Feet"
           />
         </>
       ) : null}

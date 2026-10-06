@@ -85,7 +85,7 @@ describe('bid leveling — the saved basis label', () => {
     expect(before).toContain('Set your price for the excluded scope');
     // Ace $15,000 + a 0 placeholder is NOT offered as a leveled total or an
     // Award: only Joe's bid carries Award.
-    expect(before).toMatch(/Leveled total\nNeeds price/);
+    expect(before).toMatch(/Leveled Total\nNeeds price/);
     expect(before.match(/^Award /gm)?.length).toBe(1);
     await act(async () => { fireEvent.press(screen.getByTestId('leveling-set-price-bid-t7-2')); });
     await settle();
@@ -97,7 +97,7 @@ describe('bid leveling — the saved basis label', () => {
     expect(screen.getByTestId('leveling-basis-bid-t7-2').props.children).toBe('Your price');
     const after = textOf(tree.toJSON()).join('\n');
     // $15,000 + $750.50, shown to the dollar like every leveled total and Award.
-    expect(after).toMatch(/Leveled total\n\$15,751\n/);
+    expect(after).toMatch(/Leveled Total\n\$15,751\n/);
     expect(after.match(/^Award /gm)?.length).toBe(2);
     const saved = JSON.parse((await AsyncStorage.getItem('mageid_bid_package_bids')) ?? '[]') as { id: string; normalizedAdjustment?: number; normalizedAdjustmentReason?: string }[];
     const ace = saved.find(b => b.id === 'bid-t7-2');
@@ -163,7 +163,7 @@ describe('bid leveling — a needs-price bid is never a number, and "Nothing ext
     expect(screen.getByTestId('leveling-basis-bid-t7-2').props.children).toBe('Your price');
     const after = lines(tree);
     expect(after).toContain('Nothing extra for Permits');
-    expect(after).toMatch(/Leveled total\n\$15,000\n/);
+    expect(after).toMatch(/Leveled Total\n\$15,000\n/);
     // Award is back, at the bid amount (the Award label and its amount are two text runs).
     expect(after).toMatch(/^Award .*\n\$15,000$/m);
     expect(after.match(/^Award /gm)?.length).toBe(2);
@@ -187,7 +187,7 @@ describe('bid leveling — a needs-price bid is never a number, and "Nothing ext
     await act(async () => { fireEvent.press(screen.getByTestId('bid-amount-save')); });
     await settle();
     expect(asked).toContain('Nothing extra?');
-    expect(asked).not.toContain('Needs an amount');
+    expect(asked).not.toContain('Needs an Amount');
     expect(screen.getByTestId('leveling-basis-bid-t7-2').props.children).toBe('Your price');
     expect(lines(tree)).toMatch(/^Award .*\n\$15,000$/m);
   });

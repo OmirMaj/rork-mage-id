@@ -266,11 +266,11 @@ export default function BuyoutScreen() {
 
   const handleCreatePackage = useCallback(() => {
     if (!project) {
-      showAlert('Pick a project first');
+      showAlert('Pick a Project First');
       return;
     }
     if (!newPkgName.trim()) {
-      showAlert('Add a package name', 'Enter a name like "Plumbing rough-in".');
+      showAlert('Add a Package Name', 'Enter a name like "Plumbing rough-in".');
       return;
     }
     // "12,000" used to read as NaN → 0. US grouping accepted, to the cent. An
@@ -280,7 +280,7 @@ export default function BuyoutScreen() {
     const budgetText = newPkgBudget.trim();
     const parsedBudget = budgetText ? parseBidAmountInput(newPkgBudget) : 0;
     if (parsedBudget == null) {
-      showAlert('Check the budget', `Couldn't read "${budgetText}" as a dollar amount. Type it like 12000 or 12,000.50, or leave it blank.`);
+      showAlert('Check the Budget', `Couldn't read "${budgetText}" as a dollar amount. Type it like 12000 or 12,000.50, or leave it blank.`);
       return;
     }
     const budget = parsedBudget;
@@ -379,7 +379,7 @@ export default function BuyoutScreen() {
       value: (pkg) => BID_PACKAGE_STATUS_LABELS[pkg.status], sortValue: (pkg) => BID_PACKAGE_STATUS_LABELS[pkg.status],
     },
     {
-      key: 'due', label: 'Bids due', width: 150, hideBelow: 1000,
+      key: 'due', label: 'Bids Due', width: 150, hideBelow: 1000,
       // The card shows the chase line only while the package is live.
       sortValue: (pkg) => (rowView(pkg).live ? parseCalendarDay(pkg.dueDate)?.getTime() ?? null : null),
       render: (pkg) => {
@@ -399,7 +399,7 @@ export default function BuyoutScreen() {
       value: (pkg) => {
         const cover = rowView(pkg).cover;
         if (!cover) return null;
-        return cover.invited > 0 ? `${cover.responded}/${cover.invited}` : 'None sent';
+        return cover.invited > 0 ? `${cover.responded}/${cover.invited}` : 'None Sent';
       },
     },
     {
@@ -417,7 +417,7 @@ export default function BuyoutScreen() {
       render: (pkg) => {
         const { budgetAtSell, savings, bids, lowest } = rowView(pkg);
         return budgetAtSell ? (
-          <Text style={[styles.tableCell, { color: themeColors.warningLabel }]} numberOfLines={2}>Budget includes markup — review</Text>
+          <Text style={[styles.tableCell, { color: themeColors.warningLabel }]} numberOfLines={2}>Budget Includes Markup: Review</Text>
         ) : savings != null ? (
           <Text style={[styles.tableCell, styles.tableCellStrong, { color: savings >= 0 ? themeColors.success : themeColors.danger }]} numberOfLines={1}>
             {savings >= 0 ? '+' : ''}{formatMoney(savings)}
@@ -425,7 +425,7 @@ export default function BuyoutScreen() {
         ) : bids.length > 0 ? (
           <Text style={styles.tableCell} numberOfLines={1}>Lowest {formatMoney(lowest)} · {bids.length} in</Text>
         ) : (
-          <Text style={[styles.tableCell, styles.tableCellMuted]} numberOfLines={1}>No bids yet</Text>
+          <Text style={[styles.tableCell, styles.tableCellMuted]} numberOfLines={1}>No Bids Yet</Text>
         );
       },
     },
@@ -443,12 +443,12 @@ export default function BuyoutScreen() {
           and producing a tall blank gap above the project chip row. */}
       <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: 8 }]}>
         <FeatureHeader
-          eyebrow="Sub awards"
-          title="Get your subs to bid"
+          eyebrow="Sub Awards"
+          title="Get Your Subs to Bid"
           subtitle="Send your estimate out for bids and award the best one. Every dollar between your estimate and what you pay is tracked here."
           explainer={{
             term: 'Buyout',
-            definition: 'In construction, "buyout" is the process of taking the bids you got from subcontractors and converting the lowest acceptable one into a signed contract. The difference between what your estimate says that work costs you — before your markup — and the awarded price is your "buyout savings": money you keep on top of the margin you already priced in.',
+            definition: 'In construction, "buyout" is the process of taking the bids you got from subcontractors and converting the lowest acceptable one into a signed contract. The difference between what your estimate says that work costs you, before your markup, and the awarded price is your "buyout savings": money you keep on top of the margin you already priced in.',
             whenToUse: [
               'After your estimate is approved, you\'re ready to start awarding work',
               'You want to track how much you saved (or overspent) by trade',
@@ -482,7 +482,7 @@ export default function BuyoutScreen() {
         {!project ? (
           <View style={styles.emptyState}>
             <Package size={48} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No project selected</Text>
+            <Text style={styles.emptyTitle}>No Project Selected</Text>
             <Text style={styles.emptyDesc}>Pick a project above to see its buyout dashboard.</Text>
           </View>
         ) : (
@@ -491,7 +491,7 @@ export default function BuyoutScreen() {
             <View style={styles.kpiBand}>
               <View style={styles.kpiTile}>
                 <View style={styles.kpiTileTopRow}>
-                  <Text style={styles.kpiLabel}>Bought out</Text>
+                  <Text style={styles.kpiLabel}>Bought Out</Text>
                   {kpi.overdue > 0 && (
                     <View style={styles.kpiAlert}>
                       <AlertTriangle size={11} color="#FFF" strokeWidth={1.75} />
@@ -540,7 +540,7 @@ export default function BuyoutScreen() {
             {/* ── Packages list ────────────────────────────────── */}
             <View style={styles.section}>
               <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>Scope packages</Text>
+                <Text style={styles.sectionTitle}>Scope Packages</Text>
                 {/* Naming the undated packages is the honest half of the
                     OVERDUE badge: "nothing is late" and "nothing has a date to
                     be late against" look identical otherwise. */}
@@ -627,30 +627,30 @@ export default function BuyoutScreen() {
 
                       <View style={styles.pkgBudgetRow}>
                         <View style={styles.pkgBudgetCell}>
-                          <Text style={styles.pkgBudgetLabel}>{budgetAtSell ? 'Budget (incl. markup)' : 'Budget at cost'}</Text>
+                          <Text style={styles.pkgBudgetLabel}>{budgetAtSell ? 'Budget (Incl. Markup)' : 'Budget at Cost'}</Text>
                           <Text style={styles.pkgBudgetValue}>{formatMoney(pkg.estimateBudget)}</Text>
                         </View>
                         {budgetAtSell ? (
                           <View style={styles.pkgBudgetCell}>
-                            <Text style={styles.pkgBudgetLabel}>Buyout savings</Text>
-                            <Text style={[styles.pkgBudgetValue, { color: themeColors.warningLabel }]} numberOfLines={2}>Budget includes markup — review</Text>
+                            <Text style={styles.pkgBudgetLabel}>Buyout Savings</Text>
+                            <Text style={[styles.pkgBudgetValue, { color: themeColors.warningLabel }]} numberOfLines={2}>Budget Includes Markup: Review</Text>
                           </View>
                         ) : savings != null ? (
                           <View style={styles.pkgBudgetCell}>
-                            <Text style={styles.pkgBudgetLabel}>Buyout {savings >= 0 ? 'savings' : 'overrun'}</Text>
+                            <Text style={styles.pkgBudgetLabel}>Buyout {savings >= 0 ? 'Savings' : 'Overrun'}</Text>
                             <Text style={[styles.pkgBudgetValue, { color: savings >= 0 ? themeColors.success : themeColors.danger }]}>
                               {savings >= 0 ? '+' : ''}{formatMoney(savings)}
                             </Text>
                           </View>
                         ) : bids.length > 0 ? (
                           <View style={styles.pkgBudgetCell}>
-                            <Text style={styles.pkgBudgetLabel}>Lowest bid · {bids.length} in</Text>
+                            <Text style={styles.pkgBudgetLabel}>Lowest Bid · {bids.length} in</Text>
                             <Text style={styles.pkgBudgetValue}>{formatMoney(lowest)}</Text>
                           </View>
                         ) : (
                           <View style={styles.pkgBudgetCell}>
-                            <Text style={styles.pkgBudgetLabel}>No bids yet</Text>
-                            <Text style={styles.pkgBudgetValueMuted}>Send RFP →</Text>
+                            <Text style={styles.pkgBudgetLabel}>No Bids Yet</Text>
+                            <Text style={styles.pkgBudgetValueMuted}>Send RFP</Text>
                           </View>
                         )}
                       </View>
@@ -671,7 +671,7 @@ export default function BuyoutScreen() {
               activeOpacity={0.85}
             >
               <Plus size={18} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.fabPrimaryText}>New scope package</Text>
+              <Text style={styles.fabPrimaryText}>New Scope Package</Text>
               <MageAIMark size={12} color="#FFF" />
             </TouchableOpacity>
           </View>
@@ -686,19 +686,19 @@ export default function BuyoutScreen() {
           <SheetScrim frame={fNew} onPress={() => setShowNewPkg(false)} />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fNew.card, fNew.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>New scope package</Text>
+              <Text style={styles.modalTitle}>New Scope Package</Text>
               <TouchableOpacity onPress={() => setShowNewPkg(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               <Text style={styles.fieldLabel}>Name *</Text>
-              <TextInput style={styles.input} value={newPkgName} onChangeText={setNewPkgName} placeholder='e.g. "Plumbing rough-in"' placeholderTextColor={themeColors.textMuted} autoFocus />
+              <TextInput style={styles.input} value={newPkgName} onChangeText={setNewPkgName} placeholder="Plumbing rough-in" placeholderTextColor={themeColors.textMuted} autoFocus />
 
               <Text style={styles.fieldLabel}>Phase</Text>
-              <TextInput style={styles.input} value={newPkgPhase} onChangeText={setNewPkgPhase} placeholder='e.g. "Rough-in", "Finishes"' placeholderTextColor={themeColors.textMuted} />
+              <TextInput style={styles.input} value={newPkgPhase} onChangeText={setNewPkgPhase} placeholder="Rough-in" placeholderTextColor={themeColors.textMuted} />
 
-              <Text style={styles.fieldLabel}>CSI division</Text>
+              <Text style={styles.fieldLabel}>CSI Division</Text>
               {/* All fifty divisions, searchable, with a suggestion derived
                   from what he has already typed — the package name is usually
                   the trade, so the right division is normally one tap. */}
@@ -716,8 +716,8 @@ export default function BuyoutScreen() {
                   and buyout savings are line-item accurate. */}
               {projectEstimateItems.length > 0 && (
                 <>
-                  <Text style={styles.fieldLabel}>Estimate items in this package</Text>
-                  <Text style={styles.fieldHint}>Pick the line items this scope covers — the budget auto-fills from their cost, before your markup.</Text>
+                  <Text style={styles.fieldLabel}>Estimate Items in This Package</Text>
+                  <Text style={styles.fieldHint}>Pick the line items this scope covers. The budget auto-fills from their cost, before your markup.</Text>
                   <View style={styles.itemsList}>
                     {projectEstimateItems.map(item => {
                       const picked = newPkgPickedItemIds.includes(item.materialId);
@@ -758,7 +758,7 @@ export default function BuyoutScreen() {
                         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 5 }}>
                           <AlertTriangle size={Type.caption1.fontSize} color={themeColors.accent} strokeWidth={2} />
                           <Text style={[styles.allowanceNote, { flex: 1 }]}>
-                            {allowanceCount} allowance item{allowanceCount === 1 ? '' : 's'} included — awarding will lock to firm price.
+                            {allowanceCount} allowance item{allowanceCount === 1 ? '' : 's'} included. Awarding will lock to firm price.
                           </Text>
                         </View>
                       )}
@@ -767,11 +767,11 @@ export default function BuyoutScreen() {
                 </>
               )}
 
-              <Text style={styles.fieldLabel}>Budget at cost</Text>
+              <Text style={styles.fieldLabel}>Budget at Cost</Text>
               <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='Fills from selected items, or type an amount' placeholderTextColor={themeColors.textMuted} keyboardType="decimal-pad" testID="buyout-budget-at-cost" />
               <Text style={styles.fieldHint}>
                 {newPkgPickedItemIds.length > 0
-                  ? `What this work costs you — your sell subtotal for it is ${formatMoney(pickedSellSubtotal)}. Buyout savings are measured against cost, so your markup never counts as money saved.`
+                  ? `What this work costs you. Your sell subtotal for it is ${formatMoney(pickedSellSubtotal)}. Buyout savings are measured against cost, so your markup never counts as money saved.`
                   : 'What this work costs you, before your markup. Buyout savings are measured against it.'}
               </Text>
 
@@ -780,20 +780,20 @@ export default function BuyoutScreen() {
                   deadline — because no screen in the app asked when the number
                   was wanted. A sub who has a busy week reads thirty days and
                   files it. */}
-              <Text style={styles.fieldLabel}>Bids due</Text>
+              <Text style={styles.fieldLabel}>Bids Due</Text>
               <TouchableOpacity
                 style={styles.dueField}
                 onPress={() => setShowDuePicker(true)}
                 activeOpacity={0.8}
                 testID="buyout-due-date"
                 accessibilityRole="button"
-                accessibilityLabel={newPkgDueDate ? `Bids due ${formatCalendarDay(newPkgDueDate)}. Change` : 'Set the date bids are due'}
+                accessibilityLabel={newPkgDueDate ? `Bids due ${formatCalendarDay(newPkgDueDate)}. Change` : 'Set the Date Bids Are Due'}
               >
                 <Calendar size={16} color={newPkgDueDate ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={[styles.dueFieldText, !newPkgDueDate && { color: themeColors.textMuted }]}>
                   {newPkgDueDate
                     ? formatCalendarDay(newPkgDueDate, { weekday: 'short', month: 'short', day: 'numeric' })
-                    : 'Pick a date'}
+                    : 'Pick a Date'}
                 </Text>
                 {!!newPkgDueDate && (
                   <Text style={styles.dueFieldHint}>{bidDueLabel(newPkgDueDate, Date.now())}</Text>
@@ -834,12 +834,12 @@ export default function BuyoutScreen() {
                   : 'Optional, but without it nothing can tell you a package is late: the invite only says the link expires in 30 days, which is not a deadline.'}
               </Text>
 
-              <Text style={styles.tip}>You'll add bids on the next screen — by voice or by hand.</Text>
+              <Text style={styles.tip}>You'll add bids on the next screen, by voice or by hand.</Text>
             </ScrollView>
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleCreatePackage} activeOpacity={0.85}>
                 <Save size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.saveBtnText}>Create package</Text>
+                <Text style={styles.saveBtnText}>Create Package</Text>
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>

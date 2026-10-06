@@ -123,21 +123,21 @@ function LivingEstimateInner() {
 
   if (!project) {
     if (!projectsLoaded) {
-      return <View style={{ flex: 1, backgroundColor: t.bg }} testID="living-estimate-loading-projects"><Stack.Screen options={{ title: 'Living estimate' }} /></View>;
+      return <View style={{ flex: 1, backgroundColor: t.bg }} testID="living-estimate-loading-projects"><Stack.Screen options={{ title: 'Living Estimate' }} /></View>;
     }
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Living estimate' }} />
+        <Stack.Screen options={{ title: 'Living Estimate' }} />
         {noEstimateAnywhere ? (
           <EmptyState
             icon={<Activity size={36} color={t.accent} strokeWidth={1.6} />}
-            title="No estimate yet"
+            title="No Estimate Yet"
             message="The living estimate recomputes your projected margin as change orders, buyout and actual costs land. None of your projects has an estimate with lines yet. To see one:"
             steps={[
               'Build an estimate with markup so there is a margin to track.',
               'Approve a change order or log a sub commitment and watch it move.',
             ]}
-            actionLabel="Build an estimate"
+            actionLabel="Build an Estimate"
             onAction={() => router.push('/estimate-wizard' as never)}
           />
         ) : (
@@ -145,7 +145,7 @@ function LivingEstimateInner() {
             {candidates.length > 0 && (
               <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
                 <EstimateJobPicker
-                  label="Track another project"
+                  label="Track Another Project"
                   jobs={candidates}
                   selectedId={projectId}
                   onPick={(id) => router.setParams({ projectId: id })}
@@ -155,7 +155,7 @@ function LivingEstimateInner() {
             )}
             <EmptyState
               icon={<Activity size={36} color={t.accent} strokeWidth={1.6} />}
-              title="Project not found"
+              title="Project Not Found"
               message={'This link points to a project that isn\u2019t on this device any more. Pick a project above, or go back.'}
               actionLabel="Back"
               onAction={() => router.back()}
@@ -185,7 +185,7 @@ function LivingEstimateInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Living estimate · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Living Estimate · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -206,7 +206,7 @@ function LivingEstimateInner() {
             style={styles.loading}
             testID="living-estimate-loading"
             accessibilityRole="progressbar"
-            accessibilityLabel="Loading crew hours and receipts"
+            accessibilityLabel="Loading Crew Hours and Receipts"
           >
             <ActivityIndicator size="small" color={t.accent} />
             <Text style={styles.loadingText}>Loading crew hours and receipts before projecting margin…</Text>
@@ -214,7 +214,7 @@ function LivingEstimateInner() {
         ) : !snapshot?.hasMarginBasis ? (
           <View style={styles.basisCard}>
             <MageAIMark size={28} color={t.accent} />
-            <Text style={styles.basisTitle}>Add markup to track live margin</Text>
+            <Text style={styles.basisTitle}>Add Markup to Track Live Margin</Text>
             <Text style={styles.basisBody}>
               This project&apos;s estimate doesn&apos;t carry a cost-and-markup split, so
               there&apos;s no bid margin to recompute against. Open the estimate, apply
@@ -226,7 +226,7 @@ function LivingEstimateInner() {
               onPress={() => router.push({ pathname: '/job-costing', params: { projectId: project.id } } as any)}
               activeOpacity={0.85}
             >
-              <Text style={styles.basisBtnText}>Open job costing</Text>
+              <Text style={styles.basisBtnText}>Open Job Costing</Text>
               <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
@@ -235,7 +235,7 @@ function LivingEstimateInner() {
             {/* Hero — projected margin */}
             <View style={[styles.hero, { borderColor: healthColor }]}>
               <View style={styles.heroTopRow}>
-                <Text style={styles.heroLabel}>Projected margin at completion</Text>
+                <Text style={styles.heroLabel}>Projected Margin at Completion</Text>
                 <View style={[styles.healthChip, { backgroundColor: healthColor + '22' }]}>
                   {health === 'critical' || laborGap ? (
                     <AlertTriangle size={13} color={healthColor} strokeWidth={1.75} />
@@ -245,7 +245,7 @@ function LivingEstimateInner() {
                     <TrendingUp size={13} color={healthColor} strokeWidth={1.75} />
                   )}
                   <Text style={[styles.healthChipText, { color: healthColor }]}>
-                    {health === 'critical' ? 'At risk' : health === 'watch' ? 'Watch' : laborGap ? 'Labor unpriced' : 'On track'}
+                    {health === 'critical' ? 'At Risk' : health === 'watch' ? 'Watch' : laborGap ? 'Labor Unpriced' : 'On Track'}
                   </Text>
                 </View>
               </View>
@@ -280,7 +280,7 @@ function LivingEstimateInner() {
               >
                 <AlertTriangle size={15} color={t.warningLabel} strokeWidth={1.75} />
                 <Text style={styles.unpricedText}>
-                  {unpricedLaborLine(unpriced.hours)} Set labor rates →
+                  {unpricedLaborLine(unpriced.hours)} Set labor rates
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -289,7 +289,7 @@ function LivingEstimateInner() {
             <View style={styles.compareCard}>
               <View style={styles.compareHeaderRow}>
                 <Text style={[styles.compareCol, styles.compareColLabel]} />
-                <Text style={[styles.compareCol, styles.compareColHead]}>As bid</Text>
+                <Text style={[styles.compareCol, styles.compareColHead]}>As Bid</Text>
                 <Text style={[styles.compareCol, styles.compareColHead]}>Projected</Text>
               </View>
               <CompareRow label="Revenue" original={snapshot.original.revenue} projected={snapshot.projected.revenue} t={t} styles={styles} />
@@ -301,7 +301,7 @@ function LivingEstimateInner() {
             {/* Drivers — what moved margin off the bid */}
             {snapshot.drivers.length > 0 && (
               <>
-                <Text style={styles.sectionTitle}>What moved your margin</Text>
+                <Text style={styles.sectionTitle}>What Moved Your Margin</Text>
                 <View style={styles.driversCard}>
                   {snapshot.drivers.map((d, i) => {
                     const up = d.marginImpact >= 0;
@@ -329,8 +329,8 @@ function LivingEstimateInner() {
               <View style={styles.upsideCard}>
                 <MageAIMark size={16} color={t.info} />
                 <Text style={styles.upsideText}>
-                  <Text style={styles.upsideStrong}>{money(snapshot.pendingChangeOrders)}</Text> in pending change orders
-                  — not yet booked into the projection.
+                  <Text style={styles.upsideStrong}>{money(snapshot.pendingChangeOrders)}</Text> in pending change orders,
+                  not yet booked into the projection.
                 </Text>
               </View>
             )}
@@ -350,7 +350,7 @@ function LivingEstimateInner() {
               activeOpacity={0.8}
             >
               <ShieldAlert size={16} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.linkRowText}>Score this project&apos;s margin risk</Text>
+              <Text style={styles.linkRowText}>Score This Project&apos;s Margin Risk</Text>
               <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
 
@@ -359,7 +359,7 @@ function LivingEstimateInner() {
               onPress={() => router.push({ pathname: '/job-costing', params: { projectId: project.id } } as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.linkRowText}>Open job costing for phase detail</Text>
+              <Text style={styles.linkRowText}>Open Job Costing for Phase Detail</Text>
               <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </>

@@ -164,7 +164,7 @@ console.log('\n#132/#136 a paid draw shows PAID however it was paid');
   ok('the contract screen never writes the invoiced link itself (that stays the editor\'s, on creation)', !/markMilestoneInvoiced\(/.test(CONTRACT));
 
   ok('the pill and the "Paid — already on an invoice" line read the derived state',
-    /const isPaid = paidByInvoices \?\? milestone\.status === 'paid';/.test(CONTRACT) && /isPaid\s+\? \{ bg: themeColors\.success/.test(CONTRACT) && /\{isPaid \? 'Paid' : 'Billed'\} — already on an invoice/.test(CONTRACT));
+    /const isPaid = paidByInvoices \?\? milestone\.status === 'paid';/.test(CONTRACT) && /isPaid\s+\? \{ bg: themeColors\.success/.test(CONTRACT) && /\{isPaid \? 'Paid' : 'Billed'\}, already on an invoice/.test(CONTRACT));
   ok('the screen passes each row the invoice-derived answer, from EFFECTIVE status',
     /paidByInvoices=\{paidMilestoneIds\.has\(m\.id\)\}/.test(CONTRACT) && /paid: getEffectiveInvoiceStatus\(inv\) === 'paid',/.test(CONTRACT));
   ok('the open-time repair runs the live read-verify-write, never a queued schedule array',

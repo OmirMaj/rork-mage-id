@@ -237,7 +237,7 @@ export default function RfpResponsesReviewScreen() {
         ? data.homeownerEmail : null;
       const carried = joinItems(awardCarriedItems(rfp ?? {}, priceTextFor(response.bid_amount)));
       showAlert(
-        'Project awarded',
+        'Project Awarded',
         `${company} has been notified. ${carried.charAt(0).toUpperCase()}${carried.slice(1)} ${carried.includes(' and ') ? 'are' : 'is'} on their new project.\n\n`
           + (email
             ? `They'll set up your project portal and send the link to ${email}.`
@@ -272,12 +272,12 @@ export default function RfpResponsesReviewScreen() {
           onPress: () => {
             // Second, distinct confirmation naming the exact commitment.
             showAlert(
-              'Confirm award',
+              'Confirm Award',
               amountText
                 ? `Award this project to ${companyName} for ${amountText}? Every other bid will be declined and this cannot be undone.`
                 : `Award this project to ${companyName}? Every other bid will be declined and this cannot be undone.`,
               [
-                { text: 'Go back', style: 'cancel' },
+                { text: 'Go Back', style: 'cancel' },
                 {
                   text: amountText ? `Award ${amountText}` : 'Award',
                   style: 'destructive',
@@ -319,13 +319,13 @@ export default function RfpResponsesReviewScreen() {
         </TouchableOpacity>
       )}
       <TouchableOpacity style={styles.backCta} onPress={() => router.back()} accessibilityRole="button">
-        <Text style={styles.backCtaText}>Go back</Text>
+        <Text style={styles.backCtaText}>Go Back</Text>
       </TouchableOpacity>
     </View>
   );
 
   if (!bidId) {
-    return renderState('Couldn’t open that link', 'It is missing a project reference. Open the post again from My RFPs.');
+    return renderState('Couldn’t Open That Link', 'It is missing a project reference. Open the post again from My RFPs.');
   }
   if (!isSupabaseConfigured) {
     return renderState('Couldn\'t load this RFP', 'MAGE ID can\'t reach its server from this build, so the bids can\'t be loaded.');
@@ -343,7 +343,7 @@ export default function RfpResponsesReviewScreen() {
     return renderState('Sign in to review bids', 'Only the homeowner who posted this RFP can review its bids. Sign in with that account.');
   }
   if (!rfp && (headerFailed || headerFetch === 'paused')) {
-    return renderState('Couldn\'t load this RFP — check your connection', 'Nothing was lost. Try again when you have signal.', { retry: true });
+    return renderState('Couldn\'t Load This RFP', 'Check your connection. Nothing was lost. Try again when you have signal.', { retry: true });
   }
   if (rfp === undefined) {
     return (
@@ -371,7 +371,7 @@ export default function RfpResponsesReviewScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Bids received</Text>
+          <Text style={styles.eyebrow}>Bids Received</Text>
           <Text style={styles.title} numberOfLines={2}>{rfp?.title ?? 'Loading…'}</Text>
         </View>
       </View>
@@ -415,8 +415,8 @@ export default function RfpResponsesReviewScreen() {
         {responsesLoadFailed && (
           <View style={styles.emptyCard} testID="rfp-review-bids-error">
             <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>Couldn&apos;t load the bids</Text>
-            <Text style={styles.emptyBody}>Check your connection. Nothing was lost — any bid on this post is still here.</Text>
+            <Text style={styles.emptyTitle}>Couldn&apos;t Load the Bids</Text>
+            <Text style={styles.emptyBody}>Check your connection. Nothing was lost. Any bid on this post is still here.</Text>
             <TouchableOpacity
               style={[styles.retryCta, responsesFetching && { opacity: 0.5 }]}
               onPress={() => { void refetch(); }}
@@ -433,7 +433,7 @@ export default function RfpResponsesReviewScreen() {
         {!isLoading && !responsesLoadFailed && responses !== undefined && sortedResponses.length === 0 && (
           <View style={styles.emptyCard}>
             <Inbox size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No bids yet</Text>
+            <Text style={styles.emptyTitle}>No Bids Yet</Text>
             <Text style={styles.emptyBody}>
               {/* Was "Contractors near you will see your project and start
                   submitting bids" — with browsing off and no contractor
@@ -443,7 +443,7 @@ export default function RfpResponsesReviewScreen() {
                 ? `${prePostReachNotice(RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED) ?? ''} New bids show up here automatically.`
                 : RFP_BROWSE_ENABLED
                 ? 'MAGE ID alerted contractors who cover your area, and your post is listed for contractors browsing nearby projects. My RFPs shows how many were alerted. New bids show up here automatically.'
-                : 'Only MAGE ID contractors who cover your area are alerted — browsing posted projects isn\'t open yet. My RFPs shows how many were alerted, including if that is none. New bids show up here automatically.'}
+                : 'Only MAGE ID contractors who cover your area are alerted. Browsing posted projects isn\'t open yet. My RFPs shows how many were alerted, including if that is none. New bids show up here automatically.'}
             </Text>
           </View>
         )}
@@ -551,7 +551,7 @@ export default function RfpResponsesReviewScreen() {
                       disabled={isBusy}
                     >
                       <Star size={13} color={themeColors.textMuted} strokeWidth={1.75} />
-                      <Text style={[styles.actionBtnText, { color: themeColors.textMuted }]}>Remove from shortlist</Text>
+                      <Text style={[styles.actionBtnText, { color: themeColors.textMuted }]}>Remove from Shortlist</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
@@ -578,7 +578,7 @@ export default function RfpResponsesReviewScreen() {
 
               {isDeclined && !isAwarded && (
                 <TouchableOpacity style={styles.undeclineRow} onPress={() => updateStatus(r.id, 'submitted')}>
-                  <Text style={styles.undeclineText}>Restore this bid</Text>
+                  <Text style={styles.undeclineText}>Restore This Bid</Text>
                 </TouchableOpacity>
               )}
             </View>

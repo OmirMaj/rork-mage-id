@@ -10,7 +10,7 @@ exports[`lane H — components (golden, 390 phone) ContactPickerModal, open 1`] 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) area-takeoff 1`] = `
 {
   "lines": 370,
-  "sha256": "8e4a5454940447f17640618846af2d44a9ab6a988253b514909e843faddf0139",
+  "sha256": "53535d5217487f96e5489185be360d85c2232c432a524be5ca7c86f0dc0f65b0",
 }
 `;
 
@@ -24,21 +24,21 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) construction
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) contract (signature sheets) 1`] = `
 {
   "lines": 926,
-  "sha256": "d5fdbb5b1520a331140b5c450e8e057143c566dfbfd9c6e10ba4f06ac5add878",
+  "sha256": "a18969f7699d0328fcba2d5e3cf938bac035ec877dc8ae7324b8154a1b79b16b",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) cost-seed 1`] = `
 {
   "lines": 454,
-  "sha256": "efd2d4109ffe84756ceb0793b7d37e4f112f6754edc988bd48f9b2e5cbd39750",
+  "sha256": "e621856242ae2ef70dcb0559b96bdbc078c82fdb113206042df58ece65118099",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) cost-xray 1`] = `
 {
   "lines": 389,
-  "sha256": "227ab4602c824ed386ef103d241d5af24bc6c60f3d71c623bc3fc32042c4086b",
+  "sha256": "dc67eb4fa7817cae7ffa89cd5c754dcae1ea8ee4d05813a83d34f5f3556f549b",
 }
 `;
 
@@ -73,14 +73,14 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) equipment 1`
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) estimate/full (dialogs and forms) 1`] = `
 {
   "lines": 3899,
-  "sha256": "b2eee1917921218d9bb2b4622c203b1164b332cff503cf038f1e494ce54275d2",
+  "sha256": "bf5671642368b4103bf2ceda1ffc4c3dfe04b63b79b57826069a05a4a6b254bc",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) estimate/review 1`] = `
 {
   "lines": 637,
-  "sha256": "4c706fc2deb1ed88f5f7e97a3a0fd8129fa5963d6cfe9622ec8f2714a5b8f82a",
+  "sha256": "89782268004e625c2ee62929a84c640e7797becb89e2dd7ea0902b80ad394fad",
 }
 `;
 
@@ -115,7 +115,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) job-costing 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) judges 1`] = `
 {
   "lines": 449,
-  "sha256": "af9822face4825686be0f7ecf8ea7de57802046d1370b7979282ea4146c906fb",
+  "sha256": "7bca37478045d55146e5ef1f1bcc534bf5ed7564b88c006a99e1a18395138846",
 }
 `;
 
@@ -129,14 +129,14 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) last-planner
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) mage-id-bids 1`] = `
 {
   "lines": 500,
-  "sha256": "f1f4ed4eb6269e0cc93cc60a5020677acedcdc9e9d27d499892e9f6a83a5c63c",
+  "sha256": "d20c275029ca686e069e0f83e9634b5b94e26f1d83abd8003be170f34d43ff49",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) marketplace 1`] = `
 {
   "lines": 1176,
-  "sha256": "a8ef8c86c03d807cd1b7b5c83c0308d2553effda627a2344712ce2f9de7d899a",
+  "sha256": "d8109a02dedc6cd525b7259509e7210bcd568e5a212d793b328ea4fbc04af301",
 }
 `;
 
@@ -157,7 +157,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) permits 1`] 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) prequal-manager 1`] = `
 {
   "lines": 426,
-  "sha256": "b2fd3cc323dc3ebdc3cf9b43ad4d583143afa4c0f147ed9048751810763dfc4a",
+  "sha256": "ba7a73eb9c1e47ae334252d9722e2eb1399a575549f3b098275566d7b4620bbb",
 }
 `;
 
@@ -248,7 +248,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) scan 1`] = `
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) selections 1`] = `
 {
   "lines": 851,
-  "sha256": "8ced011de097464909c550358a154f25295073de01b310fee6168f748612648a",
+  "sha256": "cbfb74c3904e335d89e2d5d8627dffe117372ab32481226c26cf4fcaf7cc869d",
 }
 `;
 

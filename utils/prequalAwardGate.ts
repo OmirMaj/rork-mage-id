@@ -69,14 +69,14 @@ export function prequalAwardLeg(
       // the insurance itself from the vault.
       const exp = packet.expiresAt ? new Date(DATE_ONLY.test(packet.expiresAt) ? `${packet.expiresAt}T00:00:00Z` : packet.expiresAt).getTime() : NaN;
       if (Number.isFinite(exp) && exp <= nowMs) {
-        notes.push(`${subName}'s prequal approval lapsed${dayLabel(packet.expiresAt) ? ` on ${dayLabel(packet.expiresAt)}` : ''} — send a renewal from Prequal.`);
+        notes.push(`${subName}'s prequal approval lapsed${dayLabel(packet.expiresAt) ? ` on ${dayLabel(packet.expiresAt)}` : ''}. Send a renewal from Prequal.`);
       }
       break;
     }
     case 'draft':
     case 'invited':
     case 'in_progress':
-      notes.push(`Prequal sent to ${subName}, not yet submitted — pending, not a failure.`);
+      notes.push(`Prequal sent to ${subName}, not yet submitted. Pending, not a failure.`);
       break;
     case 'submitted': {
       notes.push(`${subName}'s prequal is awaiting your review in Prequal.`);
@@ -86,16 +86,16 @@ export function prequalAwardLeg(
       break;
     }
     case 'needs_changes':
-      notes.push(`You sent ${subName}'s prequal back for changes${onText}${withNote(packet.reviewerNotes)} — not resubmitted yet.`);
+      notes.push(`You sent ${subName}'s prequal back for changes${onText}${withNote(packet.reviewerNotes)}. Not resubmitted yet.`);
       break;
     case 'rejected':
       blockers.push(`You rejected ${subName}'s prequal${onText}${withNote(packet.reviewerNotes)}.`);
       break;
     case 'expired':
-      notes.push(`${subName}'s prequal has expired — send a renewal from Prequal.`);
+      notes.push(`${subName}'s prequal has expired. Send a renewal from Prequal.`);
       break;
     default:
-      notes.push(`${subName}'s prequal is in an unrecognised state ("${String(packet.status)}") — open it in Prequal.`);
+      notes.push(`${subName}'s prequal is in an unrecognised state ("${String(packet.status)}"). Open it in Prequal.`);
   }
   return { blockers, notes };
 }

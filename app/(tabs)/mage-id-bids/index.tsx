@@ -221,7 +221,7 @@ export default function MageIdBidsTabScreen() {
 
   const renderBrowseCard = useCallback((r: BrowseWithDistance) => {
     const heroPhoto = (r.photo_urls && r.photo_urls.length > 0) ? r.photo_urls[0] : null;
-    const distanceText = r.distance != null ? `${r.distance.toFixed(1)} mi away` : 'Distance unknown';
+    const distanceText = r.distance != null ? `${r.distance.toFixed(1)} mi away` : 'Distance Unknown';
     const deadline = new Date(r.deadline);
     const daysLeft = Math.floor((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     return (
@@ -242,11 +242,11 @@ export default function MageIdBidsTabScreen() {
                 a map. Not an ownership or identity check, so a map pin, never
                 a shield (Phase 0 honesty pass, 2026-09-23). */}
             {r.address_verified ? (
-              <View style={styles.verifyDot} accessible accessibilityLabel="Address found on map">
+              <View style={styles.verifyDot} accessible accessibilityLabel="Address Found on Map">
                 <MapPin size={10} color={Colors.textSecondary} strokeWidth={1.75} />
               </View>
             ) : (
-              <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]} accessible accessibilityLabel="Address not found on map">
+              <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]} accessible accessibilityLabel="Address Not Found on Map">
                 <MapPinOff size={10} color={Colors.warningLabel} strokeWidth={1.75} />
               </View>
             )}
@@ -272,7 +272,7 @@ export default function MageIdBidsTabScreen() {
             <View style={[styles.footChip, daysLeft < 3 ? { backgroundColor: Colors.error + '15' } : null]}>
               <Clock size={11} color={daysLeft < 3 ? Colors.dangerLabel : Colors.textMuted} strokeWidth={1.75} />
               <Text style={[styles.footChipText, daysLeft < 3 ? { color: Colors.dangerLabel } : null]}>
-                {daysLeft <= 0 ? 'Closing today' : `${daysLeft}d left`}
+                {daysLeft <= 0 ? 'Closing Today' : `${daysLeft}d left`}
               </Text>
             </View>
             <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
@@ -329,13 +329,13 @@ export default function MageIdBidsTabScreen() {
                 project" CTA. Two lines, so it never truncates at any dynamic
                 type size. Type stays Type.serifHeadline (test:type-identity). */}
             <Text style={styles.title} numberOfLines={2}>
-              {mode === 'browse' ? 'Projects near you' : 'Your posted projects'}
+              {mode === 'browse' ? 'Projects Near You' : 'Your Posted Projects'}
             </Text>
           </View>
         </View>
         <TouchableOpacity style={styles.postCta} onPress={handlePost} activeOpacity={0.85} testID="mageid-bids-post">
           <Plus size={14} color="#FFF" strokeWidth={1.75} />
-          <Text style={styles.postCtaText}>Post project</Text>
+          <Text style={styles.postCtaText}>Post Project</Text>
         </TouchableOpacity>
       </View>
 
@@ -382,7 +382,7 @@ export default function MageIdBidsTabScreen() {
         >
           <Layers size={13} color={mode === 'mine' ? Colors.primary : Colors.textMuted} strokeWidth={1.75} />
           <Text style={[styles.segmentText, mode === 'mine' && styles.segmentTextActive]}>
-            My posts{myStats.total > 0 ? ` · ${myStats.total}` : ''}
+            My Posts{myStats.total > 0 ? ` · ${myStats.total}` : ''}
           </Text>
           {myStats.unread > 0 && (
             <View style={styles.unreadDot}>
@@ -396,7 +396,7 @@ export default function MageIdBidsTabScreen() {
           read as a bug or as an empty radius. */}
       {!RFP_BROWSE_ENABLED && (
         <Text style={styles.browseNote} testID="mageid-bids-browse-note">
-          Browsing other people&apos;s projects isn&apos;t open yet — nothing is being
+          Browsing other people&apos;s projects isn&apos;t open yet. Nothing is being
           searched, so this is not about your location or radius. Posting a project
           and reviewing the bids it collects both work now.
         </Text>
@@ -448,7 +448,7 @@ export default function MageIdBidsTabScreen() {
               testID="mageid-bids-nearby-map"
             >
               <MapPin size={13} color={Colors.primary} strokeWidth={1.75} />
-              <Text style={styles.mapBtnText}>Map view</Text>
+              <Text style={styles.mapBtnText}>Map View</Text>
               <ChevronRight size={12} color={Colors.primary} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
@@ -484,16 +484,16 @@ export default function MageIdBidsTabScreen() {
           <View style={styles.emptyCard}>
             <AlertTriangle size={28} color={themeColors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>
-              {mode === 'browse' ? "Couldn't load nearby projects" : "Couldn't load your posts"}
+              {mode === 'browse' ? "Couldn't Load Nearby Projects" : "Couldn't Load Your Posts"}
             </Text>
             <Text style={styles.emptyBody}>
               {mode === 'mine'
-                ? 'Nothing has been deleted — this is a failed request, not an empty list. Try again in a moment.'
+                ? 'Nothing has been deleted. This is a failed request, not an empty list. Try again in a moment.'
                 : 'Try again in a moment.'}
               {queryError instanceof Error && queryError.message ? `\n\n${queryError.message}` : ''}
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={() => { void refetch(); }} testID="mageid-bids-retry">
-              <Text style={styles.bigCtaText}>Try again</Text>
+              <Text style={styles.bigCtaText}>Try Again</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -502,7 +502,7 @@ export default function MageIdBidsTabScreen() {
         {mode === 'browse' && !isLoading && !queryError && filteredBrowse.length === 0 && locationUnknownBrowse.length === 0 && (
           <View style={styles.emptyCard}>
             <Inbox size={28} color={Colors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
+            <Text style={styles.emptyTitle}>No Projects Within {radius} miles yet</Text>
             <Text style={styles.emptyBody}>
               {!location
                 ? 'Clients post remodel and new-build RFPs here for contractors to bid on. Allow location access or widen your radius to see what\'s near you.'
@@ -523,7 +523,7 @@ export default function MageIdBidsTabScreen() {
             <View style={styles.unknownHeader}>
               <MapPin size={12} color={Colors.textMuted} strokeWidth={1.75} />
               <Text style={styles.unknownHeaderText}>
-                Location unknown · {locationUnknownBrowse.length}
+                Location Unknown · {locationUnknownBrowse.length}
               </Text>
             </View>
             <Text style={styles.unknownHint}>
@@ -537,7 +537,7 @@ export default function MageIdBidsTabScreen() {
         {mode === 'mine' && !user && (
           <View style={styles.emptyCard}>
             <Inbox size={28} color={Colors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>Sign in to see your posts</Text>
+            <Text style={styles.emptyTitle}>Sign In to See Your Posts</Text>
             <Text style={styles.emptyBody}>
               Sign in or create an account, then post your project to start collecting bids.
             </Text>
@@ -549,11 +549,11 @@ export default function MageIdBidsTabScreen() {
             <Hammer size={28} color={Colors.primary} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>You haven&apos;t posted anything yet</Text>
             <Text style={styles.emptyBody}>
-              Post your first project. We alert MAGE ID contractors who cover your area and show you how many that was — including if that is none.
+              Post your first project. We alert MAGE ID contractors who cover your area and show you how many that was, including if that is none.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={handlePost}>
               <Plus size={14} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.bigCtaText}>Post a project</Text>
+              <Text style={styles.bigCtaText}>Post a Project</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -566,7 +566,7 @@ export default function MageIdBidsTabScreen() {
             <View style={styles.statDiv} />
             <Stat label="Awarded" value={String(myStats.awarded)} accent={myStats.awarded > 0 ? themeColors.success : undefined} styles={styles} />
             <View style={styles.statDiv} />
-            <Stat label="New bids" value={String(myStats.unread)} accent={myStats.unread > 0 ? themeColors.accent : undefined} styles={styles} />
+            <Stat label="New Bids" value={String(myStats.unread)} accent={myStats.unread > 0 ? themeColors.accent : undefined} styles={styles} />
           </View>
         )}
 

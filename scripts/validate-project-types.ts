@@ -4,7 +4,7 @@
 // sure what category that would go under here". His live "piping" job is typed
 // plumbing, but its scope answer reads "Bathroom Remodel": the "What kind of
 // project?" chips had no trade jobs and no way out, the wizard seeded the raw
-// id 'plumbing' (which lit no chip), and the AI was then told "Project type:
+// id 'plumbing' (which lit no chip), and the AI was then told "Project Type:
 // Bathroom Remodel" and grounded Tile level with Plumbing.
 //
 // What this pins:
@@ -145,7 +145,7 @@ for (const [s, want] of [
   ['Whole-house repipe', 'plumbing'], ['PEX repipe', 'plumbing'], ['Copper repipe', 'plumbing'], ['Re-pipe the house', 'plumbing'],
   ['piping', 'plumbing'], ['Sewer line replacement', 'plumbing'],
   ['Rewire', 'electrical'], ['Whole house rewire', 'electrical'], ['Panel upgrade', 'electrical'], ['Service upgrade to 200A', 'electrical'],
-  ['Kitchen remodel with new plumbing', 'remodel'], ['Hardwood flooring', 'flooring'], ['Exterior paint', 'painting'], ['Driveway', 'concrete'],
+  ['Kitchen Remodel with new plumbing', 'remodel'], ['Hardwood flooring', 'flooring'], ['Exterior paint', 'painting'], ['Driveway', 'concrete'],
   ['Flooring', 'flooring'], ['plumbing', 'plumbing'], ['new_build', 'new_build'], ['Landscaping', 'landscape'], ['Renovation', 'renovation'],
 ] as const) ok(`"${s}" → ${want}`, map(s).type === want && map(s).projectTypeOther === undefined, JSON.stringify(map(s)));
 ok('"Bathroom tile" is NOT commercial any more (the old " ti" substring bug)', map('Bathroom tile job').type !== 'commercial' && oldMapProjectType('Bathroom tile job') === 'commercial');
@@ -252,7 +252,7 @@ const RAW: Array<[string, RegExp]> = [
   ['utils/copilot/estimate/estimateGrounding.ts', /`, \$\{project\.type\}`/],
   // Fix round 1 (review): the sites the investigation's list missed.
   ['app/scope-sheet.tsx', /\{project\.type \|\| 'Project'\}/],
-  ['utils/scopeSheet.ts', /Project type: \$\{project\.type/],
+  ['utils/scopeSheet.ts', /Project Type: \$\{project\.type/],
   ['utils/permitRoadmap.ts', /PROJECT TYPE: \$\{project\.type/],
   ['app/budget-dashboard.tsx', /for a \$\{project\.type\} project/],
   ['utils/profitLeak/scopeSummary.ts', /meta\.push\(String\(project\.type\)\)/],
@@ -308,7 +308,7 @@ const row = code(read('components/ProjectRow.tsx'));
 const card = code(read('components/ProjectCard.tsx'));
 ok('job list (row + card): an Other job shows his words, with a wrench icon', /project\.type === 'other' \? \(/.test(row) && /projectTypeLabel\(project\)/.test(row) && /project\.type === 'other' \? projectTypeLabel\(project\) : 'Project'/.test(card) && /other: 'Wrench'/.test(row) && /other: 'Wrench'/.test(card));
 const stepper = code(read('components/ScopeQuestionStepper.tsx'));
-ok('scope stepper: an Other chip whose box is capped at the column', /Other \(describe it\)/.test(stepper) && /maxLength=\{SCOPE_TYPE_OTHER_MAX\}/.test(stepper) && sq.SCOPE_TYPE_OTHER_MAX === PROJECT_TYPE_OTHER_MAX);
+ok('scope stepper: an Other chip whose box is capped at the column', /Other \(Describe It\)/.test(stepper) && /maxLength=\{SCOPE_TYPE_OTHER_MAX\}/.test(stepper) && sq.SCOPE_TYPE_OTHER_MAX === PROJECT_TYPE_OTHER_MAX);
 
 // ── H. voice and copilot pickers ─────────────────────────────────────────────
 // Review: the copilot interview and both voice parsers still forced a closed

@@ -50,7 +50,7 @@ export function estimateGaps(draft: EstimateDraft, grounding: Grounding): Gap[] 
     gaps.push({
       field: 'quality', impact: 0.6, kind: 'choice',
       question: 'What finish level should I price this at?',
-      groundedDefault: { value: 'standard', basis: 'no quality set on the project — assuming standard' },
+      groundedDefault: { value: 'standard', basis: 'no quality set on the project, assuming standard' },
       choices: QUALITY_CHOICES,
     });
   }
@@ -60,8 +60,8 @@ export function estimateGaps(draft: EstimateDraft, grounding: Grounding): Gap[] 
     gaps.push({
       field: 'sizeSqft', impact: 0.5, kind: 'number',
       question: 'About how many square feet is the work area?',
-      groundedDefault: { value: 200, basis: 'no size on file — rough it in, refine on the grid' },
-      placeholder: 'e.g. 250',
+      groundedDefault: { value: 200, basis: 'no size on file, rough it in, refine on the grid' },
+      placeholder: '250',
     });
   }
 
@@ -75,7 +75,7 @@ export function estimateGaps(draft: EstimateDraft, grounding: Grounding): Gap[] 
     gaps.push({
       field: 'markupPct', impact: 0.45, kind: 'choice',
       question: 'What markup do you want on this?',
-      groundedDefault: { value: null, basis: 'No markup on file — MAGE won’t guess what you charge.', source: 'assumed' },
+      groundedDefault: { value: null, basis: 'No markup on file. MAGE won’t guess what you charge.', source: 'assumed' },
       choices: MARKUP_CHOICES.map((n) => ({ label: `${n}%`, value: n })),
     });
   }

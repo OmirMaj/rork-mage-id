@@ -50,7 +50,7 @@ export interface TakeoffPageInspectorProps {
 
 const CATEGORY_META: Record<RelatedRow['category'], { Icon: React.ComponentType<{ size?: number; color?: string }>; label: string }> = {
   walls: { Icon: Ruler, label: 'Wall' },
-  floorAreas: { Icon: Square, label: 'Floor area' },
+  floorAreas: { Icon: Square, label: 'Floor Area' },
   doors: { Icon: DoorOpen, label: 'Door' },
   windows: { Icon: AppWindow, label: 'Window' },
   finishes: { Icon: Paintbrush, label: 'Finish' },
@@ -168,11 +168,11 @@ function TakeoffPageInspectorImpl({
             ) : null}
           </View>
           <View style={styles.zoomGroup}>
-            <TouchableOpacity onPress={() => setZoom(z => Math.max(0.5, z - 0.25))} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Zoom out">
+            <TouchableOpacity onPress={() => setZoom(z => Math.max(0.5, z - 0.25))} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Zoom Out">
               <ZoomOut size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
             <Text style={styles.zoomText}>{Math.round(zoom * 100)}%</Text>
-            <TouchableOpacity onPress={() => setZoom(z => Math.min(3, z + 0.25))} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Zoom in">
+            <TouchableOpacity onPress={() => setZoom(z => Math.min(3, z + 0.25))} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Zoom In">
               <ZoomIn size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
@@ -217,13 +217,13 @@ function TakeoffPageInspectorImpl({
                 <TouchableOpacity
                   style={[styles.pageNav, styles.pageNavLeft]}
                   onPress={() => goPage(-1)}
-                  hitSlop={8} accessibilityRole="button" accessibilityLabel="Previous sheet">
+                  hitSlop={8} accessibilityRole="button" accessibilityLabel="Previous Sheet">
                   <ChevronLeft size={20} color="#FFF" strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.pageNav, styles.pageNavRight]}
                   onPress={() => goPage(1)}
-                  hitSlop={8} accessibilityRole="button" accessibilityLabel="Next sheet">
+                  hitSlop={8} accessibilityRole="button" accessibilityLabel="Next Sheet">
                   <ChevronRight size={20} color="#FFF" strokeWidth={1.75} />
                 </TouchableOpacity>
                 <View style={styles.pagePill}>
@@ -238,7 +238,7 @@ function TakeoffPageInspectorImpl({
           {/* Sidebar — related takeoff rows from this page */}
           <View style={[styles.sidebar, isWide && styles.sidebarWide]}>
             <Text style={styles.sidebarTitle}>
-              From this sheet ({relatedRows.length})
+              From This Sheet ({relatedRows.length})
             </Text>
             <Text style={styles.sidebarHelper}>
               Every quantity MAGE read from sheet {activePage}.

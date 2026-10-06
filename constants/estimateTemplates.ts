@@ -17,8 +17,8 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     id: 'tpl-kitchen-standard',
     name: 'Kitchen Remodel (Standard)',
     category: 'remodel',
-    description: 'Standard kitchen renovation — new cabinets, countertops, flooring, lighting, paint',
-    priceRange: '$25K–$40K',
+    description: 'Standard kitchen renovation: new cabinets, countertops, flooring, lighting, paint',
+    priceRange: '$25K to $40K',
     defaultSqft: 150,
     assemblies: [
       { assemblyId: 'asm-demo-interior', defaultQuantity: 150, unit: 'SF' },
@@ -35,8 +35,8 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     id: 'tpl-kitchen-upscale',
     name: 'Kitchen Remodel (Upscale)',
     category: 'remodel',
-    description: 'High-end kitchen — custom cabinets, quartz counters, tile backsplash, premium appliance prep',
-    priceRange: '$50K–$80K',
+    description: 'High-end kitchen: custom cabinets, quartz counters, tile backsplash, premium appliance prep',
+    priceRange: '$50K to $80K',
     defaultSqft: 200,
     assemblies: [
       { assemblyId: 'asm-demo-interior', defaultQuantity: 200, unit: 'SF' },
@@ -55,8 +55,8 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     id: 'tpl-bathroom-standard',
     name: 'Bathroom Remodel (Standard)',
     category: 'remodel',
-    description: 'Standard bathroom — new tile, vanity, toilet, tub/shower surround, paint',
-    priceRange: '$10K–$20K',
+    description: 'Standard bathroom: new tile, vanity, toilet, tub/shower surround, paint',
+    priceRange: '$10K to $20K',
     defaultSqft: 60,
     assemblies: [
       { assemblyId: 'asm-demo-interior', defaultQuantity: 60, unit: 'SF' },
@@ -72,8 +72,8 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     id: 'tpl-bathroom-upscale',
     name: 'Bathroom Remodel (Upscale)',
     category: 'remodel',
-    description: 'High-end bathroom — heated floor, frameless shower, double vanity, premium tile',
-    priceRange: '$25K–$45K',
+    description: 'High-end bathroom: heated floor, frameless shower, double vanity, premium tile',
+    priceRange: '$25K to $45K',
     defaultSqft: 90,
     assemblies: [
       { assemblyId: 'asm-demo-interior', defaultQuantity: 90, unit: 'SF' },
@@ -111,7 +111,7 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     name: 'Deck Build (Composite 300SF)',
     category: 'decking',
     description: 'Ground-level composite deck with railing and stairs',
-    priceRange: '$15K–$25K',
+    priceRange: '$15K to $25K',
     defaultSqft: 300,
     assemblies: [
       { assemblyId: 'asm-deck-composite', defaultQuantity: 300, unit: 'SF' },
@@ -122,7 +122,7 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     name: 'Deck Build (PT Wood 300SF)',
     category: 'decking',
     description: 'Ground-level pressure-treated wood deck with railing',
-    priceRange: '$8K–$15K',
+    priceRange: '$8K to $15K',
     defaultSqft: 300,
     assemblies: [
       { assemblyId: 'asm-deck-wood', defaultQuantity: 300, unit: 'SF' },
@@ -132,8 +132,8 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     id: 'tpl-roof-replacement',
     name: 'Roof Replacement (Shingles)',
     category: 'roofing',
-    description: 'Tear-off and replace asphalt shingle roof — typical 2000SF home (~20 squares)',
-    priceRange: '$8K–$15K',
+    description: 'Tear-off and replace asphalt shingle roof, typical 2000SF home (~20 squares)',
+    priceRange: '$8K to $15K',
     defaultSqft: 2000,
     assemblies: [
       { assemblyId: 'asm-shingle-roof', defaultQuantity: 20, unit: 'SQ' },
@@ -143,8 +143,8 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     id: 'tpl-interior-paint',
     name: 'Interior Paint (Whole House)',
     category: 'painting',
-    description: 'Paint entire home interior — walls and ceilings, 2 coats',
-    priceRange: '$3K–$6K',
+    description: 'Paint entire home interior: walls and ceilings, 2 coats',
+    priceRange: '$3K to $6K',
     defaultSqft: 2000,
     assemblies: [
       { assemblyId: 'asm-paint-interior', defaultQuantity: 5000, unit: 'SF' },
@@ -155,7 +155,7 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     name: 'Privacy Fence (150 LF)',
     category: 'fencing',
     description: '6ft wood privacy fence around typical backyard with one gate',
-    priceRange: '$4K–$8K',
+    priceRange: '$4K to $8K',
     defaultSqft: 0,
     assemblies: [
       { assemblyId: 'asm-fence-privacy', defaultQuantity: 150, unit: 'LF' },
@@ -166,7 +166,7 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     name: 'Siding Replacement (Vinyl)',
     category: 'siding',
     description: 'Replace siding on typical 1500SF home exterior with vinyl',
-    priceRange: '$8K–$15K',
+    priceRange: '$8K to $15K',
     defaultSqft: 1500,
     assemblies: [
       { assemblyId: 'asm-vinyl-siding', defaultQuantity: 15, unit: 'SQ' },
@@ -176,8 +176,8 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
     id: 'tpl-room-addition',
     name: 'Room Addition (200SF)',
     category: 'addition',
-    description: 'Single room addition — foundation, framing, roofing, insulation, drywall, electrical, HVAC',
-    priceRange: '$40K–$80K',
+    description: 'Single room addition: foundation, framing, roofing, insulation, drywall, electrical, HVAC',
+    priceRange: '$40K to $80K',
     defaultSqft: 200,
     assemblies: [
       { assemblyId: 'asm-concrete-slab', defaultQuantity: 200, unit: 'SF' },

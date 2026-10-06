@@ -439,7 +439,7 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
 
       {props.showScaleStrip ? (
         <View style={styles.strip} pointerEvents="none" testID="takeoffws-scale-strip">
-          <Text style={styles.stripText}>Set the scale first — press K, click both ends of a known dimension, type the length.</Text>
+          <Text style={styles.stripText}>Set the scale first: press K, click both ends of a known dimension, type the length.</Text>
         </View>
       ) : null}
 
@@ -466,11 +466,11 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
       </View>
 
       <View style={styles.zoom} testID="takeoffws-zoom">
-        <Pressable onPress={props.onZoomOut} style={styles.zoomBtn} accessibilityRole="button" accessibilityLabel="Zoom out (-)">
+        <Pressable onPress={props.onZoomOut} style={styles.zoomBtn} accessibilityRole="button" accessibilityLabel="Zoom Out (-)">
           <Text style={styles.zoomText}>−</Text>
         </Pressable>
         <Text style={styles.zoomPct} testID="takeoffws-zoom-pct">{`${Math.round(view.scale * 100)}%`}</Text>
-        <Pressable onPress={props.onZoomIn} style={styles.zoomBtn} accessibilityRole="button" accessibilityLabel="Zoom in (+)">
+        <Pressable onPress={props.onZoomIn} style={styles.zoomBtn} accessibilityRole="button" accessibilityLabel="Zoom In (+)">
           <Text style={styles.zoomText}>+</Text>
         </Pressable>
         <Pressable onPress={props.onFit} style={styles.fitBtn} accessibilityRole="button" accessibilityLabel="Fit (0)">

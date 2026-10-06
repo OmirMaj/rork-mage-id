@@ -154,7 +154,7 @@ console.log('\napp/company-profile.tsx');
   ok('#133: usePreventRemove holds him on the screen while text is unsaved',
     /import \{ usePreventRemove \} from '@react-navigation\/native';/.test(src)
     && /usePreventRemove\(dirty, \(\{ data \}\) =>/.test(src)
-    && /'Keep editing'/.test(src) && /navigation\.dispatch\(data\.action\)/.test(src)
+    && /'Keep Editing'/.test(src) && /navigation\.dispatch\(data\.action\)/.test(src)
     && /handleSave\(\); navigation\.dispatch\(data\.action\)/.test(src));
   ok('#133: a blur exit (web sidebar / another tab) asks through a focus-effect cleanup',
     /useFocusEffect\(\s*useCallback\(\(\) => \{[\s\S]*?return \(\) => \{[\s\S]*?if \(!guard\.dirty \|\| leavingRef\.current\) return;/.test(src));

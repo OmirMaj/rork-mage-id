@@ -78,7 +78,7 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
     <View style={styles.card} testID={testID ?? 'bid-hit-scoreboard'}>
       <View style={styles.head}>
         <View style={styles.headIcon}><Target size={15} color={colors.accent} strokeWidth={1.75} /></View>
-        <Text style={styles.headTitle}>Your bid-hit scoreboard</Text>
+        <Text style={styles.headTitle}>Your Bid-Hit Scoreboard</Text>
       </View>
 
       <View style={styles.row}>
@@ -87,7 +87,7 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
             <Trophy size={13} color={colors.text} strokeWidth={1.75} />
             <Text style={styles.statValue}>{pct != null ? `${pct}%` : '—'}</Text>
           </View>
-          <Text style={styles.statLabel}>Win rate</Text>
+          <Text style={styles.statLabel}>Win Rate</Text>
         </View>
         <View style={styles.div} />
         <View style={styles.stat}>
@@ -95,7 +95,7 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
             <TrendingUp size={13} color={colors.text} strokeWidth={1.75} />
             <Text style={styles.statValue}>{stats.won}/{stats.won + stats.lost}</Text>
           </View>
-          <Text style={styles.statLabel}>Won / decided</Text>
+          <Text style={styles.statLabel}>Won / Decided</Text>
         </View>
         <View style={styles.div} />
         <View style={styles.stat}>
@@ -103,13 +103,13 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
             <Clock size={13} color={colors.text} strokeWidth={1.75} />
             <Text style={styles.statValue}>{respLabel}</Text>
           </View>
-          <Text style={styles.statLabel}>Median response</Text>
+          <Text style={styles.statLabel}>Median Response</Text>
         </View>
       </View>
 
       {pct != null ? (
         <Text style={styles.benchmark}>
-          {stats.won} of {decided} decided bid{decided === 1 ? '' : 's'} won. Your own record — MAGE has no industry benchmark to hold it against.
+          {stats.won} of {decided} decided bid{decided === 1 ? '' : 's'} won. This is your own record. MAGE has no industry benchmark to hold it against.
         </Text>
       ) : decided > 0 ? (
         <Text style={styles.benchmark}>

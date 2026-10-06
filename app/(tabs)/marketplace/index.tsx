@@ -117,7 +117,7 @@ export default function MarketplaceScreen() {
           </View>
           <View style={styles.supplierInfo}>
             <Text style={styles.supplierName} numberOfLines={1}>{item.companyName}</Text>
-            <Text style={styles.sampleTag}>Sample supplier · not a real business</Text>
+            <Text style={styles.sampleTag}>Sample Supplier · Not a Real Business</Text>
           </View>
           <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
@@ -173,7 +173,7 @@ export default function MarketplaceScreen() {
           {item.inStock && (
             <View style={styles.stockBadge}>
               <CheckCircle size={10} color={themeColors.success} strokeWidth={1.75} />
-              <Text style={styles.stockText}>In stock</Text>
+              <Text style={styles.stockText}>In Stock</Text>
             </View>
           )}
         </View>
@@ -255,7 +255,7 @@ export default function MarketplaceScreen() {
                   in the app built from his real records. */}
               <View style={styles.previewBanner} testID="marketplace-sample-banner">
                 <Text style={styles.previewLabel}>
-                  Sample catalog
+                  Sample Catalog
                 </Text>
                 <Text style={styles.previewBody}>
                   Every supplier, price and stock level here is an example. None of them is a real business or a MAGE ID member, and nothing on this screen contacts anyone.
@@ -266,7 +266,7 @@ export default function MarketplaceScreen() {
                   testID="marketplace-real-suppliers"
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
-                  <Text style={styles.previewLink}>Your real suppliers, graded from your deliveries →</Text>
+                  <Text style={styles.previewLink}>Your real suppliers, graded from your deliveries</Text>
                 </TouchableOpacity>
               </View>
 
@@ -361,7 +361,7 @@ export default function MarketplaceScreen() {
             {viewMode === 'suppliers' && filteredSuppliers.length === 0 && (
               <View style={styles.emptyState}>
                 <Store size={40} color={themeColors.textMuted} strokeWidth={1.75} />
-                <Text style={styles.emptyTitle}>No suppliers match yet</Text>
+                <Text style={styles.emptyTitle}>No Suppliers Match Yet</Text>
                 <Text style={styles.emptyDesc}>
                   Clear the search, switch the category, or open the Products tab.
                 </Text>
@@ -370,7 +370,7 @@ export default function MarketplaceScreen() {
             {viewMode === 'listings' && filteredListings.length === 0 && (
               <View style={styles.emptyState}>
                 <MageMaterials size={40} color={themeColors.textMuted} />
-                <Text style={styles.emptyTitle}>No products match yet</Text>
+                <Text style={styles.emptyTitle}>No Products Match Yet</Text>
                 <Text style={styles.emptyDesc}>
                   Try a broader category, clear the search, or open the Suppliers tab.
                 </Text>
@@ -406,7 +406,7 @@ export default function MarketplaceScreen() {
                 <View style={styles.supplierDetailAvatar}>
                   <Store size={32} color={themeColors.accent} strokeWidth={1.75} />
                 </View>
-                <Text style={styles.sampleTag}>Sample supplier · not a real business</Text>
+                <Text style={styles.sampleTag}>Sample Supplier · Not a Real Business</Text>
                 <Text style={styles.supplierDetailDesc}>{selectedSupplier.description}</Text>
               </View>
 
@@ -500,7 +500,7 @@ export default function MarketplaceScreen() {
                       {selectedListing.inStock && (
                         <View style={styles.popupStockBadge}>
                           <CheckCircle size={10} color={themeColors.success} strokeWidth={1.75} />
-                          <Text style={styles.popupStockText}>In stock</Text>
+                          <Text style={styles.popupStockText}>In Stock</Text>
                         </View>
                       )}
                     </View>
@@ -557,7 +557,7 @@ export default function MarketplaceScreen() {
                   )}
 
                   <View style={styles.popupTotalRow}>
-                    <Text style={styles.popupTotalLabel}>Sample total</Text>
+                    <Text style={styles.popupTotalLabel}>Sample Total</Text>
                     <Text style={styles.popupTotalValue}>${orderTotal.toFixed(2)}</Text>
                   </View>
 

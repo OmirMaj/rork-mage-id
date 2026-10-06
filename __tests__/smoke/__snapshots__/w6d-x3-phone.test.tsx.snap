@@ -52,7 +52,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 118,
   "modals": 1,
-  "sha256": "0665fb2bea962ac2669bf35b57662eacd5399ea5f747e5cf950c955bfeb932c8",
+  "sha256": "ab211b22bb13634e6f1500aab595e8b8d2e85710c378196380db78abc9968e0f",
 }
 `;
 
@@ -60,7 +60,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 118,
   "modals": 1,
-  "sha256": "aa339c0fa8c718c5c1e2ba65bdc2106be95abdf77ecd8149689e35c7e9a570f6",
+  "sha256": "a161585e296b1b08067989d586fe5459ee7cf87e033ee2938c399e8537695b07",
 }
 `;
 
@@ -84,7 +84,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 204,
   "modals": 2,
-  "sha256": "c1b3ff4bb2ba057e1fdac79b157b0238a57c0c3ee0d5cc3805d872b6f19e11e6",
+  "sha256": "28374ee8cbcc07de51372dd18d9a5829813a7a7fb8822e9816b725e98206dfe0",
 }
 `;
 
@@ -92,7 +92,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 204,
   "modals": 2,
-  "sha256": "1fa2d50851c50e98eef56d8a422c396c8b51f673eb68a21c5fdfda33e907aa6e",
+  "sha256": "22bade06ecfec67137da89208ce6969fc2a1029c6c1d6c15a326115003494e60",
 }
 `;
 
@@ -164,7 +164,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 36,
   "modals": 1,
-  "sha256": "dd54c9bb8f0e1c568e1fadc8e964aedd5a38667976df5d33baf471cc7bd9e346",
+  "sha256": "97e7d10cf0d5e6345202ffb908daaeabfa7383ecf47c6a7c26f1b0fd65e32b64",
 }
 `;
 
@@ -172,7 +172,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 36,
   "modals": 1,
-  "sha256": "6c63e239b299ddb5ecce8a4d15833ec958c3f5f43ff1898fad943404c30f85b0",
+  "sha256": "4ce34f646a32baf8773b7ebb9edba6779dad268b5b5753e831eae84d8bbf7484",
 }
 `;
 
@@ -180,7 +180,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 60,
   "modals": 1,
-  "sha256": "b071bab9c10a229deba18618007e7e7bc19234b593d00d99ac2fe618c06a5594",
+  "sha256": "44de245fcc36f05885798ea9f0ee04159340242aa55fd173ee202feab2834cf0",
 }
 `;
 
@@ -188,7 +188,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 60,
   "modals": 1,
-  "sha256": "62196dfac9f0b76a8f1afe29ab632b1eb0b680cb00ab70bf17666a6d5bafe1d3",
+  "sha256": "bdc737ce17c4cd13690ac7766819c27e1317a7be978d82b941767fcb33837127",
 }
 `;
 
@@ -244,7 +244,7 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 120,
   "modals": 1,
-  "sha256": "aace8fdca5c96889480168456d7caa8ac05b361d5588899f892ab7c4e647fe4e",
+  "sha256": "8d216a58cb3d25aa0651093fdc6fc861130ba2d9c9bbaeacdb1ae79b675a1406",
 }
 `;
 
@@ -252,6 +252,6 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 {
   "lines": 120,
   "modals": 1,
-  "sha256": "28583fc640b7f8c17830ee19bca9efbd0a522b78e3803362b13514eb0ea328bb",
+  "sha256": "74c29b5be0315ae23c4a92f8e8388cd964a283e13d1aa67377c08ad8a2f785af",
 }
 `;

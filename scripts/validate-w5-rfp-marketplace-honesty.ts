@@ -7,7 +7,7 @@
 //        copy before Post, in the posted alert and in My RFPs. Both flag states
 //        are executed here (validate-rfp-marketplace-honesty pins only the
 //        matching-live wording and is run-only for this wave).
-//   #16  Pre-priced Bids said "Priced in your numbers" but history (keyed on
+//   #16  Pre-priced Bids said "Priced in Your Numbers" but history (keyed on
 //        Project.type) could never meet an opportunity (keyed on
 //        public_bids.category), the "cost" was the job's sell price, and the
 //        markup was a fixed 18% described as "your usual".
@@ -153,10 +153,10 @@ ok('the markup is his saved one only when markupDecided, else assumed',
   /const markupAssumed = markupDecided !== true \|\| !Number\.isFinite\(globalMarkup\);/.test(screen)
   && /const typicalMarkup = markupAssumed \? ASSUMED_MARKUP : globalMarkup \/ 100;/.test(screen)
   && /typicalMarkup,\s+markupAssumed,/.test(screen));
-ok('"Priced in your numbers" only when some row used his history',
+ok('"Priced in Your Numbers" only when some row used his history',
   /const anyHistory = priced\.some\(\(b\) => b\.basis === 'your_history'\);/.test(screen)
-  && /\{anyHistory \? 'Priced in your numbers' : 'Priced off posted budgets'\}/.test(screen)
-  && (screen.match(/Priced in your numbers/g) ?? []).length === 1);
+  && /\{anyHistory \? 'Priced in Your Numbers' : 'Priced Off Posted Budgets'\}/.test(screen)
+  && (screen.match(/Priced in Your Numbers/g) ?? []).length === 1);
 ok('the footnote and InfoBubble say budget-based pricing when there is no history, naming the markup',
   /Priced off each client's posted budget at \$\{markupPhrase\}\. Close projects to teach MAGE your costs\./.test(screen)
   && /an assumed \$\{pct\(typicalMarkup\)\} markup/.test(screen)

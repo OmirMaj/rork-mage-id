@@ -149,7 +149,7 @@ console.log('defs');
 {
   const byId = new Map<string, TutorialDef>(LANE_A_DEFS.map(d => [d.id, d]));
   const spec: [string, string, string, number, string, string[]][] = [
-    ['estimate-first', 'Price a job from a scope', 'A priced estimate saved on the sample job', 45, 'bid', []],
+    ['estimate-first', 'Price a Job from a Scope', 'A priced estimate saved on the sample job', 45, 'bid', []],
     ['change-order-draft', 'Write a change order', 'A draft change order with its price and days', 40, 'money', ['change_orders_invoicing']],
     ['field-ticket-log', 'Log extra work on a field ticket', 'An unsigned ticket you can price or sign later', 35, 'site', ['change_orders_invoicing']],
   ];

@@ -61,7 +61,7 @@ export default function CompanyDetailScreen() {
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'Company' }} />
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Company not found</Text>
+          <Text style={styles.errorText}>Company Not Found</Text>
         </View>
       </View>
     );
@@ -96,12 +96,12 @@ export default function CompanyDetailScreen() {
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Shield size={20} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.statLabel}>Bond capacity</Text>
+            <Text style={styles.statLabel}>Bond Capacity</Text>
             <Text style={styles.statValue}>{formatCurrency(company.bondCapacity)}</Text>
           </View>
           <View style={styles.statCard}>
             <Building2 size={20} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.statLabel}>Projects done</Text>
+            <Text style={styles.statLabel}>Projects Done</Text>
             <Text style={styles.statValue}>{company.completedProjects}</Text>
           </View>
           {company.yearEstablished && (
@@ -127,7 +127,7 @@ export default function CompanyDetailScreen() {
 
         {company.certifications.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Certifications and designations</Text>
+            <Text style={styles.sectionTitle}>Certifications and Designations</Text>
             <View style={styles.certGrid}>
               {company.certifications.map(certId => {
                 const info = CERTIFICATIONS.find(c => c.id === certId);
@@ -146,7 +146,7 @@ export default function CompanyDetailScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Eligible bids</Text>
+            <Text style={styles.sectionTitle}>Eligible Bids</Text>
             <View style={styles.countBadge}>
               <Text style={styles.countText}>{eligibleBids.length}</Text>
             </View>
@@ -179,7 +179,7 @@ export default function CompanyDetailScreen() {
           <View style={styles.contactActions}>
             <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(buildMailtoUrl({
               to: company.contactEmail,
-              subject: `Quick question — ${company.companyName}`,
+              subject: `Quick question: ${company.companyName}`,
               body: [`Hi ${company.companyName},`, '', '', ...mailSignOff()],
             }))}>
               <Mail size={16} color="#FFF" strokeWidth={1.75} />

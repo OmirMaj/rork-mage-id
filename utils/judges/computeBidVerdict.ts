@@ -104,7 +104,7 @@ export function computeBidVerdict(input: BidVerdictInput): BidVerdict {
       key: 'capacity', weight: 0.35, score: clamp01(1 - load),
       polarity: load >= 0.6 ? 'negative' : 'positive',
       detail: input.capacity.bookedSolid
-        ? `You're booked ~${Math.round(load * 100)}% in this window — squeezing it in risks your other jobs.`
+        ? `You're booked ~${Math.round(load * 100)}% in this window. Squeezing it in risks your other jobs.`
         : load >= 0.6
           ? `This window is getting tight (${Math.round(load * 100)}% booked).`
           : `You have room in this window (${Math.round(load * 100)}% booked).`,
@@ -143,7 +143,7 @@ export function computeBidVerdict(input: BidVerdictInput): BidVerdict {
     kind: 'cost_confidence',
     polarity: conf.level === 'low' ? 'negative' : 'positive',
     weight: 0,
-    detail: `Cost confidence is ${conf.level} — ${Math.round(conf.coveragePct * 100)}% of this scope is priced from your own history`
+    detail: `Cost confidence is ${conf.level}: ${Math.round(conf.coveragePct * 100)}% of this scope is priced from your own history`
       + (conf.seededCoveragePct > 0
         // Named separately and never added to the history figure. "You set
         // this" and "we measured this" are different claims.
@@ -160,15 +160,15 @@ export function computeBidVerdict(input: BidVerdictInput): BidVerdict {
   if (topCal) drivers.push({ kind: 'calibration', polarity: topCal.direction === 'under' ? 'negative' : 'positive', weight: 0, detail: topCal.detail });
 
   const disclaimers: string[] = [];
-  if (trueCost <= 0) disclaimers.push('No scope to price yet — add line items or describe the job.');
-  else if (conf.coveragePct < 0.5) disclaimers.push('Based on your bid assumptions, not yet your history — this sharpens as you close jobs.');
+  if (trueCost <= 0) disclaimers.push('No scope to price yet. Add line items or describe the job.');
+  else if (conf.coveragePct < 0.5) disclaimers.push('Based on your bid assumptions, not yet your history. This sharpens as you close jobs.');
   // Say it out loud whenever a stated rate is carrying real weight. The number
   // is better than a generic guess, but it is still the contractor's own claim.
   if (trueCost > 0 && conf.seededCoveragePct >= 0.1) {
-    disclaimers.push(`${Math.round(conf.seededCoveragePct * 100)}% of this scope is priced from rates you set yourself — your numbers, but nothing here has measured them yet. Closing jobs replaces them.`);
+    disclaimers.push(`${Math.round(conf.seededCoveragePct * 100)}% of this scope is priced from rates you set yourself: your numbers, but nothing here has measured them yet. Closing jobs replaces them.`);
   }
   if (trueCost > 0 && unpricedCount > 0) {
-    disclaimers.push(`${unpricedCount} line${unpricedCount === 1 ? ' has' : 's have'} no price yet and ${unpricedCount === 1 ? 'is' : 'are'} excluded from the total — price ${unpricedCount === 1 ? 'it' : 'them'} before relying on this number.`);
+    disclaimers.push(`${unpricedCount} line${unpricedCount === 1 ? ' has' : 's have'} no price yet and ${unpricedCount === 1 ? 'is' : 'are'} excluded from the total. Price ${unpricedCount === 1 ? 'it' : 'them'} before relying on this number.`);
   }
 
   const verdict: Verdict = trueCost <= 0 ? 'walk' : fitScore >= 70 ? 'take' : fitScore >= 45 ? 'hold_firm' : 'walk';

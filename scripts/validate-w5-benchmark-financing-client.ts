@@ -113,7 +113,7 @@ const publicIndexCopy = load<(a: { publicOptIn: boolean | null; unreadable: bool
   [liftFunction(hookSrc, 'publicIndexCopy')], 'publicIndexCopy');
 {
   const onEmpty = publicIndexCopy({ publicOptIn: true, unreadable: false, ratesOnFile: 0, publishableCount: 0 });
-  ok('#79: On with nothing on file says "nothing to count yet"', /^On — nothing to count yet/.test(onEmpty), onEmpty);
+  ok('#79: On with nothing on file says "nothing to count yet"', /^On\. Nothing to count yet/.test(onEmpty), onEmpty);
   ok('…and does not claim his rates are helping build the index', !/help build/.test(onEmpty), onEmpty);
   const onRates = publicIndexCopy({ publicOptIn: true, unreadable: false, ratesOnFile: 4, publishableCount: 4 });
   ok('On with measured rates says they are kept for the index', /measured rates are kept for the public price index/.test(onRates) && !/nothing to count/.test(onRates), onRates);

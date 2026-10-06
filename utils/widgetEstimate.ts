@@ -67,73 +67,73 @@ export interface WidgetProjectType {
  */
 export const WIDGET_PROJECT_TYPES: WidgetProjectType[] = [
   {
-    id: 'kitchen_remodel', label: 'Kitchen remodel', measure: 'kitchen floor area',
+    id: 'kitchen_remodel', label: 'Kitchen Remodel', measure: 'kitchen floor area',
     rateLow: 180, rateLikely: 300, rateHigh: 475,
     typicalSizeSqft: 180, minSizeSqft: 60, maxSizeSqft: 800,
     floorTotal: 14000, sizeExponent: 0.88,
   },
   {
-    id: 'bathroom_remodel', label: 'Bathroom remodel', measure: 'bathroom floor area',
+    id: 'bathroom_remodel', label: 'Bathroom Remodel', measure: 'bathroom floor area',
     rateLow: 220, rateLikely: 380, rateHigh: 600,
     typicalSizeSqft: 60, minSizeSqft: 25, maxSizeSqft: 300,
     floorTotal: 9000, sizeExponent: 0.85,
   },
   {
-    id: 'whole_home_remodel', label: 'Whole-home remodel', measure: 'finished area being remodeled',
+    id: 'whole_home_remodel', label: 'Whole-Home Remodel', measure: 'finished area being remodeled',
     rateLow: 95, rateLikely: 165, rateHigh: 260,
     typicalSizeSqft: 2000, minSizeSqft: 600, maxSizeSqft: 12000,
     floorTotal: 60000, sizeExponent: 0.93,
   },
   {
-    id: 'home_addition', label: 'Home addition', measure: 'new conditioned area',
+    id: 'home_addition', label: 'Home Addition', measure: 'new conditioned area',
     rateLow: 180, rateLikely: 275, rateHigh: 420,
     typicalSizeSqft: 600, minSizeSqft: 100, maxSizeSqft: 5000,
     floorTotal: 40000, sizeExponent: 0.92,
   },
   {
-    id: 'new_construction', label: 'New home construction', measure: 'conditioned area',
+    id: 'new_construction', label: 'New Home Construction', measure: 'conditioned area',
     rateLow: 165, rateLikely: 260, rateHigh: 400,
     typicalSizeSqft: 2400, minSizeSqft: 500, maxSizeSqft: 15000,
     floorTotal: 150000, sizeExponent: 0.95,
   },
   {
-    id: 'adu', label: 'ADU / garage conversion', measure: 'ADU floor area',
+    id: 'adu', label: 'ADU / Garage Conversion', measure: 'ADU floor area',
     rateLow: 200, rateLikely: 320, rateHigh: 480,
     typicalSizeSqft: 700, minSizeSqft: 200, maxSizeSqft: 1500,
     floorTotal: 60000, sizeExponent: 0.9,
   },
   {
-    id: 'basement_finish', label: 'Basement finish', measure: 'basement floor area',
+    id: 'basement_finish', label: 'Basement Finish', measure: 'basement floor area',
     rateLow: 45, rateLikely: 85, rateHigh: 145,
     typicalSizeSqft: 900, minSizeSqft: 200, maxSizeSqft: 4000,
     floorTotal: 15000, sizeExponent: 0.9,
   },
   {
-    id: 'deck_patio', label: 'Deck or patio', measure: 'deck / patio area',
+    id: 'deck_patio', label: 'Deck or Patio', measure: 'deck / patio area',
     rateLow: 30, rateLikely: 60, rateHigh: 110,
     typicalSizeSqft: 350, minSizeSqft: 60, maxSizeSqft: 2500,
     floorTotal: 4500, sizeExponent: 0.9,
   },
   {
-    id: 'roof_replacement', label: 'Roof replacement', measure: 'roof area (≈ footprint × 1.2)',
+    id: 'roof_replacement', label: 'Roof Replacement', measure: 'roof area (≈ footprint × 1.2)',
     rateLow: 5.5, rateLikely: 9.5, rateHigh: 17,
     typicalSizeSqft: 2200, minSizeSqft: 400, maxSizeSqft: 20000,
     floorTotal: 6500, sizeExponent: 0.94,
   },
   {
-    id: 'siding_replacement', label: 'Siding replacement', measure: 'wall area being resided',
+    id: 'siding_replacement', label: 'Siding Replacement', measure: 'wall area being resided',
     rateLow: 7, rateLikely: 13, rateHigh: 24,
     typicalSizeSqft: 1800, minSizeSqft: 300, maxSizeSqft: 15000,
     floorTotal: 6000, sizeExponent: 0.94,
   },
   {
-    id: 'flooring', label: 'Flooring replacement', measure: 'floor area',
+    id: 'flooring', label: 'Flooring Replacement', measure: 'floor area',
     rateLow: 5, rateLikely: 11, rateHigh: 20,
     typicalSizeSqft: 900, minSizeSqft: 100, maxSizeSqft: 8000,
     floorTotal: 2500, sizeExponent: 0.92,
   },
   {
-    id: 'commercial_ti', label: 'Commercial tenant improvement', measure: 'leased area',
+    id: 'commercial_ti', label: 'Commercial Tenant Improvement', measure: 'leased area',
     rateLow: 55, rateLikely: 110, rateHigh: 200,
     typicalSizeSqft: 3000, minSizeSqft: 400, maxSizeSqft: 60000,
     floorTotal: 35000, sizeExponent: 0.93,
@@ -152,10 +152,10 @@ export const WIDGET_QUALITY_MULTIPLIERS: Record<WidgetQuality, number> = {
 };
 
 export const WIDGET_QUALITY_LABELS: Record<WidgetQuality, string> = {
-  budget: 'Budget — keep it simple, stock finishes',
-  standard: 'Standard — mid-range finishes',
-  premium: 'Premium — high-end finishes',
-  luxury: 'Luxury — custom, no compromises',
+  budget: 'Budget: Keep It Simple, Stock Finishes',
+  standard: 'Standard: Mid-Range Finishes',
+  premium: 'Premium: High-End Finishes',
+  luxury: 'Luxury: Custom, No Compromises',
 };
 
 /** Regional cost factors outside this band are almost certainly a bad input. */
@@ -410,7 +410,7 @@ export function estimateWidgetRange(input: WidgetEstimateInput): WidgetEstimate 
   const quality: WidgetQuality = parsedQuality ?? 'standard';
   if (!parsedQuality) {
     widen += WIDEN_NO_QUALITY;
-    assumptions.push('Assumed mid-range finishes — premium or custom work runs meaningfully higher.');
+    assumptions.push('Assumed mid-range finishes. Premium or custom work runs meaningfully higher.');
   }
 
   // ── region ──
@@ -420,10 +420,10 @@ export function estimateWidgetRange(input: WidgetEstimateInput): WidgetEstimate 
   const regionFactor = regionKnown ? clamp(rawRegion, REGION_FACTOR_MIN, REGION_FACTOR_MAX) : 1;
   if (!regionKnown) {
     widen += WIDEN_NO_REGION;
-    assumptions.push('Priced at national average labor and material costs — no location given.');
+    assumptions.push('Priced at national average labor and material costs. No location given.');
   } else if (regionFactor !== rawRegion) {
     assumptions.push(
-      `Regional factor clamped to ${regionFactor.toFixed(2)} — anything outside ${REGION_FACTOR_MIN}–${REGION_FACTOR_MAX} is outside what this model can defend.`,
+      `Regional factor clamped to ${regionFactor.toFixed(2)}. Anything outside ${REGION_FACTOR_MIN}–${REGION_FACTOR_MAX} is outside what this model can defend.`,
     );
     widen += WIDEN_NO_REGION;
   } else if (regionFactor !== 1) {
@@ -451,7 +451,7 @@ export function estimateWidgetRange(input: WidgetEstimateInput): WidgetEstimate 
     sizeSqft = type.typicalSizeSqft;
     widen += WIDEN_NO_SIZE;
     assumptions.push(
-      `No size given — priced a typical ${type.label.toLowerCase()} at ${type.typicalSizeSqft.toLocaleString('en-US')} sq ft. Give us the real ${type.measure} and this range tightens.`,
+      `No size given. Priced a typical ${type.label.toLowerCase()} at ${type.typicalSizeSqft.toLocaleString('en-US')} sq ft. Give us the real ${type.measure} and this range tightens.`,
     );
   } else {
     const s = rawSize as number;

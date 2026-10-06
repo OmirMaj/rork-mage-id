@@ -79,7 +79,7 @@ export function LeadsTable({ grouped, loaded, stageColors, onNew }: LeadsTablePr
         render: (r) => <Text style={[styles.num, styles.right]} numberOfLines={1}>{logMoney(r.budget) ?? '—'}</Text>,
       },
       {
-        key: 'firstReply', label: 'First reply', width: 130,
+        key: 'firstReply', label: 'First Reply', width: 130,
         sortValue: (r) => (r.waitingHours !== null ? -1 - r.waitingHours : r.firstReplyHours),
         render: (r) => {
           const c = leadFirstReplyCell(r);
@@ -92,7 +92,7 @@ export function LeadsTable({ grouped, loaded, stageColors, onNew }: LeadsTablePr
         key: 'received', label: 'Received', width: 100, sortValue: (r) => logDayKey(r.receivedAt),
         value: (r) => logDayLabel(r.receivedAt, now),
       },
-      { key: 'projectType', label: 'Project type', flex: 1.2, hideBelow: 900, sortValue: (r) => r.projectType, value: (r) => r.projectType },
+      { key: 'projectType', label: 'Project Type', flex: 1.2, hideBelow: 900, sortValue: (r) => r.projectType, value: (r) => r.projectType },
       { key: 'source', label: 'Source', width: 120, hideBelow: 1000, sortValue: (r) => r.source, value: (r) => r.source },
       { key: 'phone', label: 'Phone', width: 130, hideBelow: 1100, sortValue: (r) => r.phone, value: (r) => r.phone },
     ];
@@ -104,13 +104,13 @@ export function LeadsTable({ grouped, loaded, stageColors, onNew }: LeadsTablePr
   ) : all.length === 0 ? (
     <EmptyState
       icon={icon}
-      title="No leads in the pipeline yet"
+      title="No Leads in the Pipeline Yet"
       message="Capture every inbound call, web inquiry and referral so none slips past the first 24 hours."
-      actionLabel="Add by hand"
+      actionLabel="Add by Hand"
       onAction={onNew}
     />
   ) : (
-    <EmptyState icon={icon} title="Nothing under this filter" message="Pick another stage, or All." />
+    <EmptyState icon={icon} title="Nothing Under This Filter" message="Pick another stage, or All." />
   );
 
   return (

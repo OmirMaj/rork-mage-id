@@ -97,7 +97,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
           </View>
 
           <View style={styles.factCard}>
-            <Text style={styles.factLabel}>While you wait</Text>
+            <Text style={styles.factLabel}>While You Wait</Text>
             <Animated.Text style={[styles.factText, { opacity: factOpacity }]}>
               {FUN_FACTS[factIdx]}
             </Animated.Text>
@@ -108,7 +108,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
               style={styles.cancelBtn}
               onPress={onCancel}
               accessibilityRole="button"
-              accessibilityLabel="Cancel AI generation"
+              accessibilityLabel="Cancel AI Generation"
             >
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>

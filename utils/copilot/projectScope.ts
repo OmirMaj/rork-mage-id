@@ -52,7 +52,7 @@ export function copilotPrecondition(
   if (!isProjectScoped(id)) return { ok: true };
   if (!project) return { ok: false, kind: 'no_project', message: 'Pick the job this is for first.' };
   if (NEEDS_LINKED_ESTIMATE.has(id) && !project.linkedEstimate) {
-    return { ok: false, kind: 'no_estimate', message: 'This job has no estimate yet — build one first.' };
+    return { ok: false, kind: 'no_estimate', message: 'This job has no estimate yet. Build one first.' };
   }
   return { ok: true };
 }
@@ -60,4 +60,4 @@ export function copilotPrecondition(
 /** CARRY #53 (owner-only interim, permits-warranties lane): a warranty is kept
  *  on the project owner's account, so an invited PM / foreman is told why
  *  instead of running an interview whose Build would write it nowhere useful. */
-export const WARRANTY_OWNER_ONLY_COPY = 'Warranties are kept on the project owner’s account — ask them to log it.';
+export const WARRANTY_OWNER_ONLY_COPY = 'Warranties are kept on the project owner’s account. Ask them to log it.';

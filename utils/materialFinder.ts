@@ -28,7 +28,7 @@ import { z } from 'zod';
  * model-supplied — a field the model fills is a field the model can put a
  * store name in.
  */
-export const AI_PRICE_SOURCE = 'AI estimate — not a supplier quote';
+export const AI_PRICE_SOURCE = 'AI estimate, not a supplier quote';
 
 const materialSearchSchema = z.object({
   materials: z.array(z.object({

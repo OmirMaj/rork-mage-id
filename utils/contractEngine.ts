@@ -172,7 +172,7 @@ export function buildDraftContract(input: DraftContractInput): Omit<ProjectContr
     sourceBidId: input.sourceBidId,
     sourceResponseId: input.sourceResponseId,
     version: 1,
-    title: `${input.project.name} — Construction Agreement`,
+    title: `${input.project.name}: Construction Agreement`,
     contractValue: value,
     // CONTRACT-TIME-1: seeded from the project's own schedule when it has one,
     // so the two halves of the app agree on when the job runs. Still undefined
@@ -213,11 +213,11 @@ export function buildProposalFromRevision(
   const items = clientEstimateLineRows(revision.snapshot.items ?? []);
   let scopeText: string;
   if (items.length > 0) {
-    const header = `${project.name} — Project Proposal (Estimate Rev ${revision.revNumber})`;
+    const header = `${project.name}: Project Proposal (Estimate Rev ${revision.revNumber})`;
     const itemLines = items
       .map(item => {
         if (item.quantity == null && item.name === CLIENT_CONTINGENCY_LABEL) {
-          return `• ${CLIENT_CONTINGENCY_LABEL} — lump sum`;
+          return `• ${CLIENT_CONTINGENCY_LABEL}, lump sum`;
         }
         if (item.quantity != null && item.unit) {
           return `• ${item.name} — ${item.quantity} ${item.unit}`;
@@ -239,7 +239,7 @@ export function buildProposalFromRevision(
       'By signing below, both parties accept this proposal as the binding agreement for the stated scope and price.',
     ].join('\n');
   } else {
-    const header = `${project.name} — Project Proposal (Estimate Rev ${revision.revNumber})`;
+    const header = `${project.name}: Project Proposal (Estimate Rev ${revision.revNumber})`;
     const fallbackScope = project.description ?? 'See attached estimate.';
     scopeText = [
       header,
@@ -261,7 +261,7 @@ export function buildProposalFromRevision(
     sourceBidId: undefined,
     sourceResponseId: undefined,
     version: 1,
-    title: `${project.name} — Project Proposal`,
+    title: `${project.name}: Project Proposal`,
     contractValue: value,
     // CONTRACT-TIME-1 — same seed as buildDraftContract. A proposal that states
     // when the work runs is the one that gets signed.

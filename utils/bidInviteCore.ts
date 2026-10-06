@@ -216,9 +216,9 @@ export function inviteState(inv: Pick<BidInviteRecord, 'respondedAt' | 'expiresA
 }
 
 export function inviteStateLabel(state: BidInviteState): string {
-  if (state === 'responded') return 'Bid received';
-  if (state === 'expired') return 'Link expired';
-  return 'No response yet';
+  if (state === 'responded') return 'Bid Received';
+  if (state === 'expired') return 'Link Expired';
+  return 'No Response Yet';
 }
 
 /**
@@ -372,7 +372,7 @@ export function resolveBidSubcontractor(
         subId: hits[0].id,
         subName: hits[0].companyName,
         basis: 'invite-email',
-        reason: `Linked to ${hits[0].companyName} — this bid came from the invite you sent to ${inviteEmail}.`,
+        reason: `Linked to ${hits[0].companyName}. This bid came from the invite you sent to ${inviteEmail}.`,
       };
     }
     // An invited address that is NOT on the roster is a real answer, and it
@@ -390,7 +390,7 @@ export function resolveBidSubcontractor(
     subId: hits[0].id,
     subName: hits[0].companyName,
     basis: 'company-name',
-    reason: `Linked to ${hits[0].companyName} — the bid names that company exactly, and it is the only one on your roster.`,
+    reason: `Linked to ${hits[0].companyName}. The bid names that company exactly, and it is the only one on your roster.`,
   };
 }
 
@@ -439,10 +439,10 @@ export function bidDueState(dueDate: string | null | undefined, nowMs: number): 
 /** Short label for a list card: "Due in 3 days", "Bids due today", "2 days late". */
 export function bidDueLabel(dueDate: string | null | undefined, nowMs: number): string {
   const days = daysUntilDue(dueDate, nowMs);
-  if (days === null) return 'No bid date set';
+  if (days === null) return 'No Bid Date Set';
   if (days < 0) return `Bids were due ${-days} day${days === -1 ? '' : 's'} ago`;
-  if (days === 0) return 'Bids due today';
-  if (days === 1) return 'Bids due tomorrow';
+  if (days === 0) return 'Bids Due Today';
+  if (days === 1) return 'Bids Due Tomorrow';
   return `Bids due in ${days} days`;
 }
 

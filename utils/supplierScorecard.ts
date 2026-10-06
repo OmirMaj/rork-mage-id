@@ -188,7 +188,7 @@ export function computeSupplierScorecards(input: SupplierScorecardInput): Suppli
         : 0;
       factors.push({
         key: 'on_time',
-        label: 'On time',
+        label: 'On Time',
         score: applicable ? quality : 0,
         weight: applicable ? W_ON_TIME : 0,
         applicable,
@@ -199,7 +199,7 @@ export function computeSupplierScorecards(input: SupplierScorecardInput): Suppli
                   Math.round((late.reduce((s, n) => s + n, 0) / late.length) * 10) / 10} days`)
           : settled.length === 0 && unplanned > 0
             ? `${unplanned} ${unplanned === 1 ? 'load was logged when it arrived' : 'loads were logged when they arrived'}, with no date set ahead`
-            : `Only ${slips.length} settled ${slips.length === 1 ? 'delivery' : 'deliveries'} — need ${MIN_DELIVERIES_TO_SCORE} to judge`,
+            : `Only ${slips.length} settled ${slips.length === 1 ? 'delivery' : 'deliveries'}, need ${MIN_DELIVERIES_TO_SCORE} to judge`,
       });
     }
 
@@ -214,7 +214,7 @@ export function computeSupplierScorecards(input: SupplierScorecardInput): Suppli
       const quality = settled.length ? confirmed / settled.length : 0;
       factors.push({
         key: 'confirmation',
-        label: 'Confirms dates',
+        label: 'Confirms Dates',
         score: applicable ? quality : 0,
         weight: applicable ? W_CONFIRMATION : 0,
         applicable,
@@ -233,7 +233,7 @@ export function computeSupplierScorecards(input: SupplierScorecardInput): Suppli
       const quality = acc.receipts.length ? 1 - damaged / acc.receipts.length : 0;
       factors.push({
         key: 'damage_free',
-        label: 'Arrives undamaged',
+        label: 'Arrives Undamaged',
         score: applicable ? quality : 0,
         weight: applicable ? W_DAMAGE_FREE : 0,
         applicable,
@@ -241,7 +241,7 @@ export function computeSupplierScorecards(input: SupplierScorecardInput): Suppli
           ? (damaged === 0
               ? `No damage on ${acc.receipts.length} inspected loads`
               : `${damaged} of ${acc.receipts.length} inspected loads arrived damaged`)
-          : `${acc.receipts.length} inspected ${acc.receipts.length === 1 ? 'load' : 'loads'} — need ${MIN_RECEIPTS_TO_SCORE} to judge`,
+          : `${acc.receipts.length} inspected ${acc.receipts.length === 1 ? 'load' : 'loads'}, need ${MIN_RECEIPTS_TO_SCORE} to judge`,
       });
     }
 

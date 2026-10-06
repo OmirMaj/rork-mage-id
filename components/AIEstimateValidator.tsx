@@ -112,7 +112,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
             <Search size={16} color={themeColors.accent} strokeWidth={1.75} />
           )}
           <Text style={styles.triggerText}>
-            {isLoading ? 'Reviewing estimate…' : error ? 'Try again' : 'Review this estimate'}
+            {isLoading ? 'Reviewing estimate…' : error ? 'Try Again' : 'Review This Estimate'}
           </Text>
           <MageAIMark size={14} color={themeColors.accent} />
         </TouchableOpacity>
@@ -139,7 +139,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.headerLeft}>
           <MageAIMark size={16} color={themeColors.accent} />
-          <Text style={styles.headerTitle}>Estimate review</Text>
+          <Text style={styles.headerTitle}>Estimate Review</Text>
         </View>
         {score !== undefined ? (
           <View style={[styles.scoreBadge, { backgroundColor: `${scoreColor}15` }]} testID="estimate-review-score">
@@ -168,7 +168,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
 
           {(result.missingItems ?? []).length > 0 && (
             <View style={styles.missingSection}>
-              <Text style={styles.missingTitle}>Possibly missing items</Text>
+              <Text style={styles.missingTitle}>Possibly Missing Items</Text>
               {(result.missingItems ?? []).map((item, idx) => (
                 <Text key={idx} style={styles.missingItem}>• {item}</Text>
               ))}
@@ -197,7 +197,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
 
           <TouchableOpacity style={styles.revalidateBtn} onPress={handleValidate} disabled={isLoading}>
             {isLoading ? <Spinner tone="accent" /> : null}
-            <Text style={styles.revalidateText}>{isLoading ? 'Reviewing again…' : 'Review again'}</Text>
+            <Text style={styles.revalidateText}>{isLoading ? 'Reviewing again…' : 'Review Again'}</Text>
           </TouchableOpacity>
         </>
       )}

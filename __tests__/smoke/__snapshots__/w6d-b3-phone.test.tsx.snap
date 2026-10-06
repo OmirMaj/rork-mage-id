@@ -3,55 +3,55 @@
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout (five packages: sell basis, savings, overrun, lowest, no bids) 1`] = `
 {
   "lines": 1278,
-  "sha256": "233a076ab11aaeb11cbfa5fa2173f703e985b246486023e975ee588b8acf275a",
+  "sha256": "4060c9737188ca9a27e6a8e6c9e8064a69994ab5abf2213423c69c20a70f51e9",
 }
 `;
 
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout (populated, no packages — the empty branch + the new-package sheet) 1`] = `
 {
   "lines": 1096,
-  "sha256": "f7ac9fc098123ce57f975ec9aa3c36c7b6c162a8009dcebfc4e0d8596af524b2",
+  "sha256": "a6a6b1653c6a14f3f69a0492d3b22ae85080e2a88a80aaa543070e55350b5917",
 }
 `;
 
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout-package: awarded (commitment link + A401) 1`] = `
 {
   "lines": 621,
-  "sha256": "77909b6889c8215cad2f9b93a9d51f9f29faf03864bbc21e2e2a0b34e617d95f",
+  "sha256": "577b6b2c099b07f34c62b86b60af963c0872fd3d0da1232b7e32d3903db6fc15",
 }
 `;
 
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout-package: awarded over budget 1`] = `
 {
   "lines": 603,
-  "sha256": "f149475b896fd51b6063101c5bad04b923ffccdb6fe07e2b27fb868f11f2f9b1",
+  "sha256": "dd2d7d9d3a020167d9300e4d7e7e08d5a78c8bb023782581875565974670ca37",
 }
 `;
 
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout-package: budget at sell (the review warning) 1`] = `
 {
   "lines": 737,
-  "sha256": "5981f043e122abdb74b5982b28df6cd5aab70cd53b4d14ed0794e87a2da017e2",
+  "sha256": "90d01b0e2ed1d85cfddd73ffc49ebf166b2dd0d6026df9261277d0f59e3c771b",
 }
 `;
 
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout-package: no bids, no scope (invite blocked) 1`] = `
 {
   "lines": 616,
-  "sha256": "49f8647d863cdd97a9ace8330d2b2e4e7b629c1dc0366386feec709bc601ca18",
+  "sha256": "d1425fdc5a6f6381006801cebc8787862e5228d677342404648c38ecce69de6e",
 }
 `;
 
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout-package: not found 1`] = `
 {
   "lines": 315,
-  "sha256": "fce0c8bc5d37920dba62dd12257f116c9c2808a76a54f1b52b1f4a242fbac4ad",
+  "sha256": "1a103080e343d75c05e6178c9e7c179efd2be07cbb4abbdb1cf024b6f6b21c5e",
 }
 `;
 
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout-package: open, two bids, scope, overdue (all five sheets) 1`] = `
 {
   "lines": 811,
-  "sha256": "b51d027a808a5f2fd40915f5c36b666528d7c652fffe10f829ced0da53acde34",
+  "sha256": "0a4a94359e0c104d40917de39e21857e129f63eaf15fe3bb01d0c5b7584a6b98",
 }
 `;

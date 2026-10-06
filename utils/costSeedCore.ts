@@ -340,7 +340,7 @@ function assemble(parts: Part[], raw: string): SeedLineOutcome {
   const moneys = parts.filter((p): p is Extract<Part, { type: 'money' }> => p.type === 'money');
   const ratePart = moneys.find(m => m.strong) ?? moneys[0];
   if (!ratePart) {
-    return { status: 'rejected', reason: 'No rate found — add a price like $12.50' };
+    return { status: 'rejected', reason: 'No rate found. Add a price like $12.50.' };
   }
   const rate = ratePart.value;
   if (!(rate > 0)) {
@@ -354,7 +354,7 @@ function assemble(parts: Part[], raw: string): SeedLineOutcome {
   const unitPart = parts.find((p): p is Extract<Part, { type: 'unit' }> => p.type === 'unit');
   const unit = unitPart?.unit ?? ratePart.inlineUnit ?? null;
   if (!unit) {
-    return { status: 'rejected', reason: 'No unit found — add SF, LF, EA, HR…' };
+    return { status: 'rejected', reason: 'No unit found. Add SF, LF, EA, HR…' };
   }
 
   // Jobs: a labeled count wins; otherwise a leftover bare integer is read as
@@ -385,7 +385,7 @@ function assemble(parts: Part[], raw: string): SeedLineOutcome {
   const tradeSource = leading.length > 0 ? leading : texts.map(t => t.text);
   const trade = cleanTrade(tradeSource.join(' '));
   if (!trade || !/[a-z]/i.test(trade)) {
-    return { status: 'rejected', reason: 'No trade name — put the scope first (e.g. Framing)' };
+    return { status: 'rejected', reason: 'No trade name. Put the scope first, like Framing.' };
   }
   const noteParts = texts.map(t => t.text).slice(leading.length > 0 ? leading.length : texts.length);
   const note = noteParts.join(' ').trim() || undefined;

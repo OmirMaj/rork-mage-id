@@ -105,7 +105,7 @@ export async function sealSignedContract(input: {
 export const SEALED_PDF_WINDOW_BLOCKED_MESSAGE =
   'Your browser blocked the PDF window. Allow pop-ups for app.mageid.app and tap Download sealed PDF again.';
 export const SEALED_PDF_DOWNLOAD_FAILED_MESSAGE =
-  "Couldn't download the sealed PDF - check your signal and try again.";
+  "Couldn't download the sealed PDF. Check your signal and try again.";
 
 /** Signed-URL life. 60 s was shorter than a slow jobsite download; the path is
  *  owner-only and the URL is never stored, so minutes cost nothing. */

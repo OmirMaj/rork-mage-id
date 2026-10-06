@@ -52,7 +52,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadin
 {
   "lines": 46,
   "modalCount": 1,
-  "sha256": "90c27e070119af4e3f125b418e9f8acfc4f72dcc55250a13cf86a22d615073b4",
+  "sha256": "f1ae4612a417c4dbcb08bd268940221731e1dbef2e35629c993434c259cf94fc",
 }
 `;
 
@@ -60,7 +60,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadin
 {
   "lines": 46,
   "modalCount": 1,
-  "sha256": "b63b4c39c4be5d7c78ec6e1e144cc231ac1f59ef6fc88aa1ad41149ae4de9832",
+  "sha256": "c17946a1c413d4808608bfa1d03b4be85da142d0876778c1a9afcbf3f5f091ec",
 }
 `;
 
@@ -84,7 +84,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InstantBidProp
 {
   "lines": 46,
   "modalCount": 1,
-  "sha256": "6151224ee1e1e604d15bd6c03deb6f6736444b15ba414f45543be23dcbe04e30",
+  "sha256": "a958f796ae16ca2341468341d9ee3ad87eedf7cdc5df21aed015c32cba5abf46",
 }
 `;
 
@@ -92,7 +92,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InstantBidProp
 {
   "lines": 46,
   "modalCount": 1,
-  "sha256": "a760edc948910e8e26d5a5a072edfcae41bceb2151e3a885d192c33887abee6e",
+  "sha256": "809a63a21a6897c27267e840f6815f7afd231c8129749fd55561cfee137a74dc",
 }
 `;
 

@@ -226,7 +226,7 @@ export function priceSourceLabel(source: PriceSource, match?: OwnRateMatch | nul
     if (claim?.provenance === 'seeded') {
       // The contractor TOLD us this rate — not measured. Saying "0 jobs" would
       // read as a bug; claiming jobs would be a lie. Say exactly what happened.
-      return `Your rate — ${match.trade}, you set this (no closed jobs yet)`;
+      return `Your rate: ${match.trade}, you set this (no closed jobs yet)`;
     }
     const jobs = `${match.jobCount} job${match.jobCount === 1 ? '' : 's'}`;
     // The ± band is printed only when the spread is an observation. `variability
@@ -238,17 +238,17 @@ export function priceSourceLabel(source: PriceSource, match?: OwnRateMatch | nul
     const spread = hasSpread && match.variability > 0 ? ` · ±${Math.round(match.variability * 100)}%` : '';
     if (claim?.provenance === 'mixed') {
       // Started from a stated rate but real jobs have begun to correct it.
-      return `Your rate — ${match.trade}, ${jobs}${spread} · started from your set rate`;
+      return `Your rate: ${match.trade}, ${jobs}${spread} · started from your set rate`;
     }
     if (claim?.tone === 'contracted') {
       // Signed subs, nothing paid out yet — real, but not a measured cost.
-      return `Your rate — ${match.trade}, ${jobs}${spread} · signed, not yet paid`;
+      return `Your rate: ${match.trade}, ${jobs}${spread} · signed, not yet paid`;
     }
     // earned — measured from closed jobs. The tone is 'measured' only here.
-    return `Your rate — ${match.trade}, ${jobs}${spread}`;
+    return `Your rate: ${match.trade}, ${jobs}${spread}`;
   }
-  if (source === 'engine') return 'Catalog rate — not your history';
-  if (source === 'ai') return 'AI estimate — no history for this yet';
+  if (source === 'engine') return 'Catalog rate, not your history';
+  if (source === 'ai') return 'AI estimate, no history for this yet';
   return 'You set this';
 }
 

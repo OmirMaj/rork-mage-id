@@ -365,14 +365,14 @@ async function seedEquipment() {
 /** Each route, the title text of every sheet this lane frames there, and an
  *  optional seed + extra query for a host whose Modal mounts conditionally. */
 const BATCH_E: [string, string, string[], (() => Promise<void>)?, string?][] = [
-  ['discover/bids', '/discover/bids', ['Sort by', 'Set-aside type']],
-  ['materials/lumber', '/materials/lumber', ['Set price alert']],
+  ['discover/bids', '/discover/bids', ['Sort By', 'Set-Aside Type']],
+  ['materials/lumber', '/materials/lumber', ['Set Price Alert']],
   ['equipment-detail', '/equipment-detail', ['Log usage']],
   ['equipment-detail (seeded machine)', '/equipment-detail', ['Log usage'], seedEquipment, `equipmentId=${EQUIP_ID}`],
   ['get-verified', '/get-verified', ['Issuing state']],
   ['qbo-review', '/qbo-review', ['Which project is this cost for?']],
   ['lead-detail', '/lead-detail', ['Why did this one go cold?']],
-  ['company-profile', '/company-profile', ['Which state licenses you?', 'Draw your signature']],
+  ['company-profile', '/company-profile', ['Which state licenses you?', 'Draw Your Signature']],
   ['building-access', '/building-access', ['Book a slot']],
   ['plan-intelligence', '/plan-intelligence', ['Save room']],
 ];

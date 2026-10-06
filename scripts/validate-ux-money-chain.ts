@@ -13,7 +13,7 @@
 //     clients, and never invent a recipient.
 //  4. The waiver "From this job's subs" picker: subcontracts only, the
 //     roster sub's email or none, and the amount only from recorded payments.
-//  5. Estimate → proposal: the revision "Send proposal" names; the wizard's
+//  5. Estimate → proposal: the revision "Send Proposal" names; the wizard's
 //     one-tap landing.
 //  6. The screens call these, and the honesty rules hold in the source
 //     (C1 pre-send check, C8 label, C9 labels, C7 no typed dates).
@@ -166,7 +166,7 @@ console.log('\n3. overdue rows and Remind all');
   eq('a job contact alone is not a reminder recipient (never borrowed)', onlyContact[0].recipient, null);
   const sampleRows = overdueRemindRows(
     [{ id: 'g', number: 27, projectId: 'ps', dueDate: '2026-08-01T12:00:00Z', billToEmail: 'me@x.test' }, rowsSeedA],
-    [{ id: 'ps', name: `${SAMPLE_PROJECT_PREFIX}Kitchen remodel`, clientPortal: { invites: [] } }, ...projects] as unknown as Project[],
+    [{ id: 'ps', name: `${SAMPLE_PROJECT_PREFIX}Kitchen Remodel`, clientPortal: { invites: [] } }, ...projects] as unknown as Project[],
     now,
   );
   eq('an invoice on a sample job is never counted in "Remind all"', sampleRows.map(r => r.invoiceId), ['a']);
@@ -249,7 +249,7 @@ console.log('\n5. estimate → proposal, wizard landing');
   eq('the href carries fromRevision', sendProposalHref('p1', 'rev1'), { pathname: '/contract', params: { projectId: 'p1', fromRevision: 'rev1' } });
   eq('…or only the job', sendProposalHref('p1', null), { pathname: '/contract', params: { projectId: 'p1' } });
 
-  const full = { ...INITIAL_SCOPE, projectType: 'Kitchen remodel', sizeSqft: '220', location: 'Hoboken, NJ', scope: 'Gut kitchen, new cabinets' };
+  const full = { ...INITIAL_SCOPE, projectType: 'Kitchen Remodel', sizeSqft: '220', location: 'Hoboken, NJ', scope: 'Gut kitchen, new cabinets' };
   eq('every required answer known → the summary (null)', wizardLandingStep(full, TOTAL_SCOPE_STEPS, stepCanAdvance), null);
   eq('a missing location → that step', wizardLandingStep({ ...full, location: '' }, TOTAL_SCOPE_STEPS, stepCanAdvance), 2);
   eq('a missing type → the first step', wizardLandingStep({ ...full, projectType: '' }, TOTAL_SCOPE_STEPS, stepCanAdvance), 0);
@@ -267,10 +267,10 @@ console.log('\n6. the screens');
   ok('C1: anything but ready opens the ask and returns', /if \(state !== 'ready'\) \{[\s\S]{0,300}setDeliveryAsk\([\s\S]{0,200}return;/.test(signBody));
   ok('C1: a collaborator is told and nothing happens', /state === 'collaborator'[\s\S]{0,400}return;/.test(signBody));
   ok('C1: the portal is switched on only inside the confirmed ask', /portalExists && !portal!\.enabled/.test(contractSrc) && (contractSrc.match(/enabled: true/g) ?? []).length === 1);
-  ok('C1: "Sent to the client" only with this device\'s delivered marker',
-    /contract\.status === 'sent' && contractDelivery\?\.state === 'delivered' && \([\s\S]{0,300}Sent to the client/.test(contractSrc)
-    && (contractSrc.match(/>Sent to the client</g) ?? []).length === 1);
-  ok('C1: not delivered shows Retry and Copy link', /Signed by you, not delivered/.test(contractSrc) && /contract-delivery-retry/.test(contractSrc) && /contract-delivery-copy/.test(contractSrc));
+  ok('C1: "Sent to the Client" only with this device\'s delivered marker',
+    /contract\.status === 'sent' && contractDelivery\?\.state === 'delivered' && \([\s\S]{0,300}Sent to the Client/.test(contractSrc)
+    && (contractSrc.match(/>Sent to the Client</g) ?? []).length === 1);
+  ok('C1: not delivered shows Retry and Copy link', /Signed by You, Not Delivered/.test(contractSrc) && /contract-delivery-retry/.test(contractSrc) && /contract-delivery-copy/.test(contractSrc));
   // W2 MOMSIGN (A1/A2): the write returns confirmed BEFORE any email in
   // together mode; the record sheet opens from the ceremony's onDone (after
   // the seal held), and its record card says "Signed by both of you".
@@ -308,9 +308,9 @@ console.log('\n6. the screens');
 
   const wiz = read('app/estimate-wizard.tsx');
   ok('C4: generating over an existing estimate asks first', /Replace this project\\'s estimate\?|Replace this project's estimate\?/.test(wiz) && /the current one is kept in Revisions/.test(wiz));
-  ok('C4: the result offers Send proposal', /testID="wizard-send-proposal"/.test(wiz) && /proposalFromCurrentEstimate\(p\)/.test(wiz));
+  ok('C4: the result offers Send Proposal', /testID="wizard-send-proposal"/.test(wiz) && /proposalFromCurrentEstimate\(p\)/.test(wiz));
   const tko = read('app/takeoff-estimate.tsx');
-  ok('C4: the takeoff save alert offers Open estimate / Send proposal / Stay here', /'Stay here'/.test(tko) && /'Open estimate'/.test(tko) && /'Send proposal'/.test(tko) && !/'Estimate saved',[\s\S]{0,200}text: 'OK'/.test(tko));
+  ok('C4: the takeoff save alert offers Open Estimate / Send Proposal / Stay here', /'Stay Here'/.test(tko) && /'Open Estimate'/.test(tko) && /'Send Proposal'/.test(tko) && !/'Estimate Saved',[\s\S]{0,200}text: 'OK'/.test(tko));
 
   const co = read('app/change-order.tsx');
   ok('C5: one "Client approved without signing" action with the warning', /Client approved without signing/.test(co) && /the weakest proof in a dispute/.test(co));
@@ -341,18 +341,18 @@ console.log('\n6. the screens');
   })());
   const card = read('components/ProjectCard.tsx');
   ok('C8: the pill reads "Bid GP" and says it is not profit', /`Bid GP \$\{marginPct\}%`/.test(card) && /not actual profit/.test(card) && !/`GP \$\{marginPct\}%`/.test(card));
-  ok('C9: Smart Proposal says "Client said yes (not signed)"', /Client said yes \(not signed\)/.test(read('app/smart-proposal.tsx')) && !/>Mark accepted</.test(read('app/smart-proposal.tsx')));
-  ok('C9: Quick Quote says the same, and neither claims a signature', /Client said yes \(not signed\)/.test(read('app/quick-quote.tsx')) && !/>Accepted</.test(read('app/quick-quote.tsx')));
+  ok('C9: Smart Proposal says "Client Said Yes (Not Signed)"', /Client Said Yes \(Not Signed\)/.test(read('app/smart-proposal.tsx')) && !/>Mark accepted</.test(read('app/smart-proposal.tsx')));
+  ok('C9: Quick Quote says the same, and neither claims a signature', /Client Said Yes \(Not Signed\)/.test(read('app/quick-quote.tsx')) && !/>Accepted</.test(read('app/quick-quote.tsx')));
   ok('C9: both point to the contract', /To lock it in, send the contract/.test(read('app/smart-proposal.tsx')) && /To lock it in, send the contract/.test(read('app/quick-quote.tsx')));
   const helper = read('utils/nextBillableMilestone.ts').replace(/\/\/.*$/gm, '');
   ok('the helper is pure', !/from 'react(-native)?'|AsyncStorage|supabase/.test(helper));
 }
 
-// C4 door lock: "Send proposal" opens the contract, a client-portal feature.
+// C4 door lock: "Send Proposal" opens the contract, a client-portal feature.
 // Locked, both doors say why BEFORE the revision snapshot, so a tap that goes
 // nowhere writes nothing (the plan's rule: a door checks its destination's gate).
 {
-  console.log('\nC4 — the Send proposal door checks client_portal first:');
+  console.log('\nC4 — the Send Proposal door checks client_portal first:');
   const lock = proposalLockedCopy('pro');
   ok('the lock names the plan', lock.title === 'Sending proposals is on the Pro plan' && /See plans/.test(lock.message));
   const wiz = read('app/estimate-wizard.tsx');
@@ -363,7 +363,7 @@ console.log('\n6. the screens');
   ok('wizard: the locked button shows the Lock icon', /proposalOpen\s*\?\s*<Send size=\{18\}[\s\S]{0,120}:\s*<Lock size=\{18\}/.test(wiz));
   const tk = read('app/takeoff-estimate.tsx');
   const after = tk.slice(tk.indexOf('const afterSaveButtons = useCallback('), tk.indexOf('], [router, updateProject, canAccess, requiredTierFor]);'));
-  ok('takeoff: the after-save Send proposal checks client_portal before the snapshot', after.length > 0
+  ok('takeoff: the after-save Send Proposal checks client_portal before the snapshot', after.length > 0
     && after.indexOf("if (!canAccess('client_portal'))") > -1
     && after.indexOf("if (!canAccess('client_portal'))") < after.indexOf('proposalFromCurrentEstimate('));
 }

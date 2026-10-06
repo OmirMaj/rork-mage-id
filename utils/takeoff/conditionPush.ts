@@ -42,7 +42,7 @@ export interface PushLine {
   aiRead?: true;
 }
 
-export const AI_READ_LINE_SUFFIX = ' — AI read, not measured';
+export const AI_READ_LINE_SUFFIX = ' (AI read, not measured)';
 
 /** The estimate item's name for a push line — the AI label rides along until it is measured. */
 export function pushLineName(line: Pick<PushLine, 'name' | 'aiRead'>): string {
@@ -201,7 +201,7 @@ export function applyTakeoffPush(
  */
 export function pushBlockReason(project: Project | null, lines: PushLine[]): string | null {
   if (!project) return 'Pick a job to push to.';
-  if (!lines.length) return 'Nothing to push — every condition needs a quantity and a rate.';
-  if (!project.linkedEstimate) return 'This job has no estimate yet — start one in Estimate, then push.';
+  if (!lines.length) return 'Nothing to push. Every condition needs a quantity and a rate.';
+  if (!project.linkedEstimate) return 'This job has no estimate yet. Start one in Estimate, then push.';
   return null;
 }

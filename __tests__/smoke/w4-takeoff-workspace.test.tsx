@@ -206,7 +206,7 @@ describe('lane T2 — desktop takeoff workspace', () => {
   it('phone 390 (native): /area-takeoff keeps the touch flow — no workspace', async () => {
     await mountAt('ios', 390, 844, `/area-takeoff?${P}`, seedAll);
     expect(screen.queryByTestId('takeoffws-root')).toBeNull();
-    expect(screen.getByText('Trace it, price it')).toBeTruthy();
+    expect(screen.getByText('Trace It, Price It')).toBeTruthy();
   });
 
   it('desktop web 1512: the workspace mounts; no sheets → the first-run state', async () => {
@@ -232,7 +232,7 @@ describe('lane T2 — desktop takeoff workspace', () => {
     expect(textOf(screen.getByTestId('takeoffws-amount-c-floor'))).toContain('9,000');
     // The unpriced condition: a dash and the words, never $0.
     expect(textOf(screen.getByTestId('takeoffws-amount-c-base'))).toBe('—');
-    expect(textOf(screen.getByTestId('takeoffws-norate-c-base'))).toBe('No rate yet — set one');
+    expect(textOf(screen.getByTestId('takeoffws-norate-c-base'))).toBe('No rate yet. Set one.');
     // All sheets: A-201's measurement (its own scale, its own aspect) is counted.
     await act(async () => { fireEvent.press(screen.getByTestId('takeoffws-filter-all')); });
     await pump(2);
@@ -243,7 +243,7 @@ describe('lane T2 — desktop takeoff workspace', () => {
     // Lane SYNC changes the wording (account sync); only the "Saved …" start is pinned here.
     expect(screen.getByTestId('takeoffws-save-line').props.children).toMatch(/^Saved /);
     expect(screen.getByTestId('takeoffws-scale-pill')).toBeTruthy();
-    expect(textOf(screen.getByTestId('takeoffws-scale-pill'))).toBe('Scale set');
+    expect(textOf(screen.getByTestId('takeoffws-scale-pill'))).toBe('Scale Set');
   });
 
   it('the paper carries translate/scale with transform-origin 0 0 once the canvas is laid out', async () => {
@@ -259,7 +259,7 @@ describe('lane T2 — desktop takeoff workspace', () => {
     expect(s.width).toBeCloseTo(852, 5);
     expect(textOf(screen.getByTestId('takeoffws-zoom-pct'))).toBe('100%');
     // The zoom control scales about the centre.
-    await act(async () => { fireEvent.press(screen.getByLabelText('Zoom in (+)')); });
+    await act(async () => { fireEvent.press(screen.getByLabelText('Zoom In (+)')); });
     await pump(1);
     expect(textOf(screen.getByTestId('takeoffws-zoom-pct'))).toBe('125%');
   });
@@ -461,7 +461,7 @@ describe('lane TK-b — AI suggestions in the Conditions panel', () => {
     await mountAt('web', 1512, 945, `/area-takeoff?${P}`, seedAi(JSON.stringify(aiSavedTakeoff())));
     expect(screen.getByTestId('takeoffws-ai')).toBeTruthy();
     expect(screen.getByText('Suggested by AI (2)')).toBeTruthy();
-    expect(textOf(screen.getByTestId('takeoffws-ai-skipped-bulk'))).toBe('1 bulk material uses units this panel doesn’t measure (CY, tons…) — see AI Takeoff');
+    expect(textOf(screen.getByTestId('takeoffws-ai-skipped-bulk'))).toBe('1 bulk material uses units this panel doesn’t measure (CY, tons…). See AI Takeoff.');
     expect(textOf(screen.getByTestId('takeoffws-ai-skipped-rejected'))).toContain('you rejected on AI Takeoff');
     expect(textOf(screen.getByTestId('takeoffws-ai-ready'))).toContain('Nothing here counts until you accept it.');
     // Suggestions are not conditions: the cost line and the push count are what the doc alone gives.
@@ -480,10 +480,10 @@ describe('lane TK-b — AI suggestions in the Conditions panel', () => {
     const sub = screen.getAllByTestId(/^takeoffws-airead-/);
     expect(sub).toHaveLength(1);
     const newId = String(sub[0].props.testID).replace('takeoffws-airead-', '');
-    expect(textOf(sub[0])).toBe('AI read — not measured · p.3 · plans.pdf · Medium confidence · draw it to measure');
+    expect(textOf(sub[0])).toBe('AI read, not measured · p.3 · plans.pdf · Medium confidence · draw it to measure');
     expect(textOf(screen.getByTestId(`takeoffws-qty-${newId}`))).toBe('6');
     // His book has no door rate in this world: it says so, and the push count holds (never an invented rate).
-    expect(textOf(screen.getByTestId(`takeoffws-norate-${newId}`))).toBe('No rate yet — set one');
+    expect(textOf(screen.getByTestId(`takeoffws-norate-${newId}`))).toBe('No rate yet. Set one.');
     expect(textOf(screen.getByTestId('takeoffws-push'))).toBe('Push 1 line to estimate');
     // He sets a rate: the push count moves now — and the AI read survives the edit.
     await act(async () => { fireEvent.press(screen.getByTestId(`takeoffws-norate-${newId}`)); });
@@ -493,7 +493,7 @@ describe('lane TK-b — AI suggestions in the Conditions panel', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('takeoffws-editor-save')); });
     await pump(2);
     expect(textOf(screen.getByTestId('takeoffws-push'))).toBe('Push 2 lines to estimate');
-    expect(textOf(screen.getByTestId(`takeoffws-airead-${newId}`))).toContain('AI read — not measured');
+    expect(textOf(screen.getByTestId(`takeoffws-airead-${newId}`))).toContain('AI read, not measured');
     expect(textOf(screen.getByTestId(`takeoffws-amount-${newId}`))).toContain('2,700');
 
     // Dismiss the other row: the section is empty.
@@ -508,8 +508,8 @@ describe('lane TK-b — AI suggestions in the Conditions panel', () => {
 
   it('no AI Takeoff saved on this browser → the "none" sentence and the Run AI Takeoff link', async () => {
     await mountAt('web', 1512, 945, `/area-takeoff?${P}`, seedAll);
-    expect(textOf(screen.getByTestId('takeoffws-ai-none'))).toContain('No AI takeoff saved on this browser for this project yet. An AI takeoff run on your phone stays on that phone.');
-    expect(textOf(screen.getByTestId('takeoffws-ai-run'))).toBe('Run AI takeoff');
+    expect(textOf(screen.getByTestId('takeoffws-ai-none'))).toContain('No AI Takeoff saved on this browser for this project yet. An AI Takeoff run on your phone stays on that phone.');
+    expect(textOf(screen.getByTestId('takeoffws-ai-run'))).toBe('Run AI Takeoff');
   });
 
   it('Run AI Takeoff and come back: the panel re-reads on focus; /takeoff re-saving never re-offers an accepted row', async () => {
@@ -568,7 +568,7 @@ describe('lane TK-b — AI suggestions in the Conditions panel', () => {
 
   it('a corrupt saved AI Takeoff → the failed sentence, never the none sentence', async () => {
     await mountAt('web', 1512, 945, `/area-takeoff?${P}`, seedAi('{not json'));
-    expect(textOf(screen.getByTestId('takeoffws-ai-failed'))).toContain('Couldn’t read the AI takeoff saved on this browser for this project.');
+    expect(textOf(screen.getByTestId('takeoffws-ai-failed'))).toContain('Couldn’t read the AI Takeoff saved on this browser for this project.');
     expect(screen.getByTestId('takeoffws-ai-retry')).toBeTruthy();
     expect(screen.queryByTestId('takeoffws-ai-none')).toBeNull();
   });

@@ -350,7 +350,7 @@ describe('Z2 golden — the phone is unchanged (390 × 844 iOS)', () => {
 
   it('(a) contract with a draft (the Save draft / Sign & send row)', async () => {
     const tree = await phoneRoute(`/contract?${P}`);
-    expect(screen.getByText('Save draft')).toBeTruthy();
+    expect(screen.getByText('Save Draft')).toBeTruthy();
     expect(fingerprint('a-contract-draft', tree.toJSON())).toMatchSnapshot();
   });
 

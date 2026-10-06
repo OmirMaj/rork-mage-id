@@ -145,7 +145,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
   const handleSaveCurrentVersion = useCallback(async () => {
     if (currentGrandTotal <= 0) {
-      showAlert('Nothing to save', 'Add items to your estimate first.');
+      showAlert('Nothing to Save', 'Add items to your estimate first.');
       return;
     }
     const items = currentCart.map(i => ({
@@ -212,7 +212,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
       ? ` and ${evicted.length - 1} other${evicted.length > 2 ? 's' : ''}`
       : '';
     showAlert(
-      'Saving this drops your oldest version',
+      'Saving This Drops Your Oldest Version',
       `This device keeps ${MAX_SAVED_VERSIONS} versions. Saving "${version.name}" removes `
         + `"${dropped.name}" ($${Math.round(dropped.grandTotal).toLocaleString('en-US')}, saved `
         + `${new Date(dropped.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
@@ -220,7 +220,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
         + 'It\'s only on this device, so it can\'t be recovered.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Save anyway', style: 'destructive', onPress: () => { void write(); } },
+        { text: 'Save Anyway', style: 'destructive', onPress: () => { void write(); } },
       ],
     );
   }, [currentCart, currentLaborCart, currentAssemblyCart, currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal, savedVersions]);
@@ -281,7 +281,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
       <View style={[s.container, fP.card]}>
         <View style={s.header}>
           <View>
-            <Text style={s.headerTitle}>Compare estimates</Text>
+            <Text style={s.headerTitle}>Compare Estimates</Text>
             <Text style={s.headerSub}>Track changes across versions</Text>
           </View>
           <TouchableOpacity onPress={onClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -290,20 +290,20 @@ const EstimateComparison = React.memo(function EstimateComparison({
         <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
           <TouchableOpacity style={s.saveBtn} onPress={handleSaveCurrentVersion} activeOpacity={0.85}>
             <Save size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-            <Text style={s.saveBtnText}>Save as version</Text>
+            <Text style={s.saveBtnText}>Save as Version</Text>
           </TouchableOpacity>
 
           {savedVersions.length === 0 && !loading && (
             <View style={s.emptyState}>
               <GitCompare size={40} color={t.textMuted} strokeWidth={1.75} />
-              <Text style={s.emptyTitle}>No saved versions yet</Text>
+              <Text style={s.emptyTitle}>No Saved Versions Yet</Text>
               <Text style={s.emptyDesc}>Save your current estimate to start tracking changes over time.</Text>
             </View>
           )}
 
           {savedVersions.length > 0 && (
             <>
-              <Text style={s.sectionTitle}>Saved versions</Text>
+              <Text style={s.sectionTitle}>Saved Versions</Text>
               {savedVersions.map(version => {
                 const isSelected = selectedVersion?.id === version.id;
                 return (
@@ -372,7 +372,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
                 <View style={s.compDivider} />
                 <View style={s.compRow}>
-                  <Text style={[s.compCell, { flex: 2, fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize }]}>Grand total</Text>
+                  <Text style={[s.compCell, { flex: 2, fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize }]}>Grand Total</Text>
                   <Text style={[s.compCell, { fontWeight: '700' as const, color: Colors.primary }]}>${currentGrandTotal.toFixed(0)}</Text>
                   <Text style={[s.compCell, { color: t.textMuted }]}>${selectedVersion.grandTotal.toFixed(0)}</Text>
                   <Text style={[s.compCell, { color: comparison.totalDelta.color, fontWeight: '700' as const, fontSize: Type.caption1.fontSize }]}>{comparison.totalDelta.text}</Text>
@@ -381,7 +381,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
               {comparison.changedItems.length > 0 && (
                 <View style={s.changesSection}>
-                  <Text style={s.changesSectionTitle}>Line item changes</Text>
+                  <Text style={s.changesSectionTitle}>Line Item Changes</Text>
                   {comparison.changedItems.slice(0, 15).map((item, idx) => {
                     const bgColor = item.type === 'new' ? Colors.successLight : item.type === 'removed' ? Colors.errorLight : Colors.warningLight;
                     const textColor = item.type === 'new' ? t.successLabel : item.type === 'removed' ? t.dangerLabel : t.warningLabel;

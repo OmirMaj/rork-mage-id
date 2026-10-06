@@ -65,10 +65,10 @@ ok('the widget range is labelled as the widget\'s, not his price', /not your pri
 const fmt = evalBlock<{ widgetBallparkText: (s: unknown) => string | null; scopeWithoutBallpark: (s: unknown) => string }>(
   'supabase/functions/notify/index.ts', 'notify-format', ['widgetBallparkText', 'scopeWithoutBallpark']);
 if (fmt) {
-  const scope = 'Kitchen remodel · ~200 sq ft · standard finishes · zip 78701 · Instant Estimate shown: $38,000–$52,000 · Island please';
+  const scope = 'Kitchen Remodel · ~200 sq ft · standard finishes · zip 78701 · Instant Estimate shown: $38,000–$52,000 · Island please';
   ok('reads the range widget-estimate printed', fmt.widgetBallparkText(scope) === '$38,000–$52,000', String(fmt.widgetBallparkText(scope)));
   ok('a quote-form lead has no widget range', fmt.widgetBallparkText('Redo the deck') === null && fmt.widgetBallparkText(null) === null);
-  ok('the quoted scope is the homeowner\'s own words', fmt.scopeWithoutBallpark(scope) === 'Kitchen remodel · ~200 sq ft · standard finishes · zip 78701 · Island please');
+  ok('the quoted scope is the homeowner\'s own words', fmt.scopeWithoutBallpark(scope) === 'Kitchen Remodel · ~200 sq ft · standard finishes · zip 78701 · Island please');
 }
 
 console.log('\n#9 calling from the lead screen counts — once he says so');
@@ -86,7 +86,7 @@ const LD = code(read('app/lead-detail.tsx'));
 ok('Call / Text / Email all go through startContact', /startContact\('call', `tel:/.test(LD) && /startContact\('text', `sms:/.test(LD) && /startContact\('email', buildMailtoUrl/.test(LD));
 ok('no quick action opens the dialer bare any more', !/Linking\.openURL\(`(tel|sms):/.test(LD));
 ok('nothing is logged on the tap itself', !/startContact[\s\S]{0,200}addLeadTouch/.test(LD.slice(LD.indexOf('const startContact'), LD.indexOf('const startContact') + 250)));
-ok('"Log it" logs through addLeadTouch (which stamps firstRespondedAt)', /text: 'Log it', onPress: \(\) => addLeadTouch\(leadIdNow, kind, copy\.touch\)/.test(LD));
+ok('"Log it" logs through addLeadTouch (which stamps firstRespondedAt)', /text: 'Log It', onPress: \(\) => addLeadTouch\(leadIdNow, kind, copy\.touch\)/.test(LD));
 ok('the app must have gone to the background first', /next === 'background'\) \{ markLeft\(\); return; \}/.test(LD) && /if \(pendingContactRef\.current\) pendingContactRef\.current\.leftApp = true;/.test(LD));
 ok('…and on desktop web, losing window focus to the dialer/mail app counts as leaving', /win\?\.addEventListener\('blur', markLeft\)/.test(LD) && /win\?\.addEventListener\('focus', askOnReturn\)/.test(LD));
 

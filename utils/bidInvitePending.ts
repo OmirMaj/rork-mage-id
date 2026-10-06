@@ -172,11 +172,11 @@ export function applyPendingDelivery(
 }
 
 /** The row marker for an invite whose email did not go. */
-export const NOT_EMAILED_ROW = 'Not emailed — copy link or Chase';
+export const NOT_EMAILED_ROW = 'Not emailed. Copy link or Chase.';
 
 /** One sentence naming why an invite email did not go, for the alert (#94). */
 export function notEmailedSentence(email: string, reason: string | undefined): string {
-  if (reason === 'suppressed_unsubscribed') return `${email} unsubscribed from invitation emails — text them the link.`;
-  if (reason === 'no_recipient') return `${email} has no address notify could mail — copy the link and text it over.`;
-  return `Could not hand the email off to ${email} — copy the link and send it yourself.`;
+  if (reason === 'suppressed_unsubscribed') return `${email} unsubscribed from invitation emails. Text them the link.`;
+  if (reason === 'no_recipient') return `${email} has no address notify could mail. Copy the link and text it over.`;
+  return `Could not hand the email off to ${email}. Copy the link and send it yourself.`;
 }

@@ -131,16 +131,16 @@ export function publicIndexCopy(a: {
 }): string {
   if (a.publicOptIn === null) {
     return a.unreadable
-      ? "Couldn't load your Public Price Index setting — check your connection. The switch unlocks once it loads. Nothing is published either way: the index isn't live yet."
+      ? "Couldn't load your Public Price Index setting. Check your connection. The switch unlocks once it loads. Nothing is published either way: the index isn't live yet."
       : 'Loading your Public Price Index setting…';
   }
   if (!a.publicOptIn) {
-    return "Off. Your rates stay private. The public price index isn't published yet — MAGE ID will publish it only once rates are computed on our servers from logged job costs. Turn this on to have your measured rates count toward it then; it will never show your name.";
+    return "Off. Your rates stay private. The public price index isn't published yet. MAGE ID will publish it only once rates are computed on our servers from logged job costs. Turn this on to have your measured rates count toward it then; it will never show your name.";
   }
   if ((a.ratesOnFile ?? 0) === 0 && a.publishableCount === 0) {
-    return "On — nothing to count yet. Your measured rates are kept for the index once you log actuals on a job. The index isn't published yet, so nothing of yours is shown to anyone.";
+    return "On. Nothing to count yet. Your measured rates are kept for the index once you log actuals on a job. The index isn't published yet, so nothing of yours is shown to anyone.";
   }
-  return "On. Your measured rates are kept for the public price index. It isn't published yet — MAGE ID publishes it only once rates are computed on our servers from logged job costs — so nothing of yours is shown to anyone today.";
+  return "On. Your measured rates are kept for the public price index. It isn't published yet (MAGE ID publishes it only once rates are computed on our servers from logged job costs), so nothing of yours is shown to anyone today.";
 }
 
 export function useCostBenchmark(entries: BenchmarkInput[]): {
@@ -291,7 +291,7 @@ export function useCostBenchmark(entries: BenchmarkInput[]): {
       if (!stored) {
         return {
           ok: false,
-          message: "Couldn't save your Public Price Index choice. Check your connection and try again — nothing changed.",
+          message: "Couldn't save your Public Price Index choice. Check your connection and try again. Nothing changed.",
         };
       }
       setIndexState(stored);
@@ -300,7 +300,7 @@ export function useCostBenchmark(entries: BenchmarkInput[]): {
     } catch {
       return {
         ok: false,
-        message: "Couldn't reach MAGE ID to save your Public Price Index choice. Nothing changed — try again when you're online.",
+        message: "Couldn't reach MAGE ID to save your Public Price Index choice. Nothing changed. Try again when you're online.",
       };
     }
   };

@@ -389,7 +389,7 @@ export default function CompareDrawingsScreen() {
     const n = Number(pageDraft.trim());
     const max = pendingPdf?.pageCount ?? null;
     if (!Number.isInteger(n) || n < 1) return { page: null, reason: 'Type the page number of this sheet in the PDF.' };
-    if (max !== null && n > max) return { page: null, reason: `That PDF has ${max} pages — pick a page from 1 to ${max}.` };
+    if (max !== null && n > max) return { page: null, reason: `That PDF has ${max} pages. Pick a page from 1 to ${max}.` };
     return { page: n, reason: null };
   }, [pageDraft, pendingPdf]);
 
@@ -469,7 +469,7 @@ export default function CompareDrawingsScreen() {
       if (canSyncSheets && chain) void supabaseWrite('plan_sheets', 'update', { id: p.id, ...chain, updated_at: now });
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (plan.message) showAlert('Revision updated', plan.message);
+    if (plan.message) showAlert('Revision Updated', plan.message);
   }, [oldSheet, numberDraft, allSheets, updatePlanSheet, canSyncSheets]);
 
   // #77: both drawings ride on the RFI (old, then new), so the architect sees
@@ -562,11 +562,11 @@ export default function CompareDrawingsScreen() {
     const foundSomething = (result?.changes.length ?? 0) > 0 || (result?.rfiCandidates.length ?? 0) > 0;
     if (savedSomething || !foundSomething) { router.back(); return; }
     showAlert(
-      'Nothing from this comparison is saved',
-      'File the revision, create an RFI, or start a change order first — leaving now discards what the comparison found.',
+      'Nothing from This Comparison Is Saved',
+      'File the revision, create an RFI, or start a change order first. Leaving now discards what the comparison found.',
       [
         { text: 'Stay', style: 'cancel' },
-        { text: 'Leave anyway', style: 'destructive', onPress: () => router.back() },
+        { text: 'Leave Anyway', style: 'destructive', onPress: () => router.back() },
       ],
       { cancelable: true },
     );
@@ -576,9 +576,9 @@ export default function CompareDrawingsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="Compare drawings · MAGE ID" title="Find what changed" />
+        <ToolHeader eyebrow="Compare Drawings · MAGE ID" title="Find What Changed" />
         <ToolProjectPicker
-          toolName="Compare drawings"
+          toolName="Compare Drawings"
           message="Compare drawings checks a new revision against the sheet in the field and flags every scope, dimension and note change with its likely cost or schedule impact."
           projects={projects}
           onPick={setPickedProjectId}
@@ -603,14 +603,14 @@ export default function CompareDrawingsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="Compare drawings · MAGE ID" title={project.name} />
+        <ToolHeader eyebrow="Compare Drawings · MAGE ID" title={project.name} />
         <View style={[styles.hero, { alignItems: 'flex-start' }]} testID="compare-role-gate">
           {roleWaiting ? (
             <ActivityIndicator size="small" color={themeColors.accent} />
           ) : roleFailed ? (
             <>
               <Text style={styles.heroBody}>Couldn&apos;t check your role on this project. Check your connection and try again.</Text>
-              <Button label="Try again" variant="secondary" size="sm" onPress={roleState.refetch} testID="compare-role-retry" />
+              <Button label="Try Again" variant="secondary" size="sm" onPress={roleState.refetch} testID="compare-role-retry" />
             </>
           ) : (
             <>
@@ -629,8 +629,8 @@ export default function CompareDrawingsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="Compare drawings · MAGE ID" title={project.name} />
-        <WorkProgress title="Comparing sheets" typical="usually 30–60 s" facts={CONSTRUCTION_FACTS} />
+        <ToolHeader eyebrow="Compare Drawings · MAGE ID" title={project.name} />
+        <WorkProgress title="Comparing Sheets" typical="usually 30–60 s" facts={CONSTRUCTION_FACTS} />
       </View>
     );
   }
@@ -645,7 +645,7 @@ export default function CompareDrawingsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="Compare drawings · MAGE ID" title={project.name} />
+      <ToolHeader eyebrow="Compare Drawings · MAGE ID" title={project.name} />
       <ScrollView {...fabScroll} style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
 
         {/* ── Step 1: pick the OLD sheet ─────────────────────────── */}
@@ -655,17 +655,17 @@ export default function CompareDrawingsScreen() {
               <View style={styles.heroIconWrap}>
                 <MageAIMark size={20} color={themeColors.accent} />
               </View>
-              <Text style={styles.heroTitle}>Find what changed</Text>
+              <Text style={styles.heroTitle}>Find What Changed</Text>
               <Text style={styles.heroBody}>
                 Pick the sheet that&apos;s currently in the field, then upload the new revision: a PDF (any page of a re-issued set) or a JPG/PNG. MAGE marks what changed between the two sheets and what each change likely means for cost or schedule.
               </Text>
             </View>
 
-            <Text style={styles.sectionLabel}>Pick the current sheet</Text>
+            <Text style={styles.sectionLabel}>Pick the Current Sheet</Text>
             {planSheets.length === 0 ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No plan sheets in this project yet</Text>
-                <Text style={styles.emptyBody}>Add a sheet from the Plans screen first — that&apos;s the &quot;current&quot; reference for the comparison.</Text>
+                <Text style={styles.emptyText}>No Plan Sheets in This Project Yet</Text>
+                <Text style={styles.emptyBody}>Add a sheet from the Plans screen first. That&apos;s the &quot;current&quot; reference for the comparison.</Text>
               </View>
             ) : (
               planSheets.map(s => (
@@ -692,7 +692,7 @@ export default function CompareDrawingsScreen() {
           <>
             {/* #76: two revisions already in the plan set. */}
             <View style={styles.hero}>
-              <Text style={styles.heroTitle}>Compare two revisions</Text>
+              <Text style={styles.heroTitle}>Compare Two Revisions</Text>
               <Text style={styles.heroBody}>
                 Both sheets are already in the plan set, so nothing is uploaded or filed. MAGE compares {sheetCitation(oldSheet)} with {sheetCitation(pairNew)} and flags every change.
               </Text>
@@ -711,10 +711,10 @@ export default function CompareDrawingsScreen() {
             </View>
             <TouchableOpacity onPress={() => { void handleCompareExisting(); }} style={styles.primaryBtn} activeOpacity={0.85} testID="compare-existing-pair">
               <Layers size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.primaryBtnText}>Compare these revisions</Text>
+              <Text style={styles.primaryBtnText}>Compare These Revisions</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setPairNewId(null)} style={[styles.changeBtn, { marginHorizontal: 16 }]}>
-              <Text style={styles.changeBtnText}>Upload a different revision instead</Text>
+              <Text style={styles.changeBtnText}>Upload a Different Revision Instead</Text>
             </TouchableOpacity>
             {errorBanner}
           </>
@@ -723,14 +723,14 @@ export default function CompareDrawingsScreen() {
         {step === 'pickNew' && oldSheet && !pairNew && (
           <>
             <View style={styles.hero}>
-              <Text style={styles.heroTitle}>Now upload the revision</Text>
+              <Text style={styles.heroTitle}>Now Upload the Revision</Text>
               <Text style={styles.heroBody}>
                 Pick the new PDF, or a JPG/PNG, showing the same drawing as <Text style={{ fontWeight: '700' }}>{oldSheet.name}</Text>. For a whole re-issued set you choose the page. MAGE renders it and runs the comparison.
               </Text>
             </View>
 
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Comparing against</Text>
+              <Text style={styles.summaryLabel}>Comparing Against</Text>
               <View style={styles.summaryRow}>
                 <Image source={{ uri: oldSheet.imageUri }} style={styles.summaryThumb} resizeMode="cover" />
                 <View style={{ flex: 1 }}>
@@ -739,7 +739,7 @@ export default function CompareDrawingsScreen() {
                 </View>
               </View>
               <TouchableOpacity onPress={() => { setPendingPdf(null); renderCache.current = null; setStep('pickOld'); }} style={styles.changeBtn}>
-                <Text style={styles.changeBtnText}>Pick a different sheet</Text>
+                <Text style={styles.changeBtnText}>Pick a Different Sheet</Text>
               </TouchableOpacity>
             </View>
 
@@ -754,14 +754,14 @@ export default function CompareDrawingsScreen() {
                   </Text>
                 </View>
                 <Text style={styles.fileCardBody}>
-                  Which page is {oldSheet.sheetNumber || oldSheet.name}? Only that page is rendered and compared — it uses 1 takeoff page.
+                  Which page is {oldSheet.sheetNumber || oldSheet.name}? Only that page is rendered and compared. It uses 1 takeoff page.
                 </Text>
                 <View style={styles.pageRow}>
                   <TouchableOpacity
                     onPress={() => setPageDraft(p => String(Math.max(1, (Number(p) || 1) - 1)))}
                     style={styles.pageStepBtn}
                     accessibilityRole="button"
-                    accessibilityLabel="Previous page"
+                    accessibilityLabel="Previous Page"
                   >
                     <Minus size={14} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -770,7 +770,7 @@ export default function CompareDrawingsScreen() {
                     onChangeText={setPageDraft}
                     keyboardType="number-pad"
                     style={styles.pageInput}
-                    accessibilityLabel="Page number"
+                    accessibilityLabel="Page Number"
                     testID="compare-page-input"
                   />
                   <TouchableOpacity
@@ -780,7 +780,7 @@ export default function CompareDrawingsScreen() {
                     })}
                     style={styles.pageStepBtn}
                     accessibilityRole="button"
-                    accessibilityLabel="Next page"
+                    accessibilityLabel="Next Page"
                   >
                     <Plus size={14} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -798,16 +798,16 @@ export default function CompareDrawingsScreen() {
                   accessibilityState={{ disabled: pageChoice.page === null }}
                   testID="compare-page-go"
                 >
-                  <Text style={styles.fileBtnText}>{pageChoice.page === null ? 'Pick a page' : `Compare page ${pageChoice.page}`}</Text>
+                  <Text style={styles.fileBtnText}>{pageChoice.page === null ? 'Pick a Page' : `Compare page ${pageChoice.page}`}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setPendingPdf(null)} style={styles.linkBtn}>
-                  <Text style={styles.linkBtnText}>Pick a different file</Text>
+                  <Text style={styles.linkBtnText}>Pick a Different File</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <TouchableOpacity onPress={handlePickNew} style={styles.primaryBtn} activeOpacity={0.85}>
                 <FileText size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.primaryBtnText}>Pick new revision (PDF or image)</Text>
+                <Text style={styles.primaryBtnText}>Pick New Revision (PDF or Image)</Text>
               </TouchableOpacity>
             )}
 
@@ -849,7 +849,7 @@ export default function CompareDrawingsScreen() {
               <View style={styles.fileCard}>
                 <View style={styles.fileCardHead}>
                   <Layers size={15} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.fileCardTitle}>Put this revision in the plan set</Text>
+                  <Text style={styles.fileCardTitle}>Put This Revision in the Plan Set</Text>
                 </View>
                 {filing.kind === 'ready' ? (
                   <>
@@ -872,7 +872,7 @@ export default function CompareDrawingsScreen() {
                       style={styles.linkBtn}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.linkBtnText}>{filing.kind === 'in_set' ? 'Open the newer sheet' : 'Open the filed sheet'}</Text>
+                      <Text style={styles.linkBtnText}>{filing.kind === 'in_set' ? 'Open the Newer Sheet' : 'Open the Filed Sheet'}</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -900,7 +900,7 @@ export default function CompareDrawingsScreen() {
                           testID="compare-sheet-number-save"
                         >
                           <Check size={13} color={themeColors.accent} strokeWidth={1.75} />
-                          <Text style={styles.rowBtnText}>{numberDraft.trim() ? 'Save number' : 'Type a number'}</Text>
+                          <Text style={styles.rowBtnText}>{numberDraft.trim() ? 'Save Number' : 'Type a Number'}</Text>
                         </TouchableOpacity>
                       </View>
                     ) : null}
@@ -912,7 +912,7 @@ export default function CompareDrawingsScreen() {
 
             {result.changes.length === 0 ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No changes found</Text>
+                <Text style={styles.emptyText}>No Changes Found</Text>
                 <Text style={styles.emptyBody}>The two sheets look the same to MAGE. Check them side by side before you rely on this.</Text>
               </View>
             ) : (
@@ -943,7 +943,7 @@ export default function CompareDrawingsScreen() {
                           testID={`compare-start-co-${i}`}
                         >
                           <FilePlus2 size={13} color={themeColors.accent} strokeWidth={1.75} />
-                          <Text style={styles.rowBtnText}>{coSaved[i] ? `Open CO #${coSaved[i].number}` : 'Start change order'}</Text>
+                          <Text style={styles.rowBtnText}>{coSaved[i] ? `Open CO #${coSaved[i].number}` : 'Start Change Order'}</Text>
                         </TouchableOpacity>
                         {/* #166: a change that needs the architect's word. */}
                         <TouchableOpacity
@@ -966,7 +966,7 @@ export default function CompareDrawingsScreen() {
 
             {result.rfiCandidates.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>Possible RFIs to architect</Text>
+                <Text style={styles.sectionLabel}>Possible RFIs to Architect</Text>
                 {result.rfiCandidates.map((r, i) => (
                   <View key={i} style={styles.rfiCard}>
                     <Info size={14} color={themeColors.info} strokeWidth={1.75} />
@@ -988,7 +988,7 @@ export default function CompareDrawingsScreen() {
                             style={styles.doneText}
                             render={label => `${label} created, linked to ${sheetCitation(pairNew ?? oldSheet)}. `}
                           >
-                            <Text style={styles.linkBtnText}>Open it to assign and send</Text>
+                            <Text style={styles.linkBtnText}>Open It to Assign and Send</Text>
                           </CompareRfiLabel>
                         </TouchableOpacity>
                       ) : (
@@ -1044,7 +1044,7 @@ function labelForType(t: ChangeType): string {
   if (t === 'added') return 'Added';
   if (t === 'removed') return 'Removed';
   if (t === 'modified') return 'Modified';
-  return 'Note revised';
+  return 'Note Revised';
 }
 // Module-level. `added` is the success TEAL (Colors.success, static, white
 // glyph 4.9:1): the pre-rebrand #2E7D44 sat ΔE 9.2 from the brand green.
@@ -1065,15 +1065,15 @@ function severityHero(s: 'low' | 'medium' | 'high') {
   return { backgroundColor: Colors.success + '12', borderColor: Colors.success + '30' };
 }
 function severityLabel(s: 'low' | 'medium' | 'high'): string {
-  if (s === 'high') return 'High impact';
-  if (s === 'medium') return 'Medium impact';
-  return 'Low impact';
+  if (s === 'high') return 'High Impact';
+  if (s === 'medium') return 'Medium Impact';
+  return 'Low Impact';
 }
 const IMPACT_LABEL: Record<ChangeImpact, string> = {
-  none: 'No impact', minor: 'Minor impact', moderate: 'Moderate impact', major: 'Major impact',
+  none: 'No Impact', minor: 'Minor Impact', moderate: 'Moderate Impact', major: 'Major Impact',
 };
 function impactLabel(i: ChangeImpact): string {
-  return IMPACT_LABEL[i] ?? 'Impact not rated';
+  return IMPACT_LABEL[i] ?? 'Impact Not Rated';
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({

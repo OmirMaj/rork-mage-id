@@ -690,7 +690,7 @@ export default function TakeoffWorkspace() {
           <View style={styles.pill} accessibilityHint={scale === 'recheck' ? PLAN_SCALE_RECHECK_COPY : undefined} testID="takeoffws-scale-pill">
             {scale === 'ready' ? <View style={[styles.dot, { backgroundColor: t.success }]} /> : null}
             <Text style={[styles.pillText, scale !== 'ready' && { color: t.warningLabel }]}>
-              {scale === 'ready' ? 'Scale set' : scale === 'none' ? 'Set scale (K)' : 'Re-check scale'}
+              {scale === 'ready' ? 'Scale Set' : scale === 'none' ? 'Set Scale (K)' : 'Re-Check Scale'}
             </Text>
           </View>
         ) : null}

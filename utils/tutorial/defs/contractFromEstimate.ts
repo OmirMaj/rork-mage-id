@@ -36,7 +36,7 @@ function timelineLine(ctx: CopyCtx): string | null {
 export const contractFromEstimate: TutorialDef = {
   id: 'contract-from-estimate',
   version: 1,
-  title: 'Set up a contract from the estimate',
+  title: 'Set Up a Contract from the Estimate',
   seconds: 45,
   endsWith: 'Start date and payment terms set, ready to sign',
   group: 'client',
@@ -95,7 +95,7 @@ export const contractFromEstimate: TutorialDef = {
       gesture: 'tap',
       until: { signal: 'contract.terms.set' },
       success: {
-        title: 'Draft saved with your terms',
+        title: 'Draft Saved with Your Terms',
         sub: ctx => {
           const parts: string[] = [];
           const t = timelineLine(ctx);
@@ -111,7 +111,7 @@ export const contractFromEstimate: TutorialDef = {
       route: CONTRACT,
       target: 'contract.sign',
       text: 'Signing happens with your client on a real job.',
-      detail: 'Sign & send emails your client a link to sign. It stays off on the sample.',
+      detail: 'Sign and Send emails your client a link to sign. It stays off on the sample.',
       gesture: 'none',
     },
     {
@@ -145,9 +145,9 @@ export const contractFromEstimate: TutorialDef = {
   handoff: {
     pathname: '/contract',
     projectParam: 'projectId',
-    realJobLabel: name => `Set up the contract on ${name} →`,
+    realJobLabel: name => `Set up the contract on ${name}`,
     feature: 'client_portal',
-    paywallLabel: 'Contracts come with Pro — see plans',
+    paywallLabel: 'Contracts come with Pro. See plans.',
     // Only the project owner's account can send the signing link.
     roles: ['owner'],
   },

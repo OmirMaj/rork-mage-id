@@ -88,7 +88,7 @@ expect('more jobs wins the tie', tie?.rate, 14);
 
 // ── provenance labels are honest about where a number came from ──
 ok('yours label names the trade + evidence',
-  priceSourceLabel('yours', m).startsWith('Your rate — Framing, 4 jobs'), priceSourceLabel('yours', m));
+  priceSourceLabel('yours', m).startsWith('Your rate: Framing, 4 jobs'), priceSourceLabel('yours', m));
 ok('engine label admits it is NOT your history',
   /not your history/.test(priceSourceLabel('engine')));
 ok('ai label admits there is no history',

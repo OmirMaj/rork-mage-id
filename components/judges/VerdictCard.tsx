@@ -23,9 +23,9 @@ import { Tokens } from '@/constants/designTokens';
 import { RangeSettle, useStagger } from '@/components/motion/kit';
 
 const VERDICT_LABEL: Record<Verdict, string> = {
-  take: 'Take it',
-  hold_firm: 'Bid but hold firm',
-  walk: 'Walk away',
+  take: 'Take It',
+  hold_firm: 'Bid but Hold Firm',
+  walk: 'Walk Away',
 };
 
 const CONFIDENCE_LABEL = { low: 'Low', medium: 'Medium', high: 'High' } as const;
@@ -64,7 +64,7 @@ export function VerdictCard({ result, marginSource }: { result: JudgesResult; ma
       </View>
 
       {/* Recommended range */}
-      <Text style={styles.rangeLabel}>Recommended bid</Text>
+      <Text style={styles.rangeLabel}>Recommended Bid</Text>
       <Text style={styles.range}>
         {money(v.recommendedLow)}–{money(v.recommendedHigh)}
       </Text>

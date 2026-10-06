@@ -32,12 +32,12 @@ export function EstimateMetricGrid({ directCost, markups, contingency, itemCount
 
   const fourth = contingency !== undefined
     ? { label: 'Contingency', value: money(contingency), sub: 'Reserve', icon: Package, tone: 'info' as IconWrapperTone }
-    : { label: 'Line items', value: String(itemCount), sub: itemCount === 1 ? 'item' : 'items', icon: Package, tone: 'neutral' as IconWrapperTone };
+    : { label: 'Line Items', value: String(itemCount), sub: itemCount === 1 ? 'item' : 'items', icon: Package, tone: 'neutral' as IconWrapperTone };
 
   const metrics: { label: string; value: string; sub: string; icon: typeof FileText; tone: IconWrapperTone }[] = [
-    { label: 'Total estimate', value: money(totalEstimate), sub: 'Including markups', icon: FileText, tone: 'accent' },
-    { label: 'Total cost', value: money(directCost), sub: 'Direct costs', icon: DollarSign, tone: 'success' },
-    { label: 'Total markups', value: money(markups), sub: `${markupPct.toFixed(2)}% of direct`, icon: Percent, tone: 'warning' },
+    { label: 'Total Estimate', value: money(totalEstimate), sub: 'Including markups', icon: FileText, tone: 'accent' },
+    { label: 'Total Cost', value: money(directCost), sub: 'Direct costs', icon: DollarSign, tone: 'success' },
+    { label: 'Total Markups', value: money(markups), sub: `${markupPct.toFixed(2)}% of direct`, icon: Percent, tone: 'warning' },
     fourth,
   ];
 

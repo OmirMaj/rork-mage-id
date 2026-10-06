@@ -236,7 +236,7 @@ ok('estimate: the PDF is generated BEFORE the email body is built',
   && estSend.indexOf('await generateEstimatePDFUri(') < estSend.indexOf('buildEstimateEmailHtml('),
   'the body\'s first line depends on whether there is a PDF, so the PDF must exist first');
 ok('estimate: a null pdfUri is confirmed with the user before sending',
-  /if \(!pdfUri\) \{[\s\S]{0,400}?PDF could not be attached/.test(estSend));
+  /if \(!pdfUri\) \{[\s\S]{0,400}?PDF Could Not Be Attached/.test(estSend));
 ok('estimate: the confirmation resolves on dismiss',
   /if \(!pdfUri\) \{[\s\S]{0,1600}?onDismiss: \(\) => resolve\(false\)/.test(estSend));
 ok('estimate: the body is told whether a PDF is attached',
@@ -245,10 +245,10 @@ ok('estimate: the body is told whether a PDF is attached',
 ok('estimate: a dropped attachment changes the success copy',
   /const pdfMissing = !pdfUri \|\| \(result\.attachmentsDropped \?\? 0\) > 0/.test(estSend));
 ok('estimate: the flat "Email Sent" toast is conditional on the PDF',
-  /pdfMissing \? '[^']*without the PDF' : 'Email sent'/.test(estSend)
+  /pdfMissing \? '[^']*Without the PDF' : 'Email Sent'/.test(estSend)
   && !/showAlert\('Email sent'/i.test(estSend));
 ok('estimate: composer_opened says the draft is not sent',
-  /result\.outcome === 'composer_opened'[\s\S]{0,400}?Draft opened — not sent yet/.test(estSend));
+  /result\.outcome === 'composer_opened'[\s\S]{0,400}?Draft Opened, Not Sent Yet/.test(estSend));
 ok('estimate: Share PDF is only offered when there is a PDF to share',
   !/pdfUri \?\? await generateEstimatePDFUri/.test(estSend)
   && /pdfUri\s*\?\s*\[[\s\S]{0,200}?'Share PDF'/.test(estSend),

@@ -496,7 +496,7 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
     ['QuickFieldUpdate (project picker)', CASES.find(([n]) => n === 'QuickFieldUpdate')![2], 'Project', 440],
     ['PropertyManagerHome (Add a property)', CASES.find(([n]) => n === 'PropertyManagerHome')![2], 'Add a property', 560],
     ['UniversalMicButton', CASES.find(([n]) => n === 'UniversalMicButton')![2], 'Voice action', 560],
-    ['InstantBidProposalModal', CASES.find(([n]) => n === 'InstantBidProposalModal')![2], 'Instant bid', 720],
+    ['InstantBidProposalModal', CASES.find(([n]) => n === 'InstantBidProposalModal')![2], 'Instant Bid', 720],
     ['PunchExportSheet', CASES.find(([n]) => n === 'PunchExportSheet')![2], 'Export punch list', 720],
   ] as Array<[string, () => React.ReactElement, string, number]>)('%s — in the app, a capped card with a fade', async (_n, make, text, width) => {
     const json = await mountInAppDesktop(make());

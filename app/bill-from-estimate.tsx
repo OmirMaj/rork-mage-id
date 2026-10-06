@@ -550,7 +550,7 @@ export default function BillFromEstimateScreen() {
     if (!project || !projectId) return;
     if (creatingDraftRef.current) return;
     if (roleGate !== 'open') {
-      showAlert('Only the project owner bills', INVOICE_OWNER_ONLY_REASON);
+      showAlert('Only the Project Owner Bills', INVOICE_OWNER_ONLY_REASON);
       return;
     }
     if (subtotal <= 0) {
@@ -574,7 +574,7 @@ export default function BillFromEstimateScreen() {
       return true;
     });
     if (activeRows.length === 0) {
-      showAlert('Nothing to bill', 'Select at least one line item and enter a billing percent above zero.');
+      showAlert('Nothing to Bill', 'Select at least one line item and enter a billing percent above zero.');
       return;
     }
 
@@ -690,13 +690,13 @@ export default function BillFromEstimateScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{
-          title: 'Bill from estimate',
+          title: 'Bill from Estimate',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         }} />
         <ToolProjectPicker
-          toolName="Bill from estimate"
+          toolName="Bill from Estimate"
           message="Billing draws down against one project's estimate, so pick the project you're invoicing."
           projects={projects}
           onPick={setPickedProjectId}
@@ -704,7 +704,7 @@ export default function BillFromEstimateScreen() {
           icon={<ReceiptText size={36} color={themeColors.accent} strokeWidth={1.6} />}
           steps={[
             'Open or create a project from the Projects tab.',
-            'Give it an estimate — the estimate lines become the schedule of values.',
+            'Give it an estimate. The estimate lines become the schedule of values.',
             'Come back here to bill a percentage of each line.',
           ]}
         />
@@ -720,7 +720,7 @@ export default function BillFromEstimateScreen() {
     return (
       <View style={styles.container} testID="bill-role-blocked">
         <Stack.Screen options={{
-          title: 'Bill from estimate',
+          title: 'Bill from Estimate',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -731,7 +731,7 @@ export default function BillFromEstimateScreen() {
           <Text style={styles.roleBlockedText}>{copy.body}</Text>
           {roleGate === 'error' || roleGate === 'paused' ? (
             <TouchableOpacity style={styles.roleBlockedBtn} onPress={roleState.refetch} accessibilityRole="button" testID="bill-role-retry">
-              <Text style={styles.roleBlockedBtnText}>Try again</Text>
+              <Text style={styles.roleBlockedBtnText}>Try Again</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -818,7 +818,7 @@ export default function BillFromEstimateScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{
-          title: 'Bill from estimate',
+          title: 'Bill from Estimate',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -826,10 +826,10 @@ export default function BillFromEstimateScreen() {
         <ScrollView {...fabScroll} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, gap: 16 }}>
           <View style={styles.emptyCard}>
             <ClipboardList size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No estimate yet</Text>
+            <Text style={styles.emptyTitle}>No Estimate Yet</Text>
             <Text style={styles.emptyBody}>
               This project doesn&apos;t have an estimate with line items. Build one first so invoices draw
-              down against the contract value automatically — or create a blank invoice for a
+              down against the contract value automatically, or create a blank invoice for a
               one-off charge.
             </Text>
             <TouchableOpacity
@@ -838,7 +838,7 @@ export default function BillFromEstimateScreen() {
               activeOpacity={0.85}
               testID="bill-from-estimate-blank-invoice"
             >
-              <Text style={styles.primaryBtnText}>Create blank invoice</Text>
+              <Text style={styles.primaryBtnText}>Create Blank Invoice</Text>
               <ArrowRight size={16} color={'#FFFFFF'} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
@@ -850,7 +850,7 @@ export default function BillFromEstimateScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Bill from estimate',
+        title: 'Bill from Estimate',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -866,7 +866,7 @@ export default function BillFromEstimateScreen() {
           <View style={styles.hero}>
             <Text style={styles.heroLabel}>{project.name}</Text>
             <Text style={styles.heroTitle}>
-              {isProgressDefault ? 'Progress invoice' : 'Invoice'} #{nextInvoiceNumber}
+              {isProgressDefault ? 'Progress Invoice' : 'Invoice'} #{nextInvoiceNumber}
             </Text>
             <View style={styles.heroRow}>
               <View style={styles.heroMetric}>
@@ -878,7 +878,7 @@ export default function BillFromEstimateScreen() {
                 <Text style={styles.heroMetricValue}>{money(contractTotal)}</Text>
               </View>
               <View style={styles.heroMetric}>
-                <Text style={styles.heroMetricLabel}>Already billed</Text>
+                <Text style={styles.heroMetricLabel}>Already Billed</Text>
                 <Text style={[styles.heroMetricValue, { color: themeColors.info }]}>{money(totalAlreadyBilled)}</Text>
               </View>
               <View style={styles.heroMetric}>
@@ -899,7 +899,7 @@ export default function BillFromEstimateScreen() {
             {milestoneBilled > 0.005 && (
               <Text style={styles.heroFootnote} testID="milestone-billed-note">
                 Includes {money(milestoneBilled)} billed on contract payment milestones, spread
-                across the lines below — a milestone is a claim on the whole contract, so there is
+                across the lines below. A milestone is a claim on the whole contract, so there is
                 no single line to charge it to.
               </Text>
             )}
@@ -912,7 +912,7 @@ export default function BillFromEstimateScreen() {
               <Info size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.warnBannerText}>
                 {unaccountedBilling > 0
-                  ? `Invoices on this project total ${money(invoicedPreTax)} before tax. ${money(totalAlreadyBilled)} of that matches a line below; ${money(unaccountedBilling)} was billed outside this schedule — a quick invoice, a hand-typed extra, or an invoice raised before this estimate existed. It is not counted in “Already billed”, so it is worth a look before you bill the same work here.`
+                  ? `Invoices on this project total ${money(invoicedPreTax)} before tax. ${money(totalAlreadyBilled)} of that matches a line below; ${money(unaccountedBilling)} was billed outside this schedule: a quick invoice, a hand-typed extra, or an invoice raised before this estimate existed. It is not counted in “Already billed”, so it is worth a look before you bill the same work here.`
                   : `The lines below account for ${money(totalAlreadyBilled)} of billing, more than the ${money(invoicedPreTax)} of non-draft invoices on this project. Some billing here may have been voided or deleted.`}
               </Text>
             </View>
@@ -922,7 +922,7 @@ export default function BillFromEstimateScreen() {
               <Info size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.warnBannerText}>
                 The lines below add up to {money(estimateRowTotal)}, but this estimate&apos;s total is
-                {' '}{money(estimateGrandTotal)} — a {money(sovShortfall)} gap. Scope added by Visual Takeoff or
+                {' '}{money(estimateGrandTotal)}, a {money(sovShortfall)} gap. Scope added by Visual Takeoff or
                 Plan Intelligence is written at cost, so billing every line to 100% here would still leave
                 that markup uninvoiced. Bill the gap on a separate line, or re-price those items in the
                 estimator first.
@@ -935,14 +935,14 @@ export default function BillFromEstimateScreen() {
               <Text style={styles.warnBannerText}>
                 {money(milestoneOverflow)} of milestone billing is beyond the whole schedule below,
                 so every line already reads fully billed. The contract has been drawn down past its
-                estimate — bill further only against an approved change order.
+                estimate. Bill further only against an approved change order.
               </Text>
             </View>
           )}
 
           {/* Quick presets — set every row's "bill this round" % in one tap */}
           <View style={styles.presetRow}>
-            <Text style={styles.presetLabel}>Quick fill</Text>
+            <Text style={styles.presetLabel}>Quick Fill</Text>
             {[25, 50, 75, 100].map(p => (
               <TouchableOpacity
                 key={p}
@@ -960,7 +960,7 @@ export default function BillFromEstimateScreen() {
             <Info size={14} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.helpBannerText}>
               Tap a row to include or exclude it. Enter a percent of the remaining balance you want
-              to bill this round — the totals below update live.
+              to bill this round. The totals below update live.
               {hasChangeOrderRows ? ' Approved change orders bill here too, and each one tracks its own billed-through.' : ''}
             </Text>
           </View>
@@ -978,7 +978,7 @@ export default function BillFromEstimateScreen() {
                 {approvedCredits.length === 1
                   ? `CO #${approvedCredits[0].number} is a ${money(Math.abs(approvedCredits[0].changeAmount))} credit`
                   : `${approvedCredits.length} approved credits totalling ${money(Math.abs(approvedCredits.reduce((s2, c) => s2 + c.changeAmount, 0)))}`}
-                {' '}— not a billable row, and not in the figure above. It is already off the revised contract total on your reports.
+                {' '}(not a billable row, and not in the figure above). It is already off the revised contract total on your reports.
               </Text>
             </View>
           )}
@@ -1026,7 +1026,7 @@ export default function BillFromEstimateScreen() {
                 <View style={styles.rowStatusLine}>
                   <Text style={styles.rowStatusText}>
                     {isFullyBilled
-                      ? 'Fully billed'
+                      ? 'Fully Billed'
                       : `Billed ${money(r.alreadyBilled)} of ${money(r.lineTotal)} (${billedPctOfLine.toFixed(0)}%)`}
                   </Text>
                   <Text style={[styles.rowStatusText, { color: themeColors.success }]}>
@@ -1059,7 +1059,7 @@ export default function BillFromEstimateScreen() {
                 {isSelected && !isFullyBilled && (
                   <View style={styles.rowControlGrid}>
                     <View style={styles.rowPctCol}>
-                      <Text style={styles.rowControlLabel}>Bill this round</Text>
+                      <Text style={styles.rowControlLabel}>Bill This Round</Text>
                       <View style={styles.rowPctInputWrap}>
                         <TextInput
                           style={styles.rowPctInput}
@@ -1084,7 +1084,7 @@ export default function BillFromEstimateScreen() {
                       </View>
                     </View>
                     <View style={styles.rowAmtCol}>
-                      <Text style={styles.rowControlLabel}>Line amount</Text>
+                      <Text style={styles.rowControlLabel}>Line Amount</Text>
                       <View style={styles.rowAmtWrap}>
                         <DollarSign size={14} color={themeColors.success} strokeWidth={1.75} />
                         <Text style={styles.rowAmtText}>{money(amount).replace('$', '')}</Text>
@@ -1117,7 +1117,7 @@ export default function BillFromEstimateScreen() {
               <Text style={styles.footerTotalValue}>{money(taxAmount)}</Text>
             </View>
             <View style={[styles.footerTotalRow, styles.footerTotalRowBold]}>
-              <Text style={styles.footerTotalLabelBold}>Total due</Text>
+              <Text style={styles.footerTotalLabelBold}>Total Due</Text>
               <Text style={styles.footerTotalValueBold}>{money(totalDue)}</Text>
             </View>
           </View>
@@ -1128,7 +1128,7 @@ export default function BillFromEstimateScreen() {
             activeOpacity={0.85}
             testID="bill-from-estimate-create"
           >
-            <Text style={styles.primaryBtnText}>Continue to invoice</Text>
+            <Text style={styles.primaryBtnText}>Continue to Invoice</Text>
             <ArrowRight size={16} color={'#FFFFFF'} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>

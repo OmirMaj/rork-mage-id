@@ -545,11 +545,11 @@ function AreaTakeoffInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Visual takeoff · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Trace & price'}</Text>
+          <Text style={styles.headerEyebrow}>Visual Takeoff · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Trace and Price'}</Text>
         </View>
         {imageUri ? (
-          <TouchableOpacity onPress={pickImage} style={styles.headerBtn} hitSlop={12} accessibilityLabel="New image">
+          <TouchableOpacity onPress={pickImage} style={styles.headerBtn} hitSlop={12} accessibilityLabel="New Image">
             <ImagePlus size={20} color={t.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : <View style={styles.headerBtn} />}
@@ -560,16 +560,16 @@ function AreaTakeoffInner() {
           <View style={[styles.emptyIcon, { backgroundColor: t.accent + '18' }]}>
             <PenTool size={34} color={t.accent} strokeWidth={1.6} />
           </View>
-          <Text style={styles.emptyTitle}>Trace it, price it</Text>
+          <Text style={styles.emptyTitle}>Trace It, Price It</Text>
           <Text style={styles.emptyMsg}>
             Pick a floor plan or a photo of one, set the scale with two taps, then trace an area,
             run a line, or drop counts. We&apos;ll size it and price it from your own cost database
-            {canAddToEstimate ? ' — then add it straight to this estimate.' : '.'}
+            {canAddToEstimate ? ', then add it straight to this estimate.' : '.'}
           </Text>
 
           {projectSheets.length > 0 && (
             <View style={styles.sheetList}>
-              <Text style={styles.sheetListLabel}>Plans on this project</Text>
+              <Text style={styles.sheetListLabel}>Plans on This Project</Text>
               {projectSheets.slice(0, 6).map(s => (
                 <TouchableOpacity key={s.id} style={styles.sheetRow} onPress={() => loadSheet(s.id, s.imageUri, { width: s.width, height: s.height })} activeOpacity={0.7} testID={`takeoff-sheet-${s.id}`}>
                   <FileImage size={18} color={t.accent} strokeWidth={1.75} />
@@ -594,7 +594,7 @@ function AreaTakeoffInner() {
 
           <TouchableOpacity style={styles.primaryBtn} onPress={pickImage} activeOpacity={0.85} testID="takeoff-pick">
             <ImagePlus size={18} color={Colors.textOnAccent} strokeWidth={1.75} />
-            <Text style={styles.primaryBtnText}>Pick a plan or photo</Text>
+            <Text style={styles.primaryBtnText}>Pick a Plan or Photo</Text>
           </TouchableOpacity>
         </ScrollView>
       ) : (
@@ -609,8 +609,8 @@ function AreaTakeoffInner() {
           {/* Mode toggle (scale not needed for count) */}
           {needsScale && (
             <View style={styles.modeRow}>
-              <ModeBtn active={mode === 'calibrate'} icon={<Ruler size={15} color={mode === 'calibrate' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label={calibration ? 'Scale set' : 'Set scale'} onPress={() => setMode('calibrate')} t={t} styles={styles} />
-              <ModeBtn active={mode === 'draw'} icon={<PenTool size={15} color={mode === 'draw' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label={kind === 'area' ? 'Trace area' : 'Run line'} onPress={() => setMode('draw')} disabled={!calibration} t={t} styles={styles} />
+              <ModeBtn active={mode === 'calibrate'} icon={<Ruler size={15} color={mode === 'calibrate' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label={calibration ? 'Scale Set' : 'Set Scale'} onPress={() => setMode('calibrate')} t={t} styles={styles} />
+              <ModeBtn active={mode === 'draw'} icon={<PenTool size={15} color={mode === 'draw' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label={kind === 'area' ? 'Trace Area' : 'Run Line'} onPress={() => setMode('draw')} disabled={!calibration} t={t} styles={styles} />
             </View>
           )}
 
@@ -665,7 +665,7 @@ function AreaTakeoffInner() {
               {mode === 'draw' && kind !== 'count' && (
                 <TouchableOpacity style={styles.toolBtn} onPress={() => { setFreehand(f => !f); setDrawPoints([]); setLastAdded(null); }} hitSlop={8} testID="takeoff-freehand">
                   <Spline size={16} color={freehand ? t.accent : t.text} strokeWidth={1.75} />
-                  <Text style={[styles.toolText, freehand && { color: t.accent }]}>{freehand ? 'Freehand' : 'Tap to place'}</Text>
+                  <Text style={[styles.toolText, freehand && { color: t.accent }]}>{freehand ? 'Freehand' : 'Tap to Place'}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={styles.toolBtn} onPress={undoPoint} hitSlop={8} testID="takeoff-undo"><Undo2 size={16} color={t.text} strokeWidth={1.75} /><Text style={styles.toolText}>Undo</Text></TouchableOpacity>
@@ -694,9 +694,9 @@ function AreaTakeoffInner() {
                 {kind !== 'count' && (
                   <View style={styles.wasteBlock}>
                     <View style={styles.wasteHeadRow}>
-                      <Text style={styles.pickLabel}>Waste factor</Text>
+                      <Text style={styles.pickLabel}>Waste Factor</Text>
                       <Text style={styles.wasteQtyText}>
-                        {quantityLabel(Math.round(quantity))} net → <Text style={styles.wasteQtyStrong}>{quantityLabel(billableRounded)}</Text> billable
+                        {quantityLabel(Math.round(quantity))} net, <Text style={styles.wasteQtyStrong}>{quantityLabel(billableRounded)}</Text> billable
                       </Text>
                     </View>
                     <View style={styles.wastePills}>
@@ -718,7 +718,7 @@ function AreaTakeoffInner() {
                 {/* Price from YOUR history when available */}
                 {trades.length > 0 && (
                   <>
-                    <Text style={styles.pickLabel}>Price from your history</Text>
+                    <Text style={styles.pickLabel}>Price from Your History</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
                       {trades.map(e => {
                         const sel = selectedTrade === e.trade;
@@ -744,7 +744,7 @@ function AreaTakeoffInner() {
                 {historyRate == null && (
                   <View style={styles.manualBlock}>
                     <Text style={styles.pickLabel}>
-                      {trades.length > 0 ? 'Or set a rate' : 'Set a rate'}
+                      {trades.length > 0 ? 'Or Set a Rate' : 'Set a Rate'}
                     </Text>
                     <View style={styles.manualRow}>
                       <Text style={styles.manualDollar}>$</Text>
@@ -802,7 +802,7 @@ function AreaTakeoffInner() {
                 {canAddToEstimate && effectiveRate != null && (
                   <TouchableOpacity style={styles.addBtn} onPress={handleAddToEstimate} activeOpacity={0.85} testID="takeoff-add-to-estimate">
                     <Plus size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-                    <Text style={styles.addBtnText}>Add to {project?.name ? 'this estimate' : 'estimate'}</Text>
+                    <Text style={styles.addBtnText}>Add to {project?.name ? 'This Estimate' : 'Estimate'}</Text>
                   </TouchableOpacity>
                 )}
                 {/* Which job's estimate the line goes on — switchable without
@@ -810,7 +810,7 @@ function AreaTakeoffInner() {
                 {effectiveRate != null && estimateJobs.length > 0 && (!canAddToEstimate || estimateJobs.length > 1) && (
                   <View style={{ marginTop: 10 }}>
                     <EstimateJobPicker
-                      label={canAddToEstimate ? 'Adding to' : 'Add to the estimate on…'}
+                      label={canAddToEstimate ? 'Adding To' : 'Add to the estimate on…'}
                       jobs={estimateJobs}
                       selectedId={canAddToEstimate ? projectId : undefined}
                       onPick={pickProject}
@@ -821,12 +821,12 @@ function AreaTakeoffInner() {
                 {!canAddToEstimate && effectiveRate != null && (
                   estimateJobs.length > 0 ? (
                     <Text style={styles.resultHintSmall}>
-                      {project ? `${project.name} has no estimate yet. ` : ''}Pick a job above to add this line to its estimate — your scale and trace stay put.
+                      {project ? `${project.name} has no estimate yet. ` : ''}Pick a job above to add this line to its estimate. Your scale and trace stay put.
                     </Text>
                   ) : (
                     <View style={{ gap: 8 }}>
                       <Text style={styles.resultHintSmall}>
-                        No project has an estimate yet, so there is nowhere to add this line. Build one first — this measurement stays here while you do.
+                        No project has an estimate yet, so there is nowhere to add this line. Build one first. This measurement stays here while you do.
                       </Text>
                       <TouchableOpacity
                         style={styles.crossLink}
@@ -836,7 +836,7 @@ function AreaTakeoffInner() {
                         testID="takeoff-build-estimate"
                       >
                         <Calculator size={16} color={t.accent} strokeWidth={1.75} />
-                        <Text style={styles.crossLinkText}>Build an estimate</Text>
+                        <Text style={styles.crossLinkText}>Build an Estimate</Text>
                       </TouchableOpacity>
                     </View>
                   )
@@ -854,14 +854,14 @@ function AreaTakeoffInner() {
 
           <TouchableOpacity style={styles.crossLink} onPress={() => router.push('/cost-database' as any)} activeOpacity={0.7} testID="takeoff-costdb-link">
             <Library size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.crossLinkText}>Rates come from your cost history</Text>
+            <Text style={styles.crossLinkText}>Rates Come from Your Cost History</Text>
           </TouchableOpacity>
 
           <Text style={styles.note}>
             Area/linear quantities use the plan&apos;s calibration (two points + a known distance);
             count needs no scale. A waste factor is applied to the net measured quantity before
             pricing. Price from your own learned rate when you have history, or fall back to a
-            regional engine rate / a rate you type — so a measurement is never a dead-end. Adding to
+            regional engine rate / a rate you type, so a measurement is never a dead end. Adding to
             the estimate writes a priced line, and that job&apos;s actuals later sharpen these rates.
           </Text>
         </ScrollView>
@@ -871,14 +871,14 @@ function AreaTakeoffInner() {
       <Modal visible={distanceModal} transparent animationType={fDistance.animationType} onRequestClose={() => setDistanceModal(false)}>
         <View style={[styles.modalBackdrop, fDistance.overlay]}>
           <View style={[styles.modalCard, fDistance.card]}>
-            <Text style={styles.modalTitle}>Known distance</Text>
+            <Text style={styles.modalTitle}>Known Distance</Text>
             <Text style={styles.modalSub}>How far apart are those two points, in feet?</Text>
             <TextInput
               style={styles.modalInput}
               value={distanceInput}
               onChangeText={setDistanceInput}
               keyboardType="decimal-pad"
-              placeholder="e.g. 3"
+              placeholder="3"
               placeholderTextColor={t.textMuted}
               autoFocus
               testID="takeoff-distance-input"
@@ -889,7 +889,7 @@ function AreaTakeoffInner() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirm} onPress={confirmDistance} testID="takeoff-distance-confirm">
                 <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-                <Text style={styles.modalConfirmText}>Set scale</Text>
+                <Text style={styles.modalConfirmText}>Set Scale</Text>
               </TouchableOpacity>
             </View>
           </View>

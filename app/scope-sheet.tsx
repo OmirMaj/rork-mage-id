@@ -117,7 +117,7 @@ export default function ScopeSheetScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       const copy = describeError(err, { action: 'draft the scope sheet' });
-      showAlert("Couldn't draft the scope sheet", copy.body);
+      showAlert("Couldn't Draft the Scope Sheet", copy.body);
     } finally {
       setGenerating(false);
     }
@@ -157,7 +157,7 @@ export default function ScopeSheetScreen() {
     if (!sheet) return;
     await Clipboard.setStringAsync(scopeSheetToText(sheet, project?.name));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    showAlert('Scope sheet copied', 'It\'s on your clipboard.');
+    showAlert('Scope Sheet Copied', 'It\'s on your clipboard.');
   }, [sheet, project?.name]);
 
   const shareAll = useCallback(async () => {
@@ -169,7 +169,7 @@ export default function ScopeSheetScreen() {
   if (!project) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Scope sheet' }} />
+        <Stack.Screen options={{ title: 'Scope Sheet' }} />
         <Text style={styles.emptyText}>Open this from a project to draft its scope sheet.</Text>
       </View>
     );
@@ -183,7 +183,7 @@ export default function ScopeSheetScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Scope sheet' }} />
+      <Stack.Screen options={{ title: 'Scope Sheet' }} />
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         {/* Header card */}
         <View style={styles.headerCard}>
@@ -225,13 +225,13 @@ export default function ScopeSheetScreen() {
         {!sheet && !loading && (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIcon}><MageAIMark size={26} color={t.accent} /></View>
-            <Text style={styles.emptyTitle}>Draft the scope from your estimate</Text>
+            <Text style={styles.emptyTitle}>Draft the Scope from Your Estimate</Text>
             <Text style={styles.emptyBody}>
               MAGE drafts the inclusions, exclusions, clarifications, assumptions and allowances from your estimate
               line items. Edit anything before you send it.
             </Text>
             <TouchableOpacity style={styles.primaryBtn} onPress={() => generate(false)} disabled={generating} activeOpacity={0.85} testID="generate-scope-sheet">
-              {generating ? <ActivityIndicator color={Colors.textOnAccent} /> : <><MageAIMark size={16} color={Colors.textOnAccent} /><Text style={styles.primaryBtnText}>Draft scope sheet</Text></>}
+              {generating ? <ActivityIndicator color={Colors.textOnAccent} /> : <><MageAIMark size={16} color={Colors.textOnAccent} /><Text style={styles.primaryBtnText}>Draft Scope Sheet</Text></>}
             </TouchableOpacity>
           </View>
         )}
@@ -285,7 +285,7 @@ export default function ScopeSheetScreen() {
                           <View style={[styles.riskChip, item.risk === 'high' ? styles.riskHigh : styles.riskMed]}>
                             <AlertTriangle size={9} color={item.risk === 'high' ? t.danger : t.accent} strokeWidth={1.75} />
                             <Text style={[styles.riskText, { color: item.risk === 'high' ? t.danger : t.accent }]}>
-                              {item.risk === 'high' ? 'Dispute risk' : 'Confirm'}
+                              {item.risk === 'high' ? 'Dispute Risk' : 'Confirm'}
                             </Text>
                           </View>
                         ) : null}
@@ -310,7 +310,7 @@ export default function ScopeSheetScreen() {
 
         {sheet && (
           <Text style={styles.footnote}>
-            Drafted from your estimate — review every line before it goes in a proposal or contract. Not legal advice.
+            Drafted from your estimate. Review every line before it goes in a proposal or contract. Not legal advice.
           </Text>
         )}
       </ScrollView>

@@ -472,7 +472,7 @@ export default function EstimateScreen() {
       // relay, which has no browsing tool and no supplier feed. This label
       // travels with the row into the cart, the estimate and the bid PDF, so
       // it is the last place that claim could have survived unexamined.
-      sourceLabel: 'AI estimate — not a supplier quote',
+      sourceLabel: 'AI estimate, not a supplier quote',
       region: 'National Avg',
       specTier: 'base',
     };
@@ -546,7 +546,7 @@ export default function EstimateScreen() {
   const handleAddCustomMaterial = useCallback(() => {
     const price = parseLenientNumber(customPrice);
     if (!customName.trim() || price === null || price <= 0) {
-      showAlert('Check the name and price', 'Enter a name and a price above $0.');
+      showAlert('Check the Name and Price', 'Enter a name and a price above $0.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -805,7 +805,7 @@ export default function EstimateScreen() {
     const hours = parseLenientNumber(laborHoursInput);
     const rate = parseLenientNumber(laborRateInput);
     if (hours === null || hours <= 0 || rate === null || rate <= 0) {
-      showAlert('Check the hours and rate', 'Enter hours and an hourly rate above 0.');
+      showAlert('Check the Hours and Rate', 'Enter hours and an hourly rate above 0.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -848,7 +848,7 @@ export default function EstimateScreen() {
     if (!selectedAssembly) return;
     const qty = parseLenientNumber(assemblyQtyInput);
     if (qty === null || qty <= 0) {
-      showAlert('Check the quantity', 'Enter a quantity above 0.');
+      showAlert('Check the Quantity', 'Enter a quantity above 0.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -978,17 +978,17 @@ export default function EstimateScreen() {
     }, 0);
     return [
       {
-        id: 'switch', title: 'Supplier price gap',
+        id: 'switch', title: 'Supplier Price Gap',
         detail: switchSavings > 0 ? `Switch to the lowest-priced supplier in this category to save about ${formatMoney(switchSavings, 0)}.` : 'This estimate is already close to the lowest supplier prices in each category.',
         delta: switchSavings, tone: switchSavings > 80 ? 'positive' : 'neutral', icon: TrendingUp,
       },
       {
-        id: 'bulk-gap', title: 'Bulk pricing gap',
+        id: 'bulk-gap', title: 'Bulk Pricing Gap',
         detail: quantityGap > 0 ? `Some lines are close to bulk pricing. Reaching those quantities saves about ${formatMoney(quantityGap, 0)}.` : 'Every bulk-eligible line is already at bulk pricing.',
         delta: quantityGap, tone: quantityGap > 0 ? 'positive' : 'neutral', icon: MageAIMark,
       },
       {
-        id: 'concentration', title: 'Supplier concentration',
+        id: 'concentration', title: 'Supplier Concentration',
         detail: concentration > 65 && topSupplier ? `${topSupplier[0]} holds ${concentration.toFixed(0)}% of spend. Add fallback quotes.` : 'Spend is distributed enough to reduce single-vendor pricing shocks.',
         delta: concentration, tone: concentration > 65 ? 'warning' : 'neutral', icon: AlertTriangle,
       },
@@ -1008,7 +1008,7 @@ export default function EstimateScreen() {
     if (!selectedMaterial) return;
     const qty = parseLenientNumber(itemQty);
     if (qty === null || qty <= 0) {
-      showAlert('Check the quantity', 'Enter a quantity above 0.');
+      showAlert('Check the Quantity', 'Enter a quantity above 0.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1178,13 +1178,13 @@ export default function EstimateScreen() {
 
   const handleSelectProject = useCallback(() => {
     if (!selectedProjectId) {
-      showAlert('Choose a project', 'Choose a project to attach this estimate to.');
+      showAlert('Choose a Project', 'Choose a project to attach this estimate to.');
       return;
     }
     const proj = projects.find(p => p.id === selectedProjectId);
     if (!proj) return;
     setPendingLinkProject(proj);
-    const defaultName = `${proj.name} - Estimate - ${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
+    const defaultName = `${proj.name} · Estimate · ${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
     setEstimateName(defaultName);
     setShowAddToProject(false);
     setTimeout(() => {
@@ -1226,8 +1226,8 @@ export default function EstimateScreen() {
     setPendingLinkProject(null);
     const projId = pendingLinkProject.id;
     const projName = pendingLinkProject.name;
-    showAlert('Estimate linked', `Your estimate has been ${mode === 'merge' ? 'merged into' : 'linked to'} "${projName}".`, [
-      { text: 'View project', onPress: () => router.push({ pathname: '/project-detail', params: { id: projId } }) },
+    showAlert('Estimate Linked', `Your estimate has been ${mode === 'merge' ? 'merged into' : 'linked to'} "${projName}".`, [
+      { text: 'View Project', onPress: () => router.push({ pathname: '/project-detail', params: { id: projId } }) },
       { text: 'OK' },
     ]);
   }, [pendingLinkProject, buildLinkedEstimate, updateProject, router]);
@@ -1300,13 +1300,13 @@ export default function EstimateScreen() {
       if (!pdfUri) {
         const proceedWithoutPdf = await new Promise<boolean>((resolve) => {
           showAlert(
-            'PDF could not be attached',
+            'PDF Could Not Be Attached',
             Platform.OS === 'web'
               ? `The web app can't create the estimate PDF, so nothing can be attached to this email.\n\nYou can still email ${options.recipient.trim()} the estimate summary: project, item count and total. To send the PDF itself, use Share and save it from the print dialog, or send from the iPhone app.`
               : `The estimate PDF couldn't be created on this device, so nothing can be attached.\n\nYou can still email ${options.recipient.trim()} the estimate summary without it.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Send without PDF', onPress: () => resolve(true) },
+              { text: 'Send Without PDF', onPress: () => resolve(true) },
             ],
             // Backdrop / Android back must resolve the promise too, or this
             // await never settles and the send stays dead.
@@ -1366,7 +1366,7 @@ export default function EstimateScreen() {
           with_pdf: !pdfMissing,
         });
         showAlert(
-          pdfMissing ? 'Sent without the PDF' : 'Email sent',
+          pdfMissing ? 'Sent Without the PDF' : 'Email Sent',
           pdfMissing
             ? `The estimate summary was emailed to ${options.recipient}, but the PDF could not be attached. Send the PDF separately if the client needs the itemized document.`
             : `Estimate emailed to ${options.recipient}`,
@@ -1377,11 +1377,11 @@ export default function EstimateScreen() {
         // sendEmail could not reach Resend and dropped a draft into his mail
         // app instead. Nothing has been sent; "could not send" would also be
         // wrong, because the draft is sitting there waiting for him.
-        showAlert('Draft opened — not sent yet', result.error ?? 'Review the draft in your email app and press Send there.');
+        showAlert('Draft Opened, Not Sent Yet', result.error ?? 'Review the draft in your email app and press Send there.');
       } else {
         console.warn('[Estimate] Email send failed:', result.error);
         showAlert(
-          "Couldn't send the email",
+          "Couldn't Send the Email",
           pdfUri
             ? "The email didn't go through. Share the PDF from another app instead?"
             : ownSentence(result.error) ?? describeError(result.error, { action: 'send the email' }).body,
@@ -1439,7 +1439,7 @@ export default function EstimateScreen() {
       }, 'share');
     } catch (e) {
       console.error('[Estimate] PDF share error:', e);
-      showAlert("Couldn't create the PDF", pdfFailureMessage(e, "The PDF couldn't be created. Try again."));
+      showAlert("Couldn't Create the PDF", pdfFailureMessage(e, "The PDF couldn't be created. Try again."));
     }
   }, [cart, settings, buildLinkedEstimate, cartTotal, grandTotal, totalItemCount, isFree, bulkSavingsForPdf, selectedProjectId, projects]);
 
@@ -1479,7 +1479,7 @@ export default function EstimateScreen() {
     const subject = settings.branding?.companyName ? `Estimate from ${settings.branding.companyName}` : 'MAGE ID estimate';
     const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
     Linking.openURL(url).catch(() => {
-      showAlert("Couldn't open email", 'Check that an email app is set up on this device.');
+      showAlert("Couldn't Open Email", 'Check that an email app is set up on this device.');
     });
   }, [cart, laborCart, assemblyCart, pricedCart, grandTotal, settings]);
 
@@ -1496,7 +1496,7 @@ export default function EstimateScreen() {
       ? `sms:&body=${encodeURIComponent(body)}`
       : `sms:?body=${encodeURIComponent(body)}`;
     Linking.openURL(url).catch(() => {
-      showAlert("Couldn't open messages", 'Check that a messaging app is set up on this device.');
+      showAlert("Couldn't Open Messages", 'Check that a messaging app is set up on this device.');
     });
   }, [grandTotal, totalItemCount, settings]);
 
@@ -1701,7 +1701,7 @@ export default function EstimateScreen() {
             <View style={styles.costBreakdownDivider} />
             <View style={styles.costBreakdownRow}>
               <View style={[styles.costBreakdownDot, { backgroundColor: 'transparent' }]} />
-              <Text style={[styles.costBreakdownLabel, { fontWeight: '700' as const, color: Colors.text }]}>All-in total</Text>
+              <Text style={[styles.costBreakdownLabel, { fontWeight: '700' as const, color: Colors.text }]}>All-In Total</Text>
               <Text style={styles.costBreakdownRate} />
               <Text style={[styles.costBreakdownValue, { fontWeight: '700' as const, color: Colors.primary }]}>
                 ${((matCostPerUnit + labCostPerUnit + eqCostPerUnit) * item.quantity).toFixed(2)}
@@ -1777,7 +1777,7 @@ export default function EstimateScreen() {
             <Mic size={18} color={Colors.surface} strokeWidth={2} />
           </View>
           <View style={styles.wizardCtaText}>
-            <Text style={styles.wizardCtaTitle}>Build by voice</Text>
+            <Text style={styles.wizardCtaTitle}>Build by Voice</Text>
             <Text style={styles.wizardCtaSubtitle}>Say the scope and MAGE prices it from your past projects</Text>
           </View>
           <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
@@ -1798,7 +1798,7 @@ export default function EstimateScreen() {
             <Mic size={18} color={Colors.surface} strokeWidth={2} />
           </View>
           <View style={styles.wizardCtaText}>
-            <Text style={styles.wizardCtaTitle}>Edit by voice</Text>
+            <Text style={styles.wizardCtaTitle}>Edit by Voice</Text>
             <Text style={styles.wizardCtaSubtitle}>Say a change and MAGE shows the new total before it sticks</Text>
           </View>
           <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
@@ -1815,7 +1815,7 @@ export default function EstimateScreen() {
           <MageAIMark size={18} color={Colors.surface} />
         </View>
         <View style={styles.wizardCtaText}>
-          <Text style={styles.wizardCtaTitle}>Quick estimate wizard</Text>
+          <Text style={styles.wizardCtaTitle}>Quick Estimate Wizard</Text>
           <Text style={styles.wizardCtaSubtitle}>Answer 8 questions and MAGE drafts the estimate</Text>
         </View>
         <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
@@ -1837,7 +1837,7 @@ export default function EstimateScreen() {
           <Ruler size={18} color={Colors.surface} strokeWidth={1.75} />
         </View>
         <View style={styles.takeoffCtaText}>
-          <Text style={styles.takeoffCtaTitle}>Quantity takeoff</Text>
+          <Text style={styles.takeoffCtaTitle}>Quantity Takeoff</Text>
           <Text style={styles.takeoffCtaSubtitle}>Upload plan sheets and MAGE counts walls, doors, fixtures and finishes</Text>
         </View>
         <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
@@ -1899,7 +1899,7 @@ export default function EstimateScreen() {
               testID="cost-xray-btn"
             >
               <ScanSearch size={13} color={Colors.textOnPrimary} strokeWidth={1.75} />
-              <Text style={styles.aiEstimateBtnText}>Hidden costs</Text>
+              <Text style={styles.aiEstimateBtnText}>Hidden Costs</Text>
             </TouchableOpacity>
             <TouchableOpacity
               accessibilityRole="button"
@@ -1912,7 +1912,7 @@ export default function EstimateScreen() {
               <Text style={styles.aiEstimateBtnText}>AI</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              accessibilityRole="button" accessibilityLabel="Square-foot estimator"
+              accessibilityRole="button" accessibilityLabel="Square-Foot Estimator"
               style={styles.refreshIconBtn}
               onPress={() => setShowSqftEstimator(true)}
               activeOpacity={0.7}
@@ -1921,7 +1921,7 @@ export default function EstimateScreen() {
               <Calculator size={15} color={Colors.textSecondary} strokeWidth={1.75} />
             </TouchableOpacity>
             <TouchableOpacity
-              accessibilityRole="button" accessibilityLabel="Productivity calculator"
+              accessibilityRole="button" accessibilityLabel="Productivity Calculator"
               style={styles.refreshIconBtn}
               onPress={() => setShowProductivityCalc(true)}
               activeOpacity={0.7}
@@ -2090,7 +2090,7 @@ export default function EstimateScreen() {
         <View style={aiStyles.recentSection}>
           <View style={aiStyles.recentHeader}>
             <History size={14} color={Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={aiStyles.recentTitle}>Recently used</Text>
+            <Text style={aiStyles.recentTitle}>Recently Used</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={aiStyles.recentChipsRow}>
             {recentMaterials.slice(0, 10).map((item, idx) => (
@@ -2113,7 +2113,7 @@ export default function EstimateScreen() {
         <View style={aiStyles.recentSection}>
           <View style={aiStyles.recentHeader}>
             <Star size={14} color={Colors.accent} strokeWidth={1.75} />
-            <Text style={aiStyles.recentTitle}>Frequently used</Text>
+            <Text style={aiStyles.recentTitle}>Frequently Used</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={aiStyles.recentChipsRow}>
             {popularMaterials.slice(0, 10).map((item, idx) => (
@@ -2152,7 +2152,7 @@ export default function EstimateScreen() {
           </View>
           <TouchableOpacity accessibilityRole="button" style={aiStyles.aiSearchBtn} onPress={handleAiSearch} activeOpacity={0.8}>
             <MageAIMark size={14} color={Colors.textOnPrimary} />
-            <Text style={aiStyles.aiSearchBtnText}>Estimate a price</Text>
+            <Text style={aiStyles.aiSearchBtnText}>Estimate a Price</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -2162,7 +2162,7 @@ export default function EstimateScreen() {
           <View style={aiStyles.aiResultsHeader}>
             <View style={aiStyles.aiResultsTitleRow}>
               <MageAIMark size={14} color={Colors.primary} />
-              <Text style={aiStyles.aiResultsTitle}>AI estimate: "{query}"</Text>
+              <Text style={aiStyles.aiResultsTitle}>AI Estimate: "{query}"</Text>
             </View>
             <TouchableOpacity onPress={() => { setShowAiResults(false); setAiSearchResults([]); }} accessibilityRole="button" accessibilityLabel="Close">
               <X size={16} color={Colors.textMuted} strokeWidth={1.75} />
@@ -2194,7 +2194,7 @@ export default function EstimateScreen() {
                     <View style={aiStyles.aiResultTags}>
                       <View style={aiStyles.aiSourceTag}>
                         <MageAIMark size={9} color={Colors.accent} />
-                        <Text style={aiStyles.aiSourceTagText}>AI estimate</Text>
+                        <Text style={aiStyles.aiSourceTagText}>AI Estimate</Text>
                       </View>
                       <View style={[aiStyles.aiConfBadge, { backgroundColor: confColor + '18' }]}>
                         <View style={[aiStyles.aiConfDot, { backgroundColor: confColor }]} />
@@ -2228,7 +2228,7 @@ export default function EstimateScreen() {
       {activeTab === 'materials' && (
         <TouchableOpacity accessibilityRole="button" style={aiStyles.customEntryBtn} onPress={() => setShowCustomForm(true)} activeOpacity={0.7}>
           <PlusCircle size={14} color={Colors.primary} strokeWidth={1.75} />
-          <Text style={aiStyles.customEntryBtnText}>Add custom material</Text>
+          <Text style={aiStyles.customEntryBtnText}>Add Custom Material</Text>
           <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       )}
@@ -2238,7 +2238,7 @@ export default function EstimateScreen() {
           <View style={styles.opportunityHeader}>
             <View style={styles.opportunityTitleWrap}>
               <Clock3 size={14} color={Colors.infoLabel} strokeWidth={1.75} />
-              <Text style={styles.opportunityTitle}>Blind spots</Text>
+              <Text style={styles.opportunityTitle}>Blind Spots</Text>
             </View>
             <Text style={styles.opportunitySubtitle}>Live basket</Text>
           </View>
@@ -2296,7 +2296,7 @@ export default function EstimateScreen() {
               <Text style={styles.priceLabel}>Source</Text>
               <View style={styles.rsMeansBadge}>
                 <Database size={10} color={Colors.infoLabel} strokeWidth={1.75} />
-                <Text style={styles.rsMeansBadgeText}>BLS data</Text>
+                <Text style={styles.rsMeansBadgeText}>BLS Data</Text>
               </View>
             </View>
           </View>
@@ -2351,7 +2351,7 @@ export default function EstimateScreen() {
           </View>
           <View style={styles.priceRow}>
             <View style={styles.priceBlock}>
-              <Text style={styles.priceLabel}>Per unit</Text>
+              <Text style={styles.priceLabel}>Per Unit</Text>
               <Text style={styles.bulkPrice}>${sampleCost.totalCost.toFixed(2)}</Text>
               <Text style={styles.priceUnit}>/{item.unit.replace('per ', '')}</Text>
             </View>
@@ -2501,7 +2501,7 @@ export default function EstimateScreen() {
         activeOpacity={0.7}
       >
         <PlusCircle size={14} color={Colors.primary} strokeWidth={1.75} />
-        <Text style={aiStyles.customEntryBtnText}>Your labor rates</Text>
+        <Text style={aiStyles.customEntryBtnText}>Your Labor Rates</Text>
         <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
       </TouchableOpacity>
     </View>
@@ -2536,7 +2536,7 @@ export default function EstimateScreen() {
         activeOpacity={0.7}
       >
         <PlusCircle size={14} color={Colors.primary} strokeWidth={1.75} />
-        <Text style={aiStyles.customEntryBtnText}>New assembly</Text>
+        <Text style={aiStyles.customEntryBtnText}>New Assembly</Text>
         <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
       </TouchableOpacity>
     </View>
@@ -2594,7 +2594,7 @@ export default function EstimateScreen() {
             activeOpacity={0.8}
             testID="reprice-keep"
           >
-            <Text style={styles.repriceBtnText}>Keep current prices</Text>
+            <Text style={styles.repriceBtnText}>Keep Current Prices</Text>
           </TouchableOpacity>
           <TouchableOpacity
             accessibilityRole="button"
@@ -2717,10 +2717,10 @@ export default function EstimateScreen() {
               <Ruler size={14} color={Colors.surface} strokeWidth={1.75} />
               <Text style={dStyles.desktopHeroBtnText}>Takeoff</Text>
             </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Square-foot estimator" style={styles.refreshIconBtn} onPress={() => setShowSqftEstimator(true)} activeOpacity={0.7}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Square-Foot Estimator" style={styles.refreshIconBtn} onPress={() => setShowSqftEstimator(true)} activeOpacity={0.7}>
               <Calculator size={15} color={Colors.textSecondary} strokeWidth={1.75} />
             </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Productivity calculator" style={styles.refreshIconBtn} onPress={() => setShowProductivityCalc(true)} activeOpacity={0.7}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Productivity Calculator" style={styles.refreshIconBtn} onPress={() => setShowProductivityCalc(true)} activeOpacity={0.7}>
               <Gauge size={15} color={Colors.textSecondary} strokeWidth={1.75} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.refreshIconBtn} onPress={refreshPrices} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={15} color={Colors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
@@ -2855,7 +2855,7 @@ export default function EstimateScreen() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[dStyles.catalogItemName, { color: Colors.primary }]}>+ New assembly</Text>
-                    <Text style={dStyles.catalogItemPrice}>Create a custom assembly</Text>
+                    <Text style={dStyles.catalogItemPrice}>Create a Custom Assembly</Text>
                   </View>
                   <PlusCircle size={14} color={Colors.primary} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -2935,7 +2935,7 @@ export default function EstimateScreen() {
               {totalItemCount === 0 ? (
                 <View style={[styles.emptyState, { paddingVertical: 80 }]}>
                   <ShoppingCart size={40} color={Colors.textMuted} strokeWidth={1.75} />
-                  <Text style={styles.emptyTitle}>No items in this estimate yet</Text>
+                  <Text style={styles.emptyTitle}>No Items in This Estimate Yet</Text>
                   <Text style={styles.emptyDesc}>
                     Add a material, trade or assembly from the catalog on the left.
                   </Text>
@@ -3029,7 +3029,7 @@ export default function EstimateScreen() {
                     </View>
                   )}
                   <View style={dStyles.wsGrandTotal}>
-                    <Text style={dStyles.wsGrandTotalLabel}>Grand total</Text>
+                    <Text style={dStyles.wsGrandTotalLabel}>Grand Total</Text>
                     <Text style={dStyles.wsGrandTotalValue}>{formatMoney(grandTotal, 2)}</Text>
                   </View>
                 </>
@@ -3043,28 +3043,28 @@ export default function EstimateScreen() {
                 They did not before: Materials showed the marked-up figure
                 while a separate Markup row showed that same markup again, and
                 the column added up to more than the total it sat above. */}
-            <Text style={dStyles.summaryTitle}>Cost summary</Text>
+            <Text style={dStyles.summaryTitle}>Cost Summary</Text>
             <View style={dStyles.summaryRow}>
-              <Text style={dStyles.summaryLabel}>Materials (cost)</Text>
+              <Text style={dStyles.summaryLabel}>Materials (Cost)</Text>
               <Text style={dStyles.summaryValue}>{formatMoney(cartBaseTotal, 2)}</Text>
             </View>
             <View style={dStyles.summaryRow}>
-              <Text style={dStyles.summaryLabel}>Labor (cost)</Text>
+              <Text style={dStyles.summaryLabel}>Labor (Cost)</Text>
               <Text style={dStyles.summaryValue}>{formatMoney(laborBaseTotal, 2)}</Text>
             </View>
             <View style={dStyles.summaryRow}>
-              <Text style={dStyles.summaryLabel}>Assemblies (cost)</Text>
+              <Text style={dStyles.summaryLabel}>Assemblies (Cost)</Text>
               <Text style={dStyles.summaryValue}>{formatMoney(assemblyBaseTotal, 2)}</Text>
             </View>
             {markupTotal > 0 ? (
               <View style={dStyles.summaryRow}>
-                <Text style={[dStyles.summaryLabel, { color: Colors.accent }]}>Overhead &amp; profit ({shownMarkupPct}%)</Text>
+                <Text style={[dStyles.summaryLabel, { color: Colors.accent }]}>Overhead and Profit ({shownMarkupPct}%)</Text>
                 <Text style={[dStyles.summaryValue, { color: Colors.accent }]}>+{formatMoney(markupTotal, 2)}</Text>
               </View>
             ) : directCostTotal > 0 ? (
               <View style={dStyles.summaryRow}>
-                <Text style={[dStyles.summaryLabel, { color: themeColors.dangerLabel }]}>Overhead &amp; profit</Text>
-                <Text style={[dStyles.summaryValue, { color: themeColors.dangerLabel }]}>None (at cost)</Text>
+                <Text style={[dStyles.summaryLabel, { color: themeColors.dangerLabel }]}>Overhead and Profit</Text>
+                <Text style={[dStyles.summaryValue, { color: themeColors.dangerLabel }]}>None (At Cost)</Text>
               </View>
             ) : null}
             <View style={dStyles.summaryDivider} />
@@ -3075,9 +3075,9 @@ export default function EstimateScreen() {
 
             {grandTotal > 0 && (
               <View style={dStyles.summaryMetrics}>
-                <Text style={dStyles.summaryMetricTitle}>Key metrics</Text>
+                <Text style={dStyles.summaryMetricTitle}>Key Metrics</Text>
                 <View style={dStyles.summaryMetricRow}>
-                  <Text style={dStyles.summaryMetricLabel}>Mat:Lab ratio</Text>
+                  <Text style={dStyles.summaryMetricLabel}>Mat:Lab Ratio</Text>
                   <Text style={dStyles.summaryMetricValue}>
                     {laborTotal > 0 ? (cartTotal / laborTotal).toFixed(1) : 'N/A'}:1
                   </Text>
@@ -3088,7 +3088,7 @@ export default function EstimateScreen() {
                 </View>
                 <View style={dStyles.summaryMetricRow}>
                   <Text style={dStyles.summaryMetricLabel}>Location</Text>
-                  <Text style={dStyles.summaryMetricValue}>{settings.location || 'US average'}</Text>
+                  <Text style={dStyles.summaryMetricValue}>{settings.location || 'US Average'}</Text>
                 </View>
               </View>
             )}
@@ -3100,7 +3100,7 @@ export default function EstimateScreen() {
                 setShowAddToProject(true);
               }} activeOpacity={0.85}>
                 <FolderOpen size={14} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                <Text style={dStyles.summaryActionText}>Save to project</Text>
+                <Text style={dStyles.summaryActionText}>Save to Project</Text>
               </TouchableOpacity>
               {/* Gated like its neighbours above. handleOpenPDFPreSend returns
                   silently on an empty estimate, so an ungated button rendered
@@ -3122,7 +3122,7 @@ export default function EstimateScreen() {
               <View style={dStyles.calibrationCard} testID="estimate-calibration">
                 <View style={dStyles.calibrationHead}>
                   <MageCostDb size={13} color={themeColors.accentLabel} />
-                  <Text style={dStyles.calibrationTitle}>How your bids have actually landed</Text>
+                  <Text style={dStyles.calibrationTitle}>How Your Bids Have Actually Landed</Text>
                 </View>
                 {validatorCalibration?.hasData ? (
                   <>
@@ -3130,10 +3130,10 @@ export default function EstimateScreen() {
                       <Text key={c.category} style={dStyles.calibrationLine}>{c.detail}</Text>
                     ))}
                     <Text style={dStyles.calibrationChip}>
-                      Measured from {validatorCalibration.summary.categoryCount}{' '}
+                      Measured From {validatorCalibration.summary.categoryCount}{' '}
                       {validatorCalibration.summary.categoryCount === 1 ? 'category' : 'categories'} with traced
                       actuals across {validatorCalibration.summary.totalJobs}{' '}
-                      {validatorCalibration.summary.totalJobs === 1 ? 'project' : 'projects'}. Not a market average —
+                      {validatorCalibration.summary.totalJobs === 1 ? 'project' : 'projects'}. Not a market average:
                       your own paid costs against your own bids.
                     </Text>
                   </>
@@ -3184,12 +3184,12 @@ export default function EstimateScreen() {
                     </TouchableOpacity>
                   </View>
                   <View style={styles.popupTotalRow}>
-                    <Text style={styles.popupTotalLabel}>Line total</Text>
+                    <Text style={styles.popupTotalLabel}>Line Total</Text>
                     <Text style={styles.popupTotalValue} testID="popup-line-total">{formatMoney(popupPreview.lineTotal, 2)}</Text>
                   </View>
                   <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddFromPopup} activeOpacity={0.85}>
                     <ShoppingCart size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                    <Text style={styles.popupAddBtnText}>{cart.find(i => i.material.id === selectedMaterial.id) ? 'Update' : 'Add to estimate'}</Text>
+                    <Text style={styles.popupAddBtnText}>{cart.find(i => i.material.id === selectedMaterial.id) ? 'Update' : 'Add to Estimate'}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -3214,7 +3214,7 @@ export default function EstimateScreen() {
                   <Text style={styles.popupFieldLabel}>Hours</Text>
                   <TextInput style={styles.popupQtyInput} value={laborHoursInput} onChangeText={setLaborHoursInput} keyboardType="decimal-pad" textAlign="center" />
                   <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddLabor} activeOpacity={0.85}>
-                    <Text style={styles.popupAddBtnText}>{laborCart.find(i => i.labor.id === selectedLabor.id) ? 'Update' : 'Add labor'}</Text>
+                    <Text style={styles.popupAddBtnText}>{laborCart.find(i => i.labor.id === selectedLabor.id) ? 'Update' : 'Add Labor'}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -3237,7 +3237,7 @@ export default function EstimateScreen() {
                   <Text style={styles.popupFieldLabel}>Quantity</Text>
                   <TextInput style={styles.popupQtyInput} value={assemblyQtyInput} onChangeText={setAssemblyQtyInput} keyboardType="decimal-pad" textAlign="center" />
                   <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddAssembly} activeOpacity={0.85}>
-                    <Text style={styles.popupAddBtnText}>{assemblyCart.find(i => i.assembly.id === selectedAssembly.id) ? 'Update' : 'Add assembly'}</Text>
+                    <Text style={styles.popupAddBtnText}>{assemblyCart.find(i => i.assembly.id === selectedAssembly.id) ? 'Update' : 'Add Assembly'}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -3249,7 +3249,7 @@ export default function EstimateScreen() {
           <Pressable style={[styles.popupOverlay, fAddProj.overlay]} onPress={() => setShowAddToProject(false)}>
             <Pressable style={[styles.addToProjectCard, fAddProj.card]} onPress={() => undefined}>
               <View style={styles.addToProjectHeader}>
-                <Text style={styles.addToProjectTitle}>Link to project</Text>
+                <Text style={styles.addToProjectTitle}>Link to Project</Text>
                 <TouchableOpacity onPress={() => setShowAddToProject(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -3274,7 +3274,7 @@ export default function EstimateScreen() {
               )}
               <TouchableOpacity accessibilityRole="button" style={styles.addToProjectConfirmBtn} onPress={handleSelectProject} activeOpacity={0.85}>
                 <Send size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                <Text style={styles.addToProjectConfirmText}>Select project</Text>
+                <Text style={styles.addToProjectConfirmText}>Select Project</Text>
               </TouchableOpacity>
             </Pressable>
           </Pressable>
@@ -3283,13 +3283,13 @@ export default function EstimateScreen() {
           <Pressable style={[styles.popupOverlay, fConfirm.overlay]} onPress={closeConfirmLink}>
             <Pressable style={[styles.addToProjectCard, fConfirm.card]} onPress={() => undefined}>
               <View style={styles.addToProjectHeader}>
-                <Text style={styles.addToProjectTitle}>Link this estimate</Text>
+                <Text style={styles.addToProjectTitle}>Link This Estimate</Text>
                 <TouchableOpacity onPress={closeConfirmLink} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
               {pendingLinkProject && (
                 <TouchableOpacity accessibilityRole="button" style={styles.addToProjectConfirmBtn} onPress={() => handleConfirmLink('replace')} activeOpacity={0.85}>
                   <CheckCircle size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                  <Text style={styles.addToProjectConfirmText}>Link to project</Text>
+                  <Text style={styles.addToProjectConfirmText}>Link to Project</Text>
                 </TouchableOpacity>
               )}
             </Pressable>
@@ -3340,7 +3340,7 @@ export default function EstimateScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Search size={40} color={Colors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No materials found</Text>
+            <Text style={styles.emptyTitle}>No Materials Found</Text>
             <Text style={styles.emptyDesc}>Try a different search term or category.</Text>
           </View>
         }
@@ -3358,7 +3358,7 @@ export default function EstimateScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <HardHat size={40} color={Colors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No trades found</Text>
+            <Text style={styles.emptyTitle}>No Trades Found</Text>
           </View>
         }
       />}
@@ -3377,7 +3377,7 @@ export default function EstimateScreen() {
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Boxes size={40} color={Colors.textMuted} strokeWidth={1.75} />
-                <Text style={styles.emptyTitle}>No assemblies found</Text>
+                <Text style={styles.emptyTitle}>No Assemblies Found</Text>
               </View>
             }
           />
@@ -3395,7 +3395,7 @@ export default function EstimateScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <ClipboardList size={40} color={Colors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No templates found</Text>
+            <Text style={styles.emptyTitle}>No Templates Found</Text>
           </View>
         }
       />}
@@ -3517,7 +3517,7 @@ export default function EstimateScreen() {
                   // market's multiplier, which is not the price this line
                   // uses — so say which price is used instead.
                   <View style={styles.popupBreakdown} testID="popup-kept-price-note">
-                    <Text style={styles.popupBreakdownTitle}>Kept at its earlier price</Text>
+                    <Text style={styles.popupBreakdownTitle}>Kept at Its Earlier Price</Text>
                     <Text style={styles.popupBreakdownLabel}>
                       This line stays at the price it was added at: ${popupPrices.material.baseRetailPrice.toFixed(2)} retail,
                       ${popupPrices.material.baseBulkPrice.toFixed(2)} bulk. The {regionLabel} price book reads
@@ -3535,9 +3535,9 @@ export default function EstimateScreen() {
                     : 0;
                   return (
                     <View style={styles.popupBreakdown}>
-                      <Text style={styles.popupBreakdownTitle}>Price breakdown</Text>
+                      <Text style={styles.popupBreakdownTitle}>Price Breakdown</Text>
                       <View style={styles.popupBreakdownRow}>
-                        <Text style={styles.popupBreakdownLabel}>MSRP base</Text>
+                        <Text style={styles.popupBreakdownLabel}>MSRP Base</Text>
                         <Text style={styles.popupBreakdownValue}>${msrp.toFixed(2)}</Text>
                       </View>
                       <View style={styles.popupBreakdownRow}>
@@ -3576,13 +3576,13 @@ export default function EstimateScreen() {
                 })()}
 
                 <View style={styles.popupTotalRow}>
-                  <Text style={styles.popupTotalLabel}>Line total</Text>
+                  <Text style={styles.popupTotalLabel}>Line Total</Text>
                   <Text style={styles.popupTotalValue} testID="popup-line-total">{formatMoney(popupPreview.lineTotal, 2)}</Text>
                 </View>
 
                 <View style={styles.popupRunningRow}>
                   <Text style={styles.popupRunningLabel}>
-                    {cart.some(i => i.material.id === selectedMaterial.id) ? 'Estimate total after update' : 'Estimate total after adding'}
+                    {cart.some(i => i.material.id === selectedMaterial.id) ? 'Estimate Total After Update' : 'Estimate Total After Adding'}
                   </Text>
                   <Text style={styles.popupRunningValue} testID="popup-total-after">
                     {formatMoney(popupPreview.totalAfter, 2)}
@@ -3592,7 +3592,7 @@ export default function EstimateScreen() {
                 <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddFromPopup} activeOpacity={0.85} testID="popup-add-btn">
                   <ShoppingCart size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
                   <Text style={styles.popupAddBtnText}>
-                    {cart.find(i => i.material.id === selectedMaterial.id) ? 'Update in estimate' : 'Add to estimate'}
+                    {cart.find(i => i.material.id === selectedMaterial.id) ? 'Update in Estimate' : 'Add to Estimate'}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -3636,10 +3636,10 @@ export default function EstimateScreen() {
             {totalItemCount === 0 ? (
               <View style={styles.cartEmpty}>
                 <ShoppingCart size={48} color={Colors.textMuted} strokeWidth={1.75} />
-                <Text style={styles.cartEmptyTitle}>No items yet</Text>
+                <Text style={styles.cartEmptyTitle}>No Items Yet</Text>
                 <Text style={styles.cartEmptyDesc}>Search and add materials, labor or assemblies to start your estimate.</Text>
                 <TouchableOpacity accessibilityRole="button" style={styles.cartEmptyBtn} onPress={() => setShowCart(false)}>
-                  <Text style={styles.cartEmptyBtnText}>Browse items</Text>
+                  <Text style={styles.cartEmptyBtnText}>Browse Items</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -3780,12 +3780,12 @@ export default function EstimateScreen() {
                   />
 
                   <View style={styles.summaryCard}>
-                    <Text style={styles.summaryTitle}>Estimate summary</Text>
+                    <Text style={styles.summaryTitle}>Estimate Summary</Text>
                     {/* Cost rows, then ONE whole-job markup row. The old shape
                         labelled the markup "Materials markup" because that is
                         all it was; labor and assemblies went out at cost. */}
                     {cart.length > 0 && <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Materials (cost)</Text>
+                      <Text style={styles.summaryLabel}>Materials (Cost)</Text>
                       <Text style={styles.summaryValue}>{formatMoney(cartBaseTotal, 2)}</Text>
                     </View>}
                     {laborBaseTotal > 0 && <View style={styles.summaryRow}>
@@ -3793,19 +3793,19 @@ export default function EstimateScreen() {
                       <Text style={styles.summaryValue}>{formatMoney(laborBaseTotal, 2)}</Text>
                     </View>}
                     {assemblyBaseTotal > 0 && <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Assemblies (cost)</Text>
+                      <Text style={styles.summaryLabel}>Assemblies (Cost)</Text>
                       <Text style={styles.summaryValue}>{formatMoney(assemblyBaseTotal, 2)}</Text>
                     </View>}
                     {markupTotal > 0 ? <View style={styles.summaryRow}>
-                      <Text style={[styles.summaryLabel, { color: Colors.accent }]}>Overhead &amp; profit ({shownMarkupPct}%)</Text>
+                      <Text style={[styles.summaryLabel, { color: Colors.accent }]}>Overhead and Profit ({shownMarkupPct}%)</Text>
                       <Text style={[styles.summaryValue, { color: Colors.accent }]}>+{formatMoney(markupTotal, 2)}</Text>
                     </View> : directCostTotal > 0 ? <View style={styles.summaryRow}>
-                      <Text style={[styles.summaryLabel, { color: themeColors.dangerLabel }]}>Overhead &amp; profit</Text>
-                      <Text style={[styles.summaryValue, { color: themeColors.dangerLabel }]}>None (at cost)</Text>
+                      <Text style={[styles.summaryLabel, { color: themeColors.dangerLabel }]}>Overhead and Profit</Text>
+                      <Text style={[styles.summaryValue, { color: themeColors.dangerLabel }]}>None (At Cost)</Text>
                     </View> : null}
                     <View style={styles.summaryDivider} />
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryTotal}>Grand total</Text>
+                      <Text style={styles.summaryTotal}>Grand Total</Text>
                       <Text style={styles.summaryTotalValue} testID="summary-grand-total">{formatMoney(grandTotal, 2)}</Text>
                     </View>
                     {cart.some(i => i.usesBulk) && (
@@ -3823,7 +3823,7 @@ export default function EstimateScreen() {
 
                 <View style={[styles.cartFooter, { paddingBottom: insets.bottom + 12 }]}>
                   <View style={styles.cartFooterSummary}>
-                    <Text style={styles.cartFooterLabel}>Grand total</Text>
+                    <Text style={styles.cartFooterLabel}>Grand Total</Text>
                     <Text style={styles.cartFooterValue} testID="cart-footer-total">{formatMoney(grandTotal, 2)}</Text>
                   </View>
 
@@ -3845,10 +3845,10 @@ export default function EstimateScreen() {
                       testID="add-to-project-btn"
                     >
                       <FolderOpen size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                      <Text style={styles.addToProjectBtnText}>Add to project</Text>
+                      <Text style={styles.addToProjectBtnText}>Add to Project</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      accessibilityRole="button" accessibilityLabel="Compare estimates"
+                      accessibilityRole="button" accessibilityLabel="Compare Estimates"
                       style={styles.compareBtn}
                       onPress={() => {
                         if (Platform.OS === 'ios') {
@@ -3907,7 +3907,7 @@ export default function EstimateScreen() {
         <Pressable style={[styles.popupOverlay, fAddProj.overlay]} onPress={() => setShowAddToProject(false)}>
           <Pressable style={[styles.addToProjectCard, fAddProj.card]} onPress={() => undefined}>
             <View style={styles.addToProjectHeader}>
-              <Text style={styles.addToProjectTitle}>Link to project</Text>
+              <Text style={styles.addToProjectTitle}>Link to Project</Text>
               <TouchableOpacity onPress={() => setShowAddToProject(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -3960,7 +3960,7 @@ export default function EstimateScreen() {
                 testID="confirm-link-btn"
               >
                 <Send size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                <Text style={styles.addToProjectConfirmText}>Select project</Text>
+                <Text style={styles.addToProjectConfirmText}>Select Project</Text>
               </TouchableOpacity>
             )}
           </Pressable>
@@ -3993,7 +3993,7 @@ export default function EstimateScreen() {
         <Pressable style={[styles.popupOverlay, fConfirm.overlay]} onPress={closeConfirmLink}>
           <Pressable style={[styles.addToProjectCard, fConfirm.card]} onPress={() => undefined}>
             <View style={styles.addToProjectHeader}>
-              <Text style={styles.addToProjectTitle}>Link this estimate</Text>
+              <Text style={styles.addToProjectTitle}>Link This Estimate</Text>
               <TouchableOpacity onPress={closeConfirmLink} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -4001,7 +4001,7 @@ export default function EstimateScreen() {
 
             {pendingLinkProject && (
               <View style={styles.confirmLinkBody}>
-                <Text style={styles.confirmFieldLabel}>Estimate name</Text>
+                <Text style={styles.confirmFieldLabel}>Estimate Name</Text>
                 <TextInput
                   style={styles.confirmInput}
                   value={estimateName}
@@ -4035,7 +4035,7 @@ export default function EstimateScreen() {
                     </View>
                   )}
                   <View style={styles.confirmSummaryRow}>
-                    <Text style={styles.confirmSummaryLabel}>Estimate value</Text>
+                    <Text style={styles.confirmSummaryLabel}>Estimate Value</Text>
                     <Text style={styles.confirmSummaryValueBold}>{formatMoney(grandTotal, 2)}</Text>
                   </View>
                   <View style={styles.confirmDivider} />
@@ -4063,7 +4063,7 @@ export default function EstimateScreen() {
                       activeOpacity={0.85}
                     >
                       <Layers size={16} color={Colors.infoLabel} strokeWidth={1.75} />
-                      <Text style={styles.confirmMergeBtnText}>Merge items</Text>
+                      <Text style={styles.confirmMergeBtnText}>Merge Items</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       accessibilityRole="button"
@@ -4083,7 +4083,7 @@ export default function EstimateScreen() {
                     activeOpacity={0.85}
                   >
                     <CheckCircle size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                    <Text style={styles.addToProjectConfirmText}>Link to project</Text>
+                    <Text style={styles.addToProjectConfirmText}>Link to Project</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -4117,7 +4117,7 @@ export default function EstimateScreen() {
                     <Text style={styles.popupPriceUnit}>/hr</Text>
                   </View>
                 </View>
-                <Text style={styles.popupFieldLabel}>Hourly rate ($)</Text>
+                <Text style={styles.popupFieldLabel}>Hourly Rate ($)</Text>
                 <TextInput style={styles.popupQtyInput} value={laborRateInput} onChangeText={setLaborRateInput} keyboardType="decimal-pad" textAlign="center" />
                 <Text style={styles.popupFieldLabel}>Hours</Text>
                 <View style={styles.popupQtyRow}>
@@ -4130,7 +4130,7 @@ export default function EstimateScreen() {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.popupTotalRow}>
-                  <Text style={styles.popupTotalLabel}>Line total</Text>
+                  <Text style={styles.popupTotalLabel}>Line Total</Text>
                   <Text style={styles.popupTotalValue} testID="labor-popup-line-total">{formatMoney(laborPopupPreview.sell, 2)}</Text>
                 </View>
                 {globalMarkup > 0 && (
@@ -4141,7 +4141,7 @@ export default function EstimateScreen() {
                 <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddLabor} activeOpacity={0.85}>
                   <HardHat size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
                   <Text style={styles.popupAddBtnText}>
-                    {laborCart.find(i => i.labor.id === selectedLabor.id) ? 'Update labor' : 'Add labor'}
+                    {laborCart.find(i => i.labor.id === selectedLabor.id) ? 'Update Labor' : 'Add Labor'}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -4232,7 +4232,7 @@ export default function EstimateScreen() {
                 <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddAssembly} activeOpacity={0.85}>
                   <Boxes size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
                   <Text style={styles.popupAddBtnText}>
-                    {assemblyCart.find(i => i.assembly.id === selectedAssembly.id) ? 'Update assembly' : 'Add assembly'}
+                    {assemblyCart.find(i => i.assembly.id === selectedAssembly.id) ? 'Update Assembly' : 'Add Assembly'}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -4271,17 +4271,17 @@ export default function EstimateScreen() {
         <Pressable style={[styles.popupOverlay, fCustom.overlay]} onPress={() => setShowCustomForm(false)}>
           <Pressable style={[styles.popupCard, fCustom.card]} onPress={() => undefined}>
             <View style={styles.popupHeader}>
-              <Text style={styles.popupTitle}>Add custom material</Text>
+              <Text style={styles.popupTitle}>Add Custom Material</Text>
               <TouchableOpacity onPress={() => setShowCustomForm(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.popupFieldLabel}>Material name</Text>
+            <Text style={styles.popupFieldLabel}>Material Name</Text>
             <TextInput
               style={[styles.popupQtyInput, { textAlign: 'left' as const, paddingHorizontal: 14, fontSize: Type.subhead.fontSize }]}
               value={customName}
               onChangeText={setCustomName}
-              placeholder="e.g., PEX Manifold 8-Port"
+              placeholder="PEX Manifold 8-Port"
               placeholderTextColor={Colors.textMuted}
             />
             <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -4327,7 +4327,7 @@ export default function EstimateScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <Text style={styles.popupFieldLabel}>Notes (optional)</Text>
+            <Text style={styles.popupFieldLabel}>Notes (Optional)</Text>
             <TextInput
               style={[styles.popupQtyInput, { textAlign: 'left' as const, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, height: 40 }]}
               value={customNotes}
@@ -4337,7 +4337,7 @@ export default function EstimateScreen() {
             />
             <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddCustomMaterial} activeOpacity={0.85}>
               <PlusCircle size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
-              <Text style={styles.popupAddBtnText}>Add to estimate</Text>
+              <Text style={styles.popupAddBtnText}>Add to Estimate</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>

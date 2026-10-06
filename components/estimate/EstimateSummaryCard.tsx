@@ -42,15 +42,15 @@ export function EstimateSummaryCard({ directCost, markups, contingency }: Props)
 
   return (
     <View style={styles.card}>
-      <Text style={styles.label}>Estimate summary</Text>
-      <View style={styles.row}><Text style={styles.k}>Total cost</Text><Text style={styles.v}>{money(directCost)}</Text></View>
-      <View style={styles.row}><Text style={styles.k}>Total markups</Text><Text style={styles.v}>{money(markups)}</Text></View>
+      <Text style={styles.label}>Estimate Summary</Text>
+      <View style={styles.row}><Text style={styles.k}>Total Cost</Text><Text style={styles.v}>{money(directCost)}</Text></View>
+      <View style={styles.row}><Text style={styles.k}>Total Markups</Text><Text style={styles.v}>{money(markups)}</Text></View>
       {contingency !== undefined && (
         <View style={styles.row}><Text style={styles.k}>Contingency</Text><Text style={styles.v}>{money(contingency)}</Text></View>
       )}
       <View style={styles.divider} />
       <View style={styles.grand}>
-        <Text style={styles.grandK}>Grand total</Text>
+        <Text style={styles.grandK}>Grand Total</Text>
         <Text style={styles.grandV}>{money(total)}</Text>
       </View>
 
@@ -70,7 +70,7 @@ export function EstimateSummaryCard({ directCost, markups, contingency }: Props)
         </View>
         <View style={styles.legend}>
           <View style={styles.legendRow}><View style={[styles.dot, { backgroundColor: colors.accent }]} /><Text style={styles.legendK}>Markup</Text><Text style={styles.legendV}>{money(markups)}</Text></View>
-          <View style={styles.legendRow}><View style={[styles.dot, { backgroundColor: colors.textMuted }]} /><Text style={styles.legendK}>Direct cost</Text><Text style={styles.legendV}>{money(directCost)}</Text></View>
+          <View style={styles.legendRow}><View style={[styles.dot, { backgroundColor: colors.textMuted }]} /><Text style={styles.legendK}>Direct Cost</Text><Text style={styles.legendV}>{money(directCost)}</Text></View>
         </View>
       </View>
     </View>

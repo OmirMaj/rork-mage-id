@@ -115,12 +115,12 @@ function detailFor(c: Omit<CategoryCalibration, 'detail'>): string {
   const pct = Math.abs(Math.round((c.bias - 1) * 100));
   const jobsPhrase = c.jobs === 1 ? '1 job' : `${c.jobs} jobs`;
   if (c.direction === 'aligned') {
-    return `${c.category} is calibrated — actuals land within 3% of your bids across ${jobsPhrase}.`;
+    return `${c.category} is calibrated. Actuals land within 3% of your bids across ${jobsPhrase}.`;
   }
   if (c.direction === 'under') {
-    return `You under-estimate ${c.category} by ${pct}% across ${jobsPhrase} — actuals ran above your bids. Suggested correction: ×${c.suggestedMultiplier.toFixed(2)}.`;
+    return `You under-estimate ${c.category} by ${pct}% across ${jobsPhrase}. Actuals ran above your bids. Suggested correction: ×${c.suggestedMultiplier.toFixed(2)}.`;
   }
-  return `You over-estimate ${c.category} by ${pct}% across ${jobsPhrase} — actuals came in below your bids. Suggested correction: ×${c.suggestedMultiplier.toFixed(2)}.`;
+  return `You over-estimate ${c.category} by ${pct}% across ${jobsPhrase}. Actuals came in below your bids. Suggested correction: ×${c.suggestedMultiplier.toFixed(2)}.`;
 }
 
 /**

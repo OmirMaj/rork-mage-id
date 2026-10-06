@@ -107,7 +107,7 @@ export function buildBuyoutDrafts(
     const totalCY = concreteBulk.filter(b => b.unit === 'cy')
       .reduce((s, b) => s + ovr(overrides, `bulk:${b.id}`, b.quantity), 0);
     drafts.push({
-      name: 'Concrete & Foundation',
+      name: 'Concrete and Foundation',
       trade: 'Concrete',
       csiDivision: '03 3000',
       scopeDescription: foundationScope(items, totalCY),
@@ -134,7 +134,7 @@ export function buildBuyoutDrafts(
     }));
     const totalLF = items.reduce((s, w) => s + w.quantity, 0);
     drafts.push({
-      name: 'Framing — Walls',
+      name: 'Framing: Walls',
       trade: 'Framing',
       csiDivision: '06 1000',
       scopeDescription: framingScope(framingWalls, overrides),
@@ -155,14 +155,14 @@ export function buildBuyoutDrafts(
     }));
     const totalEA = items.reduce((s, i) => s + i.quantity, 0);
     drafts.push({
-      name: 'Doors, Frames & Hardware',
+      name: 'Doors, Frames and Hardware',
       trade: 'Other',
       csiDivision: '08 1000',
       scopeDescription: scopeWithSpecs(
         'Furnish and install all interior + exterior doors, frames, and hardware per the door schedule.',
         takeoff.doors.map(d => ({
           code: d.mark,
-          line: `${d.mark ? d.mark + ': ' : ''}${d.description} — ${ovr(overrides, `doors:${d.id}`, d.count)} EA (${d.widthIn}"×${d.heightIn}")`,
+          line: `${d.mark ? d.mark + ': ' : ''}${d.description}, ${ovr(overrides, `doors:${d.id}`, d.count)} EA (${d.widthIn}"×${d.heightIn}")`,
         })),
         lookup,
       ),
@@ -190,7 +190,7 @@ export function buildBuyoutDrafts(
         'Furnish and install all windows per the window schedule. Includes all flashing, screens, and operable hardware.',
         takeoff.windows.map(w => ({
           code: w.mark,
-          line: `${w.mark ? w.mark + ': ' : ''}${w.description} — ${ovr(overrides, `windows:${w.id}`, w.count)} EA (${w.widthIn}"×${w.heightIn}")`,
+          line: `${w.mark ? w.mark + ': ' : ''}${w.description}, ${ovr(overrides, `windows:${w.id}`, w.count)} EA (${w.widthIn}"×${w.heightIn}")`,
         })),
         lookup,
       ),
@@ -214,13 +214,13 @@ export function buildBuyoutDrafts(
     }, 0);
     const items = drywallWalls.map(w => ({
       section: 'Walls',
-      description: `${w.description} — ${ovr(overrides, `walls:${w.id}`, w.lengthFt)} LF × ${w.heightFt} ft × 2 sides`,
+      description: `${w.description}, ${ovr(overrides, `walls:${w.id}`, w.lengthFt)} LF × ${w.heightFt} ft × 2 sides`,
       quantity: ovr(overrides, `walls:${w.id}`, w.lengthFt) * w.heightFt * 2,
       unit: 'SF',
       confidence: w.confidence,
     }));
     drafts.push({
-      name: 'Drywall & Ceilings',
+      name: 'Drywall and Ceilings',
       trade: 'Drywall',
       csiDivision: '09 2000',
       scopeDescription: scopeWithSpecs(
@@ -293,7 +293,7 @@ export function buildBuyoutDrafts(
       })),
     ];
     drafts.push({
-      name: 'Flooring & Trim',
+      name: 'Flooring and Trim',
       trade: 'Flooring',
       csiDivision: '09 6000',
       scopeDescription: scopeWithSpecs(
@@ -321,9 +321,9 @@ export function buildBuyoutDrafts(
 
   // ---- Plumbing / Electrical / HVAC / Appliances ----------------------
   const tradeMap: Array<{ category: 'plumbing' | 'electrical' | 'hvac' | 'appliance'; trade: SubTrade; csi: string; name: string }> = [
-    { category: 'plumbing', trade: 'Plumbing', csi: '22 0000', name: 'Plumbing — Fixtures + Rough-in' },
-    { category: 'electrical', trade: 'Electrical', csi: '26 0000', name: 'Electrical — Devices + Lighting' },
-    { category: 'hvac', trade: 'HVAC', csi: '23 0000', name: 'HVAC — Equipment + Distribution' },
+    { category: 'plumbing', trade: 'Plumbing', csi: '22 0000', name: 'Plumbing: Fixtures + Rough-In' },
+    { category: 'electrical', trade: 'Electrical', csi: '26 0000', name: 'Electrical: Devices + Lighting' },
+    { category: 'hvac', trade: 'HVAC', csi: '23 0000', name: 'HVAC: Equipment + Distribution' },
     { category: 'appliance', trade: 'Other', csi: '11 3000', name: 'Appliances' },
   ];
   for (const tm of tradeMap) {
@@ -345,7 +345,7 @@ export function buildBuyoutDrafts(
         `Furnish + install all ${tm.category} fixtures per the schedule. Includes all rough-in and trim work to make systems operational.`,
         fx.map(f => ({
           code: f.mark,
-          line: `${f.mark ? f.mark + ': ' : ''}${f.description} — ${ovr(overrides, `fixture:${f.id}`, f.count)} EA`,
+          line: `${f.mark ? f.mark + ': ' : ''}${f.description}, ${ovr(overrides, `fixture:${f.id}`, f.count)} EA`,
         })),
         lookup,
       ),

@@ -38,7 +38,7 @@ eq('uppercase .PDF with an empty type → ok', pdfDropVerdict([pdf({ name: 'PERM
 eq('application/pdf with no extension → ok', pdfDropVerdict([pdf({ name: 'download', type: 'application/pdf' })]), { ok: true, index: 0 });
 eq('mixed-case MIME → ok', pdfDropVerdict([pdf({ name: 'x', type: 'Application/PDF' })]), { ok: true, index: 0 });
 eq('a PNG → PDF-only reason', pdfDropVerdict([pdf({ name: 'photo.png', type: 'image/png' })]),
-  { ok: false, reason: 'Only PDFs can be dropped here — add images from Plans.' });
+  { ok: false, reason: 'Only PDFs can be dropped here. Add images from Plans.' });
 eq('a .pdf.png → PDF-only reason', pdfDropVerdict([pdf({ name: 'set.pdf.png', type: '' })]), { ok: false, reason: PDF_DROP_COPY.notPdf });
 eq('a folder-like empty entry → PDF-only reason', pdfDropVerdict([{ name: 'Plans', type: '', size: 0 }]), { ok: false, reason: PDF_DROP_COPY.notPdf });
 eq('exactly 500 MB → ok', pdfDropVerdict([pdf({ size: 500 * MB })]), { ok: true, index: 0 });
@@ -59,8 +59,8 @@ ok('null → false', !dragHasFiles(null));
 ok('undefined → false', !dragHasFiles(undefined));
 
 console.log('status lines');
-eq('done, many', pdfDropDoneLine(12), '12 sheets added — number the sheets in Plans');
-eq('done, one', pdfDropDoneLine(1), '1 sheet added — number the sheets in Plans');
+eq('done, many', pdfDropDoneLine(12), '12 sheets added. Number the sheets in Plans.');
+eq('done, one', pdfDropDoneLine(1), '1 sheet added. Number the sheets in Plans.');
 eq('saving, many', pdfDropSavingLine(3), 'Saving 3 sheets…');
 eq('saving, one', pdfDropSavingLine(1), 'Saving 1 sheet…');
 
@@ -74,7 +74,7 @@ ok('#90: a settled null seat (not loading / errored / paused / offline) says "no
   && /settledNoSeat\s*\?\s*NO_SEAT_IMPORT/.test(hookCode) && /export const NO_SEAT_IMPORT = 'You\\u2019re not on this project/.test(hookCode));
 ok('seat role through effectivePlanRole', /effectivePlanRole\(\s*role\s*,/.test(hookCode));
 ok('role status from useProjectRoleState + offline', /useProjectRoleState\(/.test(hookCode) && /isError:\s*roleState\.isError,\s*offline/.test(hookCode));
-ok('a blocked seat stops before anything else', /if \(blockReason\) \{ showAlert\('Can(?:\\u2019|’)t add sheets', blockReason\); return \[\]; \}/.test(hookCode));
+ok('a blocked seat stops before anything else', /if \(blockReason\) \{ showAlert\('Can(?:\\u2019|’)t Add Sheets', blockReason\); return \[\]; \}/.test(hookCode));
 ok('priorImportOf confirm, Plans’ sentence', /priorImportOf\(/.test(hookCode)
   && hookCode.includes('Importing it again uses takeoff pages again and replaces those sheets with the new copy. Pins stay on the old sheets.'));
 ok('blob URL from the File', /URL\.createObjectURL\(file\)/.test(hookCode));

@@ -489,8 +489,8 @@ function TakeoffEstimateInner() {
       'Discard your price edits?',
       'Keep them for later and they\u2019re restored next time you open this takeoff\u2019s estimate. Discard drops them, and coming back re-prices the takeoff with a new AI call.',
       [
-        { text: 'Keep editing', style: 'cancel' },
-        { text: 'Keep for later', onPress: () => { setDirty(false); navigation.dispatch(data.action); } },
+        { text: 'Keep Editing', style: 'cancel' },
+        { text: 'Keep for Later', onPress: () => { setDirty(false); navigation.dispatch(data.action); } },
         {
           text: 'Discard',
           style: 'destructive',
@@ -749,13 +749,13 @@ function TakeoffEstimateInner() {
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
   const afterSaveButtons = useCallback((id: string) => [
-    { text: 'Stay here', style: 'cancel' as const },
+    { text: 'Stay Here', style: 'cancel' as const },
     {
-      text: 'Open estimate',
+      text: 'Open Estimate',
       onPress: () => router.push({ pathname: '/project-detail', params: { id, tile: 'linkedEstimate' } }),
     },
     {
-      text: 'Send proposal',
+      text: 'Send Proposal',
       onPress: () => {
         // C4: the contract is a client-portal feature. Locked, say why before
         // anything is written (no revision snapshot on a tap that goes nowhere).
@@ -763,7 +763,7 @@ function TakeoffEstimateInner() {
           const lock = proposalLockedCopy(requiredTierFor('client_portal'));
           showAlert(lock.title, lock.message, [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'See plans', onPress: () => router.push('/paywall') },
+            { text: 'See Plans', onPress: () => router.push('/paywall') },
           ]);
           return;
         }
@@ -794,8 +794,8 @@ function TakeoffEstimateInner() {
     // nothing to re-open. Say why, and point at it.
     if (!isMarkupSet(markupPct)) {
       showAlert(
-        'Set your markup first',
-        `These ${lines.length} line${lines.length === 1 ? ' is' : 's are'} priced at your COST. Saving now would write a markup you never chose onto ${project.name} — and the proposal, the contract value and every margin figure MAGE reports back read that number. Pick your markup on the row above the Save button; we'll remember it for the estimate wizard and Quick Quote too.`,
+        'Set Your Markup First',
+        `These ${lines.length} line${lines.length === 1 ? ' is' : 's are'} priced at your cost. Saving now would write a markup you never chose onto ${project.name}, and the proposal, the contract value and every margin figure MAGE reports back read that number. Pick your markup on the row above the Save button; we'll remember it for the estimate wizard and Quick Quote too.`,
       );
       return;
     }
@@ -812,7 +812,7 @@ function TakeoffEstimateInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // C4: every document offers the next one — never "OK" + back.
       showAlert(
-        'Estimate saved',
+        'Estimate Saved',
         `${lines.length} priced lines saved to ${project.name}. Grand total: ${formatMoney(linkedEstimate.grandTotal, 2)}.`,
         afterSaveButtons(project.id),
       );
@@ -850,7 +850,7 @@ function TakeoffEstimateInner() {
       markSaved();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Lines appended',
+        'Lines Appended',
         `${lines.length} priced lines added to ${project.name}. New grand total: ${formatMoney(next.grandTotal, 2)}.`,
         afterSaveButtons(project.id),
       );
@@ -867,11 +867,11 @@ function TakeoffEstimateInner() {
 
   const handleSave = useCallback(() => {
     if (!project) {
-      showAlert('No project linked', 'Run the takeoff against a project first to save the estimate.');
+      showAlert('No Project Linked', 'Run the takeoff against a project first to save the estimate.');
       return;
     }
     if (lines.length === 0) {
-      showAlert('Nothing to save', 'Add at least one line before saving.');
+      showAlert('Nothing to Save', 'Add at least one line before saving.');
       return;
     }
     // If the project already has a real estimate, never silently overwrite it.
@@ -888,16 +888,16 @@ function TakeoffEstimateInner() {
       showAlert(
         'This project already has an estimate',
         `${project.name} has a ${formatMoney(existing.grandTotal ?? 0)} estimate (${existing.items.length} line${existing.items.length === 1 ? '' : 's'}). ${blocked
-          ? `Appending these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} carries that estimate's own markup across. Replacing it needs your markup first — set it on the row above the Save button.`
+          ? `Appending these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} carries that estimate's own markup across. Replacing it needs your markup first. Set it on the row above the Save button.`
           : `Replace it, or append these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} to it?`}`,
         blocked
           ? [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Append these lines', onPress: doAppend },
+            { text: 'Append These Lines', onPress: doAppend },
           ]
           : [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Append these lines', onPress: doAppend },
+            { text: 'Append These Lines', onPress: doAppend },
             { text: 'Replace', style: 'destructive', onPress: doReplace },
           ],
       );
@@ -924,7 +924,7 @@ function TakeoffEstimateInner() {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <CraneLoader label="Loading takeoff" />
+        <CraneLoader label="Loading Takeoff" />
       </>
     );
   }
@@ -942,16 +942,16 @@ function TakeoffEstimateInner() {
         </View>
         <View style={styles.center}>
           <AlertTriangle size={36} color={Colors.warningLabel} strokeWidth={1.75} />
-          <Text style={styles.emptyTitle}>No takeoff to price</Text>
+          <Text style={styles.emptyTitle}>No Takeoff to Price</Text>
           <Text style={styles.emptyBody}>
-            Run an AI Takeoff first — upload your plan PDFs and let the AI count walls, doors, and finishes. Then come back here and we&apos;ll turn those quantities into a priced estimate.
+            Run an AI Takeoff first: upload your plan PDFs and let the AI count walls, doors, and finishes. Then come back here and we&apos;ll turn those quantities into a priced estimate.
           </Text>
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={() => router.replace({ pathname: '/takeoff', params: projectId ? { projectId } : {} } as never)}
           >
             <MageAIMark size={16} color={themeColors.surface} />
-            <Text style={styles.primaryBtnText}>Run takeoff</Text>
+            <Text style={styles.primaryBtnText}>Run Takeoff</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -967,8 +967,8 @@ function TakeoffEstimateInner() {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>From takeoff</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Standalone estimate'}</Text>
+          <Text style={styles.headerEyebrow}>From Takeoff</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Standalone Estimate'}</Text>
         </View>
         {!pricing && lines.length > 0 ? (
           <TouchableOpacity onPress={handleRegenerate} style={styles.headerBack}>
@@ -985,7 +985,7 @@ function TakeoffEstimateInner() {
           <View style={[styles.banner, { backgroundColor: themeColors.accent + '12' }]}>
             <ActivityIndicator size="small" color={themeColors.accent} />
             <Text style={[styles.bannerText, { color: themeColors.accent }]}>
-              AI is pricing {countQuantities(takeoff)} takeoff items. Hold tight — this takes 10–20 seconds.
+              AI is pricing {countQuantities(takeoff)} takeoff items. This takes 10–20 seconds.
             </Text>
           </View>
         )}
@@ -1009,14 +1009,14 @@ function TakeoffEstimateInner() {
             <AlertTriangle size={16} color={Colors.warningLabel} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.bannerText, { color: Colors.warningLabel }]}>
-                Takeoff changed since you priced it — re-price? Your {staleDraft.lines.length} saved priced line{staleDraft.lines.length === 1 ? '' : 's'} came from the earlier takeoff, so their quantities may be out of date.
+                Takeoff changed since you priced it. Re-price? Your {staleDraft.lines.length} saved priced line{staleDraft.lines.length === 1 ? '' : 's'} came from the earlier takeoff, so their quantities may be out of date.
               </Text>
               <View style={{ flexDirection: 'row', gap: 16, marginTop: 6 }}>
                 <TouchableOpacity onPress={repriceStale} accessibilityRole="button" testID="takeoff-stale-reprice">
-                  <Text style={[styles.bannerLink, { color: Colors.warningLabel }]}>Re-price with AI</Text>
+                  <Text style={[styles.bannerLink, { color: Colors.warningLabel }]}>Re-Price with AI</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={keepStale} accessibilityRole="button" testID="takeoff-stale-keep">
-                  <Text style={[styles.bannerLink, { color: Colors.warningLabel }]}>Keep my priced lines</Text>
+                  <Text style={[styles.bannerLink, { color: Colors.warningLabel }]}>Keep My Priced Lines</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1028,7 +1028,7 @@ function TakeoffEstimateInner() {
           <View style={styles.sourceCard}>
             <MageAIMark size={14} color={themeColors.accent} />
             <Text style={styles.sourceText}>
-              Auto-generated from {countQuantities(takeoff)} takeoff items. Lines that map to the pricing engine show a deterministic <Text style={styles.sourceTextStrong}>Engine</Text> rate (regional, auditable) next to the <Text style={styles.sourceTextStrong}>AI est.</Text> — tap either to use it. Tap a line to edit; add custom lines for anything missed.
+              Auto-generated from {countQuantities(takeoff)} takeoff items. Lines that map to the pricing engine show a deterministic <Text style={styles.sourceTextStrong}>Engine</Text> rate (regional, auditable) next to the <Text style={styles.sourceTextStrong}>AI est.</Text>. Tap either to use it. Tap a line to edit; add custom lines for anything missed.
             </Text>
           </View>
         )}
@@ -1059,7 +1059,7 @@ function TakeoffEstimateInner() {
         {!pricing && (
           <TouchableOpacity style={styles.addLineBtn} onPress={addLine}>
             <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.addLineText}>Add line item</Text>
+            <Text style={styles.addLineText}>Add Line Item</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -1072,7 +1072,7 @@ function TakeoffEstimateInner() {
               <Text style={styles.totalsLabel}>
                 {provenance.yours > 0
                   ? `${Math.round(provenance.ownShare * 100)}% priced from your jobs`
-                  : 'No matching history yet — catalog + AI prices'}
+                  : 'No matching history yet. Catalog and AI prices'}
               </Text>
               <Text style={styles.provShare}>
                 {provenance.yours}/{lines.length}
@@ -1093,7 +1093,7 @@ function TakeoffEstimateInner() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.atCostTitle}>This total is your cost</Text>
                 <Text style={styles.atCostBody}>
-                  You haven&apos;t told us what you add on top, so we aren&apos;t adding anything. Pick your markup below — we&apos;ll remember it for the estimate wizard and Quick Quote too.
+                  You haven&apos;t told us what you add on top, so we aren&apos;t adding anything. Pick your markup below. We&apos;ll remember it for the estimate wizard and Quick Quote too.
                 </Text>
               </View>
             </View>
@@ -1104,7 +1104,7 @@ function TakeoffEstimateInner() {
               <Text style={styles.totalsLabel}>
                 {isMarkupSet(markupPct)
                   ? `Your markup · ${(marginOf(markupPct) * 100).toFixed(0)}% margin`
-                  : 'Markup — not set'}
+                  : 'Markup Not Set'}
               </Text>
             </View>
             <Text style={styles.totalsValue}>{formatMoney(totals.markup, 2)}</Text>
@@ -1150,7 +1150,7 @@ function TakeoffEstimateInner() {
             </View>
           </ScrollView>
           <View style={[styles.totalsRow, styles.totalsRowGrand]}>
-            <Text style={styles.totalsGrandLabel}>Grand total</Text>
+            <Text style={styles.totalsGrandLabel}>Grand Total</Text>
             <Text style={styles.totalsGrandValue}>{formatMoney(totals.grandTotal, 2)}</Text>
           </View>
           <TouchableOpacity
@@ -1161,20 +1161,20 @@ function TakeoffEstimateInner() {
             accessibilityState={{ disabled: saving || saveBlocked }}
             accessibilityLabel={saveBlocked
               ? 'Set your markup before saving. Saving would write a markup you never chose onto this project.'
-              : project ? `Save this estimate to ${project.name}` : 'Save this estimate'}
+              : project ? `Save this estimate to ${project.name}` : 'Save This Estimate'}
             testID="takeoff-estimate-save"
           >
             {saving
               ? <ActivityIndicator size="small" color={themeColors.surface} />
               : <Save size={16} color={themeColors.surface} strokeWidth={1.75} />}
             <Text style={styles.saveBtnText}>
-              {saving ? 'Saving…' : saveBlocked ? 'Set your markup to save' : project ? `Save to ${project.name}` : 'Save estimate'}
+              {saving ? 'Saving…' : saveBlocked ? 'Set Your Markup to Save' : project ? `Save to ${project.name}` : 'Save Estimate'}
             </Text>
           </TouchableOpacity>
           {/* A disabled button that does not say why is just a broken button. */}
           {saveBlocked && (
             <Text style={styles.saveBlockedWhy}>
-              Saving writes your markup onto the project — it&apos;s what the proposal and every margin figure read. Pick it above first.
+              Saving writes your markup onto the project. It&apos;s what the proposal and every margin figure read. Pick it above first.
             </Text>
           )}
         </View>
@@ -1340,7 +1340,7 @@ function LineRow({
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.editLabel}>Unit price ($)</Text>
+          <Text style={styles.editLabel}>Unit Price ($)</Text>
           <TextInput
             style={styles.editInputSmall}
             value={price}
@@ -1352,19 +1352,19 @@ function LineRow({
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.editLabel}>Line total</Text>
+          <Text style={styles.editLabel}>Line Total</Text>
           <Text style={styles.editLineTotal}>{formatMoney(lineTotal, 2)}</Text>
         </View>
       </View>
       {unreadable.length > 0 && (
         <Text style={styles.editUnreadable} testID={`takeoff-line-unreadable-${line.id}`}>
-          Can&apos;t read the {unreadable.join(' or the ')} — type it like 1200 or 12.50. Done keeps the current {unreadable.length > 1 ? 'values' : 'value'}.
+          Can&apos;t read the {unreadable.join(' or the ')}. Type it like 1200 or 12.50. Done keeps the current {unreadable.length > 1 ? 'values' : 'value'}.
         </Text>
       )}
       <View style={styles.editActionsRow}>
         <TouchableOpacity onPress={onRemove} style={styles.deleteBtn}>
           <Trash2 size={14} color={Colors.errorDark} strokeWidth={1.75} />
-          <Text style={[styles.deleteBtnText]}>Delete line</Text>
+          <Text style={[styles.deleteBtnText]}>Delete Line</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
         <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>

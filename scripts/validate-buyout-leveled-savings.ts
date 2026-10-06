@@ -3,8 +3,8 @@
 // Run via: bun run scripts/validate-buyout-leveled-savings.ts
 //
 // THE BUG. Framing package, budget $45,000. Bid B $38,000 excluding blocking
-// and dumpster, AI-leveled +$3,200. The Award dialog read "Leveled total
-// $41,200 · Buyout savings $3,800"; after Award the package hero and
+// and dumpster, AI-leveled +$3,200. The Award dialog read "Leveled Total
+// $41,200 · Buyout Savings $3,800"; after Award the package hero and
 // buyout.tsx's savings-to-date read +$7,000 — awardBidPackage stored
 // budget − bid. $3,200 of savings that do not exist: the awarded sub does not
 // cover that scope and he still has to buy it.
@@ -102,7 +102,7 @@ ok('buyout-package hero reads the leveled figure, not pkg.buyoutSavings',
   /heroSavings = pkg \? packageBuyoutSavings\(pkg, bids, commitments\)/.test(pkgScreen) && !/pkg\.buyoutSavings >= 0/.test(pkgScreen));
 ok('the Award dialog uses the same helper', /const savings = leveledBuyoutSavings\(pkg\.estimateBudget, bid\);/.test(pkgScreen));
 ok('the Award dialog says the excluded scope is NOT in the commitment and still his to buy — no placeholder',
-  /is not in it — still yours to buy/.test(pkgScreen) && !/Creates a \$\{formatMoney\(uncovered\)\} placeholder/.test(pkgScreen));
+  /is not in it\. It is still yours to buy/.test(pkgScreen) && !/Creates a \$\{formatMoney\(uncovered\)\} placeholder/.test(pkgScreen));
 const projectDetail = read('app/project-detail.tsx');
 const estimateFull = read('app/(tabs)/estimate/full.tsx');
 const jobCosting = read('app/job-costing.tsx');

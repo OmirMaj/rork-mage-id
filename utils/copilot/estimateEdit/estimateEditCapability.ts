@@ -55,7 +55,7 @@ export const isEstimateEcho = (o: Record<string, unknown> | null | undefined): b
 
 export const estimateEditCapability: CopilotCapability<EstimateEditDraft, EstimateEditApplied> = {
   id: 'estimateEdit',
-  label: 'Edit the estimate',
+  label: 'Edit the Estimate',
   aiFeature: 'quickEstimate',
   maxQuestions: 0,
   askThreshold: 1,
@@ -64,10 +64,10 @@ export const estimateEditCapability: CopilotCapability<EstimateEditDraft, Estima
     'Add a line for 5 gallons of paint at $40, and bump the markup to 20%',
   ],
   copy: {
-    voiceTitle: 'Edit the estimate',
+    voiceTitle: 'Edit the Estimate',
     composeEyebrow: 'CHANGE THE ESTIMATE',
     composeQuestion: 'What should change?',
-    composeHint: 'Say the change — a quantity, a price, a new line, the markup. I’ll show the new total before it sticks.',
+    composeHint: 'Say the change: a quantity, a price, a new line, the markup. I’ll show the new total before it sticks.',
     reviewHeadline: 'Here’s the change.',
     reviewSub: 'Review the new total, then apply.',
     buildingLabel: 'Applying the change…',

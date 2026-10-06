@@ -175,6 +175,318 @@
       "rule": "R15",
       "match": "Primary navigation",
       "reason": "matched by code: SIDEBAR_DOM_SELECTOR in components/ui/desktop.ts and the print stylesheet select nav[aria-label='Primary navigation']"
+    },
+    {
+      "file": "app/takeoff-estimate.tsx",
+      "rule": "R20",
+      "match": "01 - General",
+      "reason": "CSI division key: saved on estimate lines and grouped on, not a sentence"
+    },
+    {
+      "file": "utils/estimateMarkup.ts",
+      "rule": "R21",
+      "match": "Permits & fees",
+      "reason": "line category key: the cost history is keyed on it (the wizard prints \"Permits and Fees\")"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Lumber & Framing",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Lumber & Framing",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Concrete & Masonry",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Concrete & Masonry",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Paint & Finishes",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Paint & Finishes",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Windows & Doors",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Windows & Doors",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Siding & Exterior",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Siding & Exterior",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Steel & Metal",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Steel & Metal",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Fasteners & Hardware",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Fasteners & Hardware",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Floor & Decor",
+      "reason": "another company's own name (VOICE 4)"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Ice & Water Shield",
+      "reason": "catalog product name: saved estimate lines, recents and price alerts carry it as typed"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "PVC Cement & Primer Kit",
+      "reason": "catalog product name: saved estimate lines, recents and price alerts carry it as typed"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Cabinet & Trim Enamel",
+      "reason": "catalog product name: saved estimate lines, recents and price alerts carry it as typed"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Roller Frame & Cover Kit",
+      "reason": "catalog product name: saved estimate lines, recents and price alerts carry it as typed"
+    },
+    {
+      "file": "utils/copilot/estimate/estimateGrounding.ts",
+      "rule": "R20",
+      "match": "is a rate the contractor SET THEMSELVES",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/copilot/estimate/estimateGrounding.ts",
+      "rule": "R20",
+      "match": "This project already has a",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/scopeQuestions.ts",
+      "rule": "R20",
+      "match": "THIS CONTRACTOR'S OWN COST HISTORY",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/judges/narrateVerdict.ts",
+      "rule": "R20",
+      "match": "Use ONLY the numbers below",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/instantBid.ts",
+      "rule": "R20",
+      "match": "a rate this contractor SET THEMSELVES",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/bidHistoryFacts.ts",
+      "rule": "R20",
+      "match": "Mid-small ($50K–$200K)",
+      "reason": "compact number range (VOICE 4) in a size-bucket fact line sent to the model"
+    },
+    {
+      "file": "utils/bidHistoryFacts.ts",
+      "rule": "R20",
+      "match": "Mid ($200K–$500K)",
+      "reason": "compact number range (VOICE 4) in a size-bucket fact line sent to the model"
+    },
+    {
+      "file": "utils/bidHistoryFacts.ts",
+      "rule": "R20",
+      "match": "Large ($500K–$2M)",
+      "reason": "compact number range (VOICE 4) in a size-bucket fact line sent to the model"
+    },
+    {
+      "file": "app/post-job.tsx",
+      "rule": "R15",
+      "match": "$/hr",
+      "reason": "unit of measure, lowercase by convention ($/hr, $/yr)"
+    },
+    {
+      "file": "app/(tabs)/estimate/full.tsx",
+      "rule": "R15",
+      "match": "Rate ($/hr)",
+      "reason": "unit of measure, lowercase by convention ($/hr, $/yr)"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "Your record",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "AI estimate",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "low confidence",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "medium confidence",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "high confidence",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/(tabs)/discover/bids.tsx",
+      "rule": "R15",
+      "match": "Near me",
+      "reason": "quoted verbatim by the iOS location purpose string in app.json (validate-location-consent); changing it needs a native build"
+    },
+    {
+      "file": "app/cost-xray.tsx",
+      "rule": "R15",
+      "match": "your job history",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/cost-xray.tsx",
+      "rule": "R15",
+      "match": "the rate you set yourself",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/cost-xray.tsx",
+      "rule": "R15",
+      "match": "a catalog allowance",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/auto-bids.tsx",
+      "rule": "R15",
+      "match": "priced from what your past jobs cost",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/auto-bids.tsx",
+      "rule": "R15",
+      "match": "priced off their posted budget",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "utils/scopeGaps.ts",
+      "rule": "R15",
+      "match": "your scope notes",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "utils/buildingScopeTriggers.ts",
+      "rule": "R15",
+      "match": "your scope notes",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/estimate-confidence.tsx",
+      "rule": "R15",
+      "match": "No history ·",
+      "reason": "a label that carries a number (\"No history · 3 lines\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/area-takeoff.tsx",
+      "rule": "R15",
+      "match": "Add to",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/estimate-wizard.tsx",
+      "rule": "R15",
+      "match": "Saved to",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/(tabs)/materials/[category].tsx",
+      "rule": "R15",
+      "match": "Bulk at",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/cost-seed.tsx",
+      "rule": "R15",
+      "match": "Your Rate ($ per",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/selections.tsx",
+      "rule": "R15",
+      "match": "Draft a Change Order for the",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/buyout-package.tsx",
+      "rule": "R15",
+      "match": "Re-Write It from the",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/prequal-manager.tsx",
+      "rule": "R15",
+      "match": "Send Renewal to",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
     }
   ]
 }

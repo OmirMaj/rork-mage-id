@@ -71,7 +71,7 @@ describe('Q6 — AI Quick Estimate: Other needs words, and the AI gets them', ()
   it('Other: box + blocked button with the reason, then his words reach the AI and the grounding', async () => {
     await mount();
     fireEvent.changeText(screen.getByPlaceholderText(/2,500 sq ft kitchen remodel/), 'Swap the 3-ton condenser and air handler');
-    fireEvent.press(screen.getByText('Other (describe it)'));
+    fireEvent.press(screen.getByText('Other (Describe It)'));
     expect(screen.getByTestId('ai-type-other')).toBeTruthy();
     expect(screen.getByTestId('ai-generate-btn').props.accessibilityState?.disabled).toBe(true);
     expect(screen.getByText(/You picked Other\. Describe the project/)).toBeTruthy();

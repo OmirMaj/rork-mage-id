@@ -23,13 +23,13 @@ const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v)
 
 export const leadCapability: CopilotCapability<LeadDraft, LeadApplied> = {
   id: 'lead',
-  label: 'Capture a lead',
+  label: 'Capture a Lead',
   aiFeature: 'voiceCapture',
   maxQuestions: 2,
   askThreshold: 0.4,
   suggestions: [
     'Sarah Miller called about a kitchen reno, 60 to 80k, wants it by spring, found us on Houzz',
-    'Referral from the Garcias — bathroom remodel, ballpark 30k, no rush',
+    'Referral from the Garcias, bathroom remodel, ballpark 30k, no rush',
   ],
   topicChecklist: [
     { label: 'Who', hint: 'homeowner name + phone' },
@@ -37,10 +37,10 @@ export const leadCapability: CopilotCapability<LeadDraft, LeadApplied> = {
     { label: 'Source', hint: 'how they found you' },
   ],
   copy: {
-    voiceTitle: 'Capture a lead',
+    voiceTitle: 'Capture a Lead',
     composeEyebrow: 'A NEW INQUIRY',
     composeQuestion: 'Who reached out?',
-    composeHint: 'Name, what they want, budget, timeline, how they found you — whatever you’ve got.',
+    composeHint: 'Name, what they want, budget, timeline, how they found you. Whatever you’ve got.',
     reviewHeadline: 'Here’s your lead, ready to work.',
     reviewSub: 'Review it, then save. The pipeline starts a first-response clock so it doesn’t go cold.',
     buildingLabel: 'Filing the lead…',

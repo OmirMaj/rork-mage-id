@@ -135,14 +135,14 @@ export default function SelectionsScreen() {
       displayOrder: categories.length,
     });
     if (outcome === 'failed' || !saved) {
-      showAlert("Couldn't save the category", 'Nothing was added. Check your connection and try again.');
+      showAlert("Couldn't Save the Category", 'Nothing was added. Check your connection and try again.');
       return;
     }
     setCategories(prev => [...prev, saved]);
     setAddModal(false);
     if (outcome === 'queued') {
       pendingAddsRef.current[saved.id] = saved;
-      showAlert('Saved offline', 'The category reaches your client\'s portal once you are back online.');
+      showAlert('Saved Offline', 'The category reaches your client\'s portal once you are back online.');
     } else {
       publishPortal();
     }
@@ -161,7 +161,7 @@ export default function SelectionsScreen() {
         budget: cat.budget,
       });
       if (options.length === 0) {
-        showAlert('No options found', 'No options came back. Try a more specific style brief.');
+        showAlert('No Options Found', 'No options came back. Try a more specific style brief.');
         return;
       }
       // Product photos are OFF for content rights (constants/featureFlags.ts
@@ -177,7 +177,7 @@ export default function SelectionsScreen() {
       })));
       const ok = await saveCuratedOptions(cat.id, withImages);
       if (!ok) {
-        showAlert("Couldn't save the options", 'The options were found but not saved. Try again.');
+        showAlert("Couldn't Save the Options", 'The options were found but not saved. Try again.');
         return;
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -186,7 +186,7 @@ export default function SelectionsScreen() {
     } catch (e) {
       console.warn('[Selections] curation failed:', rawErrorMessage(e));
       const copy = describeError(e, { action: 'find options for this category' });
-      showAlert("Couldn't find options", copy.body);
+      showAlert("Couldn't Find Options", copy.body);
     } finally {
       setCurating(null);
     }
@@ -200,25 +200,25 @@ export default function SelectionsScreen() {
   const onSetOptionPhoto = useCallback((option: SelectionOption, category: string) => {
     if (!PRODUCT_PHOTOS_ENABLED) return;
     if (Platform.OS !== 'ios') {
-      showAlert('Paste a link on iPhone', 'Setting a photo from a link works on iPhone. Open this project on your iPhone to set one.');
+      showAlert('Paste a Link on iPhone', 'Setting a photo from a link works on iPhone. Open this project on your iPhone to set one.');
       return;
     }
     showPrompt('Set photo from link', 'Paste the product page link. MAGE pulls its photo.', async (url?: string) => {
       if (!url || !url.trim()) return;
       const imageUrl = await resolveSelectionImage({ url: url.trim() });
-      if (!imageUrl) { showAlert('No image found', "Couldn't find a photo at that link."); return; }
+      if (!imageUrl) { showAlert('No Image Found', "Couldn't find a photo at that link."); return; }
       // #137: the photo and link ONLY. The old whole-option upsert wrote
       // is_chosen:false (un-choosing the homeowner's pick) and total =
       // unitPrice × 1 (a 60 sq ft tile option became one square foot). No
       // unitPrice here, so neither total nor the pick is touched.
       const res = await saveSelectionOptionDetailed({ id: option.id, categoryId: option.categoryId, productName: option.productName, productUrl: url.trim(), imageUrl });
       if (res.outcome === 'failed') {
-        showAlert('Photo not saved', res.message ?? "Couldn't save the photo. Check your connection and try again.");
+        showAlert('Photo Not Saved', res.message ?? "Couldn't save the photo. Check your connection and try again.");
         return;
       }
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
       if (res.outcome === 'queued') {
-        showAlert('Saved offline', 'The photo reaches your client\'s portal once you are back online.');
+        showAlert('Saved Offline', 'The photo reaches your client\'s portal once you are back online.');
         return;
       }
       await refresh();
@@ -233,14 +233,14 @@ export default function SelectionsScreen() {
   const handleSetDueDate = useCallback(async (cat: SelectionCategory, day: string | null) => {
     const outcome = await saveSelectionCategoryDueDate(cat.id, day);
     if (outcome === 'failed') {
-      showAlert('Date not saved', "Couldn't save the pick-by date. Check your connection and try again.");
+      showAlert('Date Not Saved', "Couldn't save the pick-by date. Check your connection and try again.");
       return;
     }
     setCategories(prev => prev.map(c => (c.id === cat.id ? { ...c, dueDate: day ?? undefined } : c)));
     if (outcome === 'queued') pendingDueRef.current[cat.id] = day;
     else { delete pendingDueRef.current[cat.id]; publishPortal(); }
     if (outcome === 'queued') {
-      showAlert('Saved offline', 'The pick-by date reaches your client\'s portal once you are back online.');
+      showAlert('Saved Offline', 'The pick-by date reaches your client\'s portal once you are back online.');
     }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [publishPortal]);
@@ -250,14 +250,14 @@ export default function SelectionsScreen() {
     // offline is refused, not queued (the homeowner may be picking now).
     const res = await chooseSelectionOptionDetailed(categoryId, option.id);
     if (!res.ok) {
-      showAlert('Not chosen', res.message);
+      showAlert('Not Chosen', res.message);
       return;
     }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     await refresh();
     publishPortal();
     if (res.status === 'exceeded' && res.over > 0) {
-      showAlert('Over allowance', `${option.productName} is ${formatMoney(res.over)} over this allowance. Draft a change order from the card to bill the difference.`);
+      showAlert('Over Allowance', `${option.productName} is ${formatMoney(res.over)} over this allowance. Draft a change order from the card to bill the difference.`);
     }
   }, [refresh, publishPortal]);
 
@@ -273,14 +273,14 @@ export default function SelectionsScreen() {
           onPress: async () => {
             const outcome = await deleteSelectionCategoryDetailed(cat.id);
             if (outcome === 'failed') {
-              showAlert('Not deleted', "Couldn't delete the category. Check your connection and try again.");
+              showAlert('Not Deleted', "Couldn't delete the category. Check your connection and try again.");
               return;
             }
             setCategories(prev => prev.filter(c => c.id !== cat.id));
             delete pendingAddsRef.current[cat.id];
             if (outcome === 'queued') {
               pendingDeletesRef.current.add(cat.id);
-              showAlert('Deleted offline', 'Your client stops seeing it once you are back online.');
+              showAlert('Deleted Offline', 'Your client stops seeing it once you are back online.');
             } else {
               publishPortal();
             }
@@ -343,7 +343,7 @@ export default function SelectionsScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Selections and allowances</Text>
+          <Text style={styles.title}>Selections and Allowances</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddModal(true)}>
           <Plus size={14} color="#FFF" strokeWidth={1.75} />
@@ -376,14 +376,14 @@ export default function SelectionsScreen() {
         {!loading && categories.length === 0 && (
           <View style={styles.emptyCard}>
             <MageAIMark size={28} color={themeColors.accent} />
-            <Text style={styles.emptyTitle}>Add your first allowance</Text>
+            <Text style={styles.emptyTitle}>Add Your First Allowance</Text>
             <Text style={styles.emptyBody}>
               Add what your client will pick, like kitchen cabinets, bathroom tile or lighting.
               MAGE finds 4 brand-name options across the budget, and your client picks in their portal.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={() => setAddModal(true)}>
               <Plus size={14} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.bigCtaText}>Add allowance</Text>
+              <Text style={styles.bigCtaText}>Add Allowance</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -424,7 +424,7 @@ export default function SelectionsScreen() {
       <DatePickerModal
         visible={dueEditFor !== null}
         value={dueEditFor?.dueDate ? pickerSeed(dueEditFor.dueDate) : ''}
-        title={dueEditFor ? `${dueEditFor.category} — pick by` : 'Pick by'}
+        title={dueEditFor ? `${dueEditFor.category}: Pick By` : 'Pick By'}
         allowFuture
         onClose={() => setDueEditFor(null)}
         onChange={(iso) => { if (dueEditFor) void handleSetDueDate(dueEditFor, iso.slice(0, 10)); }}
@@ -533,7 +533,7 @@ function CategoryCard({
               : <CheckCircle2  size={14} color={themeColors.success} strokeWidth={1.75} />}
             <View style={{ flex: 1 }}>
               <Text style={[styles.chosenTitle, isExceeded && { color: themeColors.danger }]}>
-                {isExceeded ? 'Over allowance' : 'Chosen'}: {chosen.productName}
+                {isExceeded ? 'Over Allowance' : 'Chosen'}: {chosen.productName}
               </Text>
               <Text style={styles.chosenSub}>
                 {formatMoney(chosen.total)} · Picked by {chosen.chosenByRole === 'homeowner' ? 'your client' : 'you'}
@@ -547,7 +547,7 @@ function CategoryCard({
               onPress={onDraftCO}
               testID={`draft-co-${category.id}`}
             >
-              <Text style={styles.draftCoCtaText}>Draft a change order for the {formatMoney(chosen.total - category.budget)} overage</Text>
+              <Text style={styles.draftCoCtaText}>Draft a Change Order for the {formatMoney(chosen.total - category.budget)} overage</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -556,7 +556,7 @@ function CategoryCard({
       {opts.length === 0 && !curating && (
         <TouchableOpacity style={styles.curateCta} onPress={onCurate}>
           <MageAIMark size={16} color="#FFF" />
-          <Text style={styles.curateCtaText}>Find options</Text>
+          <Text style={styles.curateCtaText}>Find Options</Text>
         </TouchableOpacity>
       )}
 
@@ -574,7 +574,7 @@ function CategoryCard({
           {!isChosen && !isExceeded && (
             <TouchableOpacity style={styles.regenerateBtn} onPress={onCurate}>
               <MageAIMark size={12} color={themeColors.accent} />
-              <Text style={styles.regenerateText}>Regenerate options</Text>
+              <Text style={styles.regenerateText}>Regenerate Options</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -631,7 +631,7 @@ function DueDateSection({ category, schedule, installTaskId, onEdit, onClear, on
           style={{ flex: 1 }}
           onPress={onEdit}
           accessibilityRole="button"
-          accessibilityLabel={due ? `Pick-by date ${formatCalendarDay(due)}. Tap to change.` : 'Set a pick-by date'}
+          accessibilityLabel={due ? `Pick-by date ${formatCalendarDay(due)}. Tap to change.` : 'Set a Pick-By Date'}
           testID={`due-edit-${category.id}`}
         >
           {due ? (
@@ -646,7 +646,7 @@ function DueDateSection({ category, schedule, installTaskId, onEdit, onClear, on
           )}
         </TouchableOpacity>
         {due ? (
-          <TouchableOpacity onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear pick-by date">
+          <TouchableOpacity onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear Pick-By Date">
             <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : null}
@@ -663,7 +663,7 @@ function DueDateSection({ category, schedule, installTaskId, onEdit, onClear, on
             testID={`due-task-${category.id}`}
           >
             <Text style={styles.taskPickLabel} numberOfLines={1}>
-              {pickedTask ? `Count back from: ${pickedTask.title}` : 'Suggest a date from the install task'}
+              {pickedTask ? `Count back from: ${pickedTask.title}` : 'Suggest a Date from the Install Task'}
             </Text>
             <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -728,7 +728,7 @@ function InstallTaskPickerModal({ category, schedule, selectedTaskId, onClose, o
     <Modal visible={category !== null} animationType={fTask.animationType} transparent onRequestClose={onClose}>
       <View style={[styles.modalOverlay, fTask.overlay]}>
         <View style={[styles.modalCard, styles.taskModalCard, fTask.card]}>
-          <Text style={styles.modalTitle}>Which task installs {category?.category ?? 'this'}?</Text>
+          <Text style={styles.modalTitle}>Which Task Installs {category?.category ?? 'this'}?</Text>
           <Text style={styles.modalBody}>
             The suggested pick-by date counts back from this task&apos;s start on your schedule.
           </Text>
@@ -745,7 +745,7 @@ function InstallTaskPickerModal({ category, schedule, selectedTaskId, onClose, o
                   accessibilityState={{ selected }}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.taskRowTitle} numberOfLines={1}>{t.title || 'Untitled task'}</Text>
+                    <Text style={styles.taskRowTitle} numberOfLines={1}>{t.title || 'Untitled Task'}</Text>
                     {t.phase ? <Text style={styles.taskRowMeta} numberOfLines={1}>{t.phase}</Text> : null}
                   </View>
                   <Text style={styles.taskRowMeta}>{start ? formatCalendarDay(start, { month: 'short', day: 'numeric' }) : `Day ${t.startDay}`}</Text>
@@ -764,7 +764,7 @@ function InstallTaskPickerModal({ category, schedule, selectedTaskId, onClose, o
 }
 
 /** Price band of an option against its allowance, as the pill reads it. */
-const OPTION_TIER_LABEL = { budget: 'Budget', target: 'On target', premium: 'Premium' } as const;
+const OPTION_TIER_LABEL = { budget: 'Budget', target: 'On Target', premium: 'Premium' } as const;
 
 function OptionRow({ option, budget, onPress, onSetPhoto }: { option: SelectionOption; budget: number; onPress: () => void; onSetPhoto?: () => void }) {
   const { colors: themeColors } = useTheme();
@@ -841,11 +841,11 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
     const trimmedCat = category.trim();
     const numericBudget = Number(budget);
     if (!trimmedCat) {
-      showAlert('Add a category', 'Enter a category like "Kitchen cabinets" or "Bath tile".');
+      showAlert('Add a Category', 'Enter a category like "Kitchen cabinets" or "Bath tile".');
       return;
     }
     if (!isFinite(numericBudget) || numericBudget <= 0) {
-      showAlert('Add an allowance', 'Enter an allowance above $0 so MAGE can find options at the right price.');
+      showAlert('Add an Allowance', 'Enter an allowance above $0 so MAGE can find options at the right price.');
       return;
     }
     onAdd({ category: trimmedCat, budget: numericBudget, styleBrief: styleBrief.trim(), dueDate });
@@ -857,7 +857,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
     <Modal visible={visible} animationType={fAdd.animationType} transparent onRequestClose={onClose}>
       <View style={[styles.modalOverlay, fAdd.overlay]}>
         <View style={[styles.modalCard, fAdd.card]}>
-          <Text style={styles.modalTitle}>Add allowance</Text>
+          <Text style={styles.modalTitle}>Add Allowance</Text>
           <Text style={styles.modalBody}>
             Pick a category, set your client's allowance, and describe the style if you like. MAGE uses
             it to find 4 options.
@@ -873,7 +873,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
             autoCapitalize="words"
           />
 
-          <Text style={styles.modalLabel}>Allowance budget *</Text>
+          <Text style={styles.modalLabel}>Allowance Budget *</Text>
           <View style={styles.modalAmountField}>
             <DollarSign size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <TextInput
@@ -886,7 +886,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
             />
           </View>
 
-          <Text style={styles.modalLabel}>Style brief (optional)</Text>
+          <Text style={styles.modalLabel}>Style Brief (Optional)</Text>
           <TextInput
             style={[styles.modalInput, { minHeight: 70 }]}
             value={styleBrief}
@@ -897,7 +897,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
             textAlignVertical="top"
           />
 
-          <Text style={styles.modalLabel}>Client picks by (optional)</Text>
+          <Text style={styles.modalLabel}>Client Picks by (Optional)</Text>
           <View style={styles.modalAmountField}>
             <CalendarDays size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <TouchableOpacity style={{ flex: 1 }} onPress={() => setDatePicker(true)} accessibilityRole="button" testID="add-category-due">
@@ -906,7 +906,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
               </Text>
             </TouchableOpacity>
             {dueDate ? (
-              <TouchableOpacity onPress={() => setDueDate(undefined)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear date">
+              <TouchableOpacity onPress={() => setDueDate(undefined)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear Date">
                 <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             ) : null}
@@ -916,7 +916,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
           <DatePickerModal
             visible={datePicker}
             value={dueDate ? pickerSeed(dueDate) : ''}
-            title="Client picks by"
+            title="Client Picks By"
             allowFuture
             onClose={() => setDatePicker(false)}
             onChange={(iso) => setDueDate(iso.slice(0, 10))}

@@ -119,8 +119,8 @@ const TIER_META: Record<ProposalTierKey, { label: string; tagline: string; mult:
 // same line on every tier.
 const TIER_EXTRAS: Record<ProposalTierKey, string[]> = {
   good: ['Standard-grade materials'],
-  better: ['Mid-grade materials & fixtures', 'Dedicated project updates'],
-  best: ['Premium materials & finishes', 'Priority scheduling', 'Final walkthrough + punch list'],
+  better: ['Mid-grade materials and fixtures', 'Dedicated project updates'],
+  best: ['Premium materials and finishes', 'Priority scheduling', 'Final walkthrough + punch list'],
 };
 
 /** Round to a clean, quote-friendly number (nearest $100, or $500 above 50k). */
@@ -164,7 +164,7 @@ function heuristicMessage(rfp: InstantBidRfp, opts: InstantBidOptions): string {
   const who = opts.companyName ? opts.companyName : 'Our team';
   const loc = [rfp.city, rfp.state].filter(Boolean).join(', ');
   return [
-    `Hi — thanks for posting "${rfp.title}".`,
+    `Hi, thanks for posting "${rfp.title}".`,
     `${who} works in ${loc || 'your area'} and we'd love to take this on.`,
     opts.contractorNote?.trim() ? opts.contractorNote.trim() : '',
     // No start window: the GC never gave one, and the AI prompt is forbidden
@@ -387,7 +387,7 @@ export async function generateInstantBid(
   }
 
   const assumptions = [
-    'Rough order-of-magnitude based on the scope provided — final price set after a site visit.',
+    'Rough order-of-magnitude based on the scope provided. Final price set after a site visit.',
     // The honesty line. The ROM the model produces is a COST estimate; if no
     // markup was supplied, this proposal contains no overhead and no profit
     // and the contractor is entitled to be told so on the artifact itself
@@ -399,7 +399,7 @@ export async function generateInstantBid(
     ...(rateCount > 0 ? [`Anchored on ${rateCount} learned rate${rateCount === 1 ? '' : 's'} from your closed projects.`] : []),
     // Separate line, separate wording. Never merged into the count above.
     ...(seededRateCount > 0
-      ? [`Anchored on ${seededRateCount} rate${seededRateCount === 1 ? '' : 's'} you set yourself — your numbers, not yet measured on a project here.`]
+      ? [`Anchored on ${seededRateCount} rate${seededRateCount === 1 ? '' : 's'} you set yourself: your numbers, not yet measured on a project here.`]
       : []),
   ];
 
