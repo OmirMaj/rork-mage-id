@@ -368,7 +368,7 @@ const CASES: Case[] = [
       tone: 'failed', pending: 0, failed: 2, depths: {}, visible: true, badge: '2 not saved',
       title: 'Not saved to MAGE', detail: 'Two changes could not be saved.\n\nWhat failed: see below',
       unsaved: [
-        { id: 'u1', label: 'Daily Report', line: 'Not saved to MAGE — the server refused it', canRetry: true, writes: 2, discards: 'create' },
+        { id: 'u1', label: 'Daily report', line: 'Not saved to MAGE — the server refused it', canRetry: true, writes: 2, discards: 'create' },
         { id: 'u2', label: 'Punch item', line: 'Not saved to MAGE — no longer exists', canRetry: false, writes: 1, discards: 'edit' },
       ],
       retryUnsaved: async () => 'failed', discardUnsaved: async () => {}, acknowledgeFailures: async () => {}, refresh: async () => {},
@@ -491,7 +491,7 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
   // QuickUpdateClarifier, another lane's file, whose sheet is not this lane's.
   it.each([
     ['ConfirmEmailModal', CASES.find(([n]) => n === 'ConfirmEmailModal')![2], 'omir@example.test', 440],
-    ['UpgradeSheet', CASES.find(([n]) => n === 'UpgradeSheet')![2], 'See Plans', 440],
+    ['UpgradeSheet', CASES.find(([n]) => n === 'UpgradeSheet')![2], 'See plans', 440],
     // The picker's title is 'Project'; no other sheet in this subtree has that word capitalised.
     ['QuickFieldUpdate (project picker)', CASES.find(([n]) => n === 'QuickFieldUpdate')![2], 'Project', 440],
     ['PropertyManagerHome (Add a property)', CASES.find(([n]) => n === 'PropertyManagerHome')![2], 'Add a property', 560],

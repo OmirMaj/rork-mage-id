@@ -1093,6 +1093,18 @@
       "rule": "R15",
       "match": "D From Previous",
       "reason": "a column letter and then the header: \"From\" is the header's first word, so it takes a capital"
+    },
+    {
+      "file": "app/client-view.tsx",
+      "rule": "R15",
+      "match": "Last updated",
+      "reason": "a label that carries a time (\"Last updated 3:38 PM\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/client-view.tsx",
+      "rule": "R15",
+      "match": "Check financing options",
+      "reason": "this screen is the preview of the client portal page, whose button says \"Check financing options\" (marketing/portal, not in any lane), and the note beside it quotes that name (utils/financingCore.ts, founder's financing copy): it changes with the portal page, in all of them together"
     }
   ]
 }

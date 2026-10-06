@@ -1272,7 +1272,7 @@ export default function ClientViewScreen() {
           <Text style={styles.headerProjectName}>{project.name}</Text>
           <Text style={styles.headerLocation}>{project.location}</Text>
           <Text style={styles.headerLastUpdated} testID="client-last-updated">
-            Last Updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            Last updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </Text>
           <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? themeColors.success + '40' : '#FF950040' }]}>
             <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? themeColors.success : Colors.warning }]}>
@@ -1668,7 +1668,7 @@ export default function ClientViewScreen() {
                       testID="portal-financing-button"
                       onPress={() => { void Linking.openURL(portalFinancingUrl); }}
                     >
-                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Check Financing Options</Text>
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Check financing options</Text>
                     </TouchableOpacity>
                     <Text style={[styles.budgetLabel, { marginTop: 6, textAlign: 'center' }]}>
                       {portalFinancing.disclosure}

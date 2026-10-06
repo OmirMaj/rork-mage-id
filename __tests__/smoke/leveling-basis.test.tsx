@@ -62,7 +62,7 @@ describe('bid leveling — the saved basis label', () => {
     expect(text).toContain('Close call until you price the exclusion');
     // The prefix is a label, not part of the words shown after "leveled:".
     expect(text).not.toContain(`leveled: ${NOT_FROM_BOOK_TAG}`);
-    expect(text).not.toContain('AI Draft');
+    expect(text).not.toMatch(/AI draft/i);
   });
 
   it('/buyout-package renders the same labels on the adjustment reasons', async () => {
@@ -85,7 +85,7 @@ describe('bid leveling — the saved basis label', () => {
     expect(before).toContain('Set your price for the excluded scope');
     // Ace $15,000 + a 0 placeholder is NOT offered as a leveled total or an
     // Award: only Joe's bid carries Award.
-    expect(before).toMatch(/Leveled Total\nNeeds price/);
+    expect(before).toMatch(/Leveled Total\nNeeds Price/);
     expect(before.match(/^Award /gm)?.length).toBe(1);
     await act(async () => { fireEvent.press(screen.getByTestId('leveling-set-price-bid-t7-2')); });
     await settle();

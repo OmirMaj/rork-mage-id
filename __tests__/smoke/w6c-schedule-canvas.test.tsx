@@ -492,7 +492,7 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
     expect(r.queryByText('Add Task')).not.toBeNull();
     fireEvent.press(r.getByText('Share ▾'));
     await settle();
-    expect(r.queryByText('Today & lookahead (classic)')).not.toBeNull();
+    expect(r.queryByText('Today and Lookahead (Classic)')).not.toBeNull();
   });
 
   it('SchedulerMenuBar: no openClassic, no classic item; the views stay without actionsOnly', async () => {

@@ -456,7 +456,7 @@ describe('lane G — desktop web 1512 (logRouteMode)', () => {
       expect(screen.getByTestId('rfi-subject').props.value).toBe('Header size at island opening (rev)');
       // "Discard" is the destructive choice, and it is what opens the row.
       const buttons = discard[0][2] as { text: string; style?: string; onPress?: () => void }[];
-      expect(buttons.map((b) => b.text)).toEqual(['Keep Editing', 'Discard']);
+      expect(buttons.map((b) => b.text)).toEqual(['Keep editing', 'Discard']);
       await act(async () => { buttons[1].onPress?.(); });
       await pump();
       expect(screen.getByTestId('rfi-subject').props.value).toBe('Shower niche waterproofing detail');

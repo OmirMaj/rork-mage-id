@@ -314,7 +314,7 @@ describe('lane T2 — desktop takeoff workspace', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('takeoffws-push')); });
     await pump(3);
     const r2 = textOf(screen.getByTestId('takeoffws-push-result'));
-    expect(r2).toContain('Already up to date — nothing changed');
+    expect(r2).toContain('Already up to date, nothing changed');
     const m = /Estimate updated (\S+) → (\S+)/.exec(r2);
     expect(m && m[1]).toBe(m && m[2]);
   });

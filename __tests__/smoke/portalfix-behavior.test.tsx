@@ -324,7 +324,7 @@ describe('PORTALFIX behavior — the phone', () => {
     // Copy hands out nothing; a second reset is not offered on top of the unknown.
     mockAlerts.length = 0;
     await act(async () => { fireEvent.press(screen.getByText('Copy')); });
-    expect(mockAlerts.map(a => a.title)).toEqual([expect.stringMatching(/secure link/)]);
+    expect(mockAlerts.map(a => a.title)).toEqual([expect.stringMatching(/Secure Link/)]);
     mockAlerts.length = 0;
     await press('portal-reset-link-btn');
     expect(mockAlerts.some(a => a.title === 'Reset the link?')).toBe(false);

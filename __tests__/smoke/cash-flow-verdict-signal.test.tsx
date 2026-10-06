@@ -162,7 +162,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     expect(text).not.toContain('Healthy');
     expect(text).toContain('No Forecast Yet');
     expect(text).toContain('has no dates on it');
-    expect(text).toContain('put a schedule on those projects');
+    expect(text).toContain('Put a schedule on those projects');
   });
 
   it('does not let a zero-amount expense row buy a verdict', async () => {
