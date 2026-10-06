@@ -84,6 +84,7 @@ open class UIView: NSObject {
   public var autoresizingMask: UIViewAutoresizing = []
   public init(frame: CGRect) { super.init() }
   public func addSubview(_ v: UIView) {}
+  public var window: UIView? { nil }
 }
 public final class UIBarButtonItem: NSObject {
   public enum SystemItem { case done, cancel }
@@ -99,6 +100,10 @@ open class UIViewController: NSObject, NSCoding {
   public var view = UIView(frame: .zero)
   public let navigationItem = UINavigationItem()
   public var navigationController: UINavigationController? { nil }
+  public var presentedViewController: UIViewController? { nil }
+  public var presentingViewController: UIViewController? { nil }
+  public var viewIfLoaded: UIView? { nil }
+  public var isBeingDismissed: Bool { false }
   public var modalPresentationStyle: UIModalPresentationStyle = .fullScreen
   public init(nibName: String?, bundle: Bundle?) { super.init() }
   public required init?(coder: NSCoder) { super.init() }

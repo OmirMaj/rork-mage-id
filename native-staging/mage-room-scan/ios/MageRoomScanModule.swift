@@ -69,7 +69,12 @@ public class MageRoomScanModule: Module {
       self.scanning = true
       // The module lives as long as the app does, so the strong `self` the
       // outer closure already holds is used here too.
+      // The promise settles exactly once: `present` promises one call, and
+      // this guard holds even if a future change breaks that promise.
+      var settled = false
       RoomScanSupport.present(from: presenter, options: options) { result in
+        if settled { return }
+        settled = true
         self.scanning = false
         switch result {
         case .success(let payload): promise.resolve(payload)

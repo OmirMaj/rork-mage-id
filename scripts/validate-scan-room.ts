@@ -109,10 +109,10 @@ const FEATURE_FILES = [
 const SWIFT_FILES = ['RoomScanTypes.swift', 'MageRoomScanModule.swift', 'RoomScanSupport.swift'] as const;
 const OTHER_FILES = [
   'constants/featureFlags.ts', 'app.json', 'docs/scan-the-room-native-checklist.md',
-  'modules/mage-room-scan/package.json', 'modules/mage-room-scan/expo-module.config.json',
-  'modules/mage-room-scan/ios/MageRoomScan.podspec', 'modules/mage-room-scan/README.md',
+  'native-staging/mage-room-scan/package.json', 'native-staging/mage-room-scan/expo-module.config.json',
+  'native-staging/mage-room-scan/ios/MageRoomScan.podspec', 'native-staging/mage-room-scan/README.md',
   'scripts/fixtures/scan-room/builder.ts',
-  ...SWIFT_FILES.map((f) => `modules/mage-room-scan/ios/${f}`),
+  ...SWIFT_FILES.map((f) => `native-staging/mage-room-scan/ios/${f}`),
 ] as const;
 
 /** Every source file outside the feature, for "nothing links to it". Read once. */
@@ -757,11 +757,11 @@ rule('N4 the native module is one optional lookup, not at module scope, refused 
     check(o, !/from ['"][^'"]*modules\//.test(s), `${f} imports from modules/`);
   }
   for (const [f, text] of Object.entries(w.outside)) check(o, !/MageRoomScan/.test(text), `${f} names the native module`);
-  const pkg = JSON.parse(w.F['modules/mage-room-scan/package.json'] || '{}') as Record<string, unknown>;
+  const pkg = JSON.parse(w.F['native-staging/mage-room-scan/package.json'] || '{}') as Record<string, unknown>;
   check(o, pkg.private === true && !('main' in pkg) && !('module' in pkg) && !('exports' in pkg), 'the module package has a JS entry point');
-  const cfg = JSON.parse(w.F['modules/mage-room-scan/expo-module.config.json'] || '{}') as { platforms?: string[]; apple?: { modules?: string[] } };
+  const cfg = JSON.parse(w.F['native-staging/mage-room-scan/expo-module.config.json'] || '{}') as { platforms?: string[]; apple?: { modules?: string[] } };
   check(o, JSON.stringify(cfg.platforms) === '["apple"]' && JSON.stringify(cfg.apple?.modules) === '["MageRoomScanModule"]', 'the module config is not apple-only with one module');
-  const podspec = w.F['modules/mage-room-scan/ios/MageRoomScan.podspec'].replace(/^\s*#.*$/gm, '');
+  const podspec = w.F['native-staging/mage-room-scan/ios/MageRoomScan.podspec'].replace(/^\s*#.*$/gm, '');
   check(o, /:ios => '15\.1'/.test(podspec) && /weak_frameworks = 'RoomPlan'/.test(podspec), 'the podspec raises the iOS floor or does not weak-link RoomPlan');
   check(o, !/UIRequiredDeviceCapabilities/.test(w.F['app.json']), 'app.json requires a device capability');
   return o;
@@ -770,9 +770,9 @@ rule('N4 the native module is one optional lookup, not at module scope, refused 
 rule('N5 the Swift that touches RoomPlan is guarded for iOS 16', (w) => {
   const o: string[] = [];
   const strip = (s: string) => s.replace(/^\s*\/\/.*$/gm, '');
-  const sup = strip(w.F['modules/mage-room-scan/ios/RoomScanSupport.swift']);
-  const mod = strip(w.F['modules/mage-room-scan/ios/MageRoomScanModule.swift']);
-  const types = strip(w.F['modules/mage-room-scan/ios/RoomScanTypes.swift']);
+  const sup = strip(w.F['native-staging/mage-room-scan/ios/RoomScanSupport.swift']);
+  const mod = strip(w.F['native-staging/mage-room-scan/ios/MageRoomScanModule.swift']);
+  const types = strip(w.F['native-staging/mage-room-scan/ios/RoomScanTypes.swift']);
   check(o, !/RoomCapture|CapturedRoom|import RoomPlan/.test(mod) && !/RoomCapture|CapturedRoom|import RoomPlan/.test(types), 'RoomPlan is named outside RoomScanSupport.swift');
   check(o, /#if canImport\(RoomPlan\) && !targetEnvironment\(simulator\)\nimport RoomPlan\n#endif/.test(sup), 'import RoomPlan is not behind canImport and off the simulator');
   // Every line that names a RoomPlan type sits inside a guarded region.
@@ -853,7 +853,7 @@ rule('N8 app.json is not changed by this lane, and the checklist carries what th
     ['the proposed table', /create table public\.room_scans/],
     ['the old-build check', /without the module/i],
   ] as [string, RegExp][]) check(o, re.test(doc), `the checklist is missing ${what}`);
-  check(o, /requireOptionalNativeModule/.test(w.F['modules/mage-room-scan/README.md']), 'the module README does not explain the optional lookup');
+  check(o, /requireOptionalNativeModule/.test(w.F['native-staging/mage-room-scan/README.md']), 'the module README does not explain the optional lookup');
   return o;
 });
 
@@ -984,10 +984,10 @@ for (const [id, fn] of Object.entries(RULES)) {
   } else {
     const dir = mkdtempSync(join(tmpdir(), 'scan-room-swift-'));
     try {
-      const stubs = join(ROOT, 'modules/mage-room-scan/typecheck/Stubs.swift');
+      const stubs = join(ROOT, 'native-staging/mage-room-scan/typecheck/Stubs.swift');
       for (const [label, flag] of [['with RoomPlan', '#if true'], ['with RoomPlan compiled out', '#if false']] as const) {
         const files = SWIFT_FILES.map((f) => {
-          const src = read(`modules/mage-room-scan/ios/${f}`)
+          const src = read(`native-staging/mage-room-scan/ios/${f}`)
             .replace(/^import (ExpoModulesCore|UIKit|RoomPlan)$/gm, '')
             .replace(/^#if canImport\(RoomPlan\) && !targetEnvironment\(simulator\)$/gm, flag);
           const out = join(dir, `${flag === '#if true' ? 'a' : 'b'}-${f}`);
@@ -999,10 +999,10 @@ for (const [id, fn] of Object.entries(RULES)) {
         if (r.status === 0) { pass += 1; console.log(`  ✓ the Swift typechecks ${label} (against typecheck/Stubs.swift, which is a claim about Apple's API, not a check of it)`); }
         else { fail += 1; console.log(`  ✗ the Swift does not typecheck ${label}`); for (const e of errs) console.log(`      ${e}`); }
       }
-      const swiftFiles = readdirSync(join(ROOT, 'modules/mage-room-scan/ios'));
-      const js = walk('modules/mage-room-scan');
-      if (js.length === 0 && swiftFiles.filter((f) => f.endsWith('.swift')).sort().join() === [...SWIFT_FILES].sort().join()) { pass += 1; console.log('  ✓ modules/mage-room-scan holds no JavaScript, and exactly the three Swift files this check reads'); }
-      else { fail += 1; console.log(`  ✗ modules/mage-room-scan: JavaScript ${js.join(', ') || 'none'}; Swift ${swiftFiles.join(', ')}`); }
+      const swiftFiles = readdirSync(join(ROOT, 'native-staging/mage-room-scan/ios'));
+      const js = walk('native-staging/mage-room-scan');
+      if (js.length === 0 && swiftFiles.filter((f) => f.endsWith('.swift')).sort().join() === [...SWIFT_FILES].sort().join()) { pass += 1; console.log('  ✓ native-staging/mage-room-scan holds no JavaScript, and exactly the three Swift files this check reads'); }
+      else { fail += 1; console.log(`  ✗ native-staging/mage-room-scan: JavaScript ${js.join(', ') || 'none'}; Swift ${swiftFiles.join(', ')}`); }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1035,7 +1035,7 @@ for (const [id, fn] of Object.entries(RULES)) {
   } else {
     const dir = mkdtempSync(join(tmpdir(), 'scan-room-sdk-'));
     try {
-      const stubs = read('modules/mage-room-scan/typecheck/Stubs.swift');
+      const stubs = read('native-staging/mage-room-scan/typecheck/Stubs.swift');
       const cut = stubs.indexOf('// ── UIKit');
       const expoOnly = stubs.slice(0, cut).replace(/^import AVFoundation$/m, 'import AVFoundation\nimport UIKit');
       if (cut < 0 || !/open class Module/.test(expoOnly) || /class UIViewController/.test(expoOnly)) {
@@ -1043,7 +1043,7 @@ for (const [id, fn] of Object.entries(RULES)) {
       } else {
         const expoFile = join(dir, 'ExpoModulesCore.swift');
         writeFileSync(expoFile, expoOnly);
-        const sources = SWIFT_FILES.map((f) => join(ROOT, 'modules/mage-room-scan/ios', f));
+        const sources = SWIFT_FILES.map((f) => join(ROOT, 'native-staging/mage-room-scan/ios', f));
         for (const [label, sdk, target] of slices) {
           const out = join(dir, target);
           mkdirSync(out);
@@ -1153,11 +1153,11 @@ const MUTATIONS: Mutation[] = [
   { rule: 'N4', what: 'the lookup uses requireNativeModule', plant: text('utils/roomScan/native.ts', "cached = requireOptionalNativeModule<MageRoomScanNative>('MageRoomScan');", "cached = requireNativeModule<MageRoomScanNative>('MageRoomScan');") },
   { rule: 'N4', what: 'the lookup no longer checks the flag', plant: text('utils/roomScan/native.ts', '  if (!SCAN_ROOM_ENABLED) return null;\n', '') },
   { rule: 'N4', what: 'a screen names the native module', plant: text('components/roomScan/RoomScanFlow.tsx', "type Step = 'start'", "const MODULE = 'MageRoomScan';\ntype Step = 'start'") },
-  { rule: 'N4', what: 'the podspec raises the iOS floor', plant: text('modules/mage-room-scan/ios/MageRoomScan.podspec', ":ios => '15.1'", ":ios => '16.0'") },
-  { rule: 'N4', what: 'the module package gets a JS entry point', plant: text('modules/mage-room-scan/package.json', '"private": true,', '"private": true,\n  "main": "index.js",') },
-  { rule: 'N5', what: 'the scanner controller loses its iOS 16 mark', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '@available(iOS 16.0, *)\ninternal final class RoomScanViewController', 'internal final class RoomScanViewController') },
-  { rule: 'N5', what: 'import RoomPlan is unguarded', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '#if canImport(RoomPlan) && !targetEnvironment(simulator)\nimport RoomPlan\n#endif', 'import RoomPlan') },
-  { rule: 'N5', what: 'the module raises the camera prompt', plant: text('modules/mage-room-scan/ios/MageRoomScanModule.swift', 'case .authorized: break', 'case .authorized: AVCaptureDevice.requestAccess(for: .video) { _ in }') },
+  { rule: 'N4', what: 'the podspec raises the iOS floor', plant: text('native-staging/mage-room-scan/ios/MageRoomScan.podspec', ":ios => '15.1'", ":ios => '16.0'") },
+  { rule: 'N4', what: 'the module package gets a JS entry point', plant: text('native-staging/mage-room-scan/package.json', '"private": true,', '"private": true,\n  "main": "index.js",') },
+  { rule: 'N5', what: 'the scanner controller loses its iOS 16 mark', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', '@available(iOS 16.0, *)\ninternal final class RoomScanViewController', 'internal final class RoomScanViewController') },
+  { rule: 'N5', what: 'import RoomPlan is unguarded', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', '#if canImport(RoomPlan) && !targetEnvironment(simulator)\nimport RoomPlan\n#endif', 'import RoomPlan') },
+  { rule: 'N5', what: 'the module raises the camera prompt', plant: text('native-staging/mage-room-scan/ios/MageRoomScanModule.swift', 'case .authorized: break', 'case .authorized: AVCaptureDevice.requestAccess(for: .video) { _ in }') },
   { rule: 'N6', what: 'no LiDAR and not-in-this-build share one sentence', plant: text('hooks/useRoomScanCopy.ts', "case 'noLidar': return t('office.roomScan.unavailable.noLidarBody'", "case 'noLidar': return t('office.roomScan.unavailable.notInThisBuildBody'") },
   { rule: 'N7', what: 'a screen imports reanimated', plant: text('components/roomScan/FloorPlanView.tsx', "import { AlertTriangle, Check } from 'lucide-react-native';", "import { AlertTriangle, Check } from 'lucide-react-native';\nimport Animated from 'react-native-reanimated';") },
   { rule: 'N7', what: 'a screen writes a colour', plant: text('components/roomScan/styles.ts', 'screen: { flex: 1, backgroundColor: t.bg },', "screen: { flex: 1, backgroundColor: '#ECEDE9' },") },
