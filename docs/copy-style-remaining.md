@@ -4,8 +4,8 @@ Written 2026-10-05 by lane COPYSTYLE (the trial lane). The style is in `docs/VOI
 
 ## Where things stand
 
-- **Converted: 287 files**, listed in `scripts/copy-style-converted.json`. The app shell and first run (40 files, the trial lane): the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces). **Lane 1 (144 files, done 2026-10-05):** estimate, takeoff, quotes, cost history, proposals, the contract, selections, bids, buyout, leads, prequal, materials, the marketplace and RFP screens. **Lane 3 (103 files, done 2026-10-05):** daily report, punch, the invoice screen, time tracking, crew, T&M tickets, deliveries, building access, safety, equipment, scan, photos, voice and lineup; see its section below.
-- **Still to convert: 576 files with 5,725 strings the guard would fail today** (counted 2026-10-05 with lanes 1 and 3 both in). Counts by rule: label not in Title Case 3,769, dash used as punctuation 1,537, "&" 263, "e.g." or "i.e." 82, arrows 74. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
+- **Converted: 465 files**, listed in `scripts/copy-style-converted.json`. The app shell and first run (40 files, the trial lane): the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces). **Lane 1 (144 files, done 2026-10-05):** estimate, takeoff, quotes, cost history, proposals, the contract, selections, bids, buyout, leads, prequal, materials, the marketplace and RFP screens. **Lane 3 (103 files, done 2026-10-05):** daily report, punch, the invoice screen, time tracking, crew, T&M tickets, deliveries, building access, safety, equipment, scan, photos, voice and lineup; see its section below. **Lane 4 (178 files, done 2026-10-06):** the client portal setup and messages, RFIs, submittals, plans, permits and Permit Path, Code Check, Construction AI, Ask MAGE, the copilot, Inspection Ready, warranties, closeout, handover, subs, tutorials and skills checks, notifications and the team section; see its section below.
+- **Still to convert: 397 files with 4,045 strings the guard would fail today** (counted 2026-10-06 with lanes 1, 3 and 4 in). Counts by rule: label not in Title Case 2,621, dash used as punctuation 1,096, "&" 220, "e.g." or "i.e." 52, arrows 56. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
 - The count is a floor. The guard only calls a string a label when its position says so (a `title` / `label` prop, an alert title, an alert button, a short VoiceOver label, a constant named `…_LABEL` / `…_TITLE`, a style key such as `rowLabel` or `sectionHeader`, text inside a button). A label held in a plain constant, or drawn with a style key the guard does not know, is found by reading the screen, not by the guard. In the trial lane the guard found about two thirds of the roughly 580 strings that changed; the rest came from reading the dump.
 
 ## How to run a lane
@@ -48,18 +48,18 @@ File lists do not overlap. A file went to the first group whose words match its 
 | Lane | What it covers | Files | Strings |
 |---|---|---|---|
 | 1. Estimate, bids and contract (**done**) | Everything with estimate, takeoff, quote, cost, proposal, contract, selections, bid, buyout, lead, prequal, materials, marketplace, RFP, supplier, scope, drawing or company in its path. | 144 | 1,849 |
-| 2. Money and schedule | Invoices, pay apps, payments, change orders, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax; and schedule, Last Planner, lookahead, pace, delay, weather. | 195 | 2,164 |
+| 2. Money and schedule | Invoices, pay apps, payments, change orders, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax; and schedule, Last Planner, lookahead, pace, delay, weather. | 194 of 195 left | 2,160 of 2,164 left |
 | 3. Field and safety (**done**) | Daily report, punch, photos, time tracking, crew, T&M tickets, deliveries, safety, equipment, scan, voice, lineup. This is the lane that goes through t(): most of its English has a Spanish entry to re-read and re-stamp. | 0 of 103 left | 0 of 1,621 left |
 | 4. Office, AI and portal (**done**) | Client portal, RFIs, submittals, plans, permits, Code Check, Construction AI, Ask MAGE, copilot, inspection, warranty, closeout, handover, subs, tutorials, messages, notifications, team. | 0 of 178 left | 0 of 1,678 left |
-| 5. Shell remainder and everything else | The project page, Discover and the Tools list, the feature registry, the create menu, Summary, the root layout (every screen title), shared components (ui, desktop, registers), PDFs and emails built in utils/, demo and sample data. | 203 | 1,886 |
+| 5. Shell remainder and everything else | The project page, Discover and the Tools list, the feature registry, the create menu, Summary, the root layout (every screen title), shared components (ui, desktop, registers), PDFs and emails built in utils/, demo and sample data. | 203 | 1,885 of 1,886 left |
 | **Total** | | **823** | **9,198** |
-| **Still to convert (lanes 2, 4 and 5)** | Less the handful of strings lanes 1 and 3 changed in other lanes' files. | **576** | **5,725** |
+| **Still to convert (lanes 2 and 5)** | Less the handful of strings lanes 1, 3 and 4 changed in other lanes' files. | **397** | **4,045** |
 
 ### Lane 1. Estimate, bids and contract (144 files, 1,849 strings): DONE 2026-10-05
 
 All 144 files are in `scripts/copy-style-converted.json` and the guard reads zero for them. The file list is in git history (this section before the lane landed).
 
-### Lane 2. Money and schedule (195 files, 2,164 strings)
+### Lane 2. Money and schedule (195 files, 2,164 strings when listed; 194 files and 2,160 strings left on 2026-10-06)
 
 Strings the guard would fail, per file, largest first.
 
@@ -310,8 +310,11 @@ Things the next lanes will hit, found here:
 - **A regular expression pin needs its dots escaped again.** "model recall — verify" became "model recall. Verify", and a bare "." in the pin matches anything.
 - **`validate-money-copy` banned "Expiring Soon"** as a sentence-case rule. On a converted file the ban is now on "Expiring soon".
 - **A label in a `label:` key that is really a sentence** ("No pages were read", "No current sheets to index") is still rewritten by `--fix-labels`. Check each against its validator.
+- **Jest lookups are not found by the validators.** After every validator was green, 21 smoke suites and 2 web suites still looked up the old words (`getByText`, `getByLabelText`, `toBe` on an alert title, a CSV header row). Run the whole smoke suite before calling the pins done. A `not.toMatch(/old words/)` passes for ever once the words change: search the tests for the old string, do not wait for a red.
+- **The bulk "Skipped" line** (`logBulkSkippedLine` in `utils/logs/rfiLogRows.ts`, also used by the invoice and change order logs in lane 2) no longer joins with a dash: "Skipped 3: #4, #7 (already sent); #2 (paid).".
+- **"so" inside a label** has no Title Case the guard accepts ("Cost so Far" is what it asks for). "Cost so far" became "Cost to Date".
 
-### Lane 5. Shell remainder and everything else (203 files, 1,886 strings)
+### Lane 5. Shell remainder and everything else (203 files, 1,886 strings when listed; 1,885 left on 2026-10-06)
 
 Strings the guard would fail, per file, largest first.
 
