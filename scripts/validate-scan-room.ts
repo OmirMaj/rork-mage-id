@@ -1184,6 +1184,17 @@ const MUTATIONS: Mutation[] = [
 ];
 
 if (process.env.LIST === '1') for (const m of MUTATIONS) console.log(`  ${m.rule}: ${m.what}`);
+// ── what the bathroom fixture comes to (printed for the report, not a check: G1 and R1 pin the numbers) ──
+{
+  const { q } = room(REAL, 'bathroom.json');
+  const { scan } = room(REAL, 'bathroom.json');
+  const d = REAL.M.draft(scan, q, OWN_BOOK(), CATALOG);
+  const n = (v: number | null) => (v == null ? 'not known' : v.toFixed(2));
+  console.log(`\n  bathroom fixture: floor ${n(q.floorAreaSF)} sq ft, walls ${n(q.netWallSF)} sq ft net of ${n(q.grossWallSF)}, baseboard ${n(q.baseboardLF)} ft`);
+  for (const l of d.lines) console.log(`    ${l.name}: ${l.quantity} ${l.unit}${l.rate == null ? ', no price yet' : ` at $${l.rate.toFixed(2)} = $${((l.amountCents as number) / 100).toFixed(2)} (${l.source}${l.claim ? `, ${l.claim.tone}, ${l.claim.jobCount} jobs` : ''})`}`);
+  console.log(`    draft total with the test cost book: $${(d.totalCents / 100).toFixed(2)} (${d.ownCount} his own, ${d.catalogCount} catalog, ${d.unpricedCount} with no price)`);
+}
+
 console.log('\n── planted mutations (each must turn its own rule red)');
 const proven = new Set<string>();
 for (const m of MUTATIONS) {
