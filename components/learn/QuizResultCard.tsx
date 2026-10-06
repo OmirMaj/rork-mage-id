@@ -123,7 +123,7 @@ export function QuizResultCard({ phase, label, holderName, onChangeName }: QuizR
         {phase.kind !== 'pending' && !(phase.kind === 'refused' && (phase.reason === 'quiz_changed' || phase.reason === 'bad_request' || phase.reason === 'revoked')) ? (
           <View style={styles.field}>
             <Text style={[Type.footnoteEmphasized, { color: colors.text }]} nativeID="skills-check-name-label">
-              {t('settings.learn.nameLabel', 'Name on the certificate')}
+              {t('settings.learn.nameLabel', 'Name on the Certificate')}
             </Text>
             <TextInput
               value={holderName}

@@ -32,7 +32,7 @@ export function specCoverage(pdfPageCount: number | null, startPage: number, rea
   const read = Math.max(0, Math.floor(readCount));
   const to = from + read - 1;
   if (read === 0) {
-    return { label: 'No Pages Were Read', complete: false, nextPage: from, unread: pdfPageCount ? Math.max(0, pdfPageCount - from + 1) : 0 };
+    return { label: 'No pages were read', complete: false, nextPage: from, unread: pdfPageCount ? Math.max(0, pdfPageCount - from + 1) : 0 };
   }
   const range = read === 1 ? `page ${from}` : `pages ${from}–${to}`;
   // No page count — pdf-lib could not parse the file locally (countPdfPages

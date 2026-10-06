@@ -342,7 +342,7 @@ ok('RFI subjects are escaped', rfiLog.includes('&lt;script&gt;') && !full.includ
   'This HTML becomes a client-facing PDF (and a new browser window on web); a raw subject is markup injection.');
 ok('submittal titles are escaped', subLog.includes('Millwork &amp; casework'));
 ok('the submittal status label is escaped exactly once',
-  subLog.includes('Revise &amp; resubmit') && !full.includes('&amp;amp;'),
+  subLog.includes('Revise and Resubmit') && !full.includes('&amp;amp;'),
   'A pre-escaped label (or title) run through escHtml again prints a literal "&amp;" to the client.');
 ok('the submittal log carries the spec section', subLog.includes('06 41 00'));
 

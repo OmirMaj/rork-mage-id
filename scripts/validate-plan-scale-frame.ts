@@ -120,7 +120,7 @@ ok('plan-viewer knows whether imgLayout is the image rect or the container fallb
 {
   const cc = viewer.slice(viewer.indexOf('const confirmCalibration = useCallback('));
   const refuse = cc.indexOf('if (!imageFrameKnown)');
-  const save = cc.indexOf('upsertPlanCalibration({');
+  const Save = cc.indexOf('upsertPlanCalibration({');
   ok('confirmCalibration refuses to stamp before the frame is known — before the save, and says why',
     refuse > 0 && refuse < save && /CALIBRATE_FRAME_UNKNOWN_COPY/.test(cc.slice(refuse, save)));
 }

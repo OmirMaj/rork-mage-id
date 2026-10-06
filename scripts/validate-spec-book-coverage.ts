@@ -97,7 +97,7 @@ ok('the render request and the precheck use the same constant', /maxPages: SPEC_
 ok('the hero states the pages read', /coverage\.label/.test(screen));
 ok('an incomplete read carries a warning on the review screen', /specUnreadWarning\(coverage\)/.test(screen));
 ok('the helper text no longer hides the limit in a pre-upload bullet only',
-  /the review screen says which pages were read/.test(screen));
+  /The review screen says which pages were read/.test(screen));
 ok('analyze-spec-book still reads at most one pass worth of pages',
   new RegExp(`selectPageSource\\(req, ${SPEC_PAGES_PER_PASS}\\)`).test(read('supabase/functions/analyze-spec-book/index.ts')));
 
