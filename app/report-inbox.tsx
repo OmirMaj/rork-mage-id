@@ -348,7 +348,7 @@ export default function ReportInboxScreen() {
           steps={[
             'Check that you have signal or Wi-Fi.',
             'Tap Try again below.',
-            'If it keeps failing, sign out and back in — the session may have expired.',
+            'If it keeps failing, sign out and back in. The session may have expired.',
           ]}
           onRetry={retryRemoteReads}
           testID="report-inbox-unreachable"

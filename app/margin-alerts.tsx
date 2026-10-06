@@ -274,7 +274,7 @@ function MarginAlertsInner() {
           <Text style={styles.note}>
             Tap a project to see its margin risk and the living estimate behind it.
             {Platform.OS !== 'web' ? ' New high-risk crossings also push a notification.' : ''}
-            {' '}Mark all read to clear — an unread alert sticks around until you do.
+            {' '}Mark all read to clear. An unread alert sticks around until you do.
           </Text>
         </ScrollView>
       )}

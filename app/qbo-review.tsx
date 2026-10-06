@@ -330,7 +330,7 @@ function QboReviewInner() {
                         <View style={styles.dupChip}>
                           <AlertTriangle size={12} color="#7A4500" strokeWidth={2} />
                           <Text style={styles.dupChipText}>
-                            Looks Like the Receipt You Scanned {dup.receiptDate ? fmtDay(dup.receiptDate) : 'recently'} ({formatMoney(dup.total)}). Confirming counts this cost twice — reject it here if it&apos;s the same purchase.
+                            Looks like the receipt you scanned {dup.receiptDate ? fmtDay(dup.receiptDate) : 'recently'} ({formatMoney(dup.total)}). Confirming counts this cost twice. Reject it here if it’s the same purchase.
                           </Text>
                         </View>
                       )}

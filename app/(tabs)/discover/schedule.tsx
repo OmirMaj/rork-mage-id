@@ -135,7 +135,7 @@ export default function DiscoverScheduleTool() {
           location: '',
           squareFootage: 2200,
           quality: 'standard',
-          description: 'Demo schedule — 35 tasks, 6 phases, realistic dependencies.',
+          description: 'Demo schedule: 35 tasks, 6 phases, realistic dependencies.',
           createdAt: now,
           updatedAt: now,
           estimate: null,

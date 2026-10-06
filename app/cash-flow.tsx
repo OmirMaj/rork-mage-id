@@ -1204,7 +1204,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                     {ambiguousIds.has(exp.id) && (
                       <Text style={styles.expenseListWarn}>
                         Sub/material money typed by hand. If this is one of the signed contracts listed
-                        below, delete this row — otherwise it is counted twice.
+                        below, delete this row. Otherwise it is counted twice.
                       </Text>
                     )}
                   </View>
@@ -1399,7 +1399,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               twelve weeks that are empty, and that is what the sentence says. */}
           {!hasCashMovement && (
             <Text style={styles.aiBlockedNote}>
-              No forecast to analyze yet — the next {forecastWeeks} weeks have no money moving in
+              No forecast to analyze yet. The next {forecastWeeks} weeks have no money moving in
               or out of them.
             </Text>
           )}

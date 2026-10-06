@@ -215,7 +215,7 @@ function LastPlannerInner() {
           <EmptyState
             icon={<ListChecks size={36} color={t.accent} strokeWidth={1.6} />}
             title="Build a Schedule First"
-            message="Last Planner sits on top of the CPM schedule — it needs tasks and a start date to plan the next 3 weeks."
+            message="Last Planner sits on top of the CPM schedule. It needs tasks and a start date to plan the next 3 weeks."
             actionLabel="Open Schedule"
             onAction={() => router.push({ pathname: '/schedule-wizard', params: { projectId: project.id } } as never)}
           />
@@ -257,7 +257,7 @@ function LastPlannerInner() {
           <NavRow
             variant="card"
             Icon={Send}
-            title="Tomorrow's Lineup — a Ready-to-Send Text per Sub"
+            title="Tomorrow's Lineup: A Ready-to-Send Text per Sub"
             onPress={() => router.push({ pathname: '/tomorrow-lineup', params: { projectId: project.id } })}
             style={{ marginTop: 12 }}
             testID="lineup-link"
@@ -568,7 +568,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
                 </View>
 
                 {e.committed && e.readiness === 'constrained' && !reviewed ? (
-                  <View style={styles.warnRow}><AlertTriangle size={12} color={t.accentHot} strokeWidth={1.75} /><Text style={styles.warnText}>{e.openConstraints} open constraint{e.openConstraints === 1 ? '' : 's'} — clear before relying on this.</Text></View>
+                  <View style={styles.warnRow}><AlertTriangle size={12} color={t.accentHot} strokeWidth={1.75} /><Text style={styles.warnText}>{e.openConstraints} open constraint{e.openConstraints === 1 ? '' : 's'}. Clear before relying on this.</Text></View>
                 ) : null}
 
                 {taskClashes.length > 0 ? (
@@ -660,7 +660,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
                   </View>
                 );
               })}
-              <Text style={styles.crewHint}>Only the committed work goes out — each crew sees just their slice, not the whole schedule.</Text>
+              <Text style={styles.crewHint}>Only the committed work goes out. Each crew sees only their slice, not the whole schedule.</Text>
             </View>
           )}
         </>
@@ -781,7 +781,7 @@ function ConstraintModal({ task, onClose, onSave, t, styles }: {
             ))}
           </View>
           <Text style={styles.fieldLabel}>What Exactly</Text>
-          <TextInput style={styles.fieldInput} value={description} onChangeText={setDescription} placeholder="e.g. Tile order not shipped yet" placeholderTextColor={t.textMuted} />
+          <TextInput style={styles.fieldInput} value={description} onChangeText={setDescription} placeholder="Tile order not shipped yet" placeholderTextColor={t.textMuted} />
           <View style={styles.fieldRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.fieldLabel}>Need by (Optional)</Text>
@@ -829,10 +829,10 @@ function ReviewModal({ task, onClose, onReview, t, styles }: {
           {!missed ? (
             <View style={{ gap: 10, marginTop: 8 }}>
               <TouchableOpacity style={[styles.outcomeBtn, { borderColor: t.success }]} onPress={() => onReview('done')} activeOpacity={0.85}>
-                <CircleCheck size={18} color={t.success} strokeWidth={1.75} /><Text style={styles.outcomeText}>Yes — Kept the Commitment</Text>
+                <CircleCheck size={18} color={t.success} strokeWidth={1.75} /><Text style={styles.outcomeText}>Yes, Kept the Commitment</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.outcomeBtn, { borderColor: t.danger }]} onPress={() => setMissed(true)} activeOpacity={0.85}>
-                <X size={18} color={t.danger} strokeWidth={1.75} /><Text style={styles.outcomeText}>No — It Slipped</Text>
+                <X size={18} color={t.danger} strokeWidth={1.75} /><Text style={styles.outcomeText}>No, It Slipped</Text>
               </TouchableOpacity>
             </View>
           ) : (

@@ -291,7 +291,7 @@ export default function Tax1099ExportScreen() {
           </View>
           <Text style={styles.heroTitle}>Year-end 1099-NEC export</Text>
           <Text style={styles.heroBody}>
-            Sub payments for the year, net of retainage you still hold, with each sub who needs a 1099 flagged (paid &ge; {thresholdLabel} for {year}) and TIN, W-9 and address gaps shown. Hand the CSV to your CPA, who maps it into their template.
+            Sub payments for the year, net of retainage you still hold, with each sub who needs a 1099 flagged (paid {thresholdLabel} or more for {year}) and TIN, W-9 and address gaps shown. Hand the CSV to your CPA, who maps it into their template.
           </Text>
           {thresholdInfo.provisional && (
             <Text style={styles.heroCaveat} testID="threshold-provisional-note">
@@ -413,7 +413,7 @@ export default function Tax1099ExportScreen() {
                         reports it on a 1099-K (#100). */}
                     {r.cardPaid > 0 ? (
                       <Text style={styles.rowUncounted} testID={`card-paid-${r.subcontractorId}`}>
-                        {`+ ${cents(r.cardPaid)} paid by card — the card processor reports it on Form 1099-K, so it is not in this 1099-NEC total.`}
+                        {`+ ${cents(r.cardPaid)} paid by card. The card processor reports it on Form 1099-K, so it is not in this 1099-NEC total.`}
                       </Text>
                     ) : null}
                     {/* Money the app KNOWS was paid to this sub and cannot put
@@ -429,7 +429,7 @@ export default function Tax1099ExportScreen() {
                         the figure rather than trailing the notes blob below. */}
                     {r.uncountedCommitmentPaid > 0 ? (
                       <Text style={styles.rowUncounted} testID={`uncounted-${r.subcontractorId}`}>
-                        {`+ $${r.uncountedCommitmentPaid.toLocaleString(undefined, { maximumFractionDigits: 2 })} recorded on commitments — undated, so not counted above. Confirm the year against your books.`}
+                        {`+ $${r.uncountedCommitmentPaid.toLocaleString(undefined, { maximumFractionDigits: 2 })} recorded on commitments, undated, so not counted above. Confirm the year against your books.`}
                       </Text>
                     ) : null}
                     {screenNotes ? <Text style={styles.rowNotes}>{screenNotes}</Text> : null}

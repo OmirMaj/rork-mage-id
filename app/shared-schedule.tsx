@@ -303,7 +303,7 @@ export default function SharedScheduleScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.subBannerTitle}>Confirming as: {subName}</Text>
             <Text style={styles.subBannerBody}>
-              Tap a task to confirm or request a reschedule. The reply opens in your email or messaging app — no account needed.
+              Tap a task to confirm or request a reschedule. The reply opens in your email or messaging app. No account needed.
             </Text>
           </View>
         </View>

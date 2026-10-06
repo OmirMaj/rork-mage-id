@@ -166,7 +166,7 @@ function MarginRiskInner() {
               </View>
               <Text style={styles.heroSub}>
                 {risk.topFactors.length > 0
-                  ? `${risk.topFactors.length} factor${risk.topFactors.length === 1 ? '' : 's'} driving risk — act on the top ones below.`
+                  ? `${risk.topFactors.length} factor${risk.topFactors.length === 1 ? '' : 's'} driving risk. Act on the top ones below.`
                   : 'No meaningful risk signals right now. Keep buyout and COs tight.'}
               </Text>
             </View>
@@ -203,7 +203,7 @@ function MarginRiskInner() {
 
             <Text style={styles.note}>
               Score blends seven weighted signals from your estimate, change orders,
-              commitments, and invoices. It is a guide, not a guarantee — pair it with the
+              commitments, and invoices. It is a guide, not a guarantee. Pair it with the
               Living Estimate for the dollar detail.
             </Text>
 

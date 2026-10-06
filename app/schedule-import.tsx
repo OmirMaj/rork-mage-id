@@ -209,7 +209,7 @@ export default function ScheduleImportScreen() {
     if (existing?.tasks?.length) {
       const backupScenario: ScheduleScenario = {
         id: `scn-import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: `Before import — ${new Date().toLocaleDateString()}`,
+        name: `Before import: ${new Date().toLocaleDateString()}`,
         note: 'Saved before a schedule import replaced the plan. Tap Restore to bring it back.',
         createdAt: new Date().toISOString(),
         // Deep-clone tasks + their nested link arrays so the backup is immune
@@ -230,7 +230,7 @@ export default function ScheduleImportScreen() {
     if (existing?.tasks?.length) {
       const snap = captureBaseline(
         existing.tasks,
-        `Before import — ${new Date().toLocaleDateString()}`,
+        `Before import: ${new Date().toLocaleDateString()}`,
         'Auto-captured before a schedule import replaced the plan.',
         { reasonCode: 'other' },
       );
@@ -314,7 +314,7 @@ export default function ScheduleImportScreen() {
         ? ` The import has fewer tasks (${mappedTasks.length}) than your current plan (${existingCount}). Check the mapping.`
         : '';
       const replaceLine =
-        `This replaces your existing ${existingCount} task${existingCount === 1 ? '' : 's'} with ${mappedTasks.length} imported task${mappedTasks.length === 1 ? '' : 's'}.${shrinkNote}\n\nYour current plan is saved as a restore point first (Saved plans → Restore).`;
+        `This replaces your existing ${existingCount} task${existingCount === 1 ? '' : 's'} with ${mappedTasks.length} imported task${mappedTasks.length === 1 ? '' : 's'}.${shrinkNote}\n\nYour current plan is saved as a restore point first (Saved Plans > Restore).`;
 
       if (cpm.conflicts.length > 0) {
         setImporting(false);
@@ -537,7 +537,7 @@ export default function ScheduleImportScreen() {
               <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.roBadgeText}>
                 Your current schedule is saved as a restore point before the import replaces it.
-                Bring it back from Saved plans → Restore.
+                Bring it back from Saved Plans &gt; Restore.
               </Text>
             </View>
           </>
@@ -547,7 +547,7 @@ export default function ScheduleImportScreen() {
           <View style={styles.hintCard}>
             <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.hintText}>
-              Export from Excel as .xlsx, or from MS Project as XML (File → Save As → XML). MAGE reads
+              Export from Excel as .xlsx, or from MS Project as XML (File &gt; Save As &gt; XML). MAGE reads
               the FS/SS/FF/SF dependencies, lags, durations and constraints.
             </Text>
           </View>

@@ -241,7 +241,7 @@ function BidLevelingInner() {
             <View style={styles.warn}>
               <AlertTriangle size={15} color={t.danger} strokeWidth={1.75} />
               <Text style={styles.warnText}>
-                <Text style={{ fontWeight: '800', color: t.danger }}>{report.outlierCount}</Text> bid{report.outlierCount === 1 ? '' : 's'} suspiciously low vs the field — likely missing scope. Read the exclusions before awarding.
+                <Text style={{ fontWeight: '800', color: t.danger }}>{report.outlierCount}</Text> bid{report.outlierCount === 1 ? '' : 's'} suspiciously low vs the field, likely missing scope. Read the exclusions before awarding.
               </Text>
             </View>
           )}
@@ -265,8 +265,8 @@ function BidLevelingInner() {
 
           <Text style={styles.note}>
             Leveled cost = the bid plus an adjustment for the scope it excludes, so every bid is
-            compared on the same scope. &ldquo;Best value&rdquo; is the lowest leveled cost that isn&apos;t a
-            suspicious lowball. Terms/availability are shown per bid — confirm schedule before you award.
+            compared on the same scope. “Best Value” is the lowest leveled cost that isn&apos;t a
+            suspicious lowball. Terms/availability are shown per bid. Confirm schedule before you award.
           </Text>
         </ScrollView>
       )}
@@ -341,7 +341,7 @@ function BidRow({
         </View>
       </View>
       {b.excludes.length > 0 && (
-        <Text style={styles.bidExcludes}><Text style={{ fontWeight: '700', color: t.accentHot }}>Excludes:</Text> {b.excludes}{saved.text ? ` — leveled: ${saved.text}` : ''}</Text>
+        <Text style={styles.bidExcludes}><Text style={{ fontWeight: '700', color: t.accentHot }}>Excludes:</Text> {b.excludes}{saved.text ? ` · leveled: ${saved.text}` : ''}</Text>
       )}
       {needsAnswer && (
         <View style={styles.needsAnswerRow}>
@@ -352,7 +352,7 @@ function BidRow({
       {b.terms.length > 0 && <Text style={styles.bidTerms}>Terms: {b.terms}</Text>}
       {onScorecard && (
         <TouchableOpacity onPress={onScorecard} style={styles.scorecardLink} activeOpacity={0.75}>
-          <Text style={styles.scorecardLinkText}>See This Sub's Scorecard →</Text>
+          <Text style={styles.scorecardLinkText}>See This Sub's Scorecard</Text>
         </TouchableOpacity>
       )}
     </View>

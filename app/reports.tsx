@@ -512,7 +512,7 @@ function reportExclusionLine(
       + `(${shared === 1 ? 'its' : 'their'} contract, not yours)`);
   }
   if (unsigned > 0) {
-    parts.push(`${unsigned} unsigned bid${unsigned === 1 ? '' : 's'} (${formatMoney(unsignedContract, 2)}) — `
+    parts.push(`${unsigned} unsigned bid${unsigned === 1 ? '' : 's'} (${formatMoney(unsignedContract, 2)}): `
       + 'pipeline, not backlog. A bid joins once it is invoiced, billed on a pay app, has an approved '
       + 'change order or a signed subcontract, or has cost recorded against it');
   }
@@ -793,7 +793,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
         <Text style={styles.profitHeroSub}>
           on {formatMoney(profit.measurableRevenue)} of revised contract value
           {profit.noCostBasisCount > 0
-            ? ` — ${profit.noCostBasisCount} project${profit.noCostBasisCount === 1 ? '' : 's'} worth `
+            ? `. ${profit.noCostBasisCount} project${profit.noCostBasisCount === 1 ? '' : 's'} worth `
               + `${formatMoney(profit.noCostBasisRevenue)} excluded, because a contract with no cost `
               + 'estimate, no signed commitment and nothing spent has no measurable margin'
             : ''}

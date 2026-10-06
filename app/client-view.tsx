@@ -147,7 +147,7 @@ function portalFailureCopy(
     case 'missing_key':
       return {
         title: 'This link is incomplete',
-        body: 'Part of the link is missing. Email and text apps often cut long links in half — try opening it from the original message, or ask your contractor for a new one.',
+        body: 'Part of the link is missing. Email and text apps often cut long links in half. Try opening it from the original message, or ask your contractor for a new one.',
       };
     case 'not_published':
       return {
@@ -1530,7 +1530,7 @@ export default function ClientViewScreen() {
                     outdated note it contradicted the line above it. */}
                 {!proposalBlock.paymentTermsPending && proposalBlock.version === PROPOSAL_ESIGN_VERSION && (
                   <Text style={styles.budgetCaption} testID="proposal-accept-location">
-                    To accept, open the portal link your contractor sent — that page
+                    To accept, open the portal link your contractor sent. That page
                     captures the signature. This view is read-only.
                   </Text>
                 )}
@@ -1566,7 +1566,7 @@ export default function ClientViewScreen() {
                   <Text style={styles.budgetLabelTotal}>Revised Contract</Text>
                   <Text style={styles.budgetValueTotal}>{formatMoney(revisedContract)}</Text>
                 </View>
-                <Text style={styles.budgetCaption}>Projected final cost — your contract plus any change orders you&apos;ve approved.</Text>
+                <Text style={styles.budgetCaption}>Projected final cost: your contract plus any change orders you&apos;ve approved.</Text>
                 {/* Name the source. A contract figure that cannot say where it
                     came from is what MONEY-CONTRACT-1 was. */}
                 <Text style={styles.budgetCaption} testID="contract-sum-source">

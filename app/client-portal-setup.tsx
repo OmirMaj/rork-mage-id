@@ -1456,7 +1456,7 @@ function ClientPortalSetupScreenInner() {
         ? `We've set up a private portal where you can follow along with the project: ${escapeHtml(sectionsLine)}, plus messages with your contractor.`
         : 'We\'ve set up a private portal where you can follow along with the project and message your contractor.'}</p>
       ${passcodeHint}
-      <p style="margin:18px 0 0;color:#9AA3AD;font-size:12px;line-height:1.55;">No app to install. Open the link on your phone or computer — that's it. Keep this email so the link is easy to find.</p>
+      <p style="margin:18px 0 0;color:#9AA3AD;font-size:12px;line-height:1.55;">No app to install. Open the link on your phone or computer. Keep this email so the link is easy to find.</p>
     `;
     const html = wrapEmailHtml({
       preheader: `Your private project portal for ${projectName} is ready.`,
@@ -1896,7 +1896,7 @@ function ClientPortalSetupScreenInner() {
               : linkNeedsSave
                 ? 'Tap Save to finish securing this link. That is when the key your client needs to sign change orders is created.'
                 : linkHealFailed
-                  ? 'Couldn\u2019t get this link\u2019s security key from the server. Check your connection and tap Retry — Copy and Share stay locked until it arrives.'
+                  ? 'Couldn\u2019t get this link\u2019s security key from the server. Check your connection and tap Retry. Copy and Share stay locked until it arrives.'
                   : linkPending
                     ? 'Fetching this link\u2019s security key from the server. Copy and Share become available when it arrives.'
                     : 'Ends in a security key that lets your client sign change orders. Part of it is hidden here so a screenshot can\u2019t give it away. Use Copy: a shortened or retyped link opens the portal but cannot approve anything.'}
@@ -1958,7 +1958,7 @@ function ClientPortalSetupScreenInner() {
           {!portal.coApprovalEnabled && (
             <Text style={styles.linkHint} testID="portal-signing-off-note">
               1-tap signing is off for this portal: your client&apos;s page lists change orders but has no approve
-              button. They can only reply in Messages — turn signing on under Approvals &amp; messaging below.
+              button. They can only reply in Messages. Turn signing on under Approvals and Messaging below.
             </Text>
           )}
 
@@ -2158,7 +2158,7 @@ function ClientPortalSetupScreenInner() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Client Budget Input</Text>
           <Text style={styles.sectionSubtitle}>
-            Let the owner propose a starting budget directly from the portal — useful
+            Let the owner propose a starting budget directly from the portal. This is useful
             when you don&apos;t have an estimate yet and want to anchor the conversation.
           </Text>
           <View style={[styles.togglesCard, { padding: 0 }]}>
@@ -2526,7 +2526,7 @@ function ClientPortalSetupScreenInner() {
                         : `${pendingClientCOCount} change orders are waiting on your client`}
                     </Text>
                     <Text style={styles.toggleDesc}>
-                      With signing off they can only reply in Messages — and a message is not a signed change to
+                      With signing off they can only reply in Messages, and a message is not a signed change to
                       the contract. Tap to let them sign instead.
                     </Text>
                   </View>

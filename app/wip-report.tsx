@@ -1380,7 +1380,7 @@ function WipReportScreenInner() {
                   {displayPortfolio.lossJobCount === 1 ? ' is' : 's are'} forecast to finish at a LOSS,
                   {' '}totalling {money(displayPortfolio.totalForecastLoss ?? 0)}. The margin above nets
                   that against your profitable jobs. Provision to book now:
-                  {' '}{money(displayPortfolio.lossProvision ?? 0)} — the part of the loss you have not
+                  {' '}{money(displayPortfolio.lossProvision ?? 0)}, the part of the loss you have not
                   yet spent. GAAP takes the whole loss in the period it becomes evident.
                 </Text>
               ) : null}
@@ -1546,7 +1546,7 @@ function WipReportScreenInner() {
                     + `(${formatMoney(exclusions.unsignedContract, 2)}): pipeline, not backlog`
                   : '',
               ].filter(Boolean).join(' · ')}
-              {' '}— not on this schedule. A WIP schedule carries your own signed work in progress only;
+              {' '}(not on this schedule). A WIP schedule carries your own signed work in progress only;
               a bid joins it once it is invoiced, billed on a pay app, has an approved change order or a
               signed subcontract, or has cost recorded against it.
             </Text>
@@ -1771,14 +1771,14 @@ function WipReportScreenInner() {
                       <Text style={styles.sourceLine}>
                         {drillRow.etc
                           ? `Cost basis: the ${money(drillInput.costToDate)} this project has cost so far plus `
-                            + `the ${money(drillRow.etc.value)} you said is still left to spend — your own `
+                            + `the ${money(drillRow.etc.value)} you said is still left to spend, your own `
                             + `forecast for this period. MAGE\u2019s own figure was `
                             + `${money(drillRow.cost.value)}; clear the cost-to-complete box to go back to it.`
                           : describeCostBasis(drillRow.cost, drillInput.costToDate)}
                       </Text>
                       <Text style={styles.sourceLine}>
                         {drillRow.override
-                          ? `Cost-to-date ${money(drillInput.costToDate)} — `
+                          ? `Cost-to-date ${money(drillInput.costToDate)}: `
                             + `${wipSourceLabel(drillRow.sources.costToDate)}. `
                             + `MAGE’s own recorded figure is ${money(drillRow.auto.value)}: `
                             + describeCostToDateComponents(drillRow.auto)
@@ -1796,7 +1796,7 @@ function WipReportScreenInner() {
                           // `percentCompleteOverride` for. The frozen-snapshot case
                           // is real and is handled where it belongs, on the export,
                           // by `wipCostToDateCaveat` reading each row's own source.
-                          : `Cost-to-date ${money(drillRow.auto.value)} — `
+                          : `Cost-to-date ${money(drillRow.auto.value)}: `
                             + describeCostToDateComponents(drillRow.auto)
                             + ' Trades with no rate on file and equipment with no day rate count as $0'
                             + ' until you add one. Those are the only gaps.'}
@@ -1804,7 +1804,7 @@ function WipReportScreenInner() {
                       {drillRow.override && !drillRow.override.synced ? (
                         <Text style={styles.sourceLine}>
                           This figure is on this device only so far. It goes up to your account
-                          automatically — until it does, WIP on your other devices still shows the
+                          automatically. Until it does, WIP on your other devices still shows the
                           subs + materials estimate.
                         </Text>
                       ) : null}

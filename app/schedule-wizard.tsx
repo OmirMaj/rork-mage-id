@@ -564,7 +564,7 @@ export default function ScheduleWizardScreen() {
     // forward-pass resolver, so our weekend-aware CPM startDays survive
     // untouched — no raw-day re-expansion on the way in.
     const built = buildScheduleFromTasks(
-      `${project.name} — Schedule`,
+      `${project.name} Schedule`,
       project.id,
       newTasks,
       null,
@@ -1124,8 +1124,8 @@ function SeatNote({ role }: { role: string | null | undefined }) {
   return (
     <Text style={styles.projectSub} numberOfLines={2}>
       {path === 'field_rpc'
-        ? 'Field access — ask the owner for editor access to build its schedule'
-        : 'View-only — ask the owner for editor access to build its schedule'}
+        ? 'Field access. Ask the owner for editor access to build its schedule'
+        : 'View-only. Ask the owner for editor access to build its schedule'}
     </Text>
   );
 }
@@ -1542,7 +1542,7 @@ function TasksStep(props: {
           <Text style={styles.templateLinkText}>
             {scratchActive
               ? 'Or Start from a Template'
-              : `Started from ${activeTemplate?.name ?? 'a template'} — change`}
+              : `Started from ${activeTemplate?.name ?? 'a template'} (change)`}
           </Text>
         </TouchableOpacity>
       )}

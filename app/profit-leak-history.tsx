@@ -244,7 +244,7 @@ function ProfitLeakHistoryInner() {
             <View style={styles.errorBanner} testID="leak-history-stale">
               <CloudOff size={14} color={t.textMuted} strokeWidth={1.75} />
               <Text style={styles.errorBannerText}>
-                {"Couldn't refresh — no signal or the server didn't answer. Showing what was loaded before."}
+                {"Couldn't refresh: no signal, or the server didn't answer. Showing what was loaded before."}
               </Text>
             </View>
           ) : null}

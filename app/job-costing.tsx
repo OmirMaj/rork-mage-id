@@ -536,7 +536,7 @@ function JobCostingInner() {
               <Text style={styles.varianceAbsorbed} testID="absorbed-variance">
                 {formatMoney(summary.absorbedVariance)} of what these rows show is spend your
                 estimate did not price. The headline above absorbs it into budget you have not
-                committed yet, so it is not counted as an overrun — it will be if the rest of the
+                committed yet, so it is not counted as an overrun. It will be if the rest of the
                 job commits in full.
               </Text>
             )}
@@ -604,7 +604,7 @@ function JobCostingInner() {
           </View>
           {projectCommitments.some(c => c.type === 'purchase_order') && (
             <Text style={styles.footerNote}>
-              Tap the download icon on a purchase order to issue it as a PDF — vendor, ship-to,
+              Tap the download icon on a purchase order to issue it as a PDF: vendor, ship-to,
               line items, order total and required-by date, ready to send.
             </Text>
           )}

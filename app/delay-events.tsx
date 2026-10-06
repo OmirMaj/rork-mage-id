@@ -197,7 +197,7 @@ function auditPointerWarning(status: AuditPointerStatus, hasNote: boolean): stri
     ? 'The text shown is the note copied when it was attached.'
     : 'No note was copied when it was attached, so nothing about the change can be shown.';
   if (status === 'not_found') {
-    return `This schedule change isn't in your account's schedule history — it may have been recorded under another account, or on a device that never synced. ${copy}`;
+    return `This schedule change isn't in your account's schedule history. It may have been recorded under another account, or on a device that never synced. ${copy}`;
   }
   if (status === 'unverifiable') {
     return `Couldn't check your account's schedule history (offline or signed out), and this change isn't on this device. ${copy}`;
@@ -353,7 +353,7 @@ export default function DelayEventsScreen() {
       return;
     }
     if (!formDesc.trim()) {
-      showAlert('Describe the Delay', 'One sentence is enough — what happened, and to what.');
+      showAlert('Describe the Delay', 'One sentence is enough: what happened, and to what.');
       return;
     }
     const now = new Date().toISOString();
@@ -486,7 +486,7 @@ export default function DelayEventsScreen() {
         kind: 'weather_log',
         id: w.id,
         capturedAt: w.appliedAt,
-        note: `${w.dates.length} evidenced day${w.dates.length === 1 ? '' : 's'} · source: ${w.source}${w.source === 'mixed' ? ' (some days simulated — excluded)' : ''}`,
+        note: `${w.dates.length} evidenced day${w.dates.length === 1 ? '' : 's'} · source: ${w.source}${w.source === 'mixed' ? ' (some days simulated, excluded)' : ''}`,
       });
     }
     // Schedule changes lead the list (their own order — see
@@ -624,7 +624,7 @@ export default function DelayEventsScreen() {
             <View style={styles.emptyCard}>
               <Text style={styles.emptyText}>
                 Nothing logged yet. Log a delay from here, from a daily report&apos;s
-                Issues &amp; Delays, or when you apply a weather reschedule.
+                Issues and Delays, or when you apply a weather reschedule.
               </Text>
             </View>
           ) : (
@@ -1058,7 +1058,7 @@ function NoticePeriodModal({
                 accessibilityLabel="I Don't Know"
                 testID="notice-period-unknown"
               >
-                <Text style={styles.chipText}>I don&apos;t know</Text>
+                <Text style={styles.chipText}>I Don’t Know</Text>
               </TouchableOpacity>
             </View>
 
@@ -1209,7 +1209,7 @@ function NoticeFormModal({
             </View>
             {kind === 'supplemental' && (
               <Text style={styles.fieldHint}>
-                A later notice on the same delay — for example when the first one went
+                A later notice on the same delay, for example when the first one went
                 unanswered. Recorded alongside the first, not in place of it.
               </Text>
             )}
@@ -1251,7 +1251,7 @@ function NoticeFormModal({
                   style={styles.input}
                   value={days}
                   onChangeText={setDays}
-                  placeholder="e.g. 8"
+                  placeholder="8"
                   placeholderTextColor={t.textMuted}
                   keyboardType="number-pad"
                   testID="notice-days-requested"

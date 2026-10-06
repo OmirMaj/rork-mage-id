@@ -286,12 +286,12 @@ function PaymentPredictionsScreenInner() {
                 partial forecast and a wrong one. */}
             {result.unforecastCount > 0 ? (
               <Text style={styles.provenanceText} testID="unforecast-disclosure">
-                {formatMoney(result.unforecastAmount)} across {result.unforecastCount} invoice{result.unforecastCount === 1 ? '' : 's'} is not in these totals — the Brain returned no timing for {result.unforecastCount === 1 ? 'it' : 'them'}.
+                {formatMoney(result.unforecastAmount)} across {result.unforecastCount} invoice{result.unforecastCount === 1 ? '' : 's'} is not in these totals. The Brain returned no timing for {result.unforecastCount === 1 ? 'it' : 'them'}.
               </Text>
             ) : null}
 
             <Text style={styles.provenanceText}>
-              An AI forecast from invoice terms, dates and your payment history — not a commitment from the client. Verify before you act on it.
+              An AI forecast from invoice terms, dates and your payment history. It is not a commitment from the client. Verify before you act on it.
             </Text>
           </View>
 

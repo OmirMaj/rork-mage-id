@@ -459,7 +459,7 @@ function ScheduleProScreenInner() {
           : settingsChanged ? 'schedule settings' : '';
         // The padlock card carries ONLY what access refused; a send failure
         // has its own banner (fieldFailure) — both show when both happened.
-        if (what) setFieldNotice(`Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.`);
+        if (what) setFieldNotice(`Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only. Ask the project owner for editor access to move dates or change tasks.`);
       }
     } finally {
       fieldSavesInFlightRef.current -= 1;
@@ -1587,7 +1587,7 @@ function ScheduleProScreenInner() {
           const rb = b as unknown as Record<string, unknown>, ra = a as unknown as Record<string, unknown>;
           return Object.keys({ ...rb, ...ra }).every(k => fieldKeys.has(k) || JSON.stringify(rb[k]) === JSON.stringify(ra[k]));
         });
-        if (!fieldOnly) return 'Not saved: field access saves progress, status, notes and actual start/finish only — adding, removing or moving tasks needs editor access from the project owner.';
+        if (!fieldOnly) return 'Not saved: field access saves progress, status, notes and actual start/finish only. Adding, removing or moving tasks needs editor access from the project owner.';
       } else if (writePath !== 'row') {
         return 'Not saved: you have view-only access to this project. Ask the project owner for editor access.';
       }
@@ -1641,7 +1641,7 @@ function ScheduleProScreenInner() {
       user: user?.email ?? user?.name ?? 'anonymous',
       kind: 'reflow',
       summary: patch.tasks
-        ? `Moved ${startDayBasisPreview.report.wouldRemapTaskCount} ${startDayBasisPreview.report.wouldRemapTaskCount === 1 ? 'task' : 'tasks'} onto the calendar · finish ${startDayBasisPreview.storedFinishDay} → ${startDayBasisPreview.remappedFinishDay}`
+        ? `Moved ${startDayBasisPreview.report.wouldRemapTaskCount} ${startDayBasisPreview.report.wouldRemapTaskCount === 1 ? 'task' : 'tasks'} onto the calendar · finish ${startDayBasisPreview.storedFinishDay} to ${startDayBasisPreview.remappedFinishDay}`
         : 'Kept the start days as entered',
     });
   }, [project, updateProject, startDayBasisPreview, writeAudit, user?.email, user?.name]);
@@ -1770,7 +1770,7 @@ function ScheduleProScreenInner() {
               firstObservedDate: firstObserved,
               claimedDays: String(logEntry.projectSlipDays),
               description:
-                `Weather delay \u2014 ${logEntry.dates.length} evidenced day${logEntry.dates.length === 1 ? '' : 's'}` +
+                `Weather delay: ${logEntry.dates.length} evidenced day${logEntry.dates.length === 1 ? '' : 's'}` +
                 `${logEntry.condition ? ` (${logEntry.condition})` : ''}. ` +
                 `${logEntry.projectSlipDays} day${logEntry.projectSlipDays === 1 ? '' : 's'} of project slip.` +
                 (logEntry.source === 'mixed'
@@ -2137,7 +2137,7 @@ function ScheduleProScreenInner() {
     const changedCount = next.filter((t, i) => t.startDay !== workingTasks[i].startDay).length;
     commit(() => next);
     const msg = changedCount === 0
-      ? 'Everything is on track — no downstream shifts needed.'
+      ? 'Everything is on track. No downstream shifts needed.'
       : `Pushed ${changedCount} task${changedCount === 1 ? '' : 's'} based on actuals. Undo if this looks off.`;
     if (Platform.OS === 'web') window.alert?.(msg);
     else showAlert('Reflow Complete', msg);
@@ -2374,7 +2374,7 @@ function ScheduleProScreenInner() {
     // ones are rarely the interesting comparison.
     const recent = namedBaselines.slice(-3).reverse();
     if (Platform.OS === 'web') {
-      const msg = `Compare against a baseline?\n\nOK → ${recent[0]?.name ?? 'most recent'}\nCancel → current plan only`;
+      const msg = `Compare against a baseline?\n\nOK: ${recent[0]?.name ?? 'most recent'}\nCancel: current plan only`;
       const yes = window.confirm?.(msg);
       await promptPaperSize(size => { void runPdfExport(yes ? recent[0] : undefined, size); });
       return;
@@ -2704,7 +2704,7 @@ function ScheduleProScreenInner() {
     router.setParams({ editSeed: '' });
     if (writePath !== 'row') {
       const reason = writePath === 'field_rpc'
-        ? 'Not saved: field access saves progress, status, notes and actual start/finish only — adding, removing or moving tasks needs editor access from the project owner.'
+        ? 'Not saved: field access saves progress, status, notes and actual start/finish only. Adding, removing or moving tasks needs editor access from the project owner.'
         : 'Not saved: you have view-only access to this project. Ask the project owner for editor access.';
       setFieldNotice(reason);
       if (writePath !== 'field_rpc') showAlert('Schedule Not Changed', reason);
