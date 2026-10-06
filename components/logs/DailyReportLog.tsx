@@ -36,6 +36,8 @@ import { ToolbarActions, type ToolbarAction } from '@/components/desktop/Toolbar
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import { dfrWeatherSourceLine, isOpenWeatherReading } from '@/utils/weatherService';
+import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 import { defaultDfrSelection, dfrDayKey, dfrLogRow, type DfrLogRow } from '@/utils/dailyReportLog';
 import type { DailyFieldReport } from '@/types';
 
@@ -103,7 +105,11 @@ export function DailyReportLog({ projectId, filedBy }: DailyReportLogProps) {
 
   const open = rows.find((r) => r.report.id === rec.openId) ?? null;
 
+  // The Weather column shows stored readings; OpenWeather's credit goes under
+  // the table when any of them is one the app took from it.
+  const anyOpenWeather = rows.some((r) => isOpenWeatherReading(r.report.weather));
   const list = (
+    <>
     <DataTable<Row>
       tableId="dfr-log"
       testID="dfr-log-table"
@@ -129,6 +135,8 @@ export function DailyReportLog({ projectId, filedBy }: DailyReportLogProps) {
         </View>
       )}
     />
+    <WeatherCredit days={anyOpenWeather ? [{ source: 'live' }] : []} />
+    </>
   );
 
   return (
@@ -174,6 +182,7 @@ function DfrRecord({ row, projectId }: { row: Row; projectId: string }) {
   const cond = (r.weather?.conditions ?? '').trim();
   const wind = (r.weather?.wind ?? '').trim();
   const weatherParts = [temp, cond, wind ? `wind ${wind}` : ''].filter(Boolean);
+  const weatherSource = dfrWeatherSourceLine(r.weather, row.day);
   const materials = (r.materialsDelivered ?? []).map((m) => m.trim()).filter(Boolean);
   const manpower = r.manpower ?? [];
   const photos = r.photos ?? [];
@@ -222,6 +231,9 @@ function DfrRecord({ row, projectId }: { row: Row; projectId: string }) {
         {weatherParts.length ? weatherParts.join(' · ') : 'Weather not recorded'}
         {weatherParts.length && r.weather?.isManual ? ' (entered by hand)' : ''}
       </Text>
+      {/* A reading the app took: where and when, then OpenWeather's credit. */}
+      {weatherParts.length && weatherSource ? <Text style={styles.muted}>{weatherSource}</Text> : null}
+      <WeatherCredit days={weatherParts.length && weatherSource ? [{ source: 'live' }] : []} />
 
       <Text style={styles.section}>Crew</Text>
       {manpower.length === 0 ? (

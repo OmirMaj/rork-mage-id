@@ -11,6 +11,12 @@
 // │     back to getSimulatedForecast(), which invents conditions from the │
 // │     calendar date alone and is marked SIMULATED everywhere.           │
 // │                                                                       │
+// │  THE DAILY REPORT is the exception to 3. It reads OpenWeather's       │
+// │  CURRENT conditions (same key, same relay, `kind: 'current'`) through │
+// │  readLiveWeatherForDailyReport() below, for a report dated today      │
+// │  only, and it has NO fallback: no answer means an empty field the     │
+// │  super types. A simulated or forecast value never enters a report.    │
+// │                                                                       │
 // │  The LOCATION is the project's address text; coordinates saved for   │
 // │  it are preferred. Blank text or a country on its own ('United        │
 // │  States') is NO location, whatever coordinates it carries.            │
@@ -540,6 +546,351 @@ export async function resolveWeatherQuery(
   return { city: text };
 }
 
+// ============================================
+// OpenWeather CURRENT conditions (the daily report)
+// ============================================
+// "Current Weather Data" (/data/2.5/weather) is on the same free plan and the
+// same key as the 5-day forecast above. It answers the conditions NOW at the
+// place asked, with `dt`, the instant OpenWeather calculated them. That is the
+// only thing honest enough to write into a daily report as "conditions on site
+// today": a 3-hour forecast slot is a prediction, and the daily condensation
+// above is the midday slot of one.
+//
+// Same rate-limit discipline as the forecast: one request per location per 10
+// minutes, held in a module-level cache, and a failed location is not re-asked
+// for a minute. A cache hit returns the ORIGINAL read with its ORIGINAL
+// `fetchedAt`, so the report never claims a later read than the one that
+// happened.
+//
+// There is NO simulated fallback in this half of the file and there must never
+// be one: every failure returns null.
+
+const OPENWEATHER_CURRENT_ENDPOINT = 'https://api.openweathermap.org/data/2.5/weather';
+
+/** The current-weather payload, trimmed to what a daily report prints. */
+export interface OpenWeatherCurrentResponse {
+  cod?: string | number;
+  message?: string | number;
+  /** Unix seconds: when OpenWeather calculated this reading. */
+  dt?: number;
+  name?: string;
+  main?: { temp?: number };
+  weather?: { main?: string; description?: string }[];
+  wind?: { speed?: number; deg?: number };
+  /** Present only when a FORECAST payload came back instead (a relay deployed
+   *  before it learned `kind: 'current'`). Its presence refuses the reading. */
+  list?: unknown;
+}
+
+/** One current-conditions reading, or null. */
+export type CurrentWeatherTransport = (location: WeatherQuery) => Promise<OpenWeatherCurrentResponse | null>;
+
+export interface CurrentConditions {
+  /** Degrees Fahrenheit (the request is units=imperial). */
+  tempF: number;
+  /** OpenWeather's own words, e.g. 'light rain'. */
+  description: string;
+  /** Miles per hour, or null when OpenWeather sent no wind speed. Null is
+   *  NOT calm: nobody observed the wind, so the report's wind stays empty. */
+  windMph: number | null;
+  /** Degrees the wind blows FROM, or null when OpenWeather sent none. */
+  windDeg: number | null;
+  /** ms: when OpenWeather calculated the reading. */
+  observedAt: number;
+  /** ms: when this device (or its cache) received it. */
+  fetchedAt: number;
+}
+
+/** The longest the direct request may hang, the same as the relay's own
+ *  upstream limit (supabase/functions/weather-forecast UPSTREAM_TIMEOUT_MS). */
+export const CURRENT_WEATHER_TIMEOUT_MS = 8000;
+
+/**
+ * Direct call with the client's own key (native builds). An AbortController
+ * and a timer, not AbortSignal.timeout(): that static is not on every Hermes
+ * the app runs on, and a missing function here would fail every read. Without
+ * a limit a request on a dead cell connection never settles and the screen
+ * says "Reading" until the app is closed. Exported for the validator only.
+ */
+export async function directCurrentTransport(
+  apiKey: string, location: WeatherQuery, timeoutMs: number = CURRENT_WEATHER_TIMEOUT_MS,
+): Promise<OpenWeatherCurrentResponse | null> {
+  const params = new URLSearchParams({ appid: apiKey, units: 'imperial' });
+  if ('city' in location) params.set('q', location.city);
+  else {
+    params.set('lat', String(location.latitude));
+    params.set('lon', String(location.longitude));
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${OPENWEATHER_CURRENT_ENDPOINT}?${params.toString()}`, { signal: controller.signal });
+    if (!res.ok) {
+      console.log('[OpenWeather] current: non-OK response', res.status);
+      return null;
+    }
+    // The body is read inside the same limit: a stalled body is a hang too.
+    return (await res.json()) as OpenWeatherCurrentResponse;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The same `weather-forecast` edge function, asked for `kind: 'current'`. */
+async function relayCurrentTransport(location: WeatherQuery): Promise<OpenWeatherCurrentResponse | null> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { supabase } = require('@/lib/supabase') as typeof import('@/lib/supabase');
+  const { data, error } = await supabase.functions.invoke('weather-forecast', { body: { ...location, kind: 'current' } });
+  if (error || !data) {
+    console.log('[OpenWeather] current: relay failed', error?.message ?? 'no data');
+    return null;
+  }
+  return data as OpenWeatherCurrentResponse;
+}
+
+let currentTransportOverride: CurrentWeatherTransport | null = null;
+/** Test seam: replace the current-conditions transport and clear its caches. */
+export function __setCurrentWeatherTransportForTests(t: CurrentWeatherTransport | null): void {
+  currentTransportOverride = t;
+  currentCache.clear();
+  currentFailures.clear();
+}
+
+const currentCache = new Map<string, CurrentConditions>();
+const currentFailures = new Map<string, number>();
+
+/** A reading OpenWeather calculated longer ago than this is not "now". The
+ *  report prints the time it was READ ("at 3:42 PM"), so the reading behind
+ *  that time has to be close to it: 45 minutes, not hours. */
+export const CURRENT_WEATHER_MAX_AGE_MS = 45 * 60 * 1000;
+
+/**
+ * Turn a payload into a reading, or null if it is anything other than a
+ * well-formed CURRENT reading. Refuses: an error `cod`, a forecast payload
+ * (`list`), a missing or non-finite temperature, a missing `dt`, no words for
+ * the sky, and a reading calculated more than 45 minutes before it arrived.
+ * A payload with no wind speed is still a reading; its wind is null, not 0.
+ */
+export function parseCurrentConditions(data: OpenWeatherCurrentResponse | null | undefined, fetchedAt: number): CurrentConditions | null {
+  if (!data || typeof data !== 'object') return null;
+  if (String(data.cod) !== '200') return null;
+  if (data.list !== undefined) return null;
+  const temp = data.main?.temp;
+  if (typeof temp !== 'number' || !Number.isFinite(temp)) return null;
+  if (typeof data.dt !== 'number' || !Number.isFinite(data.dt) || data.dt <= 0) return null;
+  const first = Array.isArray(data.weather) ? data.weather[0] : undefined;
+  const description = String(first?.description || first?.main || '').trim();
+  if (!description) return null;
+  const observedAt = data.dt * 1000;
+  if (fetchedAt - observedAt > CURRENT_WEATHER_MAX_AGE_MS) return null;
+  const speed = data.wind?.speed;
+  const deg = data.wind?.deg;
+  return {
+    tempF: temp,
+    description,
+    windMph: typeof speed === 'number' && Number.isFinite(speed) && speed >= 0 ? speed : null,
+    windDeg: typeof deg === 'number' && Number.isFinite(deg) ? deg : null,
+    observedAt,
+    fetchedAt,
+  };
+}
+
+/**
+ * OpenWeather's current conditions for one place, or null. Never simulated,
+ * never a forecast. `now` is injectable for tests.
+ */
+export async function getOpenWeatherCurrent(location: WeatherQuery, now: number = Date.now()): Promise<CurrentConditions | null> {
+  const apiKey = getApiKey();
+  const transport: CurrentWeatherTransport =
+    currentTransportOverride ?? (apiKey ? (loc) => directCurrentTransport(apiKey, loc) : relayCurrentTransport);
+
+  const cacheKey =
+    'city' in location
+      ? `city:${location.city.trim().toLowerCase().replace(/\s+/g, '')}`
+      : `ll:${location.latitude.toFixed(3)},${location.longitude.toFixed(3)}`;
+
+  const cached = currentCache.get(cacheKey);
+  if (cached && now - cached.fetchedAt >= 0 && now - cached.fetchedAt < WEATHER_CACHE_TTL_MS) return cached;
+  const failedAt = currentFailures.get(cacheKey);
+  if (failedAt != null && now - failedAt >= 0 && now - failedAt < WEATHER_FAILURE_TTL_MS) return null;
+
+  try {
+    const reading = parseCurrentConditions(await transport(location), now);
+    if (!reading) {
+      currentFailures.set(cacheKey, now);
+      return null;
+    }
+    if (currentCache.size > 200) currentCache.clear();
+    currentCache.set(cacheKey, reading);
+    currentFailures.delete(cacheKey);
+    return reading;
+  } catch (err) {
+    console.log('[OpenWeather] current: fetch failed', err);
+    currentFailures.set(cacheKey, now);
+    return null;
+  }
+}
+
+const COMPASS_16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'] as const;
+
+/** The three strings a daily report stores, from one reading. */
+export function formatCurrentForReport(c: CurrentConditions): { temperature: string; conditions: string; wind: string } {
+  // No wind in the payload: nobody observed it, so nothing is written. "Calm"
+  // is an observation and is only printed for a measured speed under 1 mph.
+  const mph = c.windMph == null ? null : Math.round(c.windMph);
+  const point = c.windDeg == null ? '' : COMPASS_16[Math.round((((c.windDeg % 360) + 360) % 360) / 22.5) % 16];
+  return {
+    temperature: `${Math.round(c.tempF)}°F`,
+    conditions: c.description.charAt(0).toUpperCase() + c.description.slice(1),
+    wind: mph == null ? '' : mph < 1 ? 'Calm' : point ? `${mph} mph ${point}` : `${mph} mph`,
+  };
+}
+
+/** The weather block of a daily report as the APP filled it. Structurally a
+ *  types/index DFRWeather whose source and read time are both present. */
+export interface DfrLiveWeather {
+  temperature: string;
+  conditions: string;
+  wind: string;
+  isManual: false;
+  source: 'openweather';
+  readAt: string;
+  /** The calendar day of the read, where it was taken ('YYYY-MM-DD'). */
+  readDay: string;
+  /** Minutes east of UTC on the reading device at the read (-420 = UTC-7). */
+  readOffsetMin: number;
+}
+
+export type DfrLiveWeatherResult =
+  | { ok: true; weather: DfrLiveWeather }
+  /** `not_today`: the report is for another day. `no_location`: the job has no
+   *  usable address. `unavailable`: no key, no signal, a refused payload. */
+  | { ok: false; reason: 'not_today' | 'no_location' | 'unavailable' };
+
+/**
+ * THE one way weather gets into a daily report by itself.
+ *
+ *   • The report's calendar day must be today on this device, checked BEFORE
+ *     the request and again AFTER it (a request can straddle midnight, and so
+ *     can a 10-minute cache entry).
+ *   • The reading itself must have been calculated today and received today.
+ *   • Any failure answers `ok: false`. There is no fallback of any kind.
+ *
+ * `reportDay` is 'YYYY-MM-DD' (utils/calendarDate.calendarDayOf). `today` is a
+ * function so the second check reads the clock again.
+ */
+export async function readLiveWeatherForDailyReport(input: {
+  reportDay: string | null | undefined;
+  today?: () => string;
+  location: { city?: string; latitude?: number; longitude?: number };
+  now?: () => number;
+  /** Minutes east of UTC on this device at an instant. Injectable for tests. */
+  utcOffsetMinutes?: (atMs: number) => number;
+}): Promise<DfrLiveWeatherResult> {
+  const today = input.today ?? (() => localCalendarDay(new Date()));
+  // The same clock `today` reads (a Date), so the two can never disagree.
+  const now = input.now ?? (() => new Date().getTime());
+  if (!canReadLiveWeatherFor(input.reportDay, today())) return { ok: false, reason: 'not_today' };
+  let query: WeatherQuery | null = null;
+  try {
+    query = await resolveWeatherQuery(input.location);
+  } catch {
+    query = null;
+  }
+  if (!query) return { ok: false, reason: 'no_location' };
+  const reading = await getOpenWeatherCurrent(query, now());
+  if (!reading) return { ok: false, reason: 'unavailable' };
+  const day = today();
+  if (!canReadLiveWeatherFor(input.reportDay, day)) return { ok: false, reason: 'not_today' };
+  // Received today AND calculated today: a 10-minute cache entry, or a reading
+  // OpenWeather calculated just before midnight, is another day's sky. "Today"
+  // is this device's wall clock, the same clock whose offset is stored below.
+  const offsetOf = input.utcOffsetMinutes ?? ((atMs: number) => -new Date(atMs).getTimezoneOffset());
+  const dayAt = (atMs: number) => wallClockDay(atMs, Math.round(offsetOf(atMs)));
+  if (dayAt(reading.fetchedAt) !== day || dayAt(reading.observedAt) !== day) {
+    return { ok: false, reason: 'unavailable' };
+  }
+  // WHERE the read happened travels with WHEN: the wall-clock day and the UTC
+  // offset of this device at the read. Without them, every other device
+  // re-reads the instant in ITS zone: a 9:30 PM Pacific read prints as 12:30 AM
+  // "on a different day" in an Eastern office, a false caveat on a valid record.
+  const readOffsetMin = Math.round(offsetOf(reading.fetchedAt));
+  // The report's own day: checked just above, on the same clock.
+  const readDay = dayAt(reading.fetchedAt);
+  return {
+    ok: true,
+    weather: {
+      ...formatCurrentForReport(reading),
+      isManual: false,
+      source: 'openweather',
+      readAt: new Date(reading.fetchedAt).toISOString(),
+      readDay,
+      readOffsetMin,
+    },
+  };
+}
+
+/** 'YYYY-MM-DD' on a clock `offsetMin` minutes east of UTC, or '' if unusable. */
+function wallClockDay(atMs: number, offsetMin: number): string {
+  const wall = new Date(atMs + offsetMin * 60_000);
+  return Number.isFinite(wall.getTime()) ? wall.toISOString().slice(0, 10) : '';
+}
+
+/** The stored-reading fields the day test and the printed label read. */
+type DfrReadStamp = { readAt?: string; readDay?: string; readOffsetMin?: number };
+
+/**
+ * Where and when a stored reading was taken, or null for a block saved without
+ * `readDay` + `readOffsetMin` (then the viewing device's own zone is all there
+ * is, as before). `wall` is a Date whose UTC fields are the wall clock where
+ * the reading was taken: format it with `timeZone: 'UTC'`, never in the
+ * viewing device's zone. `zone` is the offset to print beside it ('UTC-7').
+ * A day and offset that disagree with the instant are ignored, not trusted.
+ */
+export function dfrReadPlaceTime(w: DfrReadStamp | null | undefined): { wall: Date; day: string; zone: string } | null {
+  if (!w || !w.readAt || typeof w.readDay !== 'string' || typeof w.readOffsetMin !== 'number') return null;
+  const off = w.readOffsetMin;
+  if (!Number.isInteger(off) || off < -12 * 60 || off > 14 * 60) return null;
+  const at = new Date(w.readAt).getTime();
+  if (!Number.isFinite(at)) return null;
+  if (wallClockDay(at, off) !== w.readDay) return null;
+  return { wall: new Date(at + off * 60_000), day: w.readDay, zone: utcOffsetLabel(off) };
+}
+
+/** 'UTC-7', 'UTC+5:30', 'UTC'. Short, and the same on every device. */
+export function utcOffsetLabel(offsetMin: number): string {
+  if (offsetMin === 0) return 'UTC';
+  const abs = Math.abs(offsetMin);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return `UTC${offsetMin < 0 ? '-' : '+'}${h}${m ? `:${String(m).padStart(2, '0')}` : ''}`;
+}
+
+/** True only for a weather block the app read from OpenWeather: not typed,
+ *  source named, read time present, and something to show. This is the ONE
+ *  test for "print the OpenWeather credit next to this report's weather". */
+export function isOpenWeatherReading(w: {
+  temperature?: string; conditions?: string; wind?: string;
+  isManual?: boolean; source?: string; readAt?: string;
+} | null | undefined): boolean {
+  if (!w || w.isManual !== false) return false;
+  if (w.source !== 'openweather' || !w.readAt) return false;
+  if (!Number.isFinite(new Date(w.readAt).getTime())) return false;
+  return Boolean((w.temperature ?? '').trim() || (w.conditions ?? '').trim() || (w.wind ?? '').trim());
+}
+
+/** May an UNATTENDED read write into this weather block? Only into an empty,
+ *  untouched one or over the app's own earlier reading. Anything a person
+ *  typed or dictated is theirs and is never overwritten. */
+export function autoReadMayWrite(w: {
+  temperature?: string; conditions?: string; wind?: string;
+  isManual?: boolean; source?: string; readAt?: string;
+}, touchedByPerson: boolean): boolean {
+  if (touchedByPerson) return false;
+  const empty = !(w.temperature ?? '').trim() && !(w.conditions ?? '').trim() && !(w.wind ?? '').trim();
+  return empty || isOpenWeatherReading(w);
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // "Was this reading taken on the day it is recorded against?"
 //
@@ -557,9 +908,10 @@ export async function resolveWeatherQuery(
 // day's argument — it invites the other side to question every other day in the
 // binder.
 //
-// There is NO historical-weather source in this repo (OpenWeather's free tier is
-// forecast-only; the daily report reads no "now" source either since
-// contentfix 2026-10-03), so the fix is to stop asserting a
+// There is NO historical-weather source in this repo (OpenWeather's history is
+// a paid product; the free plan answers the forecast and the conditions NOW,
+// which readLiveWeatherForDailyReport above reads for a report dated today),
+// so the fix is to stop asserting a
 // wrong day's weather, not to look up the right one. Same line the rest of the
 // app already holds: ProjectSchedule.weatherDelayLog refuses to record a day
 // whose weather was simulated.
@@ -592,41 +944,133 @@ export function backfilledWeatherNotice(reportDayLabel: string): string {
 }
 
 /**
- * The provenance line under the DFR weather block.
- *
- * `DFRWeather` carries one bit (`isManual`) and no room for more, and until this
- * change nothing in the repo even READ that bit — it was write-only, and
- * pdfGenerator printed the three values bare. So the chip is derived at render
- * time from the bit plus the report's own date, and it never claims more than it
- * knows: a reading restored from disk cannot say what time it was taken, so it
- * doesn't.
+ * Is an app-written weather block sitting under a day it was not read on?
+ * Typed weather is never misdated: it is the person's own account of that day.
+ *   • An OpenWeather reading belongs to the calendar day it was read on, and
+ *     to no other (re-dating an unsaved report must drop it).
+ *   • An unsourced `isManual: false` value from an older version is only
+ *     tolerable on a report dated today.
  */
-export function weatherProvenanceLine(opts: {
-  /** DFRWeather.isManual — false means the app fetched it. */
+export function appWeatherIsMisdated(
+  w: { temperature?: string; conditions?: string; wind?: string; isManual?: boolean; source?: string; readAt?: string; readDay?: string; readOffsetMin?: number },
+  reportDay: string | null | undefined,
+  today: string,
+): boolean {
+  if (w.isManual !== false) return false;
+  if (!(w.temperature ?? '').trim() && !(w.conditions ?? '').trim() && !(w.wind ?? '').trim()) return false;
+  if (isOpenWeatherReading(w)) return !readOnReportDay(w, reportDay);
+  return !canReadLiveWeatherFor(reportDay, today);
+}
+
+/** True when the reading was taken on `reportDay`: the calendar day WHERE it
+ *  was read (stored with it), never the viewing device's. Only a block saved
+ *  without that day falls back to this device's calendar. */
+export function readOnReportDay(w: DfrReadStamp, reportDay: string | null | undefined): boolean {
+  if (!w.readAt || !reportDay) return false;
+  const place = dfrReadPlaceTime(w);
+  if (place) return place.day === reportDay;
+  const at = new Date(w.readAt);
+  return Number.isFinite(at.getTime()) && localCalendarDay(at) === reportDay;
+}
+
+/** The weather block as it is stored. Once a person has typed or dictated any
+ *  of it, the source and read time are dropped: the record must not carry an
+ *  OpenWeather stamp on words OpenWeather did not write. */
+export function settleDfrWeather<T extends { temperature: string; conditions: string; wind: string; isManual: boolean; source?: 'openweather'; readAt?: string; readDay?: string; readOffsetMin?: number }>(
+  w: T,
+): { temperature: string; conditions: string; wind: string; isManual: boolean; source?: 'openweather'; readAt?: string; readDay?: string; readOffsetMin?: number } {
+  if (isOpenWeatherReading(w)) {
+    const place = dfrReadPlaceTime(w);
+    return {
+      temperature: w.temperature, conditions: w.conditions, wind: w.wind, isManual: false, source: 'openweather', readAt: w.readAt,
+      ...(place ? { readDay: w.readDay, readOffsetMin: w.readOffsetMin } : {}),
+    };
+  }
+  return { temperature: w.temperature, conditions: w.conditions, wind: w.wind, isManual: w.isManual };
+}
+
+/**
+ * The source line that prints with a stored report away from the screen (PDF,
+ * email, client portal), in English: 'From OpenWeather at 3:42 PM'. Empty for
+ * typed weather and for anything without a stored source and read time. A
+ * reading stored under a different day than it was read on says which day.
+ */
+export function dfrWeatherSourceLine(
+  w: { temperature?: string; conditions?: string; wind?: string; isManual?: boolean; source?: string; readAt?: string; readDay?: string; readOffsetMin?: number } | null | undefined,
+  reportDay: string | null | undefined,
+): string {
+  if (!w || !isOpenWeatherReading(w)) return '';
+  // The time WHERE the reading was taken, with its offset, so the same line
+  // prints on every device and nobody has to guess the zone.
+  const place = dfrReadPlaceTime(w);
+  const at = place ? place.wall : new Date(w.readAt as string);
+  const zoneOpt = place ? { timeZone: 'UTC' } : {};
+  const time = dfrReadTimeLabel(w) ?? at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (readOnReportDay(w, reportDay)) return `From OpenWeather at ${time}`;
+  const day = at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', ...zoneOpt });
+  return `From OpenWeather on ${day} at ${time}`;
+}
+
+/**
+ * '9:30 PM UTC-7': the clock where the reading was taken, in English, with its
+ * offset. Null for a block saved without `readDay` + `readOffsetMin`. Built by
+ * hand from the UTC fields of the shifted instant, so it does not depend on
+ * the viewing device's zone or on its Intl data.
+ */
+export function dfrReadTimeLabel(w: DfrReadStamp | null | undefined): string | null {
+  const place = dfrReadPlaceTime(w);
+  if (!place) return null;
+  const h24 = place.wall.getUTCHours();
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h}:${String(place.wall.getUTCMinutes()).padStart(2, '0')} ${h24 < 12 ? 'AM' : 'PM'} ${place.zone}`;
+}
+
+/** Which provenance line a weather block gets. The screen turns the kind into
+ *  words through its own i18n; weatherProvenanceLine below is the English. */
+export type WeatherProvenanceKind = 'none' | 'typed' | 'openweather' | 'openweather_other_day' | 'saved_today' | 'saved_past';
+
+export function weatherProvenanceKind(opts: {
+  /** DFRWeather.isManual: true means a person typed or dictated it. */
   isManual: boolean;
   /** True when the report's calendar day is today. */
   reportIsToday: boolean;
   /** Any of the three weather fields filled in. */
   hasValue: boolean;
-  /** The location string actually sent to the weather API. Printed verbatim
-   *  because `project.location` legitimately defaults to the literal "United
-   *  States" — a chip reading 'read for United States' exposes a second real
-   *  falseness that the bare three-field block hid. */
-  location: string;
-  /** Clock label of a read that happened in THIS session, e.g. '4:31 PM'. */
+  /** DFRWeather.source. */
+  source?: string;
+  /** Clock label of DFRWeather.readAt where it was read, e.g. '3:42 PM UTC-4'. */
   readAtLabel?: string;
-}): string {
-  if (!opts.hasValue) return '';
-  if (opts.isManual) return 'Typed by hand.';
-  if (opts.readAtLabel) {
-    return opts.location
-      ? `Read live at ${opts.readAtLabel} for ${opts.location}.`
-      : `Read live at ${opts.readAtLabel}.`;
+  /** False when the reading was taken on a different calendar day than the
+   *  report is dated (a saved report re-dated afterwards). Default true. */
+  readOnReportDay?: boolean;
+}): WeatherProvenanceKind {
+  if (!opts.hasValue) return 'none';
+  // Typed wins over everything, including a source left behind on the object.
+  if (opts.isManual) return 'typed';
+  if (opts.source === 'openweather' && opts.readAtLabel) {
+    return opts.readOnReportDay === false ? 'openweather_other_day' : 'openweather';
   }
-  // Saved reading, reopened. Post-fix a fetch can only ever have happened on the
-  // report's own day, so that is sayable — but only for a report that IS its own
-  // day. A record from before this guard shipped gets the caveat instead.
-  return opts.reportIsToday
-    ? 'Read live and saved with this report.'
-    : 'Saved as a fetched reading. MAGE cannot read a past day, so check it against what you saw.';
+  // `isManual: false` with no source: a record from before the source was
+  // stored. It cannot say where it came from, so it does not.
+  return opts.reportIsToday ? 'saved_today' : 'saved_past';
+}
+
+/**
+ * The provenance line under the DFR weather block, in English.
+ *
+ * A reading the app took names its source and its time ("From OpenWeather at
+ * 3:42 PM."); both are stored in the report (DFRWeather.source / readAt), so
+ * the line survives a reload and prints on the PDF and the client portal. A
+ * typed value says so. A record saved before the source was stored never
+ * claims one.
+ */
+export function weatherProvenanceLine(opts: Parameters<typeof weatherProvenanceKind>[0]): string {
+  switch (weatherProvenanceKind(opts)) {
+    case 'none': return '';
+    case 'typed': return 'Typed by hand.';
+    case 'openweather': return `From OpenWeather at ${opts.readAtLabel}.`;
+    case 'openweather_other_day': return 'From OpenWeather, read on a different day than this report. Check it against what you saw.';
+    case 'saved_today': return 'Saved with this report. The source was not recorded.';
+    case 'saved_past': return 'Saved without a source. MAGE cannot read a past day, so check it against what you saw.';
+  }
 }

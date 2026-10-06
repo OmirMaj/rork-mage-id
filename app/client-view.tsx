@@ -31,6 +31,8 @@ import { GROWTH_LINK_TEXT } from '@/utils/growthLink';
 import { openGrowthLink } from '@/utils/growthAttribution';
 import { formatMoney } from '@/utils/formatters';
 import { calendarDayStart, todayCalendarDay } from '@/utils/calendarDate';
+import { isOpenWeatherReading } from '@/utils/weatherService';
+import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry, ChangeOrderStatus, RFIStatus, DocumentStatus } from '@/types';
 import { punchListTypeOf } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
@@ -1853,6 +1855,12 @@ export default function ClientViewScreen() {
                     </View>
                   </View>
                 ))}
+                {/* OpenWeather's credit, when any report above shows a reading
+                    the app took from it. Typed weather carries none. */}
+                <WeatherCredit
+                  days={dailyReports.slice(0, 5).some(r => isOpenWeatherReading(r.weather)) ? [{ source: 'live' }] : []}
+                  style={styles.dfrWeatherCredit}
+                />
               </View>
             )}
           </View>
@@ -2401,6 +2409,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   listRowAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   listStatusBadge: { borderRadius: Tokens.radius.xs, paddingHorizontal: 7, paddingVertical: 3 },
   listStatusText: { fontSize: 10, fontWeight: '700', color: t.textMuted },
+  dfrWeatherCredit: { paddingHorizontal: 16, paddingBottom: 10 },
 
   // Photos
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 4 },
