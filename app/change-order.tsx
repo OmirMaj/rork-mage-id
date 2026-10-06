@@ -364,7 +364,7 @@ export function coSendReport(o: {
       title: o.write === 'failed' ? 'Sent, Not Saved to MAGE' : 'Sent',
       message: `CO #${o.number} was emailed${o.recipient ? ` to ${o.recipient}` : ''} for approval.${o.write === 'synced' ? ' It is saved.' : where[o.write]}`
         + (o.portal === 'shared' ? ' It is on the client portal for them to review and sign.' : '')
-        + (o.portal === 'failed' ? ' It could NOT be put on the client portal, so the link in the email will not show it yet. Open this change order and tap Send to client portal.' : ''),
+        + (o.portal === 'failed' ? ' It could NOT be put on the client portal, so the link in the email will not show it yet. Open this change order and tap Send to Client Portal.' : ''),
     };
   }
   // Never "saved" for a write MAGE refused — the tail below says where it is.

@@ -254,7 +254,7 @@ export function SubLatenessRow({
     <View style={styles.subRow} testID="sub-lateness-row">
       <View style={styles.subRowTop}>
         <Text style={styles.subRowLabel}>{t('schedule.lateness.rowLabel', 'Runs long?')}</Text>
-        <Text style={styles.subRowSource}>{t('schedule.lateness.fromRecords', 'From your records')}</Text>
+        <Text style={styles.subRowSource}>{t('schedule.lateness.fromRecords', 'From Your Records')}</Text>
       </View>
       <Text style={styles.subRowDetail}>{line}</Text>
       {excused ? <Text style={styles.subRowDetail}>{excused}</Text> : null}
