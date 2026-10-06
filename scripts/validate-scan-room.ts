@@ -36,8 +36,11 @@
 // F. THE WIRING (source text): the flag is false; the route redirects before
 //    it mounts anything; nothing outside the feature links to it or imports
 //    it; the native module is reached by ONE optional lookup that is not at
-//    module scope and is refused while the flag is off; modules/ holds no
-//    JavaScript; the Swift that touches RoomPlan is iOS 16 guarded and
+//    module scope and is refused while the flag is off; the Swift module waits
+//    in native-staging/, OUTSIDE the folder Expo autolinking builds from, and
+//    the autolinking search itself is run to prove the next iOS build does not
+//    carry it; it holds no JavaScript; the Swift that touches RoomPlan is
+//    iOS 16 guarded, settles its promise exactly once on every path and
 //    typechecks; no react-native-reanimated; theme colours only; Lucide icons
 //    only; storage keys under an owned prefix; no server write; the Pro gate
 //    through hooks/useTierAccess; app.json is not changed by this lane.
@@ -46,6 +49,25 @@
 //    arrows, no promise of how right a number is, and the plain statement that
 //    a phone scan can be off by an inch or more; English and Spanish key sets,
 //    plural shapes and placeholders equal.
+//
+// H. THE REVIEW ROUND (2026-10-06, an independent read of the lane), each a
+//    behaviour check with planted mutations:
+//    C1  a trade of his that only shares a word is never taken as his price
+//        (seven cases that used to be), and the label names which of his
+//        trades was used when it is not the line's own;
+//    D1  a scan is never named for him, and a room with no name is not priced;
+//    A1  only an owner or editor seat can push, and "Added to the estimate."
+//        waits until the project is seen to hold the lines;
+//    F1  overlapping openings on one wall come off once, and an opening that
+//        matched no wall is said;
+//    G10 the floor is the loop that covers the most ground, and a ring that
+//        crosses itself is open;
+//    H1  a typed length far from the scan is shown back and asked about;
+//    S1  a saved scan can be deleted, and a scan the cap drops takes its raw
+//        file with it;
+//    K1  a project with no estimate gets one started by the same yes, through
+//        utils/estimateLanding.buildNewEstimate, at his stated markup;
+//    J1  no $0.00 line, an honest start sentence, Back asks before it drops.
 //
 // PLANTED MUTATIONS. Every rule is run a second time against a planted break
 // (a wrapped copy of a module, or edited text, in memory only; nothing on disk
@@ -1415,6 +1437,25 @@ for (const [id, fn] of Object.entries(RULES)) {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  }
+}
+
+// ── Expo autolinking, asked directly: is the scanner in the next iOS build? ──
+// The rule N4 reads the folders. This runs the SAME search `pod install` runs
+// (expo-modules-autolinking search, platform apple) and requires that it finds
+// the AR module (so the search works) and does NOT find the room scanner.
+{
+  const cli = join(ROOT, 'node_modules/expo-modules-autolinking/bin/expo-modules-autolinking.js');
+  if (!existsSync(cli)) {
+    console.log('  - Expo autolinking search SKIPPED: expo-modules-autolinking is not installed here');
+  } else {
+    const r = spawnSync(process.execPath.endsWith('bun') ? 'node' : process.execPath, [cli, 'search', '--platform', 'apple', '--json'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 });
+    let found: string[] | null = null;
+    try { found = Object.keys(JSON.parse(r.stdout || '') as Record<string, unknown>); } catch { found = null; }
+    if (r.status !== 0 || !found) { fail += 1; console.log(`  ✗ Expo autolinking search could not be run: ${(r.stderr || r.error?.message || '').split('\n')[0]}`); }
+    else if (!found.includes('mage-ar-track')) { fail += 1; console.log('  ✗ Expo autolinking search did not find modules/mage-ar-track, so it proves nothing about the scanner'); }
+    else if (found.includes('mage-room-scan')) { fail += 1; console.log('  ✗ Expo autolinking FINDS mage-room-scan: the next iOS build would compile the unproven Swift'); }
+    else { pass += 1; console.log(`  ✓ Expo autolinking (search, apple) finds ${found.length} modules, mage-ar-track among them, and NOT mage-room-scan`); }
   }
 }
 

@@ -16,6 +16,21 @@
  *      never looked up.
  *   S6 A phone that cannot scan is told why, in its own sentence.
  *
+ * The review round (2026-10-06):
+ *   S4b-S4f  a project with no estimate gets one started by the same yes at his
+ *            stated markup, and is blocked when he has stated none; "Added to
+ *            the estimate." only after the project is seen to hold the lines; a
+ *            seat that may not change the estimate cannot push; a price from
+ *            one of his other trades names the trade, and a trade that only
+ *            shares a word is not used.
+ *   S7  a scan has no name until he types one; the name is taken on every
+ *       keystroke; Save and Price ask for one.
+ *   S8  a bare "98" on a 98 inch wall is shown back as 98 ft and asked about.
+ *   S9  Back asks before it drops a scan the phone does not hold.
+ *   S10 a saved scan is deleted only from the delete sheet's yes.
+ *   S11 the real store: the scan the cap drops takes its raw JSON with it,
+ *       and a delete removes both keys.
+ *
  * The pure rules have their own direct tests with planted mutations in
  * scripts/validate-scan-room.ts.
  */
@@ -33,10 +48,11 @@ jest.mock('@/contexts/ThemeContext', () => {
 });
 
 const mockPush = jest.fn();
+const mockBack = jest.fn();
 jest.mock('expo-router', () => {
   const R = jest.requireActual('react');
   return {
-    useRouter: () => ({ push: mockPush, back: () => {}, replace: () => {} }),
+    useRouter: () => ({ push: mockPush, back: mockBack, replace: () => {} }),
     useLocalSearchParams: () => ({ projectId: 'proj-1' }),
     Redirect: ({ href }: { href: string }) => R.createElement('Redirect', { href }),
     Stack: { Screen: () => null },
@@ -47,10 +63,20 @@ const EST = {
   id: 'est-1', globalMarkup: 20, baseTotal: 1000, markupTotal: 200, grandTotal: 1200, createdAt: '2026-09-01T00:00:00.000Z',
   items: [{ materialId: 'm1', name: 'Demo', category: 'Demolition', unit: 'LS', quantity: 1, unitPrice: 1000, bulkPrice: 1000, markup: 20, usesBulk: false, lineTotal: 1200, supplier: '' }],
 };
-const mockUpdateProject = jest.fn();
 let mockProject: Record<string, unknown> | null = { id: 'proj-1', name: 'Maple St', linkedEstimate: EST, estimateVersions: [] };
+/** false = the write is sent and the project never shows it (a save that did not take). */
+let mockKeepWrites = true;
+const mockUpdateProject = jest.fn((_id: string, patch: Record<string, unknown>) => {
+  if (mockKeepWrites && mockProject) mockProject = { ...mockProject, ...patch };
+});
 jest.mock('@/contexts/ProjectContext', () => ({
   useProjects: () => ({ getProject: () => mockProject, updateProject: mockUpdateProject, settings: { location: '' } }),
+}));
+
+// His stated markup (the estimator, the wizard and Quick Quote share it). null = never asked.
+let mockMarkupDecided: boolean | null = true;
+jest.mock('@/contexts/MaterialCartContext', () => ({
+  useMaterialCart: () => ({ globalMarkup: 20, markupDecided: mockMarkupDecided }),
 }));
 
 jest.mock('@/hooks/useScopeCostBook', () => {
@@ -59,15 +85,25 @@ jest.mock('@/hooks/useScopeCostBook', () => {
   // One rate measured on six of his jobs; everything else has no price of his.
   const entries = db.entries.map((e: Record<string, unknown>) => ({ ...e, provenance: 'earned', jobCount: 6, seededSampleCount: 0, earnedBasis: 'paid' }));
   const book = { ...db, entries };
-  return { useScopeCostBook: () => book };
+  // A second book: his "Doors" trade (three jobs) and a "Garage Door" trade
+  // that only shares a word with an interior door.
+  const db2 = buildCostDatabase([], [], [], [], [{ id: 'd1', trade: 'Doors', unit: 'EA', rate: 380 }, { id: 'd2', trade: 'Garage Door', unit: 'EA', rate: 2400 }]);
+  const book2 = { ...db2, entries: db2.entries.map((e: Record<string, unknown>) => ({ ...e, provenance: 'earned', jobCount: 3, seededSampleCount: 0, earnedBasis: 'paid' })) };
+  return { useScopeCostBook: () => (mockDoorsBook ? book2 : book) };
 });
+let mockDoorsBook = false;
 
 const mockSaveScan = jest.fn(async (_saved?: unknown, _raw?: unknown) => true);
+let mockSavedList: unknown[] = [];
+const mockDeleteScan = jest.fn(async (_projectId: string, scanId: string) => {
+  mockSavedList = (mockSavedList as { scan: { id: string } }[]).filter((s) => s.scan.id !== scanId);
+  return true;
+});
 jest.mock('@/utils/roomScan/store', () => ({
-  loadSavedScans: async () => ({ version: 1, scans: [] }),
+  loadSavedScans: async () => ({ version: 1, scans: mockSavedList }),
   saveScan: (saved: unknown, raw: unknown) => mockSaveScan(saved, raw),
   hashRawScan: async () => 'hash',
-  deleteScan: async () => true,
+  deleteScan: (projectId: string, scanId: string) => mockDeleteScan(projectId, scanId),
 }));
 
 let mockCaps: Record<string, unknown> | null = null;
@@ -99,9 +135,9 @@ const Wrap = ({ children }: { children: React.ReactNode }) => (
 );
 
 const RAW = fs.readFileSync(path.resolve(__dirname, '../../scripts/fixtures/scan-room/bathroom.json'), 'utf8');
-function bathroom(): SavedScan {
+function bathroom(name = 'Hall Bathroom', id = 'scan-1'): SavedScan {
   const scan = buildRoomScan(parseCapturedRoom(RAW), {
-    id: 'scan-1', projectId: 'proj-1', name: 'Hall Bathroom', capturedAt: '2026-10-06T13:41:00.000Z', device: { model: 'iPhone16,1', os: '17.5' },
+    id, projectId: 'proj-1', name, capturedAt: '2026-10-06T13:41:00.000Z', device: { model: 'iPhone16,1', os: '17.5' },
   });
   return { scan, pushed: {}, manualRates: {}, excluded: [], savedAt: '', pricedAt: null };
 }
@@ -114,8 +150,12 @@ const wallsReading = (tree: ReturnType<typeof render>, length: string): number =
   [1, 2, 3, 4].filter((n) => String(tree.getByTestId(`scan-dim-wall-${n}`).props.accessibilityLabel).includes(length)).length;
 
 beforeEach(() => {
-  mockPush.mockClear(); mockUpdateProject.mockClear(); mockSaveScan.mockClear(); mockGetCapabilities.mockClear();
+  mockPush.mockClear(); mockBack.mockClear(); mockUpdateProject.mockClear(); mockSaveScan.mockClear(); mockGetCapabilities.mockClear(); mockDeleteScan.mockClear();
   mockProject = { id: 'proj-1', name: 'Maple St', linkedEstimate: EST, estimateVersions: [] };
+  mockKeepWrites = true;
+  mockMarkupDecided = true;
+  mockDoorsBook = false;
+  mockSavedList = [];
   mockCaps = null;
   mockTier = 'pro';
 });
@@ -123,10 +163,10 @@ afterEach(async () => { await cleanupAsync(); });
 
 describe('Scan The Room — the three screens from the bathroom fixture', () => {
   it('S1 The Floor Plan draws the room and says what a scan is', async () => {
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
     await settle();
     expect(tree.getByTestId('scan-plan')).toBeTruthy();
-    expect(tree.getByTestId('scan-name').props.defaultValue).toBe('Hall Bathroom');
+    expect(tree.getByTestId('scan-name').props.value).toBe('Hall Bathroom');
     for (const n of [1, 2, 3, 4]) expect(tree.getByTestId(`scan-dim-wall-${n}`)).toBeTruthy();
     expect(wallsReading(tree, '5 ft 1 in')).toBe(2);
     expect(wallsReading(tree, '8 ft 2 in')).toBe(2);
@@ -139,7 +179,7 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
   });
 
   it('S2 a typed tape measurement recomputes and is marked typed by hand', async () => {
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
     await settle();
     const short = [1, 2, 3, 4].map((n) => tree.getByTestId(`scan-dim-wall-${n}`)).find((el) => /5 ft 1 in/.test(JSON.stringify(el.props.accessibilityLabel)));
     expect(short).toBeTruthy();
@@ -170,7 +210,7 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
   });
 
   it('S3 The Quantities lists what the scan worked out', async () => {
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
     await settle();
     fireEvent.press(tree.getByTestId('scan-see-quantities'));
     await settle();
@@ -189,7 +229,7 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
   });
 
   it('S4 every line says where its price came from, and nothing is written before the yes', async () => {
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
     await settle();
     fireEvent.press(tree.getByTestId('scan-see-quantities'));
     await settle();
@@ -225,21 +265,241 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
     expect(patch.linkedEstimate.items.find((i) => /Floor Tile, Hall Bathroom/.test(i.name))?.priceSource).toBe('learned');
     expect(patch.linkedEstimate.items.find((i) => /Set Toilet/.test(i.name))?.priceSource).toBeUndefined();
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/project-detail', params: { id: 'proj-1', tile: 'linkedEstimate' } });
+    // Said only now: the project was read back and holds the lines.
+    expect(tree.getByText('Added to the estimate. Check each line there before you send it.')).toBeTruthy();
+    expect(mockSaveScan).toHaveBeenCalledTimes(1);
+    expect((mockSaveScan.mock.calls[0][0] as SavedScan).pricedAt).toBeTruthy();
   });
 
-  it('S4b a job with no estimate is blocked, and the button says why', async () => {
-    mockProject = { id: 'proj-1', name: 'Maple St', estimateVersions: [] };
-    const tree = render(<RoomScanFlow projectId="proj-1" initial={bathroom()} />, { wrapper: Wrap });
-    await settle();
+  const toPrice = async (tree: ReturnType<typeof render>) => {
     fireEvent.press(tree.getByTestId('scan-see-quantities'));
     await settle();
     fireEvent.press(tree.getByTestId('scan-price-it'));
     await settle();
-    expect(tree.getByText('This project has no estimate yet. Start one in Estimate, then price this scan.')).toBeTruthy();
+  };
+
+  it('S4b a job with no estimate gets one started by the same yes, at his stated markup', async () => {
+    mockProject = { id: 'proj-1', name: 'Maple St', estimateVersions: [] };
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
+    await settle();
+    await toPrice(tree);
+    expect(tree.queryByTestId('scan-draft-blocked')).toBeNull();
+    fireEvent.press(tree.getByTestId('scan-open-estimate'));
+    await settle();
+    expect(tree.getByText('Start The Estimate')).toBeTruthy();
+    expect(textOf(tree.getByTestId('scan-confirm-body'))).toBe('This project has no estimate yet. This starts one with 4 lines, $2,080.37 before markup, at your markup of 20 percent. Nothing is sent to your client.');
+    expect(mockUpdateProject).not.toHaveBeenCalled();
+    fireEvent.press(tree.getByTestId('scan-confirm-yes'));
+    await settle();
+    expect(mockUpdateProject).toHaveBeenCalledTimes(1);
+    const patch = mockUpdateProject.mock.calls[0][1] as unknown as { linkedEstimate: { globalMarkup: number; baseTotal: number; grandTotal: number; items: { markup: number; name: string; sourceTakeoffConditionId?: string }[] }; estimateVersions: unknown[] };
+    expect(patch.linkedEstimate.globalMarkup).toBe(20);
+    expect(patch.linkedEstimate.items).toHaveLength(4);
+    expect(patch.linkedEstimate.items.every((i) => i.markup === 20 && !!i.sourceTakeoffConditionId)).toBe(true);
+    expect(patch.linkedEstimate.baseTotal).toBeCloseTo(2080.37, 2);
+    expect(patch.linkedEstimate.grandTotal).toBeCloseTo(2496.44, 1);
+    expect(patch.estimateVersions).toHaveLength(0);
+    expect(tree.getByText('Added to the estimate. Check each line there before you send it.')).toBeTruthy();
+  });
+
+  it('S4c a job with no estimate and no stated markup is blocked, and the button says why', async () => {
+    mockProject = { id: 'proj-1', name: 'Maple St', estimateVersions: [] };
+    mockMarkupDecided = null;
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
+    await settle();
+    await toPrice(tree);
+    expect(tree.getByText('This project has no estimate yet, and you have not chosen a markup. Choose your markup in Estimate, then come back to this scan.')).toBeTruthy();
     fireEvent.press(tree.getByTestId('scan-open-estimate'));
     await settle();
     expect(tree.queryByTestId('scan-confirm-yes')).toBeNull();
     expect(mockUpdateProject).not.toHaveBeenCalled();
+  });
+
+  it('S4d "Added to the estimate." is not said when the project never shows the lines', async () => {
+    mockKeepWrites = false;
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
+    await settle();
+    await toPrice(tree);
+    fireEvent.press(tree.getByTestId('scan-open-estimate'));
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-confirm-yes'));
+    await settle();
+    expect(mockUpdateProject).toHaveBeenCalledTimes(1);
+    // Still waiting to see the lines: nothing is claimed yet.
+    expect(tree.queryByTestId('scan-draft-added')).toBeNull();
+    await act(async () => { await new Promise((r) => setTimeout(r, 1900)); });
+    expect(tree.getByText('The estimate has not shown these lines yet. Open the estimate and check it before you price this scan again.')).toBeTruthy();
+    expect(tree.queryByTestId('scan-draft-added')).toBeNull();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockSaveScan).not.toHaveBeenCalled();
+  });
+
+  it('S4e a seat that may not change the estimate cannot push', async () => {
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate={false} initial={bathroom()} />, { wrapper: Wrap });
+    await settle();
+    await toPrice(tree);
+    expect(tree.getByText('Only the project owner or an editor can add lines to this estimate. Ask the project owner.')).toBeTruthy();
+    fireEvent.press(tree.getByTestId('scan-open-estimate'));
+    await settle();
+    expect(tree.queryByTestId('scan-confirm-yes')).toBeNull();
+    expect(mockUpdateProject).not.toHaveBeenCalled();
+  });
+
+  it('S4f a price from one of his other trades names the trade; a trade that only shares a word is not used', async () => {
+    mockDoorsBook = true;
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
+    await settle();
+    await toPrice(tree);
+    const source = (key: string) => textOf(tree.getByTestId(`scan-source-${key}`));
+    // His "Doors" price, said by name. Never the $2,400 garage door.
+    expect(source('door')).toBe('Your Price For Doors, 3 Past Jobs');
+    expect(textOf(tree.getByTestId('scan-line-door'))).toContain('$380.00');
+    expect(textOf(tree.getByTestId('scan-line-door'))).not.toContain('2,400');
+    expect(source('floor_tile')).toBe('No Past Jobs Yet, Catalog Price');
+  });
+
+  it('S7 a scan has no name until he types one, and the name is on the scan the moment it is typed', async () => {
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom('')} />, { wrapper: Wrap });
+    await settle();
+    expect(tree.getByTestId('scan-name').props.value).toBe('');
+    expect(tree.getByTestId('scan-name').props.placeholder).toBe('Hall Bathroom');
+    expect(tree.queryByText('Hall Bathroom')).toBeNull();
+    // Save asks for a name and writes nothing.
+    fireEvent.press(tree.getByTestId('scan-save'));
+    await settle();
+    expect(tree.getByText('Name the room first. The name goes on every estimate line.')).toBeTruthy();
+    expect(mockSaveScan).not.toHaveBeenCalled();
+    // Price It is blocked and says why.
+    fireEvent.press(tree.getByTestId('scan-see-quantities'));
+    await settle();
+    expect(tree.getByText('Name the room on the plan before you price. The name goes on every estimate line.')).toBeTruthy();
+    fireEvent.press(tree.getByTestId('scan-price-it'));
+    await settle();
+    expect(tree.queryByTestId('scan-draft')).toBeNull();
+    fireEvent.press(tree.getByTestId('scan-back'));
+    await settle();
+    // Typed, and Save tapped with the keyboard still up (no blur, no end-editing event).
+    fireEvent.changeText(tree.getByTestId('scan-name'), 'Upstairs Bath ');
+    fireEvent.press(tree.getByTestId('scan-save'));
+    await settle();
+    expect(mockSaveScan).toHaveBeenCalledTimes(1);
+    expect((mockSaveScan.mock.calls[0][0] as SavedScan).scan.name).toBe('Upstairs Bath');
+    await toPrice(tree);
+    fireEvent.press(tree.getByTestId('scan-open-estimate'));
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-confirm-yes'));
+    await settle();
+    const patch = mockUpdateProject.mock.calls[0][1] as unknown as { linkedEstimate: { items: { name: string }[] } };
+    expect(patch.linkedEstimate.items.some((i) => /Floor Tile, Upstairs Bath/.test(i.name))).toBe(true);
+    expect(patch.linkedEstimate.items.some((i) => /Hall Bathroom/.test(i.name))).toBe(false);
+  });
+
+  it('S8 a bare 98 on a 98 inch wall is shown back as feet and asked about before it is used', async () => {
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
+    await settle();
+    const long = [1, 2, 3, 4].map((n) => tree.getByTestId(`scan-dim-wall-${n}`)).find((el) => /8 ft 2 in/.test(JSON.stringify(el.props.accessibilityLabel)));
+    fireEvent.press(long!);
+    await settle();
+    fireEvent.changeText(tree.getByTestId('scan-edit-input'), '98');
+    await settle();
+    expect(textOf(tree.getByTestId('scan-edit-reads-as'))).toBe('Reads as 98 ft 0 in');
+    fireEvent.press(tree.getByTestId('scan-edit-save'));
+    await settle();
+    // Not used: the sheet is still up, asks, and the plan is unchanged.
+    expect(textOf(tree.getByTestId('scan-edit-far'))).toBe('That reads as 98 ft 0 in, and the plan shows 8 ft 2 in. For inches, type the number and in, like 98 in. If the tape does say 98 ft 0 in, tap Use This Number again.');
+    expect(tree.getByTestId('scan-floor-area').props.children).toBe('41.5 sq ft');
+    expect(wallsReading(tree, '8 ft 2 in')).toBe(2);
+    // What he meant.
+    fireEvent.changeText(tree.getByTestId('scan-edit-input'), '98 in');
+    await settle();
+    expect(textOf(tree.getByTestId('scan-edit-reads-as'))).toBe('Reads as 8 ft 2 in');
+    expect(tree.queryByTestId('scan-edit-far')).toBeNull();
+    fireEvent.press(tree.getByTestId('scan-edit-save'));
+    await settle();
+    expect(tree.queryByTestId('scan-edit-input')).toBeNull();
+    expect(tree.getByTestId('scan-floor-area').props.children).toBe('41.5 sq ft');
+    expect(tree.getByText('1 number was typed by hand.')).toBeTruthy();
+  });
+
+  it('S9 Back asks before it drops a scan the phone does not hold', async () => {
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate initial={bathroom()} />, { wrapper: Wrap });
+    await settle();
+    // Nothing changed: Back just goes back.
+    fireEvent.press(tree.getByTestId('scan-back'));
+    await settle();
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(tree.queryByTestId('scan-leave-discard')).toBeNull();
+    mockBack.mockClear();
+    // A change the phone does not hold.
+    fireEvent.changeText(tree.getByTestId('scan-name'), 'Hall Bath');
+    fireEvent.press(tree.getByTestId('scan-back'));
+    await settle();
+    expect(tree.getByText('This scan is not saved. If you go back now, it is gone.')).toBeTruthy();
+    expect(mockBack).not.toHaveBeenCalled();
+    fireEvent.press(tree.getByTestId('scan-leave-stay'));
+    await settle();
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(tree.getByTestId('scan-plan')).toBeTruthy();
+    // Saved: Back no longer asks.
+    fireEvent.press(tree.getByTestId('scan-save'));
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-back'));
+    await settle();
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    mockBack.mockClear();
+    // Changed again, and this time he discards.
+    fireEvent.changeText(tree.getByTestId('scan-name'), 'Hall Bath Two');
+    fireEvent.press(tree.getByTestId('scan-back'));
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-leave-discard'));
+    await settle();
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('S10 a saved scan is deleted only from the yes on the delete sheet', async () => {
+    mockSavedList = [bathroom('Hall Bathroom', 'scan-1'), bathroom('Kitchen', 'scan-2')];
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate />, { wrapper: Wrap });
+    await settle();
+    expect(tree.getByTestId('scan-saved-scan-1')).toBeTruthy();
+    expect(tree.getByTestId('scan-saved-scan-2')).toBeTruthy();
+    fireEvent.press(tree.getByTestId('scan-saved-delete-scan-1'));
+    await settle();
+    expect(tree.getByText('This deletes Hall Bathroom from this phone. Lines already in the estimate stay there. A deleted scan cannot be brought back.')).toBeTruthy();
+    expect(mockDeleteScan).not.toHaveBeenCalled();
+    fireEvent.press(tree.getByTestId('scan-delete-keep'));
+    await settle();
+    expect(mockDeleteScan).not.toHaveBeenCalled();
+    expect(tree.getByTestId('scan-saved-scan-1')).toBeTruthy();
+    fireEvent.press(tree.getByTestId('scan-saved-delete-scan-1'));
+    await settle();
+    fireEvent.press(tree.getByTestId('scan-delete-yes'));
+    await settle();
+    expect(mockDeleteScan).toHaveBeenCalledTimes(1);
+    expect(mockDeleteScan).toHaveBeenCalledWith('proj-1', 'scan-1');
+    expect(tree.queryByTestId('scan-saved-scan-1')).toBeNull();
+    expect(tree.getByTestId('scan-saved-scan-2')).toBeTruthy();
+  });
+
+  it('S11 the real store: the scan the cap drops takes its raw JSON with it, and a delete removes both keys', async () => {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default ?? require('@react-native-async-storage/async-storage');
+    const real = jest.requireActual('@/utils/roomScan/store') as typeof import('@/utils/roomScan/store');
+    const core = jest.requireActual('@/utils/roomScan/storeCore') as typeof import('@/utils/roomScan/storeCore');
+    const projectId = 'proj-cap';
+    const row = (n: number): SavedScan => { const b = bathroom(`Room ${n}`, `cap-${n}`); return { ...b, scan: { ...b.scan, projectId }, savedAt: '2026-10-06T14:00:00.000Z' }; };
+    for (let n = 1; n <= core.MAX_SCANS_PER_PROJECT; n++) expect(await real.saveScan(row(n), `{"raw":${n}}`)).toBe(true);
+    expect(await AsyncStorage.getItem(core.roomScanRawKey('cap-1'))).toBe('{"raw":1}');
+    // One more than the cap: the oldest leaves the list AND its raw JSON goes with it.
+    expect(await real.saveScan(row(core.MAX_SCANS_PER_PROJECT + 1), '{"raw":"new"}')).toBe(true);
+    const list = await real.loadSavedScans(projectId);
+    expect(list.scans).toHaveLength(core.MAX_SCANS_PER_PROJECT);
+    expect(list.scans.some((x) => x.scan.id === 'cap-1')).toBe(false);
+    expect(await AsyncStorage.getItem(core.roomScanRawKey('cap-1'))).toBeNull();
+    expect(await AsyncStorage.getItem(core.roomScanRawKey('cap-2'))).toBe('{"raw":2}');
+    // Delete: the row and the raw key.
+    expect(await real.deleteScan(projectId, 'cap-2')).toBe(true);
+    expect((await real.loadSavedScans(projectId)).scans.some((x) => x.scan.id === 'cap-2')).toBe(false);
+    expect(await AsyncStorage.getItem(core.roomScanRawKey('cap-2'))).toBeNull();
+    expect(await AsyncStorage.getItem(core.roomScanRawKey('cap-3'))).toBe('{"raw":3}');
   });
 });
 
@@ -263,7 +523,7 @@ describe('Scan The Room — dark, and honest about a phone that cannot scan', ()
     ];
     for (const [caps, sentence, button] of cases) {
       mockCaps = caps;
-      const tree = render(<RoomScanFlow projectId="proj-1" />, { wrapper: Wrap });
+      const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate />, { wrapper: Wrap });
       await settle();
       expect(tree.getByText(sentence)).toBeTruthy();
       expect(tree.queryByTestId('scan-start-button')).toBeNull();
@@ -271,7 +531,7 @@ describe('Scan The Room — dark, and honest about a phone that cannot scan', ()
       await cleanupAsync();
     }
     mockCaps = { linked: true, supported: true, reason: 'ok', multiRoom: true, osVersion: '17.5', deviceModel: 'iPhone16,1' };
-    const tree = render(<RoomScanFlow projectId="proj-1" />, { wrapper: Wrap });
+    const tree = render(<RoomScanFlow projectId="proj-1" mayEditEstimate />, { wrapper: Wrap });
     await settle();
     expect(tree.getByTestId('scan-start-button')).toBeTruthy();
     expect(tree.getByText('Before You Scan')).toBeTruthy();
