@@ -233,8 +233,8 @@ export function derivePayments(
       const when = entryDate(entry, inv.issueDate);
       const reversal = isReversal(entry);
       const suffix = reversal
-        ? (entry.kind === 'dispute' ? ' — chargeback' : ' — refund')
-        : provider === 'card' ? ' — card recorded by hand' : '';
+        ? (entry.kind === 'dispute' ? ', chargeback' : ', refund')
+        : provider === 'card' ? ', card recorded by hand' : '';
       rows.push({
         id: entry.id ?? `${inv.id}-${when}-${amount}`,
         invoiceId: inv.id,
@@ -284,8 +284,8 @@ export function derivePayments(
         // declines we'll pick up via webhook later.
         status: 'pending',
         description: hasStripeLink
-          ? `Invoice #${inv.number} — Stripe link sent`
-          : `Invoice #${inv.number} — awaiting payment`,
+          ? `Invoice #${inv.number} · Stripe link sent`
+          : `Invoice #${inv.number} · awaiting payment`,
         createdAt: inv.issueDate,
       });
     }
@@ -660,7 +660,7 @@ export default function PaymentsScreen() {
             }
             const notSent = rows.length - sent;
             if (notSent === 0) nailIt(`${sent} reminder${sent === 1 ? '' : 's'} sent`);
-            else showAlert(`${sent} of ${rows.length} sent`, `${notSent} did not go out — each row below says why.`);
+            else showAlert(`${sent} of ${rows.length} sent`, `${notSent} did not go out. Each row below says why.`);
           })();
         },
       },
@@ -694,7 +694,7 @@ export default function PaymentsScreen() {
         label: 'Pending',
         value: formatMoney(stats.pending, 2),
         sub: !ar.reconciles
-          ? 'A/R buckets differ from Pending — see Reports'
+          ? 'A/R buckets differ from Pending. See Reports'
           : stats.pendingRetentionHeld > 0
             ? `Excludes ${formatMoney(stats.pendingRetentionHeld, 2)} retention held`
             : 'Owed to you now',
@@ -767,7 +767,7 @@ export default function PaymentsScreen() {
         message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
         steps={[
           'Open a project and create an invoice with a Stripe pay link.',
-          'Send the invoice — the client taps Pay or you mark a check received.',
+          'Send the invoice. The client taps Pay or you mark a check received.',
           'Payments, fees, and provider details land on this screen automatically.',
         ]}
         actionLabel="Open Projects"
@@ -964,7 +964,7 @@ export default function PaymentsScreen() {
                   message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
                   steps={[
                     'Open a project and create an invoice with a Stripe pay link.',
-                    'Send the invoice — the client taps Pay or you mark a check received.',
+                    'Send the invoice. The client taps Pay or you mark a check received.',
                     'Payments, fees, and provider details land on this screen automatically.',
                   ]}
                   actionLabel="Open Projects"

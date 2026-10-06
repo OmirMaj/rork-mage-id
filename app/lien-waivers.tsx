@@ -426,7 +426,7 @@ function LienWaiversScreenInner() {
     } else if (isOfflineError(res.error)) {
       // A waiver is created on the server (it carries the id the signing link
       // is built on), so offline it cannot be saved yet — say that, not "failed".
-      showAlert('You’re offline', 'The waiver was not saved — this phone has no signal. Your entries are still in the form; tap Create again once you’re back online.');
+      showAlert('You’re offline', 'The waiver was not saved. This phone has no signal. Your entries are still in the form. Tap Create again once you’re back online.');
     } else {
       console.warn('[LienWaivers] create failed:', res.error);
       showAlert("Couldn't Save the Waiver", `The waiver was not saved. ${ownSentence(res.error) ?? 'Try again.'}`);
@@ -595,7 +595,7 @@ function LienWaiversScreenInner() {
       if (isOfflineError(result.error ?? '')) {
         // The token is minted on the server row before the email goes, so this
         // is online-only by design (an optimistic token is a link that 404s).
-        showAlert('You’re offline', 'A signing link is created on the server, so it can only be sent with signal. Nothing was sent — try again once you’re back online.');
+        showAlert('You’re offline', 'A signing link is created on the server, so it can only be sent with signal. Nothing was sent. Try again once you’re back online.');
         return;
       }
       showAlert('Could Not Send', result.error || 'The signing request did not go out. Try again.');
@@ -629,7 +629,7 @@ function LienWaiversScreenInner() {
         showAlert(
           `Couldn’t ${verb}`,
           isOfflineError(res.error)
-            ? 'Not saved — this phone is offline. Check your signal and try again.'
+            ? 'Not saved. This phone is offline. Check your signal and try again.'
             : 'Not saved. Check your signal and try again.',
         );
         return;
@@ -717,7 +717,7 @@ function LienWaiversScreenInner() {
           showAlert(
             "Couldn't Record the Waiver",
             isOfflineError(res.error)
-              ? 'Not saved — this phone is offline. Check your signal and try again.'
+              ? 'Not saved. This phone is offline. Check your signal and try again.'
               : 'Could not record this waiver. Check your signal and try again.',
           );
         }
@@ -735,7 +735,7 @@ function LienWaiversScreenInner() {
     // fallback this file carried for web is no longer needed.
     showPrompt(
       'Record a paper waiver',
-      'Only for a waiver the sub has already signed on paper. Type the name as it appears on that original — this is recorded as your record of it, not as their signature.',
+      'Only for a waiver the sub has already signed on paper. Type the name as it appears on that original. This is recorded as your record of it, not as their signature.',
       (name) => { if (name != null) void persist(name); },
       'plain-text',
       w.subName,
@@ -826,7 +826,7 @@ function LienWaiversScreenInner() {
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Lien waivers inside the project tile grid.',
-            'Pick the waiver type — we auto-fill the sub, paid amount, and through-date.',
+            'Pick the waiver type. We auto-fill the sub, paid amount, and through-date.',
           ]}
           actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
@@ -854,7 +854,7 @@ function LienWaiversScreenInner() {
       <FeatureHeader
         eyebrow="Lien Waivers"
         title="Signed Proof Each Sub Was Paid"
-        subtitle="A signed slip from each sub saying &ldquo;I&apos;ve been paid; I won&apos;t lien the job.&rdquo; Many lenders and owners ask for these with a draw. We auto-fill from the invoice — you just pick the type."
+        subtitle="A signed slip from each sub saying “I&apos;ve been paid; I won&apos;t lien the job.” Many lenders and owners ask for these with a draw. We auto-fill from the invoice. You pick the type."
         explainer={{
           term: 'Lien Waiver',
           definition: 'A lien waiver is a legal document a contractor or subcontractor signs giving up their right to file a mechanic\'s lien against the property for the amount they\'ve been paid. Lenders and owners often ask for them with a draw, as a record that each sub was paid.',
@@ -884,8 +884,8 @@ function LienWaiversScreenInner() {
             <WifiOff size={14} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.staleBannerText}>
               {loadError.offline
-                ? `Offline — showing what this phone last saw at ${seenAtLabel(seenAt)}.`
-                : `Couldn’t refresh — showing what this phone last saw at ${seenAtLabel(seenAt)}.`}
+                ? `Offline. Showing what this phone last saw at ${seenAtLabel(seenAt)}.`
+                : `Couldn’t refresh. Showing what this phone last saw at ${seenAtLabel(seenAt)}.`}
             </Text>
             <TouchableOpacity onPress={() => { void onPullRefresh(); }} accessibilityRole="button" hitSlop={8}>
               <Text style={styles.staleBannerAction}>Retry</Text>
@@ -895,10 +895,10 @@ function LienWaiversScreenInner() {
         {!loading && loadError && waivers.length === 0 && (
           <View style={styles.emptyCard} testID="lien-waivers-load-failed">
             <WifiOff size={28} color={Colors.warningLabel} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>Couldn&apos;t load waivers — check your signal</Text>
+            <Text style={styles.emptyTitle}>Couldn’t Load Waivers</Text>
             <Text style={styles.emptyBody}>
               This phone has no saved copy of this job&apos;s waivers, so we can&apos;t say whether any exist.
-              Nothing has been lost — retry once you have signal.
+              Nothing has been lost. Check your signal and retry.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={() => { void onPullRefresh(); }} accessibilityRole="button">
               <Text style={styles.bigCtaText}>Retry</Text>
@@ -912,7 +912,7 @@ function LienWaiversScreenInner() {
             <Text style={styles.emptyTitle}>No Waivers Yet</Text>
             <Text style={styles.emptyBody}>
               Generate a lien waiver after every sub payment. Banks ask for them on every draw.
-              We'll auto-fill the sub's name, paid amount, and through-date — you just pick the type.
+              We'll auto-fill the sub's name, paid amount, and through-date. You pick the type.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={() => setAddModal(true)}>
               <Plus size={14} color="#FFF" strokeWidth={1.75} />
@@ -928,8 +928,8 @@ function LienWaiversScreenInner() {
           <View style={styles.statuteBanner}>
             <Landmark size={14} color={themeColors.success} strokeWidth={1.75} />
             <Text style={styles.statuteBannerText}>
-              This jobsite is in {statutoryStateName(docCtx.jobsiteState)}. Waivers print on that state&apos;s statutory form
-              — check the citation and &ldquo;text as of&rdquo; date on the PDF, and have counsel confirm the
+              This jobsite is in {statutoryStateName(docCtx.jobsiteState)}. Waivers print on that state&apos;s statutory form.
+              Check the citation and “text as of” date on the PDF, and have counsel confirm the
               current wording before you rely on it.
             </Text>
           </View>
@@ -1301,7 +1301,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
 
           {subOptions.length > 0 && (
             <>
-              <Text style={styles.modalLabel}>From this project&apos;s subs</Text>
+              <Text style={styles.modalLabel}>From This Project’s Subs</Text>
               <View style={styles.typeRow} testID="waiver-sub-picker">
                 {subOptions.map(o => (
                   <TouchableOpacity

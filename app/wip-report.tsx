@@ -771,7 +771,7 @@ function WipReportScreenInner() {
     return `Profit fade is measured against your ${comparisonPeriod.periodEndDate} period`
       + (comparisonPeriod.lockedAt
         ? `, locked ${comparisonPeriod.lockedAt.slice(0, 10)}.`
-        : ' — which is SAVED but not locked, so it can still be edited underneath this comparison.');
+        : ', which is saved but not locked, so it can still be edited underneath this comparison.');
   }, [comparisonPeriod, periods.length]);
 
   const [explainerOpen, setExplainerOpen] = useState(false);
@@ -1288,15 +1288,15 @@ function WipReportScreenInner() {
           'A WIP schedule compares what you have earned on each project against what you have billed for it. '
           + 'Earned revenue is the contract times percent complete, and percent complete is cost-to-date '
           + 'divided by your total estimated cost. Overbilling means you have billed more than you have '
-          + 'earned — the client is funding you ahead of the work, which is good for cash but is a liability '
+          + 'earned. The client is funding you ahead of the work, which is good for cash but is a liability '
           + 'you still owe in labor and materials. Underbilling means you have earned more than you have '
-          + 'billed — you are financing your client with your own money, and it is the first thing a surety '
+          + 'billed. You are financing your client with your own money, and it is the first thing a surety '
           + 'or a lender looks for.'
         }
         whenToUse={[
-          'Every month before you close the books — lock the period so the figures cannot move afterward',
+          'Every month before you close the books. Lock the period so the figures cannot move afterward',
           'When a bank or a bonding agent asks for a WIP schedule (they will ask for it by that name)',
-          'When a project feels profitable but the bank account disagrees — underbilling is usually why',
+          'When a project feels profitable but the bank account disagrees. Underbilling is usually why',
         ]}
       />
 
@@ -1333,7 +1333,7 @@ function WipReportScreenInner() {
                   change-order snapshot, a target budget or a GMP cap long before
                   it falls back to the estimate. Over-claiming on the screen that
                   teaches the schedule is how the schedule stops being believed. */}
-              <Text style={styles.muted}>2  Give it an estimate with a cost line and a markup — the cost line is what the margin here is measured against.</Text>
+              <Text style={styles.muted}>2  Give it an estimate with a cost line and a markup. The cost line is what the margin here is measured against.</Text>
               <Text style={styles.muted}>3  Come back and Save period to snapshot it, then top up cost-to-date with your own crews before you lock it.</Text>
             </>
           ) : (
@@ -1343,7 +1343,7 @@ function WipReportScreenInner() {
                   you were reading was to remember which chip you had tapped. */}
               {viewingFrozen && selectedPeriod ? (
                 <Text style={styles.frozenBanner} testID="wip-frozen-banner">
-                  Frozen snapshot — as of {selectedPeriod.periodEndDate}
+                  Frozen snapshot as of {selectedPeriod.periodEndDate}
                   {selectedPeriod.lockedAt
                     ? `, locked ${selectedPeriod.lockedAt.slice(0, 10)} and no longer editable`
                     : ', saved but not locked'}.
@@ -1414,7 +1414,7 @@ function WipReportScreenInner() {
                   explaining today's book above yesterday's numbers. */}
               <Text style={styles.basisLine} testID="wip-cost-basis">
                 {viewingFrozen
-                  ? 'Cost basis: recorded per project on this frozen period — it prints beside every '
+                  ? 'Cost basis: recorded per project on this frozen period. It prints beside every '
                     + 'figure on this period\u2019s CSV and PDF export.'
                   : describePortfolioCostBasis(portfolioBases, portfolio.costToDate)}
               </Text>
@@ -1456,7 +1456,7 @@ function WipReportScreenInner() {
             >
               <CalendarDays size={14} color={themeColors.textSecondary} strokeWidth={2} />
               <Text style={styles.periodEndText}>
-                Period End <Text style={styles.periodEndValue}>{periodEndDraft}</Text> — tap to change
+                Period End <Text style={styles.periodEndValue}>{periodEndDraft}</Text> (tap to change)
               </Text>
             </TouchableOpacity>
           ) : null}
@@ -1543,7 +1543,7 @@ function WipReportScreenInner() {
                   : '',
                 exclusions.unsigned > 0
                   ? `${exclusions.unsigned} unsigned bid${exclusions.unsigned === 1 ? '' : 's'} `
-                    + `(${formatMoney(exclusions.unsignedContract, 2)}) — pipeline, not backlog`
+                    + `(${formatMoney(exclusions.unsignedContract, 2)}): pipeline, not backlog`
                   : '',
               ].filter(Boolean).join(' · ')}
               {' '}— not on this schedule. A WIP schedule carries your own signed work in progress only;
@@ -1608,11 +1608,11 @@ function WipReportScreenInner() {
                           // landed genuinely IS the two-source floor and keeps
                           // saying so.
                           ? (r.sources?.costToDate === 'recorded_actual_cost'
-                            ? ' · every cost recorded on this project — tap for the breakdown'
-                            : ' · subs paid + material receipts only — tap to add your own crews')
+                            ? ' · every cost recorded on this project. Tap for the breakdown'
+                            : ' · subs paid + material receipts only. Tap to add your own crews')
                           : rowCost && rowCost.committedFloor > 0
-                            ? ` — nothing paid out yet, though ${money(rowCost.committedFloor)} is signed. Tap to enter what this project has cost you.`
-                            : ' — nothing recorded yet. Tap to enter what this project has cost you.'}
+                            ? `: nothing paid out yet, though ${money(rowCost.committedFloor)} is signed. Tap to enter what this project has cost you.`
+                            : ': nothing recorded yet. Tap to enter what this project has cost you.'}
                   </Text>
                 </View>
                 {flagged ? <AlertTriangle size={16} color={themeColors.danger} strokeWidth={2} /> : null}
@@ -1692,7 +1692,7 @@ function WipReportScreenInner() {
                   />
                   <Text style={styles.muted}>
                     {drillRow?.etc
-                      ? 'Entered by you — cost at completion is your cost-to-date plus this figure. '
+                      ? 'Entered by you. Cost at completion is your cost-to-date plus this figure. '
                         + 'Clear the box to go back to MAGE\u2019s own forecast. This forecast is saved '
                         + 'on THIS device only; it is frozen into any period you save, and periods do '
                         + 'sync, but your other devices show the derived figure until you re-enter it.'

@@ -102,7 +102,7 @@ const LEGACY_NO_EXPIRY_PREF = 'none';
  * but the user. So Save, Copy, Share, invites, a new link and a reset all stop
  * here with this reason, and the screen says it at the top.
  */
-const SAMPLE_PORTAL_NOTE = 'Sample job \u2014 a client portal never goes out from a sample. You can look through these settings, but Save, Copy, Share, invites and link changes stay off. Create a real project to share a portal with your client.';
+const SAMPLE_PORTAL_NOTE = 'Sample job. A client portal never goes out from a sample. You can look through these settings, but Save, Copy, Share, invites and link changes stay off. Create a real project to share a portal with your client.';
 
 /**
  * Who this account is to the project, for the purpose of the share link.
@@ -462,7 +462,7 @@ function ClientPortalSetupScreenInner() {
   // to get started" next to "your build is finished".
   const proposalBlock = project
     ? proposalBlockReason(project, contractQ.data ?? undefined)
-    : { code: 'no-estimate' as const, gc: 'Needs a priced estimate on this project — build one and this turns on.' };
+    : { code: 'no-estimate' as const, gc: 'Needs a priced estimate on this project. Build one and this turns on.' };
   const canProposeToClient = !proposalBlock;
 
   const [portal, setPortal] = useState<ClientPortalSettings>(() => {
@@ -512,7 +512,7 @@ function ClientPortalSetupScreenInner() {
   const accountAi = usePortalAccountNote(isOwner);
   const ownerOnlyReason = isCollaborator
     ? 'Only the project owner can change what the client sees on the portal.'
-    : !isOwner ? 'Checking who owns this project — Save is available once that is confirmed.' : null;
+    : !isOwner ? 'Checking who owns this project. Save is available once that is confirmed.' : null;
 
   const gate = useClientDocumentGate();
   const proposalTotal = useMemo(() => {
@@ -706,7 +706,7 @@ function ClientPortalSetupScreenInner() {
       closeoutShared: closeoutIsShared(closeoutQ.data),
     });
     if (!docs.length) {
-      return 'Nothing to publish yet — no permits logged on this project, and no warranty sent to the portal.';
+      return 'Nothing to publish yet: no permits logged on this project, and no warranty sent to the portal.';
     }
     return `${docs.length} record${docs.length === 1 ? '' : 's'} will appear on your client’s page.`;
   }, [project, getPermitsForProject, getWarrantiesForProject, closeoutQ.data]);
@@ -1007,7 +1007,7 @@ function ClientPortalSetupScreenInner() {
         'This link’s security key didn’t come back from the server. Check your connection, then tap Retry under the link.',
       );
     } else {
-      showAlert('Finalizing Secure Link', 'Fetching your portal’s security key from the server — try again in a moment.');
+      showAlert('Finalizing Secure Link', 'Fetching your portal’s security key from the server. Try again in a moment.');
     }
     return true;
   }, [linkPending, linkOwnerOnly, linkNeedsSave, linkHealFailed]);
@@ -1341,12 +1341,12 @@ function ClientPortalSetupScreenInner() {
     showAlert(
       'Link Refreshed',
       durationChoice !== null
-        ? `Same URL, new clock — it stays open for ${durationLabel(durationChoice)}. Send it again if your client lost the old message.`
+        ? `Same URL, new clock. It stays open for ${durationLabel(durationChoice)}. Send it again if your client lost the old message.`
         : nextState.kind === 'never'
-          ? `Same URL — it stays open for the whole job, however long it runs, and closes ${HANDOVER_GRACE_DAYS} days after you close the project out.`
+          ? `Same URL. It stays open for the whole job, however long it runs, and closes ${HANDOVER_GRACE_DAYS} days after you close the project out.`
           : nextState.kind === 'expired'
             ? `This project was closed out, so an until-handover link is already closed (${nextState.label}). Pick 7, 30 or 90 days to reopen it for your client.`
-            : `Same URL — the job is closed out, so it stays open until then: ${nextState.label}.`,
+            : `Same URL. The job is closed out, so it stays open until then: ${nextState.label}.`,
     );
   }, [durationChoice, portal, id, updateProject, project?.status, project?.closedAt, warnIfSample]);
 
@@ -1360,7 +1360,7 @@ function ClientPortalSetupScreenInner() {
     if (linkExpiry.kind !== 'expired') return false;
     showAlert(
       'This link has expired',
-      `${linkExpiry.label}. Anyone opening it sees a dead page — generate a new one before you send it.`,
+      `${linkExpiry.label}. Anyone opening it sees a dead page. Generate a new one before you send it.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Generate New Link', onPress: handleGenerateLink },
@@ -1432,7 +1432,7 @@ function ClientPortalSetupScreenInner() {
     const companyName = settings?.branding?.companyName ?? 'MAGE ID';
     const projectName = project?.name ?? 'your project';
     const recipientFirstName = invite.name?.split(' ')[0];
-    const subject = `Your project portal — ${projectName}`;
+    const subject = `Your project portal: ${projectName}`;
     // The passcode is INTENTIONALLY not in this email. A passcode that ships
     // in the same message as the link protects nothing. We prompt the GC to
     // deliver it separately (SMS/call) after the invite sends — matching the
@@ -1462,7 +1462,7 @@ function ClientPortalSetupScreenInner() {
       preheader: `Your private project portal for ${projectName} is ready.`,
       eyebrow: 'Project Portal',
       title: `${projectName}`,
-      subtitle: `Hi ${recipientFirstName ?? 'there'} — your live project view is ready.`,
+      subtitle: `Hi ${recipientFirstName ?? 'there'}, your live project view is ready.`,
       bodyHtml,
       cta: { label: 'Open My Project Portal', href: link },
       companyName,
@@ -1845,7 +1845,7 @@ function ClientPortalSetupScreenInner() {
         )}
         {!ownerOnlyReason && hasUnsavedPortalChanges && (
           <View style={styles.linkCard} testID="portal-setup-unsaved">
-            <Text style={styles.expiryHint}>Unsaved changes — your client&apos;s page is unchanged until you tap Save.</Text>
+            <Text style={styles.expiryHint}>Unsaved changes. Your client’s page is unchanged until you tap Save.</Text>
           </View>
         )}
         {!ownerOnlyReason && !!project?.clientPortal?.enabled && publishState === 'held' && (
@@ -1855,7 +1855,7 @@ function ClientPortalSetupScreenInner() {
         )}
         {!ownerOnlyReason && publishState === 'refused' && (
           <View style={styles.linkCard} testID="portal-setup-publish-refused">
-            <Text style={styles.expiryHint}>Not published — the server refused this update, so your client still sees the last version. Check your connection and reopen this screen.</Text>
+            <Text style={styles.expiryHint}>Not published. The server refused this update, so your client still sees the last version. Check your connection and reopen this screen.</Text>
           </View>
         )}
         {/* Portal Link */}
@@ -1890,16 +1890,16 @@ function ClientPortalSetupScreenInner() {
               when the GC taps Save; a heal that gave up says so, with Retry. */}
           <Text style={styles.linkHint} testID="portal-link-hint">
             {sampleJob && linkPending
-              ? 'Sample job \u2014 a sample never gets a client link.'
+              ? 'Sample job. A sample never gets a client link.'
               : linkOwnerOnly
-              ? 'Only the project owner can share the client link. It carries the key that lets your client sign change orders, and that key stays with the owner\u2019s account \u2014 ask them to send it.'
+              ? 'Only the project owner can share the client link. It carries the key that lets your client sign change orders, and that key stays with the owner\u2019s account. Ask them to send it.'
               : linkNeedsSave
-                ? 'Tap Save to finish securing this link — that is when the key your client needs to sign change orders is created.'
+                ? 'Tap Save to finish securing this link. That is when the key your client needs to sign change orders is created.'
                 : linkHealFailed
                   ? 'Couldn\u2019t get this link\u2019s security key from the server. Check your connection and tap Retry — Copy and Share stay locked until it arrives.'
                   : linkPending
                     ? 'Fetching this link\u2019s security key from the server. Copy and Share become available when it arrives.'
-                    : 'Ends in a security key that lets your client sign change orders — part of it is hidden here so a screenshot can\u2019t give it away. Use Copy: a shortened or retyped link opens the portal but cannot approve anything.'}
+                    : 'Ends in a security key that lets your client sign change orders. Part of it is hidden here so a screenshot can\u2019t give it away. Use Copy: a shortened or retyped link opens the portal but cannot approve anything.'}
           </Text>
           {linkHealFailed && (
             <TouchableOpacity
@@ -2006,7 +2006,7 @@ function ClientPortalSetupScreenInner() {
                 the default and the least obvious: it is not "forever". */}
             <Text style={styles.expiryHint} testID="portal-link-duration-explainer">
               {durationChoice === null
-                ? `Open for the whole job, however long it runs. It closes on its own ${HANDOVER_GRACE_DAYS} days after you close the project out \u2014 time for the final invoice and closeout paperwork.`
+                ? `Open for the whole job, however long it runs. It closes on its own ${HANDOVER_GRACE_DAYS} days after you close the project out, which leaves time for the final invoice and closeout paperwork.`
                 : `Closes ${durationLabel(durationChoice)} after you generate it, whatever stage the job is at.`}
             </Text>
 
@@ -2026,7 +2026,7 @@ function ClientPortalSetupScreenInner() {
             <Text style={styles.expiryHint}>
               {isCollaborator
                 ? 'Only the project owner can change how long the client link stays open.'
-                : 'Same URL either way — generating only resets the clock, so nobody you\u2019ve already sent it to loses access.'}
+                : 'Same URL either way. Generating only resets the clock, so nobody you\u2019ve already sent it to loses access.'}
             </Text>
 
             {/* PORTALFIX: the way to cut off a link that reached the wrong
@@ -2108,7 +2108,7 @@ function ClientPortalSetupScreenInner() {
 
         {/* Homeowner Language */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Client&apos;s language</Text>
+          <Text style={styles.sectionTitle}>Client’s Language</Text>
           <Text style={styles.sectionSubtitle}>
             Portal labels and AI daily summaries appear in this language. Brand names and the project name stay as written.
           </Text>
@@ -2249,7 +2249,7 @@ function ClientPortalSetupScreenInner() {
             ? <Text style={styles.sectionSubtitle}>{AI_ACCOUNT_COPY.recapSubtitlePlain}</Text>
             : (
           <Text style={styles.sectionSubtitle}>
-            We email your client a plain-English recap every Friday — what got done this week, what&apos;s coming next. AI strips the contractor jargon. Off until you toggle it on.
+            We email your client a plain-English recap every Friday: what got done this week and what’s coming next. AI strips the contractor jargon. Off until you toggle it on.
           </Text>
             )}
           <View style={[styles.togglesCard, { padding: 0 }]}>
@@ -2321,7 +2321,7 @@ function ClientPortalSetupScreenInner() {
                   // promise it only when the recap is on.
                   showAlert('Project Is Closed', portal.weeklyDigest?.enabled
                     ? 'The Friday update stops at handover. Your client got (or will get on Friday) one last email saying the project is complete and when the portal link closes.'
-                    : 'The Friday update stops at handover. The weekly recap is off for this portal, so no closing email goes out — tell your client yourself when the portal link closes.');
+                    : 'The Friday update stops at handover. The weekly recap is off for this portal, so no closing email goes out. Tell your client yourself when the portal link closes.');
                 } else if (errs.includes('portal_link_ended')) {
                   showAlert('Portal Link Has Ended', 'Send your client a new portal link before previewing the weekly update.');
                 } else if (errs.length === 0 || errs.includes('no_invites')) {
@@ -2343,15 +2343,15 @@ function ClientPortalSetupScreenInner() {
             activeOpacity={0.85}
           >
             <Send size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.previewWeeklyBtnText}>Send today&apos;s preview now</Text>
+            <Text style={styles.previewWeeklyBtnText}>Send Today’s Preview Now</Text>
           </TouchableOpacity>
         </View>
 
         {/* Change-order approvals + messaging */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Approvals & messaging</Text>
+          <Text style={styles.sectionTitle}>Approvals and Messaging</Text>
           <Text style={styles.sectionSubtitle}>
-            Let the client respond from the portal — accept the proposal once it is switched on below, tap Approve / Decline on change orders, and send messages. They land here.
+            Let the client respond from the portal: accept the proposal once it is switched on below, tap Approve / Decline on change orders, and send messages. They land here.
           </Text>
           <View style={styles.togglesCard}>
             {/* Accept the proposal — the decision that starts the job. It sits
@@ -2402,7 +2402,7 @@ function ClientPortalSetupScreenInner() {
                 {termsState.state === 'differs' && (
                   <>
                     <Text style={styles.toggleDesc}>
-                      Prints {splitLabel(termsState.stamp)} — the terms your client was shown. Your terms are now {splitLabel(termsState.profileSplit)}.
+                      Prints {splitLabel(termsState.stamp)}, the terms your client was shown. Your terms are now {splitLabel(termsState.profileSplit)}.
                     </Text>
                     {termsState.action === 'use-current' ? (
                       <>
@@ -2437,7 +2437,7 @@ function ClientPortalSetupScreenInner() {
                   </>
                 )}
                 {termsState.state === 'locked' && (
-                  <Text style={styles.toggleDesc}>Accepted on {splitLabel(termsState.stamp)} — these can&apos;t change.</Text>
+                  <Text style={styles.toggleDesc}>Accepted on {splitLabel(termsState.stamp)}. These can’t change.</Text>
                 )}
               </View>
             )}
@@ -2485,7 +2485,7 @@ function ClientPortalSetupScreenInner() {
                   <Text style={styles.toggleLabel}>1-tap CO approval</Text>
                   <Text style={styles.toggleDesc}>
                     {portal.coApprovalEnabled
-                      ? 'Your client signs change orders on their page — drawn signature, ESIGN consent, and a sealed record you can produce later.'
+                      ? 'Your client signs change orders on their page: drawn signature, ESIGN consent, and a sealed record you can produce later.'
                       : 'Off: your client’s page shows change orders but has no approve button. They can only reply in Messages.'}
                   </Text>
                 </View>
@@ -2790,7 +2790,7 @@ function ClientPortalSetupScreenInner() {
       <SendPortalLinkModal
         visible={showSendModal}
         onClose={() => setShowSendModal(false)}
-        subject={`Your project portal — ${project?.name ?? 'Project'}`}
+        subject={`Your project portal: ${project?.name ?? 'Project'}`}
         message={shareMessage}
         emailHtml={shareEmailHtml}
         link={portalLink}

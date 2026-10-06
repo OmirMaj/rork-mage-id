@@ -255,9 +255,9 @@ async function registerQboConnection(): Promise<{ sweepFloor: string | null }> {
 
 /** Why the status check failed, in his words (#103). Never "not connected". */
 function qboUnknownReasonText(reason: QboStatus['reason']): string {
-  if (reason === 'offline') return 'MAGE couldn\u2019t reach the server \u2014 check your signal and try again. Your QuickBooks connection is not affected.';
+  if (reason === 'offline') return 'MAGE couldn\u2019t reach the server. Check your signal and try again. Your QuickBooks connection is not affected.';
   if (reason === 'tier') return 'MAGE\u2019s server doesn\u2019t show a Business plan on your account, so it can\u2019t read the QuickBooks connection. If you just upgraded, try again in a minute; otherwise email help@mageid.app.';
-  return 'The server couldn\u2019t answer just now. Try again in a minute \u2014 your QuickBooks connection is not affected.';
+  return 'The server couldn\u2019t answer just now. Try again in a minute. Your QuickBooks connection is not affected.';
 }
 
 export default function QboSetupScreen() {
@@ -455,7 +455,7 @@ function QboSetupScreenInner() {
             // offer Retry, and do NOT offer Connect — he may well be connected.
             <View style={[styles.card, styles.cardWarn]} testID="qbo-status-unknown">
               <AlertTriangle size={20} color={colors.warningLabel} strokeWidth={1.75} />
-              <Text style={styles.cardTitle}>Couldn&apos;t check your QuickBooks connection</Text>
+              <Text style={styles.cardTitle}>Couldn’t Check Your QuickBooks Connection</Text>
               <Text style={styles.cardSub}>{qboUnknownReasonText(status.reason)}</Text>
               <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} disabled={busy} onPress={onRefreshStatus} testID="qbo-status-retry" accessibilityRole="button">
                 <RefreshCw size={16} color="#FFFFFF" strokeWidth={1.75} />
@@ -509,7 +509,7 @@ function QboSetupScreenInner() {
             <View style={[styles.card, styles.cardWarn]}>
               <AlertTriangle size={20} color={colors.danger} strokeWidth={1.75} />
               <Text style={styles.cardTitle}>Reconnect QuickBooks</Text>
-              <Text style={styles.cardSub}>Your QuickBooks session expired. Tap to reconnect — your existing links to QBO records will be preserved.</Text>
+              <Text style={styles.cardSub}>Your QuickBooks session expired. Tap to reconnect. Your existing links to QBO records will be preserved.</Text>
               <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} onPress={onConnect} disabled={busy} testID="qbo-connect">
                 <Text style={styles.primaryText}>{busy ? 'Opening…' : 'Reconnect'}</Text>
               </TouchableOpacity>
@@ -591,10 +591,10 @@ function QboSetupScreenInner() {
                       <View key={p.key} style={{ marginTop: 10 }} testID="qbo-stuck-payment">
                         <Text style={styles.cardTitle}>
                           {`${p.invoiceNumber != null ? `Invoice #${p.invoiceNumber}` : 'Invoice'} · $${p.amount.toFixed(2)} · `}
-                          {p.state === 'reversed' ? 'refunded — record the net in QuickBooks by hand'
-                            : p.state === 'stopped' ? 'stopped trying — match by hand'
-                            : p.state === 'refused' ? 'not sent — match by hand'
-                            : p.state === 'not-swept' ? 'from before automatic sending — match by hand'
+                          {p.state === 'reversed' ? 'refunded, record the net in QuickBooks by hand'
+                            : p.state === 'stopped' ? 'stopped trying, match by hand'
+                            : p.state === 'refused' ? 'not sent, match by hand'
+                            : p.state === 'not-swept' ? 'from before automatic sending, match by hand'
                             : 'will retry next reconcile'}
                         </Text>
                         <Text style={styles.cardSub}>{p.reason}</Text>
@@ -606,7 +606,7 @@ function QboSetupScreenInner() {
                           {`${r.invoiceNumber != null ? `Invoice #${r.invoiceNumber}` : 'Invoice'} · −$${r.amount.toFixed(2)} · ${r.kind === 'dispute' ? 'charged back' : 'refunded'} after it was sent to QuickBooks`}
                         </Text>
                         <Text style={styles.cardSub}>
-                          {`QuickBooks still counts this money (its payment ${r.paymentQboId}). Record a refund receipt there, or edit that payment — MAGE does not do it for you, because how to book it is your bookkeeper's call.`}
+                          {`QuickBooks still counts this money (its payment ${r.paymentQboId}). Record a refund receipt there, or edit that payment. MAGE does not do it for you, because how to book it is your bookkeeper's call.`}
                         </Text>
                         <Button
                           label={ackBusy === r.key ? 'Saving…' : 'I Recorded It in QuickBooks'}
@@ -635,7 +635,7 @@ function QboSetupScreenInner() {
                       into QuickBooks a second time as unapplied credit (audit
                       #10). The invoice screen shows each one's own reason. */}
                   <Text style={styles.cardSub}>
-                    QuickBooks shows these paid, but not with money MAGE can count — a credit memo, journal entry, write-off, a void, or a refunded payment it still carries. MAGE still shows them open and has paused automatic reminders to the client. Check each invoice in QuickBooks; if the client really paid, fix it there first (reverse the credit memo or journal entry), then record the payment in MAGE.
+                    QuickBooks shows these paid, but not with money MAGE can count: a credit memo, journal entry, write-off, a void, or a refunded payment it still carries. MAGE still shows them open and has paused automatic reminders to the client. Check each invoice in QuickBooks; if the client really paid, fix it there first (reverse the credit memo or journal entry), then record the payment in MAGE.
                   </Text>
                 </View>
               ) : null}
@@ -648,7 +648,7 @@ function QboSetupScreenInner() {
                     </Text>
                   </View>
                   <Text style={styles.cardSub}>
-                    MAGE has the payment; QuickBooks closed the invoice with a credit, a journal entry or a void. The two books disagree on how it was settled — reconcile it by hand in QuickBooks. MAGE did not send the payment there, so it is not counted twice.
+                    MAGE has the payment; QuickBooks closed the invoice with a credit, a journal entry or a void. The two books disagree on how it was settled. Reconcile it by hand in QuickBooks. MAGE did not send the payment there, so it is not counted twice.
                   </Text>
                 </View>
               ) : null}

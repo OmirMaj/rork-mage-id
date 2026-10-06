@@ -390,7 +390,7 @@ export default function ReportsScreen() {
           </View>
           <Text style={styles.reportsHeroTitle}>Reports for Your Bank</Text>
           <Text style={styles.reportsHeroSub}>
-            WIP, profit margin, and A/R aging — auto-compiled across every project. Export to CSV or PDF in one tap.
+            WIP, profit margin, and A/R aging, compiled across every project. Export to CSV or PDF in one tap.
           </Text>
         </View>
         )}
@@ -469,7 +469,7 @@ export default function ReportsScreen() {
             <>
               <FileDown size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.actionBtnPrimaryText}>
-                {Platform.OS === 'web' ? 'Open PDF Preview' : 'Download & Share PDF'}
+                {Platform.OS === 'web' ? 'Open PDF Preview' : 'Download and Share PDF'}
               </Text>
             </>
           )}
@@ -582,7 +582,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
       {/* Portfolio header */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryHead}>
-          <Text style={styles.summaryEyebrow}>WIP TOTAL — {report.rows.length} project{report.rows.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.summaryEyebrow}>WIP TOTAL · {report.rows.length} project{report.rows.length === 1 ? '' : 's'}</Text>
         </View>
         <TileGrid preset="kpi" phoneStyle={styles.summaryGrid}>
           <SummaryStat label="Revised Contract" value={formatMoney(report.totals.revisedContract)} accent={themeColors.text} />
@@ -927,8 +927,8 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
       icon={collected ? CheckCircle2 : FileText}
       title={collected ? 'Nothing Outstanding' : 'No Invoices Yet'}
       body={collected
-        ? 'Every invoice you have sent is collected in full — nothing is aging.'
-        : 'A/R aging buckets the invoices a client still owes you. Issue one from a project and it lands here the day it is sent — a draft owes you nothing, so it is not counted.'}
+        ? 'Every invoice you have sent is collected in full. Nothing is aging.'
+        : 'A/R aging buckets the invoices a client still owes you. Issue one from a project and it lands here the day it is sent. A draft owes you nothing, so it is not counted.'}
       tone={collected ? 'good' : undefined}
     />;
   }
@@ -947,13 +947,13 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
     <>
       <View style={styles.summaryCard}>
         <Text style={styles.summaryEyebrow}>
-          OUTSTANDING — {collectible} invoice{collectible === 1 ? '' : 's'}
+          OUTSTANDING · {collectible} invoice{collectible === 1 ? '' : 's'}
           {retainageOnly > 0 ? ` · ${retainageOnly} retainage-only` : ''}
         </Text>
         <Text style={styles.agingHeroAmount}>{formatMoney(report.totals.totalOutstanding)}</Text>
         {report.totals.retainageHeld > 0.5 ? (
           <Text style={styles.agingHeroSub} testID="aging-retainage-held">
-            {`Plus ${formatMoney(report.totals.retainageHeld)} retainage held until closeout — a receivable, not aged.`}
+            {`Plus ${formatMoney(report.totals.retainageHeld)} retainage held until closeout: a receivable, not aged.`}
           </Text>
         ) : null}
         <View style={styles.bucketRow}>

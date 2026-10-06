@@ -221,7 +221,7 @@ const EMPTY_DRAFT: TaskDraft = {
  * above it drifted apart within a day of being written.
  */
 const UNDATED_QUICK_ADD_HINT =
-  'This schedule has no start date, so a custom date can’t be turned into a day number — leave it blank to chain after the last task.';
+  'This schedule has no start date, so a custom date can’t be turned into a day number. Leave it blank to chain after the last task.';
 
 // ─── TAB PLAN LOCK ─────────────────────────────────────────────────────────
 // Pure, and module-level on purpose: scripts/validate-schedule-verdict.ts
@@ -252,7 +252,7 @@ function tabLockRefusal(schedule: ProjectSchedule): { title: string; reason: str
   if (!resolveScheduleAnchor(schedule).dated) {
     return {
       title: UNDATED_SCHEDULE_TITLE,
-      reason: 'Set the schedule start date first — a locked plan is the finish date you are promising, and without a start date there is no date to lock.',
+      reason: 'Set the schedule start date first. A locked plan is the finish date you are promising, and without a start date there is no date to lock.',
     };
   }
   return null;
@@ -767,7 +767,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const scheduleWriteBlockedReason = useMemo<string | null>(() => {
     if (scheduleWritePath === 'row') return null;
     return scheduleWritePath === 'field_rpc'
-      ? 'Field access saves task progress, status, notes and actual start/finish — from Quick field update on Home, or the Schedule tab on your phone. Moving dates, locking a plan or changing the task list needs editor access from the project owner.'
+      ? 'Field access saves task progress, status, notes and actual start/finish, from Quick Field Update on Home, or the Schedule tab on your phone. Moving dates, locking a plan or changing the task list needs editor access from the project owner.'
       : 'You have view-only access to this project, so schedule changes are not saved. Ask the project owner for field or editor access.';
   }, [scheduleWritePath]);
   /**
@@ -1085,7 +1085,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (refuseScheduleWrite('Start date')) return;
     // Validate YYYY-MM-DD
     const m = /^\d{4}-\d{2}-\d{2}$/.exec(isoYYYYMMDD.trim());
-    if (!m) { showAlert('Invalid Date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).'); return; }
+    if (!m) { showAlert('Invalid Date', 'Use format YYYY-MM-DD (for example 2026-05-01).'); return; }
     const parsed = new Date(isoYYYYMMDD + 'T12:00:00');
     if (Number.isNaN(parsed.getTime())) { showAlert('Invalid Date'); return; }
     if (!activeSchedule) {
@@ -1279,11 +1279,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const rawStartDate = draft.startDateOverride.trim();
     if (rawStartDate) {
       if (!scheduleAnchor.dated) {
-        showAlert(UNDATED_SCHEDULE_TITLE, 'Set the schedule start date first — until then a calendar date has no day number on this plan.');
+        showAlert(UNDATED_SCHEDULE_TITLE, 'Set the schedule start date first. Until then a calendar date has no day number on this plan.');
         return;
       }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(rawStartDate)) {
-        showAlert('Invalid Start Date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).');
+        showAlert('Invalid Start Date', 'Use format YYYY-MM-DD (for example 2026-05-01).');
         return;
       }
       const picked = new Date(rawStartDate + 'T12:00:00');
@@ -1586,7 +1586,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
       user: auditUser,
       kind: 'baseline_capture',
-      summary: `Locked the plan as baseline ${res.snap.name}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+      summary: `Locked the plan as baseline ${res.snap.name}${finishLabel ? `, finish ${finishLabel}` : ''}`,
     }));
     showAlert(
       `Plan locked as ${res.snap.name}`,
@@ -2150,7 +2150,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           <X size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
-      <Text style={styles.fieldModeSubtitle}>Today's tasks — tap to update progress</Text>
+      <Text style={styles.fieldModeSubtitle}>Today's tasks. Tap to update progress.</Text>
 
       {todayTasks.length === 0 && (
         <View style={styles.fieldModeEmpty}>
@@ -2629,7 +2629,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                            MobileScheduleScreen already speak. */
                         onPress={() => {
                           if (isUndated) {
-                            showAlert(UNDATED_SCHEDULE_TITLE, 'Set the schedule start date first — until then a calendar date has no day number on this plan. Type the day number in Advanced to move this task meanwhile.');
+                            showAlert(UNDATED_SCHEDULE_TITLE, 'Set the schedule start date first. Until then a calendar date has no day number on this plan. Type the day number in Advanced to move this task meanwhile.');
                             return;
                           }
                           setStartPickerOpen(true);
@@ -2660,7 +2660,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                             showAlert(
                               isUndated ? UNDATED_SCHEDULE_TITLE : 'Before the Schedule Starts',
                               isUndated
-                                ? 'Set the schedule start date first — until then a calendar date has no day number on this plan.'
+                                ? 'Set the schedule start date first. Until then a calendar date has no day number on this plan.'
                                 : `This plan starts ${projectStartDate.toLocaleDateString()}. Pick that day or later, or move the schedule’s start date back.`,
                             );
                             return;
@@ -3008,7 +3008,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       <GitBranch size={13} color={themeColors.accent} strokeWidth={1.75} />
       <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowScenariosModal(true)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Manage Saved Plans">
         <Text style={styles.scenarioBannerText} numberOfLines={3}>
-          {`Showing saved plan "${activeScenario.name}" — a frozen, read-only snapshot on the Gantt, board and list. Today and Lookahead show the live plan.`}
+          {`Showing saved plan "${activeScenario.name}", a frozen, read-only snapshot on the Gantt, board and list. Today and Lookahead show the live plan.`}
           {scheduleWriteBlockedReason ? ' Only the project owner or an editor can close it for everyone.' : ''}
         </Text>
       </TouchableOpacity>
@@ -3586,7 +3586,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             );
           })}
           {sortedProjectChips.length === 0 && (
-            <Text style={styles.projectChipsEmpty}>No projects yet — create one from the Home tab.</Text>
+            <Text style={styles.projectChipsEmpty}>No projects yet. Create one from the Home tab.</Text>
           )}
         </ScrollView>
 

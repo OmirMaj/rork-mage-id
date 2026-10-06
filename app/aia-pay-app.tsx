@@ -1692,7 +1692,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     if (plan.invalid > 0 || plan.extraRows > 0) {
       const parts: string[] = [];
       if (plan.invalid > 0) {
-        parts.push(`${plan.invalid} pasted ${plan.invalid === 1 ? 'cell was' : 'cells were'} left out — not an amount, or past the columns you can type in (${sovEditing ? 'Item through Stored' : 'This period and Stored; tap Edit lines for Item, Description and Scheduled'}).`);
+        parts.push(`${plan.invalid} pasted ${plan.invalid === 1 ? 'cell was' : 'cells were'} left out: not an amount, or past the columns you can type in (${sovEditing ? 'Item through Stored' : 'This period and Stored; tap Edit lines for Item, Description and Scheduled'}).`);
       }
       if (plan.extraRows > 0) {
         parts.push(`${plan.extraRows} pasted ${plan.extraRows === 1 ? 'row runs' : 'rows run'} past the last line. Add lines first. Pasting never adds lines to a pay app.`);
@@ -1866,7 +1866,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     { key: 'fromPrevious', label: 'D from Previous', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => l.fromPreviousApp },
     { key: 'thisPeriod', label: 'E This Period', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'thisPeriod') ?? l.thisPeriod.toFixed(2) },
     { key: 'stored', label: 'F Stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'stored') ?? l.materialsPresentlyStored.toFixed(2) },
-    { key: 'completed', label: 'G Completed & Stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).completedAndStored },
+    { key: 'completed', label: 'G Completed and Stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).completedAndStored },
     {
       key: 'percent', label: '% (G ÷ C)', kind: 'number', width: 56, total: true, format: (n) => n.toFixed(1),
       getValue: (l) => {
@@ -2020,7 +2020,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               accessibilityRole="button"
               accessibilityLabel="Back to Invoice to Create Next Period"
             >
-              <Text style={styles.lockedBannerCtaText}>Back to Invoice →</Text>
+              <Text style={styles.lockedBannerCtaText}>Back to Invoice</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -2064,7 +2064,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             <View style={styles.carriedRow}>
               <CheckCircle2 size={14} color={themeColors.accent} strokeWidth={2.4} />
               <Text style={styles.carriedText}>
-                Carried forward from pay app #{carriedFromAppNumber}. Every line&apos;s &ldquo;from previous&rdquo; amount and the G702 &ldquo;less previous certificates&rdquo; total are filled in. Enter this period&apos;s percent complete for each line.
+                Carried forward from pay app #{carriedFromAppNumber}. Every line&apos;s “from previous” amount and the G702 “less previous certificates” total are filled in. Enter this period&apos;s percent complete for each line.
               </Text>
             </View>
           )}
@@ -2188,8 +2188,8 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           {!!app.periodFrom && !isCalendarDay(app.periodFrom) && (
             <Text style={styles.fieldError} testID="aia-period-from-error">
               Not a date MAGE can read. Use YYYY-MM-DD (for example 2026-03-01). Until it is, the
-              change order summary files every approved change order under &ldquo;previous
-              months&rdquo; because it can&apos;t tell which month they landed in.
+              change order summary files every approved change order under “previous
+              months” because it can&apos;t tell which month they landed in.
             </Text>
           )}
           <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.periodTo" />}>
@@ -2313,7 +2313,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               who bills without retainage certified 10% held to his lender. */}
           <Text style={styles.retainageSourceNote} testID="aia-retainage-source">
             {retainageEdited
-              ? `Set here — the source invoice bills ${invoiceRetainagePct}% retainage.`
+              ? `Set here. The source invoice bills ${invoiceRetainagePct}% retainage.`
               : invoiceRetainagePct > 0
                 ? `Carried from invoice #${invoice.number} (${invoiceRetainagePct}%). Change it if this contract holds a different rate.`
                 : `Invoice #${invoice.number} withheld no retainage, so this certificate holds none. Set the contract's rate if it holds any.`}
@@ -2356,7 +2356,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           <Text style={styles.retainageSourceNote}>
             5a withholds {app.retainagePercent}% of completed work (columns D + E); 5b withholds{' '}
             {storedRetainagePercentForApp(app)}% of stored material (column F)
-            {app.storedRetainagePercent == null ? ' — the same rate, because this contract does not distinguish them' : ''}.
+            {app.storedRetainagePercent == null ? ', the same rate, because this contract does not distinguish them' : ''}.
             Retainage is never withheld on sales tax.
           </Text>
         </View>
@@ -2372,7 +2372,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             in a number he believed was automatic. */}
         <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="payApp.certifyExplain" />}>
         <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
-          <Text style={styles.sectionTitle}>Architect&apos;s certificate</Text>
+          <Text style={styles.sectionTitle}>Architect’s Certificate</Text>
           {/* RECORDABLE ON A LOCKED CERTIFICATE, deliberately. A GC with
               Stripe Connect gets a pay link on the first Save, so isReadOnly
               is true on every certificate an architect ever answers — gating
@@ -2381,7 +2381,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               seeding from the amount applied for. See payAppEditability. */}
           <Text style={styles.sectionHint}>
             Fill this in when the certificate comes back, even after the pay app has gone out.
-            Next period&apos;s &ldquo;less previous certificates&rdquo; starts from the certified
+            Next period&apos;s “less previous certificates” starts from the certified
             figure when there is one.
           </Text>
           <View style={styles.formRow}>
@@ -2468,7 +2468,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               testID="aia-save-certification"
             >
               <Save size={15} color={themeColors.accent} strokeWidth={2} />
-              <Text style={styles.sovFooterBtnText}>Save the architect&apos;s response</Text>
+              <Text style={styles.sovFooterBtnText}>Save the Architect’s Response</Text>
             </TouchableOpacity>
           )}
           {!!certRemintNote && (
@@ -2552,7 +2552,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               { key: 'original', label: 'Original Contract', value: formatMoney(app.originalContractSum, 2), sub: lineOne.short ?? undefined },
               { key: 'net-co', label: 'Net COs', value: `${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}` },
               { key: 'to-date', label: 'Contract to Date', value: formatMoney(app.contractSumToDate, 2) },
-              { key: 'completed', label: 'Completed & Stored', value: formatMoney(totals.totalCompletedAndStored, 2), sub: `${totals.percentComplete.toFixed(1)}% complete` },
+              { key: 'completed', label: 'Completed and Stored', value: formatMoney(totals.totalCompletedAndStored, 2), sub: `${totals.percentComplete.toFixed(1)}% complete` },
               {
                 key: 'retainage',
                 label: 'Retainage',
@@ -2623,7 +2623,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           </View>
           {gridOn ? (
             <Text style={[styles.sectionHint, desktopProse]}>
-              Type This period, Stored or % — Tab moves right, Enter moves down, paste a column from Excel. Per-line retainage, reorder and stored-material moves are in Cards.
+              Type This period, Stored or %. Tab moves right, Enter moves down, paste a column from Excel. Per-line retainage, reorder and stored-material moves are in Cards.
             </Text>
           ) : (
           <Text style={styles.sectionHint}>
@@ -2644,7 +2644,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           <Text style={[styles.sovBasisNote, isDesktop && desktopProse]} testID="aia-sov-basis">
             {sovBasis === 'linked_estimate'
               ? 'Scheduled value is each line of the linked estimate plus each approved change order: the full contract, not this draw. This period is what invoice #' + invoice.number + ' bills against it. Tap Edit lines to change the schedule of values. Your changes stay, because a saved pay app is not rebuilt from the estimate when you reopen it.'
-              : 'This project has no itemized estimate linked, so the scheduled value column was rebuilt from invoice #' + invoice.number + ' and covers only the scope this invoice touched. Link the project\u2019s estimate (Estimate \u2192 Link to project) and refresh, or tap Edit lines and enter the agreed schedule of values.'}
+              : 'This project has no itemized estimate linked, so the scheduled value column was rebuilt from invoice #' + invoice.number + ' and covers only the scope this invoice touched. Link the project\u2019s estimate (Estimate > Link to project) and refresh, or tap Edit lines and enter the agreed schedule of values.'}
           </Text>
 
           {sovReconciliation && !sovReconciliation.reconciled && (
@@ -2884,7 +2884,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 {isOver && (
                   <Text style={styles.sovOverText} testID={`aia-overbill-${line.id}`}>
                     Billed {formatMoney(over, 2)} past this line&apos;s scheduled value. Architects
-                    routinely return a continuation sheet showing a line over 100% — either correct
+                    routinely return a continuation sheet showing a line over 100%. Either correct
                     this period&apos;s amount, or raise the scheduled value with a change order first.
                   </Text>
                 )}

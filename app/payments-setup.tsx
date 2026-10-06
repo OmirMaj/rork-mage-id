@@ -120,11 +120,11 @@ export default function PaymentsSetupScreen() {
       return;
     }
     if (finApr.trim() && !Number.isFinite(Number(finApr))) {
-      showAlert('Check the Number', 'Example APR must be a number (e.g. 9.99).');
+      showAlert('Check the Number', 'Example APR must be a number (for example 9.99).');
       return;
     }
     if (finTerm.trim() && !Number.isFinite(Number(finTerm))) {
-      showAlert('Check the Number', 'Example term must be a whole number of months (e.g. 60).');
+      showAlert('Check the Number', 'Example term must be a whole number of months (for example 60).');
       return;
     }
     const cfg: FinancingConfig = {

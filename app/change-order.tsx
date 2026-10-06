@@ -357,14 +357,14 @@ export function coSendReport(o: {
     // What IS known: nothing reached MAGE and nothing is queued, so the copy
     // on this device will not sync by itself. No "before you leave this
     // screen" either: this alert is read after the screen has already closed.
-    failed: ' MAGE could not save it, so it is on this device only and will not sync by itself — the next refresh from MAGE can drop it. Keep a copy of its details.',
+    failed: ' MAGE could not save it, so it is on this device only and will not sync by itself. The next refresh from MAGE can drop it. Keep a copy of its details.',
   };
   if (o.email === 'sent') {
     return {
-      title: o.write === 'failed' ? 'Sent — Not Saved to MAGE' : 'Sent',
+      title: o.write === 'failed' ? 'Sent, Not Saved to MAGE' : 'Sent',
       message: `CO #${o.number} was emailed${o.recipient ? ` to ${o.recipient}` : ''} for approval.${o.write === 'synced' ? ' It is saved.' : where[o.write]}`
         + (o.portal === 'shared' ? ' It is on the client portal for them to review and sign.' : '')
-        + (o.portal === 'failed' ? ' It could NOT be put on the client portal, so the link in the email will not show it yet — open this change order and tap Send to client portal.' : ''),
+        + (o.portal === 'failed' ? ' It could NOT be put on the client portal, so the link in the email will not show it yet. Open this change order and tap Send to client portal.' : ''),
     };
   }
   // Never "saved" for a write MAGE refused — the tail below says where it is.
@@ -372,7 +372,7 @@ export function coSendReport(o: {
     ? `CO #${o.number} was not saved to MAGE`
     : o.status === 'draft' ? `CO #${o.number} is saved as a draft` : `CO #${o.number} is saved`;
   const reason = o.email === 'composer_opened'
-    ? (o.emailError || 'a draft opened in your email app — press Send there')
+    ? (o.emailError || 'a draft opened in your email app. Press Send there')
     : (o.emailError || 'the email service could not be reached');
   // A composer that opened may still be sent from his mail app — MAGE cannot
   // see that, so the CO stays a draft; tell him the step that makes it count.
@@ -389,8 +389,8 @@ export function coSendReport(o: {
  *  the same outcome as coSendReport's alert — never "Sent" for an email that
  *  did not go out (a failed send or a composer that only opened). */
 export function coSendFinishedLabel(email: SendEmailOutcome, write: RecordWriteOutcome | 'pending'): string {
-  if (email !== 'sent') return 'Not sent — close';
-  return write === 'failed' ? 'Sent, not saved — close' : 'Sent — close';
+  if (email !== 'sent') return 'Close (Not Sent)';
+  return write === 'failed' ? 'Close (Sent, Not Saved)' : 'Close (Sent)';
 }
 // <<< co-send-outcome
 
@@ -518,8 +518,8 @@ export function coSaveMessage(o: {
   if (o.isUpdate && coIsOutForApproval(o.next)) {
     return {
       title: 'Saved',
-      message: `Change Order #${o.number} is saved — still awaiting approval.` + (o.pricedEditOnSentCO
-        ? ' You changed its price or lines: your client still sees the numbers you sent until you re-send it (Send & Save, or Send to client portal).'
+      message: `Change Order #${o.number} is saved and still awaiting approval.` + (o.pricedEditOnSentCO
+        ? ' You changed its price or lines: your client still sees the numbers you sent until you re-send it (Send and Save, or Send to Client Portal).'
         : ''),
     };
   }
@@ -610,7 +610,7 @@ export function coCommitLineItems<T extends { quantity: number; unitPrice: numbe
 // falls back to 'Voice line item' — so on the phone this is inert.
 export function coUnnamedLineBlocker(items: { name: string }[]): { title: string; message: string } | null {
   const i = items.findIndex(it => !it.name.trim());
-  return i < 0 ? null : { title: `Line ${i + 1} has no name`, message: 'Name every line before saving — it prints on the change order.' };
+  return i < 0 ? null : { title: `Line ${i + 1} has no name`, message: 'Name every line before saving. It prints on the change order.' };
 }
 
 /** One grid line's Total — the committed (whole-cent) figure a save writes. */
@@ -678,12 +678,12 @@ export function coEstimatePickBasis(
 ): string {
   if (item.unitSell != null) {
     if (item.markupPct != null && item.markupPct > 0) {
-      return `Your cost ${money(item.unitCost)} + ${Math.round(item.markupPct)}% — the rate on the signed estimate`;
+      return `Your cost ${money(item.unitCost)} + ${Math.round(item.markupPct)}%, the rate on the signed estimate`;
     }
-    return `Your cost ${money(item.unitCost)} — at your cost — no markup on the signed estimate, so it goes on the change order at cost`;
+    return `Your cost ${money(item.unitCost)}, at your cost. No markup on the signed estimate, so it goes on the change order at cost`;
   }
   if (seedMarkupPct != null && Number.isFinite(seedMarkupPct) && seedMarkupPct > 0) {
-    return `Your cost ${money(item.unitCost)} + your ${Math.round(seedMarkupPct)}% markup — this line carries none on the estimate`;
+    return `Your cost ${money(item.unitCost)} + your ${Math.round(seedMarkupPct)}% markup. This line carries none on the estimate`;
   }
   return 'This is your cost. No markup is set, so it goes on the change order at what it costs you.';
 }
@@ -725,8 +725,8 @@ export function coImpactDaysNeedsConfirm(o: { source: CoImpactDaysSource; value:
 export function coImpactDaysHelper(source: CoImpactDaysSource, value: string): string | null {
   const d = coParseImpactDays(value);
   if (d == null) return null;
-  if (source === 'ai') return `AI estimate: +${d} day${d === 1 ? '' : 's'} — check before sending. This is the number the client signs.`;
-  if (source === 'voice') return `Heard: +${d} day${d === 1 ? '' : 's'} — check before sending. This is the number the client signs.`;
+  if (source === 'ai') return `AI estimate: +${d} day${d === 1 ? '' : 's'}. Check before sending. This is the number the client signs.`;
+  if (source === 'voice') return `Heard: +${d} day${d === 1 ? '' : 's'}. Check before sending. This is the number the client signs.`;
   return null;
 }
 
@@ -800,12 +800,12 @@ export function coTaxNote(status: CoW4Status | undefined, frozenRatePct: number 
     return 'Sales tax is added when you bill this change on a progress invoice, at your Settings rate on that day. The rate shown here is recorded on the change order when you send it, as the one your client is asked to approve.';
   }
   if (status === 'approved') {
-    return `Your client approved this change at ${ratePct}% sales tax. ${billing} — if that rate has changed, the invoice total will differ from the approved one.`;
+    return `Your client approved this change at ${ratePct}% sales tax. ${billing} If that rate has changed, the invoice total will differ from the approved one.`;
   }
   if (status === 'rejected' || status === 'void') {
     return `Sent at ${ratePct}% sales tax; your client did not approve it${status === 'void' ? ' (voided)' : ''}.`;
   }
-  return `Sent at ${ratePct}% sales tax — the rate your client is being asked to approve. ${billing} — if that rate has changed, the invoice total will differ from the total you sent.`;
+  return `Sent at ${ratePct}% sales tax, the rate your client is being asked to approve. ${billing} If that rate has changed, the invoice total will differ from the total you sent.`;
 }
 
 /**
@@ -920,9 +920,9 @@ export function coPortalSendGate(o: {
   priceRefusal: string | null;
 }): { canSend: boolean; reason?: string } {
   if (o.status === 'draft') {
-    return { canSend: false, reason: 'Submit this change order for approval first (Send & Save, or Mark submitted) — the portal only asks your client to sign a submitted change order.' };
+    return { canSend: false, reason: 'Submit this change order for approval first (Send and Save, or Mark Submitted). The portal only asks your client to sign a submitted change order.' };
   }
-  if (o.status === 'rejected') return { canSend: false, reason: 'Your client declined this change order. Use Revise & re-issue to send them a new version.' };
+  if (o.status === 'rejected') return { canSend: false, reason: 'Your client declined this change order. Use Revise and Re-Issue to send them a new version.' };
   if (o.status === 'void') return { canSend: false, reason: 'This change order is void, so it cannot go to your client.' };
   if (o.lineCount === 0) return { canSend: false, reason: 'Add at least one line item before sending.' };
   if (o.numberHold) return { canSend: false, reason: o.numberHold };
@@ -951,9 +951,9 @@ export function coApprovalLineForViewer<L extends { kind: string; who?: string; 
 
 /** #74 — the Share PDF control: always shown, and says why when it can't run. */
 export function coPdfAction(o: { saved: boolean; dirty: boolean; numberHold: string | null }): { enabled: boolean; label: string; reason?: string } {
-  if (!o.saved) return { enabled: false, label: 'Share PDF', reason: 'Save the change order first — the PDF prints the saved change order.' };
+  if (!o.saved) return { enabled: false, label: 'Share PDF', reason: 'Save the change order first. The PDF prints the saved change order.' };
   if (o.numberHold) return { enabled: false, label: 'Share PDF', reason: o.numberHold };
-  if (o.dirty) return { enabled: true, label: 'PDF of Last Saved Version', reason: 'You have unsaved changes — the PDF prints the change order as last saved.' };
+  if (o.dirty) return { enabled: true, label: 'PDF of Last Saved Version', reason: 'You have unsaved changes. The PDF prints the change order as last saved.' };
   return { enabled: true, label: 'Share PDF' };
 }
 
@@ -2183,7 +2183,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     if (days == null) { proceed(); return; }
     const plural = days === 1 ? '' : 's';
     showAlert(
-      `The client signs +${days} day${plural} — keep it?`,
+      `The client signs +${days} day${plural}. Keep it?`,
       `${impactDaysSource === 'ai' ? 'The schedule impact was estimated by AI' : 'The schedule impact was taken from your voice note'} and has not been checked. It goes on the change order as the time extension your client approves.`,
       [
         { text: 'Change It', style: 'cancel' },
@@ -2322,7 +2322,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       'A CCD directs the contractor to start work before final pricing is agreed. Pick how payment will be calculated:',
       [
         { text: 'Lump Sum (Estimate Stated)',  onPress: () => generateCcd('lump_sum') },
-        { text: 'Time & Materials',            onPress: () => generateCcd('time_and_materials') },
+        { text: 'Time and Materials',           onPress: () => generateCcd('time_and_materials') },
         { text: 'Cost-Plus Fee',               onPress: () => generateCcd('cost_plus') },
         { text: 'Unit Prices in Contract',     onPress: () => generateCcd('unit_prices') },
         { text: 'Pending Negotiation',         onPress: () => generateCcd('pending_negotiation') },
@@ -2403,7 +2403,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     // prices before this sheet opened; anything still unpriced is refused).
     const unpriced = coUnconfirmedPriceBlocker(lineItems, description, formatCurrency);
     if (unpriced) {
-      showAlert(unpriced.title, unpriced.kind === 'refuse' ? unpriced.message : `${unpriced.message} Close this and tap Send & Save again to confirm them.`);
+      showAlert(unpriced.title, unpriced.kind === 'refuse' ? unpriced.message : `${unpriced.message} Close this and tap Send and Save again to confirm them.`);
       return;
     }
     // #77/#141 — a NEW change order has no confirmed number yet: it is saved
@@ -2622,7 +2622,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           remaining: state.remaining,
           label: state.already > 0.009
             ? `Bill remaining ${formatMoney(state.remaining, 2)}`
-            : `Bill this change order — ${formatMoney(state.remaining, 2)}`,
+            : `Bill This Change Order: ${formatMoney(state.remaining, 2)}`,
           // A draft is deliberately not counted as billed (it may never be
           // sent), which is the one way this button bills the same CO twice.
           // Name the draft rather than let him make a second one blind.
@@ -2648,7 +2648,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       // The portal share builds from the provider's CO, so it also waits until
       // that copy carries the server's number (a save stamps it, see persistCO).
       numberHold: numberHold('portal') ?? coStaleNumberHold(existingCO?.number, confirmedNumber),
-      priceRefusal: refusal ? (refusal.kind === 'refuse' ? refusal.message : 'Confirm the AI-estimated prices first: open Send & Save, which asks, or type the prices yourself and save.') : null,
+      priceRefusal: refusal ? (refusal.kind === 'refuse' ? refusal.message : 'Confirm the AI-estimated prices first: open Send and Save, which asks, or type the prices yourself and save.') : null,
     });
   }, [existingCO, lineItems.length, numberHold, confirmedNumber]);
 
@@ -2865,7 +2865,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               <Text style={styles.numberNoteText}>{coNumberHoldReason(serverNumber.state, 'email')}</Text>
               {existingCO.status !== 'approved' && existingCO.status !== 'rejected' && existingCO.status !== 'void' ? (
                 <Text style={[styles.numberNoteText, { marginTop: 4 }]}>
-                  Nothing is emailed until the number is settled. If the client is with you, record the decision below with Client approved without signing — no email or number needed.
+                  Nothing is emailed until the number is settled. If the client is with you, record the decision below with Client Approved Without Signing. No email or number is needed.
                 </Text>
               ) : null}
             </View>
@@ -3025,7 +3025,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 </View>
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>
-                    Overhead &amp; profit ({Math.round(coMargin.effectiveMarkupPct)}% markup)
+                    Overhead and Profit ({Math.round(coMargin.effectiveMarkupPct)}% markup)
                   </Text>
                   <Text style={[styles.totalValue, { color: coMargin.atCost ? themeColors.dangerLabel : themeColors.success }]}>
                     {formatCurrency(coMargin.overheadProfit)}
@@ -3035,7 +3035,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             )}
             {coMargin && coMargin.basisKnown && !coMargin.atCost && (
               <Text style={styles.coMarginNote}>
-                That is {(coMargin.marginFraction * 100).toFixed(1)}% margin on this change order — margin is a share of the price, markup is a share of the cost, and they are never the same number.
+                That is {(coMargin.marginFraction * 100).toFixed(1)}% margin on this change order. Margin is a share of the price, markup is a share of the cost, and they are never the same number.
               </Text>
             )}
             {/* Honest when it cannot tell. A missing cost basis is not a zero
@@ -3113,10 +3113,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   contextLine={project?.name ? `for ${project.name}` : undefined}
                   buttonLabel={existingCO ? 'Add Detail by Voice' : 'Fill Change Order by Voice'}
                   suggestions={[
-                    'Owner wants the heat pump upgrade — change order for forty-five hundred dollars',
-                    'Field condition — found knob and tube wiring, two days extra and twelve hundred dollars',
+                    'Owner wants the heat pump upgrade, change order for forty-five hundred dollars',
+                    'Field condition, found knob and tube wiring, two days extra and twelve hundred dollars',
                     'Add a window in the basement bedroom, owner direction, three thousand',
-                    'Code requirement — upgrade panel to 200 amp, sub bid is twenty-eight hundred',
+                    'Code requirement, upgrade panel to 200 amp, sub bid is twenty-eight hundred',
                   ]}
                   onTranscript={async (transcript) => {
                     const partial = await parseCOFromTranscript(transcript, project);
@@ -3212,7 +3212,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     )}
                     <Text style={styles.helperText}>
                       {project?.schedule?.tasks?.length
-                        ? 'On approval you\'ll see which task absorbs these days and what shifts downstream — nothing moves until you apply it.'
+                        ? 'On approval you\'ll see which task absorbs these days and what shifts downstream. Nothing moves until you apply it.'
                         : 'This project has no schedule yet, so these days are recorded on the change order only.'}
                     </Text>
                   </View>
@@ -3265,7 +3265,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 {/* #73 — the way forward the decline email names. */}
                 {existingCO?.status === 'rejected' && (
                   <Button
-                    label="Revise & Re-Issue"
+                    label="Revise and Re-Issue"
                     variant="primary"
                     size="sm"
                     onPress={handleReviseReissue}
@@ -3299,12 +3299,12 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                         "applied" suffix printed on COs whose Gantt had never
                         moved, which is exactly the lie this work removes. */}
                     {existingCO.scheduleImpactApplied
-                      ? ' — applied to the schedule'
+                      ? ', applied to the schedule'
                       : existingCO.status === 'approved'
                         ? ((project?.schedule?.tasks?.length ?? 0) > 0
-                          ? ' — approved but not yet placed on the schedule.'
-                          : ' — approved, but this project has no schedule to place them on yet.')
-                        : ' — not applied yet'}
+                          ? ', approved but not yet placed on the schedule.'
+                          : ', approved, but this project has no schedule to place them on yet.')
+                        : ', not applied yet'}
                   </Text>
                 ) : null}
                 {/* #37: a CO approved in the client portal waits for him to
@@ -3395,11 +3395,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   footerLabel="Lines subtotal (before tax)"
                   footerTotals={{ total: coGridFooter(lineItems) }}
                   rowWarning={(i) => (!i.name.trim()
-                    ? 'Name this line — it prints on the change order.'
+                    ? 'Name this line. It prints on the change order.'
                     : i.priceSource === 'needs_price'
-                      ? 'Needs a price — it cannot be sent at $0.'
+                      ? 'Needs a price. It cannot be sent at $0.'
                       : i.priceSource === 'ai_estimated'
-                        ? 'AI estimate from your cost book — type a price, or confirm it when you send.'
+                        ? 'AI estimate from your cost book. Type a price, or confirm it when you send.'
                         : null)}
                   onChangeCell={handleGridCell}
                   onCellBlur={handleGridBlur}
@@ -3462,10 +3462,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     </View>
                     {/* #76 — a price nobody confirmed is marked, not sent. */}
                     {item.priceSource === 'ai_estimated' && (
-                      <Text style={styles.linePriceTag} testID={`co-line-ai-${item.id}`}>AI estimate from your cost book — type a price, or confirm it when you send.</Text>
+                      <Text style={styles.linePriceTag} testID={`co-line-ai-${item.id}`}>AI estimate from your cost book. Type a price, or confirm it when you send.</Text>
                     )}
                     {item.priceSource === 'needs_price' && (
-                      <Text style={styles.linePriceTag} testID={`co-line-needs-${item.id}`}>Needs a price — it cannot be sent at $0.</Text>
+                      <Text style={styles.linePriceTag} testID={`co-line-needs-${item.id}`}>Needs a price. It cannot be sent at $0.</Text>
                     )}
                     <View style={{ marginTop: 8 }}>
                       <CSIDivisionPicker
@@ -3585,7 +3585,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   />
                 )}
                 <Button
-                  label={sendInFlight ? 'Sending…' : 'Send & Save'}
+                  label={sendInFlight ? 'Sending…' : 'Send and Save'}
                   onPress={handleSendPress}
                   disabled={sendInFlight}
                   iconLeft={<Send size={16} color="#FFFFFF" strokeWidth={1.75} />}
@@ -3724,7 +3724,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               <Text style={styles.modalHelperText}>
                 {approvalDeadlineStr.trim() && (parseInt(approvalDeadlineStr, 10) > 0)
                   ? `MAGE will chase this change order once it is ${parseInt(approvalDeadlineStr, 10)} days old, and it will name ${sendRecipientName.trim() || 'the approver'} as the person holding it.`
-                  : 'Leave this blank if you never agreed a turnaround. MAGE will still track the change order as out for approval — it just will not call it late against a deadline nobody agreed to.'}
+                  : 'Leave this blank if you never agreed a turnaround. MAGE will still track the change order as out for approval. It will not call it late against a deadline nobody agreed to.'}
               </Text>
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
@@ -3803,10 +3803,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   it came from nowhere. Never asserts a markup he did not set. */}
               <Text style={styles.modalHelperText}>
                 {newItemMarkupPct > 0
-                  ? `Client pays ${formatCurrency(newItemSellPrice)} per ${newItemUnit.trim() || 'unit'}${seedMarkupStr && itemMarkup === seedMarkupStr ? ' — your usual markup, carried over from your estimating settings' : ''}.`
+                  ? `Client pays ${formatCurrency(newItemSellPrice)} per ${newItemUnit.trim() || 'unit'}${seedMarkupStr && itemMarkup === seedMarkupStr ? ', your usual markup, carried over from your estimating settings' : ''}.`
                   : seedMarkupStr
                     ? 'At 0% this line goes to the client at what it costs you. Your usual markup is ' + seedMarkupStr + '%.'
-                    : 'At 0% this line goes to the client at what it costs you — no overhead, no profit.'}
+                    : 'At 0% this line goes to the client at what it costs you, with no overhead and no profit.'}
               </Text>
               <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddNewItem} activeOpacity={0.85}>
                 <Text style={styles.modalAddBtnText}>Add Item</Text>
@@ -3914,12 +3914,12 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 ? `Every material added is priced at cost + ${Math.round(newItemMarkupPct)}%.`
                 : seedMarkupStr
                   ? `At 0% materials go on at what they cost you. Your usual markup is ${seedMarkupStr}%.`
-                  : 'At 0% materials go on at what they cost you — no overhead, no profit.'}
+                  : 'At 0% materials go on at what they cost you, with no overhead and no profit.'}
             </Text>
 
             <Text style={styles.matMarketLine} testID="co-material-market">
               {catalogProvenanceLine(pricingMarket.resolved ? pricingMarket.label : null)}
-              {pricingMarket.resolved ? '' : ' — set your market in Settings → Location or on the Materials tab.'}
+              {pricingMarket.resolved ? '' : ' Set your market in Settings > Location or on the Materials tab.'}
             </Text>
             <Text style={styles.matResultCount}>{filteredMaterials.length} results</Text>
 

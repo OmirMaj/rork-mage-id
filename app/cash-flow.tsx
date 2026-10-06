@@ -436,16 +436,16 @@ function CashFlowScreenInner() {
       case 'undated_commitments':
         // Committed money is COST — outflow — which is why it cannot fill the
         // income side on its own, and why the instruction is dates, not money.
-        return `${opener} The ${formatCurrencyShort(noForecastReason.amount)} you have already committed has no dates on it — put a schedule on those projects and it lands on a week.`;
+        return `${opener} The ${formatCurrencyShort(noForecastReason.amount)} you have already committed has no dates on it. Put a schedule on those projects and it lands on a week.`;
       case 'bills_without_amounts':
         // "can place it", not "it lands on a week": the row's own start date
         // decides which week, and a row imported with an old date may still
         // fall outside the horizon once it has a number on it.
         return noForecastReason.count === 1
-          ? `${opener} One bill in your list has no amount on it — put a number on it and the forecast can place it.`
-          : `${opener} ${noForecastReason.count} bills in your list have no amount on them — put numbers on them and the forecast can place them.`;
+          ? `${opener} One bill in your list has no amount on it. Put a number on it and the forecast can place it.`
+          : `${opener} ${noForecastReason.count} bills in your list have no amount on them. Put numbers on them and the forecast can place them.`;
       case 'everything_falls_outside':
-        return `${opener} The money you do have on file is either unsent or dated outside this window — check those dates, or pick a longer horizon above.`;
+        return `${opener} The money you do have on file is either unsent or dated outside this window. Check those dates, or pick a longer horizon above.`;
       // No `default`. The union is exhaustive here on purpose: add a fifth
       // reason and this stops compiling, rather than quietly answering a new
       // situation with the "nothing on file" sentence — which would be the
@@ -454,7 +454,7 @@ function CashFlowScreenInner() {
         // The balance clause says what a balance actually does. It is offered
         // only when there isn't one, and it does not claim to produce a
         // forecast, because it doesn't.
-        return `${opener} Add an unpaid invoice, an expected payment or a recurring bill — dated money is what a forecast is made of.${
+        return `${opener} Add an unpaid invoice, an expected payment or a recurring bill. Dated money is what a forecast is made of.${
           effectiveStartingBalance === 0 ? ' Your bank balance sets where the line starts: tap the number above to set it.' : ''
         }`;
     }
@@ -1111,7 +1111,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   data, not as money the app lost. */}
               {committed.undated > 0 && (
                 <Text style={styles.summaryItemSub}>
-                  + {formatCurrencyShort(committed.undated)} committed on projects with no schedule or already finished — not in the weeks above
+                  + {formatCurrencyShort(committed.undated)} committed on projects with no schedule or already finished (not in the weeks above)
                 </Text>
               )}
               {/* Sub bills (MONEY-CASH-SUB-APPROVED): an unread list is said
@@ -1120,17 +1120,17 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   retention, because no closeout date is known. */}
               {!subBillsChecked && (
                 <Text style={styles.summaryItemSub} testID="cash-flow-sub-bills-unchecked">
-                  Approved sub bills not checked yet — a check you owe a sub may be missing from the weeks above
+                  Approved sub bills not checked yet. A check you owe a sub may be missing from the weeks above
                 </Text>
               )}
               {subBillsChecked && subBillsOnFinishedJobs > 0 && (
                 <Text style={styles.summaryItemSub} testID="cash-flow-sub-bills-finished-jobs">
-                  + {formatCurrencyShort(subBillsOnFinishedJobs)} of approved sub bills on finished projects, not marked paid — not in the weeks above
+                  + {formatCurrencyShort(subBillsOnFinishedJobs)} of approved sub bills on finished projects, not marked paid (not in the weeks above)
                 </Text>
               )}
               {subBillsChecked && subRetainagePayable > 0 && (
                 <Text style={styles.summaryItemSub} testID="cash-flow-sub-retainage">
-                  + {formatCurrencyShort(subRetainagePayable)} retainage withheld from subs — owed at closeout, not in the weeks above
+                  + {formatCurrencyShort(subRetainagePayable)} retainage withheld from subs (owed at closeout, not in the weeks above)
                 </Text>
               )}
             </View>
@@ -1151,7 +1151,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   accountant or a lender was misled by the word, not the math.
                   One line of scope beats a tooltip nobody opens. */}
               <Text style={styles.summaryItemSub}>
-                Cash in minus cash out. Not profit — excludes unbilled work.
+                Cash in minus cash out. Not profit: it excludes unbilled work.
               </Text>
               {/* Tiny progress bar showing income coverage of expenses */}
               {summary.totalIncome > 0 && (
@@ -1284,7 +1284,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <Text style={styles.listNote}>
                 {syncsToAccount
                   ? 'Saved to your account. Edit this list on two devices at once and the last save wins.'
-                  : 'Saved on this device only — sign in to see these expenses on your other devices.'}
+                  : 'Saved on this device only. Sign in to see these expenses on your other devices.'}
               </Text>
 
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddExpense(true)} activeOpacity={0.7}>
@@ -1364,7 +1364,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <Text style={styles.listNote}>
                 {syncsToAccount
                   ? 'Expected payments save to your account as one list. Edit them on two devices at once and the last save wins.'
-                  : 'Expected payments are saved on this device only — sign in to see them on your other devices.'}
+                  : 'Expected payments are saved on this device only. Sign in to see them on your other devices.'}
               </Text>
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddPayment(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.success} strokeWidth={1.75} />
@@ -1558,7 +1558,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               </View>
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalFieldLabel}>Name</Text>
-                <TextInput style={styles.modalTextInput} value={newExpenseName} onChangeText={setNewExpenseName} placeholder="e.g. Payroll" placeholderTextColor={themeColors.textMuted} />
+                <TextInput style={styles.modalTextInput} value={newExpenseName} onChangeText={setNewExpenseName} placeholder="Payroll" placeholderTextColor={themeColors.textMuted} />
                 <Text style={styles.modalFieldLabel}>Amount</Text>
                 <View style={styles.modalInputRow}>
                   <Text style={styles.modalDollar}>$</Text>
@@ -1585,7 +1585,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 <Text style={styles.modalBlockedNote} testID="add-expense-blocked-note">
                   {unreadable(newExpenseAmount, newExpenseParsed)
                     ? BAD_NUMBER_NOTE
-                    : 'A bill needs a name and an amount above $0 — without one it sits in your list adding nothing to any week.'}
+                    : 'A bill needs a name and an amount above $0. Without one it sits in your list adding nothing to any week.'}
                 </Text>
               )}
               <TouchableOpacity
@@ -1614,7 +1614,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalFieldLabel}>Description</Text>
-              <TextInput style={styles.modalTextInput} value={newPaymentDesc} onChangeText={setNewPaymentDesc} placeholder="e.g. Deposit from River Oak" placeholderTextColor={themeColors.textMuted} />
+              <TextInput style={styles.modalTextInput} value={newPaymentDesc} onChangeText={setNewPaymentDesc} placeholder="Deposit from River Oak" placeholderTextColor={themeColors.textMuted} />
               <Text style={styles.modalFieldLabel}>Amount</Text>
               <View style={styles.modalInputRow}>
                 <Text style={styles.modalDollar}>$</Text>
@@ -1637,7 +1637,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 <Text style={styles.modalBlockedNote} testID="add-payment-blocked-note">
                   {unreadable(newPaymentAmount, newPaymentParsed)
                     ? BAD_NUMBER_NOTE
-                    : 'An expected payment needs a description and an amount. A negative one is fine — that is a backcharge against you, and the forecast reads it as money leaving.'}
+                    : 'An expected payment needs a description and an amount. A negative one is fine: that is a backcharge against you, and the forecast reads it as money leaving.'}
                 </Text>
               )}
               <TouchableOpacity

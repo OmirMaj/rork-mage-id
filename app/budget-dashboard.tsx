@@ -375,8 +375,8 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
       icon: DollarSign,
       color: getMetricColor(cpi, themeColors),
       caption: cpi >= 1
-        ? `On budget — spending $${cpiSpend.toFixed(2)} for every $1 of work earned`
-        : `Over budget — spending $${cpiSpend.toFixed(2)} for every $1 of work earned`,
+        ? `On budget, spending $${cpiSpend.toFixed(2)} for every $1 of work earned`
+        : `Over budget, spending $${cpiSpend.toFixed(2)} for every $1 of work earned`,
     });
   }
   metricCards.push({
@@ -384,7 +384,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
     value: spi.toFixed(2),
     icon: Clock,
     color: getMetricColor(spi, themeColors),
-    caption: spi >= 1 ? 'On or ahead of schedule' : 'Behind schedule — work is landing slower than planned',
+    caption: spi >= 1 ? 'On or ahead of schedule' : 'Behind schedule. Work is landing slower than planned',
   });
   if (costGrounded && cv != null) {
     metricCards.push({
@@ -425,7 +425,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
     value: formatCurrency(metrics.earnedValue),
     icon: Activity,
     color: themeColors.info,
-    caption: `The work you've completed, priced at your estimate — ${metrics.percentComplete.toFixed(0)}% of the budget`,
+    caption: `The work you've completed, priced at your estimate: ${metrics.percentComplete.toFixed(0)}% of the budget`,
   });
   metricCards.push({
     label: 'Collected to Date',
@@ -433,8 +433,8 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
     icon: Wallet,
     color: themeColors.accent,
     caption: billingGap >= 0
-      ? `Client payments in — ${formatCurrency(billingGap)} ahead of the work you've earned`
-      : `Client payments in — ${formatCurrency(Math.abs(billingGap))} behind the work you've earned`,
+      ? `Client payments in: ${formatCurrency(billingGap)} ahead of the work you've earned`
+      : `Client payments in: ${formatCurrency(Math.abs(billingGap))} behind the work you've earned`,
   });
 
   return (
@@ -453,7 +453,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
           style={styles.featureHeader}
           explainer={{
             term: 'Earned value (EVM)',
-            definition: 'EVM compares three numbers: what you planned to spend, what you actually spent, and the dollar value of the work you\'ve completed. CPI (cost) and SPI (schedule) boil that down to a single ratio — 1.0 means on track, below 1.0 means over budget or behind schedule.',
+            definition: 'EVM compares three numbers: what you planned to spend, what you actually spent, and the dollar value of the work you\'ve completed. CPI (cost) and SPI (schedule) boil that down to a single ratio: 1.0 means on track, below 1.0 means over budget or behind schedule.',
             whenToUse: [
               'Weekly, to catch a cost overrun while you can still fix it',
               'Before a draw or client meeting, to explain where the money went',

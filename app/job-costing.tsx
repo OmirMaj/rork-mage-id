@@ -416,7 +416,7 @@ function JobCostingInner() {
             <Text style={styles.bannerTitle}>{unpricedLaborLine(summary.unpricedLaborHours)}</Text>
             <Text style={styles.bannerSub}>
               {summary.unpricedTrades.length > 0 ? `No rate for: ${summary.unpricedTrades.map(t => (t === 'general' ? 'general labor' : t)).join(', ')}. ` : ''}
-              Set labor rates in Time Tracking →
+              Set Labor Rates in Time Tracking
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -457,7 +457,7 @@ function JobCostingInner() {
                 tell that the excluded scope has been bought. Say so rather
                 than calling it "still to buy" forever. */}
             <Text style={styles.warningItem}>
-              The AI's estimate at award. It does not update when you buy that scope — once you add its PO here, this list is history only.
+              The AI's estimate at award. It does not update when you buy that scope. Once you add its PO here, this list is history only.
             </Text>
           </View>
         )}
@@ -480,7 +480,7 @@ function JobCostingInner() {
                 strokeWidth={1.75}
               />
               <Text style={bidCheck.verdict === 'low' ? styles.warningTitle : styles.warningTitleAmber}>
-                {bidCheck.verdict === 'low' ? 'Bid Looks Low — Check the Scope' : 'Bid Looks High'}
+                {bidCheck.verdict === 'low' ? 'Bid Looks Low: Check the Scope' : 'Bid Looks High'}
               </Text>
               <TouchableOpacity onPress={() => setBidCheck(null)} hitSlop={8} style={{ marginLeft: 'auto' }} accessibilityRole="button" accessibilityLabel="Dismiss">
                 <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -545,7 +545,7 @@ function JobCostingInner() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.varianceName}>{p.phase}</Text>
                   <Text style={styles.varianceSub}>
-                    {formatMoney(p.budget)} budgeted → {formatMoney(p.projectedFinal)} projected
+                    {formatMoney(p.budget)} budgeted, {formatMoney(p.projectedFinal)} projected
                   </Text>
                 </View>
                 <Text style={[styles.varianceDelta, {
@@ -566,7 +566,7 @@ function JobCostingInner() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>By Phase</Text>
           {summary.byPhase.length === 0 ? (
-            <Text style={styles.emptyText}>No phases yet — add a commitment or estimate items.</Text>
+            <Text style={styles.emptyText}>No phases yet. Add a commitment or estimate items.</Text>
           ) : (
             summary.byPhase.map(p => (
               <PhaseBar key={p.phase} line={p} onPress={() => setSelectedPhase(p)} />
@@ -760,7 +760,7 @@ function JobCostingInner() {
         onRowOpen={setSelectedPhase}
         renderCard={p => <PhaseBar key={p.phase} line={p} onPress={() => setSelectedPhase(p)} />}
         defaultSort={{ key: 'variance', dir: 'desc' }}
-        emptyState={<Text style={styles.emptyText}>No phases yet — add a commitment or estimate items.</Text>}
+        emptyState={<Text style={styles.emptyText}>No phases yet. Add a commitment or estimate items.</Text>}
         footerTotals={{
           phase: 'Project total',
           budget: formatMoney(phaseFooter.budget),
@@ -778,7 +778,7 @@ function JobCostingInner() {
       />
       {phaseFooter.absorbed > 1 ? (
         <Text style={styles.varianceAbsorbed} testID="jobcost-table-absorbed">
-          {`${formatMoney(phaseFooter.absorbed)} of the phase rows' spend is absorbed into uncommitted budget in the job total above — see Biggest variances.`}
+          {`${formatMoney(phaseFooter.absorbed)} of the phase rows' spend is absorbed into uncommitted budget in the job total above. See Biggest Variances.`}
         </Text>
       ) : null}
     </View>
@@ -1634,7 +1634,7 @@ function PhaseDetailModal({ line, summary, records, projectId, onClose, onOpenCo
 
             {groups.length === 0 ? (
               <Text style={styles.detailNote} testID="phase-drill-empty">
-                Nothing has landed on this phase yet — it is showing its estimate budget alone.
+                Nothing has landed on this phase yet. It is showing its estimate budget alone.
               </Text>
             ) : (
               groups.map(g => (
