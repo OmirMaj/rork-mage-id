@@ -17,14 +17,14 @@ exports[`lane P1 — the phone is unchanged (golden) plans list, web 390 1`] = `
 exports[`lane P1 — the phone is unchanged (golden) plans project picker, iOS 390 1`] = `
 {
   "lines": 339,
-  "sha256": "081ac29179067a9d5a23c33ebea0a6394e706212483373d4b6f2b30b446f5e2d",
+  "sha256": "a85cb0412e7676d2b3868ecb084855abd5550415b129290d302579d00bc0c424",
 }
 `;
 
 exports[`lane P1 — the phone is unchanged (golden) plans project picker, web 390 1`] = `
 {
   "lines": 339,
-  "sha256": "081ac29179067a9d5a23c33ebea0a6394e706212483373d4b6f2b30b446f5e2d",
+  "sha256": "a85cb0412e7676d2b3868ecb084855abd5550415b129290d302579d00bc0c424",
 }
 `;
 

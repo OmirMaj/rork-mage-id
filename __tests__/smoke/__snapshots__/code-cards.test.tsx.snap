@@ -6934,7 +6934,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
             }
           }
         >
-          Town of Oyster Bay Building Division issues this permit. Ask town drafts the question, and you send it yourself.
+          Town of Oyster Bay Building Division issues this permit. Ask Town drafts the question, and you send it yourself.
         </Text>
       </View>
     </View>
@@ -13889,7 +13889,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
             }
           }
         >
-          Town of Oyster Bay Building Division issues this permit. Ask town drafts the question, and you send it yourself.
+          Town of Oyster Bay Building Division issues this permit. Ask Town drafts the question, and you send it yourself.
         </Text>
       </View>
     </View>
@@ -19822,7 +19822,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
             }
           }
         >
-          Town of Oyster Bay Building Division issues this permit. Ask town drafts the question, and you send it yourself.
+          Town of Oyster Bay Building Division issues this permit. Ask Town drafts the question, and you send it yourself.
         </Text>
       </View>
     </View>
@@ -22161,7 +22161,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
           }
         >
           <View
-            accessibilityLabel="Needs an answer. Footings drawn 36 in. deep. Confirm the town frost depth.. R403.1.4. Ask town. Open the full card."
+            accessibilityLabel="Needs an answer. Footings drawn 36 in. deep. Confirm the town frost depth.. R403.1.4. Ask Town. Open the full card."
             accessibilityRole="button"
             accessibilityState={
               {
@@ -22408,7 +22408,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
                       }
                     }
                   >
-                    Ask town
+                    Ask Town
                   </Text>
                 </View>
                 <Text
@@ -22506,7 +22506,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
             </RNSVGSvgView>
           </View>
           <View
-            accessibilityLabel="Needs an answer. Hold-down at the ledger is not detailed.. R507.9.2. Ask architect. Open the full card."
+            accessibilityLabel="Needs an answer. Hold-down at the ledger is not detailed.. R507.9.2. Ask Architect. Open the full card."
             accessibilityRole="button"
             accessibilityState={
               {
@@ -22756,7 +22756,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
                       }
                     }
                   >
-                    Ask architect
+                    Ask Architect
                   </Text>
                 </View>
                 <Text
@@ -26862,7 +26862,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
           }
         >
           <View
-            accessibilityLabel="Needs an answer. Footings drawn 36 in. deep. Confirm the town frost depth.. R403.1.4. Ask town. Open the full card."
+            accessibilityLabel="Needs an answer. Footings drawn 36 in. deep. Confirm the town frost depth.. R403.1.4. Ask Town. Open the full card."
             accessibilityRole="button"
             accessibilityState={
               {
@@ -27109,7 +27109,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
                       }
                     }
                   >
-                    Ask town
+                    Ask Town
                   </Text>
                 </View>
               </View>
@@ -27726,7 +27726,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
             </RNSVGSvgView>
           </View>
           <View
-            accessibilityLabel="Needs an answer. Hold-down at the ledger is not detailed.. R507.9.2. Ask architect. Open the full card."
+            accessibilityLabel="Needs an answer. Hold-down at the ledger is not detailed.. R507.9.2. Ask Architect. Open the full card."
             accessibilityRole="button"
             accessibilityState={
               {
@@ -27976,7 +27976,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
                       }
                     }
                   >
-                    Ask architect
+                    Ask Architect
                   </Text>
                 </View>
               </View>
