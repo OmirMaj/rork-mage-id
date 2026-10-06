@@ -263,11 +263,13 @@
     if (f === FLOORS) { gl(P(BX1, BY0, z), P(BX0, BY0, z)); gl(P(BX0, BY0, z), P(BX0, BY1, z)); }
   }
 
-  // the schedule lays itself out across the street face, one bar per floor (Plan It)
+  // the schedule lays itself out across the street face (Plan It): one bar per floor,
+  // the first task top left, each later task one floor down and one step to the right,
+  // every bar the same length, so it reads as a schedule and not as loose slabs
   var gantt = reg(g(job), 1.55, 1.6, { out: [2.3, 2.5], dy: 0 }), ganttBars = [];
-  [[0, 1.9, C.green], [1.1, 2.3, C.ink], [2.2, 1.9, C.green], [3.3, 1.5, C.teal]].forEach(function (b, k) {
-    ganttBars.push({ n: el('polygon', { fill: b[2] }, gantt), x: BX0 + 0.1 + b[0], w: b[1], z: Z0 + k * FH + 0.52 });
-  });
+  for (f = 0; f < FLOORS; f++) {
+    ganttBars.push({ n: el('polygon', { fill: f === FLOORS - 1 ? C.teal : C.green }, gantt), x: BX0 + 0.3 + f * 0.75, w: 1.6, z: Z0 + (FLOORS - 1 - f) * FH + (FH - 0.42) / 2 });
+  }
 
   // scaffolding per floor, in front of the two street faces
   var scaf = [];
@@ -448,10 +450,10 @@
   var FLOATS = [
     null,
     '<p class="f-tag">Estimate Sent</p><p class="f-big">$45,309</p><p class="f-sub">The Henderson Residence</p><p class="f-sub">Example</p>',
-    '<p class="f-tag">Schedule</p><div class="bars"><i></i><i></i><i></i><i></i></div><p class="f-sub">20 tasks, 30 working days</p><p class="f-sub">Example</p>',
+    '<p class="f-tag">Schedule</p><div class="bars"><i></i><i></i><i></i><i></i><i></i></div><p class="f-sub">20 tasks, 30 working days</p><p class="f-sub">Example</p>',
     '<p class="f-tag">Daily Report</p><p class="f-big">9 On Site</p><p class="f-sub">Clear, 53°F. <span class="f-ok">Sent</span></p><p class="f-sub">Example</p>',
     '<p class="f-tag">Progress Invoice 3</p><p class="f-big f-ok">Paid</p><p class="f-sub">Floors 1 to 4 billed and collected</p><p class="f-sub">Example</p>',
-    '<p class="f-tag">Walkthrough</p><p class="f-big">8 Of 8 Done</p><p class="f-sub"><span class="f-ok">Keys handed over</span></p><p class="f-sub">Example</p>'
+    '<p class="f-tag">Walkthrough</p><p class="f-big">9 Of 9 Done</p><p class="f-sub"><span class="f-ok">Keys handed over</span></p><p class="f-sub">Example</p>'
   ];
 
   function builtHeight(s) {
@@ -460,8 +462,12 @@
     return h + (s > 2 ? Z0 : 0);
   }
 
-  function render(s, t) {
+  function render(s, t, raw) {
     var k, it, kin, kout, v, n;
+    // Reduce Motion: nothing plays in the hero, so show the finished building there
+    // instead of an empty lot. sv keeps the real stage for the cards and the rail.
+    var sv = s;
+    if (reduce && !raw && s < 0.5) s = 5;
     for (k = 0; k < items.length; k++) {
       it = items[k];
       kin = ease(clamp((s - it.a) / (it.b - it.a)));
@@ -481,7 +487,7 @@
       ghostLines[k].setAttribute('stroke-dashoffset', ((1 - ease(lk)) * 1000).toFixed(0));
     }
     for (k = 0; k < ganttBars.length; k++) {
-      var gb = ganttBars[k], gw = gb.w * ease(clamp((s - 1.62 - k * 0.08) / 0.22));
+      var gb = ganttBars[k], gw = gb.w * ease(clamp((s - 1.58 - k * 0.05) / 0.2));
       gb.n.setAttribute('points', pts([P(gb.x, BY1, gb.z), P(gb.x + gw, BY1, gb.z), P(gb.x + gw, BY1, gb.z + 0.42), P(gb.x, BY1, gb.z + 0.42)]));
     }
     // shadow
@@ -510,11 +516,11 @@
     cab.setAttribute('opacity', cv.toFixed(2));
     // hotspots
     for (k = 0; k < hots.length; k++) {
-      var on = s >= hots[k].a && s <= hots[k].b;
+      var on = sv === s && s >= hots[k].a && s <= hots[k].b;
       if (on !== hots[k].on) { hots[k].on = on; hots[k].n.style.display = on ? '' : 'none'; }
     }
     // stage chrome
-    var st = Math.max(0, Math.min(5, Math.round(s)));
+    var st = Math.max(0, Math.min(5, Math.round(sv)));
     if (st !== lastStage) {
       lastStage = st;
       if (floatCard) {
@@ -627,13 +633,13 @@
         var done = st >= 5 || (st === 4 && k < 2) || (st === 3 && k === 1 && fl < 3);
         return [r[0], r[1], done ? 'Closed' : 'Open', done ? 'ok' : ''];
       });
-      return { tag: 'Punch List', title: 'Floor ' + fl, sub: st >= 5 ? 'Every item closed before the keys change hands.' : 'Each item has a room, a photo and the sub who owns it.', rows: rows, note: 'Example items. Scroll to Close It and they are all closed.' };
+      return { tag: 'Punch List', title: 'Floor ' + fl, sub: st >= 5 ? 'Every item closed before the keys change hands.' : 'Each item can carry a location, a photo and the sub who owns it.', rows: rows, note: 'Example items. The punch list is on the Business plan. Scroll to Close It and they are all closed.' };
     }
-    if (id === 'truck') return { tag: 'Delivery', title: 'Windows, 14 Units', sub: 'The app keeps one list of what could stop the job, worst first.', rows: [['Promised for Tuesday', 'Supplier has not confirmed', 'Chase', 'warn'], ['Hoist booked for the drop', 'Tuesday, 7 to 9 am', 'Booked', 'ok'], ['Glazier on site', 'Wednesday', 'Scheduled', '']], note: 'Example delivery.' };
-    if (id === 'crane') return { tag: 'Daily Report', title: 'Today On Site', sub: 'Dictate it from the truck. The weather fills itself in.', rows: [['Crew on site', 'Skilled trades', '9', ''], ['Weather', 'Clear, 53°F, wind 11 mph', 'Logged', 'ok'], ['Report to the client', 'With photos', 'Sent', 'ok']], note: 'Example report.' };
-    if (id === 'plan') return { tag: 'Schedule', title: 'The Plan', sub: 'Built from the estimate, with the critical path marked. The assistant drafts it and you approve it.', rows: [['Site work and foundation', '8 working days', 'Critical', 'warn'], ['Framing and structure', '12 working days', 'Critical', 'warn'], ['Rough plumbing and electrical', '6 working days', 'Has float', ''], ['Finishes', '4 working days', 'Has float', '']], note: 'Example schedule: 20 tasks, 30 working days.' };
-    if (id === 'keys') return { tag: 'Closeout', title: 'Handover', sub: 'The walkthrough checklist, done.', rows: [['Punch list cleared', '15 of 15 items', 'Done', 'ok'], ['Closeout binder delivered', 'Finishes, warranties, contacts', 'Done', 'ok'], ['Final invoice paid', '', 'Done', 'ok']], note: 'Example handover.' };
-    return { tag: 'Estimate', title: 'The Lot', sub: 'Before anything is built, the job is a number. The assistant drafts it and you approve every line.', rows: [['Demolition and site work', 'From your price book', '$6,200', ''], ['Framing and drywall', 'From your price book', '$14,850', ''], ['Kitchen and baths', 'No cost on file yet', 'Needs a price', 'warn'], ['Total so far', '', '$45,309', '']], note: 'Example estimate. A line with no cost on file says so.' };
+    if (id === 'truck') return { tag: 'Delivery', title: 'Windows, 14 Units', sub: 'Deliveries shows what was promised and keeps late loads at the top.', rows: [['Promised for Tuesday', 'Supplier has not confirmed', 'Chase', 'warn'], ['Hoist booked for the drop', 'Tuesday, 7 to 9 am', 'Booked', 'ok'], ['Glazier on site', 'Wednesday', 'Scheduled', '']], note: 'Example delivery.' };
+    if (id === 'crane') return { tag: 'Daily Report', title: 'Today On Site', sub: 'Say it out loud and the app fills in the crew, the work and the delays for you to check. Voice fill is on Pro, with 3 free tries.', rows: [['Crew on site', 'Skilled trades', '9', ''], ['Weather', 'Clear, 53°F, wind 11 mph', 'Logged', 'ok'], ['Report to the client', 'With photos', 'Sent', 'ok']], note: 'Example report.' };
+    if (id === 'plan') return { tag: 'Schedule', title: 'The Plan', sub: 'Built from the estimate, with the critical path marked. The assistant drafts it and you approve it. AI drafts are on Pro, with 3 free tries.', rows: [['Site work and foundation', '8 working days', 'Critical', 'warn'], ['Framing and structure', '12 working days', 'Critical', 'warn'], ['Rough plumbing and electrical', '6 working days', 'Has float', ''], ['Finishes', '4 working days', 'Has float', '']], note: 'Example schedule: 20 tasks, 30 working days.' };
+    if (id === 'keys') return { tag: 'Closeout', title: 'Handover', sub: 'The walkthrough day checklist, done.', rows: [['Punch list cleared', '15 of 15 items', 'Done', 'ok'], ['Closeout binder delivered', 'Selections, warranties, photos', 'Done', 'ok'], ['Final invoice paid', '', 'Done', 'ok']], note: 'Example handover.' };
+    return { tag: 'Estimate', title: 'The Lot', sub: 'Before anything is built, the job is a number. On Pro, the assistant drafts it and you approve every line.', rows: [['Demolition and site work', 'From your price book', '$6,200', ''], ['Framing and drywall', 'From your price book', '$14,850', ''], ['Kitchen and baths', 'Not in your price book yet', 'Market average', 'warn'], ['Total so far', '', '$45,309', '']], note: 'Example estimate. Lines priced from your book are marked. The rest use market averages until you add a rate.' };
   }
   function openPanel(id, fromKey) {
     var d = data(id); if (!panel) return;
@@ -699,7 +705,7 @@
   // the closing section gets a still copy of the empty lot: your job goes here
   (function () {
     var slot = document.getElementById('endLot'); if (!slot) return;
-    render(0, 0);
+    render(0, 0, true);
     var copy = svg.cloneNode(true), dots = copy.querySelectorAll('[role="button"]'), k;
     for (k = 0; k < dots.length; k++) dots[k].parentNode.removeChild(dots[k]);
     var hid = copy.querySelectorAll('[style*="display: none"], [style*="display:none"]');
