@@ -194,13 +194,13 @@ describe('the AIA G703 grid (desktop web, 1512)', () => {
     expect(foot).toContain(fmt(t.totalCompletedAndStored)); // G === line 4
     expect(foot).toContain(fmt(t.totalRetainage)); // I === line 5
     const pairs: [string, string][] = [
-      ['original', 'Original contract sum'],
-      ['net-co', 'Net change by change orders'],
-      ['to-date', 'Contract sum to date'],
-      ['completed', 'Total completed and stored'],
-      ['earned', 'Total earned less retainage'],
-      ['previous', 'Less previous certificates'],
-      ['due', 'Current payment due'],
+      ['original', 'Original Contract Sum'],
+      ['net-co', 'Net Change by Change Orders'],
+      ['to-date', 'Contract Sum to Date'],
+      ['completed', 'Total Completed and Stored'],
+      ['earned', 'Total Earned Less Retainage'],
+      ['previous', 'Less Previous Certificates'],
+      ['due', 'Current Payment Due'],
     ];
     for (const [key, label] of pairs) {
       const row = g702Row(el, label);
