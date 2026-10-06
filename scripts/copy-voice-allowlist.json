@@ -1501,6 +1501,42 @@
       "rule": "R20",
       "match": "permission is already granted — register the token silently",
       "reason": "an internal `because` reason for logs and tests, never shown"
+    },
+    {
+      "file": "components/inspectionPrep/InspectionReadySheet.tsx",
+      "rule": "R15",
+      "match": "Photo code check",
+      "reason": "the feature's one name, pinned in eight files (two of them the server's, one app/project-detail.tsx in lane 5) by validate-code-look: it becomes \"Photo Code Check\" in all of them together, with the server pass"
+    },
+    {
+      "file": "components/codeLook/CodeLookSheet.tsx",
+      "rule": "R15",
+      "match": "Photo code check",
+      "reason": "the feature's one name, pinned in eight files (two of them the server's, one app/project-detail.tsx in lane 5) by validate-code-look: it becomes \"Photo Code Check\" in all of them together, with the server pass"
+    },
+    {
+      "file": "utils/portalOwnerCore.ts",
+      "rule": "R20",
+      "match": "send this one for signature — a message is not a signed change",
+      "reason": "the signing-off sentence the static portal page (marketing/portal/index.html) carries byte for byte (validate-portal-owner): it tells a homeowner what their reply legally is, and changes with the portal page and a deploy"
+    },
+    {
+      "file": "utils/plans/specBookRange.ts",
+      "rule": "R15",
+      "match": "No pages were read",
+      "reason": "a coverage sentence printed in line with the others (\"Read pages 1–24 of 212\"), pinned by validate-spec-book-coverage; not a standalone label"
+    },
+    {
+      "file": "utils/plans/revisionActions.ts",
+      "rule": "R20",
+      "match": "indexes the plan set — you can ask questions",
+      "reason": "PLAN_INDEX_REFUSAL: the plan-extract and project-memory-embed edge functions refuse with this exact sentence (validate-w4-plans-fixes holds them equal); it changes with the server pass"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "Sample job — a client portal never goes out from a sample.",
+      "reason": "SAMPLE_PORTAL_REASON: validate-portalfix holds its two sentences equal to SAMPLE_PORTAL_NOTE in app/client-portal-setup.tsx (lane 5); both change together in that lane"
     }
   ]
 }
