@@ -24,7 +24,7 @@ const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v)
 
 export const permitCapability: CopilotCapability<PermitDraft, PermitApplied> = {
   id: 'permit',
-  label: 'Log a permit',
+  label: 'Log a Permit',
   aiFeature: 'voiceCapture',
   maxQuestions: 2,
   askThreshold: 0.4,

@@ -115,7 +115,7 @@ export default function PendingInvitesCard() {
             {desc ? <Text style={[styles.meta, { color: t.textSecondary }]}>{desc}</Text> : null}
             {err ? <Text style={[styles.meta, { color: t.danger }]}>{err}</Text> : null}
             <Button
-              label="Accept invite"
+              label="Accept Invite"
               size="sm"
               onPress={() => { void accept(inv); }}
               loading={acceptingId === inv.collaboratorId}

@@ -1511,10 +1511,10 @@ export function ownerSafeCloseoutCarry(
 const PERMIT_TYPE_LABEL: Record<string, string> = {
   building: 'Building', electrical: 'Electrical', plumbing: 'Plumbing',
   mechanical: 'Mechanical', demolition: 'Demolition', grading: 'Grading',
-  fire: 'Fire', occupancy: 'Certificate of occupancy',
-  special_inspection: 'Special inspection', hot_work: 'Hot work',
-  shutdown: 'Utility shutdown', after_hours: 'After-hours work',
-  landlord_approval: 'Landlord approval', elevator_dock: 'Elevator / loading dock',
+  fire: 'Fire', occupancy: 'Certificate of Occupancy',
+  special_inspection: 'Special Inspection', hot_work: 'Hot Work',
+  shutdown: 'Utility Shutdown', after_hours: 'After-Hours Work',
+  landlord_approval: 'Landlord Approval', elevator_dock: 'Elevator / Loading Dock',
   other: 'Permit',
 };
 
@@ -1522,11 +1522,11 @@ const PERMIT_TYPE_LABEL: Record<string, string> = {
  *  "Applied for", not "Pending approval" — the portal does not know whether
  *  the jurisdiction has looked at it. */
 const PERMIT_STATUS_LABEL: Record<string, string> = {
-  applied: 'Applied for', under_review: 'Under review', approved: 'Approved',
+  applied: 'Applied For', under_review: 'Under Review', approved: 'Approved',
   denied: 'Denied', expired: 'Expired',
-  inspection_scheduled: 'Inspection scheduled',
-  inspection_passed: 'Inspection passed',
-  inspection_failed: 'Inspection failed',
+  inspection_scheduled: 'Inspection Scheduled',
+  inspection_passed: 'Inspection Passed',
+  inspection_failed: 'Inspection Failed',
 };
 
 /**

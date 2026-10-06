@@ -85,11 +85,11 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
   const columns: DataTableColumn<RFI>[] = useMemo(() => [
     { key: 'number', label: '#', width: 56, numeric: true, sortValue: (r) => r.number, value: (r) => r.number },
     { key: 'subject', label: 'Subject', flex: 1, minWidth: 200, sortValue: (r) => r.subject, value: (r) => r.subject || null },
-    { key: 'ball', label: 'Ball in court', width: 150, hideBelow: 700, sortValue: (r) => rfiBallLabel(r.ballInCourt), value: (r) => rfiBallLabel(r.ballInCourt) },
+    { key: 'ball', label: 'Ball in Court', width: 150, hideBelow: 700, sortValue: (r) => rfiBallLabel(r.ballInCourt), value: (r) => rfiBallLabel(r.ballInCourt) },
     { key: 'assigned', label: 'Assigned', width: 150, hideBelow: 900, sortValue: (r) => r.assignedTo, value: (r) => r.assignedTo || null },
     { key: 'due', label: 'Due', width: 96, sortValue: (r) => logDayKey(r.dateRequired), value: (r) => logDayLabel(r.dateRequired, now) },
     {
-      key: 'daysOpen', label: 'Days open', width: 84, numeric: true, hideBelow: 700,
+      key: 'daysOpen', label: 'Days Open', width: 84, numeric: true, hideBelow: 700,
       sortValue: (r) => rfiDaysOpen(r, now),
       render: (r) => {
         const d = rfiDaysOpen(r, now);
@@ -107,10 +107,10 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
   const csvColumns = useMemo(() => [
     { key: 'number', label: 'RFI', csvValue: (r: RFI) => logNumberLabel('RFI', r.number) },
     { key: 'subject', label: 'Subject', csvValue: (r: RFI) => r.subject },
-    { key: 'ball', label: 'Ball in court', csvValue: (r: RFI) => rfiBallLabel(r.ballInCourt) },
+    { key: 'ball', label: 'Ball in Court', csvValue: (r: RFI) => rfiBallLabel(r.ballInCourt) },
     { key: 'assigned', label: 'Assigned', csvValue: (r: RFI) => r.assignedTo || null },
     { key: 'due', label: 'Due', csvValue: (r: RFI) => logDayKey(r.dateRequired) },
-    { key: 'daysOpen', label: 'Days open', csvValue: (r: RFI) => rfiDaysOpen(r, now) },
+    { key: 'daysOpen', label: 'Days Open', csvValue: (r: RFI) => rfiDaysOpen(r, now) },
     { key: 'priority', label: 'Priority', csvValue: (r: RFI) => rfiPriorityLabel(r.priority) },
     { key: 'status', label: 'Status', csvValue: (r: RFI) => rfiStatusLabel(r.status) },
     { key: 'question', label: 'Question', csvValue: (r: RFI) => r.question },
@@ -136,7 +136,7 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
     const skippedLine = logBulkSkippedLine(plan.skipped);
     const n = plan.close.length;
     if (n === 0) {
-      showAlert('Nothing to close', skippedLine || 'Pick answered RFIs to close them.', [{ text: 'OK' }]);
+      showAlert('Nothing to Close', skippedLine || 'Pick answered RFIs to close them.', [{ text: 'OK' }]);
       return;
     }
     showAlert(
@@ -156,11 +156,11 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
       testID="rfi-log-strip"
       status={{ label: rfiStatusLabel(open.status) ?? '—', tone: rfiTone(open, now) }}
       facts={[
-        { label: 'Ball in court', value: rfiBallLabel(open.ballInCourt) },
+        { label: 'Ball in Court', value: rfiBallLabel(open.ballInCourt) },
         rfiOverdueDays(open, now) > 0
           ? { label: 'Due', value: `${rfiOverdueDays(open, now)} days overdue`, tone: 'danger' as const }
           : { label: 'Due', value: logDayLabel(open.dateRequired, now) },
-        { label: 'Days open', value: (() => { const d = rfiDaysOpen(open, now); return d === null ? null : String(d); })() },
+        { label: 'Days Open', value: (() => { const d = rfiDaysOpen(open, now); return d === null ? null : String(d); })() },
         { label: 'Priority', value: rfiPriorityLabel(open.priority) },
       ]}
     />
@@ -212,13 +212,13 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
                 icon={<MessageSquareText size={28} color={t.accent} />}
                 title="Couldn't load RFIs. Check your connection."
                 message="Nothing on this device yet, and the read from MAGE failed."
-                actionLabel="Try again"
+                actionLabel="Try Again"
                 onAction={retryRead}
               />
             ) : (
               <EmptyState
                 icon={<MessageSquareText size={28} color={t.accent} />}
-                title={all.length === 0 ? 'No RFIs on this project yet' : 'Nothing under this filter'}
+                title={all.length === 0 ? 'No RFIs on This Project Yet' : 'Nothing Under This Filter'}
                 message={all.length === 0 ? 'Raise one when the drawings leave a question open.' : 'Pick another chip, or All.'}
                 actionLabel="New RFI"
                 onAction={newRfi}

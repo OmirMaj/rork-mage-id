@@ -129,11 +129,11 @@ export function TutorialsHubView({ sections, emptyReason, busyId, onStart, check
         ) : null}
 
         {onOpenCertificates && !emptyReason ? (
-          <Card pressable onPress={onOpenCertificates} accessibilityLabel={t('settings.learn.hubCertificates', 'Your certificates')} testID="tutorials-hub-certificates" style={styles.certRow}>
+          <Card pressable onPress={onOpenCertificates} accessibilityLabel={t('settings.learn.hubCertificates', 'Your Certificates')} testID="tutorials-hub-certificates" style={styles.certRow}>
             <View style={styles.certRowInner}>
               <Award size={18} strokeWidth={1.75} color={colors.textSecondary} />
               <Text style={[Type.bodyCompactEmphasized, styles.cardTitle, { color: colors.text }]}>
-                {t('settings.learn.hubCertificates', 'Your certificates')}
+                {t('settings.learn.hubCertificates', 'Your Certificates')}
               </Text>
               <ChevronRight size={18} strokeWidth={1.75} color={colors.textSecondary} />
             </View>
@@ -193,7 +193,7 @@ export function TutorialsHubView({ sections, emptyReason, busyId, onStart, check
                       <View style={styles.checkLine} testID={`tutorial-card-${card.id}-check-passed`}>
                         <Check size={14} strokeWidth={2} color={colors.successLabel} />
                         <Text style={[Type.footnoteEmphasized, { color: colors.successLabel }]}>
-                          {t('settings.learn.hubPassed', 'Skills check: passed')}
+                          {t('settings.learn.hubPassed', 'Skills Check: Passed')}
                         </Text>
                       </View>
                     ) : checks[card.id] === 'open' && onTakeCheck ? (
@@ -206,7 +206,7 @@ export function TutorialsHubView({ sections, emptyReason, busyId, onStart, check
                         testID={`tutorial-card-${card.id}-check-take`}
                       >
                         <Text style={[Type.footnoteEmphasized, { color: colors.accentLabel }]}>
-                          {t('settings.learn.hubTake', 'Skills check: take it')}
+                          {t('settings.learn.hubTake', 'Skills Check: Take It')}
                         </Text>
                         <ChevronRight size={14} strokeWidth={2} color={colors.accentLabel} />
                       </Pressable>

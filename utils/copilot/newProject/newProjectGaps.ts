@@ -25,7 +25,7 @@ export interface NewProjectDraft {
 const TYPE_CHOICES: { label: string; value: string }[] = [
   { label: 'Renovation', value: 'renovation' },
   { label: 'Remodel', value: 'remodel' },
-  { label: 'New build', value: 'new_build' },
+  { label: 'New Build', value: 'new_build' },
   { label: 'Addition', value: 'addition' },
   { label: 'Commercial', value: 'commercial' },
   { label: 'Roofing', value: 'roofing' },

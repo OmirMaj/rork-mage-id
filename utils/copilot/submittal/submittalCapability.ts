@@ -10,7 +10,7 @@ export interface SubmittalApplied { route: '/submittal'; projectId: string; para
 
 export const submittalCapability: CopilotCapability<SubmittalDraft, SubmittalApplied> = {
   id: 'submittal',
-  label: 'Log a submittal',
+  label: 'Log a Submittal',
   aiFeature: 'voiceCapture',
   maxQuestions: 2,
   askThreshold: 0.4,
@@ -20,7 +20,7 @@ export const submittalCapability: CopilotCapability<SubmittalDraft, SubmittalApp
   ],
   topicChecklist: [
     { label: 'Item', hint: 'what is being submitted' },
-    { label: 'Spec section', hint: 'CSI division' },
+    { label: 'Spec Section', hint: 'CSI division' },
     { label: 'Timing', hint: 'when you need approval' },
   ],
   copy: {

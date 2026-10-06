@@ -538,7 +538,7 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     push({
       id: 'contract',
       kind: 'contract',
-      title: 'Contract waiting for your signature',
+      title: 'Contract Waiting for Your Signature',
       // NOTE: `detail` never bakes a live day count. The static portal caches
       // this list in a snapshot and re-ages it in the browser, so the elapsed
       // number lives in `waitingDays` / `daysOverdue` (rendered in the badge)

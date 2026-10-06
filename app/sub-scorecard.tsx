@@ -40,9 +40,9 @@ function colorForGrade(grade: SubGrade, t: ThemeColors): string {
 }
 
 const CONFIDENCE_LABEL: Record<SubScorecard['confidence'], string> = {
-  low: 'Low confidence',
-  medium: 'Medium confidence',
-  high: 'High confidence',
+  low: 'Low Confidence',
+  medium: 'Medium Confidence',
+  high: 'High Confidence',
 };
 
 export default function SubScorecardScreen() {
@@ -127,17 +127,17 @@ function SubScorecardInner() {
   if (subcontractors.length === 0 && suppliers.length === 0) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Sub scorecard' }} />
+        <Stack.Screen options={{ title: 'Sub Scorecard' }} />
         <EmptyState
           icon={<HardHat size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No subs to grade yet"
+          title="No Subs to Grade Yet"
           message="The sub scorecard grades every sub from your own project costs: closed-commitment overruns, change-order creep and paperwork. To see it:"
           steps={[
             'Add subs from the Subs tab.',
             'Award commitments to them through buyout.',
             'Come back to see who earns the next call.',
           ]}
-          actionLabel="Open subs"
+          actionLabel="Open Subs"
           onAction={() => router.push('/(tabs)/subs' as any)}
         />
       </View>
@@ -157,7 +157,7 @@ function SubScorecardInner() {
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Scorecard · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {mode === 'subs' ? 'Who earns the next call' : 'Who hits their dates'}
+            {mode === 'subs' ? 'Who Earns the Next Call' : 'Who Hits Their Dates'}
           </Text>
         </View>
         <View style={styles.headerBtn} />

@@ -71,7 +71,7 @@ export function handoffFor(def: TutorialDef, ctx: HandoffCtx, defs?: TutorialDef
   } else if (!owns && feature) {
     primary = {
       destination: 'paywall',
-      label: h.paywallLabel ?? 'See plans',
+      label: h.paywallLabel ?? 'See Plans',
       feature,
       paywallSource: 'tutorial_handoff',
     };
@@ -81,7 +81,7 @@ export function handoffFor(def: TutorialDef, ctx: HandoffCtx, defs?: TutorialDef
       // can reach, there is no honest 'do it for real' button — only Done,
       // which the finale always has.
       ? null
-      : { destination: 'create_job', label: 'Start your first job →', route: { pathname: '/', params: { openCreate: '1' } } };
+      : { destination: 'create_job', label: 'Start Your First Job →', route: { pathname: '/', params: { openCreate: '1' } } };
   }
 
   const secondary: HandoffAction | null =

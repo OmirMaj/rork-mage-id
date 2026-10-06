@@ -80,11 +80,11 @@ export function SubNetworkProfileView({
 
       {showSignals ? (
         <View style={styles.panel}>
-          <Text style={styles.sectionLabel}>What the numbers are built on</Text>
+          <Text style={styles.sectionLabel}>What the Numbers Are Built On</Text>
 
           <SignalRow
             icon={<Clock size={16} color={t.accent} strokeWidth={1.9} />}
-            label="Finished inside the days allotted"
+            label="Finished Inside the Days Allotted"
             detail={
               r.onTimePct == null
                 ? `${r.onTimeSampleSize} of 3 measured tasks needed before this counts`
@@ -96,7 +96,7 @@ export function SubNetworkProfileView({
 
           <SignalRow
             icon={<Wrench size={16} color={t.accent} strokeWidth={1.9} />}
-            label="Punch closed first time"
+            label="Punch Closed First Time"
             detail={
               r.punchCleanPct == null
                 ? `${r.punchSampleSize} of 3 reviewed items needed before this counts`
@@ -108,7 +108,7 @@ export function SubNetworkProfileView({
 
           <SignalRow
             icon={<Briefcase size={16} color={t.accent} strokeWidth={1.9} />}
-            label="Projects closed out"
+            label="Projects Closed Out"
             detail={
               r.jobsInProgress > 0
                 ? `${r.jobsInProgress} still running`
@@ -120,7 +120,7 @@ export function SubNetworkProfileView({
 
           <SignalRow
             icon={<ShieldCheck size={16} color={r.coiCurrent ? t.success : t.textMuted} strokeWidth={1.9} />}
-            label="Insurance on file"
+            label="Insurance on File"
             detail={
               r.coiDaysRemaining == null
                 ? 'No certificate on file with any GC yet'

@@ -247,12 +247,12 @@ export function CodeCardList(props: CodeCardListProps) {
           </Card>
           <SegmentedControl
             options={[
-              { value: 'status', label: 'By status', testID: `${tid}-by-status` },
-              { value: 'stage', label: 'By inspection', testID: `${tid}-by-stage` },
+              { value: 'status', label: 'By Status', testID: `${tid}-by-status` },
+              { value: 'stage', label: 'By Inspection', testID: `${tid}-by-stage` },
             ]}
             value={groupBy}
             onChange={(v) => { layoutNext(); setGroupBy(v as 'status' | 'stage'); }}
-            accessibilityLabel="Group by"
+            accessibilityLabel="Group By"
             style={styles.toggle}
           />
         </>

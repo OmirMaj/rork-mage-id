@@ -764,7 +764,7 @@ export function AskConversation(props: AskConversationProps) {
           testID="ask-rfi-triage"
         >
           <Mail size={16} color={themeColors.accent} strokeWidth={2} />
-          <Text style={styles.toolText}>Turn an email into an RFI</Text>
+          <Text style={styles.toolText}>Turn an Email into an RFI</Text>
           <ChevronRight size={15} color={themeColors.textMuted} strokeWidth={2} />
         </TouchableOpacity>
       )}
@@ -812,7 +812,7 @@ export function AskConversation(props: AskConversationProps) {
               {action === 'plans'
                 ? <Sparkles size={14} color={themeColors.accent} strokeWidth={2} />
                 : <LogIn size={14} color={themeColors.accent} strokeWidth={2} />}
-              <Text style={styles.blockedActionText}>{action === 'plans' ? 'See plans' : 'Sign in'}</Text>
+              <Text style={styles.blockedActionText}>{action === 'plans' ? 'See Plans' : 'Sign In'}</Text>
               <ChevronRight size={13} color={themeColors.accent} strokeWidth={2} />
             </TouchableOpacity>
           )}
@@ -909,7 +909,7 @@ export function AskConversation(props: AskConversationProps) {
           onPress={() => { Keyboard.dismiss(); setVoiceOpen(true); }}
           hitSlop={4}
           accessibilityRole="button"
-          accessibilityLabel="Ask by voice"
+          accessibilityLabel="Ask by Voice"
           testID="ask-mic"
         >
           <Mic size={20} color={themeColors.textMuted} strokeWidth={2} />
@@ -992,7 +992,7 @@ export function AskConversation(props: AskConversationProps) {
                   accessibilityLabel={`Stop answering for ${anchorProject.name} and ask about all projects`}
                   testID="ask-anchor-clear"
                 >
-                  <Text style={styles.anchorClear}>All projects</Text>
+                  <Text style={styles.anchorClear}>All Projects</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -1003,10 +1003,10 @@ export function AskConversation(props: AskConversationProps) {
                 onPress={props.onNewChat}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Start a new conversation"
+                accessibilityLabel="Start a New Conversation"
                 testID="ask-new-chat"
               >
-                <Text style={styles.anchorClear}>New chat</Text>
+                <Text style={styles.anchorClear}>New Chat</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1081,7 +1081,7 @@ export function AskConversation(props: AskConversationProps) {
             accessibilityLabel={`Stop answering for ${anchorProject.name} and ask about all projects`}
             testID="ask-anchor-clear"
           >
-            <Text style={styles.anchorClear}>All projects</Text>
+            <Text style={styles.anchorClear}>All Projects</Text>
           </TouchableOpacity>
         </View>
       )}

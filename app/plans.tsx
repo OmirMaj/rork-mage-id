@@ -92,8 +92,8 @@ function askPlanImageSource(title: string, message?: string): Promise<PlanImageS
   if (Platform.OS === 'web') return Promise.resolve('library');
   return new Promise(resolve => {
     showAlert(title, message, [
-      { text: 'Take photo', onPress: () => resolve('camera') },
-      { text: 'Choose from library', onPress: () => resolve('library') },
+      { text: 'Take Photo', onPress: () => resolve('camera') },
+      { text: 'Choose from Library', onPress: () => resolve('library') },
       { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
     ], { cancelable: true, onDismiss: () => resolve(null) });
   });
@@ -210,7 +210,7 @@ export default function PlansScreen() {
   allSheetsRef.current = allSheets;
 
   const handleImport = useCallback(async () => {
-    if (importBlock) { showAlert('Can\u2019t add sheets', importBlock); return; }
+    if (importBlock) { showAlert('Can\u2019t Add Sheets', importBlock); return; }
     const source = await askPlanImageSource('Add a plan image', 'Photograph the paper plan, or pick an image you already have.');
     if (!source) return;
     setImporting(true);
@@ -258,7 +258,7 @@ export default function PlansScreen() {
     if (unread > 0) notes.push(`${unread} page${unread === 1 ? '' : 's'} had no readable sheet number \u2014 number ${unread === 1 ? 'it' : 'them'} in the plan viewer.`);
     if (stopped) notes.push(stopped);
     if (suggestions.length === 0) {
-      showAlert('No sheet numbers read', notes.join('\n\n') || 'No title block on these pages had a readable sheet number. Number them in the plan viewer.');
+      showAlert('No Sheet Numbers Read', notes.join('\n\n') || 'No title block on these pages had a readable sheet number. Number them in the plan viewer.');
       return;
     }
     setTitleReview({
@@ -285,14 +285,14 @@ export default function PlansScreen() {
       if (canSyncSheets && chain) void supabaseWrite('plan_sheets', 'update', { id: p.id, ...chain, updated_at: now });
     }
     showAlert(
-      'Sheet numbers saved',
+      'Sheet Numbers Saved',
       [`${plan.applied} sheet${plan.applied === 1 ? '' : 's'} numbered.`, ...plan.messages].join('\n\n'),
     );
   }, [titleReview, canSyncSheets]);
 
   const handleImportPdf = useCallback(async () => {
     if (!projectId) return;
-    if (importBlock) { showAlert('Can\u2019t add sheets', importBlock); return; }
+    if (importBlock) { showAlert('Can\u2019t Add Sheets', importBlock); return; }
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type: 'application/pdf',
@@ -306,7 +306,7 @@ export default function PlansScreen() {
       // server-side, but stopping a 500 MB upload before it leaves the device
       // saves the user a long progress bar that ends in failure.
       if (asset.size && asset.size > 500 * 1024 * 1024) {
-        showAlert('PDF too large', 'Plan PDFs must be under 500 MB. Try splitting it by discipline.');
+        showAlert('PDF Too Large', 'Plan PDFs must be under 500 MB. Try splitting it by discipline.');
         return;
       }
 
@@ -324,11 +324,11 @@ export default function PlansScreen() {
       if (prior.length > 0) {
         const again = await new Promise<boolean>((resolve) => {
           showAlert(
-            'Already imported',
+            'Already Imported',
             `\u201C${baseName}\u201D is already on this project (${prior.length} sheet${prior.length === 1 ? '' : 's'}). Importing it again uses takeoff pages again and replaces those sheets with the new copy. Pins stay on the old sheets.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Import again', onPress: () => resolve(true) },
+              { text: 'Import Again', onPress: () => resolve(true) },
             ],
             { cancelable: true, onDismiss: () => resolve(false) },
           );
@@ -403,10 +403,10 @@ export default function PlansScreen() {
         const n = created.length;
         const read = await new Promise<boolean>((resolve) => {
           showAlert(
-            'PDF imported',
+            'PDF Imported',
             `${added}\n\nThese pages have no sheet numbers yet, so a later revision of this set can\u2019t replace them. MAGE can read the number printed in each title block \u2014 that uses ${n} AI plan read${n === 1 ? '' : 's'} from your monthly allowance. You confirm every number before it\u2019s saved.`,
             [
-              { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Not Now', style: 'cancel', onPress: () => resolve(false) },
               { text: `Read ${n} number${n === 1 ? '' : 's'}`, onPress: () => resolve(true) },
             ],
             { cancelable: true, onDismiss: () => resolve(false) },
@@ -415,7 +415,7 @@ export default function PlansScreen() {
         if (read) await readTitleBlocks(created);
         return;
       }
-      showAlert('PDF imported', created.length > 0 ? `${added} Open one to start dropping pins.` : added);
+      showAlert('PDF Imported', created.length > 0 ? `${added} Open one to start dropping pins.` : added);
     } catch (err) {
       // The function's own sentence (utils/edgeError): a tier refusal, the
       // page cap, the hourly limit — never "non-2xx status code".
@@ -425,7 +425,7 @@ export default function PlansScreen() {
       // sentence the function wrote, so it is described like any other failure.
       const fnCode = edgeErrorCode(err);
       const fnSentence = fnCode && !fnCode.startsWith('http_') ? (err as Error).message : '';
-      if (fnSentence) showAlert('Couldn’t import the plans', fnSentence);
+      if (fnSentence) showAlert('Couldn’t Import the Plans', fnSentence);
       else { const copy = describeError(err, { action: 'import the plans' }); showAlert(copy.title, copy.body); }
     } finally {
       setPdfImporting(false);
@@ -440,7 +440,7 @@ export default function PlansScreen() {
   // with the reason, and no empty sheet is created.
   const confirmImport = useCallback(async () => {
     if (!newSheet || !newSheet.name.trim() || !projectId) {
-      showAlert('Name required', 'Give the sheet a name before saving.');
+      showAlert('Name Required', 'Give the sheet a name before saving.');
       return;
     }
     setSavingSheet(true);
@@ -452,7 +452,7 @@ export default function PlansScreen() {
         sheetNumber: newSheet.sheetNumber,
       }, () => planActionsRef.current);
       if (!result.ok) {
-        showAlert('Plan not saved', result.reason);
+        showAlert('Plan Not Saved', result.reason);
         return;
       }
       setNewSheet(null);
@@ -479,10 +479,10 @@ export default function PlansScreen() {
       if (picked.status !== 'picked') return;
       const result = await attachFloorPlanImage(sheet, picked.image, () => planActionsRef.current);
       if (!result.ok) {
-        showAlert('Plan not saved', result.reason);
+        showAlert('Plan Not Saved', result.reason);
         return;
       }
-      showAlert('Plan saved', `\u201C${sheet.name}\u201D now shows on every device.`);
+      showAlert('Plan Saved', `\u201C${sheet.name}\u201D now shows on every device.`);
     } finally {
       setRepairingId(null);
     }
@@ -490,7 +490,7 @@ export default function PlansScreen() {
 
   const handleRepairImage = useCallback(async (sheet: PlanSheet) => {
     // Re-uploading writes into plan-sheets storage (editor and up).
-    if (importBlock) { showAlert('Can\u2019t upload the image', importBlock); return; }
+    if (importBlock) { showAlert('Can\u2019t Upload the Image', importBlock); return; }
     if (planSheetImageState(sheet) === 'device-only') {
       setRepairingId(sheet.id);
       let direct: Awaited<ReturnType<typeof uploadDeviceOnlyFloorPlan>>;
@@ -500,7 +500,7 @@ export default function PlansScreen() {
         setRepairingId(null);
       }
       if (direct.ok) {
-        showAlert('Plan saved', `\u201C${sheet.name}\u201D now shows on every device.`);
+        showAlert('Plan Saved', `\u201C${sheet.name}\u201D now shows on every device.`);
         return;
       }
       // A vanished local file, or a local file the plan store cannot take
@@ -508,7 +508,7 @@ export default function PlansScreen() {
       // worth re-picking for — a fresh pick comes back as a JPEG. No signal
       // or an RLS refusal would fail the same way with a new image.
       if (!shouldRepickAfterDeviceUploadFailure(direct.kind)) {
-        showAlert('Plan not saved', direct.reason);
+        showAlert('Plan Not Saved', direct.reason);
         return;
       }
       // Say why the photo library is about to open — dropping him into the
@@ -516,9 +516,9 @@ export default function PlansScreen() {
       // why). He chooses to go on; nothing opens on its own.
       // "Pick plan" then asks Camera or Library (#162) — a paper plan can be
       // photographed again right here.
-      showAlert('Pick the plan again', `The copy of \u201C${sheet.name}\u201D on this phone can\u2019t be saved. ${direct.reason}\n\nPhotograph the plan or pick it from your photos \u2014 its pins and punch items stay on this sheet.`, [
+      showAlert('Pick the Plan Again', `The copy of \u201C${sheet.name}\u201D on this phone can\u2019t be saved. ${direct.reason}\n\nPhotograph the plan or pick it from your photos \u2014 its pins and punch items stay on this sheet.`, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Pick plan', onPress: () => { void repickAndAttach(sheet); } },
+        { text: 'Pick Plan', onPress: () => { void repickAndAttach(sheet); } },
       ]);
       return;
     }
@@ -527,7 +527,7 @@ export default function PlansScreen() {
 
   const handleDelete = useCallback((sheet: PlanSheet) => {
     const block = deleteBlockFor(sheet);
-    if (block) { showAlert('Can\u2019t delete this sheet', block); return; }
+    if (block) { showAlert('Can\u2019t Delete This Sheet', block); return; }
     showAlert('Delete this sheet?', `\u201C${sheet.name}\u201D and every pin and markup on it, including teammates\u2019, are deleted.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deletePlanSheet(sheet.id) },
@@ -632,7 +632,7 @@ export default function PlansScreen() {
                   ? <ActivityIndicator size="small" color={themeColors.text} />
                   : <Upload size={14} color={themeColors.text} strokeWidth={1.75} />}
                 <Text style={styles.ghostBtnText}>
-                  {repairing ? 'Saving' : imageState === 'missing' ? 'Add image' : 'Upload'}
+                  {repairing ? 'Saving' : imageState === 'missing' ? 'Add Image' : 'Upload'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -650,7 +650,7 @@ export default function PlansScreen() {
             <TouchableOpacity
               onPress={(e) => {
                 e.stopPropagation();
-                if (compareBlock) { showAlert('Compare not available', compareBlock); return; }
+                if (compareBlock) { showAlert('Compare Not Available', compareBlock); return; }
                 router.push({ pathname: '/compare-drawings' as never, params: { projectId: s.projectId, oldSheetId: prev.id, newSheetId: s.id } as never });
               }}
               accessibilityHint={compareBlock ?? undefined}
@@ -684,7 +684,7 @@ export default function PlansScreen() {
     >
       <MageAIMark size={16} color={themeColors.accent} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.compareBtnTitle}>Ask your plans</Text>
+        <Text style={styles.compareBtnTitle}>Ask Your Plans</Text>
         <Text style={styles.compareBtnSub}>Ask in plain English. MAGE finds it in the sheets.</Text>
       </View>
       <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
@@ -710,7 +710,7 @@ export default function PlansScreen() {
           {pdfImporting ? <ActivityIndicator size="small" color={themeColors.text} /> : <FileText size={15} color={themeColors.text} strokeWidth={1.75} />}
           <Text style={styles.ghostBtnText}>{pdfImporting ? 'Working' : 'PDF'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleImport} style={[styles.primaryBtn, importBlock ? { opacity: 0.5 } : null]} disabled={importing || pdfImporting} accessibilityRole="button" accessibilityLabel="Add a plan image" accessibilityHint={importBlock ?? undefined}>
+        <TouchableOpacity onPress={handleImport} style={[styles.primaryBtn, importBlock ? { opacity: 0.5 } : null]} disabled={importing || pdfImporting} accessibilityRole="button" accessibilityLabel="Add a Plan Image" accessibilityHint={importBlock ?? undefined}>
           {importing ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Plus size={16} color="#FFFFFF" strokeWidth={1.75} />}
           <Text style={styles.primaryBtnText}>{importing ? 'Opening' : 'Image'}</Text>
         </TouchableOpacity>
@@ -721,7 +721,7 @@ export default function PlansScreen() {
       {seatRole === null && roleState.isError ? (
         <View style={styles.statusBar} testID="plans-role-banner">
           <Text style={[styles.statusBarText, { flex: 1 }]}>Couldn&apos;t check your role on this project, so adding and deleting sheets is off.</Text>
-          <Button label="Try again" variant="secondary" size="sm" onPress={roleState.refetch} testID="plans-role-banner-retry" />
+          <Button label="Try Again" variant="secondary" size="sm" onPress={roleState.refetch} testID="plans-role-banner-retry" />
         </View>
       ) : null}
 
@@ -753,7 +753,7 @@ export default function PlansScreen() {
         {sheets.length === 0 ? (
           <View style={styles.emptyCard}>
             <FileImage size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No plan sheets yet</Text>
+            <Text style={styles.emptyTitle}>No Plan Sheets Yet</Text>
             <Text style={styles.emptyText}>{importBlock && seatRole !== null ? importBlock : 'Import a multi-page PDF to split it into sheets, or pick a single image (PNG or JPG).'}</Text>
             <View style={styles.emptyBtnRow}>
               <TouchableOpacity onPress={handleImportPdf} style={[styles.primaryBtn, importBlock ? { opacity: 0.5 } : null]} disabled={pdfImporting || importing} accessibilityHint={importBlock ?? undefined}>
@@ -762,7 +762,7 @@ export default function PlansScreen() {
               </TouchableOpacity>
               <TouchableOpacity onPress={handleImport} style={[styles.ghostBtn, importBlock ? { opacity: 0.5 } : null]} disabled={importing || pdfImporting} accessibilityHint={importBlock ?? undefined}>
                 {importing ? <ActivityIndicator size="small" color={themeColors.text} /> : <ImageIcon size={15} color={themeColors.text} strokeWidth={1.75} />}
-                <Text style={styles.ghostBtnText}>{importing ? 'Opening' : 'Import image'}</Text>
+                <Text style={styles.ghostBtnText}>{importing ? 'Opening' : 'Import Image'}</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.helperText}>
@@ -792,7 +792,7 @@ export default function PlansScreen() {
         {sheets.length > 0 && (
           <TouchableOpacity
             onPress={() => {
-              if (compareBlock) { showAlert('Compare not available', compareBlock); return; }
+              if (compareBlock) { showAlert('Compare Not Available', compareBlock); return; }
               router.push({ pathname: '/compare-drawings' as never, params: { projectId: projectId ?? '' } as never });
             }}
             activeOpacity={0.85}
@@ -802,7 +802,7 @@ export default function PlansScreen() {
           >
             <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.compareBtnTitle}>AI compare to revision</Text>
+              <Text style={styles.compareBtnTitle}>AI Compare to Revision</Text>
               <Text style={styles.compareBtnSub}>Pick a sheet and upload its new revision (PDF page or image). MAGE flags every change.</Text>
             </View>
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
@@ -827,7 +827,7 @@ export default function PlansScreen() {
         >
           <MageAIMark size={16} color={themeColors.accent} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.compareBtnTitle}>Sweep plans for code questions</Text>
+            <Text style={styles.compareBtnTitle}>Sweep Plans for Code Questions</Text>
             <Text style={styles.compareBtnSub}>Picks the sheets that matter for your scope</Text>
           </View>
           <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
@@ -838,7 +838,7 @@ export default function PlansScreen() {
         {sheets.length > 0 && (
           <TouchableOpacity
             onPress={() => {
-              if (estimateBlock) { showAlert('Estimate not available', estimateBlock); return; }
+              if (estimateBlock) { showAlert('Estimate Not Available', estimateBlock); return; }
               router.push({ pathname: '/plan-intelligence' as never, params: { projectId: projectId ?? '' } as never });
             }}
             activeOpacity={0.85}
@@ -848,7 +848,7 @@ export default function PlansScreen() {
           >
             <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.compareBtnTitle}>Estimate rooms from a sheet</Text>
+              <Text style={styles.compareBtnTitle}>Estimate Rooms from a Sheet</Text>
               <Text style={styles.compareBtnSub}>MAGE reads a floor plan and prices it room by room. Uses your AI allowance.</Text>
             </View>
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
@@ -874,7 +874,7 @@ export default function PlansScreen() {
               than push its top off the screen. */}
           <View style={[styles.modalCard, { maxHeight: '92%' }, fAsk.card]} testID="plans-ask-modal">
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Ask your plans</Text>
+              <Text style={styles.modalTitle}>Ask Your Plans</Text>
               <TouchableOpacity onPress={() => setAskOpen(false)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -904,7 +904,7 @@ export default function PlansScreen() {
           <View style={[styles.modalBackdrop, fSweep.overlay]}>
             <View style={[styles.modalCard, { maxHeight: '92%' }, fSweep.card]} testID="plansweep-modal">
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Code check for the plan set</Text>
+                <Text style={styles.modalTitle}>Code Check for the Plan Set</Text>
                 <TouchableOpacity onPress={() => setSweepOpen(false)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={18} color={themeColors.text} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -927,7 +927,7 @@ export default function PlansScreen() {
         <View style={[styles.modalBackdrop, fNew.overlay]}>
           <View style={[styles.modalCard, fNew.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New sheet</Text>
+              <Text style={styles.modalTitle}>New Sheet</Text>
               <TouchableOpacity onPress={() => setNewSheet(null)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -935,7 +935,7 @@ export default function PlansScreen() {
             {newSheet?.image.uri ? (
               <Image source={{ uri: newSheet.image.uri }} style={styles.previewImg} resizeMode="contain" />
             ) : null}
-            <Text style={styles.label}>Sheet number</Text>
+            <Text style={styles.label}>Sheet Number</Text>
             <TextInput
               value={newSheet?.sheetNumber ?? ''}
               onChangeText={(t) => setNewSheet((d) => d ? { ...d, sheetNumber: t } : d)}
@@ -959,7 +959,7 @@ export default function PlansScreen() {
               testID="plans-new-sheet-save"
             >
               {savingSheet ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Check size={16} color="#FFFFFF" strokeWidth={1.75} />}
-              <Text style={styles.primaryBtnText}>{savingSheet ? 'Uploading plan' : 'Save and open'}</Text>
+              <Text style={styles.primaryBtnText}>{savingSheet ? 'Uploading Plan' : 'Save and Open'}</Text>
             </TouchableOpacity>
             {savingSheet ? (
               <Text style={styles.helperText}>The plan uploads once so every phone and the office can see it.</Text>
@@ -975,7 +975,7 @@ export default function PlansScreen() {
         <View style={[styles.modalBackdrop, fTitle.overlay]}>
           <View style={[styles.modalCard, fTitle.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sheet numbers from the title blocks</Text>
+              <Text style={styles.modalTitle}>Sheet Numbers from the Title Blocks</Text>
               <TouchableOpacity onPress={() => setTitleReview(null)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -995,7 +995,7 @@ export default function PlansScreen() {
                     ? <CheckSquare size={16} color={themeColors.accent} strokeWidth={1.75} />
                     : <Square size={16} color={themeColors.textMuted} strokeWidth={1.75} />}
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.pickerRowTitle}>Title block reads {item.sheetNumber} — use it?</Text>
+                    <Text style={styles.pickerRowTitle}>Title Block Reads {item.sheetNumber} — use it?</Text>
                     <Text style={styles.pickerRowSub} numberOfLines={1}>
                       {item.label}{item.duplicate ? ` \u00B7 another page also reads ${item.sheetNumber}` : ''}
                     </Text>
@@ -1016,7 +1016,7 @@ export default function PlansScreen() {
                   testID="title-numbers-apply"
                 >
                   <Check size={16} color="#FFFFFF" strokeWidth={1.75} />
-                  <Text style={styles.primaryBtnText}>{n === 0 ? 'Tick a number to use it' : `Use ${n} number${n === 1 ? '' : 's'}`}</Text>
+                  <Text style={styles.primaryBtnText}>{n === 0 ? 'Tick a Number to Use It' : `Use ${n} number${n === 1 ? '' : 's'}`}</Text>
                 </TouchableOpacity>
               );
             })()}
@@ -1078,17 +1078,17 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Pick a project</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Pick a Project</Text>
         </View>
       </View>
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
             <ImageIcon size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No projects yet</Text>
+            <Text style={styles.emptyTitle}>No Projects Yet</Text>
             <Text style={styles.emptyText}>Plans attach to a project so every pin (punch items, photos, RFIs) ties back to it. Create a project first, then import plans here.</Text>
             <TouchableOpacity onPress={onBack} style={[styles.primaryBtn, { marginTop: 12 }]}>
-              <Text style={styles.primaryBtnText}>Open projects</Text>
+              <Text style={styles.primaryBtnText}>Open Projects</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -1137,7 +1137,7 @@ function PlansAccessGate({ gate, projectName, onRetry, onBack, insets }: {
           ) : gate === 'error' ? (
             <>
               <Text style={styles.emptyText}>Couldn&apos;t check your access to this project. Check your connection and try again.</Text>
-              <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="plans-role-retry" />
+              <Button label="Try Again" variant="secondary" size="sm" onPress={onRetry} testID="plans-role-retry" />
             </>
           ) : (
             <Text style={styles.emptyText}>You don&apos;t have access to this project&apos;s plans. Ask the project owner to invite you.</Text>
@@ -1158,7 +1158,7 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Pro plan</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Pro Plan</Text>
         </View>
       </View>
       <View style={{ padding: 24 }}>
@@ -1167,7 +1167,7 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
           <Text style={styles.emptyTitle}>Plan markup is on the Pro plan</Text>
           <Text style={styles.emptyText}>Import plans, drop pins tied to photos and punch items, and mark up sheets with the crew.</Text>
           <TouchableOpacity onPress={onUpgrade} style={[styles.primaryBtn, { marginTop: 14 }]}>
-            <Text style={styles.primaryBtnText}>See plans</Text>
+            <Text style={styles.primaryBtnText}>See Plans</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -176,7 +176,7 @@ export default function ExtractSubmittalsScreen() {
   // ── Pick + analyze ─────────────────────────────────────────────
   const handlePickAndAnalyze = useCallback(async () => {
     setError(null);
-    if (!project) { showAlert('No project'); return; }
+    if (!project) { showAlert('No Project'); return; }
     // App Store 5.1.2(i): nothing leaves for the AI provider until the person
     // has allowed AI features (utils/aiConsent; always allowed on the web app).
     // Asked BEFORE the picker: the render uploads the PDF and charges its pages.
@@ -274,7 +274,7 @@ export default function ExtractSubmittalsScreen() {
   // ── Bulk save selected → submittal log ─────────────────────────
   const handleSave = useCallback(async () => {
     if (!project) return;
-    if (selectedCount === 0) { showAlert('Nothing selected'); return; }
+    if (selectedCount === 0) { showAlert('Nothing Selected'); return; }
     setSaving(true);
     try {
       // Build every keeper first, then insert as ONE batch. Looping
@@ -298,7 +298,7 @@ export default function ExtractSubmittalsScreen() {
       const skipped = items.filter(r => r.duplicate === 'log' && !r.selected).length;
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Submittals added',
+        'Submittals Added',
         [
           `${added} submittal${added === 1 ? '' : 's'} logged, none sent yet.`,
           skipped > 0 ? `${skipped} already in the log ${skipped === 1 ? 'was' : 'were'} left out.` : '',
@@ -322,7 +322,7 @@ export default function ExtractSubmittalsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="Spec book · MAGE ID" title="Extract submittals" />
+        <ToolHeader eyebrow="Spec Book · MAGE ID" title="Extract Submittals" />
         <ToolProjectPicker
           toolName="Extract submittals"
           message="MAGE reads a spec book PDF and drafts the submittal log — every product data sheet, shop drawing and sample the spec calls for, filed into the project."
@@ -341,9 +341,9 @@ export default function ExtractSubmittalsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="Spec book · MAGE ID" title={project.name} />
+        <ToolHeader eyebrow="Spec Book · MAGE ID" title={project.name} />
         <WorkProgress
-          title={step === 'uploading' ? 'Rendering pages' : 'Reading the spec book'}
+          title={step === 'uploading' ? 'Rendering Pages' : 'Reading the Spec Book'}
           typical="usually 60–90 s"
           facts={CONSTRUCTION_FACTS}
         />
@@ -354,7 +354,7 @@ export default function ExtractSubmittalsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="Spec book · MAGE ID" title={project.name} />
+      <ToolHeader eyebrow="Spec Book · MAGE ID" title={project.name} />
       <ScrollView {...fabScroll} style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {step === 'idle' && (
           <>
@@ -362,7 +362,7 @@ export default function ExtractSubmittalsScreen() {
               <View style={styles.heroIconWrap}>
                 <MageAIMark size={20} color={themeColors.accent} />
               </View>
-              <Text style={styles.heroTitle}>Spec book → submittal log</Text>
+              <Text style={styles.heroTitle}>Spec Book → Submittal Log</Text>
               <Text style={styles.heroBody}>
                 Upload the architect&apos;s spec book PDF and MAGE pulls out every item that needs a submittal: cut sheets, mix designs, shop drawings, samples, certifications. Uncheck the ones you don&apos;t need and the rest go into {project.name}&apos;s submittal log.
               </Text>
@@ -370,7 +370,7 @@ export default function ExtractSubmittalsScreen() {
 
             <TouchableOpacity onPress={handlePickAndAnalyze} style={styles.primaryBtn} activeOpacity={0.85}>
               <FileText size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.primaryBtnText}>Pick spec book PDF</Text>
+              <Text style={styles.primaryBtnText}>Pick Spec Book PDF</Text>
             </TouchableOpacity>
 
             {error && (
@@ -381,7 +381,7 @@ export default function ExtractSubmittalsScreen() {
             )}
 
             <View style={styles.helperBox}>
-              <Text style={styles.helperTitle}>What works</Text>
+              <Text style={styles.helperTitle}>What Works</Text>
               <Text style={styles.helperBody}>
                 • {SPEC_PAGES_PER_PASS} pages per pass — the review screen says which pages were read, and a longer book needs one pass per section.{'\n'}
                 • Lead times are AI estimates (14 days typical, 30 for long-lead items like mock-ups and custom fabrication). A required date is set only when a schedule task matches the trade — its start less the lead. Otherwise it stays blank for you to set.{'\n'}
@@ -451,7 +451,7 @@ export default function ExtractSubmittalsScreen() {
                       </View>
                       {row.duplicate ? (
                         <View style={[styles.metaChip, { backgroundColor: themeColors.warningSoft }]}>
-                          <Text style={styles.metaChipText}>{row.duplicate === 'log' ? 'Already in log' : 'Already on this list'}</Text>
+                          <Text style={styles.metaChipText}>{row.duplicate === 'log' ? 'Already in Log' : 'Already on This List'}</Text>
                         </View>
                       ) : null}
                       <View style={[styles.confChip, confColor(row.confidence, themeColors)]}>
@@ -473,7 +473,7 @@ export default function ExtractSubmittalsScreen() {
                 </View>
                 <TouchableOpacity onPress={() => dropRow(row.rowId)} style={styles.dropRow}>
                   <Trash2 size={12} color={themeColors.textMuted} strokeWidth={1.75} />
-                  <Text style={styles.dropText}>Remove from list</Text>
+                  <Text style={styles.dropText}>Remove from List</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -503,7 +503,7 @@ export default function ExtractSubmittalsScreen() {
 }
 
 const CONFIDENCE_LABEL: Record<'high' | 'medium' | 'low', string> = {
-  high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence',
+  high: 'High Confidence', medium: 'Medium Confidence', low: 'Low Confidence',
 };
 
 // `low` was the DARK theme's textSecondary (#9AA3AD) suffixed as a fill, so in

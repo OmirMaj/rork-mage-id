@@ -76,9 +76,9 @@ function gradeLabelColor(grade: SubGrade): string {
 /** Mirrors app/sub-scorecard.tsx's CONFIDENCE_LABEL so the two surfaces word
  *  the same number the same way. */
 const CONFIDENCE_LABEL: Record<'low' | 'medium' | 'high', string> = {
-  low: 'Low confidence',
-  medium: 'Medium confidence',
-  high: 'High confidence',
+  low: 'Low Confidence',
+  medium: 'Medium Confidence',
+  high: 'High Confidence',
 };
 
 function getStatusColor(status: ComplianceState): string {
@@ -119,9 +119,9 @@ function LicenseVerificationCard({
 }) {
   const vStyles = useThemedStyles(makeVStyles);
   const verifiedAge = (iso: string | undefined): { label: string; color: string } => {
-    if (!iso) return { label: 'Not verified', color: Colors.textMuted };
+    if (!iso) return { label: 'Not Verified', color: Colors.textMuted };
     const ms = Date.now() - new Date(iso).getTime();
-    if (!Number.isFinite(ms) || ms < 0) return { label: 'Not verified', color: Colors.textMuted };
+    if (!Number.isFinite(ms) || ms < 0) return { label: 'Not Verified', color: Colors.textMuted };
     const days = Math.floor(ms / (24 * 60 * 60 * 1000));
     if (days <= 90) return { label: `Verified ${days}d ago`, color: Colors.successLabel };
     if (days <= 180) return { label: `Verified ${days}d ago — stale`, color: Colors.warningLabel };
@@ -141,7 +141,7 @@ function LicenseVerificationCard({
   const openLookup = async () => {
     if (!target) {
       showAlert(
-        'Add the license number and state',
+        'Add the License Number and State',
         'Add the license number and the state it was issued in to verify against the official board.',
       );
       return;
@@ -151,7 +151,7 @@ function LicenseVerificationCard({
     try {
       await Linking.openURL(url);
     } catch {
-      showAlert('Couldn’t open the board', 'Copy the link and open it in your browser.');
+      showAlert('Couldn’t Open the Board', 'Copy the link and open it in your browser.');
     }
   };
 
@@ -171,11 +171,11 @@ function LicenseVerificationCard({
         <View style={vStyles.actionsRow}>
           <TouchableOpacity onPress={openLookup} activeOpacity={0.85} style={vStyles.actionBtn}>
             <ExternalLink size={12} color={Colors.primary} strokeWidth={1.75} />
-            <Text style={vStyles.actionBtnText}>{target?.directDeepLink ? 'Verify' : 'Open board'}</Text>
+            <Text style={vStyles.actionBtnText}>{target?.directDeepLink ? 'Verify' : 'Open Board'}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => onMarkVerified('license')} activeOpacity={0.85} style={vStyles.actionBtn}>
             <CheckCircle size={12} color={Colors.successLabel} strokeWidth={1.75} />
-            <Text style={[vStyles.actionBtnText, { color: Colors.successLabel }]}>Mark verified</Text>
+            <Text style={[vStyles.actionBtnText, { color: Colors.successLabel }]}>Mark Verified</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -191,7 +191,7 @@ function LicenseVerificationCard({
         </View>
         <TouchableOpacity onPress={() => onMarkVerified('coi')} activeOpacity={0.85} style={vStyles.actionBtn}>
           <CheckCircle size={12} color={Colors.successLabel} strokeWidth={1.75} />
-          <Text style={[vStyles.actionBtnText, { color: Colors.successLabel }]}>Mark verified</Text>
+          <Text style={[vStyles.actionBtnText, { color: Colors.successLabel }]}>Mark Verified</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -378,7 +378,7 @@ export default function SubsScreen() {
   const handleSave = useCallback(() => {
     const name = companyName.trim();
     if (!name) {
-      showAlert('Add a company name', 'Enter the company name.');
+      showAlert('Add a Company Name', 'Enter the company name.');
       return;
     }
     // Exactly four digits or nothing (audit #27). subcontractors.tax_id_last4
@@ -399,7 +399,7 @@ export default function SubsScreen() {
         legalName: legalName.trim() || undefined,
         ...(LANGUAGE_PICKER_ENABLED ? { preferredLanguage } : {}),
       });
-      showAlert('Sub updated', `${name} is saved.`);
+      showAlert('Sub Updated', `${name} is saved.`);
     } else {
       const sub: Subcontractor = {
         id: createId('sub'), companyName: name, contactName: contactName.trim(),
@@ -412,7 +412,7 @@ export default function SubsScreen() {
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       addSubcontractor(sub);
-      showAlert('Sub added', `${name} is on your subs list.`);
+      showAlert('Sub Added', `${name} is on your subs list.`);
     }
 
     setShowForm(false);
@@ -476,8 +476,8 @@ export default function SubsScreen() {
         `${sub.companyName} has payments on record`,
         `On record: ${parts.join('; ')}. They'll still appear on the 1099 export, but their TIN and address will be gone. Keep them unless you're sure.`,
         [
-          { text: 'Keep them', style: 'cancel' },
-          { text: 'Delete anyway', style: 'destructive', onPress: doDelete },
+          { text: 'Keep Them', style: 'cancel' },
+          { text: 'Delete Anyway', style: 'destructive', onPress: doDelete },
         ],
       );
       return;
@@ -608,7 +608,7 @@ export default function SubsScreen() {
 
         {sub.bidHistory.length > 0 && (
           <View style={styles.detailSection}>
-            <Text style={styles.detailSectionTitle}>Bid history</Text>
+            <Text style={styles.detailSectionTitle}>Bid History</Text>
             {sub.bidHistory.map(bid => (
               <View key={bid.id} style={styles.bidRow}>
                 <View style={{ flex: 1 }}>
@@ -811,11 +811,11 @@ export default function SubsScreen() {
             <View style={styles.headerRow}>
               <Text style={styles.largeTitle}>Subs</Text>
               <View style={styles.headerBtns}>
-                <TouchableOpacity style={styles.inviteBtn} onPress={handleInviteSubs} activeOpacity={0.8} testID="invite-subs" accessibilityRole="button" accessibilityLabel="Invite subs">
+                <TouchableOpacity style={styles.inviteBtn} onPress={handleInviteSubs} activeOpacity={0.8} testID="invite-subs" accessibilityRole="button" accessibilityLabel="Invite Subs">
                   <UserPlus size={15} color={Colors.primary} strokeWidth={1.75} />
                   <Text style={styles.inviteBtnText}>Invite</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub" accessibilityRole="button" accessibilityLabel="Add sub"><Plus size={20} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
+                <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub" accessibilityRole="button" accessibilityLabel="Add Sub"><Plus size={20} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
               </View>
             </View>
 
@@ -829,7 +829,7 @@ export default function SubsScreen() {
                 <ShieldCheck size={18} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.prequalTitle}>Prequal + COI tracking</Text>
+                <Text style={styles.prequalTitle}>Prequal + COI Tracking</Text>
                 <Text style={styles.prequalSub}>
                   {prequalSummary.total === 0
                     ? 'Send subs a prequalification link'
@@ -849,7 +849,7 @@ export default function SubsScreen() {
                 <HardHat size={18} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.prequalTitle}>Sub portals</Text>
+                <Text style={styles.prequalTitle}>Sub Portals</Text>
                 <Text style={styles.prequalSub}>
                   Self-serve link per sub — they review scope, submit invoices, see payment status
                 </Text>
@@ -873,7 +873,7 @@ export default function SubsScreen() {
                 <ShieldCheck size={18} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.prequalTitle}>COI vault</Text>
+                <Text style={styles.prequalTitle}>COI Vault</Text>
                 <Text style={styles.prequalSub}>
                   Upload certificates (photo or PDF) and record each policy's expiry — you're reminded before it lapses
                 </Text>
@@ -902,7 +902,7 @@ export default function SubsScreen() {
                 {stats.unknown > 0 && (
                   <View style={[styles.statCard, { borderLeftColor: Colors.textSecondary }]}>
                     <Text style={[styles.statNum, { color: Colors.textSecondary }]}>{stats.unknown}</Text>
-                    <Text style={styles.statLabel}>No docs</Text>
+                    <Text style={styles.statLabel}>No Docs</Text>
                   </View>
                 )}
               </View>
@@ -953,14 +953,14 @@ export default function SubsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Users size={48} color={Colors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>{searchQuery ? 'No subs match this search' : 'No subs yet'}</Text>
+            <Text style={styles.emptyTitle}>{searchQuery ? 'No Subs Match This Search' : 'No Subs Yet'}</Text>
             <Text style={styles.emptyDesc}>
               {searchQuery ? 'Try a different search.' : 'Add a sub to track their COI, license and W-9.'}
             </Text>
             {!searchQuery && (
               <TouchableOpacity style={styles.emptyBtn} onPress={openCreate} activeOpacity={0.7}>
                 <Plus size={16} color="#fff" strokeWidth={1.75} />
-                <Text style={styles.emptyBtnText}>Add sub</Text>
+                <Text style={styles.emptyBtnText}>Add Sub</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -974,16 +974,16 @@ export default function SubsScreen() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editingSub ? 'Edit sub' : 'Add sub'}</Text>
+                  <Text style={styles.formTitle}>{editingSub ? 'Edit Sub' : 'Add Sub'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.fieldLabel}>Company name *</Text>
+                <Text style={styles.fieldLabel}>Company Name *</Text>
                 <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" placeholderTextColor={Colors.textMuted} testID="sub-company-input" />
 
-                <Text style={styles.fieldLabel}>Contact name</Text>
+                <Text style={styles.fieldLabel}>Contact Name</Text>
                 <TextInput style={styles.input} value={contactName} onChangeText={setContactName} placeholder="Primary contact" placeholderTextColor={Colors.textMuted} />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1038,14 +1038,14 @@ export default function SubsScreen() {
                     <TextInput style={styles.input} value={licenseNumber} onChangeText={setLicenseNumber} placeholder="GC-12345" placeholderTextColor={Colors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>License expiry</Text>
+                    <Text style={styles.fieldLabel}>License Expiry</Text>
                     <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={licenseExpiry} onChangeText={setLicenseExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
                   </View>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>COI expiry</Text>
+                    <Text style={styles.fieldLabel}>COI Expiry</Text>
                     <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={coiExpiry} onChangeText={setCoiExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
                   </View>
                   <View style={{ flex: 1, justifyContent: 'flex-end' }}>
@@ -1094,7 +1094,7 @@ export default function SubsScreen() {
                 <TouchableOpacity
                   onPress={async () => {
                     if (!editingSub) {
-                      showAlert('Save the sub first', 'Save the sub before you upload their W-9, so the file attaches to their record.');
+                      showAlert('Save the Sub First', 'Save the sub before you upload their W-9, so the file attaches to their record.');
                       return;
                     }
                     setUploadingW9(true);
@@ -1167,7 +1167,7 @@ export default function SubsScreen() {
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.saveBtn, fForm.footerButton]} onPress={handleSave} activeOpacity={0.85} testID="save-sub">
-                    <Text style={styles.saveBtnText}>{editingSub ? 'Save sub' : 'Add sub'}</Text>
+                    <Text style={styles.saveBtnText}>{editingSub ? 'Save Sub' : 'Add Sub'}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

@@ -291,7 +291,7 @@ function SubPortalSetupScreenInner() {
       <View style={styles.loadingContainer} testID="sub-portal-links-loading">
         <Stack.Screen
           options={{
-            title: 'Sub portal',
+            title: 'Sub Portal',
             headerLeft: () => (
               <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
                 <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -533,16 +533,16 @@ function SubPortalSetupEditor() {
     if (!tokenPending) return false;
     if (tokenState === 'failed') {
       showAlert(
-        "Couldn't set up the secure link",
+        "Couldn't Set Up the Secure Link",
         "The link's security key hasn't come back from the server — you may be offline. The sub couldn't submit invoices from the link as it is.",
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Try again', onPress: () => setTokenAttempt(n => n + 1) },
+          { text: 'Try Again', onPress: () => setTokenAttempt(n => n + 1) },
         ],
       );
     } else {
       showAlert(
-        'Setting up the secure link',
+        'Setting Up the Secure Link',
         "The link's security key is on its way from the server. Try again in a few seconds.",
       );
     }
@@ -572,7 +572,7 @@ function SubPortalSetupEditor() {
     const ok = await copyToClipboard(portalUrl);
     if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      ok ? 'Copied' : 'Copy failed',
+      ok ? 'Copied' : 'Copy Failed',
       ok ? 'The sub portal link has been copied.' : 'Could not copy the link.',
     );
   }, [portalUrl, warnIfTokenPending]);
@@ -595,7 +595,7 @@ function SubPortalSetupEditor() {
     const recipientEmail = (sub.email ?? '').trim();
     if (!recipientEmail || !recipientEmail.includes('@')) {
       showAlert(
-        'No email on file',
+        'No Email on File',
         `${sub.companyName} doesn't have an email saved. Edit the sub from the Subs tab to add one, then try again.`,
       );
       return;
@@ -615,7 +615,7 @@ function SubPortalSetupEditor() {
 
       const html = wrapEmailHtml({
         preheader: `Your sub portal for ${project.name} is ready — review your scope and submit invoices.`,
-        eyebrow: 'Sub portal',
+        eyebrow: 'Sub Portal',
         title: `${project.name}`,
         subtitle: `Hi ${greeting}, ${companyName} just set up your portal.`,
         bodyHtml: [
@@ -631,7 +631,7 @@ function SubPortalSetupEditor() {
              ${sub.trade ? `<strong style="color:#0B0D10;">Trade:</strong> ${sub.trade}<br/>` : ''}
            </p>`,
         ].join(''),
-        cta: { label: 'Open your portal', href: portalUrl },
+        cta: { label: 'Open Your Portal', href: portalUrl },
         companyName,
         project: { name: project.name, location: project.location },
         sender: { name: senderName, email: senderEmail, phone: settings?.branding?.phone },
@@ -649,13 +649,13 @@ function SubPortalSetupEditor() {
       if (result.success) {
         persist({ lastSharedAt: new Date().toISOString() });
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert('Invite sent', `${sub.companyName} should see the email within a minute.`);
+        showAlert('Invite Sent', `${sub.companyName} should see the email within a minute.`);
       } else {
-        showAlert('Could not send', result.error || 'The email did not go out. Try again or use Send link to message it manually.');
+        showAlert('Could Not Send', result.error || 'The email did not go out. Try again or use Send link to message it manually.');
       }
     } catch (err) {
       console.error('[sub-portal-setup] email failed', err);
-      showAlert('Could not send', 'Unexpected error. Try again or use Send link.');
+      showAlert('Could Not Send', 'Unexpected error. Try again or use Send link.');
     } finally {
       setEmailing(false);
     }
@@ -691,7 +691,7 @@ function SubPortalSetupEditor() {
     };
     if (guard) {
       showAlert(
-        'Overpayment risk',
+        'Overpayment Risk',
         `Approving this would push ${guard.subName} over their commitment.\n\n` +
         `Commitment value: ${formatMoney(guard.commitmentTotal)}\n` +
         `Already approved: ${formatMoney(guard.alreadyApproved)}\n` +
@@ -700,7 +700,7 @@ function SubPortalSetupEditor() {
         `If a change order covers this, approve anyway and update the commitment. Otherwise reject and ask the sub to revise.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Approve anyway', style: 'destructive', onPress: doApprove },
+          { text: 'Approve Anyway', style: 'destructive', onPress: doApprove },
         ],
       );
       return;
@@ -721,11 +721,11 @@ function SubPortalSetupEditor() {
     const openSheet = () => setPayingId(id);
     if (guard) {
       showAlert(
-        'Overpayment risk',
+        'Overpayment Risk',
         `Paying this invoice would push ${guard.subName} ${formatMoney(guard.overage)} over their commitment of ${formatMoney(guard.commitmentTotal)}. Update the commitment with a change order first, or pay anyway.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Pay anyway', style: 'destructive', onPress: openSheet },
+          { text: 'Pay Anyway', style: 'destructive', onPress: openSheet },
         ],
       );
       return;
@@ -760,7 +760,7 @@ function SubPortalSetupEditor() {
       `${sub?.companyName ?? 'The sub'} is paid. A signed release tied to this payment is your proof of it when a supplier or his crew files a lien on the owner's property, and the one he is most likely to sign is the one asked for today. The waiver opens pre-filled from this invoice, ready to send him to sign.`,
       [
         { text: 'Later', style: 'cancel' },
-        { text: 'Collect release', style: 'default', onPress: () => openRelease(id, { paidOn: detail?.paidOn }) },
+        { text: 'Collect Release', style: 'default', onPress: () => openRelease(id, { paidOn: detail?.paidOn }) },
       ],
     );
   }, [payingId, submitted, releasesByInvoice, sub, openRelease]);
@@ -778,7 +778,7 @@ function SubPortalSetupEditor() {
     const jobSubs = subcontractors.filter(s => jobSubIds.has(s.id));
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: 'Sub portal' }} />
+        <Stack.Screen options={{ title: 'Sub Portal' }} />
         {!project ? (
           <Text style={styles.loadingText}>This project isn&apos;t on this device. It may have been deleted, or it hasn&apos;t loaded yet.</Text>
         ) : jobSubs.length === 0 ? (
@@ -811,7 +811,7 @@ function SubPortalSetupEditor() {
     <>
       <Stack.Screen
         options={{
-          title: 'Sub portal',
+          title: 'Sub Portal',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -829,18 +829,18 @@ function SubPortalSetupEditor() {
           <View style={styles.heroIconWrap}>
             <HardHat size={22} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.heroEyebrow}>Sub portal</Text>
+          <Text style={styles.heroEyebrow}>Sub Portal</Text>
           <Text style={styles.heroTitle}>{sub.companyName}</Text>
           <Text style={styles.heroMeta}>
             {sub.trade}{sub.contactName ? ` · ${sub.contactName}` : ''}
           </Text>
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>Commitment value</Text>
+              <Text style={styles.heroStatLabel}>Commitment Value</Text>
               <Text style={styles.heroStatValue}>{formatMoney(totalCommitment)}</Text>
             </View>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>Pending review</Text>
+              <Text style={styles.heroStatLabel}>Pending Review</Text>
               <Text style={[styles.heroStatValue, submitted.pending.length > 0 && { color: themeColors.accent }]}>
                 {submitted.pending.length} · {formatMoney(pendingTotal)}
               </Text>
@@ -875,7 +875,7 @@ function SubPortalSetupEditor() {
             >
               <Mail size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={[styles.shareBtnText, { color: '#FFF' }]}>
-                {emailing ? 'Sending…' : 'Email invite'}
+                {emailing ? 'Sending…' : 'Email Invite'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -894,7 +894,7 @@ function SubPortalSetupEditor() {
               <View style={styles.toggleLeft}>
                 <RefreshCw size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
-                  <Text style={styles.toggleLabel}>Portal enabled</Text>
+                  <Text style={styles.toggleLabel}>Portal Enabled</Text>
                   <Text style={styles.toggleDesc}>Disable to revoke the link</Text>
                 </View>
               </View>
@@ -909,7 +909,7 @@ function SubPortalSetupEditor() {
               <View style={styles.toggleLeft}>
                 <Lock size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
-                  <Text style={styles.toggleLabel}>Require passcode</Text>
+                  <Text style={styles.toggleLabel}>Require Passcode</Text>
                   <Text style={styles.toggleDesc}>4-digit code shared separately</Text>
                 </View>
               </View>
@@ -937,7 +937,7 @@ function SubPortalSetupEditor() {
 
         {/* Commitments */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Scope shared on portal</Text>
+          <Text style={styles.sectionTitle}>Scope Shared on Portal</Text>
           {commitments.length === 0 ? (
             <View style={styles.emptyCard}>
               <Building2 size={28} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1055,7 +1055,7 @@ function SubPortalSetupEditor() {
                           disabled={submitted.isResponding}
                         >
                           <Check size={14} color="#FFF" strokeWidth={1.75} />
-                          <Text style={[styles.invCtaText, { color: '#FFF' }]}>Mark paid</Text>
+                          <Text style={[styles.invCtaText, { color: '#FFF' }]}>Mark Paid</Text>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -1081,10 +1081,10 @@ function SubPortalSetupEditor() {
                               style={styles.reconBtn}
                               disabled={submitted.isResponding}
                               accessibilityRole="button"
-                              accessibilityLabel="Add payment detail"
+                              accessibilityLabel="Add Payment Detail"
                               testID={`recon-add-${inv.id}`}
                             >
-                              <Text style={styles.reconBtnText}>Add detail</Text>
+                              <Text style={styles.reconBtnText}>Add Detail</Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -1117,7 +1117,7 @@ function SubPortalSetupEditor() {
                             {shown
                               ? `${WAIVER_LABELS[shown.waiverType].short} release ${shown.status === 'requested' ? (shown.signRequestedAt ? 'sent, not signed' : 'drafted, not sent') : shown.status}`
                               : releasesReadFailed ? 'Couldn\u2019t check lien releases \u2014 check your signal'
-                              : inv.status === 'paid' ? 'Paid · no lien release collected' : 'No lien release yet'}
+                              : inv.status === 'paid' ? 'Paid · No Lien Release Collected' : 'No Lien Release Yet'}
                             {shown && needsUnconditional ? ' · unconditional still needed' : ''}
                           </Text>
                           {(!shown || needsUnconditional) && !releasesReadFailed ? (
@@ -1128,14 +1128,14 @@ function SubPortalSetupEditor() {
                               accessibilityLabel={`Collect lien release for invoice ${inv.invoiceNumber}`}
                               testID={`release-collect-${inv.id}`}
                             >
-                              <Text style={styles.reconBtnText}>Collect release</Text>
+                              <Text style={styles.reconBtnText}>Collect Release</Text>
                             </TouchableOpacity>
                           ) : (
                             <TouchableOpacity
                               onPress={() => router.push({ pathname: '/lien-waivers', params: { projectId: projectId ?? '' } } as never)}
                               style={styles.reconBtn}
                               accessibilityRole="button"
-                              accessibilityLabel="Open lien waivers"
+                              accessibilityLabel="Open Lien Waivers"
                               testID={`release-open-${inv.id}`}
                             >
                               <Text style={styles.reconBtnText}>View</Text>

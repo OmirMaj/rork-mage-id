@@ -302,13 +302,13 @@ export function vaultCoiStatus(e: VaultCoiExpiry, now: Date = new Date()): Vault
   if (!e.day) {
     return {
       key: 'unknown',
-      label: e.recordUnreadable ? 'COI expiry not a date · no reminders' : 'No expiry on file',
+      label: e.recordUnreadable ? 'COI Expiry Not a Date · No Reminders' : 'No Expiry on File',
       tone: 'neutral',
     };
   }
   const days = daysUntilCalendarDay(e.day, now);
   const suffix = e.source === 'record' ? ' (typed on the sub’s record)' : '';
-  if (days === null) return { key: 'unknown', label: 'No expiry on file', tone: 'neutral' };
+  if (days === null) return { key: 'unknown', label: 'No Expiry on File', tone: 'neutral' };
   if (days < 0) return { key: 'expired', label: `Expired${suffix}`, tone: 'bad' };
   if (days <= COMPLIANCE_WARN_DAYS) {
     return { key: 'expiring', label: `${days === 0 ? 'Expires today' : `Expires in ${days}d`}${suffix}`, tone: 'warn' };

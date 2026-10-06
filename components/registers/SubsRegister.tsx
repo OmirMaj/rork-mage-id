@@ -106,7 +106,7 @@ export function SubsRegister({
       render: (r) => <StatusPill label={r.complianceLabel} tone={complianceTone(r.compliance)} size="compact" />,
     },
     {
-      key: 'coi', label: 'COI expiry', width: 110, hideBelow: 700, sortValue: (r) => r.coiDay,
+      key: 'coi', label: 'COI Expiry', width: 110, hideBelow: 700, sortValue: (r) => r.coiDay,
       render: (r) => {
         const label = logDayLabel(r.coiDay, now);
         const d = r.coiDaysLeft;
@@ -119,7 +119,7 @@ export function SubsRegister({
       render: (r) => <Text style={[styles.num, styles.right]}>{r.grade !== null && r.score !== null ? `${r.grade} · ${r.score}` : '—'}</Text>,
     },
     {
-      key: 'open', label: 'Open commitments', width: 130, numeric: true, hideBelow: 900, sortValue: (r) => r.openCommitments,
+      key: 'open', label: 'Open Commitments', width: 130, numeric: true, hideBelow: 900, sortValue: (r) => r.openCommitments,
       render: (r) => <Text style={[styles.num, styles.right]}>{String(r.openCommitments)}</Text>,
     },
     { key: 'contact', label: 'Contact', flex: 1, hideBelow: 1000, sortValue: (r) => r.contact || null, value: (r) => r.contact || null },
@@ -139,7 +139,7 @@ export function SubsRegister({
       { value: 'expiring', label: 'Expiring', count: counts.expiring },
       { value: 'expired', label: 'Expired', count: counts.expired },
     ];
-    if (counts.unknown > 0) out.push({ value: 'unknown', label: 'No docs', count: counts.unknown });
+    if (counts.unknown > 0) out.push({ value: 'unknown', label: 'No Docs', count: counts.unknown });
     for (const tr of trades) out.push({ value: `trade:${tr.trade}`, label: tr.trade, count: tr.count });
     return out;
   }, [counts, trades]);
@@ -156,14 +156,14 @@ export function SubsRegister({
       onNew={onNew}
       restoreHeaderOnExit={false}
       actions={[
-        { key: 'new', label: 'Add sub', primary: true, icon: Plus, onPress: onNew, testID: 'subs-register-new' },
-        { key: 'invite', label: 'Invite subs', icon: UserPlus, onPress: onInvite, testID: 'subs-register-invite' },
+        { key: 'new', label: 'Add Sub', primary: true, icon: Plus, onPress: onNew, testID: 'subs-register-new' },
+        { key: 'invite', label: 'Invite Subs', icon: UserPlus, onPress: onInvite, testID: 'subs-register-invite' },
         {
           key: 'prequal', label: `Prequal (${prequal.approved} approved · ${prequal.pending} pending)`, icon: ShieldCheck,
           onPress: () => router.push('/prequal-manager'), testID: 'subs-register-prequal',
         },
-        { key: 'portals', label: 'Sub portals', icon: HardHat, onPress: () => router.push('/sub-portals'), testID: 'subs-register-portals' },
-        { key: 'coi', label: 'COI vault', icon: ShieldCheck, onPress: () => router.push('/coi-vault'), testID: 'subs-register-coi' },
+        { key: 'portals', label: 'Sub Portals', icon: HardHat, onPress: () => router.push('/sub-portals'), testID: 'subs-register-portals' },
+        { key: 'coi', label: 'COI Vault', icon: ShieldCheck, onPress: () => router.push('/coi-vault'), testID: 'subs-register-coi' },
       ]}
       record={{ split, param: 'subId', pathname: '/(tabs)/subs', detail, noun: 'subcontractor' }}
       renderTable={({ activeKey, onRowOpen, getRowHref }) => (
@@ -197,9 +197,9 @@ export function SubsRegister({
           emptyState={(
             <EmptyState
               icon={<Users size={28} color={t.accent} strokeWidth={1.75} />}
-              title={filtered ? 'No results' : 'No subs yet'}
+              title={filtered ? 'No Results' : 'No Subs Yet'}
               message={filtered ? 'Pick another chip, or All.' : 'Add your first sub to start tracking compliance.'}
-              actionLabel={filtered ? undefined : 'Add sub'}
+              actionLabel={filtered ? undefined : 'Add Sub'}
               onAction={filtered ? undefined : onNew}
             />
           )}

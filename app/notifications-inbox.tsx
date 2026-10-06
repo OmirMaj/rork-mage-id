@@ -37,44 +37,44 @@ import { notificationRoute, routeHref } from '@/supabase/functions/notify/routes
 // not a button.
 const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: string }> = {
   // Client → GC
-  portal_message:        { icon: <MessageSquare size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Client message' },
-  budget_proposal:       { icon: <HandCoins   size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Budget proposal' },
-  co_approval:           { icon: <CheckCircle2 size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Change order' },
-  contract_signed:       { icon: <PenTool     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Contract signed' },
-  selection_chosen:      { icon: <ShoppingCart size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Selection picked' },
-  closeout_binder_sent:  { icon: <Package     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Closeout delivered' },
+  portal_message:        { icon: <MessageSquare size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Client Message' },
+  budget_proposal:       { icon: <HandCoins   size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Budget Proposal' },
+  co_approval:           { icon: <CheckCircle2 size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Change Order' },
+  contract_signed:       { icon: <PenTool     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Contract Signed' },
+  selection_chosen:      { icon: <ShoppingCart size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Selection Picked' },
+  closeout_binder_sent:  { icon: <Package     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Closeout Delivered' },
 
   // Sub → GC
-  sub_invoice_submitted: { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Sub invoice' },
-  sub_invoice_reviewed:  { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Invoice update' },
+  sub_invoice_submitted: { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Sub Invoice' },
+  sub_invoice_reviewed:  { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Invoice Update' },
   // Wave 5 (CONTRACT 8): sub-side trigger events — a bid through an invite
   // link, a signed lien waiver, a submitted prequalification packet.
-  bid_invite_received:   { icon: <Gavel       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Bid received' },
-  lien_waiver_signed:    { icon: <PenTool     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Waiver signed' },
-  prequal_submitted:     { icon: <ClipboardCheck size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Prequal packet' },
+  bid_invite_received:   { icon: <Gavel       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Bid Received' },
+  lien_waiver_signed:    { icon: <PenTool     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Waiver Signed' },
+  prequal_submitted:     { icon: <ClipboardCheck size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Prequal Packet' },
 
   // Money in (#48) — a client paying through Stripe, or a bank payment bouncing.
-  client_invoice_paid:   { icon: <Banknote    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Client paid' },
-  client_payment_failed: { icon: <AlertTriangle size={16} color="#B84A00" strokeWidth={1.75} />, tint: Colors.warningLight, label: 'Payment failed' },
+  client_invoice_paid:   { icon: <Banknote    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Client Paid' },
+  client_payment_failed: { icon: <AlertTriangle size={16} color="#B84A00" strokeWidth={1.75} />, tint: Colors.warningLight, label: 'Payment Failed' },
 
   // Field / design team → GC
-  field_report_filed:    { icon: <FileText    size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Daily report' },
-  pro_response_received: { icon: <HelpCircle  size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Design response' },
-  punch_marked_ready:    { icon: <ListChecks  size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Punch ready' },
-  safety_incident_filed: { icon: <ShieldAlert size={16} color="#B84A00" strokeWidth={1.75} />, tint: Colors.warningLight, label: 'Incident report' },
+  field_report_filed:    { icon: <FileText    size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Daily Report' },
+  pro_response_received: { icon: <HelpCircle  size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Design Response' },
+  punch_marked_ready:    { icon: <ListChecks  size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Punch Ready' },
+  safety_incident_filed: { icon: <ShieldAlert size={16} color="#B84A00" strokeWidth={1.75} />, tint: Colors.warningLight, label: 'Incident Report' },
 
   // Website → GC
-  lead_received:         { icon: <UserPlus    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Website lead' },
+  lead_received:         { icon: <UserPlus    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Website Lead' },
 
   // Marketplace
-  nearby_rfp_posted:     { icon: <Hammer      size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'New project nearby' },
+  nearby_rfp_posted:     { icon: <Hammer      size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'New Project Nearby' },
   rfp_awarded:           { icon: <Trophy      size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'You won the bid' },
-  bid_question_asked:    { icon: <HelpCircle  size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'Pre-bid question' },
+  bid_question_asked:    { icon: <HelpCircle  size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'Pre-Bid Question' },
   bid_question_answered: { icon: <HelpCircle  size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'Bid Q&A' },
 
   // Brain
-  morning_brief:         { icon: <Sunrise       size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Morning brief' },
-  week_close:            { icon: <CalendarCheck size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Friday close' },
+  morning_brief:         { icon: <Sunrise       size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Morning Brief' },
+  week_close:            { icon: <CalendarCheck size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Friday Close' },
 };
 
 function fmtAgo(iso: string): string {
@@ -180,7 +180,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
     case 'closeout_binder_sent': {
       const homeowner = (p.homeowner_name as string) || 'your client';
       return {
-        title: `Closeout binder delivered`,
+        title: `Closeout Binder Delivered`,
         body: `${homeowner === 'there' ? 'The client' : homeowner} now has the full closeout for ${projectName}.`,
       };
     }
@@ -347,7 +347,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       // otherwise a plain title. Never the raw or machine-humanized
       // event_type ("selection_chosen" / "Selection chosen").
       return {
-        title: EVENT_META[item.eventType]?.label ?? 'New notification',
+        title: EVENT_META[item.eventType]?.label ?? 'New Notification',
         body: '',
       };
   }
@@ -426,7 +426,7 @@ export default function NotificationsInboxScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear all',
+          text: 'Clear All',
           style: 'destructive',
           onPress: () => {
             feed.items.forEach(i => feed.dismiss(i.id));
@@ -452,7 +452,7 @@ export default function NotificationsInboxScreen() {
         {feed.items.length > 0 && (
           <TouchableOpacity style={styles.headerAction} onPress={feed.markAllRead}>
             <CheckCheck size={16} color={themeColors.text} strokeWidth={1.75} />
-            <Text style={styles.headerActionText}>Mark all read</Text>
+            <Text style={styles.headerActionText}>Mark All Read</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -496,7 +496,7 @@ export default function NotificationsInboxScreen() {
                 style={styles.emptyAction}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: rechecking, busy: rechecking }}
-                accessibilityLabel={rechecking ? 'Checking' : 'Check again'}
+                accessibilityLabel={rechecking ? 'Checking' : 'Check Again'}
                 testID="notifications-recheck"
               >
                 <Text style={styles.emptyActionText}>
@@ -510,7 +510,7 @@ export default function NotificationsInboxScreen() {
           feed.items.length > 0 ? (
             <TouchableOpacity style={styles.clearAll} onPress={handleClearAll}>
               <Trash2 size={14} color={"#C84038"} strokeWidth={1.75} />
-              <Text style={styles.clearAllText}>Clear all</Text>
+              <Text style={styles.clearAllText}>Clear All</Text>
             </TouchableOpacity>
           ) : null
         }

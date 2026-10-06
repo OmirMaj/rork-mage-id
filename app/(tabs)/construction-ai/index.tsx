@@ -380,7 +380,7 @@ async function bumpRoadmapTodayUsage(userId: string | null | undefined): Promise
 // ── Plan Review constants / helpers (mirrors roadmap + code-check) ───────
 const SEVERITY_COLORS: Record<CodeFinding['severity'], string> = { high: '#FF3B30', med: '#FF9500', low: Colors.success };
 const SEVERITY_LABEL: Record<CodeFinding['severity'], string> = { high: 'High', med: 'Medium', low: 'Low' };
-const CONFIDENCE_LABEL: Record<CodeFinding['confidence'], string> = { high: 'High confidence', med: 'Medium confidence', low: 'Low confidence' };
+const CONFIDENCE_LABEL: Record<CodeFinding['confidence'], string> = { high: 'High Confidence', med: 'Medium Confidence', low: 'Low Confidence' };
 const FINDING_STATUS_LABEL: Record<CodeFinding['status'], string> = { open: 'Open', resolved: 'Resolved', dismissed: 'Dismissed' };
 const SEVERITY_ORDER: CodeFinding['severity'][] = ['high', 'med', 'low'];
 const CODE_CATEGORIES: CodeFinding['category'][] = ['egress', 'stairs', 'width', 'height', 'fire', 'ada', 'guards', 'other'];
@@ -537,7 +537,7 @@ export default function ConstructionAITab() {
             testID="construction-ai-upgrade"
           >
             <MageAIMark size={18} color="#FFF" />
-            <Text style={styles.lockedCtaText}>See plans</Text>
+            <Text style={styles.lockedCtaText}>See Plans</Text>
           </TouchableOpacity>
         </View>
         <Paywall
@@ -577,7 +577,7 @@ function ConstructionAIScreenInner() {
   const tutorialOn = !!entryProjectId && tutorialSandboxId === entryProjectId;
   const tutorialBlockedAlert = useCallback(() => {
     showAlert(
-      t('common.tutorial.caiModeBlockedTitle', 'Not on the sample'),
+      t('common.tutorial.caiModeBlockedTitle', 'Not on the Sample'),
       t('common.tutorial.sampleQuestionBlocked', 'On the sample, use the sample question. Your own questions run on a real job.'),
     );
   }, []);
@@ -728,13 +728,13 @@ function ConstructionAIScreenInner() {
         res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
       } else {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { showAlert('Camera access needed', 'Allow camera access in Settings to check a photo.'); return; }
+        if (!perm.granted) { showAlert('Camera Access Needed', 'Allow camera access in Settings to check a photo.'); return; }
         res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
       }
       if (res.canceled || !res.assets[0]?.uri) return;
       setPhotoLookUri(res.assets[0].uri);
     } catch (e) {
-      showAlert('Couldn\u2019t open the camera', 'Try again.');
+      showAlert('Couldn\u2019t Open the Camera', 'Try again.');
     }
   }, [codeCheckProject, tutorialLock, tutorialBlockedAlert]);
   // The building record for the LINKED job — NYC DOB or Baltimore City /
@@ -1066,7 +1066,7 @@ function ConstructionAIScreenInner() {
       patch = confirmZoning(roadmapProject, district.trim());
     } catch (err) {
       showAlert(
-        'That is not a zoning district',
+        'That Is Not a Zoning District',
         err instanceof Error ? err.message : 'Enter the district the municipality assigned this parcel.',
       );
       return;
@@ -1294,7 +1294,7 @@ function ConstructionAIScreenInner() {
     const sheetLabel = planSheet.sheetNumber ? `${planSheet.sheetNumber} ${planSheet.name}` : planSheet.name;
     const msg = architectMessageFor(planCards, { jobLabel: planProject.name, sheetLabel, info: planCardInfo });
     void Linking.openURL(mailtoUrlFor('', msg.subject, msg.body)).catch(() =>
-      showAlert('No mail app', 'Copy the findings into your email instead.'));
+      showAlert('No Mail App', 'Copy the findings into your email instead.'));
   }, [planProject, planSheet, planCards, planCardInfo]);
   const planMonthlyCap = useMemo(() => FEATURE_LIMITS.ai_plan_review_monthly[tier], [tier]);
 
@@ -1356,7 +1356,7 @@ function ConstructionAIScreenInner() {
       console.warn('[construction-ai] plan review failed:', e);
       const own = ownSentence(e);
       const copy = describeError(e, { action: 'run the plan review' });
-      showAlert(own ? "Couldn't run the plan review" : copy.title, own ?? copy.body);
+      showAlert(own ? "Couldn't Run the Plan Review" : copy.title, own ?? copy.body);
     } finally {
       setPlanLoading(false);
     }
@@ -1400,7 +1400,7 @@ function ConstructionAIScreenInner() {
     });
     setRoadmapLoading(false);
     if (!res.ok) {
-      showAlert('Roadmap failed', res.error);
+      showAlert('Roadmap Failed', res.error);
       return;
     }
     // On regen: carry over status by title
@@ -1461,9 +1461,9 @@ function ConstructionAIScreenInner() {
     const summary = roadmapBuilding.summary;
     if (summary.kind === 'attention') {
       showAlert(
-        'Before you add this permit',
+        'Before You Add This Permit',
         `${summary.headline}\n\n${summary.lines.slice(0, 3).join('\n')}\n\n${roadmapBuilding.attentionNote}`,
-        [{ text: 'Cancel', style: 'cancel' }, { text: 'Add anyway', onPress: () => addRoadmapPermit(p) }],
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Add Anyway', onPress: () => addRoadmapPermit(p) }],
       );
       return;
     }
@@ -1544,7 +1544,7 @@ ${SPECIFICS_RULE}`;
         console.warn('[construction-ai] code check failed:', res.error);
         const own = ownSentence(res.error ?? null);
         const copy = describeError(res.error ?? null, { action: 'run the code check' });
-        showAlert(own ? "Couldn't run the code check" : copy.title, own ?? copy.body);
+        showAlert(own ? "Couldn't Run the Code Check" : copy.title, own ?? copy.body);
         return;
       }
       // THE WITHHOLD RULE, AT THE DOOR: every row's requirement line goes
@@ -1644,7 +1644,7 @@ ${SPECIFICS_RULE}`;
       console.warn('[construction-ai] code check failed:', err);
       const own = ownSentence(err);
       const copy = describeError(err, { action: 'run the code check' });
-      showAlert(own ? "Couldn't run the code check" : copy.title, own ?? copy.body);
+      showAlert(own ? "Couldn't Run the Code Check" : copy.title, own ?? copy.body);
     }
   }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, inspectionGrounding, jurisdiction, codeCheckProject, codeCheckProjectId, scenario, user?.id, answers, codeBuilding.phase, codeBuilding.supported, codeBuilding.summary, codeBuilding.notCheckedHeadline, codeCheckAuthority, threadId, savedRecord, threadSource, tutorialLock, tutorialBlockedAlert]);
 
@@ -1695,7 +1695,7 @@ ${SPECIFICS_RULE}`;
       />
     ) : (
       <LimitReachedView
-        title="Daily code check limit reached"
+        title="Daily Code Check Limit Reached"
         // ai_usage_daily_* keys on the server's CURRENT_DATE (UTC), so the
         // checks come back at 00:00 UTC — 8 PM in New York — not local midnight.
         message={`You've used today's ${dailyCap} code checks. ${nextAiResetLabel().daily}.`}
@@ -1714,7 +1714,7 @@ ${SPECIFICS_RULE}`;
       />
     ) : (
       <LimitReachedView
-        title="Daily roadmap limit reached"
+        title="Daily Roadmap Limit Reached"
         // Same UTC-dated counter as code checks (ai_usage_daily_*).
         message={`You've used today's ${roadmapDailyCap} roadmap generations. ${nextAiResetLabel().daily}.`}
         onClose={() => setRoadmapOverLimit(false)}
@@ -1732,7 +1732,7 @@ ${SPECIFICS_RULE}`;
       />
     ) : (
       <LimitReachedView
-        title="Monthly plan review limit reached"
+        title="Monthly Plan Review Limit Reached"
         // ai_usage_get buckets on date_trunc('month', now()) in UTC, so the
         // month rolls the evening before the 1st for anyone in the Americas.
         message={`You've used this month's ${planMonthlyCap} plan reviews. ${nextAiResetLabel().monthly}.`}
@@ -1793,7 +1793,7 @@ ${SPECIFICS_RULE}`;
           ) : null}
           {resultPermit ? (
             <>
-              <Text style={styles.label}>{"Inspector's notes (optional)"}</Text>
+              <Text style={styles.label}>{"Inspector's Notes (Optional)"}</Text>
               <TextInput
                 style={[styles.textArea, styles.resultNotesInput]}
                 value={resultNotes}
@@ -1835,7 +1835,7 @@ ${SPECIFICS_RULE}`;
         testID="mode-toggle-code"
       >
         <Gavel size={14} color={mode === 'code' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-        <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Code check</Text>
+        <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Code Check</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'roadmap' && styles.modeToggleBtnActive]}
@@ -1853,7 +1853,7 @@ ${SPECIFICS_RULE}`;
         testID="mode-toggle-plan"
       >
         <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-        <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Plan review</Text>
+        <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Plan Review</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'ask' && styles.modeToggleBtnActive]}
@@ -1928,7 +1928,7 @@ ${SPECIFICS_RULE}`;
               </View>
               <View style={styles.bidAdvisorBody}>
                 <View style={styles.bidAdvisorTitleRow}>
-                  <Text style={styles.bidAdvisorTitle}>Bid advisor</Text>
+                  <Text style={styles.bidAdvisorTitle}>Bid Advisor</Text>
                   <View style={styles.bidAdvisorTierChip}>
                     <Text style={styles.bidAdvisorTierText}>Business</Text>
                   </View>
@@ -1942,7 +1942,7 @@ ${SPECIFICS_RULE}`;
             {/* Optional project link — auto-fills location + scope */}
             {projects.length > 0 && (
               <>
-                <Text style={styles.label}>Link a project (optional)</Text>
+                <Text style={styles.label}>Link a Project (Optional)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
                   <View style={{ flexDirection: 'row' as const, gap: 8 }}>
                     <TouchableOpacity
@@ -1951,7 +1951,7 @@ ${SPECIFICS_RULE}`;
                       activeOpacity={0.8}
                       testID="code-check-project-none"
                     >
-                      <Text style={[styles.chipText, codeCheckProjectId === null && styles.chipTextActive]}>No project</Text>
+                      <Text style={[styles.chipText, codeCheckProjectId === null && styles.chipTextActive]}>No Project</Text>
                     </TouchableOpacity>
                     {projects.map((p) => {
                       const active = p.id === codeCheckProjectId;
@@ -1979,7 +1979,7 @@ ${SPECIFICS_RULE}`;
               </>
             )}
 
-            <Text style={styles.label}>Jobsite address</Text>
+            <Text style={styles.label}>Jobsite Address</Text>
             <View style={styles.inputRow}>
               <MapPin size={16} color={Colors.textMuted} strokeWidth={1.75} />
               <TextInput
@@ -2087,7 +2087,7 @@ ${SPECIFICS_RULE}`;
 
             <View style={styles.presetHeader}>
               <MageAIMark size={14} color={Colors.primary} />
-              <Text style={styles.presetHeaderText}>Popular questions</Text>
+              <Text style={styles.presetHeaderText}>Popular Questions</Text>
             </View>
             <View style={styles.presetList}>
               {presets.map((q) => (
@@ -2114,7 +2114,7 @@ ${SPECIFICS_RULE}`;
               ))}
             </View>
 
-            <Text style={styles.label}>Describe the work</Text>
+            <Text style={styles.label}>Describe the Work</Text>
             <TextInput
               value={scenario}
               onChangeText={onChangeScenario}
@@ -2150,7 +2150,7 @@ ${SPECIFICS_RULE}`;
               testID="code-check-photo"
             >
               <Camera size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
-              <Text style={styles.photoCheckText}>{codeCheckProject ? 'Check a photo' : 'Check a photo · Link a project above first'}</Text>
+              <Text style={styles.photoCheckText}>{codeCheckProject ? 'Check a Photo' : 'Check a photo · Link a project above first'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -2161,7 +2161,7 @@ ${SPECIFICS_RULE}`;
               testID="code-check-run"
             >
               <MageAIMark size={18} color="#FFF" />
-              <Text style={styles.runBtnText}>Run code check</Text>
+              <Text style={styles.runBtnText}>Run Code Check</Text>
             </TouchableOpacity>
 
             <Text style={styles.quotaText}>
@@ -2176,7 +2176,7 @@ ${SPECIFICS_RULE}`;
                 testID="code-check-reopen"
               >
                 <BookOpen size={16} color={Colors.primary} strokeWidth={1.75} />
-                <Text style={styles.reopenText}>View last result</Text>
+                <Text style={styles.reopenText}>View Last Result</Text>
               </TouchableOpacity>
             ) : null}
           </ScrollView>
@@ -2193,7 +2193,7 @@ ${SPECIFICS_RULE}`;
               <View style={styles.heroIconWrap}>
                 <FileText size={28} color={Colors.primary} strokeWidth={1.75} />
               </View>
-              <Text style={styles.heroTitle}>AI draft list</Text>
+              <Text style={styles.heroTitle}>AI Draft List</Text>
               <Text style={styles.heroSubtitle}>
                 Suggested permits and inspections from your scope and schedule. Check each one.
               </Text>
@@ -2259,7 +2259,7 @@ ${SPECIFICS_RULE}`;
                   testID="roadmap-generate"
                 >
                   <MageAIMark size={18} color="#FFF" />
-                  <Text style={styles.runBtnText}>Build roadmap</Text>
+                  <Text style={styles.runBtnText}>Build Roadmap</Text>
                 </TouchableOpacity>
                 <Text style={styles.quotaText}>
                   {roadmapDailyCap === Infinity ? 'No daily cap on roadmaps · each run counts toward your AI requests' : `Daily limit: ${roadmapDailyCap} generations`}
@@ -2304,14 +2304,14 @@ ${SPECIFICS_RULE}`;
                 >
                   <RefreshCw size={16} color={scopeStale ? '#FFF' : Colors.primary} strokeWidth={1.75} />
                   <Text style={[styles.regenBtnText, scopeStale && styles.regenBtnTextHighlighted]}>
-                    {scopeStale ? 'Regenerate (scope changed)' : 'Regenerate'}
+                    {scopeStale ? 'Regenerate (Scope Changed)' : 'Regenerate'}
                   </Text>
                 </TouchableOpacity>
 
                 {roadmapEmpty ? (
                   /* AI returned nothing — tell the GC what's missing */
                   <View style={styles.missingCard}>
-                    <Text style={styles.missingTitle}>No permits or inspections generated</Text>
+                    <Text style={styles.missingTitle}>No Permits or Inspections Generated</Text>
                     {roadmapMissing.length > 0 ? (
                       <>
                         <Text style={styles.missingSubtitle}>Add the following, then tap Regenerate:</Text>
@@ -2384,7 +2384,7 @@ ${SPECIFICS_RULE}`;
                           activeOpacity={0.85}
                           testID="inspection-view-schedule"
                           accessibilityRole="button"
-                          accessibilityLabel="Scheduled — view in Schedule"
+                          accessibilityLabel="Scheduled — View in Schedule"
                         >
                           <Check size={16} color={styles.inspectionScheduledText.color} strokeWidth={2} />
                           <Text style={styles.inspectionScheduledText}>Scheduled · View in Schedule</Text>
@@ -2396,10 +2396,10 @@ ${SPECIFICS_RULE}`;
                           activeOpacity={0.85}
                           testID="inspection-generate-schedule"
                           accessibilityRole="button"
-                          accessibilityLabel="Generate inspection schedule"
+                          accessibilityLabel="Generate Inspection Schedule"
                         >
                           <CalendarClock size={16} color={Colors.primary} strokeWidth={1.75} />
-                          <Text style={styles.inspectionGenerateText}>Generate inspection schedule</Text>
+                          <Text style={styles.inspectionGenerateText}>Generate Inspection Schedule</Text>
                         </TouchableOpacity>
                       )
                     ) : null}
@@ -2488,7 +2488,7 @@ ${SPECIFICS_RULE}`;
               <View style={styles.heroIconWrap}>
                 <ShieldCheck size={28} color={Colors.primary} strokeWidth={1.75} />
               </View>
-              <Text style={styles.heroTitle}>Plan review</Text>
+              <Text style={styles.heroTitle}>Plan Review</Text>
               <Text style={styles.heroSubtitle}>
                 AI scans a floor plan or drawing for likely building-code issues — egress, stairs, clearances, fire and ADA.
               </Text>
@@ -2559,7 +2559,7 @@ ${SPECIFICS_RULE}`;
               ) : (
                 <>
                   {/* Plan-sheet picker */}
-                  <Text style={styles.label}>Plan sheet</Text>
+                  <Text style={styles.label}>Plan Sheet</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                     <View style={{ flexDirection: 'row' as const, gap: 8 }}>
                       {planSheets.map((s) => {
@@ -2591,7 +2591,7 @@ ${SPECIFICS_RULE}`;
                   >
                     <MageAIMark size={18} color="#FFF" />
                     <Text style={styles.runBtnText}>
-                      {planLoading ? 'Reviewing…' : existingReview ? 'Re-review for code' : 'Review for code'}
+                      {planLoading ? 'Reviewing…' : existingReview ? 'Re-Review for Code' : 'Review for Code'}
                     </Text>
                   </TouchableOpacity>
                   <Text style={styles.quotaText}>
@@ -2634,7 +2634,7 @@ ${SPECIFICS_RULE}`;
                             askTownFor={planWiring.askTownFor}
                             primary={{
                               key: 'architect',
-                              label: architectButtonLabel(planCards) ?? 'Send to architect',
+                              label: architectButtonLabel(planCards) ?? 'Send to Architect',
                               icon: 'send',
                               action: architectButtonLabel(planCards) ? readyAction(sendToArchitect) : blockedAction(ARCHITECT_BLOCKED),
                             }}
@@ -2818,11 +2818,11 @@ function ViewerLinks({ links, testID }: { links: { label: string; url: string }[
             // URL opens nothing rather than opening the wrong thing.
             const href = viewerUrlToOpen(l.url);
             if (!href) {
-              showAlert('Cannot open', 'This code link could not be opened.');
+              showAlert('Cannot Open', 'This code link could not be opened.');
               return;
             }
             void Linking.openURL(href).catch(() =>
-              showAlert('Cannot open', 'This code link could not be opened.'),
+              showAlert('Cannot Open', 'This code link could not be opened.'),
             );
           }}
         >
@@ -2896,7 +2896,7 @@ function RungBadge({ ev, testID }: { ev: CitationEvidence; testID: string }) {
           accessibilityLabel={`Open ${ev.sourceLabel} on the authority's own site`}
           onPress={() => {
             void Linking.openURL(ev.sourceUrl as string).catch(() =>
-              showAlert('Cannot open', 'This citation link could not be opened.'),
+              showAlert('Cannot Open', 'This citation link could not be opened.'),
             );
           }}
         >
@@ -3044,7 +3044,7 @@ function RoadmapPermitRow({
           testID={`add-to-permits-${permit.id}`}
         >
           <PlusCircle size={13} color={Colors.primary} strokeWidth={1.75} />
-          <Text style={styles.addToPermitsBtnText}>Add to permits</Text>
+          <Text style={styles.addToPermitsBtnText}>Add to Permits</Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
@@ -3054,7 +3054,7 @@ function RoadmapPermitRow({
           testID={`open-permit-${permit.id}`}
         >
           <CheckCircle size={12} color={Colors.successLabel} strokeWidth={1.75} />
-          <Text style={styles.linkedBadgeText}>Added to permits</Text>
+          <Text style={styles.linkedBadgeText}>Added to Permits</Text>
           <Text style={styles.linkedBadgeLink}>View</Text>
           <ChevronRight size={11} color={Colors.primary} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -3136,7 +3136,7 @@ function RoadmapInspectionRow({
             style={styles.inspPassBtn}
             testID={`insp-mark-passed-${inspection.id}`}
             accessibilityRole="button"
-            accessibilityLabel="Mark inspection passed"
+            accessibilityLabel="Mark Inspection Passed"
           >
             <Check size={14} color={INSP_STATUS_COLORS.passed} strokeWidth={2} />
             <Text style={[styles.inspResultBtnText, { color: INSP_STATUS_COLORS.passed }]}>Passed</Text>
@@ -3147,7 +3147,7 @@ function RoadmapInspectionRow({
             style={styles.inspFailBtn}
             testID={`insp-mark-failed-${inspection.id}`}
             accessibilityRole="button"
-            accessibilityLabel="Mark inspection failed"
+            accessibilityLabel="Mark Inspection Failed"
           >
             <XCircle size={14} color={INSP_STATUS_COLORS.failed} strokeWidth={2} />
             <Text style={[styles.inspResultBtnText, { color: INSP_STATUS_COLORS.failed }]}>Failed</Text>
@@ -3189,8 +3189,8 @@ function RoadmapLoadingModal({ visible, subject }: { visible: boolean; subject?:
   return (
     <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={KEEP_LOADER_OPEN}>
       <CodeCheckLoader
-        eyebrow="Project roadmap"
-        headline="Sequencing permits, inspections and lead times"
+        eyebrow="Project Roadmap"
+        headline="Sequencing Permits, Inspections and Lead Times"
         steps={ROADMAP_LOADING_STEPS}
         activeStep={stepIdx}
         subject={subject}
@@ -3439,7 +3439,7 @@ ${SPECIFICS_RULE}`;
           <View style={styles.resultHeaderIcon}>
             <Gavel size={20} color={Colors.primary} strokeWidth={1.75} />
           </View>
-          <Text style={styles.resultHeaderTitle}>Code check result</Text>
+          <Text style={styles.resultHeaderTitle}>Code Check Result</Text>
           <TouchableOpacity
             onPress={onClose}
             style={styles.resultCloseBtn}
@@ -3528,7 +3528,7 @@ ${SPECIFICS_RULE}`;
           {result.applicableCodes.length > 0 && (
             <AccordionSection
               keyName="codes"
-              title="Applicable codes"
+              title="Applicable Codes"
               count={result.applicableCodes.length}
               Icon={Gavel}
               iconColor={Colors.primary}
@@ -3641,13 +3641,13 @@ ${SPECIFICS_RULE}`;
                             )}
                             {!!st.data.value.appliesBecause && (
                               <>
-                                <Text style={styles.codeDetailHeading}>Why it applies here</Text>
+                                <Text style={styles.codeDetailHeading}>Why It Applies Here</Text>
                                 <Text style={styles.codeDetailBody}>{st.data.value.appliesBecause}</Text>
                               </>
                             )}
                             {st.data.value.inspectorChecks.length > 0 && (
                               <>
-                                <Text style={styles.codeDetailHeading}>What the inspector checks</Text>
+                                <Text style={styles.codeDetailHeading}>What the Inspector Checks</Text>
                                 {st.data.value.inspectorChecks.map((x, k) => (
                                   <Text key={k} style={styles.codeDetailBullet}>• {x}</Text>
                                 ))}
@@ -3655,7 +3655,7 @@ ${SPECIFICS_RULE}`;
                             )}
                             {st.data.value.commonFailures.length > 0 && (
                               <>
-                                <Text style={styles.codeDetailHeading}>How jobs fail it</Text>
+                                <Text style={styles.codeDetailHeading}>How Jobs Fail It</Text>
                                 {st.data.value.commonFailures.map((x, k) => (
                                   <Text key={k} style={styles.codeDetailBullet}>• {x}</Text>
                                 ))}
@@ -3686,7 +3686,7 @@ ${SPECIFICS_RULE}`;
           {(permitList.items.length > 0 || permitList.withheld > 0) && (
             <AccordionSection
               keyName="permits"
-              title="Permits required"
+              title="Permits Required"
               count={permitList.items.length}
               Icon={ClipboardCheck}
               iconColor={Colors.primary}
@@ -3736,7 +3736,7 @@ ${SPECIFICS_RULE}`;
           {(violationList.items.length > 0 || violationList.withheld > 0) && (
             <AccordionSection
               keyName="violations"
-              title="Common violations"
+              title="Common Violations"
               count={violationList.items.length}
               Icon={AlertTriangle}
               iconColor={Colors.warningLabel}
@@ -3763,7 +3763,7 @@ ${SPECIFICS_RULE}`;
             <View style={styles.historyChipWrap} testID="codethread-followups">
               {answers.length > 0 ? (
                 <View style={styles.threadAnswered}>
-                  <Text style={styles.codeDetailHeading}>Your answers (sent as facts)</Text>
+                  <Text style={styles.codeDetailHeading}>Your Answers (Sent as Facts)</Text>
                   {answerLines.items.map((line, k) => (
                     <Text key={`${k}-${line}`} style={styles.codeDetailBullet}>{`• ${line}`}</Text>
                   ))}
@@ -3776,7 +3776,7 @@ ${SPECIFICS_RULE}`;
                 <Text style={styles.threadCaption}>You’ve answered 3 questions — the check won’t ask more.</Text>
               ) : askable.items.length > 0 ? (
                 <>
-                  <Text style={styles.codeDetailHeading}>A detail that changes the answer</Text>
+                  <Text style={styles.codeDetailHeading}>A Detail That Changes the Answer</Text>
                   {askable.items.map((fu) => (
                     <View key={fu.id} style={styles.threadQuestion}>
                       <Text style={styles.codeReq}>{fu.question}</Text>
@@ -3946,7 +3946,7 @@ function LimitReachedView({
           activeOpacity={0.85}
           testID="construction-ai-limit-dismiss"
         >
-          <Text style={styles.lockedCtaText}>Got it</Text>
+          <Text style={styles.lockedCtaText}>Got It</Text>
         </TouchableOpacity>
       </View>
     </View>

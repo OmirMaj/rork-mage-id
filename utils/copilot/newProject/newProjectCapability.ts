@@ -59,7 +59,7 @@ const clean = (v: unknown): string => {
 
 export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProjectApplied> = {
   id: 'new_project',
-  label: 'Start a project',
+  label: 'Start a Project',
   aiFeature: 'voiceCapture',
   maxQuestions: 2,
   askThreshold: 0.4,

@@ -256,12 +256,12 @@ export default function CloseoutBinderScreen() {
         }
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        showAlert("Couldn't save the binder", 'Check your connection and try again.');
+        showAlert("Couldn't Save the Binder", 'Check your connection and try again.');
       }
     } catch (e) {
       console.warn('[Closeout] binder save failed:', rawErrorMessage(e));
       const copy = describeError(e, { action: 'save the binder' });
-      showAlert("Couldn't save the binder", `${copy.body} Your edits are still on this screen. Try again before you leave.`);
+      showAlert("Couldn't Save the Binder", `${copy.body} Your edits are still on this screen. Try again before you leave.`);
     } finally {
       setSaving(false);
     }
@@ -307,7 +307,7 @@ export default function CloseoutBinderScreen() {
       });
       if (passport.docs.length === 0) {
         showAlert(
-          'Nothing to index yet',
+          'Nothing to Index Yet',
           'The passport is assembled from selections, warranties, commitments, photos, and the maintenance schedule. Add some of those to this project first.',
         );
         return;
@@ -343,7 +343,7 @@ export default function CloseoutBinderScreen() {
         // the portal holding its FAQ back — and say so, rather than save a
         // bake that claims a rebuild that did not reach Ask Your Home.
         showAlert(
-          'Ask Your Home not updated',
+          'Ask Your Home Not Updated',
           `The home records could not be indexed${indexStatus.reason ? ` (${indexStatus.reason})` : ''}, so the passport was left as it was. Check your connection and try again.`,
         );
         return;
@@ -375,7 +375,7 @@ export default function CloseoutBinderScreen() {
     } catch (e) {
       // Non-blocking by design — the binder flow is untouched.
       console.warn('[home-passport] generation failed:', e);
-      showAlert('Home Passport not created', 'The binder is unaffected. Check your connection and try again.');
+      showAlert('Home Passport Not Created', 'The binder is unaffected. Check your connection and try again.');
     } finally {
       setPassportBusy(false);
       setPassportStep('');
@@ -461,7 +461,7 @@ export default function CloseoutBinderScreen() {
     if (!project) return;
     // Sample fence (utils/sampleGuard): Deliver posts to the client's portal
     // and emails them — never from a sample, run or no run.
-    if (isSampleProject(project)) { showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
+    if (isSampleProject(project)) { showAlert('Sample Job', SAMPLE_DOC_NOT_SENT); return; }
     const title = sentAt ? 'Re-deliver to client?' : 'Deliver to client?';
     const message = sentAt
       ? 'The client already received this binder. The email is sent again and the portal copy is refreshed.'
@@ -475,7 +475,7 @@ export default function CloseoutBinderScreen() {
             const now = new Date().toISOString();
             const saved = await persistBinder({ status: 'sent', sentAt: now });
             if (!saved) {
-              showAlert("Couldn't deliver the binder", 'Check your connection and try again.');
+              showAlert("Couldn't Deliver the Binder", 'Check your connection and try again.');
               return;
             }
             setBinderId(saved.id);
@@ -522,9 +522,9 @@ export default function CloseoutBinderScreen() {
                     ? ' The Friday update to your client stops: they get one last email saying the project is complete and the date the link closes.'
                     : ''),
                 [
-                  { text: 'Keep open', style: 'cancel' },
+                  { text: 'Keep Open', style: 'cancel' },
                   {
-                    text: 'Mark as closed',
+                    text: 'Mark as Closed',
                     onPress: () => {
                       ctxUpdateProject(project.id, { status: 'closed', closedAt: new Date().toISOString() });
                     },
@@ -548,7 +548,7 @@ export default function CloseoutBinderScreen() {
     // before the PDF call below — on web it opens its window in this tap.)
     if (waiverReadError) {
       showAlert(
-        'Lien waivers not loaded',
+        'Lien Waivers Not Loaded',
         "Couldn't read this project's lien waivers, so the binder would list none. Check your signal and try again.",
         [{ text: 'Cancel', style: 'cancel' }, { text: 'Retry', onPress: () => setWaiverReload(n => n + 1) }],
       );
@@ -596,7 +596,7 @@ export default function CloseoutBinderScreen() {
     } catch (e) {
       // CONTRACT 25 (#147): a blocked web window says so; anything else gets
       // the plain fallback, never a raw exception string. No success haptic.
-      showAlert('Export failed', pdfFailureMessage(e, "Couldn't build the closeout binder PDF. Try again."));
+      showAlert('Export Failed', pdfFailureMessage(e, "Couldn't build the closeout binder PDF. Try again."));
     } finally {
       setExporting(false);
     }
@@ -737,7 +737,7 @@ export default function CloseoutBinderScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[AIA Forms] Generate failed:', err);
-      showAlert("Couldn't create the form", pdfFailureMessage(err, `Couldn't build the ${formId} form. Try again.`));
+      showAlert("Couldn't Create the Form", pdfFailureMessage(err, `Couldn't build the ${formId} form. Try again.`));
     }
   }, [project, branding, getPunchItemsForProject, getChangeOrdersForProject]);
 
@@ -748,7 +748,7 @@ export default function CloseoutBinderScreen() {
         {/* This screen hides the nav header, so without ToolHeader the picker
             would have no back affordance at all — the exact dead end #3 is
             about. */}
-        <ToolHeader eyebrow="Closeout · MAGE ID" title="Closeout binder" />
+        <ToolHeader eyebrow="Closeout · MAGE ID" title="Closeout Binder" />
         <ToolProjectPicker
           toolName="the Closeout Binder"
           message="The closeout binder pulls warranties, selections and as-builts from a single project."
@@ -811,8 +811,8 @@ export default function CloseoutBinderScreen() {
         </View>
       </View>
       <FeatureHeader
-        eyebrow="Closeout binder"
-        title="Everything the client gets at the end"
+        eyebrow="Closeout Binder"
+        title="Everything the Client Gets at the End"
         subtitle="Warranties, manuals, paint colors, the trades who did the work and as-builts, bundled into one PDF binder you hand over on closeout day."
         explainer={{
           term: 'Closeout binder',
@@ -857,16 +857,16 @@ export default function CloseoutBinderScreen() {
           <View style={styles.previewCard}>
             <View style={styles.previewHead}>
               <MageAIMark size={14} color={themeColors.accent} />
-              <Text style={styles.previewTitle}>Auto-compiled from this project</Text>
+              <Text style={styles.previewTitle}>Auto-Compiled from This Project</Text>
             </View>
             <Text style={styles.previewBody}>
               Your binder will pull live data from the project so the client gets a complete record:
             </Text>
             <View style={styles.previewList}>
-              <PreviewRow label="Finishes & fixtures" value={`${selectionsCount} chosen`} />
+              <PreviewRow label="Finishes & Fixtures" value={`${selectionsCount} chosen`} />
               <PreviewRow label="Trades" value={`${projectCommitmentsCount} commitments`} />
               <PreviewRow label="Warranties" value={`${projectWarrantiesCount} on file`} />
-              <PreviewRow label="Maintenance schedule" value={`${maintenance.length} items`} />
+              <PreviewRow label="Maintenance Schedule" value={`${maintenance.length} items`} />
             </View>
             {selectionsCount === 0 && projectCommitmentsCount === 0 && projectWarrantiesCount === 0 && (
               <Text style={styles.emptyHint}>Your maintenance schedule and personal note go into the binder even with nothing else logged. Deliver a partial binder now and re-deliver as the project closes out.</Text>
@@ -876,13 +876,13 @@ export default function CloseoutBinderScreen() {
 
           {/* Shared with your client — the two owner-sharing switches. */}
           <View style={styles.card} testID="owner-sharing-card">
-            <Text style={styles.cardLabel}>Shared with your client</Text>
+            <Text style={styles.cardLabel}>Shared with Your Client</Text>
             <Text style={styles.cardHelper}>
               Brand, model and serial numbers always show. These two are yours to share, job by job, and both start off. Each one also covers the binder PDF you export.
             </Text>
             {([
-              { key: 'supplierNames', title: 'Supplier names', desc: 'Where each finish and selection option comes from, and the suppliers you ordered from. Covers the client portal, the Home Passport, Ask Your Home and the binder PDF.' },
-              { key: 'tradeContacts', title: 'Trade contacts', desc: 'Each sub\u2019s contact name, phone and email, in the Home Passport, Ask Your Home and the binder PDF. Off, your client sees the company and what they did, and calls you. The client portal never lists a sub\u2019s phone or email.' },
+              { key: 'supplierNames', title: 'Supplier Names', desc: 'Where each finish and selection option comes from, and the suppliers you ordered from. Covers the client portal, the Home Passport, Ask Your Home and the binder PDF.' },
+              { key: 'tradeContacts', title: 'Trade Contacts', desc: 'Each sub\u2019s contact name, phone and email, in the Home Passport, Ask Your Home and the binder PDF. Off, your client sees the company and what they did, and calls you. The client portal never lists a sub\u2019s phone or email.' },
             ] as const).map(row => (
               <View key={row.key} style={styles.shareRow}>
                 <View style={{ flex: 1 }}>
@@ -908,9 +908,9 @@ export default function CloseoutBinderScreen() {
                   style={[styles.smallBtn, { alignSelf: 'flex-start', marginTop: 8 }]}
                   onPress={() => router.push({ pathname: '/client-portal-setup', params: { id: project.id } })}
                   accessibilityRole="button"
-                  accessibilityLabel="Set up the client portal"
+                  accessibilityLabel="Set Up the Client Portal"
                 >
-                  <Text style={styles.smallBtnText}>Set up client portal</Text>
+                  <Text style={styles.smallBtnText}>Set Up Client Portal</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -929,14 +929,14 @@ export default function CloseoutBinderScreen() {
           <View style={styles.card} testID="share-facts-row">
             <View style={styles.shareRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.shareRowTitle}>Share facts</Text>
+                <Text style={styles.shareRowTitle}>Share Facts</Text>
                 <Text style={styles.shareRowDesc}>A read-only link with the permits, inspections, change orders, milestones, photos and warranties you pick. You can turn it off any time.</Text>
               </View>
               <TouchableOpacity
                 style={styles.smallBtn}
                 onPress={() => router.push({ pathname: '/job-facts', params: { projectId: project.id } })}
                 accessibilityRole="button"
-                accessibilityLabel="Share job facts"
+                accessibilityLabel="Share Job Facts"
               >
                 <Text style={styles.smallBtnText}>Open</Text>
               </TouchableOpacity>
@@ -948,14 +948,14 @@ export default function CloseoutBinderScreen() {
             <View style={styles.card} testID="punch-seal-row">
               <View style={styles.shareRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.shareRowTitle}>Final punch record</Text>
+                  <Text style={styles.shareRowTitle}>Final Punch Record</Text>
                   <Text style={styles.shareRowDesc}>{`Accepted by ${punchSeal.signerName}, ${punchSeal.itemCount} punch item${punchSeal.itemCount === 1 ? '' : 's'}. The binder prints the record id and hash.`}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.smallBtn}
                   onPress={() => router.push({ pathname: '/punch-seal' as any, params: { projectId: project.id } })}
                   accessibilityRole="button"
-                  accessibilityLabel="Open the final punch record"
+                  accessibilityLabel="Open the Final Punch Record"
                 >
                   <Text style={styles.smallBtnText}>Open</Text>
                 </TouchableOpacity>
@@ -1010,7 +1010,7 @@ export default function CloseoutBinderScreen() {
 
           {/* Notes */}
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>A note to the client</Text>
+            <Text style={styles.cardLabel}>A Note to the Client</Text>
             <Text style={styles.cardHelper}>Goes at the top of the binder: a thank-you, a sign-off, anything they should know.</Text>
             <TextInput
               style={styles.textarea}
@@ -1028,7 +1028,7 @@ export default function CloseoutBinderScreen() {
           <View style={styles.card}>
             <View style={styles.cardHead}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardLabel}>Maintenance schedule</Text>
+                <Text style={styles.cardLabel}>Maintenance Schedule</Text>
                 <Text style={styles.cardHelper}>Routine tasks the client should do. Starts with common defaults you can edit, add to or remove.</Text>
               </View>
               <TouchableOpacity style={styles.smallBtn} onPress={addMaintenance}>
@@ -1076,7 +1076,7 @@ export default function CloseoutBinderScreen() {
           <View style={styles.card}>
             <View style={styles.cardHead}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardLabel}>AIA-styled closeout forms</Text>
+                <Text style={styles.cardLabel}>AIA-Styled Closeout Forms</Text>
                 <Text style={styles.cardHelper}>Create G704 (substantial completion), G706 and G706A affidavits, and G707 (surety) as PDFs you can sign and send. Filled from project data.</Text>
               </View>
             </View>
@@ -1150,7 +1150,7 @@ export default function CloseoutBinderScreen() {
               <View style={styles.actionRowInner}>
               <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="binder.saveDraft" style={styles.secondaryWide} />}>
               <TouchableOpacity style={[styles.secondary, styles.secondaryWide]} onPress={handleSave} disabled={saving || finalizeBusy} testID="binder-save-draft">
-                {saving ? <ActivityIndicator size="small" color={themeColors.text} /> : <Text style={styles.secondaryText}>Save draft</Text>}
+                {saving ? <ActivityIndicator size="small" color={themeColors.text} /> : <Text style={styles.secondaryText}>Save Draft</Text>}
               </TouchableOpacity>
               </TutorialWrap>
               <TouchableOpacity style={[styles.secondary, styles.secondaryWide]} onPress={handleExport} disabled={exporting} testID="binder-pdf">
@@ -1310,7 +1310,7 @@ function AiaFormModal({
                 maxLength={2}
                 testID="aia-state-input"
               />
-              <Text style={modalStyles.label}>County (optional)</Text>
+              <Text style={modalStyles.label}>County (Optional)</Text>
               <TextInput
                 style={modalStyles.input}
                 value={county}
@@ -1320,7 +1320,7 @@ function AiaFormModal({
               />
               {isG706 && (
                 <>
-                  <Text style={modalStyles.label}>Exceptions / unsettled items (optional)</Text>
+                  <Text style={modalStyles.label}>Exceptions / Unsettled Items (Optional)</Text>
                   <TextInput
                     style={[modalStyles.input, { minHeight: 70, textAlignVertical: 'top' }]}
                     value={exceptions}
@@ -1339,7 +1339,7 @@ function AiaFormModal({
 
           {isSurety && (
             <>
-              <Text style={modalStyles.label}>Surety company *</Text>
+              <Text style={modalStyles.label}>Surety Company *</Text>
               <TextInput
                 style={modalStyles.input}
                 value={suretyName}
@@ -1348,7 +1348,7 @@ function AiaFormModal({
                 placeholderTextColor={themeColors.textMuted}
                 testID="aia-surety-input"
               />
-              <Text style={modalStyles.label}>Bond number</Text>
+              <Text style={modalStyles.label}>Bond Number</Text>
               <TextInput
                 style={modalStyles.input}
                 value={bondNumber}
@@ -1356,7 +1356,7 @@ function AiaFormModal({
                 placeholder="105-XXXX-22"
                 placeholderTextColor={themeColors.textMuted}
               />
-              <Text style={modalStyles.label}>Bond date</Text>
+              <Text style={modalStyles.label}>Bond Date</Text>
               <TextInput
                 style={modalStyles.input}
                 value={bondDate}

@@ -69,12 +69,12 @@ export function SubsPayTile({ rows, onOpen, onAdd, testID = 'subs-pay' }: Props)
             <View style={styles.figure}>
               {/* The ledger counts APPROVED bills too (gross of retainage):
                   never "Paid", which would claim cash that has not gone out. */}
-              <Text style={styles.figureLabel}>Approved bills</Text>
+              <Text style={styles.figureLabel}>Approved Bills</Text>
               <Text style={styles.figureValue}>{centsLabel(r.paidCents)}</Text>
             </View>
             {r.openBillCents != null && r.openBillCents > 0 ? (
               <View style={styles.figure}>
-                <Text style={styles.figureLabel}>Open bill</Text>
+                <Text style={styles.figureLabel}>Open Bill</Text>
                 <Text style={[styles.figureValue, { color: colors.accent }]} testID={`${testID}-open-${r.commitmentId}`}>
                   {centsLabel(r.openBillCents)}
                 </Text>
@@ -91,7 +91,7 @@ export function SubsPayTile({ rows, onOpen, onAdd, testID = 'subs-pay' }: Props)
               testID={`${testID}-pay-${r.commitmentId}`}
             />
             <Button
-              label="Get waiver"
+              label="Get Waiver"
               variant="secondary"
               disabled={!r.waiverHref}
               onPress={() => { if (r.waiverHref) onOpen(r.waiverHref); }}

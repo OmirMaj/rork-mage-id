@@ -71,7 +71,7 @@ export default function PlanSheetRail({ sheets, activeId, onPick, onClose, sheet
           onPress={onClose}
           style={styles.railClose}
           accessibilityRole="button"
-          accessibilityLabel="Hide sheet list"
+          accessibilityLabel="Hide Sheet List"
           testID="plan-rail-close"
         >
           <PanelLeftClose size={16} color={colors.textSecondary} strokeWidth={1.75} />

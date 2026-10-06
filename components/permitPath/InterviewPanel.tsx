@@ -150,7 +150,7 @@ export function InterviewPanel({
         <View style={styles.head}>
           <Text style={styles.panelHead}>{t('office.permitPath.interview.heading', 'Tell us about the job')}</Text>
           {answeredCount > 0 ? (
-            <Pressable onPress={onToggle} accessibilityRole="button" accessibilityLabel={t('office.permitPath.interview.collapse', 'Hide the questions')} hitSlop={8} testID={`${testID}-collapse`}>
+            <Pressable onPress={onToggle} accessibilityRole="button" accessibilityLabel={t('office.permitPath.interview.collapse', 'Hide the Questions')} hitSlop={8} testID={`${testID}-collapse`}>
               <ChevronUp size={18} color={c.textSecondary} />
             </Pressable>
           ) : null}

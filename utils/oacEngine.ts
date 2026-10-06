@@ -346,7 +346,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     items.push({
       id: createId('agenda'),
       section: 'safety',
-      title: 'Safety review',
+      title: 'Safety Review',
       detail: recentDfrs.length > 0
         ? `${recentDfrs.length} DFRs reviewed; no incidents reported.`
         : 'No DFRs filed in the last 7 days. Confirm jobsite is staffed and walks are happening.',
@@ -391,7 +391,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     items.push({
       id: createId('agenda'),
       section: 'schedule',
-      title: 'Schedule review',
+      title: 'Schedule Review',
       detail: 'No active schedule loaded for this project. Review milestones manually.',
       status: 'warn',
     });
@@ -476,7 +476,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
       section: 'change_orders',
       title: pendingCOs.length > 0
         ? `${pendingCOs.length} change order${pendingCOs.length === 1 ? '' : 's'} awaiting owner approval`
-        : `Change order log review`,
+        : `Change Order Log Review`,
       detail: [
         approvedCOTotal !== 0 ? `Approved net: $${approvedCOTotal.toLocaleString()}` : null,
         ...pendingCOs.slice(0, 3).map(c => `• #${c.number} ${c.description?.slice(0, 60) ?? ''} — $${(c.changeAmount ?? 0).toLocaleString()}`),
@@ -489,14 +489,14 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
   items.push({
     id: createId('agenda'),
     section: 'decisions',
-    title: 'Open decisions needed from owner / architect',
+    title: 'Open Decisions Needed from Owner / Architect',
     detail: '(Add any decisions you need cleared today.)',
     status: 'info',
   });
   items.push({
     id: createId('agenda'),
     section: 'open_discussion',
-    title: 'Open discussion',
+    title: 'Open Discussion',
     status: 'info',
   });
 
@@ -510,7 +510,7 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     section: 'next_meeting',
     // Static, count-free strings on purpose: mergeAgenda de-dups on the title,
     // and a number in either field would re-append this row on every Refresh.
-    title: 'Next meeting + action items',
+    title: 'Next Meeting + Action Items',
     detail: 'Confirm next OAC date, owner of action items, due-bys.',
     status: 'info',
   });

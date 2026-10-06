@@ -132,4 +132,4 @@ export function subsPayRows(input: {
 }
 
 /** The empty line and its one action (VOICE: what this is, plus one action). */
-export const SUBS_PAY_EMPTY = { title: 'No subs on this project yet', action: 'Add a sub' } as const;
+export const SUBS_PAY_EMPTY = { title: 'No Subs on This Project Yet', action: 'Add a sub' } as const;

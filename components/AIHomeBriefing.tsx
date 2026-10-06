@@ -141,7 +141,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <MageAIMark size={14} color={themeColors.accent} />
-            <Text style={styles.headerTitle}>Daily briefing</Text>
+            <Text style={styles.headerTitle}>Daily Briefing</Text>
           </View>
         </View>
         <Skeleton height={12} index={0} style={{ marginBottom: 8 }} />
@@ -160,13 +160,13 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         onPress={() => void fetchBriefing()}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Build today's briefing"
+        accessibilityLabel="Build Today's Briefing"
         testID="home-briefing-run"
       >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <MageAIMark size={14} color={themeColors.accent} />
-            <Text style={styles.headerTitle}>Daily briefing</Text>
+            <Text style={styles.headerTitle}>Daily Briefing</Text>
           </View>
           <Text style={styles.usageText}>{usageText}</Text>
         </View>
@@ -188,9 +188,9 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <MageAIMark size={14} color={themeColors.accent} />
-          <Text style={styles.headerTitle}>Daily briefing</Text>
+          <Text style={styles.headerTitle}>Daily Briefing</Text>
         </View>
-        <Text style={styles.aiLabel}>AI draft</Text>
+        <Text style={styles.aiLabel}>AI Draft</Text>
       </View>
 
       {error ? (
@@ -199,7 +199,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
           onPress={() => void fetchBriefing()}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Retry the daily briefing"
+          accessibilityLabel="Retry the Daily Briefing"
         >
           <AlertTriangle size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
           <Text style={styles.errorText}>{error}</Text>
@@ -246,7 +246,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
             style={styles.viewFullBtn}
             activeOpacity={0.7}
           >
-            <Text style={styles.viewFullText}>View full analysis</Text>
+            <Text style={styles.viewFullText}>View Full Analysis</Text>
             <ChevronRight size={14} color={Colors.primary} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : <View />}

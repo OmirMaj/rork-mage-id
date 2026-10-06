@@ -256,8 +256,8 @@ export interface PermitsHandoverState {
 const PERMIT_TYPE_LABELS: Record<string, string> = {
   building: 'Building', electrical: 'Electrical', plumbing: 'Plumbing', mechanical: 'Mechanical',
   demolition: 'Demolition', grading: 'Grading', fire: 'Fire', occupancy: 'Occupancy',
-  special_inspection: 'Special inspection', hot_work: 'Hot work', shutdown: 'System shutdown',
-  after_hours: 'After-hours work', landlord_approval: 'Landlord approval', elevator_dock: 'Elevator / dock',
+  special_inspection: 'Special Inspection', hot_work: 'Hot Work', shutdown: 'System Shutdown',
+  after_hours: 'After-Hours Work', landlord_approval: 'Landlord Approval', elevator_dock: 'Elevator / Dock',
   other: 'Other',
 };
 

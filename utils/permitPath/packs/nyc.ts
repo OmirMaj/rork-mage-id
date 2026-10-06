@@ -111,9 +111,9 @@ const questions: readonly Question[] = [
     help: null,
     kind: 'choice',
     choices: [
-      { id: 'fixtures_only', label: 'Replacing fixtures only' },
-      { id: 'new_piping', label: 'New or moved pipes or gas' },
-      { id: 'not_sure', label: 'Not sure' },
+      { id: 'fixtures_only', label: 'Replacing Fixtures Only' },
+      { id: 'new_piping', label: 'New or Moved Pipes or Gas' },
+      { id: 'not_sure', label: 'Not Sure' },
     ],
     askIf: HAS_PLUMBING,
     prefill: null,

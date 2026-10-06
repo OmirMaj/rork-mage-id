@@ -835,7 +835,7 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
       projectId: ph.projectId,
       projectName: nameOf(ph.projectId),
       kind: 'photo',
-      title: clean(ph.tag) || clean(ph.location) || 'Site photo',
+      title: clean(ph.tag) || clean(ph.location) || 'Site Photo',
       date: isoDay(ph.timestamp) || isoDay(ph.createdAt) || null,
       ...(clean(ph.uri) ? { uri: clean(ph.uri) } : {}),
     });

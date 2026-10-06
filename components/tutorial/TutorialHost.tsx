@@ -491,7 +491,7 @@ export function TutorialHost() {
       // the machine drops every signal that names another project.
       const sandbox = await bootSandbox(def, opts.sandboxProjectId ?? null);
       if (!sandbox) {
-        showAlert('Couldn’t open the sample project', 'The sample didn’t load. Try again in a moment.');
+        showAlert('Couldn’t Open the Sample Project', 'The sample didn’t load. Try again in a moment.');
         return false;
       }
       const sandboxId = sandbox.id;
@@ -1169,7 +1169,7 @@ function buildPresentation(s: RunState, ui: UiFacts): TutorialPresentation {
       primary: h?.primary ? { key: 'primary', label: h.primary.label } : null,
       secondary: h?.secondary ? { key: 'secondary', label: h.secondary.label } : null,
       chain: h?.chain ? { key: 'chain', label: h.chain.label } : null,
-      quiz: ui.quizTopic ? { key: 'quiz', label: t('settings.learn.finaleQuiz', 'Take the skills check') } : null,
+      quiz: ui.quizTopic ? { key: 'quiz', label: t('settings.learn.finaleQuiz', 'Take the Skills Check') } : null,
     };
     return { ...out, finale };
   }

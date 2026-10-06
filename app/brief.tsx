@@ -202,7 +202,7 @@ function BriefInner() {
                 <View style={[styles.section, isDesktop && styles.sectionDesktop]}>
                   <View style={styles.sectionHeader}>
                     <AlertCircle size={14} color={t.danger} strokeWidth={2} />
-                    <Text style={styles.sectionLabel}>Needs you</Text>
+                    <Text style={styles.sectionLabel}>Needs You</Text>
                   </View>
                   {renderRows(brief.needsYou, true)}
                 </View>
@@ -224,7 +224,7 @@ function BriefInner() {
                 <View style={[styles.section, isDesktop && styles.sectionDesktop]}>
                   <View style={styles.sectionHeader}>
                     <MageAIMark size={14} color={t.accent} />
-                    <Text style={styles.sectionLabel}>Did for you</Text>
+                    <Text style={styles.sectionLabel}>Did for You</Text>
                   </View>
                   {renderRows(brief.didForYou, false)}
                 </View>

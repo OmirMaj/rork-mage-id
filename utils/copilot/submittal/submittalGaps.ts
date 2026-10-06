@@ -35,8 +35,8 @@ export function submittalGaps(draft: SubmittalDraft, _grounding: Grounding): Gap
       question: 'How soon do you need it approved?',
       groundedDefault: { value: false, basis: 'standard two-week review' },
       choices: [
-        { label: 'Standard — about two weeks', value: false, recommended: true },
-        { label: 'Urgent — one week', value: true },
+        { label: 'Standard — About Two Weeks', value: false, recommended: true },
+        { label: 'Urgent — One Week', value: true },
       ],
     });
   }

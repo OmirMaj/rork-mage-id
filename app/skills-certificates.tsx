@@ -150,7 +150,7 @@ export default function SkillsCertificatesScreen() {
               {t('settings.learn.certsLoadError', "Couldn't load your certificates.")}
             </Text>
             <Button
-              label={t('settings.learn.tryAgain', 'Try again')}
+              label={t('settings.learn.tryAgain', 'Try Again')}
               variant="secondary"
               size="sm"
               onPress={() => { void certsQ.refetch(); }}
@@ -172,7 +172,7 @@ export default function SkillsCertificatesScreen() {
               {t('settings.learn.certsEmpty', 'No certificates yet. Each tutorial ends with a short skills check.')}
             </Text>
             <Button
-              label={t('settings.learn.seeTutorials', 'See tutorials')}
+              label={t('settings.learn.seeTutorials', 'See Tutorials')}
               variant="secondary"
               size="sm"
               onPress={() => router.push('/tutorials')}
@@ -204,7 +204,7 @@ export default function SkillsCertificatesScreen() {
         {notEarned.length > 0 ? (
           <View style={styles.section} testID="skills-certificates-not-earned">
             <Text style={[Type.footnoteEmphasized, styles.sectionLabel, { color: colors.textSecondary }]}>
-              {t('settings.learn.notEarned', 'Not earned yet')}
+              {t('settings.learn.notEarned', 'Not Earned Yet')}
             </Text>
             <Card pad="none">
               {notEarned.map((row, i) => (
@@ -217,13 +217,13 @@ export default function SkillsCertificatesScreen() {
                     <Text style={[Type.bodyCompactEmphasized, { color: colors.text }]}>{row.label}</Text>
                     {row.step === 'pending' ? (
                       <Text style={[Type.footnote, { color: colors.warningLabel }]} testID={`skills-certificates-topic-${row.id}-pending`}>
-                        {t('settings.learn.pendingIssue', 'Passed, not issued yet')}
+                        {t('settings.learn.pendingIssue', 'Passed, Not Issued Yet')}
                       </Text>
                     ) : null}
                   </View>
                   {row.step === 'pending' ? (
                     <Button
-                      label={t('settings.learn.tryAgain', 'Try again')}
+                      label={t('settings.learn.tryAgain', 'Try Again')}
                       variant="secondary"
                       size="sm"
                       loading={retrying}
@@ -233,7 +233,7 @@ export default function SkillsCertificatesScreen() {
                     />
                   ) : row.step === 'check' ? (
                     <Button
-                      label={t('settings.learn.takeCheck', 'Take the skills check')}
+                      label={t('settings.learn.takeCheck', 'Take the Skills Check')}
                       variant="secondary"
                       size="sm"
                       onPress={() => openCheck(row.id)}
@@ -241,7 +241,7 @@ export default function SkillsCertificatesScreen() {
                     />
                   ) : (
                     <Button
-                      label={t('settings.learn.takeTutorial', 'Take the tutorial')}
+                      label={t('settings.learn.takeTutorial', 'Take the Tutorial')}
                       variant="ghost"
                       size="sm"
                       onPress={() => { void startTutorial(row.id, { entry: 'hub' }); }}

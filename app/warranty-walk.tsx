@@ -65,20 +65,20 @@ interface WalkItem {
 
 const DEFAULT_WALK_ITEMS: WalkItem[] = [
   { id: 'foundation-cracks',   phase: 'Structural',     title: 'Foundation: hairline cracks under 1/8"', hint: 'Normal settlement; flag anything wider or stair-stepping.' },
-  { id: 'drywall-nailpops',    phase: 'Structural',     title: 'Drywall: nail pops, seam cracks, corner-bead', hint: 'Early settlement. One-time touch-up is typical.' },
-  { id: 'roofing-flashing',    phase: 'Exterior',       title: 'Roof: flashing, ridge caps, attic for leaks', hint: 'Look for water staining at top plates / valley penetrations.' },
-  { id: 'siding-caulk',        phase: 'Exterior',       title: 'Siding & exterior caulk: shrinkage / gaps', hint: 'Re-caulk where joints have separated; especially around windows.' },
-  { id: 'gutters',             phase: 'Exterior',       title: 'Gutters: pitch + downspout discharge', hint: 'Confirm 4–6 ft splash-block extension; no standing water.' },
-  { id: 'window-operation',    phase: 'Doors/Windows',  title: 'Windows: operation, seals, condensation', hint: 'Each opens, locks, and shows no failed insulating-glass fog.' },
-  { id: 'door-alignment',      phase: 'Doors/Windows',  title: 'Doors: even reveal, latches, weatherstrip', hint: 'Settling rotates jambs — check the latch throws fully.' },
-  { id: 'plumbing-leaks',      phase: 'Plumbing',       title: 'Plumbing: under sinks, water heater, hose bibs', hint: 'Open every sink trap area + check water heater pan.' },
-  { id: 'plumbing-shutoffs',   phase: 'Plumbing',       title: 'Plumbing: angle stops, supply lines', hint: 'Each shutoff actuates; no calcified buildup or weeping.' },
-  { id: 'electrical-gfci',     phase: 'Electrical',     title: 'Electrical: every GFCI test/reset', hint: 'Kitchen, baths, garage, exterior. Replace any that fail.' },
-  { id: 'electrical-detectors',phase: 'Electrical',     title: 'Smoke/CO detectors: chirp test + battery age', hint: 'Clients expect a battery swap at the walk.' },
-  { id: 'hvac-filters',        phase: 'HVAC',           title: 'HVAC filters + condensate drain + airflow', hint: 'New filter; flush condensate; balance complaint rooms.' },
-  { id: 'finishes-touchup',    phase: 'Finishes',       title: 'Paint touch-up + grout/caulk in wet areas', hint: 'Tub-to-tile, kitchen counter-to-backsplash, expansion joints.' },
-  { id: 'flooring',            phase: 'Finishes',       title: 'Flooring: squeaks, transitions, gaps', hint: 'Seasonal humidity cycle; minor gaps are normal.' },
-  { id: 'site-grading',        phase: 'Site',           title: 'Site grading: positive drainage from foundation', hint: 'No ponding within 10 ft. Mulch beds reset away from siding.' },
+  { id: 'drywall-nailpops',    phase: 'Structural',     title: 'Drywall: Nail Pops, Seam Cracks, Corner-Bead', hint: 'Early settlement. One-time touch-up is typical.' },
+  { id: 'roofing-flashing',    phase: 'Exterior',       title: 'Roof: Flashing, Ridge Caps, Attic for Leaks', hint: 'Look for water staining at top plates / valley penetrations.' },
+  { id: 'siding-caulk',        phase: 'Exterior',       title: 'Siding & Exterior Caulk: Shrinkage / Gaps', hint: 'Re-caulk where joints have separated; especially around windows.' },
+  { id: 'gutters',             phase: 'Exterior',       title: 'Gutters: Pitch + Downspout Discharge', hint: 'Confirm 4–6 ft splash-block extension; no standing water.' },
+  { id: 'window-operation',    phase: 'Doors/Windows',  title: 'Windows: Operation, Seals, Condensation', hint: 'Each opens, locks, and shows no failed insulating-glass fog.' },
+  { id: 'door-alignment',      phase: 'Doors/Windows',  title: 'Doors: Even Reveal, Latches, Weatherstrip', hint: 'Settling rotates jambs — check the latch throws fully.' },
+  { id: 'plumbing-leaks',      phase: 'Plumbing',       title: 'Plumbing: Under Sinks, Water Heater, Hose Bibs', hint: 'Open every sink trap area + check water heater pan.' },
+  { id: 'plumbing-shutoffs',   phase: 'Plumbing',       title: 'Plumbing: Angle Stops, Supply Lines', hint: 'Each shutoff actuates; no calcified buildup or weeping.' },
+  { id: 'electrical-gfci',     phase: 'Electrical',     title: 'Electrical: Every GFCI Test/Reset', hint: 'Kitchen, baths, garage, exterior. Replace any that fail.' },
+  { id: 'electrical-detectors',phase: 'Electrical',     title: 'Smoke/CO Detectors: Chirp Test + Battery Age', hint: 'Clients expect a battery swap at the walk.' },
+  { id: 'hvac-filters',        phase: 'HVAC',           title: 'HVAC Filters + Condensate Drain + Airflow', hint: 'New filter; flush condensate; balance complaint rooms.' },
+  { id: 'finishes-touchup',    phase: 'Finishes',       title: 'Paint Touch-Up + Grout/Caulk in Wet Areas', hint: 'Tub-to-tile, kitchen counter-to-backsplash, expansion joints.' },
+  { id: 'flooring',            phase: 'Finishes',       title: 'Flooring: Squeaks, Transitions, Gaps', hint: 'Seasonal humidity cycle; minor gaps are normal.' },
+  { id: 'site-grading',        phase: 'Site',           title: 'Site Grading: Positive Drainage from Foundation', hint: 'No ponding within 10 ft. Mulch beds reset away from siding.' },
 ];
 
 type ItemState = WalkItemState;
@@ -201,14 +201,14 @@ export default function WarrantyWalkScreen() {
       'Leave this walk?',
       "It isn't logged yet. Your checks, flags and notes are saved on this phone. Open the walk again to pick up where you left off.",
       [
-        { text: 'Keep walking', style: 'cancel' },
+        { text: 'Keep Walking', style: 'cancel' },
         {
-          text: 'Discard walk',
+          text: 'Discard Walk',
           style: 'destructive',
           onPress: () => { void clearDraft().finally(() => { allowLeave.current = true; navigation.dispatch(e.data.action); }); },
         },
         {
-          text: 'Leave and keep it',
+          text: 'Leave and Keep It',
           onPress: () => {
             if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
             void writeDraft(itemsRef.current, notesRef.current).finally(() => {
@@ -278,7 +278,7 @@ export default function WarrantyWalkScreen() {
       void clearDraft();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Walk logged',
+        'Walk Logged',
         `${totals.checkedCount} ${totals.checkedCount === 1 ? 'item' : 'items'} checked${
           createdPunchCount > 0
             ? `, ${createdPunchCount} flagged ${createdPunchCount === 1 ? 'item' : 'items'} added to the punch list for follow-up`
@@ -289,7 +289,7 @@ export default function WarrantyWalkScreen() {
     } catch (err) {
       console.warn('[WarrantyWalk] save failed:', rawErrorMessage(err));
       const copy = describeError(err, { action: 'log the walk', keptLocally: true });
-      showAlert("Couldn't log the walk", copy.body);
+      showAlert("Couldn't Log the Walk", copy.body);
     } finally {
       setCompleting(false);
     }
@@ -303,7 +303,7 @@ export default function WarrantyWalkScreen() {
       .map(i => ({ email: i.email!.trim(), name: i.name }));
     if (recipients.length === 0) {
       showAlert(
-        'No client email on file',
+        'No Client Email on File',
         'Add your client as a portal invite (Project → Portal → Invites) to email them the walk summary.',
       );
       return;
@@ -325,7 +325,7 @@ export default function WarrantyWalkScreen() {
         .join('');
       const html = wrapEmailHtml({
         preheader: `${companyName} completed the ${emailWalk} for ${project.name}.`,
-        eyebrow: 'Warranty walk',
+        eyebrow: 'Warranty Walk',
         title: `${project.name} — ${emailWalkTitle}`,
         subtitle: `${companyName} walked the home with you in mind. Here's what we checked and what we'll follow up on.`,
         bodyHtml: [
@@ -360,9 +360,9 @@ export default function WarrantyWalkScreen() {
       const sentCount = results.filter(r => r.success).length;
       if (sentCount > 0) {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert('Summary sent', `Sent to ${sentCount} ${sentCount === 1 ? 'recipient' : 'recipients'}.`);
+        showAlert('Summary Sent', `Sent to ${sentCount} ${sentCount === 1 ? 'recipient' : 'recipients'}.`);
       } else {
-        showAlert("Couldn't send the summary", 'No emails went out. Check your connection and try again.');
+        showAlert("Couldn't Send the Summary", 'No emails went out. Check your connection and try again.');
       }
     } finally {
       setEmailing(false);
@@ -386,7 +386,7 @@ export default function WarrantyWalkScreen() {
   if (!project) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: 'Warranty walk' }} />
+        <Stack.Screen options={{ title: 'Warranty Walk' }} />
         <Text style={styles.loadingText}>Project not found.</Text>
       </View>
     );
@@ -398,7 +398,7 @@ export default function WarrantyWalkScreen() {
     <>
       <Stack.Screen
         options={{
-          title: monthsAssumed ? 'Warranty walk' : walkTitle,
+          title: monthsAssumed ? 'Warranty Walk' : walkTitle,
           headerLeft: () => (
             // router.back() fires the beforeRemove guard above, like a swipe.
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
@@ -422,7 +422,7 @@ export default function WarrantyWalkScreen() {
             <TouchableOpacity
               onPress={() => router.push('/(tabs)/settings' as never)}
               accessibilityRole="button"
-              accessibilityLabel="Set your warranty length in Settings"
+              accessibilityLabel="Set Your Warranty Length in Settings"
               testID="warranty-walk-set-warranty"
             >
               <Text style={styles.heroNote}>
@@ -447,7 +447,7 @@ export default function WarrantyWalkScreen() {
             <View style={styles.doneBadge}>
               <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.doneBadgeText}>
-                Walk completed {new Date(project.warrantyWalkCompletedAt!).toLocaleDateString()}
+                Walk Completed {new Date(project.warrantyWalkCompletedAt!).toLocaleDateString()}
               </Text>
             </View>
           )}
@@ -505,7 +505,7 @@ export default function WarrantyWalkScreen() {
           </View>
         ))}
 
-        <Text style={styles.sectionLabel}>Overall notes</Text>
+        <Text style={styles.sectionLabel}>Overall Notes</Text>
         <TextInput
           style={styles.overallNotes}
           value={overallNotes}
@@ -522,7 +522,7 @@ export default function WarrantyWalkScreen() {
           style={[styles.secondaryBtn, (emailing || (totals.checkedCount === 0 && totals.flaggedCount === 0)) && { opacity: 0.6 }]}
         >
           {emailing ? <ActivityIndicator color={themeColors.accent} /> : <Mail size={16} color={themeColors.accent} strokeWidth={1.75} />}
-          <Text style={styles.secondaryBtnText}>Email summary to client</Text>
+          <Text style={styles.secondaryBtnText}>Email Summary to Client</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -533,7 +533,7 @@ export default function WarrantyWalkScreen() {
         >
           {completing ? <ActivityIndicator color="#FFF" /> : <Send size={16} color="#FFF" strokeWidth={1.75} />}
           <Text style={styles.primaryBtnText}>
-            {alreadyDone ? 'Update walk-completed date' : 'Mark walk complete'}
+            {alreadyDone ? 'Update Walk-Completed Date' : 'Mark Walk Complete'}
           </Text>
         </TouchableOpacity>
       </ScrollView>

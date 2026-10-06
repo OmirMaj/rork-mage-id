@@ -237,7 +237,7 @@ function RecordGateView({ title, state, message, onRetry }: {
       ) : (
         <View style={styles.gateCard}>
           <Text style={styles.gateText}>{message}</Text>
-          {onRetry ? <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="rfi-gate-retry" /> : null}
+          {onRetry ? <Button label="Try Again" variant="secondary" size="sm" onPress={onRetry} testID="rfi-gate-retry" /> : null}
         </View>
       )}
     </View>
@@ -636,22 +636,22 @@ function RFIForm() {
   const persistForm = useCallback((): RFI | null => {
     if (!existingRFI) return null;
     if (!subject.trim()) {
-      showAlert('Add a subject', 'Enter a subject for this RFI.');
+      showAlert('Add a Subject', 'Enter a subject for this RFI.');
       return null;
     }
     if (!question.trim()) {
-      showAlert('Add the question', 'Enter the RFI question.');
+      showAlert('Add the Question', 'Enter the RFI question.');
       return null;
     }
     // #25: the architect's answer and his differ — he picks first.
     if (responseConflict) {
-      showAlert('Pick an answer first', RFI_RESPONSE_CONFLICT_REASON);
+      showAlert('Pick an Answer First', RFI_RESPONSE_CONFLICT_REASON);
       return null;
     }
     const base = opened ?? existingRFI;
     const blocked = rfiRegressionReason(base, { status, response });
     if (blocked) {
-      showAlert("Can't save that change", blocked);
+      showAlert("Can't Save That Change", blocked);
       return null;
     }
     const now = new Date().toISOString();
@@ -714,7 +714,7 @@ function RFIForm() {
       'Discard your changes?',
       "Your edits to this RFI aren't saved yet.",
       [
-        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Keep Editing', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: () => { allowLeave.current = true; navigation.dispatch(e.data.action); } },
       ],
     );
@@ -723,18 +723,18 @@ function RFIForm() {
   const handleSave = useCallback(() => {
     // LS-5: belt and braces — the button is off for a viewer, and so is this.
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert("Can't Save", writeBlock);
       return;
     }
     if (existingRFI) {
       if (!persistForm()) return;
     } else {
       if (!subject.trim()) {
-        showAlert('Add a subject', 'Enter a subject for this RFI.');
+        showAlert('Add a Subject', 'Enter a subject for this RFI.');
         return;
       }
       if (!question.trim()) {
-        showAlert('Add the question', 'Enter the RFI question.');
+        showAlert('Add the Question', 'Enter the RFI question.');
         return;
       }
       const now = new Date().toISOString();
@@ -802,7 +802,7 @@ function RFIForm() {
   const handleAttachPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      showAlert('Permission needed', 'Allow photo library access to attach a photo.');
+      showAlert('Permission Needed', 'Allow photo library access to attach a photo.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -849,12 +849,12 @@ function RFIForm() {
     if (!existingRFI || !project) return;
     const to = sendEmail_To.trim();
     if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-      showAlert('Invalid email', 'Enter a valid recipient email address.');
+      showAlert('Invalid Email', 'Enter a valid recipient email address.');
       return;
     }
     // #148: the email prints the RFI number, so it waits for the server's.
     if (numberInfo.state !== 'confirmed' || typeof numberInfo.number !== 'number') {
-      showAlert('Not sent yet', numberHold ?? 'This RFI has no confirmed number yet.');
+      showAlert('Not Sent Yet', numberHold ?? 'This RFI has no confirmed number yet.');
       return;
     }
     const rfiNumber = numberInfo.number;
@@ -863,7 +863,7 @@ function RFIForm() {
     // out as the placeholder. Send does not save (a save and a send in one tap
     // share this render's stale closures); it refuses while edits are unsaved.
     if (isDirty) {
-      showAlert('Save first', sendBlockReason({ isDirty, numberHold: null }) ?? '');
+      showAlert('Save First', sendBlockReason({ isDirty, numberHold: null }) ?? '');
       return;
     }
     setSending(true);
@@ -950,7 +950,7 @@ function RFIForm() {
         // The server's text can be transport noise ("Edge Function returned a
         // non-2xx status code"); only a sentence written for a person is shown.
         console.warn('[RFI] send refused:', result.error);
-        showAlert("Couldn't send the RFI", ownSentence(result.error ?? null) ?? describeError(result.error ?? null, { action: 'send the RFI', keptLocally: true }).body);
+        showAlert("Couldn't Send the RFI", ownSentence(result.error ?? null) ?? describeError(result.error ?? null, { action: 'send the RFI', keptLocally: true }).body);
         return;
       }
       // Shift the ball-in-court to the architect. The GC held it until
@@ -1010,14 +1010,14 @@ function RFIForm() {
           `Sent to ${to}.${sheetsLine} ${whereBack}`,
         );
       } else {
-        showAlert('RFI sent', `Sent to ${to}. ${whereBack}`);
+        showAlert('RFI Sent', `Sent to ${to}. ${whereBack}`);
       }
       setShowSendModal(false);
     } catch (err) {
       console.error('[RFI] Send failed:', err);
       const own = ownSentence(err);
       const copy = describeError(err, { action: 'send the RFI', keptLocally: true });
-      showAlert(own ? "Couldn't send the RFI" : copy.title, own ?? copy.body);
+      showAlert(own ? "Couldn't Send the RFI" : copy.title, own ?? copy.body);
     } finally {
       setSending(false);
     }
@@ -1130,7 +1130,7 @@ function RFIForm() {
       >
         {!existingRFI && (
           <FeatureHeader
-            eyebrow="RFI · Request for information"
+            eyebrow="RFI · Request for Information"
             title="Ask a question. Get a paper trail."
             subtitle="Send the design team (architect, engineer, owner) a question with a deadline. Every answer is logged with a timestamp — protects you when scope drifts later."
             explainer={{
@@ -1177,7 +1177,7 @@ function RFIForm() {
                 pickStatus(next);
                 if (next === 'answered' && !response) {
                   showAlert(
-                    'Mark as answered',
+                    'Mark as Answered',
                     'Add the response below before saving so the audit trail captures who said what.',
                     [{ text: 'OK' }],
                   );
@@ -1200,7 +1200,7 @@ function RFIForm() {
         {existingRFI && (
           <View style={styles.ballInCourtCard}>
             <View style={styles.ballInCourtRow}>
-              <Text style={styles.ballInCourtEyebrow}>Ball in court</Text>
+              <Text style={styles.ballInCourtEyebrow}>Ball in Court</Text>
               <View style={[styles.ballInCourtBadge, { backgroundColor: getBallColor(existingRFI.ballInCourt ?? 'gc') }]}>
                 <Text style={styles.ballInCourtBadgeText}>
                   {ballLabel(existingRFI.ballInCourt ?? 'gc')}
@@ -1216,29 +1216,29 @@ function RFIForm() {
                 other. A sub's hold is the GC's own tier and is listed on the
                 GC's side — see utils/rfiHoldTime.ts. */}
             <View style={styles.holdBlock} testID="rfi-hold-time">
-              <Text style={styles.handoffLogLabel}>Hold time</Text>
+              <Text style={styles.handoffLogLabel}>Hold Time</Text>
               {holdTime.measurable ? (
                 <>
                   <View style={styles.holdRow}>
-                    <Text style={styles.holdLabel}>Owner side held it</Text>
+                    <Text style={styles.holdLabel}>Owner Side Held It</Text>
                     <Text style={styles.holdValueStrong}>
                       {holdTime.ownerSideDays} {dayWord(holdTime.ownerSideDays)}
                       {holdTime.accruing ? ' and counting' : ''}
                     </Text>
                   </View>
                   <View style={styles.holdRow}>
-                    <Text style={styles.holdLabel}>Your turnaround</Text>
+                    <Text style={styles.holdLabel}>Your Turnaround</Text>
                     <Text style={styles.holdValue}>{holdTime.gcDays} {dayWord(holdTime.gcDays)}</Text>
                   </View>
                   {holdTime.subDays > 0 && (
                     <View style={styles.holdRow}>
-                      <Text style={styles.holdLabel}>Held by a sub (your side)</Text>
+                      <Text style={styles.holdLabel}>Held by a Sub (Your Side)</Text>
                       <Text style={styles.holdValue}>{holdTime.subDays} {dayWord(holdTime.subDays)}</Text>
                     </View>
                   )}
                   {holdTime.buildingDays > 0 && (
                     <View style={styles.holdRow}>
-                      <Text style={styles.holdLabel}>Held by the building (neither side)</Text>
+                      <Text style={styles.holdLabel}>Held by the Building (Neither Side)</Text>
                       <Text style={styles.holdValue}>
                         {holdTime.buildingDays} {dayWord(holdTime.buildingDays)}
                         {holdTime.accruingBuilding ? ' and counting' : ''}
@@ -1246,7 +1246,7 @@ function RFIForm() {
                     </View>
                   )}
                   <View style={styles.holdRow}>
-                    <Text style={styles.holdLabel}>Total elapsed, round trip</Text>
+                    <Text style={styles.holdLabel}>Total Elapsed, Round Trip</Text>
                     <Text style={styles.holdValue}>{holdTime.elapsedDays} {dayWord(holdTime.elapsedDays)}</Text>
                   </View>
                   <Text style={styles.holdNote}>
@@ -1268,7 +1268,7 @@ function RFIForm() {
 
             {(existingRFI.handoffs?.length ?? 0) > 0 && (
               <View style={styles.handoffLog}>
-                <Text style={styles.handoffLogLabel}>Handoff log</Text>
+                <Text style={styles.handoffLogLabel}>Handoff Log</Text>
                 {(existingRFI.handoffs ?? []).slice(-4).map((h, i) => (
                   <View key={i} style={styles.handoffRow}>
                     <Text style={styles.handoffArrow}>
@@ -1292,7 +1292,7 @@ function RFIForm() {
         <InlineVoiceFill
           title="Dictate this RFI"
           contextLine={project?.name ? `for ${project.name}` : undefined}
-          buttonLabel={existingRFI ? 'Add detail by voice' : 'Fill RFI by voice'}
+          buttonLabel={existingRFI ? 'Add Detail by Voice' : 'Fill RFI by Voice'}
           suggestions={[
             'Ask the architect about the LVL beam size for the kitchen island, urgent',
             'We need the tile pattern for the master bath by Friday',
@@ -1378,17 +1378,17 @@ function RFIForm() {
             {responseConflict && (
               <View style={[styles.alertBanner, styles.alertBannerWarn, styles.conflictCard]} testID="rfi-response-conflict">
                 <Text style={styles.alertBannerText}>{RFI_RESPONSE_CONFLICT_REASON}</Text>
-                <Text style={styles.conflictLabel}>Their answer</Text>
+                <Text style={styles.conflictLabel}>Their Answer</Text>
                 <Text style={styles.conflictBody}>{responseConflict.theirs}</Text>
                 <View style={styles.conflictActions}>
                   <Button
-                    label="Keep theirs" size="sm" testID="rfi-conflict-keep-theirs"
+                    label="Keep Theirs" size="sm" testID="rfi-conflict-keep-theirs"
                     // onChangeAnswer re-runs the Answered default on their text; the
                     // explicit setResponse is what validate-w4-rfi-core-screens pins.
                     onPress={() => { onChangeAnswer(responseConflict.theirs); setResponse(responseConflict.theirs); setResponseConflict(null); }}
                   />
                   <Button
-                    label="Replace with mine" variant="secondary" size="sm" testID="rfi-conflict-use-mine"
+                    label="Replace with Mine" variant="secondary" size="sm" testID="rfi-conflict-use-mine"
                     onPress={() => setResponseConflict(null)}
                   />
                 </View>
@@ -1399,7 +1399,7 @@ function RFIForm() {
 
         <View style={styles.row}>
           <View style={[styles.halfField, isDesktop && desktopField('md')]}>
-            <Text style={styles.fieldLabel}>Submitted by</Text>
+            <Text style={styles.fieldLabel}>Submitted By</Text>
             <TextInput
               style={styles.input}
               value={submittedBy}
@@ -1409,7 +1409,7 @@ function RFIForm() {
             />
           </View>
           <View style={[styles.halfField, isDesktop && desktopField('md')]}>
-            <Text style={styles.fieldLabel}>Assigned to</Text>
+            <Text style={styles.fieldLabel}>Assigned To</Text>
             <TextInput
               style={styles.input}
               value={assignedTo}
@@ -1472,7 +1472,7 @@ function RFIForm() {
                     testID="rfi-sub-more"
                   >
                     <Text style={styles.subChipText} numberOfLines={1}>
-                      {showAllSubs ? 'Show fewer' : `+${rfiVisibleSubs(subcontractors, assignedSubId, showAllSubs).hidden} more`}
+                      {showAllSubs ? 'Show Fewer' : `+${rfiVisibleSubs(subcontractors, assignedSubId, showAllSubs).hidden} more`}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -1516,7 +1516,7 @@ function RFIForm() {
           </>
         )}
 
-        <Text style={styles.fieldLabel}>Response needed by</Text>
+        <Text style={styles.fieldLabel}>Response Needed By</Text>
         <TouchableOpacity
           style={[styles.pickerBtn, isDesktop && desktopField('sm')]}
           onPress={() => setShowDatePicker(true)}
@@ -1533,7 +1533,7 @@ function RFIForm() {
                 both. new Date(bareDay) printed the day before, west of Greenwich. */}
             {/* #164: a full instant is read as the LOCAL day it names
                 (calendarDayOf), a bare day as itself. */}
-            {dateRequired ? formatCalendarDay(calendarDayOf(dateRequired) ?? dateRequired) : 'Select a date'}
+            {dateRequired ? formatCalendarDay(calendarDayOf(dateRequired) ?? dateRequired) : 'Select a Date'}
           </Text>
         </TouchableOpacity>
         <DatePickerModal
@@ -1543,7 +1543,7 @@ function RFIForm() {
           // on the previous day west of Greenwich.
           value={dateRequired ? (parseCalendarDay(calendarDayOf(dateRequired))?.toISOString() ?? dateRequired) : ''}
           allowFuture
-          title="Response required by"
+          title="Response Required By"
           onClose={() => setShowDatePicker(false)}
           onChange={(iso) => setDateRequired(iso)}
         />
@@ -1615,7 +1615,7 @@ function RFIForm() {
           </>
         )}
 
-        <Text style={styles.fieldLabel}>Linked sheet</Text>
+        <Text style={styles.fieldLabel}>Linked Sheet</Text>
         <TextInput
           style={[styles.input, isDesktop && styles.inputSmDesktop]}
           value={linkedDrawing}
@@ -1635,11 +1635,11 @@ function RFIForm() {
           onPress={() => { void handleAttachPhoto(); }}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Attach a photo"
+          accessibilityLabel="Attach a Photo"
           testID="rfi-attach-photo"
         >
           <ImagePlus size={15} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.attachBtnText}>Attach a photo</Text>
+          <Text style={styles.attachBtnText}>Attach a Photo</Text>
         </TouchableOpacity>
         {attachments.length > 0 && (
           <>
@@ -1665,7 +1665,7 @@ function RFIForm() {
                       onPress={() => handleRemovePhoto(stored, index)}
                       hitSlop={8}
                       accessibilityRole="button"
-                      accessibilityLabel="Remove this photo"
+                      accessibilityLabel="Remove This Photo"
                       testID={`rfi-photo-remove-${index}`}
                     >
                       <X size={12} color="#fff" strokeWidth={2} />
@@ -1714,7 +1714,7 @@ function RFIForm() {
                 activeOpacity={0.85}
                 testID="rfi-suggest"
                 accessibilityRole="button"
-                accessibilityLabel="MAGE suggests an answer"
+                accessibilityLabel="MAGE Suggests an Answer"
                 accessibilityState={{ disabled: suggesting || !question.trim(), busy: suggesting }}
               >
                 {suggesting ? (
@@ -1725,7 +1725,7 @@ function RFIForm() {
                 ) : (
                   <>
                     <MageAIMark size={14} color={themeColors.accent} />
-                    <Text style={styles.suggestBtnText}>MAGE suggests an answer</Text>
+                    <Text style={styles.suggestBtnText}>MAGE Suggests an Answer</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1741,11 +1741,11 @@ function RFIForm() {
 
         {scheduleTasks.length > 0 && (
           <>
-            <Text style={styles.fieldLabel}>Linked schedule task</Text>
+            <Text style={styles.fieldLabel}>Linked Schedule Task</Text>
             <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
               <Link2 size={15} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.pickerBtnText} numberOfLines={1}>
-                {linkedTask ? linkedTask.title : 'None — tap to link a task'}
+                {linkedTask ? linkedTask.title : 'None — Tap to Link a Task'}
               </Text>
               <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -1784,7 +1784,7 @@ function RFIForm() {
         {existingRFI && isDirty && (
           <TouchableOpacity style={[styles.sendToProBtn, (!!responseConflict || !!writeBlock) && { opacity: 0.5 }, isDesktop && desktopCta]} onPress={handleSaveInPlace} disabled={!!responseConflict} {...viewerSaveOff} accessibilityState={{ disabled: !!responseConflict || !!writeBlock }} activeOpacity={0.85} testID="rfi-save-in-place">
             <Save size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.sendToProBtnText}>Save changes</Text>
+            <Text style={styles.sendToProBtnText}>Save Changes</Text>
           </TouchableOpacity>
         )}
 
@@ -1833,7 +1833,7 @@ function RFIForm() {
                 ? "They'll get a formatted email with the question and a reply link. Their answer is filed on this RFI when they submit it, and MAGE ID alerts you."
                 : "They'll get a formatted email with the question. Their reply comes back to your inbox — paste it into the Response field."}
             </Text>
-            <Text style={styles.sendFieldLabel}>Their email *</Text>
+            <Text style={styles.sendFieldLabel}>Their Email *</Text>
             <TextInput
               style={styles.sendInput}
               value={sendEmail_To}
@@ -1844,7 +1844,7 @@ function RFIForm() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <Text style={styles.sendFieldLabel}>Their name (optional)</Text>
+            <Text style={styles.sendFieldLabel}>Their Name (Optional)</Text>
             <TextInput
               style={styles.sendInput}
               value={sendEmail_Name}
@@ -1852,7 +1852,7 @@ function RFIForm() {
               placeholder="e.g. Sarah Chen, AIA"
               placeholderTextColor={themeColors.textMuted}
             />
-            <Text style={styles.sendFieldLabel}>Personal note (optional)</Text>
+            <Text style={styles.sendFieldLabel}>Personal Note (Optional)</Text>
             <TextInput
               style={[styles.sendInput, styles.sendInputMulti]}
               value={sendEmail_Note}
@@ -1881,7 +1881,7 @@ function RFIForm() {
         <Pressable style={[styles.modalOverlay, fTask.overlay]} onPress={() => setShowTaskPicker(false)}>
           <Pressable style={[styles.taskPickerCard, fTask.card]} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
-              <Text style={styles.taskPickerTitle}>Link schedule task</Text>
+              <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>

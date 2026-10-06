@@ -26,7 +26,7 @@ function openedSheet(ctx: CopyCtx): string | null {
 export const askYourPlans: TutorialDef = {
   id: 'ask-your-plans',
   version: 1,
-  title: 'Ask your plans a question',
+  title: 'Ask Your Plans a Question',
   seconds: 35,
   endsWith: 'An answer that cites the sheet it came from',
   group: 'site',

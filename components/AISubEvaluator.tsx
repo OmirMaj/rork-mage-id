@@ -101,7 +101,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         ) : (
           <MageAIMark size={16} color={themeColors.accent} />
         )}
-        <Text style={styles.triggerText}>{isLoading ? 'Evaluating this sub…' : 'Evaluate this sub'}</Text>
+        <Text style={styles.triggerText}>{isLoading ? 'Evaluating this sub…' : 'Evaluate This Sub'}</Text>
       </TouchableOpacity>
     );
   }
@@ -110,8 +110,8 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
         <MageAIMark size={12} color={themeColors.accent} />
-        <Text style={styles.headerTitle}>Sub evaluation</Text>
-        <Text style={styles.aiTag}>AI draft</Text>
+        <Text style={styles.headerTitle}>Sub Evaluation</Text>
+        <Text style={styles.aiTag}>AI Draft</Text>
       </View>
       {grounding ? (
         <View style={styles.readChip} testID="ai-sub-read-chip">
@@ -136,7 +136,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         </View>
       ) : null}
 
-      <Text style={styles.sectionLabel}>Questions to ask</Text>
+      <Text style={styles.sectionLabel}>Questions to Ask</Text>
       {(result.questionsToAsk ?? []).map((q, idx) => (
         <View key={idx} style={styles.questionRow}>
           <HelpCircle size={12} color={"#1565C0"} strokeWidth={1.75} />
@@ -144,7 +144,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         </View>
       ))}
 
-      <Text style={styles.sectionLabel}>Your rate ({sub.trade})</Text>
+      <Text style={styles.sectionLabel}>Your Rate ({sub.trade})</Text>
       {yourRate ? (
         <View style={styles.rateRow}>
           <DollarSign size={12} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -157,7 +157,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
           onPress={() => router.push('/time-tracking')}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Set your labor rate for this trade"
+          accessibilityLabel="Set Your Labor Rate for This Trade"
         >
           <DollarSign size={12} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.rateNote}>
@@ -168,7 +168,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
 
       {(result.redFlags ?? []).length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Red flags to watch</Text>
+          <Text style={styles.sectionLabel}>Red Flags to Watch</Text>
           {(result.redFlags ?? []).map((flag, idx) => (
             <View key={idx} style={styles.flagRow}>
               <AlertTriangle size={12} color={"#C84038"} strokeWidth={1.75} />

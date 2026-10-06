@@ -67,7 +67,7 @@ const CATEGORIES: CategoryDef[] = [
   // here, so a GC could neither mute website-lead pushes nor see they exist.
   {
     key: 'lead_received',
-    label: 'Website leads',
+    label: 'Website Leads',
     description: 'Someone asks for a price through your website quote form or Instant Estimate widget.',
     icon: <Globe size={18} color={Colors.accent} strokeWidth={1.75} />,
     group: 'leads',
@@ -75,35 +75,35 @@ const CATEGORIES: CategoryDef[] = [
   // ─── Client → GC ───
   {
     key: 'portal_message',
-    label: 'Client messages',
+    label: 'Client Messages',
     description: 'Your client sends a message from the portal.',
     icon: <MessageSquare size={18} color={"#1565C0"} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'contract_signed',
-    label: 'Contract signed',
+    label: 'Contract Signed',
     description: 'Your client counter-signs the construction agreement.',
     icon: <PenTool size={18} color={Colors.successDark} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'selection_chosen',
-    label: 'Selection picked',
+    label: 'Selection Picked',
     description: 'Your client picks a tile, fixture, or other allowance option.',
     icon: <ShoppingCart size={18} color={Colors.primary} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'budget_proposal',
-    label: 'Budget proposals',
+    label: 'Budget Proposals',
     description: 'Your client proposes a target budget from the portal.',
     icon: <HandCoins size={18} color={Colors.primary} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'co_approval',
-    label: 'CO approvals',
+    label: 'CO Approvals',
     description: 'Your client approves or declines a change order.',
     icon: <CheckCircle2 size={18} color={Colors.success} strokeWidth={1.75} />,
     group: 'client',
@@ -115,7 +115,7 @@ const CATEGORIES: CategoryDef[] = [
   // client_payment_failed, exactly as notify files them.
   {
     key: 'invoice_paid',
-    label: 'Client payments',
+    label: 'Client Payments',
     description: 'Your client pays an invoice through the portal, or a bank payment fails after checkout.',
     icon: <Banknote size={18} color={Colors.successDark} strokeWidth={1.75} />,
     group: 'client',
@@ -123,14 +123,14 @@ const CATEGORIES: CategoryDef[] = [
   // ─── Your team → GC ───
   {
     key: 'field_report',
-    label: 'Field daily reports',
+    label: 'Field Daily Reports',
     description: 'Someone on your team files a daily report on one of your projects.',
     icon: <ClipboardList size={18} color={Colors.accent} strokeWidth={1.75} />,
     group: 'team',
   },
   {
     key: 'pro_response',
-    label: 'RFI & submittal responses',
+    label: 'RFI & Submittal Responses',
     description: 'An architect, engineer, or reviewer answers an RFI or submittal you sent.',
     icon: <FileCheck size={18} color={Colors.accent} strokeWidth={1.75} />,
     group: 'team',
@@ -140,7 +140,7 @@ const CATEGORIES: CategoryDef[] = [
   // never the injury — the case opens in Safety, behind RLS.
   {
     key: 'safety_incident',
-    label: 'Incident reports',
+    label: 'Incident Reports',
     description: 'Someone you invited files an incident report on one of your projects.',
     icon: <ShieldAlert size={18} color={Colors.accent} strokeWidth={1.75} />,
     group: 'team',
@@ -148,14 +148,14 @@ const CATEGORIES: CategoryDef[] = [
   // ─── Sub → GC ───
   {
     key: 'sub_invoice',
-    label: 'Sub invoices',
+    label: 'Sub Invoices',
     description: 'A subcontractor submits an invoice through their portal.',
     icon: <Inbox size={18} color="#AF52DE" strokeWidth={1.75} />,
     group: 'sub',
   },
   {
     key: 'punch_ready',
-    label: 'Punch items ready',
+    label: 'Punch Items Ready',
     description: 'A subcontractor marks a punch item ready for your review.',
     icon: <ListChecks size={18} color="#AF52DE" strokeWidth={1.75} />,
     group: 'sub',
@@ -164,21 +164,21 @@ const CATEGORIES: CategoryDef[] = [
   // each raised only by its database trigger when the sub acts on a link.
   {
     key: 'bid_invite_received',
-    label: 'Sub bids received',
+    label: 'Sub Bids Received',
     description: 'A subcontractor files a bid through an invite link you sent.',
     icon: <Banknote size={18} color="#AF52DE" strokeWidth={1.75} />,
     group: 'sub',
   },
   {
     key: 'lien_waiver_signed',
-    label: 'Lien waiver signed',
+    label: 'Lien Waiver Signed',
     description: 'A subcontractor signs a lien waiver you requested.',
     icon: <PenTool size={18} color="#AF52DE" strokeWidth={1.75} />,
     group: 'sub',
   },
   {
     key: 'prequal_submitted',
-    label: 'Prequalification submitted',
+    label: 'Prequalification Submitted',
     description: 'A subcontractor submits the prequalification packet you sent them.',
     icon: <FileCheck size={18} color="#AF52DE" strokeWidth={1.75} />,
     group: 'sub',
@@ -186,7 +186,7 @@ const CATEGORIES: CategoryDef[] = [
   // ─── Marketplace ───
   {
     key: 'nearby_rfp_posted',
-    label: 'New nearby RFPs',
+    label: 'New Nearby RFPs',
     // The fan-out only alerts a company whose SERVICE AREA covers the RFP
     // (notify-nearby-contractors/reach.ts), and no screen sets one yet — so
     // the toggle says it cannot fire today instead of implying it will.
@@ -196,14 +196,14 @@ const CATEGORIES: CategoryDef[] = [
   },
   {
     key: 'bid_question_asked',
-    label: 'Pre-bid questions',
+    label: 'Pre-Bid Questions',
     description: 'A contractor asks a question on an RFP you posted.',
     icon: <HelpCircle size={18} color={Colors.purple} strokeWidth={1.75} />,
     group: 'marketplace',
   },
   {
     key: 'rfp_awarded',
-    label: 'RFP awarded to you',
+    label: 'RFP Awarded to You',
     description: 'A client picks your bid for their project.',
     icon: <CheckCircle2 size={18} color={Colors.successDark} strokeWidth={1.75} />,
     group: 'marketplace',
@@ -211,10 +211,10 @@ const CATEGORIES: CategoryDef[] = [
 ];
 
 const GROUP_LABELS: Record<CategoryDef['group'], { title: string; subtitle: string }> = {
-  leads:       { title: 'Website → you',        subtitle: 'When someone asks for a price on your website.' },
-  client:      { title: 'Client → you',         subtitle: 'When the client does something on the portal.' },
-  team:        { title: 'Your team → you',      subtitle: 'When your field crew or a design pro sends something back.' },
-  sub:         { title: 'Subs → you',  subtitle: 'When a sub does something through a link you sent them.' },
+  leads:       { title: 'Website → You',        subtitle: 'When someone asks for a price on your website.' },
+  client:      { title: 'Client → You',         subtitle: 'When the client does something on the portal.' },
+  team:        { title: 'Your Team → You',      subtitle: 'When your field crew or a design pro sends something back.' },
+  sub:         { title: 'Subs → You',  subtitle: 'When a sub does something through a link you sent them.' },
   marketplace: { title: 'Marketplace',          subtitle: 'New RFPs nearby, awards, and pre-bid Q&A.' },
 };
 
@@ -258,9 +258,9 @@ export default function NotificationsSettingsScreen() {
   const refuseUntilLoaded = useCallback((): boolean => {
     if (settingsLoaded) return false;
     showAlert(
-      profileFailed ? PROFILE_FAILED_TITLE : 'Still loading your settings',
+      profileFailed ? PROFILE_FAILED_TITLE : 'Still Loading Your Settings',
       profileFailed ? PROFILE_FAILED_REASON : PROFILE_LOADING_REASON,
-      [{ text: 'Not now', style: 'cancel' }, { text: 'Retry', onPress: () => retryRemoteReads() }],
+      [{ text: 'Not Now', style: 'cancel' }, { text: 'Retry', onPress: () => retryRemoteReads() }],
     );
     return true;
   }, [settingsLoaded, profileFailed, retryRemoteReads]);
@@ -523,7 +523,7 @@ export default function NotificationsSettingsScreen() {
     } catch (err) {
       console.log('[NotificationsSettings] preview failed', err);
       showAlert(
-        'Preview failed',
+        'Preview Failed',
         'Couldn’t send your preview digest. Check your connection and try again.',
       );
     } finally {
@@ -593,7 +593,7 @@ export default function NotificationsSettingsScreen() {
       // bounce them to Settings instead.
       if (pushPermStatus === 'denied') {
         showAlert(
-          'Notifications are disabled',
+          'Notifications Are Disabled',
           'Open iOS Settings and turn on notifications for MAGE ID.',
           [
             { text: 'Cancel' },
@@ -649,7 +649,7 @@ export default function NotificationsSettingsScreen() {
           <View style={styles.heroIcon}>
             <Bell size={20} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.heroTitle}>Stay in the loop</Text>
+          <Text style={styles.heroTitle}>Stay in the Loop</Text>
           <Text style={styles.heroBody}>
             Push lands on your phone right away; email is the lasting record when push misses. Turn either off per category. Both are on by default.
           </Text>
@@ -671,7 +671,7 @@ export default function NotificationsSettingsScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.permTitle}>
-                {pushPermStatus === 'denied' ? 'Push is turned off' : 'Get instant alerts'}
+                {pushPermStatus === 'denied' ? 'Push Is Turned Off' : 'Get Instant Alerts'}
               </Text>
               <Text style={styles.permBody}>
                 {pushPermStatus === 'denied'
@@ -689,7 +689,7 @@ export default function NotificationsSettingsScreen() {
                     ? 'Working…'
                     : pushPermStatus === 'denied'
                       ? 'Open Settings'
-                      : 'Turn on push notifications'}
+                      : 'Turn On Push Notifications'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -703,7 +703,7 @@ export default function NotificationsSettingsScreen() {
             location-accuracy story. */}
         <View style={styles.section}>
           <View style={styles.groupHeader}>
-            <Text style={styles.groupTitle}>AI morning digest</Text>
+            <Text style={styles.groupTitle}>AI Morning Digest</Text>
             <Text style={styles.groupSubtitle}>
               A 6 AM brief of today&apos;s tasks, yesterday&apos;s field notes, weather risks, and what needs you. Pulled fresh each morning from your projects.
             </Text>
@@ -714,7 +714,7 @@ export default function NotificationsSettingsScreen() {
                 <Sunrise size={18} color="#FFF" strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.digestTitle}>Send me a daily brief</Text>
+                <Text style={styles.digestTitle}>Send Me a Daily Brief</Text>
                 <Text style={styles.digestSubtitle} testID="digest-status">
                   {!settingsLoaded
                     ? (profileFailed ? `${PROFILE_FAILED_TITLE} — tap the switch to retry` : 'Loading your digest setting…')
@@ -798,7 +798,7 @@ export default function NotificationsSettingsScreen() {
                 <View style={styles.channelRow}>
                   <View style={styles.channelInfo}>
                     <Smartphone size={16} color={themeColors.text} strokeWidth={1.75} />
-                    <Text style={styles.channelLabel}>In-app inbox</Text>
+                    <Text style={styles.channelLabel}>In-App Inbox</Text>
                   </View>
                   <Switch
                     value={digestInAppOn}
@@ -820,9 +820,9 @@ export default function NotificationsSettingsScreen() {
                     <MapPin size={14} color={locationCoverage.geocoded === locationCoverage.total ? themeColors.success : '#7A4500'} strokeWidth={1.75} />
                     <Text style={styles.locationTitle}>
                       {locationCoverage.total === 0
-                        ? 'No active projects yet'
+                        ? 'No Active Projects Yet'
                         : locationCoverage.geocoded === locationCoverage.total
-                          ? 'All locations set'
+                          ? 'All Locations Set'
                           : `${locationCoverage.geocoded} of ${locationCoverage.total} projects have a location`}
                     </Text>
                   </View>
@@ -839,7 +839,7 @@ export default function NotificationsSettingsScreen() {
                       activeOpacity={0.85}
                       style={styles.locationCta}
                     >
-                      <Text style={styles.locationCtaText}>Open projects</Text>
+                      <Text style={styles.locationCtaText}>Open Projects</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -857,7 +857,7 @@ export default function NotificationsSettingsScreen() {
                 >
                   <Send size={14} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.previewBtnText}>
-                    {previewing ? 'Sending preview…' : "Send today's preview now"}
+                    {previewing ? 'Sending preview…' : "Send Today's Preview Now"}
                   </Text>
                 </TouchableOpacity>
 
@@ -885,7 +885,7 @@ export default function NotificationsSettingsScreen() {
         {Platform.OS !== 'web' && canAccess('brain_accuracy') && (
           <View style={styles.section}>
             <View style={styles.groupHeader}>
-              <Text style={styles.groupTitle}>Friday close nudge</Text>
+              <Text style={styles.groupTitle}>Friday Close Nudge</Text>
               <Text style={styles.groupSubtitle}>
                 A Friday 3 PM reminder to bill, chase, and close the week.
               </Text>
@@ -923,7 +923,7 @@ export default function NotificationsSettingsScreen() {
         {canAccess('brain_accuracy') && (
           <View style={styles.section}>
             <View style={styles.groupHeader}>
-              <Text style={styles.groupTitle}>What MAGE does on its own</Text>
+              <Text style={styles.groupTitle}>What MAGE Does on Its Own</Text>
               <Text style={styles.groupSubtitle}>
                 Each ability is earned from your graded record and turns off when the record slips. Nothing is sent without you.
               </Text>
@@ -936,7 +936,7 @@ export default function NotificationsSettingsScreen() {
                   <History size={18} color="#FFF" strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.digestTitle}>Pre-set durations from your pace</Text>
+                  <Text style={styles.digestTitle}>Pre-Set Durations from Your Pace</Text>
                   <Text style={styles.digestSubtitle}>
                     {pacePreApplyOn
                       ? 'On. Draft schedules arrive with qualified trades already set to your measured pace (tap any badge to revert).'
@@ -979,7 +979,7 @@ export default function NotificationsSettingsScreen() {
                   <FileWarning size={18} color="#FFF" strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.digestTitle}>Draft change orders from leak scans</Text>
+                  <Text style={styles.digestTitle}>Draft Change Orders from Leak Scans</Text>
                   <Text style={styles.digestSubtitle}>
                     {leakDraftOn
                       ? 'On. Priced leaks in daily reports become draft COs for your review (drafts only, never sent).'
@@ -1016,7 +1016,7 @@ export default function NotificationsSettingsScreen() {
             {/* Promotion / demotion receipts */}
             {autonomyReceipts.length > 0 && (
               <View style={styles.autonomyReceipts}>
-                <Text style={styles.autonomyReceiptsTitle}>Recent trust changes</Text>
+                <Text style={styles.autonomyReceiptsTitle}>Recent Trust Changes</Text>
                 {autonomyReceipts.map(r => (
                   <View key={r.id} style={styles.receiptRow}>
                     <Text style={styles.receiptDate}>
@@ -1093,7 +1093,7 @@ export default function NotificationsSettingsScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.tableHeadLabel}>How push works</Text>
+          <Text style={styles.tableHeadLabel}>How Push Works</Text>
           <Text style={styles.helperBody}>
             {pushHowItWorks()}
           </Text>

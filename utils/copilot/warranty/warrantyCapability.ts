@@ -25,7 +25,7 @@ const isCategory = (v: unknown): v is WarrantyCategory =>
 
 export const warrantyCapability: CopilotCapability<WarrantyDraft, WarrantyApplied> = {
   id: 'warranty',
-  label: 'Log a warranty',
+  label: 'Log a Warranty',
   aiFeature: 'voiceCapture',
   maxQuestions: 3,
   askThreshold: 0.4,

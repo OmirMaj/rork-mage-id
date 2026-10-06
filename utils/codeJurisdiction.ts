@@ -959,7 +959,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
       questionChannels: [
         {
           stage: 'pre_filing',
-          label: 'Pre-Determination request',
+          label: 'Pre-Determination Request',
           url: 'https://www.nyc.gov/site/buildings/industry/determinations.page',
           note: 'For a possible objection on a job not yet filed. Submitted in DOB NOW under +Determinations by a registered architect or professional engineer (or another professional DOB lists).',
         },
@@ -973,13 +973,13 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
         },
         {
           stage: 'in_review',
-          label: 'Plan examination appointment',
+          label: 'Plan Examination Appointment',
           url: 'https://a810-dobnow.nyc.gov/Publish/Appointments/index.html#/',
           note: 'For standard plan review BIS filings. The applicant needs a DOB ID number and PIN plus the BIS job and document numbers.',
         },
         {
           stage: 'objection',
-          label: 'Second Review of Objection, then a CCD1/ZRD1 determination',
+          label: 'Second Review of Objection, Then a CCD1/ZRD1 Determination',
           url: 'https://www.nyc.gov/site/buildings/industry/determinations.page',
           note: 'On a DOB NOW job, open the filing and choose Second Review of Objection under Select Action. A CCD1 or ZRD1 determination request goes in under +Determinations.',
         },
@@ -991,15 +991,15 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
         },
         {
           stage: 'general',
-          label: 'DOB customer service and online help',
+          label: 'DOB Customer Service and Online Help',
           url: 'https://www.nyc.gov/dobhelp',
           phone: '212-393-2550',
           note: 'Customer service line, or the online help form at nyc.gov/dobhelp.',
         },
       ],
       feeScheduleUrls: [
-        { label: 'New permit fee structure (PDF)', url: 'https://www.nyc.gov/assets/buildings/pdf/new_permit_fee_structure.pdf' },
-        { label: 'Alteration filing fees (PDF)', url: 'https://www.nyc.gov/assets/buildings/pdf/alteration_filing_fees.pdf' },
+        { label: 'New Permit Fee Structure (PDF)', url: 'https://www.nyc.gov/assets/buildings/pdf/new_permit_fee_structure.pdf' },
+        { label: 'Alteration Filing Fees (PDF)', url: 'https://www.nyc.gov/assets/buildings/pdf/alteration_filing_fees.pdf' },
       ],
       applicantOfRecordNote: 'In NYC the registered architect or engineer (or their expeditor) is usually the applicant of record and the one who talks to the plan examiner — not the GC.',
       sourceUrl: 'https://www.nyc.gov/site/buildings/dob/contact-us.page',
@@ -1464,7 +1464,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
         },
         {
           stage: 'general',
-          label: 'CHAP (historic districts and landmarks)',
+          label: 'CHAP (Historic Districts and Landmarks)',
           url: 'https://chap.baltimorecity.gov/review-procedures',
           phone: '410-396-7526',
           note: 'Exterior work in a CHAP district or on a landmark goes through CHAP. A permit filed first is held until CHAP issues an Authorization to Proceed.',
@@ -1478,7 +1478,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
         },
         {
           stage: 'general',
-          label: 'Fire Marshal plans review (Baltimore City Fire Department)',
+          label: 'Fire Marshal Plans Review (Baltimore City Fire Department)',
           phone: '410-396-5752',
           email: 'BCFD.Plans@baltimorecity.gov',
           note: 'Fire protection plans review and system acceptance.',

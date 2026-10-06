@@ -73,7 +73,7 @@ export default function HomePassportScreen() {
     const byKey = new Map<string, { label: string; jobs: typeof projects }>();
     for (const p of projects ?? []) {
       const k = homeKey(p.location);
-      const entry = byKey.get(k) ?? { label: p.location?.trim() || 'Unknown address', jobs: [] };
+      const entry = byKey.get(k) ?? { label: p.location?.trim() || 'Unknown Address', jobs: [] };
       entry.jobs.push(p);
       byKey.set(k, entry);
     }
@@ -135,7 +135,7 @@ export default function HomePassportScreen() {
     try {
       await shareText({ message: buildPassportHandoff(passport) });
     } catch {
-      showAlert("Couldn't share the Home Passport", 'Try again.');
+      showAlert("Couldn't Share the Home Passport", 'Try again.');
     }
   };
 
@@ -210,19 +210,19 @@ export default function HomePassportScreen() {
               <Pressable
                 onPress={() => void onShare()}
                 accessibilityRole="button"
-                accessibilityLabel="Share a copy with your client"
+                accessibilityLabel="Share a Copy with Your Client"
                 testID="passport-share"
                 style={({ pressed }) => [styles.shareBtn, pressed ? styles.pressed : null]}
               >
                 <Share2 size={Tokens.iconSize.small.size} color={t.accentLabel} strokeWidth={2} />
-                <Text style={styles.shareBtnText}>Share a copy with your client</Text>
+                <Text style={styles.shareBtnText}>Share a Copy with Your Client</Text>
               </Pressable>
             </View>
           </>
         ) : (
           <View style={styles.empty}>
             <House size={20} color={t.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>Nothing on record yet</Text>
+            <Text style={styles.emptyTitle}>Nothing on Record Yet</Text>
             <Text style={styles.emptyText}>
               As your projects here are completed, this fills in with the warranties, permits, model numbers
               and maintenance dates from your records, ready to share with your client as a copy.

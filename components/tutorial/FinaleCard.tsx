@@ -69,7 +69,7 @@ export function FinaleCard({ finale, reduceMotion, wide, onAction }: FinaleCardP
           ]}
         >
           <View style={styles.headRow}>
-            <EyebrowLabel tone="success">Practised on the sample</EyebrowLabel>
+            <EyebrowLabel tone="success">Practised on the Sample</EyebrowLabel>
             <Pressable
               onPress={() => onAction('done')}
               accessibilityRole="button"

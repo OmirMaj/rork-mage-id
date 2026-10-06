@@ -135,7 +135,7 @@ export function CodeCard({
             {`${item.calc.expression} = `}
             <Text style={styles.strong}>{item.calc.value}</Text>
             {item.calc.note ? `. ${item.calc.note}` : ''}
-            <Text style={styles.calcTag}>{'  MAGE calculator'}</Text>
+            <Text style={styles.calcTag}>{'  MAGE Calculator'}</Text>
           </Text>
         </View>
       ) : null}
@@ -195,7 +195,7 @@ export function CodeCard({
           testID={`${tid}-official`}
         >
           {P.sunlight ? null : <BookOpen size={17} color={plan.available ? P.accentLabel : P.ink3} strokeWidth={1.9} />}
-          <Text style={[styles.actLabel, { color: plan.available ? P.accentLabel : P.ink3 }]} numberOfLines={1}>Official text</Text>
+          <Text style={[styles.actLabel, { color: plan.available ? P.accentLabel : P.ink3 }]} numberOfLines={1}>Official Text</Text>
           <View style={styles.free}><Text style={styles.freeText}>Free</Text></View>
         </Pressable>
         {cell('checklist', 'Checklist', ClipboardCheck, storeGated(checklist, item))}

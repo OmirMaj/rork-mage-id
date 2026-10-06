@@ -35,7 +35,7 @@ export function rfiGaps(draft: RFIDraft, _grounding: Grounding): Gap[] {
       question: 'How soon do you need an answer?',
       groundedDefault: { value: false, basis: 'standard turnaround' },
       choices: [
-        { label: 'Standard — about a week', value: false, recommended: true },
+        { label: 'Standard — About a Week', value: false, recommended: true },
         { label: 'Urgent — 2-3 days', value: true },
       ],
     });

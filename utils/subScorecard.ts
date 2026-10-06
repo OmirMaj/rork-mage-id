@@ -313,7 +313,7 @@ function buildCard(
     const costScore = clamp01(1 - overrun / 0.25);
     factors.push({
       key: 'cost_discipline',
-      label: 'Cost discipline',
+      label: 'Cost Discipline',
       score: costScore,
       weight: W_COST,
       applicable: true,
@@ -325,7 +325,7 @@ function buildCard(
   } else {
     factors.push({
       key: 'cost_discipline',
-      label: 'Cost discipline',
+      label: 'Cost Discipline',
       score: 0,
       weight: 0,
       applicable: false,
@@ -342,7 +342,7 @@ function buildCard(
     const coScore = clamp01(1 - coShare / 0.2);
     factors.push({
       key: 'co_impact',
-      label: 'Change-order impact',
+      label: 'Change-Order Impact',
       score: coScore,
       weight: W_CO,
       applicable: true,
@@ -354,7 +354,7 @@ function buildCard(
   } else {
     factors.push({
       key: 'co_impact',
-      label: 'Change-order impact',
+      label: 'Change-Order Impact',
       score: 0,
       weight: 0,
       applicable: false,
@@ -374,7 +374,7 @@ function buildCard(
     const reworkRate = rejectedPunch.length / reviewedPunch.length;
     factors.push({
       key: 'rework_rate',
-      label: 'Punch rework',
+      label: 'Punch Rework',
       score: clamp01(1 - reworkRate / REWORK_ZERO_AT),
       weight: W_REWORK,
       applicable: true,
@@ -386,7 +386,7 @@ function buildCard(
   } else {
     factors.push({
       key: 'rework_rate',
-      label: 'Punch rework',
+      label: 'Punch Rework',
       score: 0,
       weight: 0,
       applicable: false,
@@ -410,7 +410,7 @@ function buildCard(
     const slip = plannedSum > 0 ? Math.max(0, actualSum / plannedSum - 1) : 0;
     factors.push({
       key: 'schedule_reliability',
-      label: 'Schedule reliability',
+      label: 'Schedule Reliability',
       score: clamp01(1 - slip / SLIP_ZERO_AT),
       weight: W_SCHED,
       applicable: true,
@@ -422,7 +422,7 @@ function buildCard(
   } else {
     factors.push({
       key: 'schedule_reliability',
-      label: 'Schedule reliability',
+      label: 'Schedule Reliability',
       score: 0,
       weight: 0,
       applicable: false,
@@ -456,7 +456,7 @@ function buildCard(
     ).length;
     factors.push({
       key: 'rfi_responsiveness',
-      label: 'RFI turnaround',
+      label: 'RFI Turnaround',
       score: clamp01(1 - meanHold / RFI_HOLD_ZERO_AT_DAYS),
       weight: W_RFI,
       applicable: true,
@@ -468,7 +468,7 @@ function buildCard(
   } else {
     factors.push({
       key: 'rfi_responsiveness',
-      label: 'RFI turnaround',
+      label: 'RFI Turnaround',
       score: 0,
       weight: 0,
       applicable: false,

@@ -71,7 +71,7 @@ const CATEGORY_CHOICES: { label: string; value: WarrantyCategory }[] = [
   { label: 'Appliances', value: 'appliances' },
   { label: 'Structural', value: 'structural' },
   { label: 'Finishes', value: 'finishes' },
-  { label: 'General workmanship', value: 'general' },
+  { label: 'General Workmanship', value: 'general' },
 ];
 
 const MONTHS_IN_YEAR = 12;

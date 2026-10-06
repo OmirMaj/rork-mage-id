@@ -163,7 +163,7 @@ export function rfiFromCandidate(
 }
 
 const CHANGE_LABEL: Record<string, string> = {
-  added: 'Added', removed: 'Removed', modified: 'Modified', renote: 'Note revised',
+  added: 'Added', removed: 'Removed', modified: 'Modified', renote: 'Note Revised',
 };
 
 /**

@@ -212,7 +212,7 @@ export function summarizePlanIndex(r: PlanIndexResult): PlanIndexSummary {
 
   if (r.total === 0) {
     return {
-      label: r.supersededExcluded > 0 ? 'No current sheets to index (only superseded revisions)' : 'No sheets to index yet',
+      label: r.supersededExcluded > 0 ? 'No Current Sheets to Index (Only Superseded Revisions)' : 'No Sheets to Index Yet',
       tone: 'muted',
       reasons,
     };

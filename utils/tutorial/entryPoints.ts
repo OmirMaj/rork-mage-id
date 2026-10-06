@@ -47,10 +47,10 @@ export function helpTutorialsRowVisible(persona: TutorialPersona | null | undefi
 // ── Hub cards ───────────────────────────────────────────────────────────────
 
 export const HUB_GROUPS: readonly { group: TutorialGroup; label: string }[] = [
-  { group: 'site', label: 'On site' },
+  { group: 'site', label: 'On Site' },
   { group: 'money', label: 'Money' },
   { group: 'schedule', label: 'Schedule' },
-  { group: 'client', label: 'Your client' },
+  { group: 'client', label: 'Your Client' },
   { group: 'bid', label: 'Estimating' },
 ];
 

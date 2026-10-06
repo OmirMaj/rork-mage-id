@@ -65,7 +65,7 @@ export function JurisdictionBlock({ info, sunlight, testID }: JurisdictionBlockP
       <View style={styles.row}>
         <View style={styles.icon}><Landmark size={17} color={P.ink} strokeWidth={1.9} /></View>
         <View style={styles.text}>
-          <Text style={styles.eyebrow}>Code in force</Text>
+          <Text style={styles.eyebrow}>Code in Force</Text>
           <Text style={styles.value}>{info.editionLabel ?? EDITION_MISSING}</Text>
           {info.editionLabel
             ? src(editionSrc, info.editionSourceUrl, 'Source not on file', 'Code')
@@ -75,7 +75,7 @@ export function JurisdictionBlock({ info, sunlight, testID }: JurisdictionBlockP
       <View style={[styles.row, styles.rowRule]}>
         <View style={styles.icon}><Building2 size={17} color={P.ink} strokeWidth={1.9} /></View>
         <View style={styles.text}>
-          <Text style={styles.eyebrow}>Permit office</Text>
+          <Text style={styles.eyebrow}>Permit Office</Text>
           <Text style={styles.value}>{info.permitOfficeTitle ?? OFFICE_MISSING}</Text>
           {info.permitOfficeTitle ? src(officeSrc, info.permitOfficeSourceUrl, OFFICE_UNVERIFIED, 'Permit office') : null}
         </View>

@@ -197,10 +197,10 @@ export interface SampleScheduleTask {
 
 export const SAMPLE_SCHEDULE_TASKS: readonly SampleScheduleTask[] = [
   { key: 'demo', title: 'Demo', phase: 'Demo', durationDays: 3, startDay: 1, after: [] },
-  { key: 'framing', title: 'Frame walls', phase: 'Framing', durationDays: 3, startDay: 4, after: ['demo'] },
-  { key: 'plumbing', title: 'Rough plumbing', phase: 'Plumbing', durationDays: 4, startDay: 7, after: ['framing'] },
-  { key: 'electrical', title: 'Rough electrical', phase: 'Electrical', durationDays: 3, startDay: 7, after: ['framing'] },
-  { key: 'drywall', title: 'Hang & finish drywall', phase: 'Drywall', durationDays: 5, startDay: 11, after: ['plumbing', 'electrical'] },
+  { key: 'framing', title: 'Frame Walls', phase: 'Framing', durationDays: 3, startDay: 4, after: ['demo'] },
+  { key: 'plumbing', title: 'Rough Plumbing', phase: 'Plumbing', durationDays: 4, startDay: 7, after: ['framing'] },
+  { key: 'electrical', title: 'Rough Electrical', phase: 'Electrical', durationDays: 3, startDay: 7, after: ['framing'] },
+  { key: 'drywall', title: 'Hang & Finish Drywall', phase: 'Drywall', durationDays: 5, startDay: 11, after: ['plumbing', 'electrical'] },
   { key: 'paint', title: 'Paint', phase: 'Finishes', durationDays: 3, startDay: 16, after: ['drywall'] },
 ];
 

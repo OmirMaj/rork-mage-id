@@ -47,7 +47,7 @@ function Row({ entry, onPress }: { entry: SubGcHistory; onPress?: () => void }) 
           {entry.activeNow ? (
             <View style={styles.activePill}>
               <CircleDashed size={10} color={t.success} strokeWidth={2.4} />
-              <Text style={styles.activePillText}>Working now</Text>
+              <Text style={styles.activePillText}>Working Now</Text>
             </View>
           ) : null}
         </View>

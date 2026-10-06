@@ -69,12 +69,12 @@ const SECTION_LABELS: Record<OACAgendaSection, string> = {
   schedule:        'Schedule',
   rfis:            'RFIs',
   submittals:      'Submittals',
-  change_orders:   'Change orders',
+  change_orders:   'Change Orders',
   budget:          'Budget',
-  decisions:       'Decisions needed',
-  action_items:    'Action items',
-  open_discussion: 'Open discussion',
-  next_meeting:    'Next meeting',
+  decisions:       'Decisions Needed',
+  action_items:    'Action Items',
+  open_discussion: 'Open Discussion',
+  next_meeting:    'Next Meeting',
 };
 
 // Render order for the agenda. Pulled out of the render so the order is a
@@ -221,7 +221,7 @@ function OACMeetingInner() {
     if (!active) return;
     const name = newAttendeeName.trim();
     if (!name) {
-      showAlert('Name required', "Enter the attendee's name.");
+      showAlert('Name Required', "Enter the attendee's name.");
       return;
     }
     const email = newAttendeeEmail.trim();
@@ -349,7 +349,7 @@ function OACMeetingInner() {
   const handleUploadAudio = useCallback(async () => {
     if (!active) return;
     if (Platform.OS === 'web') {
-      showAlert('Mobile only', 'Upload a recording from the MAGE ID app on iPhone or Android.');
+      showAlert('Mobile Only', 'Upload a recording from the MAGE ID app on iPhone or Android.');
       return;
     }
     // App Store 5.1.2(i): asked before he picks a file that would go to the
@@ -373,7 +373,7 @@ function OACMeetingInner() {
       if (asset.size && asset.size > MAX_BYTES) {
         const mb = (asset.size / 1024 / 1024).toFixed(1);
         showAlert(
-          'File too large',
+          'File Too Large',
           `That file is ${mb} MB. Files over 40 MB can't be transcribed. Split the recording and upload each part.`,
         );
         return;
@@ -402,7 +402,7 @@ function OACMeetingInner() {
       handleTranscript(transcribed);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Audio added',
+        'Audio Added',
         `Added ${transcribed.length.toLocaleString()} characters of transcript. Tap "Generate minutes" to draft the meeting record.`,
       );
     } catch (err) {
@@ -411,7 +411,7 @@ function OACMeetingInner() {
       // describeError, never the exception text.
       const own = err instanceof Error && err.message === EMPTY_TRANSCRIPT_MESSAGE;
       const copy = describeError(err, { action: 'transcribe the recording' });
-      showAlert(own ? 'Couldn\'t transcribe' : copy.title, own ? EMPTY_TRANSCRIPT_MESSAGE : copy.body);
+      showAlert(own ? 'Couldn\'t Transcribe' : copy.title, own ? EMPTY_TRANSCRIPT_MESSAGE : copy.body);
     } finally {
       setUploadingAudio(false);
     }
@@ -421,7 +421,7 @@ function OACMeetingInner() {
     if (!active || !project) return;
     if (!active.transcript || active.transcript.trim().length < 50) {
       showAlert(
-        'Need a transcript first',
+        'Need a Transcript First',
         'Tap the mic to capture the meeting discussion before generating minutes. Even a 60-second summary at the end works.',
       );
       return;
@@ -473,12 +473,12 @@ function OACMeetingInner() {
   const handleDistribute = useCallback(async () => {
     if (!active || !project) return;
     if (!active.minutes || active.minutes.trim().length < 20) {
-      showAlert('No minutes yet', 'Generate or paste minutes before distributing.');
+      showAlert('No Minutes Yet', 'Generate or paste minutes before distributing.');
       return;
     }
     const recipients = active.attendees.filter(a => a.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email));
     if (recipients.length === 0) {
-      showAlert('No attendee emails', 'Add email addresses to the attendees so they receive the minutes.');
+      showAlert('No Attendee Emails', 'Add email addresses to the attendees so they receive the minutes.');
       return;
     }
     setDistributing(true);
@@ -504,7 +504,7 @@ function OACMeetingInner() {
         updatedAt: new Date().toISOString(),
       });
       const okCount = log.filter(l => l.ok).length;
-      showAlert('Minutes distributed', `Sent to ${okCount} of ${recipients.length} attendee${recipients.length === 1 ? '' : 's'}.`);
+      showAlert('Minutes Distributed', `Sent to ${okCount} of ${recipients.length} attendee${recipients.length === 1 ? '' : 's'}.`);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[OAC] Distribute failed:', err);
@@ -573,7 +573,7 @@ function OACMeetingInner() {
     const ballInCourt = actionDraftOwner.trim();
     if (!description || !ballInCourt) {
       showAlert(
-        'Both fields needed',
+        'Both Fields Needed',
         'An action item needs what is owed and who owes it. Next week\'s meeting checks both.',
       );
       return;
@@ -639,7 +639,7 @@ function OACMeetingInner() {
             {a.source === 'ai' ? (
               // Grounding, not decoration: an extracted commitment is the model's
               // reading of the room, and the PM gets told which rows those are.
-              <Text style={styles.actionSource}>From transcript</Text>
+              <Text style={styles.actionSource}>From Transcript</Text>
             ) : null}
           </View>
           <Pencil size={13} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -676,9 +676,9 @@ function OACMeetingInner() {
   const renderActionEditor = () => (
     <View style={styles.actionEditor}>
       <Text style={styles.actionEditorTitle}>
-        {actionEditor?.mode === 'add' ? 'New action item' : 'Edit action item'}
+        {actionEditor?.mode === 'add' ? 'New Action Item' : 'Edit Action Item'}
       </Text>
-      <Text style={styles.attendeeFieldLabel}>What is owed *</Text>
+      <Text style={styles.attendeeFieldLabel}>What Is Owed *</Text>
       <TextInput
         style={styles.attendeeInput}
         value={actionDraftDesc}
@@ -688,7 +688,7 @@ function OACMeetingInner() {
         multiline
         testID="oac-action-desc"
       />
-      <Text style={styles.attendeeFieldLabel}>Who owes it *</Text>
+      <Text style={styles.attendeeFieldLabel}>Who Owes It *</Text>
       <TextInput
         style={styles.attendeeInput}
         value={actionDraftOwner}
@@ -700,26 +700,26 @@ function OACMeetingInner() {
         placeholderTextColor={themeColors.textMuted}
         testID="oac-action-owner"
       />
-      <Text style={styles.attendeeFieldLabel}>Due by (optional)</Text>
+      <Text style={styles.attendeeFieldLabel}>Due by (Optional)</Text>
       <TouchableOpacity
         style={styles.actionDueBtn}
         onPress={() => setShowDuePicker(true)}
         accessibilityRole="button"
-        accessibilityLabel="Pick a due date"
+        accessibilityLabel="Pick a Due Date"
         testID="oac-action-due"
       >
         <CalendarClock size={15} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.actionDueBtnText}>
           {actionDraftDue
             ? formatCalendarDay(calendarDayOf(actionDraftDue)) || actionDraftDue
-            : 'No date agreed'}
+            : 'No Date Agreed'}
         </Text>
         {actionDraftDue ? (
           <TouchableOpacity
             onPress={() => setActionDraftDue('')}
             hitSlop={10}
             accessibilityRole="button"
-            accessibilityLabel="Clear the due date"
+            accessibilityLabel="Clear the Due Date"
           >
             <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -741,7 +741,7 @@ function OACMeetingInner() {
           style={styles.actionSaveBtn}
           onPress={handleSaveAction}
           accessibilityRole="button"
-          accessibilityLabel="Save action item"
+          accessibilityLabel="Save Action Item"
           testID="oac-action-save"
         >
           <Check size={15} color="#fff" strokeWidth={2} />
@@ -777,7 +777,7 @@ function OACMeetingInner() {
   if (!project) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'OAC meetings' }} />
+        <Stack.Screen options={{ title: 'OAC Meetings' }} />
         <ToolProjectPicker
           toolName="OAC meetings"
           message="An Owner-Architect-Contractor meeting keeps attendees, agenda and minutes tied to one project."
@@ -803,7 +803,7 @@ function OACMeetingInner() {
         <View style={styles.detailHeader}>
           <TouchableOpacity onPress={() => setActiveId(null)} hitSlop={10} style={styles.headerBack}>
             <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.headerBackText}>All meetings</Text>
+            <Text style={styles.headerBackText}>All Meetings</Text>
           </TouchableOpacity>
           <View style={styles.statusPill}>
             <Text style={styles.statusPillText}>{labelForStatus(active.status)}</Text>
@@ -819,7 +819,7 @@ function OACMeetingInner() {
             <View style={styles.oacHeroIcon}>
               <Users size={26} color={themeColors.accent} strokeWidth={1.75} />
             </View>
-            <Text style={styles.eyebrow}>OAC meeting #{active.number}</Text>
+            <Text style={styles.eyebrow}>OAC Meeting #{active.number}</Text>
             <Text style={styles.oacHeroTitle}>{project.name}</Text>
             <Text style={styles.oacHeroSub}>
               {new Date(active.scheduledAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
@@ -871,7 +871,7 @@ function OACMeetingInner() {
               testID="oac-add-attendee"
             >
               <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.smallBtnText}>Add attendee</Text>
+              <Text style={styles.smallBtnText}>Add Attendee</Text>
             </TouchableOpacity>
           </View>
 
@@ -879,7 +879,7 @@ function OACMeetingInner() {
           <View style={styles.card}>
             <View style={styles.cardHead}>
               <MageAIMark size={16} color={themeColors.accent} />
-              <Text style={styles.cardLabel}>Agenda · built from open project items</Text>
+              <Text style={styles.cardLabel}>Agenda · Built from Open Project Items</Text>
               <TouchableOpacity onPress={handleRefreshAgenda} disabled={generatingAgenda} hitSlop={10}>
                 {generatingAgenda
                   ? <ActivityIndicator size="small" color={themeColors.accent} />
@@ -940,7 +940,7 @@ function OACMeetingInner() {
           <View style={styles.card}>
             <View style={styles.cardHead}>
               <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.cardLabel}>Voice capture</Text>
+              <Text style={styles.cardLabel}>Voice Capture</Text>
             </View>
             <Text style={styles.cardHelper}>
               Record the meeting, or just the wrap-up. MAGE drafts the minutes from the transcript.
@@ -968,7 +968,7 @@ function OACMeetingInner() {
                 : <Upload size={16} color={themeColors.accent} strokeWidth={1.75} />}
               <View style={{ flex: 1 }}>
                 <Text style={styles.uploadAudioLabel}>
-                  {uploadingAudio ? 'Transcribing audio…' : 'Upload existing recording'}
+                  {uploadingAudio ? 'Transcribing audio…' : 'Upload Existing Recording'}
                 </Text>
                 <Text style={styles.uploadAudioSub}>
                   {uploadingAudio
@@ -1009,7 +1009,7 @@ function OACMeetingInner() {
                 >
                   {distributing
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <><Send size={16} color="#fff" strokeWidth={1.75} /><Text style={styles.primaryBtnText}>Send minutes to attendees</Text></>}
+                    : <><Send size={16} color="#fff" strokeWidth={1.75} /><Text style={styles.primaryBtnText}>Send Minutes to Attendees</Text></>}
                 </TouchableOpacity>
               </>
             ) : (
@@ -1021,7 +1021,7 @@ function OACMeetingInner() {
               >
                 {generatingMinutes
                   ? <ActivityIndicator size="small" color="#fff" />
-                  : <><MageAIMark size={16} color="#fff" /><Text style={styles.primaryBtnText}>Generate minutes from transcript</Text></>}
+                  : <><MageAIMark size={16} color="#fff" /><Text style={styles.primaryBtnText}>Generate Minutes from Transcript</Text></>}
               </TouchableOpacity>
             )}
           </View>
@@ -1033,7 +1033,7 @@ function OACMeetingInner() {
           <View style={styles.card}>
             <View style={styles.cardHead}>
               <CheckCircle2 size={16} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.cardLabel}>Action items ({active.actionItems.length})</Text>
+              <Text style={styles.cardLabel}>Action Items ({active.actionItems.length})</Text>
             </View>
             <Text style={styles.cardHelper}>
               Who owes what out of this meeting. Tap a status to advance it — open, in progress, done. Tap the text to edit it.
@@ -1052,11 +1052,11 @@ function OACMeetingInner() {
                 style={styles.smallBtn}
                 onPress={openAddAction}
                 accessibilityRole="button"
-                accessibilityLabel="Add action item"
+                accessibilityLabel="Add Action Item"
                 testID="oac-add-action"
               >
                 <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.smallBtnText}>Add action item</Text>
+                <Text style={styles.smallBtnText}>Add Action Item</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1070,7 +1070,7 @@ function OACMeetingInner() {
               <View style={styles.cardHead}>
                 <Clock size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.cardLabel}>
-                  Still open from earlier meetings ({carriedActions.length})
+                  Still Open from Earlier Meetings ({carriedActions.length})
                 </Text>
               </View>
               <Text style={styles.cardHelper}>
@@ -1085,7 +1085,7 @@ function OACMeetingInner() {
         <DatePickerModal
           visible={showDuePicker}
           value={actionDraftDue}
-          title="Due by"
+          title="Due By"
           // Action items are commitments for NEXT week — a due date in the future
           // is the normal case, not the exception.
           allowFuture
@@ -1100,7 +1100,7 @@ function OACMeetingInner() {
             <Pressable style={[styles.attendeeModalOverlay, fAttendee.overlay]} onPress={() => setShowAddAttendee(false)}>
               <Pressable style={[styles.attendeeModalCard, { paddingBottom: insets.bottom + 20 }, fAttendee.card]} onPress={() => undefined}>
                 <View style={styles.attendeeModalHeader}>
-                  <Text style={styles.attendeeModalTitle}>Add attendee</Text>
+                  <Text style={styles.attendeeModalTitle}>Add Attendee</Text>
                   <TouchableOpacity onPress={() => setShowAddAttendee(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -1115,7 +1115,7 @@ function OACMeetingInner() {
                   autoFocus
                   testID="oac-attendee-name"
                 />
-                <Text style={styles.attendeeFieldLabel}>Email (optional)</Text>
+                <Text style={styles.attendeeFieldLabel}>Email (Optional)</Text>
                 <TextInput
                   style={styles.attendeeInput}
                   value={newAttendeeEmail}
@@ -1129,7 +1129,7 @@ function OACMeetingInner() {
                 />
                 <TouchableOpacity style={styles.attendeeSaveBtn} onPress={handleSaveAttendee} activeOpacity={0.85} testID="oac-attendee-save">
                   <Plus size={16} color="#fff" strokeWidth={1.75} />
-                  <Text style={styles.attendeeSaveBtnText}>Add attendee</Text>
+                  <Text style={styles.attendeeSaveBtnText}>Add Attendee</Text>
                 </TouchableOpacity>
               </Pressable>
             </Pressable>
@@ -1142,10 +1142,10 @@ function OACMeetingInner() {
   // List mode
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'OAC meetings' }} />
+      <Stack.Screen options={{ title: 'OAC Meetings' }} />
       <FeatureHeader
-        eyebrow="OAC weekly"
-        title="Weekly project meeting"
+        eyebrow="OAC Weekly"
+        title="Weekly Project Meeting"
         subtitle="The standing call with the owner, the architect and you. MAGE builds the agenda from open RFIs, change orders and schedule slips, and records and transcribes the meeting."
         explainer={{
           term: 'OAC meeting',
@@ -1169,7 +1169,7 @@ function OACMeetingInner() {
         >
           {generatingAgenda
             ? <ActivityIndicator size="small" color="#fff" />
-            : <><Plus size={16} color="#fff" strokeWidth={1.75} /><Text style={styles.primaryBtnText}>New meeting</Text></>}
+            : <><Plus size={16} color="#fff" strokeWidth={1.75} /><Text style={styles.primaryBtnText}>New Meeting</Text></>}
         </TouchableOpacity>
       </View>
 
@@ -1177,7 +1177,7 @@ function OACMeetingInner() {
         {meetings.length === 0 ? (
           <View style={styles.emptyState}>
             <Calendar size={36} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No OAC meetings yet</Text>
+            <Text style={styles.emptyTitle}>No OAC Meetings Yet</Text>
             <Text style={styles.emptyBody}>
               Tap New meeting. MAGE builds the agenda from open RFIs, submittals, change orders and schedule slips.
             </Text>

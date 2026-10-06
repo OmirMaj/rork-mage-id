@@ -66,7 +66,7 @@ const WARRANTY_TONE: Record<WarrantyState, 'good' | 'warn' | 'bad' | 'neutral'> 
 };
 
 const ROLE_LABEL: Record<PassportContractorRole, string> = {
-  general_contractor: 'General contractor',
+  general_contractor: 'General Contractor',
   trade: 'Trade',
   supplier: 'Supplier',
 };
@@ -192,15 +192,15 @@ export function HomePassportCard({
 
       {/* ── At a glance ─────────────────────────────────────────────── */}
       <View style={styles.statGrid}>
-        <Stat icon={ShieldCheck} value={String(stats.activeWarranties)} label="Warranties in force" styles={styles} tint={t.success} />
-        <Stat icon={FileCheck2} value={`${stats.finaledPermits}/${stats.permitCount}`} label="Permits finaled" styles={styles} tint={t.accent} />
-        <Stat icon={Package} value={String(stats.equipmentCount)} label="Equipment logged" styles={styles} tint={t.info} />
-        <Stat icon={ScrollText} value={String(stats.documentCount)} label="Documents kept" styles={styles} tint={t.textSecondary} />
+        <Stat icon={ShieldCheck} value={String(stats.activeWarranties)} label="Warranties in Force" styles={styles} tint={t.success} />
+        <Stat icon={FileCheck2} value={`${stats.finaledPermits}/${stats.permitCount}`} label="Permits Finaled" styles={styles} tint={t.accent} />
+        <Stat icon={Package} value={String(stats.equipmentCount)} label="Equipment Logged" styles={styles} tint={t.info} />
+        <Stat icon={ScrollText} value={String(stats.documentCount)} label="Documents Kept" styles={styles} tint={t.textSecondary} />
       </View>
 
       {/* ── Projects ────────────────────────────────────────────────── */}
       <PassportSection
-        title="Work done on this home"
+        title="Work Done on This Home"
         icon={HardHat}
         count={passport.projects.length}
         emptyLabel="No projects on record yet."
@@ -260,7 +260,7 @@ export function HomePassportCard({
 
       {/* ── Equipment & appliances ──────────────────────────────────── */}
       <PassportSection
-        title="Equipment and appliances"
+        title="Equipment and Appliances"
         icon={Package}
         count={passport.equipment.length}
         emptyLabel="No equipment logged yet."
@@ -301,7 +301,7 @@ export function HomePassportCard({
 
       {/* ── Maintenance ─────────────────────────────────────────────── */}
       <PassportSection
-        title="Maintenance schedule"
+        title="Maintenance Schedule"
         icon={CalendarClock}
         count={passport.maintenance.length}
         emptyLabel="No maintenance schedule yet."
@@ -321,7 +321,7 @@ export function HomePassportCard({
 
       {/* ── Who did the work ────────────────────────────────────────── */}
       <PassportSection
-        title="Who worked on this home"
+        title="Who Worked on This Home"
         icon={HardHat}
         count={passport.contractors.length}
         emptyLabel="No contractors on record yet."
@@ -341,7 +341,7 @@ export function HomePassportCard({
 
       {/* ── Documents & photos ──────────────────────────────────────── */}
       <PassportSection
-        title="Documents and photos"
+        title="Documents and Photos"
         icon={ScrollText}
         count={passport.documents.length}
         emptyLabel="No documents on record yet."
@@ -360,7 +360,7 @@ export function HomePassportCard({
       {/* ── Owner's own record ──────────────────────────────────────── */}
       {showPayments && stats.totalPaid > 0 ? (
         <View style={styles.paidRow}>
-          <Text style={styles.paidLabel}>Invested in this home to date</Text>
+          <Text style={styles.paidLabel}>Invested in This Home to Date</Text>
           <Text style={styles.paidValue}>{formatMoney(stats.totalPaid)}</Text>
         </View>
       ) : null}

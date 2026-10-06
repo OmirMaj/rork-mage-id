@@ -306,7 +306,7 @@ export default function HandoverScreen() {
         : 'partial';
       selectionsRow = {
         key: 'selections',
-        label: 'Selections confirmed',
+        label: 'Selections Confirmed',
         detail: totalCats === 0
           ? 'No allowance categories yet. Add at least one before handover.'
           : selStatus === 'done'
@@ -331,7 +331,7 @@ export default function HandoverScreen() {
       ? managedRow('warranties', 'Warranties on file', ShieldCheck)
       : {
         key: 'warranties',
-        label: 'Warranties on file',
+        label: 'Warranties on File',
         detail: projectWarranties.length === 0
           ? 'Add manufacturer and workmanship warranties so the client has them.'
           : `${projectWarranties.length} warrant${projectWarranties.length === 1 ? 'y' : 'ies'} recorded`,
@@ -352,7 +352,7 @@ export default function HandoverScreen() {
       const binderStatus: HandoverItem['status'] = binder?.status === 'sent' ? 'done' : binder?.status === 'finalized' ? 'partial' : 'open';
       binderRow = {
         key: 'binder',
-        label: 'Closeout binder delivered',
+        label: 'Closeout Binder Delivered',
         detail: !binder
           ? 'Compile and deliver the binder so the client has finishes, warranties and contacts in one place.'
           : binder.status === 'sent'
@@ -376,7 +376,7 @@ export default function HandoverScreen() {
       const inv = jobInvoiceHandoverState(projectInvoices, today);
       invoiceRow = {
         key: 'invoice',
-        label: 'Final invoice paid',
+        label: 'Final Invoice Paid',
         detail: inv.detail,
         icon: Receipt,
         status: inv.status,
@@ -403,7 +403,7 @@ export default function HandoverScreen() {
       const waiverCov = lienWaiverCoverage(projectCommitments, waivers);
       waiverRow = {
         key: 'waivers',
-        label: 'Lien waivers collected',
+        label: 'Lien Waivers Collected',
         detail: lienWaiverDetail(waiverCov),
         icon: ScrollText,
         status: waiverCov.status,
@@ -420,7 +420,7 @@ export default function HandoverScreen() {
     const permitsRow: HandoverItem = permitState.status === 'none'
       ? {
         key: 'permits_na',
-        label: 'Permits and final inspection',
+        label: 'Permits and Final Inspection',
         detail: manualChecks['permits_na']
           ? `No permits required on this job — confirmed ${new Date(manualChecks['permits_na']).toLocaleDateString()}`
           : 'No permits logged. Tap to confirm this project needed none, or log them on the Permits screen.',
@@ -430,7 +430,7 @@ export default function HandoverScreen() {
       }
       : {
         key: 'permits',
-        label: 'Permits and final inspection',
+        label: 'Permits and Final Inspection',
         detail: permitState.detail,
         icon: Landmark,
         status: permitState.status,
@@ -443,7 +443,7 @@ export default function HandoverScreen() {
       selectionsRow,
       {
         key: 'punch',
-        label: 'Punch list cleared',
+        label: 'Punch List Cleared',
         detail: projectPunch.length === 0
           ? 'No punch list yet. If the project is move-in-ready, mark it manually.'
           : openPunch === 0
@@ -462,7 +462,7 @@ export default function HandoverScreen() {
       permitsRow,
       {
         key: 'walkthrough',
-        label: 'Final walk-through completed',
+        label: 'Final Walk-Through Completed',
         detail: manualChecks['walkthrough']
           ? `Confirmed ${new Date(manualChecks['walkthrough']).toLocaleDateString()}`
           : 'Walk every space with the client. Note any last items.',
@@ -472,7 +472,7 @@ export default function HandoverScreen() {
       },
       {
         key: 'keys',
-        label: 'Keys & access transferred',
+        label: 'Keys & Access Transferred',
         detail: manualChecks['keys']
           ? `Confirmed ${new Date(manualChecks['keys']).toLocaleDateString()}`
           : 'Keys, garage remotes, alarm codes, smart-lock invites.',
@@ -502,7 +502,7 @@ export default function HandoverScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="Handover · MAGE ID" title="Walkthrough day checklist" />
+        <ToolHeader eyebrow="Handover · MAGE ID" title="Walkthrough Day Checklist" />
         <ToolProjectPicker
           toolName="Handover"
           message="The walkthrough checklist reads one project: its selections, punch list, warranties, binder and final invoice."
@@ -525,12 +525,12 @@ export default function HandoverScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Walkthrough day checklist</Text>
+          <Text style={styles.title}>Walkthrough Day Checklist</Text>
         </View>
       </View>
       <FeatureHeader
         eyebrow="Handover"
-        title="Don&apos;t leave anything unchecked"
+        title="Don&apos;t Leave Anything Unchecked"
         subtitle="Every spec confirmed, every signature collected and every key handed over, in one place."
         explainer={{
           term: 'Handover checklist',
@@ -555,7 +555,7 @@ export default function HandoverScreen() {
             <View style={styles.heroHead}>
               {allDone ? <MageAIMark size={16} color={Colors.successDark} /> : <AlertCircle size={16} color={themeColors.accent} strokeWidth={1.75} />}
               <Text style={[styles.heroTitle, allDone && { color: Colors.successDark }]}>
-                {allDone ? 'Ready to hand over' : `${doneCount} of ${total} done`}
+                {allDone ? 'Ready to Hand Over' : `${doneCount} of ${total} done`}
               </Text>
             </View>
             <Text style={styles.heroBody}>
@@ -575,7 +575,7 @@ export default function HandoverScreen() {
             </View>
           </View>
 
-          <Text style={styles.listLabel}>Closeout items</Text>
+          <Text style={styles.listLabel}>Closeout Items</Text>
 
           {items.map(item => (
             <ChecklistRow
@@ -639,7 +639,7 @@ function ChecklistRow({ item, onPressItem }: { item: HandoverItem; onPressItem: 
         )}
         {item.manual && (
           <Text style={[styles.rowCta, styles.rowCtaManual]}>
-            {item.status === 'done' ? 'Tap to mark not done' : 'Tap to mark done'}
+            {item.status === 'done' ? 'Tap to Mark Not Done' : 'Tap to Mark Done'}
           </Text>
         )}
       </View>

@@ -265,7 +265,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
   const sendToArchitect = useCallback(() => {
     const msg = architectMessageFor(sweepCards, { jobLabel: project.name, sheetLabel: reviewedLabel, info: cardInfo });
     void Linking.openURL(mailtoUrlFor('', msg.subject, msg.body)).catch(() =>
-      showAlert('No mail app', 'Copy the questions into your email instead.'));
+      showAlert('No Mail App', 'Copy the questions into your email instead.'));
   }, [sweepCards, project.name, reviewedLabel, cardInfo]);
 
   // ── header + grounding (always) ──
@@ -423,7 +423,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
             askTownFor={wiring.askTownFor}
             primary={{
               key: 'architect',
-              label: architectButtonLabel(sweepCards) ?? 'Send to architect',
+              label: architectButtonLabel(sweepCards) ?? 'Send to Architect',
               icon: 'send',
               action: architectButtonLabel(sweepCards) ? readyAction(sendToArchitect) : blockedAction(ARCHITECT_BLOCKED),
             }}

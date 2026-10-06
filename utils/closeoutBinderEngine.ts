@@ -439,10 +439,10 @@ export function buildBinderHtml(input: BuildBinderInput): string {
   // or an unescaped fallback reaching a client-facing PDF.
   const SUBMITTAL_STATUS_LABELS: Record<SubmittalStatus, string> = {
     pending: 'Pending',
-    in_review: 'In review',
+    in_review: 'In Review',
     approved: 'Approved',
-    approved_as_noted: 'Approved as noted',
-    revise_resubmit: 'Revise & resubmit',
+    approved_as_noted: 'Approved as Noted',
+    revise_resubmit: 'Revise & Resubmit',
     rejected: 'Rejected',
   };
   const projectSubmittals = (submittals ?? [])
@@ -527,13 +527,13 @@ export function buildBinderHtml(input: BuildBinderInput): string {
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Project closeout',
+      eyebrow: 'Project Closeout',
       title:   `${project.name} · Closeout binder`,
       subtitle: `Everything you need to maintain, troubleshoot and improve this project.`,
       meta: [
         { label: 'Address',     value: project.location ?? '—' },
         { label: 'Completion',  value: completionLabel(completionDate) },
-        { label: 'Built by',    value: branding.companyName ?? 'MAGE ID' },
+        { label: 'Built By',    value: branding.companyName ?? 'MAGE ID' },
       ],
     })}
     ${heroSection}
