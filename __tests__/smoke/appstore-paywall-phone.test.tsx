@@ -211,7 +211,7 @@ describe('APPPAY — the purchase modal (components/Paywall) on iOS', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('paywall-modal-restore')); });
     await pump(2);
     expect(mockRestore).toHaveBeenCalledTimes(1);
-    expect(mockAlerts.at(-1)?.[0]).toBe("Restored — you're on Pro");
+    expect(mockAlerts.at(-1)?.[0]).toBe("Restored. You're on Pro.");
   });
 
   it('a purchase failure never shows the store message', async () => {

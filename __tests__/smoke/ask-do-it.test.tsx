@@ -4,7 +4,7 @@
  *
  * THE PROMISES THIS PROVES
  *   1. Typing "create a project for the Henderson kitchen" into Ask shows the
- *      offer card (lead line, the "New project" workflow, his words quoted, the
+ *      offer card (lead line, the "New Project" workflow, his words quoted, the
  *      honesty line, Start) and NOT a "You'll pick the job next" line: a new
  *      project has no job to pick.
  *   2. Detection is deterministic: no model call (mageAI), no One Mind answer,
@@ -111,8 +111,8 @@ describe('Ask MAGE: "do it for me" on a phone (real app)', () => {
     // 1. The offer card.
     expect(screen.getByText('I can do that.')).toBeTruthy();
     const cardText = allText(screen.getByTestId('ask-action-card')).join('\n');
-    expect(cardText).toContain('New project');
-    expect(screen.getByText('New project')).toBeTruthy();
+    expect(cardText).toContain('New Project');
+    expect(screen.getByText('New Project')).toBeTruthy();
     expect(screen.getByText(`“${SAID}”`)).toBeTruthy();
     expect(screen.getByText('From what you typed. Nothing is saved until you check it and tap Build it.')).toBeTruthy();
     expect(screen.getByTestId('ask-action-start')).toBeTruthy();

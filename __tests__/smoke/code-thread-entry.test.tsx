@@ -4,7 +4,7 @@
  *
  *  - the job page shows "Code checks" (codethread-project-card), and a saved
  *    check seeded into mageid_code_checks shows as its row;
- *  - the plan viewer's header carries "Code check this sheet"
+ *  - the plan viewer's header carries "Code Check This Sheet"
  *    (codethread-entry-plan);
  *  - a saved check whose record already holds the punch action shows 'Added'
  *    and no 'Punch item' button (the saved-check sheet hosts the real
@@ -111,9 +111,9 @@ describe('L4 — the job page shows Code checks', () => {
   it('renders the card with no saved checks, saying where they would live', async () => {
     await jobPage();
     const card = screen.getByTestId('codethread-project-card');
-    expect(within(card).getByText('Code checks')).toBeTruthy();
+    expect(within(card).getByText('Code Checks')).toBeTruthy();
     expect(within(card).getByText(/^No saved checks yet\./)).toBeTruthy();
-    expect(within(card).getByText('Saved to your account — on every device you sign in to.')).toBeTruthy();
+    expect(within(card).getByText('Saved to your account, on every device you sign in to.')).toBeTruthy();
   });
 
   it('a seeded saved check shows its date · category · jurisdiction · edition and its first summary line', async () => {
@@ -135,7 +135,7 @@ describe('L4 — the job page shows Code checks', () => {
     expect(within(actions).getByText('Added to the punch list (internal)')).toBeTruthy();
     expect(within(actions).queryByText('Punch item')).toBeNull();
     // The RFI keeps its own done state: still offered.
-    expect(within(actions).getByText('Ask the architect (RFI)')).toBeTruthy();
+    expect(within(actions).getByText('Ask the Architect (RFI)')).toBeTruthy();
   });
 
   it('a check saved before the list gate prints its lists through it: a code-shaped line is hidden, the list says so once with the section number, and an action stays on its stored line', async () => {
@@ -185,15 +185,15 @@ describe('L4 — the job page shows Code checks', () => {
     fireEvent.press(screen.getByTestId(`codethread-check-row-${CHECK_ID}`));
     await pump(3);
     const actions = screen.getByTestId('codethread-actions-permits-0');
-    fireEvent.press(within(actions).getByText('Add to permits'));
-    const call = alert.mock.calls.find((c) => c[0] === 'Add to permits');
+    fireEvent.press(within(actions).getByText('Add to Permits'));
+    const call = alert.mock.calls.find((c) => c[0] === 'Add to Permits');
     expect(call?.[1]).toBe('Add this permit to your tracker? It starts as Applied in the tracker. Update the status and date when you actually file.');
     const add = (call?.[2] ?? []).find((b) => b.text === 'Add');
     // Two confirms in the same tick: the busy guard lets one through.
     await act(async () => { add?.onPress?.(); add?.onPress?.(); });
     await pump(3);
     expect(within(screen.getByTestId('codethread-actions-permits-0')).getByText('Added to your permit tracker')).toBeTruthy();
-    expect(within(screen.getByTestId('codethread-actions-permits-0')).queryByText('Add to permits')).toBeNull();
+    expect(within(screen.getByTestId('codethread-actions-permits-0')).queryByText('Add to Permits')).toBeNull();
     // One add, one recorded action (the store dedups on disk, so count the calls).
     expect(recordSpy.mock.calls.filter((c) => c[2].kind === 'permit')).toHaveLength(1);
     const permits = JSON.parse((await AsyncStorage.getItem('mageid_permits')) ?? '[]') as { notes?: string }[];
@@ -209,11 +209,11 @@ describe('L4 — the job page shows Code checks', () => {
     fireEvent.press(screen.getByTestId(`codethread-check-row-${CHECK_ID}`));
     await pump(3);
     // Two presses before any re-render: two confirms queued, both holding the same stale closure.
-    const btn = within(screen.getByTestId('codethread-actions-permits-0')).getByText('Add to permits');
+    const btn = within(screen.getByTestId('codethread-actions-permits-0')).getByText('Add to Permits');
     fireEvent.press(btn);
     fireEvent.press(btn);
     const adds = alert.mock.calls
-      .filter((c) => c[0] === 'Add to permits')
+      .filter((c) => c[0] === 'Add to Permits')
       .map((c) => (c[2] ?? []).find((b) => b.text === 'Add'));
     expect(adds).toHaveLength(2);
     await act(async () => { adds[0]?.onPress?.(); });
@@ -227,7 +227,7 @@ describe('L4 — the job page shows Code checks', () => {
   });
 });
 
-describe('L4 — the plan viewer offers "Code check this sheet"', () => {
+describe('L4 — the plan viewer offers "Code Check This Sheet"', () => {
   jest.setTimeout(120000);
 
   it('renders the header entry', async () => {
@@ -242,6 +242,6 @@ describe('L4 — the plan viewer offers "Code check this sheet"', () => {
     await mountRouteChecked(`/plan-viewer?sheetId=${SHEET}`);
     await pump();
     const entry = screen.getByTestId('codethread-entry-plan');
-    expect(entry.props.accessibilityLabel ?? entry.parent?.props.accessibilityLabel).toBe('Code check this sheet');
+    expect(entry.props.accessibilityLabel ?? entry.parent?.props.accessibilityLabel).toBe('Code Check This Sheet');
   });
 });

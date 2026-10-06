@@ -144,7 +144,7 @@ describe('groupAgendaBySection — no agenda item is silently dropped', () => {
       item('y', 'next_meeting'),
       item('z', 'safety'),
     ]);
-    expect(buckets.map(b => b.label)).toEqual(['Safety', 'Next meeting', 'Other']);
+    expect(buckets.map(b => b.label)).toEqual(['Safety', 'Next Meeting', 'Other']);
   });
 
   it('is total: every input item lands in exactly one bucket', () => {

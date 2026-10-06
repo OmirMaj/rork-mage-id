@@ -23,7 +23,7 @@
  *   5  the stage is the AI's guess, and editing it reports and relabels
  *   6  "Text it to Dave R." hands the text to the caller (MAGE sends nothing)
  *   7  recall reads "Model recall · confirm" on every recalled card
- *   8  By inspection shows the booked date, and "Not booked"
+ *   8  By inspection shows the booked date, and "Not Booked"
  *   9  Sunlight steps the verdict line up a size
  *  10  a PARENT match (real NY row) is recall: the card, the tape, the opened
  *      card and the sub text all keep the recall labels
@@ -260,7 +260,7 @@ describe('code cards — behaviour', () => {
   it('2: a blocked action says why', () => {
     render(<CodeCard item={GUARDS} info={INFO} sample askTown={blockedAction('MAGE has no permit office on file for this address.')} />);
     fireEvent.press(screen.getByTestId('code-card-guards-ask'));
-    expect(screen.getByText('Ask town: MAGE has no permit office on file for this address.')).toBeTruthy();
+    expect(screen.getByText('Ask Town: MAGE has no permit office on file for this address.')).toBeTruthy();
   });
 
   it('3: − / + re-runs the verdict, the equation, the near note and the sub text', () => {
@@ -340,7 +340,7 @@ describe('code cards — behaviour', () => {
     render(planTree('stage'));
     fireEvent.press(screen.getByTestId('plan-by-stage-by-stage'));
     expect(screen.getByText('Thu, Oct 9')).toBeTruthy();
-    expect(screen.getAllByText('Not booked').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Not Booked').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('3 things to fix before you submit.')).toBeTruthy();
   });
 
@@ -501,7 +501,7 @@ describe('code cards — behaviour', () => {
       open: async (u: string) => { calls.push(`open:${u}`); },
     };
     render(<CodeCard item={NOSEC} info={INFO} sample officialTextDeps={deps} />);
-    expect(screen.getByText('No section given')).toBeTruthy();
+    expect(screen.getByText('No Section Given')).toBeTruthy();
     expect(screen.getByTestId('code-card-nosec-official').props.accessibilityLabel).toContain('no section to copy');
     await act(async () => { fireEvent.press(screen.getByTestId('code-card-nosec-official')); });
     expect(calls).toHaveLength(1);
@@ -509,15 +509,15 @@ describe('code cards — behaviour', () => {
     expect(screen.getByText('Opened the code. This card has no section number, so search the viewer by topic.')).toBeTruthy();
   });
 
-  it('14b: the compact row says "No section given" too', () => {
+  it('14b: the compact row says "No Section Given" too', () => {
     render(<CodeCardList items={[NOSEC, GUARDS]} info={INFO} sample initialView="list" />);
-    expect(screen.getByText('No section given')).toBeTruthy();
+    expect(screen.getByText('No Section Given')).toBeTruthy();
   });
 
   it('14c: the opened card offers no Copy for a section it does not have', () => {
     render(<CodeCardSheet visible onClose={noop} item={NOSEC} info={INFO} sample />);
     expect(screen.queryByTestId('code-card-sheet-nosec-copy')).toBeNull();
-    expect(screen.getByText('No section given')).toBeTruthy();
+    expect(screen.getByText('No Section Given')).toBeTruthy();
     expect(screen.getByText('No section to copy')).toBeTruthy();
   });
 
@@ -619,7 +619,7 @@ describe('code cards — behaviour', () => {
     render(<CodeCardSheet visible onClose={noop} item={GUARDS} info={INFO} sample save={blockedAction('Link a job first.')} />);
     expect(screen.getByText('Link a job first.')).toBeTruthy();
     fireEvent.press(screen.getByTestId('code-card-sheet-guards-save'));
-    expect(screen.getByTestId('code-card-sheet-guards-note').props.children).toBe('Save to the job: Link a job first.');
+    expect(screen.getByTestId('code-card-sheet-guards-note').props.children).toBe('Save to the Job: Link a job first.');
   });
 
   // What Code Check and the plan check hand the stores: a card with no section

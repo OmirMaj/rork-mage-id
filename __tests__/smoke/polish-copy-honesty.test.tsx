@@ -84,7 +84,7 @@ describe('/handover resolves its own project instead of dead-ending', () => {
   it('a real projectId still renders the checklist, not the picker', async () => {
     const text = await render(`/handover?projectId=${PROJECT_ID}`, 'populated');
     expect(text).not.toContain('Pick a project');
-    expect(text).toContain('Closeout items');
+    expect(text).toContain('Closeout Items');
   });
 
   // Found while reviewing the picker fix, in the same file: the checklist's
@@ -170,7 +170,7 @@ describe('/handover resolves its own project instead of dead-ending', () => {
     await waitFor(() => {
       const text = collectText(tree.toJSON());
       expect(text).not.toContain('Pick a project');
-      expect(text).toContain('Closeout items');
+      expect(text).toContain('Closeout Items');
     });
   });
 });

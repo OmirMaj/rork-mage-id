@@ -290,7 +290,7 @@ export function CodeCardList(props: CodeCardListProps) {
         sunlight={sunlight}
         line={mode === 'plan'
           ? `A pre-check of what’s visible on ${planSourceLabel ?? 'the drawing'}, not plan review. ${NOT_AFFILIATED}`
-          : `${info?.permitOfficeTitle ? `${info.permitOfficeTitle} issues this permit. ` : ''}Ask town drafts the question, and you send it yourself.`}
+          : `${info?.permitOfficeTitle ? `${info.permitOfficeTitle} issues this permit. ` : ''}Ask Town drafts the question, and you send it yourself.`}
         testID={`${tid}-confirm`}
       />
       {mode === 'answer' ? <Text style={styles.fine}>{ANSWER_FINE_PRINT}</Text> : null}
