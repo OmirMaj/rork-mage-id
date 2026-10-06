@@ -267,7 +267,7 @@ console.log('\n4. the RFI draft is unsent, and 5. the model\'s words are neutral
   const fields = [v.title, v.observed, v.requirement, v.citation];
   ok('the view has no forbidden word in any model field', fields.every(f => !PS.FORBIDDEN_WORDS.test(f)), JSON.stringify(fields));
   ok('"violates" is gone and R310 is still there', !/violates/i.test(v.requirement) && /R310/.test(v.requirement), v.requirement);
-  ok('the requirement is labelled model recall, not looked up', v.requirementLabel === 'Requirement (model recall — not looked up)');
+  ok('the requirement is labelled model recall, not looked up', v.requirementLabel === 'Requirement (model recall, not looked up)');
   ok('the rung comes from the Plan Review ladder', typeof v.rung.badge === 'string' && v.rung.rungIndex >= 1);
   ok('where: the approximate position in words, on the sheet', /^approximate location: upper-left of the sheet .* on A-201$/.test(v.where), v.where);
   const now = new Date(2026, 8, 26, 18);
@@ -332,10 +332,10 @@ console.log('\n6. the two stages, and a refusal in the function\'s own words');
     ok('stage B sends each sheet its own matched topics as sweep.scopeTargets, and asks for the code-card rows', JSON.stringify(scoped[0]) === '{"scopeTargets":["egress"],"codeCards":true}');
     ok('monthly_cap_reached mid-run stops the loop', calls === 2 && b.reviewed.length === 1);
     ok('…and the rest are listed as not reviewed with the monthly-limit reason',
-      b.notReviewed.length === 2 && b.notReviewed.every(x => x.why === 'Your monthly plan-review limit was reached — not reviewed'));
+      b.notReviewed.length === 2 && b.notReviewed.every(x => x.why === 'Your monthly plan-review limit was reached, not reviewed'));
     reviewHandler = async () => ({ findings: [], disclaimer: '' });
     const img = await RUN.reviewSweepSheets({ selected: [{ sheet: sheet('bx', 'A-900', { imageUri: 'https://x.test/broken.png' } as Partial<Sheet>), score: 1, reasons: [] }], limit: 6 });
-    ok('an unreadable image is not reviewed, and says so', img.notReviewed[0]?.why === "The sheet image couldn't be read — not reviewed");
+    ok('an unreadable image is not reviewed, and says so', img.notReviewed[0]?.why === "The sheet image couldn't be read, not reviewed");
   }
   invoked.length = 0;
 }

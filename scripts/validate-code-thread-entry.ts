@@ -138,7 +138,7 @@ check("permits are owner-only, disabled with 'Permits are managed by the project
   && /\{blocked \? <Text style=\{styles\.caption\}>\{PERMIT_OWNER_ONLY_TEXT\}<\/Text> : null\}/.test(cta));
 check('the permit add asks first, with the Applied text',
   cta.includes("'Add this permit to your tracker? It starts as Applied in the tracker. Update the status and date when you actually file.'")
-  && /showAlert\('Add to permits', PERMIT_CONFIRM_TEXT,/.test(cta));
+  && /showAlert\('Add to Permits', PERMIT_CONFIRM_TEXT,/.test(cta));
 check('a permit is built by permitDraftFromCodeItem and written through addPermit',
   /addPermit\(\s*permitDraftFromCodeItem\(\{/.test(cta));
 check("'Schedule via Roadmap' opens the roadmap mode, with its caption, and records nothing",
@@ -233,7 +233,7 @@ check("the card says where the checks are saved: CODE_CHECKS_CAPTION[syncState],
   && card.includes('<Text testID="codethread-sync-caption" style={styles.caption}>{CODE_CHECKS_CAPTION[syncState]}</Text>')
   && /export const CODE_CHECKS_LOCAL_CAPTION = CODE_CHECKS_CAPTION\.local;/.test(card));
 check("'Code check this job' opens the Code Check for the job (source project)",
-  card.includes('label="Code check this job"')
+  card.includes('label="Code Check This Job"')
   && /router\.push\(codeCheckRoute\(\{ projectId: project\.id, source: 'project' \}\)\)/.test(card));
 check("up to 3 rows, then 'See all N'",
   /const COLLAPSED_ROWS = 3;/.test(card) && card.includes('`See all ${checks.length}`'));

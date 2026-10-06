@@ -248,7 +248,7 @@ const HEX = /#[0-9a-fA-F]{3,8}\b/;
   const uses = src.match(/\bactiveStep\b/g) ?? [];
   check('C CodeCheckLoader: `activeStep` appears only in the props type — never destructured, never in a condition',
     uses.length === 1 && /\n\s*activeStep\?: number;/.test(src), `${uses.length} use(s)`);
-  check("C CodeCheckLoader: 'What MAGE checks' header", src.includes('What MAGE checks'));
+  check("C CodeCheckLoader: 'What MAGE Checks' header", src.includes('What MAGE Checks'));
   check('C CodeCheckLoader: the optional real stepIndex prop', /\n\s*stepIndex\?: number;/.test(src));
   check('C CodeCheckLoader: ticks / current row only from a real stepIndex', /if \(!real\) return 'neutral';/.test(src)
     && /const real = typeof stepIndex === 'number'/.test(src));

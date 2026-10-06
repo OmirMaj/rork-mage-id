@@ -115,7 +115,7 @@ async function main() {
   ok('the no-number block is flagged for the inline field', unnumbered.kind === 'blocked' && unnumbered.needsNumber === true && /this comparison is kept/.test(unnumbered.reason), JSON.stringify(unnumbered));
   ok('Compare re-reads the old sheet from allSheets, so the number unblocks the kept result',
     /allSheets\.find\(s => s\.id === oldPick\.id\) \?\? oldPick/.test(cd));
-  const saveNumber = callbackBody(cd, 'handleSaveNumber');
+  const SaveNumber = callbackBody(cd, 'handleSaveNumber');
   ok('the inline number runs planRenumber and writes the chain columns through the queue',
     /planRenumber\(oldSheet, numberDraft, allSheets\)/.test(saveNumber) && /updatePlanSheet\(p\.id, p\.updates\)/.test(saveNumber)
     && /chainColumnsPatch\(p\.updates\)/.test(saveNumber) && /supabaseWrite\('plan_sheets', 'update'/.test(saveNumber));

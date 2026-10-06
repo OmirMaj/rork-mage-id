@@ -440,7 +440,7 @@ async function main(): Promise<void> {
     && passesProseCheck(withheldNotice(['R312.1'], { viewer: true })) && passesEchoCheck(PROSE_VIEWER_LINE));
   ok('B26c the notice a paragraph carries in its own text never points at the viewer (that text is saved, and printed where no link is rendered)',
     [para, 'Guards shall be there.', 'Fine. The note reads "X". Fine too.'].every((t) => !NO_BUTTON.test(ownWordsProse(t).text.replace('Keep gaps under 4 in. Check the stairs.', ''))));
-  const savedBefore = `The deck needs a guard. ${LINE_WITHHELD} Section: R312.1. Check the stairs.`;
+  const SavedBefore = `The deck needs a guard. ${LINE_WITHHELD} Section: R312.1. Check the stairs.`;
   ok('B26d a paragraph SAVED with the card’s line in it (before the prose notice) prints the prose notice in its place, once, and nothing is counted as withheld',
     ownWordsProse(savedBefore).text === `The deck needs a guard. ${PROSE_WITHHELD} Section: R312.1. Check the stairs.` && ownWordsProse(savedBefore).withheld === 0
     && !ownWordsProse(savedBefore).text.includes('Official text') && ownWordsProse(ownWordsProse(savedBefore).text).text === ownWordsProse(savedBefore).text

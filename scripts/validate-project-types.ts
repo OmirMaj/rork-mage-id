@@ -387,7 +387,7 @@ console.log('\nI. what a prospect / homeowner / the AI reads (fix round 2)');
   const tgPl = gaps.newProjectGaps({}, { data: { usualType: 'plumbing' } } as never).find(x => x.field === 'type');
   ok('a plumbing shop gets Plumbing as the SUGGESTED choice (there was no box to suggest before)', !!tgPl?.choices?.find(c => c.value === 'plumbing')?.recommended);
   const shell = read('components/copilot/CopilotShell.tsx');
-  ok('the mic that question points at is on screen during every question', /accessibilityLabel="Answer by voice"/.test(shell));
+  ok('the mic that question points at is on screen during every question', /accessibilityLabel="Answer by Voice"/.test(shell));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

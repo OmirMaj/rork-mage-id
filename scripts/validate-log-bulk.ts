@@ -156,7 +156,7 @@ type H = { at: string; fromParty: string; toParty: string; note?: string };
     const persist = new Function(...names, t.transformSync(`const __run = () => {${body}\n};\nreturn __run();`));
 
     /** persistForm on `r` with Status flipped to Closed and nothing else touched. */
-    const saveAsClosed = (r: RFI, ms: number): { updates: Partial<RFI>[]; alerts: string[] } => {
+    const SaveAsClosed = (r: RFI, ms: number): { updates: Partial<RFI>[]; alerts: string[] } => {
       const form: Record<string, unknown> = { ...formOf(r), status: 'closed' };
       const updates: Partial<RFI>[] = [];
       const alerts: string[] = [];

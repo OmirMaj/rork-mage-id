@@ -166,7 +166,7 @@ ok('screen: the stale banner is rendered from staleBannerText when there is a re
 ok('screen: topic chips from topicChips, hidden when only All', /topicChips\(items\)/.test(screen) && /chips\.length > 1 \?/.test(screen));
 ok('screen: error state says why and offers Retry',
   /title="The news didn't load"[\s\S]{0,120}message=\{errorMessage/.test(screen) && /actionLabel="Retry"/.test(screen));
-ok('screen: empty state says why and offers Retry', /title="No stories right now"[\s\S]{0,300}actionLabel="Retry"/.test(screen));
+ok('screen: empty state says why and offers Retry', /title="No Stories Right Now"[\s\S]{0,300}actionLabel="Retry"/.test(screen));
 ok('screen: the spinner shows only while nothing is on screen', /if \(isLoading\) \{/.test(screen));
 ok('screen: lucide Newspaper icon + @/components/ui primitives',
   /from 'lucide-react-native'/.test(screen) && /\bNewspaper\b/.test(screen) && /import \{ Card, Button \} from '@\/components\/ui'/.test(screen));

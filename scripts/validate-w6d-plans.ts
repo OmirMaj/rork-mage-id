@@ -56,7 +56,7 @@ ok('every discipline in the order has a label, and nothing else does',
   DISCIPLINE_ORDER.every((d) => typeof DISCIPLINE_LABEL[d] === 'string' && DISCIPLINE_LABEL[d].length > 0)
     && Object.keys(DISCIPLINE_LABEL).length === DISCIPLINE_ORDER.length);
 eq('labels read in plain words', [DISCIPLINE_LABEL.A, DISCIPLINE_LABEL.S, DISCIPLINE_LABEL.F, DISCIPLINE_LABEL.unnumbered],
-  ['Architectural', 'Structural', 'Fire protection', 'Unnumbered']);
+  ['Architectural', 'Structural', 'Fire Protection', 'Unnumbered']);
 
 // ── 2. disciplineChips ─────────────────────────────────────────────────────
 console.log('\ndisciplineChips — All first, then only the present disciplines, in order:');
@@ -69,7 +69,7 @@ eq('chips for a mixed set', disciplineChips(SET), [
   { value: 'G', label: 'General', count: 1 },
   { value: 'S', label: 'Structural', count: 1 },
   { value: 'A', label: 'Architectural', count: 2 },
-  { value: 'F', label: 'Fire protection', count: 1 },
+  { value: 'F', label: 'Fire Protection', count: 1 },
   { value: 'E', label: 'Electrical', count: 1 },
   { value: 'unnumbered', label: 'Unnumbered', count: 2 },
 ]);

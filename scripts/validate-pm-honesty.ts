@@ -128,7 +128,7 @@ console.log('\n── an empty contractor list is not a dead end ──');
   ok('...rendered whether or not the list is empty (after the list/empty ternary)',
     woCode.indexOf('testID="wo-add-contractor"') > woCode.indexOf('No contacts yet.'));
   ok('the empty text no longer points at a screen with no link to it', !/in the Contacts screen/.test(woCode));
-  const save = woCode.slice(woCode.indexOf('const saveNewContractor'), woCode.indexOf('const closeDispatch'));
+  const Save = woCode.slice(woCode.indexOf('const SaveNewContractor'), woCode.indexOf('const closeDispatch'));
   ok('saving creates a Sub contact through ProjectContext.addContact', /addContact\(\{/.test(save) && /role: 'Sub',/.test(save)
     && /phone: ncPhone\.trim\(\)/.test(save) && /email: ncEmail\.trim\(\)/.test(save));
   ok('...then returns to the list (form reset, sheet stays open)', /resetNewContractor\(\);\s*\}, \[/.test(save) && !/setDispatchOpen\(false\)/.test(save));

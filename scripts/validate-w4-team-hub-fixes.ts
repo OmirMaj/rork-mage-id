@@ -99,7 +99,7 @@ async function main() {
   ok('CollaboratorsManager derives the view from the read\'s state',
     /const view = rosterView\(\{ isLoading, isError, isPaused, hasData, count: collaborators\.length \}\);/.test(CM));
   ok('"No team members yet" renders only for view === \'empty\'',
-    /view === 'empty' \? \( <Text[^>]*>No team members yet/.test(CM) && !/collaborators\.length === 0 \? \(/.test(CM));
+    /view === 'empty' \? \( <Text[^>]*>No Team Members Yet/.test(CM) && !/collaborators\.length === 0 \? \(/.test(CM));
   ok('error/offline render their line, and error offers Retry (refetch)',
     /view === 'error' \|\| view === 'offline' \?/.test(CM) && /onPress=\{refetch\} testID="collab-roster-retry"/.test(CM));
   ok('Send invite is disabled by inviteBlocked and prints the reason',

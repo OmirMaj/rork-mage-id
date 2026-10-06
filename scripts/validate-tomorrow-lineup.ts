@@ -480,7 +480,7 @@ console.log('\nthe sub\'s language on the record:');
   const SUBS = readFileSync(join(ROOT, 'app/(tabs)/subs/index.tsx'), 'utf8');
   ok('the sub editor saves the language only with Spanish switched on', (SUBS.match(/\.\.\.\(LANGUAGE_PICKER_ENABLED \? \{ preferredLanguage \} : \{\}\)/g) ?? []).length === 2
     && /\{LANGUAGE_PICKER_ENABLED \? \(\s*<View testID="sub-language-row">/.test(SUBS));
-  ok('the Language row offers English / Español endonyms and Not set, with the hint', /\[null, 'Not set'\], \['en', 'English'\], \['es', 'Español'\]/.test(SUBS) && /Used for texts we send them\./.test(SUBS));
+  ok('the Language row offers English / Español endonyms and Not Set, with the hint', /\[null, 'Not Set'\], \['en', 'English'\], \['es', 'Español'\]/.test(SUBS) && /Used for texts we send them\./.test(SUBS));
   const SCREEN = readFileSync(join(ROOT, 'app/tomorrow-lineup.tsx'), 'utf8');
   ok('the lineup screen builds each sub\'s text through lineupLanguageFor (the flag inside it)', /languageFor: \(sub: Subcontractor\) => lineupLanguageFor\(sub, langOverride\[sub\.id\]\)/.test(SCREEN));
   ok('the "Send in" override row renders only with Spanish switched on', /\{LANGUAGE_PICKER_ENABLED \? \(\s*<View style=\{styles\.langRow\}/.test(SCREEN));

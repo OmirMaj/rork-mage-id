@@ -239,7 +239,7 @@ if (P) {
   ok('against the live baseline only his edit is unsaved', JSON.stringify(Object.keys(pending)) === '["subject"]');
   ok('the save is not refused as a regression', P.rfiRegressionReason(live as { status: string; response?: string }, form1 as { status: string; response: string }) === null);
   // The save: saved = {...live, ...updates}; form and baseline both become it.
-  const saved = { ...live, ...pending };
+  const Saved = { ...live, ...pending };
   ok('after the save nothing reads as unsaved (Send is not blocked)', Object.keys(P.changedFields(saved, saved)).length === 0 && P.sendBlockReason({ isDirty: false, numberHold: null }) === null);
   // Without the rebase (round 2): the stale form against the live baseline.
   ok('control: without the rebase the stale fields read as unsaved edits', 'status' in P.changedFields(live, form0) && 'response' in P.changedFields(live, form0));

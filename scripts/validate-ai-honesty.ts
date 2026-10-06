@@ -281,7 +281,7 @@ console.log('\nsource assertions:');
   const code = src('app/(tabs)/construction-ai/index.tsx');
   ok('code check: the main prompt carries the anti-invention rule (was drill-in only)', (code.match(/Never invent a section number/g) ?? []).length >= 2);
   ok('code check: no "Looking up" copy — nothing was looked up', !/Looking up \{/.test(code) && !/Looking up \$\{/.test(code));
-  ok('code check: recall chip is rendered above the codes', /From model recall — verify with your AHJ/.test(code));
+  ok('code check: recall chip is rendered above the codes', /From model recall. Verify with your AHJ./.test(code));
   ok('code check (review 6): loading steps recall, they do not scan or check', !/Scanning applicable codes/.test(code) && !/Checking local amendments/.test(code) && /Recalling the codes that apply/.test(code));
   const loader = src('components/CodeCheckLoader.tsx');
   ok('code check loader (review 6): default headline does not claim to read the code', !/Reading the code that governs/.test(loader) && /Recalling the code/.test(loader));

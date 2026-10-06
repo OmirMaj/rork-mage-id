@@ -136,7 +136,7 @@ console.log('defs');
   const spec: [string, string, string, number, string][] = [
     ['contract-from-estimate', 'Set Up a Contract from the Estimate', 'Start date and payment terms set, ready to sign', 45, 'client'],
     ['pay-app-period', 'Fill in a pay application period', 'A draft pay application for this period', 45, 'money'],
-    ['closeout-binder', 'Build a closeout binder', 'A draft binder with every section in one place', 35, 'client'],
+    ['closeout-binder', 'Build a Closeout Binder', 'A draft binder with every section in one place', 35, 'client'],
   ];
   for (const [id, title, endsWith, seconds, group] of spec) {
     const d = byId.get(id);
@@ -210,7 +210,7 @@ const BD = strip(read('app/closeout-binder.tsx'));
   ok('contract: Sign together is disabled on a sample, and the reason prints under the row',
     /onPress=\{handleSignTogetherPress\}\s*disabled=\{\(contract\.paymentSchedule\.length > 0 && !scheduleMatchesValue\) \|\| saving \|\| sampleJob\}/.test(CT)
       && /\{contract\.status === 'draft' && sampleJob && \(\s*<Text[^>]*testID="contract-sample-note">\{SAMPLE_DOC_NOT_SENT\}<\/Text>/.test(CT));
-  const saveDraft = callbackBody(CT, 'saveDraftFrom');
+  const SaveDraft = callbackBody(CT, 'saveDraftFrom');
   ok('contract: contract.terms.set follows the confirmed draft write (saved.ok), on the SAVED row, schedule non-empty',
     before(saveDraft, 'if (saved.ok) {', "tutorialSignal('contract.terms.set'") && before(saveDraft, 'setContract(saved.contract);', "tutorialSignal('contract.terms.set'")
       && /if \(tut\.runOnThis && row\.paymentSchedule\.length > 0\)/.test(saveDraft) && saveDraft.indexOf("tutorialSignal('contract.terms.set'") < saveDraft.indexOf("saved.reason === 'duplicate'"));

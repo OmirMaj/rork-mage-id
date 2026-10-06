@@ -97,7 +97,7 @@ console.log('\n#94 / #93 / #172 accept-invite:');
     ok('no retry for a missing token', canRetry('missing_token') === false);
     ok('retry for a transient failure (no code)', canRetry(null) === true);
   }
-  ok('"Try again" renders only behind canRetryInvite(errCode)', /\{canRetryInvite\(errCode\) \? \(\s*<TouchableOpacity[\s\S]{0,300}Try again/.test(src));
+  ok('"Try Again" renders only behind canRetryInvite(errCode)', /\{canRetryInvite\(errCode\) \? \(\s*<TouchableOpacity[\s\S]{0,300}Try Again/.test(src));
   ok('a missing token records errCode missing_token', /setErrCode\('missing_token'\)/.test(src));
   ok('the error state always offers Home (or sign-in when signed out)',
     /onPress=\{goHome\}/.test(src) && /router\.replace\(\(isAuthenticated \? '\/\(tabs\)\/\(home\)' : '\/login'\) as never\)/.test(src));

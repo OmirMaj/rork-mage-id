@@ -238,7 +238,7 @@ console.log('\n#115 renumbering re-embeds from the text already read, and says s
   const panel = code('components/plans/AskPlansPanel.tsx');
   const apply = panel.slice(panel.indexOf('const applyTitleNumbers'), panel.indexOf('const jumpToSheet'));
   ok('the panel shows the saved alert, clears the stale summary and re-embeds',
-    /showAlert\('Sheet numbers saved', renumberSavedMessage\(/.test(apply) && /setIndexState\('idle'\)/.test(apply) && /setIndexResult\(null\)/.test(apply)
+    /showAlert\('Sheet Numbers Saved', renumberSavedMessage\(/.test(apply) && /setIndexState\('idle'\)/.test(apply) && /setIndexResult\(null\)/.test(apply)
     && /reembedRenumberedSheets\(projectId, reembed\)/.test(apply));
   ok('the run returns its transcriptions for that', /result\.extractedText\[sheet\.id\] = text/.test(code('utils/plans/askYourPlans.ts')));
 }
@@ -263,7 +263,7 @@ console.log('\n#117 a failed answer is said as itself, not as an answer');
   ok('the old fixed sentence is gone', !/plan brain/.test(code('utils/plans/askYourPlans.ts')));
   const panel = read('components/plans/AskPlansPanel.tsx');
   ok('the panel words it as a found-but-unwritten answer, retry only when it helps',
-    /Found matching sheets, but couldn&apos;t write the answer — \{answerFailed\.reason\}\.\{answerFailed\.retry \? ' Try again in a moment\.' : ''\}/.test(panel));
+    /Found matching sheets, but couldn&apos;t write the answer: \{answerFailed\.reason\}\.\{answerFailed\.retry \? ' Try again in a moment\.' : ''\}/.test(panel));
 }
 
 // ── #116: Compare's RFI number ──────────────────────────────────────────────

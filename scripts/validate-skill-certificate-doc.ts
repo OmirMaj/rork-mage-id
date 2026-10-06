@@ -237,7 +237,7 @@ export function checkScreen(screen: string): string[] {
   if (/flexBasis:\s*'\d+%'|width:\s*'(?:4\d|50)%'/.test(code)) p.push('a percentage tile');
   if (!/maxWidth: \(gridWidth - 12\) \/ 2/.test(code) || !/\[styles\.cardTwoUp, halfColumn\]/.test(code)) p.push('a lone last card can stretch across the column (no half-column maxWidth)');
   if (!/retryPendingAwards\(awardSkillCertificate\)/.test(code) || !/useFocusEffect\(/.test(code)) p.push('pending awards are not retried on focus');
-  if (!/'Passed, not issued yet'/.test(code)) p.push('a pending pass is not labelled "Passed, not issued yet"');
+  if (!/'Passed, Not Issued Yet'/.test(code)) p.push('a pending pass is not labelled "Passed, Not Issued Yet"');
   if (!/BRAIN_FAB_CLEARANCE/.test(code)) p.push('no BRAIN_FAB_CLEARANCE bottom padding');
   return p;
 }

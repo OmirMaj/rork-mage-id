@@ -84,7 +84,7 @@ console.log('\nhub cards:');
 ok('contractor sees all three wave-A tutorials in hub order',
   JSON.stringify(ids(ctx())) === JSON.stringify(['daily-report-voice', 'punch-walk', 'invoice-to-self']), JSON.stringify(ids(ctx())));
 ok('grouped On site then Money', JSON.stringify(groups(ctx())) === JSON.stringify(['site', 'money']), JSON.stringify(groups(ctx())));
-ok('section labels are the spec words', hubSections(ctx(), WAVE_A).map(s => s.label).join('|') === 'On site|Money');
+ok('section labels are the spec words', hubSections(ctx(), WAVE_A).map(s => s.label).join('|') === 'On Site|Money');
 ok('…the whole build: every contractor tutorial is on the hub exactly once, every section has a label',
   (() => {
     const all = hubSections(ctx());

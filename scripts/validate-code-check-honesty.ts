@@ -568,7 +568,7 @@ const planSection = between(index, "mode === 'plan' ? (", "mode === 'ask' ? (");
 ok('Plan Review shows the recall chip above its findings, in Code Check\'s words',
   /testID="plan-review-recall-chip"/.test(planSection)
     && planSection.indexOf('plan-review-recall-chip') < planSection.indexOf('SEVERITY_ORDER.map')
-    && planSection.includes('From model recall — verify with your AHJ before relying on a section number'));
+    && planSection.includes('From model recall. Verify with your AHJ before relying on a section number.'));
 ok('each finding carries the rung badge and the mismatch badge',
   planSection.includes('<RungBadge ev={planEvidence.get(f.id)!.ev} testID={`plan-review-rung-${f.id}`} />')
     && planSection.includes('testID={`plan-review-edition-mismatch-${f.id}`}'));

@@ -74,7 +74,7 @@ console.log('\n#115 · the panel:');
   ok('the old id-only key is gone', !/const cacheKey = `sub_eval_\$\{sub\.id\}`;/.test(ev));
   ok('a grounding chip renders under the title', /\{grounding\.readChip\}/.test(ev));
   ok('the green-check track record only renders with history', /result\.trackRecord && grounding\?\.hasHistory \? \(/.test(ev));
-  ok('without history a neutral line says there is no track record', /No signed commitments on record in MAGE ID — no track record to summarize yet\./.test(ev));
+  ok('without history a neutral line says there is no track record', /No signed commitments on record in MAGE ID, so there is no track record to summarize yet\./.test(ev));
   const subs = src('app/(tabs)/subs/index.tsx');
   ok('the Subs sheet passes the grounding as projectContext and grounding',
     /projectContext=\{evalGrounding\.context\}/.test(subs) && /grounding=\{evalGrounding\}/.test(subs));
@@ -86,7 +86,7 @@ console.log('\n#115 · the panel:');
 console.log('\n#27 · the Subs form:');
 {
   const subs = src('app/(tabs)/subs/index.tsx');
-  const save = subs.slice(subs.indexOf('const handleSave = useCallback'), subs.indexOf('if (editingSub) {', subs.indexOf('const handleSave = useCallback')));
+  const Save = subs.slice(subs.indexOf('const handleSave = useCallback'), subs.indexOf('if (editingSub) {', subs.indexOf('const handleSave = useCallback')));
   ok('a TIN that is not exactly 4 digits is refused before saving (so the CHECK never refuses a queued row)',
     /if \(tin && !\/\^\[0-9\]\{4\}\$\/\.test\(tin\)\) \{/.test(save) && /return;/.test(save));
   ok('"View W-9" mints a signed link on demand', /signW9Url\(path\)/.test(subs) && /accessibilityLabel="View W-9"/.test(subs));

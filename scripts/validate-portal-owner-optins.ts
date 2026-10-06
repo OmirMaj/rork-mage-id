@@ -322,7 +322,7 @@ console.log('\nwiring');
     const at = cb.indexOf('if (!indexStatus.ok) {');
     const failBlock = at < 0 ? '' : cb.slice(at, cb.indexOf('\n      }\n', at));
     ok('closeout binder: a failed index keeps the previous bake and says so',
-      /showAlert\(\s*'Ask Your Home not updated'/.test(failBlock) && /\n\s*return;\s*$/.test(failBlock)
+      /showAlert\(\s*'Ask Your Home Not Updated'/.test(failBlock) && /\n\s*return;\s*$/.test(failBlock)
       && at < cb.indexOf('await saveBakedPassport('), failBlock.slice(-120));
   }
   ok('closeout binder: the switch copy names only the surfaces each switch changes',

@@ -93,7 +93,7 @@ ok('it is picked with the DatePickerModal (future allowed)', /setDateField\('exp
 ok('there is a Clear', /setForm\(f => \(\{ \.\.\.f, expiresDate: '' \}\)\)/.test(pm));
 ok('+6 / +12 month shortcuts use calendar months', /addCalendarMonths\(expiryBase, m\)/.test(pm) && /\[6, 12\]\.map/.test(pm));
 ok('the card reads the same rule as Brain Watch', /permitExpiryState\(permit, nowMs\)/.test(pm) && /const expiry = permitExpiryLine\(permit, Date\.now\(\)\);/.test(pm));
-ok('…and says "Expires today" / "Expired N days ago"', /'Expires today'/.test(pm) && /`Expired \$\{-d\} day/.test(pm));
+ok('…and says "Expires Today" / "Expired N days ago"', /'Expires Today'/.test(pm) && /`Expired \$\{-d\} day/.test(pm));
 
 console.log('\n#145 permits — a logged verdict and the status:');
 {
@@ -112,10 +112,10 @@ ok('the card shows the history failure', /historyFailure=\{historyFailures\.get\
 
 console.log('\n#67 permits — the saved scan opens:');
 ok('"Permit document attached" dead text is gone', !/Permit document attached/.test(pmRaw));
-ok('the card has a "View permit" button', /accessibilityRole="button"\s*accessibilityLabel="View permit"/.test(pm) && /onViewScan\(\);/.test(pm));
+ok('the card has a "View Permit" button', /accessibilityRole="button"\s*accessibilityLabel="View Permit"/.test(pm) && /onViewScan\(\);/.test(pm));
 ok('…whose press does not also open the edit form', /e\.stopPropagation\?\.\(\); onViewScan\(\);/.test(pm));
 ok('a bucket path is signed with resolvePhotoUrls', /resolvePhotoUrls\(\[uri\]\)/.test(pm) && /looksLikeStoragePath\(uri\)/.test(pm));
-ok('a queued upload shows the local original with the uploading note', /getOwnPhotoUploadQueue\(\)/.test(pm) && /'Scan saved — uploading, viewable once it lands\.'/.test(pm));
+ok('a queued upload shows the local original with the uploading note', /getOwnPhotoUploadQueue\(\)/.test(pm) && /'Scan saved\. Uploading, viewable once it lands\.'/.test(pm));
 {
   const b = block(pm, 'const openEditForm = useCallback(');
   ok('opening a permit resolves its saved scan', /resolvePermitScan\(saved\)/.test(b), b.slice(0, 200));
@@ -127,7 +127,7 @@ ok('"uploads on its own as soon as you have signal" only for a fresh pick',
   /scanState === 'unavailable'[\s\S]{0,300}isDeviceLocalUri\(form\.attachmentUri\)[\s\S]{0,300}'Scan attached\. It uploads on its own as soon as you have signal\.'/.test(pm));
 ok('the viewer zooms (ScrollView zoom scale)', /maximumZoomScale=\{5\}/.test(pm));
 ok('web opens the signed copy in a new tab from a direct tap', /Linking\.openURL\(scanViewer\.webUrl!\)/.test(pm));
-ok('attaching needs the job first (the bucket path is per job)', /if \(!form\.projectId\) \{\s*showAlert\('Pick a project first'/.test(pm));
+ok('attaching needs the job first (the bucket path is per job)', /if \(!form\.projectId\) \{\s*showAlert\('Pick a Project First'/.test(pm));
 
 // ═══ app/warranties.tsx ══════════════════════════════════════════════════════
 const WR = 'app/warranties.tsx';
@@ -167,7 +167,7 @@ console.log('\n#144/#146 warranties — resolving claims, cents:');
   ok('…through updateWarranty (the offline-queued path)', /updateWarranty\(w\.id,/.test(b));
   ok('…with an optional one-line resolution', /showPrompt\(/.test(b) && /resolution: resolution \|\| c\.resolution/.test(b));
 }
-ok('open claims have the button, resolved ones read "Resolved <date>"', /Mark resolved/.test(wr) && /Resolved \{formatDate\(c\.resolvedAt!\)\}/.test(wr));
+ok('open claims have the button, resolved ones read "Resolved <date>"', /Mark Resolved/.test(wr) && /Resolved \{formatDate\(c\.resolvedAt!\)\}/.test(wr));
 ok('the "no mark resolved yet" comment is gone', !/deliberately no "mark resolved" here yet/.test(wrRaw));
 ok('claim cost prints to the cent', /formatMoney\(c\.cost, 2\)/.test(wr) && !/Math\.round\(c\.cost\)/.test(wr));
 ok('addWarrantyClaim is still wired (nav-coverage pins it)', /addWarrantyClaim\(/.test(wr));
@@ -204,7 +204,7 @@ ok('beforeRemove guard is registered', /navigation\.addListener\('beforeRemove'/
   ok('a logged walk deletes the draft', /void clearDraft\(\);/.test(b), b.slice(0, 200));
   ok('…and opens the gate BEFORE its own router.back()', /allowLeave\.current = true; router\.back\(\);/.test(b));
 }
-ok('Discard deletes the draft', /text: 'Discard walk'[\s\S]{0,200}clearDraft\(\)/.test(ww));
+ok('Discard deletes the draft', /text: 'Discard Walk'[\s\S]{0,200}clearDraft\(\)/.test(ww));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

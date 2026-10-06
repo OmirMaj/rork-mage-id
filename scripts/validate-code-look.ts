@@ -108,7 +108,7 @@ console.log('\n2. headline + trust label');
   ok('1 → "1 thing an inspector would look at"', codeLookHeadline(one) === '1 thing an inspector would look at', codeLookHeadline(one));
   ok('trust high', trustLabel('high') === 'Clearly visible');
   ok('trust med', trustLabel('med') === 'Probably visible');
-  ok('trust low', trustLabel('low') === 'Hard to see — check on site');
+  ok('trust low', trustLabel('low') === 'Hard to see. Check on site.');
   ok('disclaimer is exact', CODE_LOOK_DISCLAIMER === 'Visual pre-check, not an inspection. Not a substitute for the adopted code. Confirm with your building department.');
 }
 
@@ -304,7 +304,7 @@ console.log('\n6. one name');
   const plansRow = /const CODE_LOOK_LIMIT: AILimitRow = \{ label: '([^']*)'/.exec(read('app/paywall.tsx'))?.[1];
   ok('the plans row reads "Photo Code Checks per Month"', plansRow === 'Photo Code Checks per Month', plansRow);
   const readySrc = read('components/inspectionPrep/InspectionReadySheet.tsx');
-  ok('the prep group heading is "From your photo code check"', readySrc.includes('<Text style={s.sectionHeading}>From your photo code check</Text>'));
+  ok('the prep group heading is "From Your Photo Code Check"', readySrc.includes('<Text style={s.sectionHeading}>From Your Photo Code Check</Text>'));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -549,7 +549,7 @@ ok(`${ASK} is readable`, askSrc.length > 0);
       const good = probe(guardScene, { ...guardRow, triggerComparison: '>=' });
       const steppedLimit = recordRemeasure(EMPTY_REMEASURES, good, 'p1', stepJobValue(good.jobValue!, -1));
       const wrong = probe(guardScene, { ...guardRow, triggerComparison: '<' });
-      const savedWrong = makeSaved('p1', wrong, '2026-10-04T10:00:00.000Z', remeasureFor(wrong, 'p1', steppedLimit) ?? null);
+      const SavedWrong = makeSaved('p1', wrong, '2026-10-04T10:00:00.000Z', remeasureFor(wrong, 'p1', steppedLimit) ?? null);
       ok('CASE B: a limit with the sign the wrong way, on a run AFTER he re-measured the same line: no trigger, no number, the old re-measure is not used, so no tape and no "within the limit" on the card, in the text or in the saved card',
         good.id === wrong.id && remeasureFor(good, 'p1', steppedLimit)?.value === 33 && wrong.trigger === undefined && wrong.jobValue === undefined
           && remeasureFor(wrong, 'p1', steppedLimit) === undefined && !canRecheck({ jobValue: remeasureFor(wrong, 'p1', steppedLimit), trigger: wrong.trigger })
