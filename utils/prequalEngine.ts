@@ -157,7 +157,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   if (c.requireWorkersComp) {
     findings.push({
       criterion: 'workers_comp',
-      label: 'Workers Comp active',
+      label: 'Workers Comp Active',
       passed: !!insurance.workersCompActive,
       note: insurance.workersCompCarrier ?? undefined,
       severity: 'blocker',
@@ -195,9 +195,9 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   if (coiRaw && !coiDate) {
     findings.push({
       criterion: 'coi_expiry',
-      label: 'COI expiry date readable',
+      label: 'COI Expiry Date Readable',
       passed: false,
-      note: `Unreadable date: "${coiRaw}" — enter it as YYYY-MM-DD`,
+      note: `Unreadable date: "${coiRaw}". Enter it as YYYY-MM-DD.`,
       severity: 'blocker',
     });
     missingFields.push('COI expiry date (YYYY-MM-DD)');
@@ -206,7 +206,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
     if (days < 0) {
       findings.push({
         criterion: 'coi_expiry',
-        label: 'COI not expired',
+        label: 'COI Not Expired',
         passed: false,
         note: `Expired ${Math.abs(days)} days ago`,
         severity: 'blocker',
@@ -214,15 +214,15 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
     } else if (days < 30) {
       findings.push({
         criterion: 'coi_expiry',
-        label: 'COI not expiring soon',
+        label: 'COI Not Expiring Soon',
         passed: true,
-        note: `Expires in ${days} days — renew before project start`,
+        note: `Expires in ${days} days. Renew before project start.`,
         severity: 'advisory',
       });
     } else {
       findings.push({
         criterion: 'coi_expiry',
-        label: 'COI valid',
+        label: 'COI Valid',
         passed: true,
         note: `Expires ${coiDate}`,
         severity: 'advisory',
@@ -231,7 +231,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   } else {
     findings.push({
       criterion: 'coi_expiry',
-      label: 'COI expiry date provided',
+      label: 'COI Expiry Date Provided',
       passed: false,
       note: 'Missing',
       severity: 'blocker',
@@ -279,7 +279,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
 
   findings.push({
     criterion: 'written_safety_program',
-    label: 'Written safety program',
+    label: 'Written Safety Program',
     passed: !!safety.writtenSafetyProgram,
     severity: 'advisory',
   });
@@ -302,7 +302,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   if (unreadableLicenses.length > 0) {
     findings.push({
       criterion: 'license_date_unreadable',
-      label: 'License expiry dates readable',
+      label: 'License Expiry Dates Readable',
       passed: false,
       note: `Unreadable: ${unreadableLicenses.map(l => `${l.state || 'license'} "${licRaw(l)}"`).join(', ')}. Enter as YYYY-MM-DD.`,
       severity: 'blocker',
@@ -312,7 +312,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   if (expiredLicenses.length > 0) {
     findings.push({
       criterion: 'license_expired',
-      label: 'All licenses current',
+      label: 'All Licenses Current',
       passed: false,
       note: `${expiredLicenses.length} expired (${expiredLicenses.map(l => l.state).join(', ')})`,
       severity: 'blocker',
@@ -320,7 +320,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   } else if (licenses.length > 0 && unreadableLicenses.length === 0) {
     findings.push({
       criterion: 'license_current',
-      label: 'Licenses current',
+      label: 'Licenses Current',
       passed: true,
       note: `${licenses.length} on file`,
       severity: 'advisory',
@@ -336,8 +336,8 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   const summary = overall === 'pass'
     ? 'Auto-review passed. Ready for approval.'
     : overall === 'needs_info'
-      ? `${missingFields.length} field${missingFields.length === 1 ? '' : 's'} missing — send back to sub.`
-      : `${blockers.length} blocker${blockers.length === 1 ? '' : 's'} — not eligible.`;
+      ? `${missingFields.length} field${missingFields.length === 1 ? '' : 's'} missing. Send back to sub.`
+      : `${blockers.length} blocker${blockers.length === 1 ? '' : 's'}. Not eligible.`;
 
   return { overall, findings, summary, missingFields };
 }

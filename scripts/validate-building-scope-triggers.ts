@@ -190,8 +190,10 @@ console.log('\n── evaluateScopeGaps without building');
   // Today's output, pinned: the sha256 of this fixture's JSON as the base
   // commit 64d397af's utils/scopeGaps.ts produced it (computed once from that
   // file; a change to the code-rule path moves it and must be explained).
+  // 2026-10-05 copy lane 1: re-pinned after a text-only change (the two jurisdiction notes lost their
+  // dashes: "Depends on your location, no state on file"). No rule, id or order moved.
   const digest = createHash('sha256').update(a).digest('hex');
-  assert(digest === '35760445dae4aeccce0daee120af870792305ecf6ea507e444c5692093d59383', `deep-equal to the 64d397af output (sha256 ${digest.slice(0, 12)})`);
+  assert(digest === '2ad323ac8bd2ca0820c65d06cc7e7913f8ba68952acff8ddc6c80846d1b46f99', `deep-equal to the 64d397af output (sha256 ${digest.slice(0, 12)})`);
   // …and the code rules this fixture fires.
   const ids = evaluateScopeGaps(fixture).gaps.map(g => g.rule.id).sort().join();
   assert(ids.length > 0 && !ids.includes('rrp') && !ids.includes('acp5'), `code rules only (${ids})`);

@@ -144,8 +144,8 @@ export default function MyRfpsScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Your projects</Text>
-          <Text style={styles.title}>My posted projects</Text>
+          <Text style={styles.eyebrow}>Your Projects</Text>
+          <Text style={styles.title}>My Posted Projects</Text>
         </View>
         <TouchableOpacity style={styles.headerCta} onPress={handleNew}>
           <Plus size={16} color="#FFF" strokeWidth={1.75} />
@@ -174,7 +174,7 @@ export default function MyRfpsScreen() {
             <View style={styles.statDivider} />
             <Stat label="Awarded" value={String(totals.awarded)} accent={totals.awarded > 0 ? themeColors.success : undefined} />
             <View style={styles.statDivider} />
-            <Stat label="New bids" value={String(totals.inbox)} accent={totals.inbox > 0 ? themeColors.accent : undefined} />
+            <Stat label="New Bids" value={String(totals.inbox)} accent={totals.inbox > 0 ? themeColors.accent : undefined} />
           </View>
         )}
 
@@ -190,18 +190,18 @@ export default function MyRfpsScreen() {
             <View style={styles.emptyIconWrap}>
               <MageAIMark size={28} color={themeColors.accent} />
             </View>
-            <Text style={styles.emptyTitle}>Post your first project</Text>
+            <Text style={styles.emptyTitle}>Post Your First Project</Text>
             <Text style={styles.emptyBody}>
               {/* Audit wave 5, #96: no contractor can set a service area yet,
                   so "we alert contractors who cover your area" described an
                   alert that can't happen. */}
               {SERVICE_AREA_SETUP_ENABLED
-                ? 'Tell us what you want done — kitchen remodel, roof replacement, anything. We alert MAGE ID contractors who cover your area and show you how many that was, then you pick the bid you like best.'
-                : 'Tell us what you want done — kitchen remodel, roof replacement, anything. Contractor matching by service area isn\'t live in MAGE ID yet, so no contractor will see a post today; any bid that does come in shows up here.'}
+                ? 'Tell us what you want done: kitchen remodel, roof replacement, anything. We alert MAGE ID contractors who cover your area and show you how many that was, then you pick the bid you like best.'
+                : 'Tell us what you want done: kitchen remodel, roof replacement, anything. Contractor matching by service area isn\'t live in MAGE ID yet, so no contractor will see a post today; any bid that does come in shows up here.'}
             </Text>
             <TouchableOpacity style={styles.emptyCta} onPress={handleNew}>
               <Plus size={14} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.emptyCtaText}>Post a project</Text>
+              <Text style={styles.emptyCtaText}>Post a Project</Text>
             </TouchableOpacity>
           </View>
         )}

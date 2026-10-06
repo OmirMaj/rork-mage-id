@@ -20,9 +20,6 @@
     "app/bid-leveling.tsx": {
       "R16": 1
     },
-    "app/buyout-package.tsx": {
-      "R17": 1
-    },
     "app/buyout.tsx": {
       "R16": 3
     },
@@ -30,9 +27,7 @@
       "R09": 1
     },
     "app/contract.tsx": {
-      "R13": 1,
-      "R14": 4,
-      "R17": 2
+      "R14": 4
     },
     "app/cost-database.tsx": {
       "R16": 1
@@ -41,9 +36,6 @@
       "R01": 1
     },
     "app/estimate-accuracy.tsx": {
-      "R16": 1
-    },
-    "app/estimate-confidence.tsx": {
       "R16": 1
     },
     "app/estimate-wizard.tsx": {
@@ -91,9 +83,6 @@
     },
     "app/selections.tsx": {
       "R09": 1
-    },
-    "app/smart-proposal.tsx": {
-      "R17": 1
     },
     "app/sub-portal-setup.tsx": {
       "R05": 1,

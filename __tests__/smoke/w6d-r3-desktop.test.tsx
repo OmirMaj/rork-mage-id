@@ -201,7 +201,7 @@ describe('lane R3 — the Pipeline register, desktop web 1512', () => {
     await desk('/leads');
     expect(screen.getByTestId('leads-register-kpis')).toBeTruthy();
     expect(screen.getAllByText('50%').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Win rate').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Win Rate').length).toBeGreaterThan(0);
   });
 
   it('List: rows link to /lead-detail?leadId=, and the choice is remembered', async () => {

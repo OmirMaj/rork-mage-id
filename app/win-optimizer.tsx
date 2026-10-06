@@ -124,8 +124,8 @@ function WinOptimizerInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Win optimizer · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Price a bid'}</Text>
+          <Text style={styles.headerEyebrow}>Win Optimizer · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Price a Bid'}</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -134,7 +134,7 @@ function WinOptimizerInner() {
         {/* Inputs */}
         <View style={styles.inputCard}>
           <View style={styles.inputRow}>
-            <Text style={styles.inputLabel}>Project cost</Text>
+            <Text style={styles.inputLabel}>Project Cost</Text>
             <View style={styles.inputWrap}>
               <Text style={styles.inputPrefix}>$</Text>
               <TextInput
@@ -151,7 +151,7 @@ function WinOptimizerInner() {
           </View>
           <View style={styles.inputDivider} />
           <View style={styles.inputRow}>
-            <Text style={styles.inputLabel}>Your usual markup</Text>
+            <Text style={styles.inputLabel}>Your Usual Markup</Text>
             <View style={styles.inputWrap}>
               <TextInput
                 style={styles.input}
@@ -168,7 +168,7 @@ function WinOptimizerInner() {
           </View>
           <View style={styles.inputDivider} />
           <View style={styles.inputRow}>
-            <Text style={styles.inputLabel}>Competing bids <Text style={styles.inputHint}>(optional)</Text></Text>
+            <Text style={styles.inputLabel}>Competing Bids <Text style={styles.inputHint}>(optional)</Text></Text>
             <View style={styles.inputWrap}>
               <TextInput
                 style={styles.input}
@@ -199,7 +199,7 @@ function WinOptimizerInner() {
             <View style={[styles.hero, { borderColor: t.accent }]}>
               <View style={styles.heroTopRow}>
                 <Trophy size={16} color={t.accent} strokeWidth={1.75} />
-                <Text style={styles.heroLabel}>Recommended bid</Text>
+                <Text style={styles.heroLabel}>Recommended Bid</Text>
                 <View style={{ flex: 1 }} />
                 <View style={[styles.confChip, { backgroundColor: confColor + '22' }]}>
                   <Text style={[styles.confChipText, { color: confColor }]}>{result.confidence} confidence</Text>
@@ -214,7 +214,7 @@ function WinOptimizerInner() {
               ) : null}
               <View style={styles.heroStatsRow}>
                 <HeroStat label="Markup" value={`${Math.round(result.recommended.markup * 100)}%`} t={t} styles={styles} />
-                <HeroStat label="Win odds" value={`${Math.round(result.recommended.winProbability * 100)}%`} t={t} styles={styles} />
+                <HeroStat label="Win Odds" value={`${Math.round(result.recommended.winProbability * 100)}%`} t={t} styles={styles} />
                 <HeroStat label="Profit" value={formatMoney(result.recommended.profit)} t={t} styles={styles} />
                 <HeroStat label="Expected" value={formatMoney(result.recommended.expectedProfit)} t={t} styles={styles} accent />
               </View>
@@ -222,7 +222,7 @@ function WinOptimizerInner() {
 
             {/* EV curve strip */}
             <View style={styles.curveCard}>
-              <Text style={styles.curveTitle}>Expected profit across price</Text>
+              <Text style={styles.curveTitle}>Expected Profit Across Price</Text>
               <View style={styles.barsRow}>
                 {bars.map((b, i) => (
                   <View key={i} style={styles.barSlot}>
@@ -237,10 +237,10 @@ function WinOptimizerInner() {
             </View>
 
             {/* Three options */}
-            <Text style={styles.sectionTitle}>Your options</Text>
+            <Text style={styles.sectionTitle}>Your Options</Text>
             <OptionCard
               icon={<Target size={16} color={t.success} strokeWidth={1.75} />}
-              tag="Price to win" tagColor={t.success}
+              tag="Price to Win" tagColor={t.success}
               point={result.aggressive} t={t} styles={styles}
             />
             <OptionCard
@@ -250,12 +250,12 @@ function WinOptimizerInner() {
             />
             <OptionCard
               icon={<Gem size={16} color={t.accentHot} strokeWidth={1.75} />}
-              tag="Hold margin" tagColor={t.accentHot}
+              tag="Hold Margin" tagColor={t.accentHot}
               point={result.premium} t={t} styles={styles}
             />
 
             {/* Drivers */}
-            <Text style={styles.sectionTitle}>Why this price</Text>
+            <Text style={styles.sectionTitle}>Why This Price</Text>
             <View style={styles.driversCard}>
               {result.drivers.map((d, i) => (
                 <View key={i} style={[styles.driverRow, i > 0 && styles.driverBorder]}>
@@ -266,7 +266,7 @@ function WinOptimizerInner() {
             </View>
 
             <Text style={styles.note}>
-              Win odds are modeled from your own closed proposals ({result.sampleSize} so far) — every
+              Win odds are modeled from your own closed proposals ({result.sampleSize} so far). Every
               lead you mark won or lost makes the next recommendation sharper. A guide, not a guarantee.
             </Text>
           </>

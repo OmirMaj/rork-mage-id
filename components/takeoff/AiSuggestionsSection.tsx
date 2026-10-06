@@ -65,7 +65,7 @@ export default function AiSuggestionsSection(p: AiSuggestionsSectionProps) {
 
   const runLink = (
     <TouchableOpacity onPress={p.onRunAi} accessibilityRole="link" testID="takeoffws-ai-run">
-      <Text style={styles.link}>Run AI takeoff</Text>
+      <Text style={styles.link}>Run AI Takeoff</Text>
     </TouchableOpacity>
   );
 
@@ -86,19 +86,19 @@ export default function AiSuggestionsSection(p: AiSuggestionsSectionProps) {
 
       {!open || p.state === 'loading' ? null : p.state === 'none' ? (
         <View style={styles.body} testID="takeoffws-ai-none">
-          <Text style={styles.muted}>No AI takeoff saved on this browser for this project yet. An AI takeoff run on your phone stays on that phone.</Text>
+          <Text style={styles.muted}>No AI Takeoff saved on this browser for this project yet. An AI Takeoff run on your phone stays on that phone.</Text>
           {runLink}
         </View>
       ) : p.state === 'stale' ? (
         <View style={styles.body} testID="takeoffws-ai-stale">
-          <Text style={styles.muted}>The AI takeoff saved on this browser is over 60 days old. Run it again on the current plans.</Text>
+          <Text style={styles.muted}>The AI Takeoff saved on this browser is over 60 days old. Run it again on the current plans.</Text>
           {runLink}
         </View>
       ) : p.state === 'failed' ? (
         <View style={styles.body} testID="takeoffws-ai-failed">
-          <Text style={styles.muted}>Couldn’t read the AI takeoff saved on this browser for this project.</Text>
+          <Text style={styles.muted}>Couldn’t read the AI Takeoff saved on this browser for this project.</Text>
           <TouchableOpacity onPress={p.onRetry} accessibilityRole="button" testID="takeoffws-ai-retry">
-            <Text style={styles.link}>Try again</Text>
+            <Text style={styles.link}>Try Again</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -141,7 +141,7 @@ export default function AiSuggestionsSection(p: AiSuggestionsSectionProps) {
                     <Text style={styles.link}>Accept</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => p.onAcceptMeasure(s)} accessibilityRole="button" accessibilityLabel={`Accept and measure ${s.name}`} testID={`takeoffws-ai-measure-${i}`}>
-                    <Text style={styles.link}>Accept & measure</Text>
+                    <Text style={styles.link}>Accept and Measure</Text>
                   </TouchableOpacity>
                 </View>
               </View>

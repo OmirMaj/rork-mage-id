@@ -90,7 +90,7 @@ export async function aiSuggestMaterialEstimate(
   if (cart.length === 0) {
     return {
       perItem: [],
-      laborEstimateRange: { low: 0, high: 0, rationale: 'No materials in cart yet — add items first.' },
+      laborEstimateRange: { low: 0, high: 0, rationale: 'No materials in cart yet. Add items first.' },
       overallRecommendations: [],
       summary: 'Cart is empty.',
     };

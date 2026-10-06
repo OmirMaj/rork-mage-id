@@ -317,19 +317,19 @@ ok('#24 every decision button waits for the re-read',
     new RegExp(`onPress=\\{\\(\\) => ${call.replace('(', '\\(')}[^}]*\\)\\}\\s*disabled=\\{checking\\}`).test(pm))
   && /Checking for the sub\{"\\u2019"\}s latest answers…/.test(pm));
 ok('#24 the pipeline advance waits too', /checking \|\| isSideBranch\('prequal', packet\.status\) \|\| packet\.status === 'submitted'/.test(pm));
-ok('#24 offline, the cached copy is labelled', /this may be out of date\{cachedReadAt \? ` \(last read \$\{cachedReadAt\}\)` : ''\}/.test(pm));
-ok('#32 the review modal offers Send renewal', /canSendPrequalRenewal\(packet\.status/.test(pm) && />Send renewal</.test(pm));
+ok('#24 offline, the cached copy is labelled', /This may be out of date\{cachedReadAt \? ` \(last read \$\{cachedReadAt\}\)` : ''\}/.test(pm));
+ok('#32 the review modal offers Send Renewal', /canSendPrequalRenewal\(packet\.status/.test(pm) && />Send Renewal</.test(pm));
 ok('#32 each Renewals-needed row opens the renewal', /onPress=\{\(\) => \{ if \(r\.packet\) setRenewing\(\{ packet: r\.packet, sub: r\.sub \}\); \}\}/.test(pm));
 ok('#32 the renewal is confirmed and says what it costs',
   /'Send a renewal\?'/.test(pm) && /The old link stops working/.test(pm) && /leaves "approved" until they resubmit/.test(pm)
   && /upsertPrequalPacket\(buildPrequalRenewal\(packet, token, email, now\)\)/.test(pm));
 ok('#32 ?inviteSubId opens the renewal for an approved / lapsed packet', /if \(existing && \(lapsed \|\| existing\.status === 'approved'\)\) setRenewing/.test(pm));
-ok('#111 Needs changes / Reject open an email with the note and the sub\'s link',
+ok('#111 Needs Changes / Reject open an email with the note and the sub\'s link',
   /void emailDecision\(updated, 'needs_changes', note\)/.test(pm) && /void emailDecision\(updated, 'rejected', note\)/.test(pm)
   && /prequalInviteUrl\(packet\.inviteToken\)/.test(pm) && /mailto:\$\{to\}\?subject=/.test(pm));
-ok('#111 the GC is told what actually went out', /It is not sent until you tap Send there/.test(pm) && /Status saved, not emailed/.test(pm)
-  && /Saved, but the sub hasn’t been told/.test(pm));
-ok('#111 the note can be resent', />Resend note to the sub</.test(pm) && /onResendNote=\{handleResendNote\}/.test(pm));
+ok('#111 the GC is told what actually went out', /It is not sent until you tap Send there/.test(pm) && /Status Saved, Not Emailed/.test(pm)
+  && /Saved, but the Sub Hasn’t Been Told/.test(pm));
+ok('#111 the note can be resent', />Resend Note to the Sub</.test(pm) && /onResendNote=\{handleResendNote\}/.test(pm));
 ok('the list re-reads on focus and on pull', /useFocusEffect\(useCallback\(/.test(pm) && /invalidateQueries\(\{ queryKey: \['prequalPackets', user\?\.id\] \}\)/.test(pm)
   && /refreshControl=\{<RefreshControl/.test(pm));
 
@@ -339,13 +339,13 @@ ok('the list re-reads on focus and on pull', /useFocusEffect\(useCallback\(/.tes
 console.log('\napp/prequal-form.tsx:');
 const pf = live('app/prequal-form.tsx');
 ok('#111 the GC\'s decision and note are shown to the sub',
-  /\{needsChanges \? `\$\{gcName \|\| 'Your contractor'\} asked for changes` : 'Not approved'\}/.test(pf) && /<Text style=\{styles\.decisionNote\}>\{packet\.reviewerNotes\}<\/Text>/.test(pf));
+  /\{needsChanges \? `\$\{gcName \|\| 'Your contractor'\} asked for changes` : 'Not Approved'\}/.test(pf) && /<Text style=\{styles\.decisionNote\}>\{packet\.reviewerNotes\}<\/Text>/.test(pf));
 ok('#111 a needs-changes packet is resubmitted with a Resubmit button', /needsChanges \? 'Resubmit'/.test(pf));
 ok('#111 a rejected packet has no Submit button, and the copy matches the server',
   /\) : rejected \? \(/.test(pf) && /can’t be resubmitted from this link/.test(pf));
 ok('#113 no cross-contractor promise remains', !/across every contractor/i.test(read('app/prequal-form.tsx')));
 ok('#113 a signed-out sub is offered sign-up, not the login-walled profile',
-  /\{isAuthenticated \? \(/.test(pf) && /router\.push\('\/signup'\)/.test(pf) && /Create your free MAGE ID account/.test(pf));
+  /\{isAuthenticated \? \(/.test(pf) && /router\.push\('\/signup'\)/.test(pf) && /Create Your Free MAGE ID Account/.test(pf));
 ok('#114 the form keeps sending the criteria it loaded (never null)', /p_criteria: next\.criteria,/.test(pf) && !/p_criteria:\s*null/.test(pf));
 
 console.log('\napp/sub-profile.tsx:');

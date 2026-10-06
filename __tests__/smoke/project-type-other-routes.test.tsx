@@ -61,7 +61,7 @@ describe('Q6 — JUDGES describe mode and the Scope Sheet header', () => {
   it('JUDGES: Other opens the box; the button is blocked with the reason until it has words', async () => {
     await mountRouteChecked('/judges');
     expect(screen.queryByTestId('judges-type-other')).toBeNull();
-    fireEvent.press(screen.getByText('Other (describe it)'));
+    fireEvent.press(screen.getByText('Other (Describe It)'));
     expect(screen.getByTestId('judges-type-other')).toBeTruthy();
     expect(screen.getByText(/You picked Other\. Describe the project/)).toBeTruthy();
     fireEvent.changeText(screen.getByTestId('judges-type-other'), 'Windows & doors');

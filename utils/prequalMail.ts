@@ -26,7 +26,7 @@ export async function composeMailOrOfferLink(p: {
   /** The open rejected: nothing went out, the link is the way forward. */
   failed: { title: string; body: string };
 }): Promise<void> {
-  const copyLink = { text: 'Copy link', onPress: () => { void copyToClipboard(p.link); } };
+  const copyLink = { text: 'Copy Link', onPress: () => { void copyToClipboard(p.link); } };
   let opened = true;
   try {
     await Linking.openURL(p.mailto);

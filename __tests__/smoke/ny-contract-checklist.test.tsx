@@ -141,7 +141,7 @@ async function pump(n = 4) {
     });
   }
 }
-const NY_TITLE = 'Some New York items are missing';
+const NY_TITLE = 'Some New York Items Are Missing';
 const nyCalls = (spy: jest.SpyInstance) => spy.mock.calls.filter((c) => c[0] === NY_TITLE);
 const buttonsOf = (call: unknown[]) => call[2] as AlertButton[];
 
@@ -174,7 +174,7 @@ describe('the sign gate on the real contract screen', () => {
     expect(nyCalls(alertSpy)).toHaveLength(1);
     const first = nyCalls(alertSpy)[0];
     expect(first[1]).toBe('4 items on the New York checklist are missing. You can still send it.');
-    expect(buttonsOf(first).map((b) => b.text)).toEqual(['Review the list', 'Continue']);
+    expect(buttonsOf(first).map((b) => b.text)).toEqual(['Review the List', 'Continue']);
     expect(screen.queryByTestId('contract-sign-sheet')).toBeNull();
 
     // "Review the list": nothing signs, the card stays open.
@@ -195,7 +195,7 @@ describe('the sign gate on the real contract screen', () => {
 
     // Acknowledged for this contract: Sign & send is not warned again.
     alertSpy.mockClear();
-    await act(async () => { fireEvent.press(screen.getByText('Sign & send')); });
+    await act(async () => { fireEvent.press(screen.getByText('Sign and Send')); });
     await pump(2);
     expect(nyCalls(alertSpy)).toHaveLength(0);
     ny.unmount();
@@ -207,7 +207,7 @@ describe('the sign gate on the real contract screen', () => {
     mockActive = nyDraft();
     const ny2 = await mountRouteChecked(`/contract?projectId=${PROJECT_ID}`);
     for (let i = 0; i < 40 && !screen.queryByTestId('contract-sign-together'); i++) await pump(1);
-    await act(async () => { fireEvent.press(screen.getByText('Sign & send')); });
+    await act(async () => { fireEvent.press(screen.getByText('Sign and Send')); });
     await pump(2);
     expect(nyCalls(alertSpy)).toHaveLength(1);
     expect(screen.queryByTestId('contract-sign-sheet')).toBeNull();

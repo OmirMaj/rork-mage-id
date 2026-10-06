@@ -127,13 +127,13 @@ const MODEL_DISPLAY: Record<TakeoffModel, { label: string; tagline: string }> = 
     tagline: 'Fast counts on clean drawings. Good for most residential sets.',
   },
   'gemini-2.5-pro': {
-    label: 'Pro takeoff',
+    label: 'Pro Takeoff',
     tagline: 'A slower model with room for a longer answer, for sets with long schedules.',
   },
   'claude-sonnet-4-5': {
     // Capability-tier name, NOT the vendor model name — user-facing copy
     // never name-drops the underlying provider (sim-audit #10).
-    label: 'Max takeoff',
+    label: 'Max Takeoff',
     tagline: 'A different model, for stamped or marked-up scans. Enterprise plan.',
   },
 };
@@ -586,7 +586,7 @@ function TakeoffInner() {
     if (sampleRun) {
       if (sampleShown) convertSampleTakeoff();
       else showAlert(
-        t('common.tutorial.takeoffSampleOnlyTitle', 'Use the sample plan'),
+        t('common.tutorial.takeoffSampleOnlyTitle', 'Use the Sample Plan'),
         t('common.tutorial.takeoffUploadBlocked', 'On the sample, use the sample plan. Upload your own plans on a real job.'),
       );
       return;
@@ -817,7 +817,7 @@ function TakeoffInner() {
   const handleCreateAllBuyouts = useCallback(async () => {
     if (!buyoutDrafts || !pickedProjectId) {
       showAlert(
-        'Pick a project first',
+        'Pick a Project First',
         'Buyout packages need to attach to a specific project. Pick one above and try again.',
       );
       return;
@@ -840,11 +840,11 @@ function TakeoffInner() {
       }
       setBuyoutDrafts(null);
       showAlert(
-        'Packages created',
+        'Packages Created',
         `${created} buyout package${created === 1 ? '' : 's'} drafted. Open Buyout to add bidders + send out for sub bids.`,
         [
-          { text: 'Stay here', style: 'cancel' },
-          { text: 'Open buyout', onPress: () => router.push({ pathname: '/buyout' as never, params: { projectId: pickedProjectId } as never }) },
+          { text: 'Stay Here', style: 'cancel' },
+          { text: 'Open Buyout', onPress: () => router.push({ pathname: '/buyout' as never, params: { projectId: pickedProjectId } as never }) },
         ],
       );
     } catch (e) {
@@ -870,7 +870,7 @@ function TakeoffInner() {
       <View style={styles.uploadIcon}>
         <FileUp size={34} color={themeColors.accent} strokeWidth={1.75} />
       </View>
-      <Text style={styles.uploadTitle}>Upload a drawings PDF</Text>
+      <Text style={styles.uploadTitle}>Upload a Drawings PDF</Text>
       <Text style={styles.uploadBody}>
         Architectural plans + schedules. Up to 16 pages. The AI reads dimensions, schedules, and callouts to produce LF / SF / EA / CY quantities.
       </Text>
@@ -892,8 +892,8 @@ function TakeoffInner() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Quantity takeoff</Text>
-          <Text style={styles.title}>Measure your drawings automatically</Text>
+          <Text style={styles.eyebrow}>Quantity Takeoff</Text>
+          <Text style={styles.title}>Measure Your Drawings Automatically</Text>
         </View>
       </View>
 
@@ -913,7 +913,7 @@ function TakeoffInner() {
             <TakeoffQuotaBadge variant="card" onUpgrade={() => router.push('/paywall' as never)} />
 
             <View style={styles.card}>
-              <Text style={styles.cardLabel}>Takeoff depth</Text>
+              <Text style={styles.cardLabel}>Takeoff Depth</Text>
               <Text style={styles.cardHelper}>
                 Standard is the fast model. Pro takeoff is a slower model with room for a longer answer. Both follow the same instructions and flag wall heights that aren&apos;t dimensioned.
               </Text>
@@ -960,7 +960,7 @@ function TakeoffInner() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardLabel}>Project (required)</Text>
+              <Text style={styles.cardLabel}>Project (Required)</Text>
               <Text style={styles.cardHelper}>
                 Drawings are stored in the project&apos;s own folder, so only your team can open them. Picking the project also lets the AI cross-check the SF figure and flag wall heights when they don&apos;t match your scope.
               </Text>
@@ -1033,7 +1033,7 @@ function TakeoffInner() {
             <Text style={styles.errorText}>{error}</Text>
             {errorKind === 'plan' && (
               <TouchableOpacity style={styles.errorRetry} onPress={() => router.push('/paywall' as never)} testID="takeoff-see-plans">
-                <Text style={styles.errorRetryText}>See plans</Text>
+                <Text style={styles.errorRetryText}>See Plans</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -1063,7 +1063,7 @@ function TakeoffInner() {
             </Text>
             <TouchableOpacity style={[styles.uploadCta, { alignSelf: 'flex-start' }]} onPress={handleRetryAnalysis} activeOpacity={0.85}>
               <RefreshCw size={14} color={Colors.textOnAccent} strokeWidth={1.75} />
-              <Text style={styles.uploadCtaText}>Retry analysis</Text>
+              <Text style={styles.uploadCtaText}>Retry Analysis</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1262,9 +1262,9 @@ function BuyoutPreviewModal({
       <View style={styles.modalCard}>
         <View style={styles.modalHead}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.modalTitle}>Buyout packages</Text>
+            <Text style={styles.modalTitle}>Buyout Packages</Text>
             <Text style={styles.modalSub}>
-              {projectName ? `Drafts for ${projectName}` : 'Pick a project — buyouts attach to a project.'}
+              {projectName ? `Drafts for ${projectName}` : 'Pick a project. Buyouts attach to a project.'}
             </Text>
           </View>
           <TouchableOpacity onPress={onCancel} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -1437,12 +1437,12 @@ function ResultView({
       {canConvertToEstimate ? (
         <>
           <CheckCircle2 size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-          <Text style={styles.ctaPrimaryText}>Convert to estimate</Text>
+          <Text style={styles.ctaPrimaryText}>Convert to Estimate</Text>
         </>
       ) : (
         <>
           <Crown size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-          <Text style={styles.ctaPrimaryText}>See these priced on Pro</Text>
+          <Text style={styles.ctaPrimaryText}>See These Priced on Pro</Text>
         </>
       )}
     </TouchableOpacity>
@@ -1542,9 +1542,9 @@ function ResultView({
 
         {/* Headline quantity tiles */}
         <View style={styles.tileGrid}>
-          <Tile label="Floor area" value={formatNum(totalFloorSF)} unit="SF" />
-          <Tile label="Wall length" value={formatNum(totalWallLF)} unit="LF" />
-          <Tile label="Wall area" value={formatNum(totalWallAreaSF)} unit="SF" />
+          <Tile label="Floor Area" value={formatNum(totalFloorSF)} unit="SF" />
+          <Tile label="Wall Length" value={formatNum(totalWallLF)} unit="LF" />
+          <Tile label="Wall Area" value={formatNum(totalWallAreaSF)} unit="SF" />
           {result.estimatedSquareFootage != null && (
             <Tile label="Building SF" value={formatNum(result.estimatedSquareFootage)} unit="SF" />
           )}
@@ -1601,7 +1601,7 @@ function ResultView({
               <Crown size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.teaserEyebrow}>Business plan · Pro takeoff</Text>
+              <Text style={styles.teaserEyebrow}>Business Plan · Pro Takeoff</Text>
               <Text style={styles.teaserTitle}>Try a slower model on this set?</Text>
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1610,7 +1610,7 @@ function ResultView({
             Pro takeoff uses a slower model with room for a longer answer, which matters on sets with long door, window and finish schedules. Every level flags wall heights that are not dimensioned as concerns.
           </Text>
           <View style={styles.teaserCta}>
-            <Text style={styles.teaserCtaText}>See Business plan</Text>
+            <Text style={styles.teaserCtaText}>See Business Plan</Text>
             <ChevronRight size={14} color={Colors.textOnAccent} strokeWidth={1.75} />
           </View>
         </TouchableOpacity>
@@ -1618,7 +1618,7 @@ function ResultView({
 
       {/* Pages the AI saw */}
       {!sample && (<>
-      <SectionHeader icon={<Eye size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Pages the AI read" />
+      <SectionHeader icon={<Eye size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Pages the AI Read" />
       <Text style={styles.sectionHelper}>
         Verify these match what you uploaded. If a page is &quot;poor,&quot; rerun with a higher-resolution scan. Tap a thumbnail to inspect the page + every quantity extracted from it.
       </Text>
@@ -1661,7 +1661,7 @@ function ResultView({
         <QuantitySection
           icon={<Ruler size={16} color={themeColors.accent} strokeWidth={1.75} />}
           title={`Walls (${result.walls.length})`}
-          helper="Length × height × 2 sides → finishable surface area."
+          helper="Length × height × 2 sides gives the finishable surface area."
         >
           {result.walls.map(w => (
             <EditableRow
@@ -1819,7 +1819,7 @@ function ResultView({
         <QuantitySection
           icon={<Boxes size={16} color={themeColors.accent} strokeWidth={1.75} />}
           title={`Bulk materials (${result.bulkMaterials.length})`}
-          helper="Concrete, gravel base, asphalt — anything measured in volume or weight."
+          helper="Concrete, gravel base, asphalt: anything measured in volume or weight."
         >
           {result.bulkMaterials.map(b => (
             <EditableRow
@@ -1849,7 +1849,7 @@ function ResultView({
         <>
           <SectionHeader
             icon={<ShieldAlert size={16} color={themeColors.accent} strokeWidth={1.75} />}
-            title="Areas of concern"
+            title="Areas of Concern"
           />
           <Text style={styles.sectionHelper}>
             What the AI flagged before relying on these numbers.
@@ -1882,7 +1882,7 @@ function ResultView({
 
       {result.doubleCheck.length > 0 && (
         <>
-          <SectionHeader icon={<HelpCircle size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Double-check before bidding" />
+          <SectionHeader icon={<HelpCircle size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Double-Check Before Bidding" />
           <View style={styles.checklistCard}>
             {result.doubleCheck.map((item, idx) => (
               <View key={idx} style={styles.checklistRow}>
@@ -1896,7 +1896,7 @@ function ResultView({
 
       {result.missingScopes.length > 0 && (
         <>
-          <SectionHeader icon={<AlertTriangle size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Scopes not in these drawings" />
+          <SectionHeader icon={<AlertTriangle size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Scopes Not in These Drawings" />
           <View style={styles.checklistCard}>
             {result.missingScopes.map((item, idx) => (
               <View key={idx} style={styles.checklistRow}>
@@ -1917,7 +1917,7 @@ function ResultView({
           bounce into a full-screen Paywall over their result. */}
       <View style={styles.ctaBar}>
         <TouchableOpacity style={styles.ctaSecondary} onPress={onReset}>
-          <Text style={styles.ctaSecondaryText}>Run again</Text>
+          <Text style={styles.ctaSecondaryText}>Run Again</Text>
         </TouchableOpacity>
         {tutorialOn ? (
           <TutorialTarget id="takeoff.convert" style={styles.ctaPrimaryWrap}>{convertCta}</TutorialTarget>
@@ -1926,7 +1926,7 @@ function ResultView({
       <View style={styles.ctaBarSecondary}>
         <TouchableOpacity style={styles.ctaPrimary} onPress={onPreviewBuyouts}>
           <Gavel size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-          <Text style={styles.ctaPrimaryText}>Generate sub-trade buyout packages</Text>
+          <Text style={styles.ctaPrimaryText}>Generate Sub-Trade Buyout Packages</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -1969,7 +1969,7 @@ function FinishesSection({
     <QuantitySection
       icon={<Paintbrush size={16} color={themeColors.accent} strokeWidth={1.75} />}
       title={`Finishes (${finishes.length})`}
-      helper="Paint, flooring, base, casing — grouped by surface."
+      helper="Paint, flooring, base, casing, grouped by surface."
     >
       {grouped.map(([surface, items]) => (
         <View key={surface} style={styles.categoryGroup}>
@@ -2032,7 +2032,7 @@ function FixturesSection({
     <QuantitySection
       icon={<Wrench size={16} color={themeColors.accent} strokeWidth={1.75} />}
       title={`Fixtures (${fixtures.length})`}
-      helper="Plumbing, electrical, HVAC, appliances — grouped by trade."
+      helper="Plumbing, electrical, HVAC, appliances, grouped by trade."
     >
       {grouped.map(([cat, items]) => (
         <View key={cat} style={styles.categoryGroup}>
@@ -2311,10 +2311,10 @@ function BulkRejectToolbar({
     <View style={styles.bulkRejectCard}>
       <View style={styles.bulkRejectHead}>
         <ShieldAlert size={14} color={themeColors.accent} strokeWidth={1.75} />
-        <Text style={styles.bulkRejectTitle}>Clean up low-confidence rows</Text>
+        <Text style={styles.bulkRejectTitle}>Clean Up Low-Confidence Rows</Text>
       </View>
       <Text style={styles.bulkRejectHelper}>
-        AI takeoffs over-detect on every tool — drop the rows you don&apos;t trust before they pollute your buyout. {rejectedCount > 0 ? `Currently hiding ${rejectedCount} row${rejectedCount === 1 ? '' : 's'}.` : ''}
+        AI takeoffs over-detect on every tool. Drop the rows you don&apos;t trust before they pollute your buyout. {rejectedCount > 0 ? `Currently hiding ${rejectedCount} row${rejectedCount === 1 ? '' : 's'}.` : ''}
       </Text>
       <View style={styles.bulkRejectActions}>
         {lowConfCount > 0 && (
@@ -2344,7 +2344,7 @@ function BulkRejectToolbar({
             activeOpacity={0.85}
           >
             <RefreshCw size={12} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={[styles.bulkRejectBtnText, { color: themeColors.accent }]}>Restore all</Text>
+            <Text style={[styles.bulkRejectBtnText, { color: themeColors.accent }]}>Restore All</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -2387,7 +2387,7 @@ function SpecMatchCard({
             <BookOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.specCardTitle}>Spec book matched</Text>
+            <Text style={styles.specCardTitle}>Spec Book Matched</Text>
             <Text style={styles.specCardSub}>
               Each callout below now shows the manufacturer + product + finish.
             </Text>
@@ -2398,11 +2398,11 @@ function SpecMatchCard({
         </View>
         <View style={styles.specCardStatRow}>
           <View style={styles.specCardStat}>
-            <Text style={styles.specCardStatLabel}>Specs found</Text>
+            <Text style={styles.specCardStatLabel}>Specs Found</Text>
             <Text style={styles.specCardStatValue}>{specMatch.entries.length}</Text>
           </View>
           <View style={styles.specCardStat}>
-            <Text style={styles.specCardStatLabel}>Codes unmatched</Text>
+            <Text style={styles.specCardStatLabel}>Codes Unmatched</Text>
             <Text style={styles.specCardStatValue}>{specMatch.unmatched.length}</Text>
           </View>
         </View>
@@ -2430,11 +2430,11 @@ function SpecMatchCard({
           <BookOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.specCardTitle}>Match callouts to the spec book</Text>
+          <Text style={styles.specCardTitle}>Match Callouts to the Spec Book</Text>
           <Text style={styles.specCardSub}>
             {targetCodesCount > 0
               ? `${targetCodesCount} callout code${targetCodesCount === 1 ? '' : 's'} on these plans (PT-1, T-2, etc.). Upload the architect's spec PDF and MAGE pairs each code with its product and finish.`
-              : 'Upload the architect\'s spec PDF — the AI extracts manufacturer, product, finish, and SKU per code.'}
+              : 'Upload the architect\'s spec PDF. The AI extracts manufacturer, product, finish, and SKU per code.'}
           </Text>
         </View>
       </View>
@@ -2446,7 +2446,7 @@ function SpecMatchCard({
       )}
       <TouchableOpacity style={styles.specCardCta} onPress={onMatch} activeOpacity={0.85}>
         <Search size={14} color={Colors.textOnAccent} strokeWidth={1.75} />
-        <Text style={styles.specCardCtaText}>Pick spec book PDF</Text>
+        <Text style={styles.specCardCtaText}>Pick Spec Book PDF</Text>
       </TouchableOpacity>
     </View>
   );

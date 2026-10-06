@@ -76,7 +76,7 @@ async function main() {
   {
     const { io, calls } = makeIo([{ status: 'signed', homeownerSigned: true }], 1);
     const o = await recordHomeownerSignatureWith(io, 'c1', paperSig);
-    ok('already signed in the portal → NOT overwritten, says so', o.kind === 'not_sent' && calls.writes === 0 && /Already signed/.test(recordSignatureOutcomeMessage(o)!.title));
+    ok('already signed in the portal → NOT overwritten, says so', o.kind === 'not_sent' && calls.writes === 0 && /Already Signed/.test(recordSignatureOutcomeMessage(o)!.title));
   }
   {
     const { io, calls } = makeIo([{ status: 'draft', homeownerSigned: false }], 1);
@@ -91,7 +91,7 @@ async function main() {
   {
     const { io } = makeIo([{ status: 'sent', homeownerSigned: false }], 1, { throwOn: 'read', err: new TypeError('Network request failed') });
     const o = await recordHomeownerSignatureWith(io, 'c1', paperSig);
-    ok('no signal refuses with the reason (nothing half-written)', o.kind === 'offline' && /No connection/.test(recordSignatureOutcomeMessage(o)!.title));
+    ok('no signal refuses with the reason (nothing half-written)', o.kind === 'offline' && /No Connection/.test(recordSignatureOutcomeMessage(o)!.title));
   }
   {
     const { io } = makeIo([{ status: 'sent', homeownerSigned: false }], 1, { throwOn: 'write', err: { message: 'permission denied for table project_contracts', code: '42501' } });
@@ -143,7 +143,7 @@ async function main() {
   // below keeps its rule on the write that now carries it.
   const paper = callbackBody(contract, 'recordPaper');
   const inPerson = callbackBody(contract, 'recordInPerson');
-  ok('contract: "Record client signature" shows on a SENT contract', /contract\.status === 'sent' && \(\s*<Button\s+label="Record client signature"/.test(contract));
+  ok('contract: "Record Client Signature" shows on a SENT contract', /contract\.status === 'sent' && \(\s*<Button\s+label="Record Client Signature"/.test(contract));
   ok('contract: paper uploads the photo BEFORE the write, and a failed upload records nothing',
     paper.indexOf('uploadSignedPageEvidence(') > 0 && paper.indexOf('uploadSignedPageEvidence(') < paper.indexOf('recordHomeownerSignature(')
       && /return \{ status: 'refused', reason: signingCopy\.paperUploadRefused\(\) \};\s*\}\s*\}\s*const sig/.test(paper));
@@ -184,12 +184,12 @@ async function main() {
 
   // ── #68 ──────────────────────────────────────────────────────────────────
   console.log('\n#68 — an unsaved estimate is confirmed before it is lost (interim: no auto-save)');
-  ok('Start a new estimate asks first when the result is not on a project',
+  ok('Start a New Estimate asks first when the result is not on a project',
     /if \(!unsavedRef\.current \|\| attachedIdRef\.current\) \{ doReset\(\); return; \}\s*confirmDiscard\(doReset\);/.test(callbackBody(wiz, 'reset')));
   ok('leaving the screen asks too (beforeRemove)', /navigation\.addListener\('beforeRemove'[\s\S]{0,400}e\.preventDefault\(\);\s*confirmDiscard\(/.test(wiz));
   const confirm = callbackBody(wiz, 'confirmDiscard');
-  ok('the confirm offers Save to a project / Discard / Cancel and says when it was already sent',
-    /'Cancel'/.test(confirm) && /'Discard'/.test(confirm) && /'Save to a project'/.test(confirm) && /You sent this estimate but haven/.test(confirm));
+  ok('the confirm offers Save to a Project / Discard / Cancel and says when it was already sent',
+    /'Cancel'/.test(confirm) && /'Discard'/.test(confirm) && /'Save to a Project'/.test(confirm) && /You sent this estimate but haven/.test(confirm));
   ok('the onboarding share\'s own save cannot trip the guard (attachedIdRef set synchronously)', /attachedIdRef\.current = id;/.test(callbackBody(wiz, 'persistNewProject')));
 
   // ── #110 ─────────────────────────────────────────────────────────────────

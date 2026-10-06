@@ -410,7 +410,7 @@ async function main() {
   ok('a failed read renders "Couldn\'t load this job\'s contract" with Retry, ahead of the editor',
     failRender > 0 && failRender < conCode.indexOf('if (loading || !contract) {') && /testID="contract-load-retry"/.test(conCode) && /setLoadSeq\(n => n \+ 1\)/.test(conCode));
   ok('the load-failed screen has a working exit (useSafeBack) beside Retry',
-    /const goBack = useSafeBack\(\);/.test(conCode) && /testID="contract-load-retry"\s*\/>\s*<Button label="Go back" variant="secondary" onPress=\{goBack\}/.test(conCode));
+    /const goBack = useSafeBack\(\);/.test(conCode) && /testID="contract-load-retry"\s*\/>\s*<Button label="Go Back" variant="secondary" onPress=\{goBack\}/.test(conCode));
   ok('no contract write in the screen bypasses the duplicate check', !/\bsaveContract\(/.test(conCode) && (conCode.match(/saveContractDetailed\(/g) ?? []).length === 2);
   // The focus re-check is REPLAYED, not pattern-matched: review round 1 found
   // its deps keyed on the `contract` object, so each read's setContract re-ran
@@ -489,7 +489,7 @@ async function main() {
     ok('a lead the list does not hold yet waits for the fresh read (no blank form)', st({}) === 'loading');
     ok('a cached hit before this account\'s list lands still waits', st({ found: true, leadsLoaded: false }) === 'loading');
     ok('the loaded lead opens the form', st({ found: true }) === 'editor');
-    ok('still absent after the fresh read → "Lead not found", never a form', st({ refreshSettled: true }) === 'missing');
+    ok('still absent after the fresh read → "Lead Not Found", never a form', st({ refreshSettled: true }) === 'missing');
     ok('arriving after the fresh read → the form', st({ found: true, refreshSettled: true }) === 'editor');
   }
   const LEAD = read('app/lead-detail.tsx');
@@ -497,8 +497,8 @@ async function main() {
   const leadGateBody = LEAD_CODE.slice(LEAD_CODE.indexOf('export default function LeadDetailScreen'), LEAD_CODE.indexOf('function LeadDetailEditor'));
   ok('the default export is the gate: leadsLoaded + a fresh read + keyed editor', /leadsLoaded/.test(leadGateBody) && /refreshLeads\(\)/.test(leadGateBody)
     && /leadOpenState\(/.test(leadGateBody) && /<LeadDetailEditor key=\{found\?\.id \?\? 'new'\} \/>/.test(leadGateBody));
-  ok('the gate states "Lead not found" with Try again and Go back', /Lead not found/.test(leadGateBody) && /lead-open-retry/.test(leadGateBody) && /lead-open-back/.test(leadGateBody));
-  ok('Save refuses when the named lead has gone (no silent no-op)', /if \(!isNew && !existing\) \{\s*showAlert\('Not saved'/.test(callbackBody(LEAD_CODE, 'saveAndExit')));
+  ok('the gate states "Lead Not Found" with Try again and Go back', /Lead Not Found/.test(leadGateBody) && /lead-open-retry/.test(leadGateBody) && /lead-open-back/.test(leadGateBody));
+  ok('Save refuses when the named lead has gone (no silent no-op)', /if \(!isNew && !existing\) \{\s*showAlert\('Not Saved'/.test(callbackBody(LEAD_CODE, 'saveAndExit')));
   const PC = stripComments(read('contexts/ProjectContext.tsx'));
   ok('ProjectContext: leadsLoaded is keyed by account, and false while auth resolves', /setLeadsLoadedFor\(userId \?\? ''\)/.test(PC) && /const leadsLoaded = !authLoading && leadsLoadedFor === \(userId \?\? ''\);/.test(PC));
   ok('ProjectContext: refreshLeads refetches THIS account\'s leads', /const refreshLeads = useCallback\(async \(\) => \{\s*await queryClient\.refetchQueries\(\{ queryKey: \['leads', userId\] \}\);/.test(PC));

@@ -81,9 +81,9 @@ export type SavedForSuggestions = Pick<PersistedTakeoff, 'result' | 'overrides' 
 export type AiSkipCode = 'rejected' | 'bulk' | 'no_quantity' | 'unit';
 export const AI_SKIP_REASON: Record<AiSkipCode, string> = {
   rejected: 'you rejected on AI Takeoff',
-  bulk: 'bulk materials use units this panel doesn’t measure (CY, tons…) — see AI Takeoff',
+  bulk: 'bulk materials use units this panel doesn’t measure (CY, tons…). See AI Takeoff.',
   no_quantity: 'no quantity',
-  unit: 'a unit this panel doesn’t measure — see AI Takeoff',
+  unit: 'a unit this panel doesn’t measure. See AI Takeoff.',
 };
 
 export interface AiSkipped { code: AiSkipCode; reason: string; count: number }
@@ -213,9 +213,9 @@ export function suggestionsFromTakeoff(
 /** One muted line per skip reason, e.g. "3 bulk materials use units this panel doesn't measure (CY, tons…) — see AI Takeoff". */
 export function aiSkippedLine(s: AiSkipped): string {
   const n = s.count;
-  if (s.code === 'bulk') return `${n} ${n === 1 ? 'bulk material uses' : 'bulk materials use'} units this panel doesn’t measure (CY, tons…) — see AI Takeoff`;
-  if (s.code === 'rejected') return `${n} ${n === 1 ? 'row' : 'rows'} ${s.reason} — not offered`;
-  if (s.code === 'no_quantity') return `${n} ${n === 1 ? 'row has' : 'rows have'} no quantity — not offered`;
+  if (s.code === 'bulk') return `${n} ${n === 1 ? 'bulk material uses' : 'bulk materials use'} units this panel doesn’t measure (CY, tons…). See AI Takeoff.`;
+  if (s.code === 'rejected') return `${n} ${n === 1 ? 'row' : 'rows'} ${s.reason}, not offered`;
+  if (s.code === 'no_quantity') return `${n} ${n === 1 ? 'row has' : 'rows have'} no quantity, not offered`;
   return `${n} ${n === 1 ? 'row uses' : 'rows use'} ${s.reason}`;
 }
 

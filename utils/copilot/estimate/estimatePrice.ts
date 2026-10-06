@@ -77,7 +77,7 @@ export async function priceCopilotEstimate(draft: EstimateDraft, ctx: CopilotCon
 
   const data = gen.data as { lineItems?: GenLine[]; notes?: unknown };
   const costItems = buildCostItems(Array.isArray(data.lineItems) ? data.lineItems : [], entries, () => createId('mat'));
-  if (costItems.length === 0) return { ok: false, kind: 'error', message: 'The estimate came back empty — try describing the scope in more detail.' };
+  if (costItems.length === 0) return { ok: false, kind: 'error', message: 'The estimate came back empty. Try describing the scope in more detail.' };
   const notes = Array.isArray(data.notes)
     ? data.notes.filter((n): n is string => typeof n === 'string' && n.trim().length > 0).map((n) => n.trim()).slice(0, 8)
     : [];

@@ -559,7 +559,7 @@ Pick brands the homeowner has heard of. Don't invent fake products. Spread the p
   }
 
   const options: CuratedOption[] = aiRes.data.options.map((o: z.infer<typeof aiOptionSchema>) => ({
-    productName: o.productName || 'Untitled option',
+    productName: o.productName || 'Untitled Option',
     brand: o.brand || '',
     description: o.description || '',
     unitPrice: o.unitPrice || 0,
@@ -570,7 +570,7 @@ Pick brands the homeowner has heard of. Don't invent fake products. Spread the p
     supplier: o.supplier ?? undefined,
     highlights: o.highlights ?? [],
     productUrl: o.productUrl || '',
-  })).filter((o: CuratedOption) => o.productName !== 'Untitled option');
+  })).filter((o: CuratedOption) => o.productName !== 'Untitled Option');
 
   return { options, notes: aiRes.data.notes ?? '' };
 }
@@ -844,7 +844,7 @@ export function suggestSelectionDueDate(input: {
     sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' },
   );
   const title = task.title?.trim() || 'Install task';
-  const chip = `${title} ${fmt(installDate)} − ${lead.days}d lead (${lead.name}) − ${bufferDays}d buffer → pick by ${fmt(dueDate)}`;
+  const chip = `${title} ${fmt(installDate)} − ${lead.days}d lead (${lead.name}) − ${bufferDays}d buffer, pick by ${fmt(dueDate)}`;
 
   return {
     ok: true, dueDate, installDate, taskTitle: title,

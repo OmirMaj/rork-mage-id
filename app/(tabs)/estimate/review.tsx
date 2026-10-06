@@ -188,7 +188,7 @@ export default function EstimateReviewScreen() {
     const materialGroups: DivisionRow[] = groupByCSIDivision(rows).map(g => ({
       key: g.division?.number ?? 'other',
       number: g.division?.number ?? null,
-      title: g.division?.title ?? 'Other scope',
+      title: g.division?.title ?? 'Other Scope',
       total: Math.round(g.items.reduce((s, r) => s + r.total, 0) * 100) / 100,
       items: g.items.map(r => ({ name: r.name, qty: r.qty, unit: r.unit, total: r.total, rateEntry: r.rateEntry })),
     }));
@@ -295,7 +295,7 @@ export default function EstimateReviewScreen() {
   const copyProposalLink = useCallback((split: PaymentSplit) => {
     const gcName = settings?.branding?.companyName || undefined;
     const payload = buildClientEstimateSharePayload(clientView, {
-      projectName: gcName ? `${gcName} · Estimate` : 'Project estimate',
+      projectName: gcName ? `${gcName} · Estimate` : 'Project Estimate',
       gcName,
       paymentSchedule: proposalPaymentLines(clientView.projectTotal, split),
       validThrough: toCalendarDayString(addCalendarDays(new Date(), 30)),
@@ -333,7 +333,7 @@ export default function EstimateReviewScreen() {
           void s.copied.then((ok) => {
             if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             showAlert(
-              ok ? 'Proposal link copied' : 'Proposal link',
+              ok ? 'Proposal Link Copied' : 'Proposal Link',
               ok
                 ? 'A client-safe link is on your clipboard. Paste it into a text or email. It needs no login and shows no costs, markups or margin.'
                 : s.url,
@@ -351,7 +351,7 @@ export default function EstimateReviewScreen() {
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: 'Estimate review' }} />
+      <Stack.Screen options={{ title: 'Estimate Review' }} />
       <View style={[styles.hero, { paddingTop: insets.top + 18 }]}>
         <BrandBackdrop />
         <Text style={styles.heroEyebrow} testID="review-hero-eyebrow">{heroEyebrow}</Text>
@@ -370,7 +370,7 @@ export default function EstimateReviewScreen() {
         {itemCount === 0 ? (
           <View style={styles.empty}>
             <PackageOpen size={40} color={colors.textMuted} strokeWidth={1.5} />
-            <Text style={styles.emptyTitle}>No line items yet</Text>
+            <Text style={styles.emptyTitle}>No Line Items Yet</Text>
             <Text style={styles.emptyDesc}>Add materials in the full estimator and they roll up here with metrics, markup and scope.</Text>
           </View>
         ) : (
@@ -378,7 +378,7 @@ export default function EstimateReviewScreen() {
             <View style={[styles.toggle, isDesktop && segmentedDesktop.container]}>
               <TouchableOpacity
                 accessibilityRole="button"
-                accessibilityLabel="Contractor view"
+                accessibilityLabel="Contractor View"
                 aria-selected={mode === 'contractor'}
                 style={[styles.seg, isDesktop && segmentedDesktop.segment, mode === 'contractor' && styles.segOn]}
                 onPress={() => switchMode('contractor')}
@@ -389,7 +389,7 @@ export default function EstimateReviewScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 accessibilityRole="button"
-                accessibilityLabel="Client view"
+                accessibilityLabel="Client View"
                 aria-selected={mode === 'client'}
                 style={[styles.seg, isDesktop && segmentedDesktop.segment, mode === 'client' && styles.segOn]}
                 onPress={() => switchMode('client')}
@@ -462,11 +462,11 @@ export default function EstimateReviewScreen() {
                     <Text style={styles.termsNoteText}>
                       {savedTerms.status === 'loading'
                         ? 'Loading your payment terms\u2026'
-                        : `Payment schedule \u2014 ${PROFILE_FAILED_TITLE.toLowerCase()}. Check your signal.`}
+                        : `Payment schedule: ${PROFILE_FAILED_TITLE.toLowerCase()}. Check your signal.`}
                     </Text>
                     {savedTerms.status === 'failed' ? (
                       <Button
-                        label="Try again"
+                        label="Try Again"
                         variant="secondary"
                         size="sm"
                         onPress={savedTerms.retry}
@@ -477,10 +477,10 @@ export default function EstimateReviewScreen() {
                 ) : !savedSplit ? (
                   <Card radius="md" pad={14} style={styles.termsNote} testID="review-terms-not-set">
                     <Text style={styles.termsNoteText}>
-                      Payment schedule — not set yet. You’ll be asked before you share.
+                      Payment schedule: not set yet. You’ll be asked before you share.
                     </Text>
                     <Button
-                      label="Set now"
+                      label="Set Now"
                       variant="secondary"
                       size="sm"
                       onPress={handleSetTermsNow}
@@ -490,7 +490,7 @@ export default function EstimateReviewScreen() {
                 ) : null}
                 <TouchableOpacity
                   accessibilityRole="button"
-                  accessibilityLabel="Share proposal"
+                  accessibilityLabel="Share Proposal"
                   accessibilityHint="Copies a client-safe link with no costs or markups"
                   style={styles.shareBtn}
                   onPress={handleShareProposal}
@@ -498,7 +498,7 @@ export default function EstimateReviewScreen() {
                   testID="review-share-proposal"
                 >
                   <Share2 size={16} color={colors.surface} strokeWidth={2} />
-                  <Text style={styles.shareBtnText}>Share proposal</Text>
+                  <Text style={styles.shareBtnText}>Share Proposal</Text>
                 </TouchableOpacity>
               </View>
             )}

@@ -71,7 +71,7 @@ ok('post-rfp toggle subtitle is the notification-scoped copy',
   postSrc.includes(SUBTITLE),
   `Expected this exact string in ${POST}:\n      "${SUBTITLE}"`);
 
-const TOGGLE_TITLE = 'Notify verified pros only';
+const TOGGLE_TITLE = 'Notify Verified Pros Only';
 ok('post-rfp toggle title is notification-scoped',
   postSrc.includes(`<Text style={styles.verifyToggleTitle}>${TOGGLE_TITLE}</Text>`),
   `Expected the toggle title to be "${TOGGLE_TITLE}" in ${POST}. Plain "Verified pros only"`
@@ -93,7 +93,7 @@ for (const [label, src] of [[POST, postCode], [DETAIL, detailCode]] as const) {
 }
 
 ok('rfp-detail pill does not claim "VERIFIED PROS ONLY"',
-  !/verified pros only/i.test(detailCode) && detailCode.includes('Verified pros notified'),
+  !/verified pros only/i.test(detailCode) && detailCode.includes('Verified Pros Notified'),
   `${DETAIL} must label verified_only as a notification setting, not an access restriction.`);
 
 // ── #13: no bare-spinner dead end ───────────────────────────────────────────

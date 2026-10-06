@@ -98,7 +98,7 @@ console.log('\n#38 owner-only billing');
 ok('invoice route gate before the paywall', INV.indexOf('if (roleGate !== \'open\') {') > 0 && INV.indexOf('if (roleGate !== \'open\') {') < INV.indexOf("if (!canAccess('change_orders_invoicing'))"));
 ok('invoice: the picked job is gated too', /if \(innerRoleGate !== 'open'\) \{\s*return <InvoiceRoleBlocked/.test(INV));
 ok('invoice: send and save refuse a blocked seat', (INV.match(/if \(billingBlocked\) \{\s*showAlert\('Only the Project Owner Bills', INVOICE_OWNER_ONLY_REASON\);/g) ?? []).length >= 3);
-ok('bill-from-estimate: gate + blocked render + create refuses', /invoiceRoleGate\(\{/.test(BFE) && /if \(roleGate !== 'open'\) \{\s*const copy = invoiceRoleBlockedCopy/.test(BFE) && /if \(roleGate !== 'open'\) \{\s*showAlert\('Only the project owner bills'/.test(BFE));
+ok('bill-from-estimate: gate + blocked render + create refuses', /invoiceRoleGate\(\{/.test(BFE) && /if \(roleGate !== 'open'\) \{\s*const copy = invoiceRoleBlockedCopy/.test(BFE) && /if \(roleGate !== 'open'\) \{\s*showAlert\('Only the Project Owner Bills'/.test(BFE));
 ok('create-payment-link checks the project owner', /projects\?id=eq\.\$\{encodeURIComponent\(projectId\)\}&select=user_id/.test(CPL) && /projRows\[0\]\.user_id !== callerSub/.test(CPL));
 ok('create-payment-link answers 409 payment_pending', /if \(paymentPendingHolds\(ownRows\[0\]\.pay_pending_at \?\? null, Date\.now\(\)\)\) \{\s*return jsonResponse\(\{ success: false, error: "payment_pending" \}, 409\);/.test(CPL));
 ok('…before any Stripe call', CPL.indexOf('"payment_pending" }, 409') < CPL.indexOf('stripeFetch("/prices"'));

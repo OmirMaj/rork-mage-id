@@ -343,7 +343,7 @@ const html = read('marketing/portal/index.html');
   const D8: [string, string, string, string, string][] = [
     ['app/invoice.tsx', 'invoice-factoring-cta', 'revenue.factoring.altline', 'Advances on Unpaid Invoices',
       'We are looking at a factoring partner that could advance part of an unpaid invoice. No partner is signed yet, so there are no rates or timelines to show.'],
-    ['app/prequal-manager.tsx', 'coi-requote-cta', 'revenue.insurance.coi_requote', 'Renewal quotes for expiring sub insurance',
+    ['app/prequal-manager.tsx', 'coi-requote-cta', 'revenue.insurance.coi_requote', 'Renewal Quotes for Expiring Sub Insurance',
       "We are working on requesting renewal quotes for a sub's expiring coverage, pre-filled from the COI on file. No insurer or broker is signed up yet."],
   ];
   const FORBIDDEN = ['LOI', 'Q3 2026', '24 hours', '60 seconds', 'Coterie', 'Hiscox', 'Next Insurance', '3 brokers', '%'];

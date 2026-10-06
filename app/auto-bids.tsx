@@ -136,7 +136,7 @@ function AutoBidsInner() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <MageAIMark size={15} color={t.accent} />
-          <Text style={styles.headerTitle} numberOfLines={1}>Pre-priced bids</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Pre-Priced Bids</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -144,7 +144,7 @@ function AutoBidsInner() {
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           <View style={styles.hero}>
-            <Text style={styles.eyebrow}>{anyHistory ? 'Priced in your numbers' : 'Priced off posted budgets'}</Text>
+            <Text style={styles.eyebrow}>{anyHistory ? 'Priced in Your Numbers' : 'Priced Off Posted Budgets'}</Text>
             {priced.length > 0 ? (
               <>
                 <Text style={styles.heroStat}>{priced.length} ready to review</Text>
@@ -181,15 +181,15 @@ function AutoBidsInner() {
 
               <View style={styles.priceRow}>
                 <View>
-                  <Text style={styles.priceLabel}>MAGE price</Text>
+                  <Text style={styles.priceLabel}>MAGE Price</Text>
                   <Text style={styles.priceVal}>{formatMoney(b.recommendedPrice)}</Text>
                 </View>
                 <View style={styles.metricBox}>
-                  <Text style={styles.priceLabel}>Win odds</Text>
+                  <Text style={styles.priceLabel}>Win Odds</Text>
                   <Text style={styles.metricVal}>{Math.round(b.winProbability * 100)}%</Text>
                 </View>
                 <View style={styles.metricBox}>
-                  <Text style={styles.priceLabel}>Exp. profit</Text>
+                  <Text style={styles.priceLabel}>Exp. Profit</Text>
                   <Text style={[styles.metricVal, { color: t.success }]}>{formatMoney(b.expectedProfit)}</Text>
                 </View>
               </View>
@@ -216,7 +216,7 @@ function AutoBidsInner() {
                   <View style={styles.flag}>
                     <AlertTriangle size={11} color={Colors.warningLabel} strokeWidth={2} />
                     <Text style={[styles.flagText, { color: Colors.warningLabel }]}>
-                      Above their posted budget
+                      Above Their Posted Budget
                     </Text>
                   </View>
                 )}
@@ -246,10 +246,10 @@ function AutoBidsInner() {
                 : `Priced off each client's posted budget at ${markupPhrase}. Close projects to teach MAGE your costs.`}
             </Text>
             <InfoBubble
-              title="How MAGE prices a bid"
+              title="How MAGE Prices a Bid"
               what={anyHistory
-                ? `Where you have closed jobs of the same kind, MAGE starts from what they cost you (your recorded costs, or the estimate before markup when little was recorded), blended with the owner's posted budget at ${markupPhrase}. It then picks the price that maximizes expected profit — the balance of margin and your odds of winning.`
-                : `You have no closed jobs of these kinds yet, so MAGE backs a cost out of each owner's posted budget at ${markupPhrase}, then picks the price that maximizes expected profit — the balance of margin and your odds of winning.`}
+                ? `Where you have closed jobs of the same kind, MAGE starts from what they cost you (your recorded costs, or the estimate before markup when little was recorded), blended with the owner's posted budget at ${markupPhrase}. It then picks the price that maximizes expected profit: the balance of margin and your odds of winning.`
+                : `You have no closed jobs of these kinds yet, so MAGE backs a cost out of each owner's posted budget at ${markupPhrase}, then picks the price that maximizes expected profit: the balance of margin and your odds of winning.`}
               why="Bidding too high loses the job; too low wins work that isn't worth building. This finds the price that makes you the most money over many bids."
             />
           </View>

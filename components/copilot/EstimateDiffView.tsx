@@ -48,7 +48,7 @@ export default function EstimateDiffView({ ops, ctx, onApply, onDiscard }: {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.eyebrow}>The change</Text>
+      <Text style={styles.eyebrow}>The Change</Text>
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
         <Text style={styles.total}>Total {money(view.before.grandTotal)} → {money(view.after.grandTotal)} ({signed(grandDelta)})</Text>
         {view.before.globalMarkup !== view.after.globalMarkup && (
@@ -64,15 +64,15 @@ export default function EstimateDiffView({ ops, ctx, onApply, onDiscard }: {
           <Text key={`a${i}`} style={styles.line}>Added “{a.name}” at the estimate’s {a.markup}% markup</Text>
         ))}
         {view.rejected.map((r, i) => <Text key={`x${i}`} style={styles.reject}>couldn’t: {r}</Text>)}
-        {!view.valid && <Text style={styles.reject}>Nothing to change — try rephrasing.</Text>}
+        {!view.valid && <Text style={styles.reject}>Nothing to change. Try rephrasing.</Text>}
       </ScrollView>
       <TouchableOpacity style={[styles.apply, !view.valid && styles.applyOff]} onPress={onApply} disabled={!view.valid} activeOpacity={0.9} testID="estimate-edit-apply">
         <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
-        <Text style={styles.applyText}>Apply it</Text>
+        <Text style={styles.applyText}>Apply It</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.discard} onPress={onDiscard} activeOpacity={0.7} testID="estimate-edit-discard">
         <X size={14} color={colors.textMuted} strokeWidth={2} />
-        <Text style={styles.discardText}>Not that — discard</Text>
+        <Text style={styles.discardText}>Not That, Discard</Text>
       </TouchableOpacity>
     </View>
   );

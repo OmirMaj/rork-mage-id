@@ -417,12 +417,12 @@ for (const s of SAMPLES) {
 // utilities throw sentences written for the GC must let those sentences
 // through (ownSentence). Otherwise the web seal ("Sealing works in the mobile
 // app…"), the blocked pop-up ("Allow pop-ups for app.mageid.app…") and an RFI
-// refusal all collapse to "That didn't go through… tell support", advice
+// refusal all collapse to "That Didn't Go Through… tell support", advice
 // that can never work.
 {
   const sites: Array<[string, string, string]> = [
-    ['app/contract.tsx', "seal the contract", "Couldn't seal the contract"],
-    ['app/estimate-wizard.tsx', "share the estimate", "Couldn't share the estimate"],
+    ['app/contract.tsx', "seal the contract", "Couldn't Seal the Contract"],
+    ['app/estimate-wizard.tsx', "share the estimate", "Couldn't Share the Estimate"],
     ['app/rfi.tsx', "send the RFI", "Couldn't send the RFI"],
   ];
   for (const [file, action, title] of sites) {

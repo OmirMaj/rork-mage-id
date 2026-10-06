@@ -59,20 +59,20 @@ exports[`lane R3 — the phone is unchanged (golden) documents at rest, web 768 
 exports[`lane R3 — the phone is unchanged (golden) leads at rest, iOS 390 1`] = `
 {
   "lines": 613,
-  "sha256": "057d5a03585695841f23d6e2cd72f8ae7a15e77ddbd332834cc4ab5792095545",
+  "sha256": "6adb0387016dc211ba8c716b3df896730522d4ca38f9f125cf07a35226c7a9db",
 }
 `;
 
 exports[`lane R3 — the phone is unchanged (golden) leads at rest, web 390 1`] = `
 {
   "lines": 613,
-  "sha256": "057d5a03585695841f23d6e2cd72f8ae7a15e77ddbd332834cc4ab5792095545",
+  "sha256": "6adb0387016dc211ba8c716b3df896730522d4ca38f9f125cf07a35226c7a9db",
 }
 `;
 
 exports[`lane R3 — the phone is unchanged (golden) leads at rest, web 768 1`] = `
 {
   "lines": 613,
-  "sha256": "057d5a03585695841f23d6e2cd72f8ae7a15e77ddbd332834cc4ab5792095545",
+  "sha256": "6adb0387016dc211ba8c716b3df896730522d4ca38f9f125cf07a35226c7a9db",
 }
 `;

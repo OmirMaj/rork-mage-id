@@ -538,7 +538,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
   const adoptExistingContract = useCallback((existing: ProjectContract) => {
     setContract(existing);
     setTermsSource(null);
-    showAlert('This job already has a contract', 'Nothing was saved — a second contract would have been created. Showing the one on file.');
+    showAlert('This job already has a contract', 'Nothing was saved, because a second contract would have been created. Showing the one on file.');
   }, []);
 
   // ── Milestone → invoice ──────────────────────────────────────────
@@ -678,7 +678,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         effect.existingInvoiceId
           ? [
               { text: 'Close', style: 'cancel' },
-              { text: 'Open invoice', onPress: () => router.push({ pathname: '/invoice', params: { projectId, invoiceId: effect.existingInvoiceId! } } as never) },
+              { text: 'Open Invoice', onPress: () => router.push({ pathname: '/invoice', params: { projectId, invoiceId: effect.existingInvoiceId! } } as never) },
             ]
           : undefined,
       );
@@ -728,7 +728,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
       ...prev,
       paymentSchedule: [...prev.paymentSchedule, {
         id: generateUUID(),
-        label: 'New milestone',
+        label: 'New Milestone',
         trigger: 'on_milestone',
         triggerMilestone: '',
         amount: 0,
@@ -811,7 +811,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
       } else if (saved.reason === 'duplicate') {
         adoptExistingContract(saved.existing);
       } else {
-        showAlert('Save failed', 'Could not save the contract. Check your connection.');
+        showAlert('Save Failed', 'Could not save the contract. Check your connection.');
       }
     } finally {
       setSaving(false);
@@ -906,7 +906,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         // Nothing was asked (his profile already answered), so no sheet
         // toast confirmed it — say what just landed on the page.
         nailIt(asked.terms && a.split
-          ? `Your terms are on this contract — ${splitLabel(a.split)}`
+          ? `Your terms are on this contract: ${splitLabel(a.split)}`
           : 'Your warranty is on this contract');
       }
     });
@@ -921,7 +921,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
     // Sample fence (utils/sampleGuard): Sign & send emails the client and Sign
     // together posts to the portal — neither ever goes out from a sample, run
     // or no run, so nothing below opens on one.
-    if (sampleJobRef.current) { showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
+    if (sampleJobRef.current) { showAlert('Sample Job', SAMPLE_DOC_NOT_SENT); return; }
     // THE LOCK IS THE FIRST QUESTION, not a footnote inside the missing-terms
     // branch (review round 6). The action row renders on status 'draft', but a
     // draft that already carries his signature is locked like a sent one —
@@ -973,7 +973,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
       const state = portalDeliveryState(p, userIdRef.current);
       if (state === 'collaborator') {
         showAlert(
-          'Only the project owner can send this',
+          'Only the Project Owner Can Send This',
           'The client portal\'s signing link belongs to the account that owns this project, so the contract can\'t be emailed from yours. Ask the project owner to sign and send it, or use Sign together now if the client is with you.',
         );
         return;
@@ -1035,13 +1035,13 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
     const greetingFirstName = (recipients[0].name ?? '').split(' ')[0] || 'there';
     const html = wrapEmailHtml({
       preheader: `${companyName} sent you the contract for ${project.name}. Tap to review and counter-sign.`,
-      eyebrow: 'Contract — ready to sign',
+      eyebrow: 'Contract Ready to Sign',
       title: `${project.name}`,
       subtitle: `Hi ${greetingFirstName}, ${companyName} sent you the construction contract.`,
       bodyHtml: [
         `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
            Your construction contract is ready for your review and counter-signature in your project portal. The contract value${emailTimeline ? ' and timeline are' : ' is'} below${contract.scopeText ? ', with the start of the scope of work' : ''}.
-           If the contract isn't showing yet when you open the portal, it is still being posted — check back in a few minutes. Once you sign, ${escapeHtml(companyName)} can start.
+           If the contract isn't showing yet when you open the portal, it is still being posted. Check back in a few minutes. Once you sign, ${escapeHtml(companyName)} can start.
          </p>`,
         contract.scopeText ? emailQuote(contract.scopeText.slice(0, 600)) : '',
         `<p style="margin:0 0 6px 0;font-size:13px;line-height:20px;color:#4A5159;">
@@ -1051,14 +1051,14 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
            ${emailTimeline ? `<br/><strong style="color:#0B0D10;">Timeline:</strong> ${escapeHtml(emailTimeline.startLabel)} to ${escapeHtml(emailTimeline.completionLabel)} (${emailTimeline.durationDays} calendar days)` : ''}
          </p>`,
       ].join(''),
-      cta: { label: 'Review & sign in your portal', href: portalUrl },
+      cta: { label: 'Review and Sign in Your Portal', href: portalUrl },
       companyName,
       project: { name: project.name, location: project.location },
       sender: { name: senderName, email: senderEmail, phone: settings?.branding?.phone },
       growthBadge: isFree,
     });
 
-    const subject = `${project.name} — your contract is ready to sign`;
+    const subject = `${project.name}: your contract is ready to sign`;
     const sendResults = await Promise.all(recipients.map(r =>
       sendEmail({
         to: r.email,
@@ -1331,10 +1331,10 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
     const c = contractRef.current;
     const p = projectOverride ?? projectRef.current;
     if (!c?.id || !p || c.status !== 'sent') return;
-    if (isSampleProject(p)) { showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
+    if (isSampleProject(p)) { showAlert('Sample Job', SAMPLE_DOC_NOT_SENT); return; }
     const state = portalDeliveryState(p, user?.id ?? null);
     if (state === 'collaborator') {
-      showAlert('Only the project owner can send this', 'The client portal\'s signing link belongs to the account that owns this project.');
+      showAlert('Only the Project Owner Can Send This', 'The client portal\'s signing link belongs to the account that owns this project.');
       return;
     }
     if (state !== 'ready') {
@@ -1362,18 +1362,18 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
     setDelivery({ contractId: c.id, d: marker });
     if (user?.id) void AsyncStorage.setItem(contractDeliveryKey(c.id), stampContractDelivery(user.id, marker)).catch(() => undefined);
     if (sent > 0) nailIt(`Emailed the portal link to ${sent} recipient${sent === 1 ? '' : 's'}`);
-    else showAlert('Still not delivered', 'The email service did not accept it. Copy the link and text it to the client, or try again in a minute.');
+    else showAlert('Still Not Delivered', 'The email service did not accept it. Copy the link and text it to the client, or try again in a minute.');
   }, [emailContractLink, user?.id]);
 
   const copyContractLink = useCallback(async () => {
-    if (isSampleProject(projectRef.current)) { showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
+    if (isSampleProject(projectRef.current)) { showAlert('Sample Job', SAMPLE_DOC_NOT_SENT); return; }
     const url = portalShareUrl(projectRef.current?.clientPortal);
     if (!url) {
-      showAlert('No signing link yet', 'This project\'s client portal has no signing link yet. Open the client portal once to finish it, then copy the link here.');
+      showAlert('No Signing Link Yet', 'This project\'s client portal has no signing link yet. Open the client portal once to finish it, then copy the link here.');
       return;
     }
     const ok = await copyToClipboard(url);
-    showAlert(ok ? 'Copied' : 'Copy failed', ok ? 'The client\'s signing link is on your clipboard — text or email it to them.' : 'Couldn\'t copy the link. Open the client portal to share it from there.');
+    showAlert(ok ? 'Copied' : 'Copy Failed', ok ? 'The client\'s signing link is on your clipboard. Text or email it to them.' : 'Couldn\'t copy the link. Open the client portal to share it from there.');
   }, []);
 
   // What the ask does after it unblocks delivery: open the pad (Sign & send)
@@ -1396,17 +1396,17 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
     const ask = deliveryAsk;
     const p = projectRef.current;
     if (!ask || !p) return;
-    if (isSampleProject(p)) { setDeliveryAsk(null); showAlert('Sample job', SAMPLE_DOC_NOT_SENT); return; }
+    if (isSampleProject(p)) { setDeliveryAsk(null); showAlert('Sample Job', SAMPLE_DOC_NOT_SENT); return; }
     // 'no_signing_key': the ask is a wait with a Retry — nothing to type.
     if (ask.state === 'no_signing_key') {
       const now = portalDeliveryState(p, user?.id ?? null);
       if (now === 'ready') continueAfterAsk(ask.then, p);
       else if (now !== 'no_signing_key') setDeliveryAsk({ ...ask, state: now });
-      else showAlert('Still getting it ready', 'The signing link isn\'t ready yet. Open the client portal once to finish it, then tap Sign & send again.');
+      else showAlert('Still Getting It Ready', 'The signing link isn\'t ready yet. Open the client portal once to finish it, then tap Sign and Send again.');
       return;
     }
     if (!isUsableEmail(ask.email)) {
-      showAlert('Check the email', 'Type the address the client reads, like name@example.com.');
+      showAlert('Check the Email', 'Type the address the client reads, like name@example.com.');
       return;
     }
     const portal = p.clientPortal;
@@ -1431,11 +1431,11 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         // saved on the job; say what is left and take him there.
         setDeliveryAsk(null);
         showAlert(
-          'Set up the client portal once',
-          `${ask.email} is saved on this project. The client signs through the client portal, which isn't set up for this project yet. Set it up (it shows them the schedule, invoices, change orders and photos), then come back and tap Sign & send.`,
+          'Set Up the Client Portal Once',
+          `${ask.email} is saved on this project. The client signs through the client portal, which isn't set up for this project yet. Set it up (it shows them the schedule, invoices, change orders and photos), then come back and tap Sign and Send.`,
           [
-            { text: 'Not now', style: 'cancel' },
-            { text: 'Set up the portal', onPress: () => router.push({ pathname: '/client-portal-setup', params: { id: p.id } }) },
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'Set Up the Portal', onPress: () => router.push({ pathname: '/client-portal-setup', params: { id: p.id } }) },
           ],
         );
         return;
@@ -1743,7 +1743,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
       nailIt(`Sealed · ${result.documentHash.slice(0, 12)}…`);
     } catch (err) {
       if (err instanceof SealAlreadyExistsError) {
-        showAlert('Already sealed', 'This contract has already been sealed.');
+        showAlert('Already Sealed', 'This contract has already been sealed.');
         return;
       }
       console.error('[Contract] Seal error:', err);
@@ -1753,7 +1753,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
       // generic "try again" copy.
       const own = ownSentence(err);
       const copy = describeError(err, { action: 'seal the contract', keptLocally: true });
-      showAlert(own ? "Couldn't seal the contract" : copy.title, own ?? copy.body);
+      showAlert(own ? "Couldn't Seal the Contract" : copy.title, own ?? copy.body);
     }
   }, [project, contract, user?.id, settings?.branding]);
 
@@ -1767,7 +1767,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
       // CONTRACT 25 (#147): the blocked-window sentence and the helper's own
       // download-failed sentence pass through; anything else (a raw storage
       // or network error) reads as the plain fallback.
-      showAlert('Download failed', err instanceof Error && err.message === SEALED_PDF_DOWNLOAD_FAILED_MESSAGE
+      showAlert('Download Failed', err instanceof Error && err.message === SEALED_PDF_DOWNLOAD_FAILED_MESSAGE
         ? err.message
         : pdfFailureMessage(err, SEALED_PDF_DOWNLOAD_FAILED_MESSAGE));
     }
@@ -1784,7 +1784,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         <Stack.Screen options={{ headerShown: false }} />
         <ToolProjectPicker
           toolName="Contracts"
-          message="A contract — scope, payment schedule, allowances, signatures — is written against one project."
+          message="A contract (scope, payment schedule, allowances, signatures) is written against one project."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={staleProjectId}
@@ -1803,7 +1803,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
       <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]} testID="contract-load-failed">
         <Stack.Screen options={{ headerShown: false }} />
         <AlertTriangle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
-        <Text style={styles.loadFailedTitle}>Couldn&apos;t load this job&apos;s contract</Text>
+        <Text style={styles.loadFailedTitle}>Couldn&apos;t Load This Job&apos;s Contract</Text>
         <Text style={styles.loadFailedText}>
           Check your signal and try again. Nothing is shown in its place, so no second contract can be started or signed.
         </Text>
@@ -1813,7 +1813,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           onPress={() => { setLoadFailed(null); setLoading(true); setLoadSeq(n => n + 1); }}
           testID="contract-load-retry"
         />
-        <Button label="Go back" variant="secondary" onPress={goBack} style={{ marginTop: Tokens.spacing.sm }} testID="contract-load-back" />
+        <Button label="Go Back" variant="secondary" onPress={goBack} style={{ marginTop: Tokens.spacing.sm }} testID="contract-load-back" />
       </View>
     );
   }
@@ -1905,7 +1905,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         </TutorialWrap>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Construction agreement</Text>
+          <Text style={styles.title}>Construction Agreement</Text>
         </View>
         <StatusPill status={contract.status} />
       </View>
@@ -1929,7 +1929,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           <View style={styles.contractHeroIcon}>
             <FileSignature size={26} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.contractHeroTitle}>Construction agreement</Text>
+          <Text style={styles.contractHeroTitle}>Construction Agreement</Text>
           <Text style={styles.contractHeroSub}>
             The signed contract between you and the client. Lock the scope, payment milestones, and warranty terms before work starts.
           </Text>
@@ -1948,7 +1948,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         {/* Title + value */}
         <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.sum" />}>
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Contract title</Text>
+          <Text style={styles.cardLabel}>Contract Title</Text>
           <TextInput
             style={[styles.input, isLocked && styles.inputDisabled]}
             value={contract.title}
@@ -1957,7 +1957,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
             placeholder="Construction Agreement"
             placeholderTextColor={themeColors.textMuted}
           />
-          <Text style={[styles.cardLabel, { marginTop: 14 }]}>Contract value</Text>
+          <Text style={[styles.cardLabel, { marginTop: 14 }]}>Contract Value</Text>
           <View style={styles.amountField}>
             <DollarSign size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             <TextInput
@@ -1982,7 +1982,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           {approvedChangeOrders.length > 0 && (
             <View style={styles.revisedCard} testID="revised-contract-sum">
               <View style={styles.revisedRow}>
-                <Text style={styles.revisedLabel}>Original contract</Text>
+                <Text style={styles.revisedLabel}>Original Contract</Text>
                 <Text style={styles.revisedValue}>{formatMoney(contract.contractValue)}</Text>
               </View>
               {approvedChangeOrders.map(co => (
@@ -1999,13 +1999,13 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 </View>
               ))}
               <View style={[styles.revisedRow, styles.revisedRowTotal]}>
-                <Text style={styles.revisedLabelTotal}>Current contract sum</Text>
+                <Text style={styles.revisedLabelTotal}>Current Contract Sum</Text>
                 <Text style={styles.revisedValueTotal}>{formatMoney(revisedContractSum)}</Text>
               </View>
               <Text style={styles.revisedCaption}>
                 The payment schedule below still divides the original contract. Approved change
                 orders are billed on their own lines in Bill from Estimate, so the milestones do
-                not grow — that would bill each change order twice.
+                not grow. That would bill each change order twice.
               </Text>
             </View>
           )}
@@ -2021,30 +2021,30 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Timeline</Text>
           <Text style={styles.cardHelper}>
-            When work starts and how long it runs. Both are binding terms — changes to either need a
+            When work starts and how long it runs. Both are binding terms. Changes to either need a
             signed Change Order (clause 7).
           </Text>
 
           <View style={styles.timelineRow}>
             <View style={styles.timelineCol}>
-              <Text style={styles.timelineFieldLabel}>Start date</Text>
+              <Text style={styles.timelineFieldLabel}>Start Date</Text>
               <TouchableOpacity
                 style={[styles.timelineField, isLocked && styles.inputDisabled]}
                 onPress={() => !isLocked && setStartDatePicker(true)}
                 disabled={isLocked}
                 activeOpacity={0.75}
                 accessibilityRole="button"
-                accessibilityLabel="Pick the contract start date"
+                accessibilityLabel="Pick the Contract Start Date"
                 testID="contract-start-date"
               >
                 <Calendar size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={[styles.timelineFieldText, !contract.startDate && styles.timelineFieldPlaceholder]}>
-                  {contract.startDate ? formatCalendarDay(contract.startDate) : 'Pick a date'}
+                  {contract.startDate ? formatCalendarDay(contract.startDate) : 'Pick a Date'}
                 </Text>
               </TouchableOpacity>
             </View>
             <View style={styles.timelineCol}>
-              <Text style={styles.timelineFieldLabel}>Duration (calendar days)</Text>
+              <Text style={styles.timelineFieldLabel}>Duration (Calendar Days)</Text>
               <TextInput
                 style={[styles.input, { marginBottom: 0 }, isLocked && styles.inputDisabled]}
                 value={contract.durationDays ? String(contract.durationDays) : ''}
@@ -2054,7 +2054,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 }}
                 keyboardType="numeric"
                 editable={!isLocked}
-                placeholder="e.g. 120"
+                placeholder="120"
                 placeholderTextColor={themeColors.textMuted}
                 testID="contract-duration-days"
               />
@@ -2072,7 +2072,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 ? 'Add a duration and this contract will state its completion date.'
                 : contract.durationDays
                   ? 'Add a start date and this contract will state its completion date.'
-                  : 'No dates set — this contract will not state when work starts or finishes.'}
+                  : 'No dates set. This contract will not state when work starts or finishes.'}
             </Text>
           )}
 
@@ -2092,7 +2092,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
               testID="contract-timeline-suggest"
             >
               <Text style={styles.timelineSuggestTitle}>
-                Use my schedule — {formatCalendarDay(timelineSuggestion.startDate)} to {timelineSuggestion.completionLabel}
+                Use My Schedule: {formatCalendarDay(timelineSuggestion.startDate)} to {timelineSuggestion.completionLabel}
               </Text>
               <Text style={styles.timelineSuggestBasis}>{timelineSuggestion.basis}</Text>
             </TouchableOpacity>
@@ -2102,7 +2102,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
 
         {/* Scope */}
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Scope of work *</Text>
+          <Text style={styles.cardLabel}>Scope of Work *</Text>
           <Text style={styles.cardHelper}>What you'll build, materials of note, exclusions. Be specific. This is what the client agrees to.</Text>
           <TextInput
             style={[styles.input, styles.inputMultiline, isLocked && styles.inputDisabled]}
@@ -2121,7 +2121,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         <View style={styles.card}>
           <View style={styles.cardHead}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardLabel}>Payment schedule</Text>
+              <Text style={styles.cardLabel}>Payment Schedule</Text>
               <Text style={styles.cardHelper}>
                 Tied to specific triggers. Total must equal contract value.
               </Text>
@@ -2137,7 +2137,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           {!isLocked && scheduleEmpty && (
             <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.paymentTerms" />}>
             <View style={styles.termsNotice} testID="contract-terms-not-set">
-              <Text style={styles.termsNoticeTitle}>Payment schedule — not set yet</Text>
+              <Text style={styles.termsNoticeTitle}>Payment Schedule Not Set Yet</Text>
               <Text style={styles.termsNoticeBody}>
                 This contract can't be signed without one. Your deposit, progress and final split fills it in.
               </Text>
@@ -2147,7 +2147,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 accessibilityRole="button"
                 testID="contract-set-payment-terms"
               >
-                <Text style={styles.termsNoticeBtnText}>Set your payment terms</Text>
+                <Text style={styles.termsNoticeBtnText}>Set Your Payment Terms</Text>
               </TouchableOpacity>
             </View>
             </TutorialWrap>
@@ -2191,9 +2191,9 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           {!isLocked && !scheduleEmpty && !legacySchedule && termsSource !== 'profile' && stampSplit
             && !scheduleCarriesSplit(contract.paymentSchedule, contract.contractValue, stampSplit) && (
             <View style={styles.termsNotice} testID="contract-terms-mismatch">
-              <Text style={styles.termsNoticeTitle}>Not the terms your client was shown</Text>
+              <Text style={styles.termsNoticeTitle}>Not the Terms Your Client Was Shown</Text>
               <Text style={styles.termsNoticeBody}>
-                {jobSplitWhere}: {splitLabel(stampSplit)}. The schedule below is different — check it before you sign.
+                {jobSplitWhere}: {splitLabel(stampSplit)}. The schedule below is different. Check it before you sign.
               </Text>
               <TouchableOpacity
                 style={styles.termsNoticeBtn}
@@ -2208,9 +2208,9 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
 
           {!isLocked && legacySchedule && (
             <View style={styles.termsNotice} testID="contract-legacy-schedule">
-              <Text style={styles.termsNoticeTitle}>MAGE's old placeholder, not your terms</Text>
+              <Text style={styles.termsNoticeTitle}>MAGE's Old Placeholder, Not Your Terms</Text>
               <Text style={styles.termsNoticeBody}>
-                This draft still has the 25 / 25 / 25 / 25 schedule MAGE filled in. Nobody chose it — check it before you sign.
+                This draft still has the 25 / 25 / 25 / 25 schedule MAGE filled in. Nobody chose it. Check it before you sign.
               </Text>
               {profileSplit ? (
                 <TouchableOpacity
@@ -2219,7 +2219,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                   accessibilityRole="button"
                   testID="contract-legacy-reset-terms"
                 >
-                  <Text style={styles.termsNoticeBtnText}>Reset to your terms ({splitLabel(profileSplit)})</Text>
+                  <Text style={styles.termsNoticeBtnText}>Reset to Your Terms ({splitLabel(profileSplit)})</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
@@ -2228,7 +2228,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                   accessibilityRole="button"
                   testID="contract-legacy-set-terms"
                 >
-                  <Text style={styles.termsNoticeBtnText}>Set your payment terms</Text>
+                  <Text style={styles.termsNoticeBtnText}>Set Your Payment Terms</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -2260,7 +2260,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
               no way to see that /bill-from-estimate already billed the work. */}
           {billedOnContract > 0.005 && (
             <View style={styles.scheduleTotalRow}>
-              <Text style={styles.scheduleTotalLabel}>Already invoiced on this contract</Text>
+              <Text style={styles.scheduleTotalLabel}>Already Invoiced on This Contract</Text>
               <Text style={styles.scheduleTotalValue} testID="contract-billed-to-date">
                 {formatMoney(billedOnContract)}
                 {contract.contractValue > 0
@@ -2271,7 +2271,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           )}
 
           <View style={styles.scheduleTotalRow}>
-            <Text style={styles.scheduleTotalLabel}>Total scheduled</Text>
+            <Text style={styles.scheduleTotalLabel}>Total Scheduled</Text>
             <Text style={[
               styles.scheduleTotalValue,
               !scheduleMatchesValue && { color: themeColors.accent },
@@ -2291,7 +2291,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                   is not on the screen. */}
               <Text style={styles.scheduleMismatchText}>
                 Total doesn't match contract value of {formatMoney(contract.contractValue)}
-                {contract.status === 'draft' ? ' — Sign & send stays off until it does.' : '.'}
+                {contract.status === 'draft' ? '. Sign and Send stays off until it does.' : '.'}
               </Text>
               {!isLocked && (profileSplit ? (
                 <TouchableOpacity
@@ -2300,7 +2300,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                   accessibilityRole="button"
                   testID="contract-reset-terms"
                 >
-                  <Text style={styles.rebalanceText}>Reset to your terms ({splitLabel(profileSplit)})</Text>
+                  <Text style={styles.rebalanceText}>Reset to Your Terms ({splitLabel(profileSplit)})</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
@@ -2309,7 +2309,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                   accessibilityRole="button"
                   testID="contract-mismatch-set-terms"
                 >
-                  <Text style={styles.rebalanceText}>Set your payment terms</Text>
+                  <Text style={styles.rebalanceText}>Set Your Payment Terms</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -2320,7 +2320,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         <View style={styles.card}>
           <View style={styles.cardHead}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardLabel}>Allowances (optional)</Text>
+              <Text style={styles.cardLabel}>Allowances (Optional)</Text>
               <Text style={styles.cardHelper}>
                 Budget set aside for finishes the client picks (cabinets, fixtures, tile, etc.).
                 Overruns trigger a Change Order.
@@ -2371,7 +2371,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
 
         {/* Terms */}
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Terms & conditions</Text>
+          <Text style={styles.cardLabel}>Terms and Conditions</Text>
           <TextInput
             style={[styles.input, styles.inputTermsMultiline, isLocked && styles.inputDisabled]}
             value={contract.termsText}
@@ -2389,7 +2389,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           <Text style={styles.cardLabel}>Warranty</Text>
           {!isLocked && warrantyNotSet && (
             <View style={styles.termsNotice} testID="contract-warranty-not-set">
-              <Text style={styles.termsNoticeTitle}>Warranty period — not set yet</Text>
+              <Text style={styles.termsNoticeTitle}>Warranty Period Not Set Yet</Text>
               <Text style={styles.termsNoticeBody}>
                 The paragraph below says how long you warrant your work once you set it. This contract can't be signed until then.
               </Text>
@@ -2399,7 +2399,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 accessibilityRole="button"
                 testID="contract-set-warranty"
               >
-                <Text style={styles.termsNoticeBtnText}>Set your warranty</Text>
+                <Text style={styles.termsNoticeBtnText}>Set Your Warranty</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2411,13 +2411,13 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
             <View style={styles.termsNotice} testID="contract-legacy-warranty">
               <Text style={styles.termsNoticeTitle}>
                 {ownWarrantyMonths == null
-                  ? "MAGE's old placeholder, not your terms"
+                  ? "MAGE's Old Placeholder, Not Your Terms"
                   : 'This paragraph is not your warranty'}
               </Text>
               <Text style={styles.termsNoticeBody}>
                 {ownWarrantyMonths == null
-                  ? 'This paragraph still promises the one-year warranty MAGE filled in. Nobody chose it — check it before you sign.'
-                  : `This paragraph promises one (1) year. Your saved warranty is ${warrantyShortLabel(ownWarrantyMonths)} — check which one this job should carry.`}
+                  ? 'This paragraph still promises the one-year warranty MAGE filled in. Nobody chose it. Check it before you sign.'
+                  : `This paragraph promises one (1) year. Your saved warranty is ${warrantyShortLabel(ownWarrantyMonths)}. Check which one this job should carry.`}
               </Text>
               <TouchableOpacity
                 style={styles.termsNoticeBtn}
@@ -2426,7 +2426,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 testID="contract-legacy-set-warranty"
               >
                 <Text style={styles.termsNoticeBtnText}>
-                  {ownWarrantyMonths == null ? 'Set your warranty' : `Use your ${warrantyShortLabel(ownWarrantyMonths)}`}
+                  {ownWarrantyMonths == null ? 'Set Your Warranty' : `Use your ${warrantyShortLabel(ownWarrantyMonths)}`}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2468,9 +2468,9 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         {reviewBeforeSigning && contract.status === 'draft' && (
           <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.reviewNotice" />}>
           <View style={styles.termsNotice} testID="contract-review-before-signing">
-            <Text style={styles.termsNoticeTitle}>Your terms are on this contract</Text>
+            <Text style={styles.termsNoticeTitle}>Your Terms Are on This Contract</Text>
             <Text style={styles.termsNoticeBody}>
-              Review it — the payment schedule and warranty above — then tap Sign &amp; send.
+              Review it, the payment schedule and warranty above, then tap Sign and Send.
             </Text>
           </View>
           </TutorialWrap>
@@ -2486,7 +2486,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           <ActionBar style={styles.actionRow} width="form">
             <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.saveDraft" style={{ flex: 1 }} />}>
             <Button
-              label="Save draft"
+              label="Save Draft"
               onPress={handleSaveDraft}
               variant="secondary"
               loading={saving}
@@ -2499,7 +2499,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 SAMPLE_DOC_NOT_SENT, which also prints under this row. */}
             <TutorialWrap on={runOnThis} wrap={<TutorialTarget id="contract.sign" style={{ flex: 1 }} />}>
             <Button
-              label="Sign & send"
+              label="Sign and Send"
               onPress={handleSignPress}
               disabled={(contract.paymentSchedule.length > 0 && !scheduleMatchesValue) || saving}
               iconLeft={<FileSignature size={16} color="#FFF" strokeWidth={1.75} />}
@@ -2512,7 +2512,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
             phone, no email, none claimed. Same gates as Sign & send. */}
         {contract.status === 'draft' && (
           <Button
-            label="Sign together now"
+            label="Sign Together Now"
             variant="secondary"
             onPress={handleSignTogetherPress}
             disabled={(contract.paymentSchedule.length > 0 && !scheduleMatchesValue) || saving || sampleJob}
@@ -2533,7 +2533,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           <View style={styles.statusBanner}>
             <Send size={16} color={themeColors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.statusBannerTitle}>Sent to the client</Text>
+              <Text style={styles.statusBannerTitle}>Sent to the Client</Text>
               <Text style={styles.statusBannerBody}>
                 You'll be notified when they sign. Until then this contract is read-only.
                 If they signed in person or on paper, record it here so the deposit can be billed.
@@ -2545,7 +2545,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           <View style={[styles.statusBanner, { backgroundColor: themeColors.warningSoft, borderColor: themeColors.warningLabel + '40' }]} testID="contract-not-delivered">
             <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
             <View style={{ flex: 1, gap: 8 }}>
-              <Text style={[styles.statusBannerTitle, { color: themeColors.warningLabel }]}>Signed by you, not delivered</Text>
+              <Text style={[styles.statusBannerTitle, { color: themeColors.warningLabel }]}>Signed by You, Not Delivered</Text>
               <Text style={styles.statusBannerBody}>
                 {contractDelivery.reason === 'send_failed'
                   ? 'The email to the client did not go out. Nothing reached them yet. Try again, or copy the signing link and text it.'
@@ -2561,7 +2561,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                   testID="contract-delivery-retry"
                 />
                 <Button
-                  label="Copy link"
+                  label="Copy Link"
                   variant="secondary"
                   onPress={() => { void copyContractLink(); }}
                   containerStyle={{ flex: 1 }}
@@ -2575,7 +2575,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
           <View style={styles.statusBanner} testID="contract-signed-by-you">
             <FileSignature size={16} color={themeColors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.statusBannerTitle}>Signed by you — waiting on the client</Text>
+              <Text style={styles.statusBannerTitle}>Signed by You, Waiting on the Client</Text>
               <Text style={styles.statusBannerBody}>
                 {portalDeliveryState(project, user?.id ?? null) === 'ready'
                   ? 'They can review and counter-sign from their client portal link. Until then this contract is read-only. If they signed in person or on paper, record it here so the deposit can be billed.'
@@ -2586,7 +2586,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         )}
         {contract.status === 'sent' && (
           <Button
-            label="Record client signature"
+            label="Record Client Signature"
             variant="secondary"
             onPress={() => setRecordModal(true)}
             iconLeft={<FileSignature size={14} color={themeColors.text} strokeWidth={1.75} />}
@@ -2600,7 +2600,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
             <View style={[styles.statusBanner, { backgroundColor: themeColors.success + '0D', borderColor: themeColors.success + '30' }]}>
               <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.statusBannerTitle, { color: themeColors.success }]}>Signed by both parties</Text>
+                <Text style={[styles.statusBannerTitle, { color: themeColors.success }]}>Signed by Both Parties</Text>
                 <Text style={styles.statusBannerBody}>
                   Binding agreement on file. Invoices on this project should reference it.
                 </Text>
@@ -2614,11 +2614,11 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 style={[styles.primaryBtn, { flex: 0, alignSelf: 'stretch', marginTop: 10 }]}
                 onPress={() => { void handleSealSignedContract(); }}
                 accessibilityRole="button"
-                accessibilityLabel="Seal and save signed PDF"
+                accessibilityLabel="Seal and Save Signed PDF"
                 testID="contract-seal-btn"
               >
                 <FileText size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.primaryBtnText}>Seal &amp; save signed PDF</Text>
+                <Text style={styles.primaryBtnText}>Seal and Save Signed PDF</Text>
               </TouchableOpacity>
             )}
             {!contract.signedPdfUrl && contract.homeownerSignature?.method !== 'in_person' && (
@@ -2653,21 +2653,21 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 style={[styles.primaryBtn, { flex: 0, alignSelf: 'stretch', marginTop: 10 }]}
                 onPress={() => { void handleDownloadSealedPdf(); }}
                 accessibilityRole="button"
-                accessibilityLabel="Download sealed signed PDF"
+                accessibilityLabel="Download Sealed Signed PDF"
                 testID="contract-download-sealed-btn"
               >
                 <FileText size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.primaryBtnText}>Download signed PDF</Text>
+                <Text style={styles.primaryBtnText}>Download Signed PDF</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
               style={[styles.primaryBtn, { flex: 0, alignSelf: 'stretch', marginTop: 10 }]}
               onPress={() => router.push({ pathname: '/bill-from-estimate', params: { projectId } } as any)}
               accessibilityRole="button"
-              accessibilityLabel="Create first invoice"
+              accessibilityLabel="Create First Invoice"
             >
               <Plus size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.primaryBtnText}>Create first invoice</Text>
+              <Text style={styles.primaryBtnText}>Create First Invoice</Text>
             </TouchableOpacity>
           </>
         )}
@@ -2738,14 +2738,14 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
             label: deliveryAsk.state === 'no_signing_key'
               ? 'Retry'
               : project?.clientPortal?.portalId && !project.clientPortal.enabled
-                ? 'Turn on the portal and continue'
-                : project?.clientPortal?.portalId ? 'Save and continue' : 'Save the email',
+                ? 'Turn On the Portal and Continue'
+                : project?.clientPortal?.portalId ? 'Save and Continue' : 'Save the Email',
             onPress: saveDeliveryAsk,
             loading: savingDeliveryAsk,
             disabled: deliveryAsk.state !== 'no_signing_key' && !isUsableEmail(deliveryAsk.email),
             disabledReason: deliveryAsk.state !== 'no_signing_key' && !isUsableEmail(deliveryAsk.email) ? 'Type the client\'s email first' : undefined,
           }}
-          secondaryAction={{ label: 'Sign together now instead', onPress: signTogetherFromAsk }}
+          secondaryAction={{ label: 'Sign Together Now Instead', onPress: signTogetherFromAsk }}
           testID="contract-delivery-ask"
         >
           {deliveryAsk.state === 'no_signing_key' ? (
@@ -2754,7 +2754,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
                 This project&apos;s portal is on, but its secure signing link isn&apos;t ready yet. Open the client portal once to finish it, then come back and tap Retry.
               </Text>
               <Button
-                label="Open client portal"
+                label="Open Client Portal"
                 variant="secondary"
                 onPress={() => { const id = project?.id; setDeliveryAsk(null); if (id) router.push({ pathname: '/client-portal-setup', params: { id } }); }}
                 testID="contract-delivery-open-portal"
@@ -2762,7 +2762,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              <Text style={styles.cardLabel}>Client email</Text>
+              <Text style={styles.cardLabel}>Client Email</Text>
               <TextInput
                 style={styles.input}
                 value={deliveryAsk.email}
@@ -2801,7 +2801,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         visible={startDatePicker}
         value={contract.startDate ?? ''}
         allowFuture
-        title="Contract start date"
+        title="Contract Start Date"
         onClose={() => setStartDatePicker(false)}
         onChange={(iso) => {
           updateContract('startDate', iso.slice(0, 10));
@@ -2877,7 +2877,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
     milestone.status === 'paid'     ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'Invoiced' } :
     milestone.status === 'invoiced' ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'Invoiced' } :
     milestone.status === 'skipped'  ? { bg: themeColors.surfaceAlt,  color: themeColors.textMuted, label: 'Skipped' } :
-    isProgressRow                   ? { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'As work is done' } :
+    isProgressRow                   ? { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'As Work Is Done' } :
                                        { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'Pending' };
   // Signing, progress and final read exactly as the sealed PDF and the invoice
   // line print them (utils/paymentTerms.milestoneDueText) — "Billed as work is
@@ -2912,7 +2912,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
         value={milestone.label}
         onChangeText={v => onChange({ label: v })}
         editable={!locked}
-        placeholder="e.g. 25% Deposit"
+        placeholder="25% Deposit"
         placeholderTextColor={themeColors.textMuted}
       />
 
@@ -2952,12 +2952,12 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
           width, gets its own labelled input below the row above. */}
       {milestone.trigger === 'on_milestone' && !locked && (
         <>
-          <Text style={[styles.milestoneFieldLabel, { marginTop: 10 }]}>Trigger description</Text>
+          <Text style={[styles.milestoneFieldLabel, { marginTop: 10 }]}>Trigger Description</Text>
           <TextInput
             style={styles.milestoneTriggerInput}
             value={milestone.triggerMilestone ?? ''}
             onChangeText={v => onChange({ triggerMilestone: v })}
-            placeholder="e.g. Foundation pour complete and inspected"
+            placeholder="Foundation pour complete and inspected"
             placeholderTextColor={themeColors.textMuted}
           />
         </>
@@ -2988,7 +2988,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
           testID={`milestone-bill-progress-${milestone.id}`}
         >
           <Receipt size={14} color="#FFF" strokeWidth={1.75} />
-          <Text style={styles.milestoneBillBtnText}>Bill progress</Text>
+          <Text style={styles.milestoneBillBtnText}>Bill Progress</Text>
         </TouchableOpacity>
       )}
       {billability && isProgressRow && !progressRowOpen(billability) && !billability.existingInvoiceId && billability.reason && (
@@ -3007,7 +3007,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
         >
           <Receipt size={14} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.milestoneBillBtnText}>
-            Create invoice · {formatMoney(billability.amount)}
+            Create Invoice · {formatMoney(billability.amount)}
           </Text>
         </TouchableOpacity>
       )}
@@ -3018,12 +3018,12 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
           disabled={!onOpenInvoice}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Open the invoice billed from this milestone"
+          accessibilityLabel="Open the Invoice Billed from This Milestone"
           testID={`milestone-open-invoice-${milestone.id}`}
         >
           <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
           <Text style={styles.milestoneBilledText}>
-            {isPaid ? 'Paid' : 'Billed'} — already on an invoice
+            {isPaid ? 'Paid' : 'Billed'}, already on an invoice
           </Text>
           <Text style={styles.milestoneBilledLink}>Open</Text>
         </TouchableOpacity>
@@ -3132,7 +3132,7 @@ export function SignatureModal({
     <Modal visible={visible} animationType={fSign.animationType} transparent onRequestClose={() => { if (!busy) onClose(); }}>
       <View style={[styles.modalOverlay, fSign.overlay]}>
         <View style={[styles.modalCard, fSign.card]} testID="contract-sign-sheet">
-          <Text style={styles.modalTitle}>{inPerson ? 'Your signature first' : 'Sign & send'}</Text>
+          <Text style={styles.modalTitle}>{inPerson ? 'Your Signature First' : 'Sign and Send'}</Text>
           <Text style={styles.modalBody}>
             {inPerson
               ? 'Sign below and type your full legal name. Nothing is emailed. Next, hand the phone to the client to sign.'
@@ -3263,7 +3263,7 @@ export function RecordHomeownerSignatureModal({
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      showAlert(source === 'camera' ? 'Camera access needed' : 'Photo access needed',
+      showAlert(source === 'camera' ? 'Camera Access Needed' : 'Photo Access Needed',
         `Grant ${source === 'camera' ? 'camera' : 'photo'} access in Settings to add the signed page.`);
       return;
     }
@@ -3397,7 +3397,7 @@ export function RecordHomeownerSignatureModal({
     <Modal visible={visible} animationType={fRecord.animationType} transparent onRequestClose={() => { if (!busy) onClose(); }}>
       <View style={[styles.modalOverlay, fRecord.overlay]}>
         <View style={[styles.modalCard, fRecord.card]} testID="contract-record-signature-modal">
-          <Text style={styles.modalTitle}>Record client signature</Text>
+          <Text style={styles.modalTitle}>Record Client Signature</Text>
           {!inPersonStarted && (
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -3408,7 +3408,7 @@ export function RecordHomeownerSignatureModal({
                 accessibilityState={{ selected: method === 'in_person' }}
                 testID="contract-record-in-person"
               >
-                <Text style={styles.modalCancelText}>In person</Text>
+                <Text style={styles.modalCancelText}>In Person</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalCancel, method === 'paper' && { borderColor: themeColors.accent }]}
@@ -3417,7 +3417,7 @@ export function RecordHomeownerSignatureModal({
                 accessibilityState={{ selected: method === 'paper' }}
                 testID="contract-record-paper"
               >
-                <Text style={styles.modalCancelText}>On paper</Text>
+                <Text style={styles.modalCancelText}>On Paper</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -3437,14 +3437,14 @@ export function RecordHomeownerSignatureModal({
                 For a contract the client signed on a printed copy. Type their name as it appears on the page, pick the day they signed, and photograph the signed page. The photo is kept as the proof.
               </Text>
               <TouchableOpacity onPress={() => setDayPicker(true)} style={styles.modalNameInput} accessibilityRole="button" testID="contract-record-day">
-                <Text style={{ color: themeColors.text }}>{signedDay ? `Signed ${formatCalendarDay(signedDay)}` : 'Pick the signing day'}</Text>
+                <Text style={{ color: themeColors.text }}>{signedDay ? `Signed ${formatCalendarDay(signedDay)}` : 'Pick the Signing Day'}</Text>
               </TouchableOpacity>
               <View style={styles.modalActions}>
                 <TouchableOpacity style={styles.modalCancel} onPress={() => { void pickPhoto('camera'); }} accessibilityRole="button" testID="contract-record-photo-camera">
-                  <Text style={styles.modalCancelText}>{photoUri ? 'Retake photo' : 'Photograph the page'}</Text>
+                  <Text style={styles.modalCancelText}>{photoUri ? 'Retake Photo' : 'Photograph the Page'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.modalCancel} onPress={() => { void pickPhoto('library'); }} accessibilityRole="button" testID="contract-record-photo-library">
-                  <Text style={styles.modalCancelText}>Choose photo</Text>
+                  <Text style={styles.modalCancelText}>Choose Photo</Text>
                 </TouchableOpacity>
               </View>
               {!!photoUri && <Text style={styles.modalBody}>Photo of the signed page added.</Text>}
@@ -3504,7 +3504,7 @@ export function RecordHomeownerSignatureModal({
       <DatePickerModal
         visible={dayPicker}
         value={signedDay}
-        title="Day the client signed"
+        title="Day the Client Signed"
         onClose={() => setDayPicker(false)}
         onChange={(iso) => { setSignedDay(iso.slice(0, 10)); setDayPicker(false); }}
       />

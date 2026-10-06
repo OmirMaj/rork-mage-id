@@ -133,7 +133,7 @@ console.log('\n§1 suggestion from a dated schedule, a picked task and a real le
     ok('default buffer is applied', r.bufferDays === SELECTION_DUE_BUFFER_DAYS && SELECTION_DUE_BUFFER_DAYS === 5);
     ok('due = Jun 3 − 42 − 5 calendar days = Apr 17', r.dueDate === '2026-04-17', r.dueDate);
     ok('chip states every input and the result verbatim',
-      r.chip === 'Cabinet install Jun 3 − 42d lead (Wolf Classic Crestwood Shaker) − 5d buffer → pick by Apr 17', r.chip);
+      r.chip === 'Cabinet install Jun 3 − 42d lead (Wolf Classic Crestwood Shaker) − 5d buffer, pick by Apr 17', r.chip);
   }
   const b = suggestSelectionDueDate({ schedule: SCHED, taskId: 'cab', options: OPTS, bufferDays: 0 });
   ok('an explicit buffer is honoured', b.ok && b.dueDate === '2026-04-22', JSON.stringify(b));
@@ -160,7 +160,7 @@ console.log('\n§2 the install date respects workingDaysPerWeek and nonWorkingDa
     taskId: 'y', options: [{ productName: 'Quartz', brand: 'Caesarstone', leadTimeDays: 30 }],
   });
   ok('a chip that straddles a year names both years',
-    straddle.ok && straddle.chip === 'Counter set Jan 4, 2027 − 30d lead (Caesarstone Quartz) − 5d buffer → pick by Nov 30, 2026', straddle.ok ? straddle.chip : JSON.stringify(straddle));
+    straddle.ok && straddle.chip === 'Counter set Jan 4, 2027 − 30d lead (Caesarstone Quartz) − 5d buffer, pick by Nov 30, 2026', straddle.ok ? straddle.chip : JSON.stringify(straddle));
 }
 
 // ── §2b Stored-instant anchors: the Gantt's date, in any zone ─────────────

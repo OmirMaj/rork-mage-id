@@ -92,17 +92,17 @@ function BuyoutScopeGapInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Scope gap check' }} />
+        <Stack.Screen options={{ title: 'Scope Gap Check' }} />
         <EmptyState
           icon={<ScanSearch size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No project to check yet"
+          title="No Project to Check Yet"
           message="The scope gap check compares your estimate with your buyout packages to find work nobody is covering. To use it:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Build an estimate and break it into buyout packages.',
             'Tap Scope gap check to find the holes before you award.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -121,7 +121,7 @@ function BuyoutScopeGapInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Scope gap check · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Scope Gap Check · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -131,7 +131,7 @@ function BuyoutScopeGapInner() {
         {!report || !project.linkedEstimate || project.linkedEstimate.items.length === 0 ? (
           <View style={styles.infoCard}>
             <ScanSearch size={26} color={t.accent} strokeWidth={1.7} />
-            <Text style={styles.infoTitle}>Build an estimate first</Text>
+            <Text style={styles.infoTitle}>Build an Estimate First</Text>
             <Text style={styles.infoBody}>
               The scope-gap audit compares your estimate line items against your buyout
               packages. This project doesn&apos;t have an estimate yet.
@@ -140,7 +140,7 @@ function BuyoutScopeGapInner() {
         ) : !report.hasStructure ? (
           <View style={styles.infoCard}>
             <Boxes size={26} color={t.accent} strokeWidth={1.7} />
-            <Text style={styles.infoTitle}>No buyout to check yet</Text>
+            <Text style={styles.infoTitle}>No Buyout to Check Yet</Text>
             <Text style={styles.infoBody}>
               There are no bid packages or commitments to check the estimate against. Run
               Generative Setup to break the estimate into packages, then come back to find
@@ -152,14 +152,14 @@ function BuyoutScopeGapInner() {
               activeOpacity={0.85}
             >
               <MageAIMark size={15} color={t.accent} />
-              <Text style={styles.infoBtnText}>Set up buyout</Text>
+              <Text style={styles.infoBtnText}>Set Up Buyout</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
             {/* Coverage hero */}
             <View style={[styles.hero, { borderColor: covColor }]}>
-              <Text style={styles.heroLabel}>Estimate scope covered by buyout</Text>
+              <Text style={styles.heroLabel}>Estimate Scope Covered by Buyout</Text>
               <View style={styles.heroRow}>
                 <Text style={[styles.heroValue, { color: covColor }]}>{cov}%</Text>
                 <View style={{ flex: 1 }} />
@@ -175,14 +175,14 @@ function BuyoutScopeGapInner() {
               <Text style={styles.heroSub}>
                 {report.uncoveredItems.length === 0
                   ? 'Every estimate line is in a package or commitment.'
-                  : `${report.uncoveredItems.length} line${report.uncoveredItems.length === 1 ? '' : 's'} (${formatMoneyFull(report.uncoveredBudget)}) sit in no package — assign them before you award.`}
+                  : `${report.uncoveredItems.length} line${report.uncoveredItems.length === 1 ? '' : 's'} (${formatMoneyFull(report.uncoveredBudget)}) sit in no package. Assign them before you award.`}
               </Text>
             </View>
 
             {/* Uncovered scope by division */}
             {report.byDivision.length > 0 && (
               <>
-                <Text style={styles.sectionTitle}>Uncovered scope</Text>
+                <Text style={styles.sectionTitle}>Uncovered Scope</Text>
                 {report.byDivision.map(d => (
                   <View key={d.division} style={styles.divCard}>
                     <View style={styles.divHead}>
@@ -208,10 +208,10 @@ function BuyoutScopeGapInner() {
               <View style={styles.overlapCard}>
                 <View style={styles.overlapHead}>
                   <Copy size={16} color={t.accentHot} strokeWidth={1.75} />
-                  <Text style={styles.overlapTitle}>Possible double-buy</Text>
+                  <Text style={styles.overlapTitle}>Possible Double-Buy</Text>
                 </View>
                 <Text style={styles.overlapSub}>
-                  {report.overlapItems.length} line{report.overlapItems.length === 1 ? '' : 's'} appear in more than one package — confirm only one sub is carrying them.
+                  {report.overlapItems.length} line{report.overlapItems.length === 1 ? '' : 's'} appear in more than one package. Confirm only one sub is carrying them.
                 </Text>
                 {report.overlapItems.slice(0, 4).map(it => (
                   <View key={it.materialId} style={styles.itemRow}>
@@ -223,12 +223,12 @@ function BuyoutScopeGapInner() {
             )}
 
             {/* AI adjacency */}
-            <Text style={styles.sectionTitle}>Commonly missed by your trades</Text>
+            <Text style={styles.sectionTitle}>Commonly Missed by Your Trades</Text>
             <View style={styles.aiCard}>
               {aiItems == null ? (
                 <>
                   <Text style={styles.aiIntro}>
-                    Beyond the line items — the adjacent work each trade assumes is excluded
+                    Beyond the line items: the adjacent work each trade assumes is excluded
                     (blocking, firestopping, flashing, terminations, cleanup). MAGE flags
                     what GCs commonly eat at buyout.
                   </Text>
@@ -245,7 +245,7 @@ function BuyoutScopeGapInner() {
                     ) : (
                       <>
                         <MageAIMark size={15} color="#fff" />
-                        <Text style={styles.aiBtnText}>Find commonly missed scope</Text>
+                        <Text style={styles.aiBtnText}>Find Commonly Missed Scope</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -270,7 +270,7 @@ function BuyoutScopeGapInner() {
             <Text style={styles.note}>
               Coverage compares estimate line items to packages and signed commitments via
               their estimate-item links. Items with no link to either are counted as
-              uncovered. Adjacency suggestions are AI guidance — verify against your specs.
+              uncovered. Adjacency suggestions are AI guidance. Verify against your specs.
             </Text>
           </>
         )}

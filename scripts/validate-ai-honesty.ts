@@ -241,7 +241,7 @@ console.log('\nsource assertions:');
   ok('wizard (review B1): reset clears the stored bundle', /setGroundingUsed\(null\)/.test(wizard));
   ok('wizard (re-review A3): estimate_generated carries the RUN counts — used_learned_costs cannot fire for a seeded-only run', /estimateGroundingProps\(costDb, used\.counts\)/.test(wizard) && !/estimateGroundingProps\(costDb\)/.test(wizard) && /AnalyticsEvents\.ESTIMATE_GENERATED/.test(wizard) && /path: 'wizard_generated'/.test(wizard));
   ok('wizard (re-review A5): a run counter orphans a cancelled run — its result, its error and its finally', /const runRef = useRef\(0\)/.test(wizard) && /const runId = \+\+runRef\.current/.test(wizard) && (wizard.match(/if \(runRef\.current !== runId\) return;/g) ?? []).length >= 2 && /if \(runRef\.current === runId\) setLoading\(false\)/.test(wizard) && /const cancelGenerate = useCallback\(\(\) => \{\s*runRef\.current \+= 1;/.test(wizard));
-  ok('wizard (re-review A6): the loader subtitle does not claim retrieval', !/Pulling materials, labor/.test(wizard) && /nothing is pulled from a price list/.test(wizard));
+  ok('wizard (re-review A6): the loader subtitle does not claim retrieval', !/Pulling materials, labor/.test(wizard) && /Nothing is pulled from a price list/.test(wizard));
   ok('wizard (UX-F14/F18): no bare router.back() — a cold-start deep link into a gestureEnabled:false modal must still escape', !/router\.back\(\)/.test(wizard) && /useSafeBack\(\)/.test(wizard) && /safeBack\(\)/.test(wizard));
   const quick = src('components/AIQuickEstimate.tsx');
   ok('quick estimate: chip label comes from groundingChipLabel', /groundingChipLabel\(/.test(quick) && !/\$\{learnedRateCount\} learned rate/.test(quick));

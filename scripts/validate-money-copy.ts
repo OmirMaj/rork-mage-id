@@ -20,6 +20,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isTitleCase } from './copy-title-case';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
@@ -83,6 +84,8 @@ function sentenceCase(label: string): boolean {
   return !/\b[A-Z][a-z]/.test(rest);
 }
 
+const CONVERTED_FILES = new Set<string>(JSON.parse(readFileSync(join(ROOT, 'scripts', 'copy-style-converted.json'), 'utf8')).paths);
+
 const COVERAGE: [string, string, string][] = [
   // [file, map constant, union in types/index.ts]
   ['utils/pdfGenerator.ts', 'CO_STATUS_PDF_LABEL', 'ChangeOrderStatus'],
@@ -103,8 +106,12 @@ for (const [rel, name, union] of COVERAGE) {
   ok(`${union} has values to label (types/index.ts)`, values.length > 0, union);
   const missing = values.filter((v) => !(v in map));
   ok(`${rel} ${name} labels every ${union} value`, missing.length === 0, missing);
-  const bad = Object.values(map).filter((l) => !sentenceCase(l));
-  ok(`${rel} ${name} labels are sentence case`, bad.length === 0, bad);
+  // docs/VOICE.md section 3 (2026-10-05): a file on the converted list
+  // (scripts/copy-style-converted.json) prints its labels in Title Case; a file
+  // not yet converted keeps sentence case until its lane lands.
+  const converted = CONVERTED_FILES.has(rel);
+  const bad = Object.values(map).filter((l) => !(converted ? isTitleCase(l) : sentenceCase(l)));
+  ok(`${rel} ${name} labels are ${converted ? 'Title Case' : 'sentence case'}`, bad.length === 0, bad);
 }
 // The wiring, not only the maps: each document actually reads its map.
 const pdf = code('utils/pdfGenerator.ts');

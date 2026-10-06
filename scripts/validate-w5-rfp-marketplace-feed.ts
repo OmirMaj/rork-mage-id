@@ -186,7 +186,7 @@ ok('"Not your project" appears once, only in the loaded-row branch',
   (rv.match(/'Not your project'/g) ?? []).length === 1
   && rv.slice(iNotYours, iNotYours + 200).includes("'Not your project'"));
 ok('the failure state says it couldn\'t load and offers Retry',
-  /Couldn\\'t load this RFP — check your connection/.test(rv) && /\{ retry: true \}/.test(rv) && /testID="rfp-review-retry"/.test(rv));
+  /Couldn\\'t Load This RFP/.test(rv) && /\{ retry: true \}/.test(rv) && /testID="rfp-review-retry"/.test(rv));
 ok('a genuine no-row says the RFP no longer exists', /'This RFP no longer exists'/.test(rv));
 ok('a failed bids read with nothing on screen shows an error card with Retry, not "No bids yet"',
   /const responsesLoadFailed = responses === undefined && responsesFailed;/.test(rv)

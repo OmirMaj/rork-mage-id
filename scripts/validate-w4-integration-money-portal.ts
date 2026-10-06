@@ -74,7 +74,7 @@ console.log('\nA. #67 — the sealed contract says how the homeowner signed');
   const gcSignature = { name: 'Sam Smith', role: 'gc', signedAt: '2026-09-09T15:00:00.000Z', signaturePaths: ['M0 0 L10 10'] };
   const contractWith = (homeownerSignature: Record<string, unknown> | undefined) => ({
     id: 'c1', projectId: 'p1', userId: 'u1', version: 1, title: 'Kitchen Agreement', contractValue: 48000,
-    scopeText: 'Kitchen remodel', termsText: 'Net 10', warrantyText: 'One year', paymentSchedule: [], allowances: [],
+    scopeText: 'Kitchen Remodel', termsText: 'Net 10', warrantyText: 'One year', paymentSchedule: [], allowances: [],
     gcSignature, homeownerSignature, status: 'signed', signedAt: '2026-09-10T12:00:00.000Z', createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-10T12:00:00Z',
   });
   const render = async (sig: Record<string, unknown> | undefined) => {
@@ -90,7 +90,7 @@ console.log('\nA. #67 — the sealed contract says how the homeowner signed');
   const paper = await render({ name: 'Pat Paper', role: 'homeowner', method: 'paper', signedAt: '2026-09-10T12:00:00.000Z', evidencePath: 'u1/c1/page.jpg' });
   const pBlock = homeownerBlock(paper);
   ok('the contract renders', paper.length > 0 && pBlock.length > 0);
-  ok('paper: the method line says paper, with the page photo on file', pBlock.includes('Signed on paper — photo of the signed page on file'), pBlock);
+  ok('paper: the method line says paper, with the page photo on file', pBlock.includes('Signed on paper, photo of the signed page on file'), pBlock);
   ok('paper: the name is NOT drawn in the cursive e-signature font', !/Caveat/.test(pBlock), pBlock);
   ok('paper: dated to the calendar day on the page (September 10), never re-zoned', pBlock.includes('September 10, 2026') && !pBlock.includes('September 11'), pBlock);
   ok('paper: the seal line does not call it electronically signed',

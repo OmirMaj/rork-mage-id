@@ -251,7 +251,7 @@ export function bidIdentityGap(
   const parts: string[] = [];
   if (needsCompanyName) {
     parts.push(
-      `The header of this PDF prints your company name. With it blank the proposal goes out as “${PDF_VENDOR_PLACEHOLDER}” — the software’s name, not yours.`,
+      `The header of this PDF prints your company name. With it blank the proposal goes out as “${PDF_VENDOR_PLACEHOLDER}”, the software’s name, not yours.`,
     );
   }
   if (needsLicence && rule) {

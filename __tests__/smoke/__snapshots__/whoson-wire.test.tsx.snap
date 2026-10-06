@@ -471,7 +471,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE a  phon
             ]
           }
         >
-          Bid confidence 
+          Bid Confidence 
         </Text>
         <Text
           style={
@@ -5158,7 +5158,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE c  desk
           ]
         }
       >
-        Bid confidence 
+        Bid Confidence 
       </Text>
       <Text
         style={

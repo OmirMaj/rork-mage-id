@@ -251,7 +251,7 @@ const ESSENTIAL_INCLUSIONS: string[] = [
  *  only; null when he has not saved one, so nothing is claimed (#90). */
 export function licenseLine(licenseNumber?: string | null): string | null {
   const n = typeof licenseNumber === 'string' ? licenseNumber.trim() : '';
-  return n ? `Licensed contractor — License #${n.replace(/^#/, '')}` : null;
+  return n ? `Licensed contractor, License #${n.replace(/^#/, '')}` : null;
 }
 
 const SIGNATURE_INCLUSIONS: string[] = [
@@ -320,7 +320,7 @@ export function buildProposalTiers(input: BuildProposalInput): ProposalTiersResu
     tier(
       'signature',
       'Signature',
-      'Our most popular package — the best balance of value and finish.',
+      'Our most popular package: the best balance of value and finish.',
       result.recommended,
       SIGNATURE_INCLUSIONS,
       true,
@@ -371,24 +371,24 @@ export function proposalToShareText(
   if (proposal.kind === 'quick') {
     const t = proposal.tiers[0];
     const q = proposal.quick;
-    lines.push(`QUOTE${proposal.projectName ? ` — ${proposal.projectName}` : ''}`);
+    lines.push(`QUOTE${proposal.projectName ? `: ${proposal.projectName}` : ''}`);
     if (proposal.clientName) lines.push(`Prepared for ${proposal.clientName}`);
     lines.push('');
     lines.push(divider);
     if (t?.tagline?.trim()) lines.push(t.tagline.trim());
     if (q && q.lines.length > 0) {
-      for (const li of q.lines) lines.push(`  • ${li.description.trim() || 'Line item'} — ${formatMoney(li.amount, 2)}`);
+      for (const li of q.lines) lines.push(`  • ${li.description.trim() || 'Line item'}: ${formatMoney(li.amount, 2)}`);
       if (q.tax > 0) {
         lines.push('');
-        lines.push(`Subtotal — ${formatMoney(q.subtotal, 2)}`);
-        lines.push(`Sales tax (${q.taxPct}%) — ${formatMoney(q.tax, 2)}`);
+        lines.push(`Subtotal: ${formatMoney(q.subtotal, 2)}`);
+        lines.push(`Sales tax (${q.taxPct}%): ${formatMoney(q.tax, 2)}`);
       }
     } else if (t) {
       // A quote saved before the breakdown existed: its descriptions only.
       for (const inc of t.inclusions) lines.push(`  • ${inc}`);
     }
     lines.push('');
-    lines.push(`TOTAL — ${formatMoney(q?.total ?? t?.price ?? 0, 2)}`);
+    lines.push(`Total: ${formatMoney(q?.total ?? t?.price ?? 0, 2)}`);
     lines.push(divider);
     if (validity) lines.push(validity);
     if (license) lines.push(license);
@@ -396,14 +396,14 @@ export function proposalToShareText(
     return lines.join('\n');
   }
 
-  lines.push(`PROPOSAL${proposal.projectName ? ` — ${proposal.projectName}` : ''}`);
+  lines.push(`PROPOSAL${proposal.projectName ? `: ${proposal.projectName}` : ''}`);
   if (proposal.clientName) lines.push(`Prepared for ${proposal.clientName}`);
   lines.push('');
 
   const several = proposal.tiers.length > 1;
   for (const t of proposal.tiers) {
     lines.push(divider);
-    lines.push(`${t.label.toUpperCase()}${several && t.recommended ? '  ★ Most popular' : ''} — ${formatMoney(t.price, 2)}`);
+    lines.push(`${t.label.toUpperCase()}${several && t.recommended ? '  ★ Most popular' : ''}: ${formatMoney(t.price, 2)}`);
     if (t.tagline?.trim()) lines.push(t.tagline.trim());
     for (const inc of t.inclusions) lines.push(`  • ${inc}`);
     lines.push('');

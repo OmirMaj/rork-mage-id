@@ -116,7 +116,7 @@ exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alon
 {
   "lines": 61,
   "modalCount": 1,
-  "sha256": "bcfeb088f14ca6706b4bc5ea92870c8b75ccfe6b40429a3bb990d2f7eebca2eb",
+  "sha256": "728af712dbf9b875d8caab6ff9b0f592f5ecea9e595faaa937dacfed00c707fc",
 }
 `;
 
@@ -124,7 +124,7 @@ exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alon
 {
   "lines": 61,
   "modalCount": 1,
-  "sha256": "0e405fe51429115c5ba4fc9a603bddf84595768805ca8cd6f119054b9cd7a2fe",
+  "sha256": "dbbaa0283412948154528ca4f6ab65a4c9e4a0be0fd181542e71c06d35616ead",
 }
 `;
 
@@ -207,13 +207,13 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     {
       "found": true,
       "lines": 38,
-      "sha256": "d81e1df5f4d60ca9fc51123c329bfec0b7b28acf5bcc15bc43a99ac904f5d9b9",
-      "title": "Draw your signature",
+      "sha256": "5273fa913c37c30740f8abebbdcbe5e3ab97fae88d13507d3d80362af02fb355",
+      "title": "Draw Your Signature",
     },
   ],
   "whole": {
     "lines": 723,
-    "sha256": "3c81aa8a72803a0f76b294fad87d9fd322e6e6bfa8ede9ceb69dd737bb1e7422",
+    "sha256": "e423d98582b86546a8d572684ad3f872000adf9d68e91970e703bf6f4f810551",
   },
 }
 `;
@@ -225,19 +225,19 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     {
       "found": true,
       "lines": 24,
-      "sha256": "da4db05af4e59a3640783e617211258786c8488998e6e0c6b9d161b4882f1316",
-      "title": "Sort by",
+      "sha256": "e02f91c7c61c15a4d160ddf60bff35cf1769d02c4e37fde37e39884491b871ad",
+      "title": "Sort By",
     },
     {
       "found": true,
       "lines": 39,
-      "sha256": "19b4c622bae0a870d0a77a95925d5e5c9077dfa8b4dd1f25690120ebe310204a",
-      "title": "Set-aside type",
+      "sha256": "aafd35217ca1415935f0bdbbea4a0bd626281718fe8ad5937e667a2954dfed7d",
+      "title": "Set-Aside Type",
     },
   ],
   "whole": {
     "lines": 608,
-    "sha256": "d9a60d41eb4d70f260fb19eed56001a1fe8537949ce20b730d7fb6714a6c0ea6",
+    "sha256": "143d0ce454d1490fbd9417560cae9fe2ea83eb957cd9ed00be2d7179ff48417d",
   },
 }
 `;
@@ -301,13 +301,13 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     {
       "found": true,
       "lines": 36,
-      "sha256": "2cd0330f66effeed4754e4a5b7b6714b095c111f2f1354597bfc473750e3b12a",
+      "sha256": "23c9ab801689557c7239620f6dff5fb8b9c01bae2c31e960f7deff2a186c48e4",
       "title": "Why did this one go cold?",
     },
   ],
   "whole": {
     "lines": 610,
-    "sha256": "d4abde612c0ad74a822d92ec5f10c3eececcfe736bea776d872a0b7dde2ccb33",
+    "sha256": "a5ac6808454c19aa50857cade5c406b8003100a10885659f23120df5f642872b",
   },
 }
 `;
@@ -319,13 +319,13 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     {
       "found": true,
       "lines": 11,
-      "sha256": "6753bf5faa2353efe8815a3bfc391d3c0d1d034ab2ce8808870849beb70ade63",
-      "title": "Set price alert",
+      "sha256": "714fab972bc7f43d2325e34d2081a32f0b275c456eca9add163564f1dd27b6cb",
+      "title": "Set Price Alert",
     },
   ],
   "whole": {
     "lines": 1657,
-    "sha256": "1af20dc7a24b766fe69a81e83784fe9a6ccf598e8f1041fa68a732122f19777c",
+    "sha256": "b9c06133de4a7795b1c649b560f1a74c3903773824e37715b5896b6597a7e6c5",
   },
 }
 `;

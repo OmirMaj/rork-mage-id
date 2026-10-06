@@ -129,7 +129,7 @@ export default function CategoryDetailScreen() {
     if (!alertModal) return;
     const price = parseLenientNumber(alertPrice);
     if (price === null || price <= 0) {
-      showAlert('Check the price', 'Enter a target price above $0.');
+      showAlert('Check the Price', 'Enter a target price above $0.');
       return;
     }
     const alert: PriceAlert = {
@@ -160,7 +160,7 @@ export default function CategoryDetailScreen() {
     // categorically unbacked, so it says what actually happens instead —
     // the same sentence the Materials tab's targets panel already shows.
     showAlert(
-      'Target saved',
+      'Target Saved',
       `MAGE compares ${alertModal.name} with the price book. It does not watch the market. Open Materials › Price targets to see whether it's ${alertDirection} $${price.toFixed(2)}.`,
     );
   }, [alertModal, alertPrice, alertDirection, addPriceAlert]);
@@ -225,7 +225,7 @@ export default function CategoryDetailScreen() {
           >
             <Bell size={13} color={hasAlert ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
             <Text style={[styles.alertBtnText, hasAlert && { color: themeColors.accent }]}>
-              {hasAlert ? 'Alert set' : 'Set alert'}
+              {hasAlert ? 'Alert Set' : 'Set Alert'}
             </Text>
           </TouchableOpacity>
           {/* + Add — pushes into the shared MaterialCart. Repeat taps bump
@@ -346,7 +346,7 @@ export default function CategoryDetailScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Search size={36} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No materials match that</Text>
+            <Text style={styles.emptyTitle}>No Materials Match That</Text>
             <Text style={styles.emptyDesc}>Try a different search term.</Text>
           </View>
         }
@@ -361,7 +361,7 @@ export default function CategoryDetailScreen() {
         <View style={[styles.modalOverlay, fAlert.overlay]}>
           <View style={[styles.modalCard, fAlert.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Set price alert</Text>
+              <Text style={styles.modalTitle}>Set Price Alert</Text>
               <TouchableOpacity onPress={() => setAlertModal(null)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -371,23 +371,23 @@ export default function CategoryDetailScreen() {
                 <Text style={styles.modalMatName}>{alertModal.name}</Text>
                 <Text style={styles.modalCurrentPrice}>Current: ${alertModal.baseRetailPrice.toFixed(2)} / {alertModal.unit}</Text>
 
-                <Text style={styles.modalFieldLabel}>Alert direction</Text>
+                <Text style={styles.modalFieldLabel}>Alert Direction</Text>
                 <View style={styles.directionRow}>
                   <TouchableOpacity
                     style={[styles.directionBtn, alertDirection === 'below' && styles.directionBtnActive]}
                     onPress={() => setAlertDirection('below')}
                   >
-                    <Text style={[styles.directionBtnText, alertDirection === 'below' && styles.directionBtnTextActive]}>Price drops below</Text>
+                    <Text style={[styles.directionBtnText, alertDirection === 'below' && styles.directionBtnTextActive]}>Price Drops Below</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.directionBtn, alertDirection === 'above' && styles.directionBtnActive]}
                     onPress={() => setAlertDirection('above')}
                   >
-                    <Text style={[styles.directionBtnText, alertDirection === 'above' && styles.directionBtnTextActive]}>Price rises above</Text>
+                    <Text style={[styles.directionBtnText, alertDirection === 'above' && styles.directionBtnTextActive]}>Price Rises Above</Text>
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.modalFieldLabel}>Target price ($)</Text>
+                <Text style={styles.modalFieldLabel}>Target Price ($)</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={alertPrice}
@@ -400,7 +400,7 @@ export default function CategoryDetailScreen() {
 
                 <TouchableOpacity style={styles.modalSaveBtn} onPress={handleCreateAlert} activeOpacity={0.85}>
                   <Bell size={16} color="#fff" strokeWidth={1.75} />
-                  <Text style={styles.modalSaveBtnText}>Set alert</Text>
+                  <Text style={styles.modalSaveBtnText}>Set Alert</Text>
                 </TouchableOpacity>
               </>
             )}

@@ -72,7 +72,7 @@ const TRADE_BADGE_COLORS: Record<string, string> = {
 };
 
 function formatSalary(min: number | null | undefined, max: number | null | undefined): string {
-  if (min == null && max == null) return 'Salary not listed';
+  if (min == null && max == null) return 'Salary Not Listed';
   const fmtVal = (v: number) => {
     if (v >= 1000) return `${(v / 1000).toFixed(0)}K`;
     return `${v.toLocaleString()}`;
@@ -120,8 +120,8 @@ function JobCard({ job, onPress }: { job: JobWithDistance; onPress: () => void }
           ) : null}
         </View>
 
-        <Text style={styles.cardTitle} numberOfLines={2}>{job.title ?? 'Untitled job'}</Text>
-        <Text style={styles.cardCompany}>{job.company_name ?? 'Company not listed'}</Text>
+        <Text style={styles.cardTitle} numberOfLines={2}>{job.title ?? 'Untitled Job'}</Text>
+        <Text style={styles.cardCompany}>{job.company_name ?? 'Company Not Listed'}</Text>
 
         <View style={styles.cardMeta}>
           <View style={styles.metaItem}>
@@ -274,12 +274,12 @@ export default function CachedHireScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
               <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle} numberOfLines={1}>Direct hire</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Direct Hire</Text>
           </View>
         </View>
         <View style={styles.emptyContainer}>
           <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
-          <Text style={styles.emptyTitle}>Direct hire isn&apos;t open yet</Text>
+          <Text style={styles.emptyTitle}>Direct Hire Isn&apos;t Open Yet</Text>
           <Text style={styles.emptySubtitle}>
             The hiring marketplace isn&apos;t available in MAGE ID yet, so there are no job posts to browse.
           </Text>
@@ -295,7 +295,7 @@ export default function CachedHireScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
             <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Direct hire</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Direct Hire</Text>
           <View style={styles.countPill}>
             <Text style={styles.countPillText}>{filteredJobs.length}</Text>
           </View>
@@ -357,12 +357,12 @@ export default function CachedHireScreen() {
       {jobsQueryError ? (
         <View style={styles.emptyContainer}>
           <AlertCircle size={40} color={themeColors.warningLabel} strokeWidth={1.75} />
-          <Text style={styles.emptyTitle}>Couldn&apos;t load jobs</Text>
+          <Text style={styles.emptyTitle}>Couldn&apos;t Load Jobs</Text>
           <Text style={styles.emptySubtitle}>
             {describeError(jobsQueryError, { action: 'load job posts' }).body}
           </Text>
           <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Try again</Text>
+            <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       ) : loading ? (
@@ -383,7 +383,7 @@ export default function CachedHireScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>No job posts to show</Text>
+              <Text style={styles.emptyTitle}>No Job Posts to Show</Text>
               <Text style={styles.emptySubtitle}>
                 Direct hire lists open construction job posts from other GCs. Widen the radius or clear the trade filter to see more.
               </Text>

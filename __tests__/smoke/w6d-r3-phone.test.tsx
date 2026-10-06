@@ -292,7 +292,7 @@ describe('lane R3 — phone behaviour', () => {
   it('iOS 390: /leads renders the phone board, never the register', async () => {
     await mountAt('ios', 390, 844, '/leads');
     expect(screen.getAllByText('Rosa Whitfield').length).toBeGreaterThan(0);
-    expect(screen.getByText('New lead by voice')).toBeTruthy();
+    expect(screen.getByText('New Lead by Voice')).toBeTruthy();
     expect(screen.queryByTestId('leads-register')).toBeNull();
   });
   it('iOS 390: /deliveries renders the phone rows, never the register', async () => {
@@ -314,7 +314,7 @@ describe('lane R3 — android 1100 (isDesktop true, desktopWeb false)', () => {
   it('/leads renders the phone board', async () => {
     await mountAt('android', 1100, 800, '/leads');
     expect(screen.getAllByText('Rosa Whitfield').length).toBeGreaterThan(0);
-    expect(screen.getByText('New lead by voice')).toBeTruthy();
+    expect(screen.getByText('New Lead by Voice')).toBeTruthy();
     expect(screen.queryByTestId('leads-register')).toBeNull();
   });
   it('/deliveries renders the phone rows', async () => {

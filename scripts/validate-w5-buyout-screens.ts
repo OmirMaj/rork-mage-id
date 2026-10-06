@@ -2,7 +2,7 @@
 // screens and the A401 subcontract.
 //
 //   #11  package budgets are AT COST; a budget stored at sell is flagged
-//        "Budget includes markup — review" and never counted as savings.
+//        "Budget Includes Markup: Review" and never counted as savings.
 //   #92  deleting a bid is behind a destructive confirm naming vendor and
 //        amount; a sub-filed bid warns his link is closed; the awarded bid
 //        cannot be deleted.
@@ -10,7 +10,7 @@
 //        no Award button, and a refused award says so.
 //   #98  the A401 is numbered by its award commitment and carries a retainage
 //        rate from resolveRetainagePercent (or a blank) — never "#1" and 10%.
-//   #23  (carry) the award gate's "Open COI vault" opens on that sub.
+//   #23  (carry) the award gate's "Open COI Vault" opens on that sub.
 //   #147 (carry, CONTRACT 25) a blocked PDF window on web throws the sentence
 //        the screen shows through pdfFailureMessage, instead of silence.
 //
@@ -70,7 +70,7 @@ eq('US grouping with cents still reads "1,234,567.89"', parseBidAmountInput('1,2
 eq('a trailing point "4800." reads as 4800', parseBidAmountInput('4800.'), 4800);
 ok('an unreadable package budget is refused and said, not saved as $0',
   /const parsedBudget = budgetText \? parseBidAmountInput\(newPkgBudget\) : 0;/.test(list)
-  && /if \(parsedBudget == null\) \{\s*showAlert\('Check the budget'/.test(list));
+  && /if \(parsedBudget == null\) \{\s*showAlert\('Check the Budget'/.test(list));
 eq('a stored $0 has no amount', bidAmountOf({ amount: 0 }), null);
 eq('a stored NaN has no amount', bidAmountOf({ amount: Number.NaN }), null);
 const sorted = [
@@ -97,7 +97,7 @@ ok('the matrix sorts through compareBidsForMatrix', /\[\.\.\.bids\]\.sort\(compa
 ok('LOWEST needs a priced bid with a known leveled cost, and two such bids', /const knownBids = pricedBids\.filter\(b => !needsYourPrice\(b\)\);/.test(screen)
   && /const isLowest = priced && !needsPrice && knownBids\.length > 1 && knownBids\[0\]\.id === bid\.id;/.test(screen));
 ok('the median ignores unpriced bids (and needs-price placeholders)', /const knownBids = pricedBids\.filter\(/.test(screen) && /const leveledTotals = knownBids\.map/.test(screen));
-ok('an unpriced bid shows "Needs an amount" instead of Award', /priced \? \([\s\S]{0,200}styles\.awardBtn[\s\S]{0,1400}Needs an amount — tap to add it/.test(screen));
+ok('an unpriced bid shows "Needs an Amount" instead of Award', /priced \? \([\s\S]{0,200}styles\.awardBtn[\s\S]{0,1400}Needs an amount. Tap to add it./.test(screen));
 ok('the card edits the amount through updateBidPackageBid', /updateBidPackageBid\(amountEditBidId, \{ amount \}\)/.test(screen));
 ok('a sub\'s own number is not editable from the card', /const canEditAmount = !filedBySub && !isAwardedBid;/.test(screen));
 const award = handlerBody(screen, 'handleAward');
@@ -105,7 +105,7 @@ const amountCheck = award.indexOf('bidAmountOf(bid) == null');
 ok('handleAward checks the amount BEFORE the compliance dialogs',
   amountCheck > -1 && amountCheck < award.indexOf('reviewAwardCompliance('));
 ok('a refused award says so instead of closing silently',
-  /if \(!commitmentId\) \{[\s\S]{0,200}showAlert\('Not awarded'/.test(award));
+  /if \(!commitmentId\) \{[\s\S]{0,200}showAlert\('Not Awarded'/.test(award));
 
 // ── #92 — delete behind a confirm ───────────────────────────────────────────
 console.info('\n#92 deleting a bid');
@@ -115,25 +115,25 @@ const del = handlerBody(screen, 'handleDeleteBid');
 ok('the confirm names the vendor and the amount', /Delete \$\{who\}'s bid\$\{amount != null \? ` of \$\{formatMoney\(amount\)\}`/.test(del));
 ok('it is destructive and only its button deletes', /style: 'destructive', onPress: \(\) => deleteBidPackageBid\(bid\.id\)/.test(del));
 ok('a sub-filed bid warns that his link is closed', /if \(filedBySub\)[\s\S]{0,300}That link is closed now/.test(del));
-ok('the awarded bid cannot be deleted, and says why', /Can't delete the awarded bid/.test(del) && /pkg\.awardedBidId === bid\.id/.test(del));
+ok('the awarded bid cannot be deleted, and says why', /Can't Delete the Awarded Bid/.test(del) && /pkg\.awardedBidId === bid\.id/.test(del));
 ok('an invite whose bid was deleted says so instead of "in the matrix below"',
-  /inv\.status === 'bid_deleted' \|\| !inv\.bidId/.test(screen) && /their bid was deleted — re-invite them for a new number/.test(screen));
+  /inv\.status === 'bid_deleted' \|\| !inv\.bidId/.test(screen) && /their bid was deleted, re-invite them for a new number/.test(screen));
 
 // ── #11 — budgets at cost ───────────────────────────────────────────────────
 console.info('\n#11 package budgets are at cost');
 ok('the new-package budget sums lineCost, not lineTotal',
   /\.reduce\(\(s, i\) => s \+ lineCost\(i\), 0\)/.test(list) && !/\.reduce\(\(s, i\) => s \+ i\.lineTotal, 0\)/.test(list));
 ok('the auto-fill keeps cents (no Math.round(computedBudget))', !/Math\.round\(computedBudget\)/.test(list));
-ok('the field reads "Budget at cost", with the sell subtotal beside it',
-  /Budget at cost<\/Text>/.test(list) && /your sell subtotal for it is \$\{formatMoney\(pickedSellSubtotal\)\}/.test(list));
-ok('the explainer compares the award to COST', /what your estimate says that work costs you — before your markup/.test(list));
+ok('the field reads "Budget at Cost", with the sell subtotal beside it',
+  /Budget at Cost<\/Text>/.test(list) && /Your sell subtotal for it is \$\{formatMoney\(pickedSellSubtotal\)\}/.test(list));
+ok('the explainer compares the award to COST', /what your estimate says that work costs you, before your markup/.test(list));
 ok('a typed "12,000" budget is not read as 0', /parseBidAmountInput\(newPkgBudget\)/.test(list) && !/Number\(newPkgBudget\)/.test(list));
 ok('sell-basis packages are left out of savings-to-date and flagged',
-  /\.filter\(p => p\.status === 'awarded' && !sellBasisIds\.has\(p\.id\)\)/.test(list) && /Budget includes markup — review/.test(list));
+  /\.filter\(p => p\.status === 'awarded' && !sellBasisIds\.has\(p\.id\)\)/.test(list) && /Budget Includes Markup: Review/.test(list));
 ok('the package screen withholds savings on a sell-basis budget, with a one-tap fix',
-  /sellBasis \? \(/.test(screen) && /Budget includes markup — review/.test(screen)
+  /sellBasis \? \(/.test(screen) && /Budget Includes Markup: Review/.test(screen)
   && /updateBidPackage\(pkg\.id, \{ estimateBudget: costBudget \}\)/.test(screen));
-ok('the award dialog does not print sell-basis "savings"', /if \(sellBasis\) \{[\s\S]{0,200}not shown — this package\\'s budget includes your markup/.test(award));
+ok('the award dialog does not print sell-basis "savings"', /if \(sellBasis\) \{[\s\S]{0,200}not shown\. This package\\'s budget includes your markup/.test(award));
 
 // ── #98 + #147 + #23 — the subcontract and the carries ───────────────────────
 console.info('\n#98 the A401 subcontract');
@@ -141,14 +141,14 @@ const a401 = handlerBody(screen, 'handleGenerateSubcontract');
 ok('no hard-coded subcontract #1', !/subcontractNumber:\s*1\b/.test(screen));
 ok('no hard-coded 10% retainage', !/retainagePercent:\s*10\b/.test(screen));
 ok('the number is the award commitment\'s own', /awardedCommitmentOf\(pkg, commitments\)/.test(a401) && /subcontractNumber: commitment\.number/.test(a401));
-ok('no commitment → no number, and says why', /Subcontract number assigned on award/.test(a401));
+ok('no commitment → no number, and says why', /subcontract number is assigned on award/.test(a401));
 ok('the sum is the commitment amount', /contractSum: commitment\.amount/.test(a401));
 ok('retainage is resolved, with its source label shown before rendering',
-  /resolveRetainagePercent\(\{/.test(a401) && /\$\{retainage\.percent\}% — \$\{retainage\.label\}/.test(a401));
-ok('no rate on file → ask: blank, or set it on the project', /if \(retainage\.needsAsk\)[\s\S]{0,900}Print it blank[\s\S]{0,80}render\(null\)/.test(a401));
+  /resolveRetainagePercent\(\{/.test(a401) && /\$\{retainage\.percent\}%, \$\{retainage\.label\}/.test(a401));
+ok('no rate on file → ask: blank, or set it on the project', /if \(retainage\.needsAsk\)[\s\S]{0,900}Print It Blank[\s\S]{0,80}render\(null\)/.test(a401));
 ok('a failed PDF shows pdfFailureMessage and no success haptic',
   /catch \(err\) \{[\s\S]{0,200}pdfFailureMessage\(err,/.test(a401));
-ok('#23 "Open COI vault" opens on that sub', /pathname: '\/coi-vault', params: \{ subId: sub\.id \}/.test(screen) && !/router\.push\('\/coi-vault' as never\)/.test(screen));
+ok('#23 "Open COI Vault" opens on that sub', /pathname: '\/coi-vault', params: \{ subId: sub\.id \}/.test(screen) && !/router\.push\('\/coi-vault' as never\)/.test(screen));
 
 // Executed: the A401 renderer and its web print path, native modules stubbed.
 interface VirtualModuleBuilder { module(s: string, cb: () => { exports: Record<string, unknown>; loader: 'object' }): void }

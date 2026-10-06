@@ -80,7 +80,7 @@ const STRICT_ONLY_DIRS = ['utils', 'constants'];
  * grow: a lane that converts more files adds them and raises this number in
  * the same change. A shorter list, or a list this number does not match, fails.
  */
-const CONVERTED_PINNED = 143;
+const CONVERTED_PINNED = 287;
 
 type RuleId =
   | 'R01' | 'R02' | 'R03' | 'R04' | 'R05' | 'R06' | 'R07' | 'R08' | 'R09' | 'R10'

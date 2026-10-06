@@ -99,7 +99,7 @@ describe('estimator — one cent rule and the market-change question', () => {
     const cost = centsOf(tree, 'labor-popup-cost');
     expect(collectText(tree.getByTestId('labor-popup-cost')).join('')).toMatch(/\+15% O&P/);
     expect(preview).toBe(Math.round(cost * 1.15));
-    fireEvent.press(tree.getByText('Add labor'));
+    fireEvent.press(tree.getByText('Add Labor'));
     await settle();
     fireEvent.press(tree.getByTestId('cart-btn'));
     await settle();
@@ -120,7 +120,7 @@ describe('estimator — one cent rule and the market-change question', () => {
     // The row is still at its earlier price (the question is unanswered), so
     // the pop-up says so, instead of printing Portland's prices over it.
     const note = collectText(tree.getByTestId('popup-kept-price-note')).join('');
-    expect(note).toMatch(/Kept at its earlier price/);
+    expect(note).toMatch(/Kept at Its Earlier Price/);
     expect(note).toMatch(/The Portland price book reads/);
     // The qty is prefilled with the row's own, so Line Total IS the row.
     expect(centsOf(tree, 'popup-line-total')).toBe(rowBefore);

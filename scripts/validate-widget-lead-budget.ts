@@ -31,7 +31,7 @@ const NOW = '2026-09-17T12:00:00.000Z';
 
 // Exactly what widget-estimate writes to `scope` (" · "-joined).
 const WIDGET_SCOPE = [
-  'Kitchen remodel', '~180 sq ft', 'premium finishes', 'zip 30301',
+  'Kitchen Remodel', '~180 sq ft', 'premium finishes', 'zip 30301',
   'Instant Estimate shown: $60,000–$95,000', 'Island with a sink', '(from widget on https://acme.build)',
 ].join(' · ');
 const lead = (over: Partial<Lead>): Lead => ({
@@ -42,7 +42,7 @@ console.log('\nwidget ballpark is not the homeowner’s budget (audit round 2, #
 
 // 1. A pre-fix widget lead: range stored in budget_min/max too.
 {
-  const legacy = lead({ scope: WIDGET_SCOPE, projectType: 'Kitchen remodel', budgetMin: 60000, budgetMax: 95000 });
+  const legacy = lead({ scope: WIDGET_SCOPE, projectType: 'Kitchen Remodel', budgetMin: 60000, budgetMax: 95000 });
   ok('recognised as a widget lead', isWidgetLead(legacy));
   const b = widgetBallparkOf(legacy);
   ok('its ballpark reads back from the scope', !!b && b.low === 60000 && b.high === 95000, JSON.stringify(b));
@@ -96,7 +96,7 @@ console.log('\nwidget ballpark is not the homeowner’s budget (audit round 2, #
   ok('widget-setup no longer claims the widget prices from his numbers',
     !/priced from your\s+numbers\. Every/.test(setup) && /not your prices/.test(setup));
   const detail = read('app/lead-detail.tsx');
-  ok('lead-detail labels the range "Widget ballpark shown to them"', /Widget ballpark shown to them/.test(detail));
+  ok('lead-detail labels the range "Widget Ballpark Shown to Them"', /Widget Ballpark Shown to Them/.test(detail));
   // The pipeline list card printed budgetMax || budgetMin raw — the ballpark
   // as "their" budget on every pre-fix widget lead (integration round 3).
   const list = read('app/leads.tsx').replace(/^\s*\/\/.*$/gm, '');

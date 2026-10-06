@@ -27,7 +27,7 @@ function converted(ctx: CopyCtx): { lines: number; priced: number | null } | nul
 export const takeoffToEstimate: TutorialDef = {
   id: 'takeoff-to-estimate',
   version: 1,
-  title: 'Count a plan and price it',
+  title: 'Count a Plan and Price It',
   seconds: 45,
   endsWith: 'Counts from sheet A-101 turned into estimate lines',
   group: 'bid',
@@ -116,9 +116,9 @@ export const takeoffToEstimate: TutorialDef = {
   handoff: {
     pathname: '/takeoff',
     projectParam: 'projectId',
-    realJobLabel: name => `Count the plans for ${name} →`,
+    realJobLabel: name => `Count the plans for ${name}`,
     feature: 'ai_estimate_wizard',
-    paywallLabel: 'Takeoff to estimate comes with Pro — see plans',
+    paywallLabel: 'Takeoff to estimate comes with Pro. See plans.',
     roles: ['owner', 'editor'],
   },
   chainNext: { tutorialId: 'estimate-first', label: 'Next: price a job from a scope · 45 s' },

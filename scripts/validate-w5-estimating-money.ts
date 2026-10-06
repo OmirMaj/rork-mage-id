@@ -1,7 +1,7 @@
 // validate-w5-estimating-money.ts — wave 5, lane "estimating": the money
 // findings, EXECUTED over the pure functions the screens ship.
 //
-//   #8   Drawing Analyzer "Use as starting point": the contingency row lands,
+//   #8   Drawing Analyzer "Use as Starting Point": the contingency row lands,
 //        at his markup, footed to the cent; Append keeps the estimate's ratio.
 //   #91  takeoff Replace / Append on the cent grid.
 //   #10  decimal keypads: parseDecimalInput reads '7,5' as 7.5, never 75.
@@ -37,7 +37,7 @@ let n = 0;
 const id = () => `id_${++n}`;
 
 // ── #8 the Drawing Analyzer's result → the project's estimate ──────────────
-console.log('\n#8 Drawing Analyzer "Use as starting point"');
+console.log('\n#8 Drawing Analyzer "Use as Starting Point"');
 {
   const lines = [
     { name: 'Framing', category: 'Framing', unit: 'LF', quantity: 1000, unitPrice: 60 },
@@ -103,7 +103,7 @@ console.log('\n#91 takeoff Replace on the cent grid');
   eq('123.45 SF × $3.33 at 18% → lineTotal 485.08, baseTotal 411.09, grandTotal 485.08',
     [est.items[0].lineTotal, est.baseTotal, est.grandTotal], [485.08, 411.09, 485.08]);
   eq('…markupTotal is the rounded difference', est.markupTotal, 73.99);
-  eq('…the item keeps its cost unit price and its CSI division', [est.items[0].unitPrice, est.items[0].csiDivision, est.items[0].supplier], [3.33, '09', 'AI Takeoff']);
+  eq('…the item keeps its cost unit price and its CSI Division', [est.items[0].unitPrice, est.items[0].csiDivision, est.items[0].supplier], [3.33, '09', 'AI Takeoff']);
   eq('an unanswered markup adds nothing (the at-cost band says so)', buildNewEstimate(est.items.map(i => ({ ...i, markup: 0, lineTotal: 411.09 })), null, 'e', 'x').grandTotal, 411.09);
 }
 
@@ -119,7 +119,7 @@ console.log('\n#87 the default job');
   eq('accuracy mode → the most recent completed/closed job with commitments', pickEstimateProject(projects, 'accuracy', [{ projectId: 'done' }, { projectId: 'new' }])?.id, 'done');
   eq('…else any job with commitments', pickEstimateProject(projects, 'accuracy', [{ projectId: 'old' }])?.id, 'old');
   eq('…else the most recent job with an estimate', pickEstimateProject(projects, 'accuracy', [])?.id, 'new');
-  eq('no job has estimate lines → null (the screen offers "Build an estimate")', pickEstimateProject([P('a', 'x', 0), P('b', 'y', -1)]), null);
+  eq('no job has estimate lines → null (the screen offers "Build an Estimate")', pickEstimateProject([P('a', 'x', 0), P('b', 'y', -1)]), null);
 }
 
 // ── #10 a decimal typed on a phone keypad ──────────────────────────────────
@@ -149,14 +149,14 @@ console.log('\n#90 Quick Quote');
   eq('the saved price is on the cent grid', quote.tiers[0].price, 2390.98);
   eq('the one option is not flagged "recommended" (nothing to be most popular among)', quote.tiers[0].recommended, false);
   const text = proposalToShareText(quote);
-  ok('the text prints the total to the cent', text.includes('TOTAL — $2,390.98'), text);
+  ok('the text prints the total to the cent', text.includes('Total: $2,390.98'), text);
   ok('…not a whole-dollar rounding', !/\$2,391\b/.test(text));
-  ok('…says QUOTE, not PROPOSAL', text.startsWith('QUOTE — Faucet swap') && !/PROPOSAL/.test(text));
+  ok('…says QUOTE, not PROPOSAL', text.startsWith('QUOTE: Faucet swap') && !/PROPOSAL/.test(text));
   ok('…no "★ Most popular" on the only option', !/Most popular/.test(text));
   ok('…no "Every option" multi-option footer', !/Every option/.test(text));
   ok('…one call to action', (text.match(/Reply to accept this quote\./g) ?? []).length === 1 && !/option that fits best/.test(text));
-  ok('…the line items with their amounts', text.includes('Labor — $1,000.00') && text.includes('Fixture — $1,234.56'));
-  ok('…and the tax it adds', text.includes('Sales tax (7%) — $156.42') && text.includes('Subtotal — $2,234.56'));
+  ok('…the line items with their amounts', text.includes('Labor: $1,000.00') && text.includes('Fixture: $1,234.56'));
+  ok('…and the tax it adds', text.includes('Sales tax (7%): $156.42') && text.includes('Subtotal: $2,234.56'));
   ok('…no "licensed" or "insured" claim when he has saved no licence', !/licen[cs]ed|insured/i.test(text));
   ok('…no empty tagline line under the divider', !/──\n\n  •/.test(text));
   const withLic = proposalToShareText(quote, { licenseNumber: ' 123456 ' });
@@ -166,14 +166,14 @@ console.log('\n#90 Quick Quote');
   // Markup is folded into the lines, never printed as its own row.
   const mq = buildQuickQuote({ ...input, markupPct: 15, taxPct: 0 });
   const mt = proposalToShareText(mq);
-  ok('a marked-up quote prints sell lines, no "Markup" row', mt.includes('Labor — $1,150.00') && mt.includes('Fixture — $1,419.74') && !/markup/i.test(mt));
+  ok('a marked-up quote prints sell lines, no "Markup" row', mt.includes('Labor: $1,150.00') && mt.includes('Fixture: $1,419.74') && !/markup/i.test(mt));
   eq('…and they foot to the total', mq.quick?.total, 2569.74);
   const qt = quickQuoteTotals({ lineItems: input.lineItems, markupPct: 15, taxPct: 7 });
   eq('the screen breakdown foots: cost + markup + tax = total', Math.round((qt.costSubtotal + qt.markup + qt.tax) * 100) / 100, qt.total);
 
   // A quote saved before the breakdown existed still renders.
   const legacy = { ...quote, quick: undefined };
-  ok('a legacy quick quote renders its descriptions and the total', /• Labor\n/.test(proposalToShareText(legacy)) && proposalToShareText(legacy).includes('TOTAL — $2,390.98'));
+  ok('a legacy quick quote renders its descriptions and the total', /• Labor\n/.test(proposalToShareText(legacy)) && proposalToShareText(legacy).includes('Total: $2,390.98'));
 
   // The tiered proposal: no unconditional licensed/insured claim either.
   const tiers = buildProposalTiers({ cost: 100_000, leads: [], typicalMarkup: 0.2 });
@@ -181,7 +181,7 @@ console.log('\n#90 Quick Quote');
   const tieredText = proposalToShareText({ id: 'p', clientName: 'J', tiers: tiers.tiers, status: 'draft', createdAt: 'x', updatedAt: 'x' });
   ok('…nor a "licensed, insured team" footer', !/licensed, insured/i.test(tieredText) && !/insured/i.test(tieredText));
   const licTiers = buildProposalTiers({ cost: 100_000, leads: [], typicalMarkup: 0.2, licenseNumber: 'CSLB 99' });
-  ok('…and states HIS licence on Essential when saved', licTiers.tiers[0].inclusions.includes('Licensed contractor — License #CSLB 99'));
+  ok('…and states HIS licence on Essential when saved', licTiers.tiers[0].inclusions.includes('Licensed contractor, License #CSLB 99'));
 }
 
 // ── #55 the estimate email ─────────────────────────────────────────────────

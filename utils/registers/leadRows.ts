@@ -127,17 +127,17 @@ export const LEAD_KPI_LOADING = 'Loading…';
  */
 export function leadKpiCells(kpi: LeadKpiInput, loaded = true): LeadKpiCell[] {
   const cells: LeadKpiCell[] = [
-    { key: 'open', label: 'Open leads', value: kpi.total },
-    { key: 'awaiting', label: 'Awaiting reply', value: kpi.outstanding, tone: kpi.outstanding > 0 ? 'warn' : undefined },
+    { key: 'open', label: 'Open Leads', value: kpi.total },
+    { key: 'awaiting', label: 'Awaiting Reply', value: kpi.outstanding, tone: kpi.outstanding > 0 ? 'warn' : undefined },
     {
-      key: 'avg', label: 'Avg first reply',
+      key: 'avg', label: 'Avg First Reply',
       value: kpi.avgResponseHours === null ? null : `${kpi.avgResponseHours}h`,
       blockedReason: kpi.avgResponseHours === null ? 'No replies logged yet' : null,
     },
   ];
   const closed = kpi.wonCount + kpi.lostCount;
   cells.push({
-    key: 'win', label: 'Win rate',
+    key: 'win', label: 'Win Rate',
     value: closed > 0 ? `${Math.round((kpi.wonCount / closed) * 100)}%` : null,
     blockedReason: closed > 0 ? null : 'No won or lost leads yet',
   });
@@ -163,11 +163,11 @@ export const LEAD_CSV_COLUMNS: readonly RegisterCsvColumn<LeadRegisterRow>[] = [
   { key: 'name', label: 'Name', csvValue: (r) => text(r.name) },
   { key: 'stage', label: 'Stage', csvValue: (r) => r.stageLabel },
   { key: 'score', label: 'Score', csvValue: (r) => r.score },
-  { key: 'budget', label: 'Stated budget', csvValue: (r) => r.budget },
-  { key: 'waiting', label: 'Waiting (hours)', csvValue: (r) => r.waitingHours },
-  { key: 'firstReply', label: 'First reply (hours)', csvValue: (r) => r.firstReplyHours },
+  { key: 'budget', label: 'Stated Budget', csvValue: (r) => r.budget },
+  { key: 'waiting', label: 'Waiting (Hours)', csvValue: (r) => r.waitingHours },
+  { key: 'firstReply', label: 'First Reply (Hours)', csvValue: (r) => r.firstReplyHours },
   { key: 'received', label: 'Received', csvValue: (r) => logDayKey(r.receivedAt) },
-  { key: 'projectType', label: 'Project type', csvValue: (r) => r.projectType },
+  { key: 'projectType', label: 'Project Type', csvValue: (r) => r.projectType },
   { key: 'source', label: 'Source', csvValue: (r) => r.source },
   { key: 'phone', label: 'Phone', csvValue: (r) => r.phone },
   { key: 'email', label: 'Email', csvValue: (r) => r.email },

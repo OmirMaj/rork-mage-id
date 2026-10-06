@@ -45,7 +45,7 @@ export const QUOTE_LINE = 'Quoted:';
  */
 export function quoteTouchBody(tier: ProposalTier, proposal: TieredProposal): string {
   const lines = [
-    `Sent Instant Bid proposal — ${tier.label} tier.`,
+    `Sent Instant Bid proposal, ${tier.label} tier.`,
     `${QUOTE_LINE} ${formatMoney(tier.amount)}`,
   ];
   if (tier.inclusions.length > 0) lines.push(`Includes: ${tier.inclusions.join('; ')}`);

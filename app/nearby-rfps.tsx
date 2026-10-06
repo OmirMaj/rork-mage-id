@@ -137,7 +137,7 @@ export default function NearbyRfpsScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Client RFPs</Text>
-          <Text style={styles.title}>Projects near you</Text>
+          <Text style={styles.title}>Projects Near You</Text>
         </View>
       </View>
 
@@ -210,10 +210,10 @@ export default function NearbyRfpsScreen() {
                 fetched, so "no projects within N miles yet" was a permanent lie. */}
             <Text style={styles.emptyTitle}>
               {!RFP_BROWSE_ENABLED
-                ? 'Browsing nearby projects isn’t open yet'
+                ? 'Browsing Nearby Projects Isn’t Open Yet'
                 /* Without a location the radius is not applied, so naming it would
                    describe a filter that never ran. */
-                : location ? `No projects within ${radius} miles yet` : 'No projects posted yet'}
+                : location ? `No projects within ${radius} miles yet` : 'No Projects Posted Yet'}
             </Text>
             <Text style={styles.emptyBody}>
               {!RFP_BROWSE_ENABLED
@@ -231,7 +231,7 @@ export default function NearbyRfpsScreen() {
 
         {filtered.map(r => {
           const heroPhoto = (r.photo_urls && r.photo_urls.length > 0) ? r.photo_urls[0] : null;
-          const distanceText = r.distance != null ? `${r.distance.toFixed(1)} mi away` : 'Distance unknown';
+          const distanceText = r.distance != null ? `${r.distance.toFixed(1)} mi away` : 'Distance Unknown';
           const deadline = new Date(r.deadline);
           const daysLeft = Math.floor((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
           return (
@@ -251,11 +251,11 @@ export default function NearbyRfpsScreen() {
                       address on a map. Not an ownership or identity check, so
                       a map pin, never a shield (Phase 0 honesty pass). */}
                   {r.address_verified ? (
-                    <View style={styles.verifyDot} accessible accessibilityLabel="Address found on map">
+                    <View style={styles.verifyDot} accessible accessibilityLabel="Address Found on Map">
                       <MapPin size={10} color={themeColors.textSecondary} strokeWidth={1.75} />
                     </View>
                   ) : (
-                    <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]} accessible accessibilityLabel="Address not found on map">
+                    <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]} accessible accessibilityLabel="Address Not Found on Map">
                       <MapPinOff size={10} color={Colors.warningLabel} strokeWidth={1.75} />
                     </View>
                   )}
@@ -286,7 +286,7 @@ export default function NearbyRfpsScreen() {
                   <View style={[styles.rfpFootChip, daysLeft < 3 ? { backgroundColor: themeColors.danger + '15' } : null]}>
                     <Clock size={11} color={daysLeft < 3 ? themeColors.danger : themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={[styles.rfpFootChipText, daysLeft < 3 ? { color: themeColors.danger } : null]}>
-                      {daysLeft <= 0 ? 'Closing today' : `${daysLeft}d left`}
+                      {daysLeft <= 0 ? 'Closing Today' : `${daysLeft}d left`}
                     </Text>
                   </View>
                   <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />

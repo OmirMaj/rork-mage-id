@@ -68,7 +68,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
           <Crown size={14} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.upgradeTitle}>Takeoffs are on the Pro plan</Text>
+          <Text style={styles.upgradeTitle}>Takeoffs Are on the Pro Plan</Text>
           <Text style={styles.muted}>Tap to see plans.</Text>
         </View>
       </TouchableOpacity>
@@ -103,7 +103,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
               {pendingPages} {pendingPages === 1 ? 'page' : 'pages'}
             </Text>
           ) : (
-            <Text style={styles.title}>Takeoff quota this month</Text>
+            <Text style={styles.title}>Takeoff Quota This Month</Text>
           )}
           <Text style={[styles.subtitle, exceeds && { color: Colors.errorDark }]}>
             {pendingPages != null
@@ -128,7 +128,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
         <View style={styles.exceedRow}>
           <TouchableOpacity onPress={onUpgrade} style={styles.upgradePill} activeOpacity={0.85}>
             <TrendingUp size={12} color={themeColors.surface} strokeWidth={1.75} />
-            <Text style={styles.upgradePillText}>See plans</Text>
+            <Text style={styles.upgradePillText}>See Plans</Text>
           </TouchableOpacity>
         </View>
       )}

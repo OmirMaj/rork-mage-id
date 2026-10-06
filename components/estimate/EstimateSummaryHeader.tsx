@@ -54,12 +54,12 @@ export function EstimateSummaryHeader({ directCost, markups, contingency, itemCo
 
   const fourth = contingency !== undefined
     ? { label: 'Contingency', value: money(contingency), sub: 'Reserve', icon: Package as typeof FileText, tone: 'info' as IconWrapperTone }
-    : { label: 'Line items', value: String(itemCount), sub: itemCount === 1 ? 'item' : 'items', icon: Package as typeof FileText, tone: 'neutral' as IconWrapperTone };
+    : { label: 'Line Items', value: String(itemCount), sub: itemCount === 1 ? 'item' : 'items', icon: Package as typeof FileText, tone: 'neutral' as IconWrapperTone };
 
   const metrics: { label: string; value: string; sub: string; icon: typeof FileText; tone: IconWrapperTone }[] = [
-    { label: 'Total estimate', value: money(totalEstimate), sub: 'Including markups', icon: FileText, tone: 'accent' },
-    { label: 'Total cost', value: money(directCost), sub: 'Direct costs', icon: DollarSign, tone: 'success' },
-    { label: 'Total markups', value: money(markups), sub: `${markupPctLabel.toFixed(2)}% of direct`, icon: Percent, tone: 'warning' },
+    { label: 'Total Estimate', value: money(totalEstimate), sub: 'Including markups', icon: FileText, tone: 'accent' },
+    { label: 'Total Cost', value: money(directCost), sub: 'Direct costs', icon: DollarSign, tone: 'success' },
+    { label: 'Total Markups', value: money(markups), sub: `${markupPctLabel.toFixed(2)}% of direct`, icon: Percent, tone: 'warning' },
     fourth,
   ];
 
@@ -78,15 +78,15 @@ export function EstimateSummaryHeader({ directCost, markups, contingency, itemCo
 
       <View style={styles.summary}>
         <View style={styles.summaryLeft}>
-          <Text style={styles.summaryLabel}>Estimate summary</Text>
-          <View style={styles.sumRow}><Text style={styles.sumK}>Total cost</Text><Text style={styles.sumV}>{money(directCost)}</Text></View>
-          <View style={styles.sumRow}><Text style={styles.sumK}>Total markups</Text><Text style={styles.sumV}>{money(markups)}</Text></View>
+          <Text style={styles.summaryLabel}>Estimate Summary</Text>
+          <View style={styles.sumRow}><Text style={styles.sumK}>Total Cost</Text><Text style={styles.sumV}>{money(directCost)}</Text></View>
+          <View style={styles.sumRow}><Text style={styles.sumK}>Total Markups</Text><Text style={styles.sumV}>{money(markups)}</Text></View>
           {contingency !== undefined && (
             <View style={styles.sumRow}><Text style={styles.sumK}>Contingency</Text><Text style={styles.sumV}>{money(contingency)}</Text></View>
           )}
           <View style={styles.sumDivider} />
           <View style={styles.sumGrand}>
-            <Text style={styles.sumGrandK}>Grand total</Text>
+            <Text style={styles.sumGrandK}>Grand Total</Text>
             <Text style={styles.sumGrandV}>{money(totalEstimate)}</Text>
           </View>
         </View>
@@ -106,7 +106,7 @@ export function EstimateSummaryHeader({ directCost, markups, contingency, itemCo
           </View>
           <View style={styles.legend}>
             <View style={styles.legendRow}><View style={[styles.dot, { backgroundColor: colors.accent }]} /><Text style={styles.legendK}>Markup</Text></View>
-            <View style={styles.legendRow}><View style={[styles.dot, { backgroundColor: colors.textMuted }]} /><Text style={styles.legendK}>Direct cost</Text></View>
+            <View style={styles.legendRow}><View style={[styles.dot, { backgroundColor: colors.textMuted }]} /><Text style={styles.legendK}>Direct Cost</Text></View>
           </View>
         </View>
       </View>

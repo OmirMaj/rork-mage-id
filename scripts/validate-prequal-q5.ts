@@ -50,8 +50,8 @@ ok('the auto-review runs only on a submitted packet',
   /const review = packet && packet\.status === 'submitted' \? reviewPrequalPacket\(packet\) : null;/.test(award));
 ok('no award path turns raw auto-review findings into blockers any more',
   !/for \(const f of review\.findings\)/.test(award));
-ok('a missing packet is still the quiet note + Request prequal',
-  /notes\.push\([^)]*No prequal packet/.test(award) && /Request prequal/.test(award));
+ok('a missing packet is still the quiet note + Request Prequal',
+  /notes\.push\([^)]*No prequal packet/.test(award) && /Request Prequal/.test(award));
 
 // ── 2-4. the sub's form ───────────────────────────────────────────────────
 console.log('\napp/prequal-form.tsx:');
@@ -72,7 +72,7 @@ ok('an approved packet is locked and every input reads the lock',
   /const locked = status === 'approved' \|\| refused;/.test(pf)
   && /editable=\{!locked\}/.test(pf) && /disabled=\{locked\}/.test(pf)
   && /<FormLockContext\.Provider value=\{locked\}>/.test(pf));
-ok('the lock is explained on screen', /Approved — answers locked/.test(pf) && /This link no longer accepts changes/.test(pf));
+ok('the lock is explained on screen', /Approved, Answers Locked/.test(pf) && /This link no longer accepts changes/.test(pf));
 ok('an unreadable typed date is caught before submit and shown under the field (once typing stops)',
   /unreadableDates\.length > 0/.test(submit)
   && /error=\{typingDates\.has\('coi'\) \? undefined : dateError\(insurance\.coiExpiry\)\}/.test(pf)
@@ -97,8 +97,8 @@ ok('the invite is signed with the GC\'s company, not "MAGE ID"',
   /signOff\n?\s*\);/.test(invite) && !/Thanks,\\nMAGE ID/.test(pm)
   && /prequalSignOff\(settings\?\.branding\?\.companyName\)/.test(pm));
 ok('a failed mail open offers the link to copy instead of doing nothing',
-  !/\.catch\(\(\) => \{\}\)/.test(invite) && /Invite saved, not emailed/.test(invite)
-  && /composeMailOrOfferLink\(\{/.test(invite) && /Invite ready to send/.test(invite));
+  !/\.catch\(\(\) => \{\}\)/.test(invite) && /Invite Saved, Not Emailed/.test(invite)
+  && /composeMailOrOfferLink\(\{/.test(invite) && /Invite Ready to Send/.test(invite));
 // Review r1: on react-native-web Linking.openURL resolves whenever window.open
 // does not throw, so the "opened" branch is the ONLY branch the web app ever
 // sees. It must carry the link too, and must not claim the mail app opened.
@@ -106,7 +106,7 @@ const mailHelper = between(code('utils/prequalMail.ts'), 'export async function 
 const readyBranch = mailHelper.slice(mailHelper.indexOf('if (!opened)'));
 const readyTail = readyBranch.slice(readyBranch.indexOf('return;'));
 ok('the RESOLVED open (all the web app ever sees) still offers Copy link',
-  /const copyLink = \{ text: 'Copy link', onPress: \(\) => \{ void copyToClipboard\(p\.link\); \} \};/.test(mailHelper)
+  /const copyLink = \{ text: 'Copy Link', onPress: \(\) => \{ void copyToClipboard\(p\.link\); \} \};/.test(mailHelper)
   && /showAlert\(\s*p\.ready\.title,/.test(readyTail) && /\[\{ text: 'Done', style: 'cancel' \}, copyLink\]/.test(readyTail));
 ok('on the web the resolved open says the mail app SHOULD open, never that it did',
   /Platform\.OS === 'web' \? p\.ready\.webBody : p\.ready\.nativeBody/.test(readyTail)

@@ -49,7 +49,7 @@ export function bidsFeedFreshness(
     if (ms !== null && (newest === null || ms > newest)) newest = ms;
   }
   if (newest === null) {
-    return { newestFetchedAt: null, ageHours: null, label: 'Not checked', stale: false, notChecked: true };
+    return { newestFetchedAt: null, ageHours: null, label: 'Not Checked', stale: false, notChecked: true };
   }
   const ageHours = Math.max(0, Math.floor((nowMs - newest) / 3_600_000));
   let label: string;

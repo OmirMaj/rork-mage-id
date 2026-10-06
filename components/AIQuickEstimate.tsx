@@ -85,12 +85,12 @@ const QUALITY_TIERS: { id: QualityTier; label: string; desc: string }[] = [
 ];
 
 const QUICK_PROMPTS = [
-  { label: 'Kitchen remodel', prompt: 'Complete kitchen remodel with new cabinets, countertops, flooring, lighting, backsplash, and appliance prep', sqft: 150, type: 'remodel' as ProjectType },
-  { label: 'Bathroom remodel', prompt: 'Full bathroom remodel including new tile, vanity, toilet, shower/tub, plumbing fixtures, and lighting', sqft: 60, type: 'remodel' as ProjectType },
-  { label: 'Basement finish', prompt: 'Finish unfinished basement with framing, insulation, drywall, flooring, electrical, bathroom, and paint', sqft: 800, type: 'renovation' as ProjectType },
-  { label: 'Deck build', prompt: 'Build a new composite deck with railing, stairs, and post footings', sqft: 300, type: 'addition' as ProjectType },
-  { label: 'Roof replacement', prompt: 'Full roof tear-off and replacement with architectural shingles, underlayment, flashing, and ridge vents', sqft: 2000, type: 'roofing' as ProjectType },
-  { label: 'Room addition', prompt: 'Single room addition including foundation, framing, roofing, insulation, drywall, electrical, HVAC, and finishes', sqft: 200, type: 'addition' as ProjectType },
+  { label: 'Kitchen Remodel', prompt: 'Complete kitchen remodel with new cabinets, countertops, flooring, lighting, backsplash, and appliance prep', sqft: 150, type: 'remodel' as ProjectType },
+  { label: 'Bathroom Remodel', prompt: 'Full bathroom remodel including new tile, vanity, toilet, shower/tub, plumbing fixtures, and lighting', sqft: 60, type: 'remodel' as ProjectType },
+  { label: 'Basement Finish', prompt: 'Finish unfinished basement with framing, insulation, drywall, flooring, electrical, bathroom, and paint', sqft: 800, type: 'renovation' as ProjectType },
+  { label: 'Deck Build', prompt: 'Build a new composite deck with railing, stairs, and post footings', sqft: 300, type: 'addition' as ProjectType },
+  { label: 'Roof Replacement', prompt: 'Full roof tear-off and replacement with architectural shingles, underlayment, flashing, and ridge vents', sqft: 2000, type: 'roofing' as ProjectType },
+  { label: 'Room Addition', prompt: 'Single room addition including foundation, framing, roofing, insulation, drywall, electrical, HVAC, and finishes', sqft: 200, type: 'addition' as ProjectType },
   { label: 'Whole-house paint', prompt: 'Interior paint for entire home — walls, ceilings, trim, 2 coats with primer', sqft: 2000, type: 'painting' as ProjectType },
   { label: 'Fence install', prompt: 'Install 6ft wood privacy fence around backyard with one gate, posts, and staining', sqft: 0, type: 'landscape' as ProjectType },
 ];
@@ -180,11 +180,11 @@ export default React.memo(function AIQuickEstimate({
 
   const handleGenerate = useCallback(async () => {
     if (!description.trim()) {
-      showAlert('Describe the project', 'Add a short description of the work so MAGE can build the estimate.');
+      showAlert('Describe the Project', 'Add a short description of the work so MAGE can build the estimate.');
       return;
     }
     if (typeBlock) {
-      showAlert('Describe the project', typeBlock);
+      showAlert('Describe the Project', typeBlock);
       return;
     }
 
@@ -293,7 +293,7 @@ export default React.memo(function AIQuickEstimate({
         // estimator settled on at app/(tabs)/estimate/full.tsx:441.
         supplier: 'AI estimate',
         pricingModel: 'market',
-        sourceLabel: matched ? 'Matched' : 'AI estimate — not a supplier quote',
+        sourceLabel: matched ? 'Matched' : 'AI estimate, not a supplier quote',
       };
 
       return {
@@ -350,7 +350,7 @@ export default React.memo(function AIQuickEstimate({
     const nLab = laborItems.length;
     const nAsm = assemblyItems.length;
     showAlert(
-      'Estimate generated',
+      'Estimate Generated',
       `Added ${nMat} ${nMat === 1 ? 'material' : 'materials'}, ${nLab} ${nLab === 1 ? 'labor item' : 'labor items'} and ${nAsm} ${nAsm === 1 ? 'assembly' : 'assemblies'} to your estimate.`,
     );
   }, [result, matchMaterial, globalMarkup, calculateAssemblyCost, onApplyEstimate, handleClose]);
@@ -380,14 +380,14 @@ export default React.memo(function AIQuickEstimate({
         <View style={s.heroIconWrap}>
           <MageAIMark size={28} color={Colors.primary} />
         </View>
-        <Text style={s.heroTitle}>Quick estimate</Text>
+        <Text style={s.heroTitle}>Quick Estimate</Text>
         <Text style={s.heroDesc}>
           Describe the project. MAGE drafts an itemized estimate with materials, labor and assemblies.
         </Text>
       </View>
 
       <View style={s.quickPromptsSection}>
-        <Text style={s.sectionLabel}>Quick start</Text>
+        <Text style={s.sectionLabel}>Quick Start</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickPromptsRow}>
           {QUICK_PROMPTS.map((p, i) => (
             <TouchableOpacity
@@ -403,12 +403,12 @@ export default React.memo(function AIQuickEstimate({
       </View>
 
       <View style={s.inputSection}>
-        <Text style={s.sectionLabel}>Project description</Text>
+        <Text style={s.sectionLabel}>Project Description</Text>
         <TextInput
           style={s.descInput}
           value={description}
           onChangeText={setDescription}
-          placeholder="e.g., 2,500 sq ft kitchen remodel with mid-range finishes, new cabinets, countertops, flooring, lighting"
+          placeholder="2,500 sq ft kitchen remodel with mid-range finishes, new cabinets, countertops, flooring, lighting"
           placeholderTextColor={t.textMuted}
           multiline
           numberOfLines={4}
@@ -420,7 +420,7 @@ export default React.memo(function AIQuickEstimate({
       <View style={s.detailsRow}>
         <View style={s.detailField}>
           <Text style={s.detailLabel}>
-            <Ruler size={12} color={t.textSecondary} strokeWidth={1.75} /> Sq ft
+            <Ruler size={12} color={t.textSecondary} strokeWidth={1.75} /> Sq Ft
           </Text>
           <TextInput
             style={s.detailInput}
@@ -436,13 +436,13 @@ export default React.memo(function AIQuickEstimate({
             <MapPin size={12} color={t.textSecondary} strokeWidth={1.75} /> Location
           </Text>
           <View style={s.locationBadge}>
-            <Text style={s.locationText} numberOfLines={1}>{location || 'US average'}</Text>
+            <Text style={s.locationText} numberOfLines={1}>{location || 'US Average'}</Text>
           </View>
         </View>
       </View>
 
       <View style={s.inputSection}>
-        <Text style={s.sectionLabel}>Project type</Text>
+        <Text style={s.sectionLabel}>Project Type</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.typeRow}>
           {/* Q6: every type, not the first eight — Painting, Plumbing,
               Electrical and Concrete were unreachable. It already scrolls. */}
@@ -453,7 +453,7 @@ export default React.memo(function AIQuickEstimate({
               onPress={() => { setProjectType(pt.id); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
               activeOpacity={0.7}
             >
-              <Text style={[s.typeChipText, projectType === pt.id && s.typeChipTextActive]}>{pt.id === 'other' ? 'Other (describe it)' : pt.label}</Text>
+              <Text style={[s.typeChipText, projectType === pt.id && s.typeChipTextActive]}>{pt.id === 'other' ? 'Other (Describe It)' : pt.label}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -463,7 +463,7 @@ export default React.memo(function AIQuickEstimate({
               style={s.detailInput}
               value={projectTypeOther}
               onChangeText={setProjectTypeOther}
-              placeholder="Describe the project, e.g. Whole-house repipe"
+              placeholder="Whole-house repipe"
               placeholderTextColor={t.textMuted}
               maxLength={PROJECT_TYPE_OTHER_MAX}
               testID="ai-type-other"
@@ -474,7 +474,7 @@ export default React.memo(function AIQuickEstimate({
       </View>
 
       <View style={s.inputSection}>
-        <Text style={s.sectionLabel}>Finish level</Text>
+        <Text style={s.sectionLabel}>Finish Level</Text>
         <View style={s.qualityRow}>
           {QUALITY_TIERS.map(q => (
             <TouchableOpacity
@@ -505,7 +505,7 @@ export default React.memo(function AIQuickEstimate({
         testID="ai-generate-btn"
       >
         <MageAIMark size={20} color="#FFF" />
-        <Text style={s.generateBtnText}>Generate estimate</Text>
+        <Text style={s.generateBtnText}>Generate Estimate</Text>
       </TouchableOpacity>
 
       {/* This used to claim the estimate was based on live market pricing.
@@ -527,7 +527,7 @@ export default React.memo(function AIQuickEstimate({
       <Animated.View style={[s.loadingIcon, { opacity: pulseAnim }]}>
         <MageAIMark size={48} color={Colors.primary} />
       </Animated.View>
-      <Text style={s.loadingTitle}>Generating estimate</Text>
+      <Text style={s.loadingTitle}>Generating Estimate</Text>
       <Text style={s.loadingDesc}>
         This takes 20 to 40 seconds. If it runs out of time, you get a placeholder estimate.
       </Text>
@@ -561,7 +561,7 @@ export default React.memo(function AIQuickEstimate({
           if (Platform.OS !== 'web') void Haptics.selectionAsync();
         }}
         accessibilityRole="button"
-        accessibilityLabel="Cancel estimate"
+        accessibilityLabel="Cancel Estimate"
       >
         <Text style={s.cancelLoadingText}>Cancel</Text>
       </TouchableOpacity>
@@ -597,7 +597,7 @@ export default React.memo(function AIQuickEstimate({
 
           <View style={s.totalCard}>
             <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Estimated total</Text>
+              <Text style={s.totalLabel}>Estimated Total</Text>
               <Text style={s.totalValue}>${estimatedTotals.grand.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</Text>
             </View>
             <View style={s.totalDivider} />
@@ -633,7 +633,7 @@ export default React.memo(function AIQuickEstimate({
 
           {result.projectSummary ? (
             <View style={s.summaryCard}>
-              <Text style={s.summaryLabel}>Scope summary</Text>
+              <Text style={s.summaryLabel}>Scope Summary</Text>
               <Text style={s.summaryText}>{result.projectSummary}</Text>
             </View>
           ) : null}
@@ -687,7 +687,7 @@ export default React.memo(function AIQuickEstimate({
             </View>
           ))}
 
-          {renderCollapsible('additional', 'Additional costs', DollarSign, t.textSecondary, () => (
+          {renderCollapsible('additional', 'Additional Costs', DollarSign, t.textSecondary, () => (
             <View style={s.itemsList}>
               {(result.additionalCosts?.permits ?? 0) > 0 && (
                 <View style={s.itemRow}>
@@ -728,7 +728,7 @@ export default React.memo(function AIQuickEstimate({
             <View style={s.warningsCard}>
               <View style={s.warningsHeader}>
                 <AlertTriangle size={14} color={t.warningLabel} strokeWidth={1.75} />
-                <Text style={s.warningsTitle}>Watch out</Text>
+                <Text style={s.warningsTitle}>Watch Out</Text>
               </View>
               {(result.warnings ?? []).map((w, i) => (
                 <Text key={i} style={s.warningItem}>• {w}</Text>
@@ -740,7 +740,7 @@ export default React.memo(function AIQuickEstimate({
             <View style={s.tipsCard}>
               <View style={s.tipsHeader}>
                 <TrendingDown size={14} color={t.successLabel} strokeWidth={1.75} />
-                <Text style={s.tipsTitle}>Savings tips</Text>
+                <Text style={s.tipsTitle}>Savings Tips</Text>
               </View>
               {(result.savingsTips ?? []).map((t, i) => (
                 <Text key={i} style={s.tipItem}>• {t}</Text>
@@ -750,12 +750,12 @@ export default React.memo(function AIQuickEstimate({
 
           <TouchableOpacity style={s.applyBtn} onPress={handleApply} activeOpacity={0.8} testID="ai-apply-btn">
             <MageAIMark size={20} color="#FFF" />
-            <Text style={s.applyBtnText}>Add all to estimate</Text>
+            <Text style={s.applyBtnText}>Add All to Estimate</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={s.regenerateBtn} onPress={handleReset} activeOpacity={0.7}>
             <MageAIMark size={14} color={Colors.primary} />
-            <Text style={s.regenerateBtnText}>Start over</Text>
+            <Text style={s.regenerateBtnText}>Start Over</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
@@ -802,7 +802,7 @@ export default React.memo(function AIQuickEstimate({
           <View style={s.modalTitleRow}>
             <View style={s.modalTitleLeft}>
               <MageAIMark size={20} color={Colors.primary} />
-              <Text style={s.modalTitle}>Estimate from a description</Text>
+              <Text style={s.modalTitle}>Estimate from a Description</Text>
             </View>
             <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
           </View>

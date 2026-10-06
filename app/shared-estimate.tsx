@@ -50,7 +50,7 @@ export default function SharedEstimateScreen() {
         <Stack.Screen options={{ title: 'Proposal' }} />
         <View style={styles.errWrap}>
           <AlertCircle size={40} color="#6C7480" strokeWidth={1.5} />
-          <Text style={styles.errTitle}>Proposal not found</Text>
+          <Text style={styles.errTitle}>Proposal Not Found</Text>
           <Text style={styles.errDesc}>This link is invalid or has expired. Ask your contractor to resend it.</Text>
         </View>
       </View>
@@ -71,7 +71,7 @@ export default function SharedEstimateScreen() {
           </Text>
         )}
 
-        <Text style={styles.totalLabel}>Project total</Text>
+        <Text style={styles.totalLabel}>Project Total</Text>
         <Text style={styles.total}>{money(payload.total)}</Text>
         {/* Valid-until (T2). Once the day has passed on this device's
             calendar, the page says so and names who to ask, instead of
@@ -80,7 +80,7 @@ export default function SharedEstimateScreen() {
           ? <Text style={styles.valid} testID="shared-estimate-valid-expired">{expiredValidityLine(payload.valid, payload.gc)}</Text>
           : <Text style={styles.valid}>Proposal · valid through {formatCalendarDay(payload.valid)}</Text>)}
 
-        <Text style={styles.section}>Scope of work</Text>
+        <Text style={styles.section}>Scope of Work</Text>
         <View style={styles.card}>
           {payload.scope.map((g, i) => (
             <View key={g.k} style={[styles.row, i < payload.scope.length - 1 && styles.rowBorder]}>
@@ -92,7 +92,7 @@ export default function SharedEstimateScreen() {
 
         {!!payload.allow?.length && (
           <>
-            <Text style={styles.section}>Allowances included</Text>
+            <Text style={styles.section}>Allowances Included</Text>
             <View style={styles.card}>
               {payload.allow.map((a, i) => (
                 <View key={`${a.n}-${i}`} style={[styles.row, i < payload.allow!.length - 1 && styles.rowBorder]}>
@@ -106,7 +106,7 @@ export default function SharedEstimateScreen() {
 
         {!!payload.pay?.length && (
           <>
-            <Text style={styles.section}>Payment schedule</Text>
+            <Text style={styles.section}>Payment Schedule</Text>
             <View style={styles.card}>
               {payload.pay.map((m, i) => (
                 <View key={`${m.l}-${i}`} style={[styles.payRow, i < payload.pay!.length - 1 && styles.rowBorder]}>
@@ -133,7 +133,7 @@ export default function SharedEstimateScreen() {
             )}
             {!!payload.exc?.length && (
               <View style={styles.inclCol}>
-                <Text style={styles.inclHeadEx}>Not included</Text>
+                <Text style={styles.inclHeadEx}>Not Included</Text>
                 {payload.exc.map((s, i) => (
                   <View key={i} style={styles.inclRow}><XIcon size={12} color="#6C7480" strokeWidth={2.5} /><Text style={styles.inclText}>{s}</Text></View>
                 ))}
@@ -148,7 +148,7 @@ export default function SharedEstimateScreen() {
             only the contact details the contractor actually saved. */}
         {proceed ? (
           <View style={styles.proceed} testID="shared-estimate-proceed">
-            <Text style={styles.proceedTitle}>To proceed</Text>
+            <Text style={styles.proceedTitle}>To Proceed</Text>
             <Text style={styles.proceedText}>{proceed.sentence}</Text>
             {proceed.phone ? (
               <TouchableOpacity

@@ -198,7 +198,7 @@ export default function PrequalFormScreen() {
       // Q5: said once, then the form locks (PrequalFormInner) — it used to pop
       // on every autosave pause, forever.
       showAlert(
-        mode === 'submit' ? 'Not submitted' : 'Couldn\'t save',
+        mode === 'submit' ? 'Not Submitted' : 'Couldn\'t Save',
         'This link no longer accepts changes. The packet may have been approved, or the invite link expired or was replaced. Your answers are still on this screen, so ask your contractor for a fresh link.',
       );
       return 'refused';
@@ -225,7 +225,7 @@ export default function PrequalFormScreen() {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ErrorState
-          title={!token ? 'Missing link' : 'Link expired or invalid'}
+          title={!token ? 'Missing Link' : 'Link Expired or Invalid'}
           body={!token
             ? 'This page was opened without a valid token. Open the invite link from your email again.'
             : 'No prequalification packet matches this link, or it has expired. Ask your contractor to resend the invite.'}
@@ -240,7 +240,7 @@ export default function PrequalFormScreen() {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ErrorState
-          title={loadError?.title ?? "That didn't go through"}
+          title={loadError?.title ?? "That Didn't Go Through"}
           body={loadError?.body ?? 'MAGE couldn\'t open your prequal packet. Try again in a moment.'}
           onRetry={() => { setLoadError(null); setLoadState('loading'); setReloadNonce(n => n + 1); }}
           onBack={() => router.back()}
@@ -361,7 +361,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
     // gate below (which used to catch an unreadable licence date first and say
     // "cannot be auto-approved").
     if (unreadableDates.length > 0) {
-      showAlert('Check the dates',
+      showAlert('Check the Dates',
         `${unreadableDates.join(', ')} ${unreadableDates.length === 1 ? 'is' : 'are'} not a date we can read. Enter ${unreadableDates.length === 1 ? 'it' : 'each one'} as YYYY-MM-DD, for example 2026-12-31.`);
       return;
     }
@@ -377,7 +377,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
       && !['cg_20_10', 'cg_20_37', 'w9', 'workers_comp', 'cgl_per_occurrence', 'cgl_aggregate'].includes(f.criterion)
     );
     if (hardFail) {
-      showAlert('Can\'t submit yet',
+      showAlert('Can\'t Submit Yet',
         'Some criteria can\'t be auto-approved. Review the checklist above. Your contractor may still accept with context in the notes, so reach out to them directly.');
       return;
     }
@@ -469,7 +469,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           {/* Q5: name who is asking — a form that asks for revenue and
               insurance limits and names nobody reads like phishing. */}
           <Text style={styles.headerEyebrow} numberOfLines={1} testID="prequal-requester">
-            {gcName ? `Prequalification for ${gcName}` : 'Prequalification request'}
+            {gcName ? `Prequalification for ${gcName}` : 'Prequalification Request'}
           </Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{subCompanyName}</Text>
         </View>
@@ -495,7 +495,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
                 : <AlertTriangle size={18} color={Colors.warningLabel} strokeWidth={1.75} />}
               <View style={{ flex: 1 }}>
                 <Text style={styles.decisionTitle}>
-                  {status === 'approved' ? 'Approved — answers locked' : 'This link no longer accepts changes'}
+                  {status === 'approved' ? 'Approved, Answers Locked' : 'This link no longer accepts changes'}
                 </Text>
                 <Text style={styles.decisionBody}>
                   {status === 'approved'
@@ -512,7 +512,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
               <AlertTriangle size={18} color={rejected ? themeColors.danger : Colors.warningLabel} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.decisionTitle}>
-                  {needsChanges ? `${gcName || 'Your contractor'} asked for changes` : 'Not approved'}
+                  {needsChanges ? `${gcName || 'Your contractor'} asked for changes` : 'Not Approved'}
                   {reviewedOn ? ` · ${reviewedOn}` : ''}
                 </Text>
                 {packet.reviewerNotes ? (
@@ -534,9 +534,9 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           <View style={styles.introCard}>
             <ShieldCheck size={18} color={themeColors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.introTitle}>About this form</Text>
+              <Text style={styles.introTitle}>About This Form</Text>
               <Text style={styles.introBody}>
-                {gcName ? `${gcName} is` : 'Your GC is'} collecting standard compliance docs — COI limits, licenses, safety
+                {gcName ? `${gcName} is` : 'Your GC is'} collecting standard compliance docs: COI limits, licenses, safety
                 record. It takes about 10 minutes, everything autosaves, and you don{"\u2019"}t need an
                 account. When you{"\u2019"}re done, tap Submit and they{"\u2019"}ll review within a day or two.
               </Text>
@@ -551,10 +551,10 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               {preview.overall === 'pass' && <CheckCircle2 size={Type.footnote.fontSize} color={themeColors.success} strokeWidth={2} />}
               <Text style={styles.checklistTitle}>
-                {preview.overall === 'pass' ? 'Ready to submit'
+                {preview.overall === 'pass' ? 'Ready to Submit'
                   : preview.missingFields.length > 0
                     ? `${preview.missingFields.length} field${preview.missingFields.length === 1 ? '' : 's'} left`
-                    : 'Review the flags below'}
+                    : 'Review the Flags Below'}
               </Text>
             </View>
             {preview.missingFields.length > 0 && (
@@ -563,39 +563,39 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           </View>
 
           {/* ── Financials ──────────────────────────────── */}
-          <SectionHeader icon={<DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Company and financials" />
+          <SectionHeader icon={<DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Company and Financials" />
 
-          <Field label="Years in business"
+          <Field label="Years in Business"
             value={financials.yearsInBusiness?.toString() ?? ''}
             onChangeText={(v) => patchFin({ yearsInBusiness: toNum(v) })}
-            keyboardType="number-pad" placeholder="e.g. 8" />
+            keyboardType="number-pad" placeholder="8" />
 
-          <Field label="Annual revenue (USD)"
+          <Field label="Annual Revenue (USD)"
             value={financials.annualRevenue?.toString() ?? ''}
             onChangeText={(v) => patchFin({ annualRevenue: toNum(v) })}
             keyboardType="number-pad" placeholder="Last 12 months" />
 
-          <Field label="Largest project completed (USD)"
+          <Field label="Largest Project Completed (USD)"
             value={financials.largestProjectCompleted?.toString() ?? ''}
             onChangeText={(v) => patchFin({ largestProjectCompleted: toNum(v) })}
             keyboardType="number-pad" placeholder="Largest contract value" />
 
           <Row>
             <View style={{ flex: 1 }}>
-              <Field label="Single-project bonding"
+              <Field label="Single-Project Bonding"
                 value={financials.bondingCapacitySingle?.toString() ?? ''}
                 onChangeText={(v) => patchFin({ bondingCapacitySingle: toNum(v) })}
                 keyboardType="number-pad" placeholder="Leave blank if unbonded" />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="Aggregate bonding"
+              <Field label="Aggregate Bonding"
                 value={financials.bondingCapacityAggregate?.toString() ?? ''}
                 onChangeText={(v) => patchFin({ bondingCapacityAggregate: toNum(v) })}
                 keyboardType="number-pad" placeholder="Aggregate cap" />
             </View>
           </Row>
 
-          <Field label="Bank reference (optional)"
+          <Field label="Bank Reference (Optional)"
             value={financials.bankReference ?? ''}
             onChangeText={(v) => patchFin({ bankReference: v })}
             placeholder="Bank name and contact" />
@@ -605,13 +605,13 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
 
           <Row>
             <View style={{ flex: 1 }}>
-              <Field label="CGL per occurrence"
+              <Field label="CGL per Occurrence"
                 value={insurance.cglPerOccurrence?.toString() ?? ''}
                 onChangeText={(v) => patchIns({ cglPerOccurrence: toNum(v) })}
                 keyboardType="number-pad" placeholder={`$${packet.criteria.minCglPerOccurrence.toLocaleString()} min`} />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="CGL aggregate"
+              <Field label="CGL Aggregate"
                 value={insurance.cglAggregate?.toString() ?? ''}
                 onChangeText={(v) => patchIns({ cglAggregate: toNum(v) })}
                 keyboardType="number-pad" placeholder={`$${packet.criteria.minCglAggregate.toLocaleString()} min`} />
@@ -620,7 +620,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
 
           <Row>
             <View style={{ flex: 1 }}>
-              <Field label="Auto liability"
+              <Field label="Auto Liability"
                 value={insurance.autoLiability?.toString() ?? ''}
                 onChangeText={(v) => patchIns({ autoLiability: toNum(v) })}
                 keyboardType="number-pad" placeholder="Vehicles/fleet" />
@@ -633,18 +633,18 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
             </View>
           </Row>
 
-          <Field label="COI expiry date (YYYY-MM-DD)"
+          <Field label="COI Expiry Date (YYYY-MM-DD)"
             value={insurance.coiExpiry ?? ''}
             onChangeText={(v) => { markTyping('coi', true); patchIns({ coiExpiry: v }); }}
             onBlur={tidyCoiDate}
             error={typingDates.has('coi') ? undefined : dateError(insurance.coiExpiry)}
             placeholder="2026-12-31" autoCapitalize="none" />
 
-          <ToggleRow label="Workers’ comp policy active"
+          <ToggleRow label="Workers’ Comp Policy Active"
             value={!!insurance.workersCompActive}
             onValueChange={(v) => patchIns({ workersCompActive: v })} />
           {insurance.workersCompActive && (
-            <Field label="Workers’ comp carrier"
+            <Field label="Workers’ Comp Carrier"
               value={insurance.workersCompCarrier ?? ''}
               onChangeText={(v) => patchIns({ workersCompCarrier: v })}
               placeholder="Carrier name" />
@@ -656,15 +656,15 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           <ToggleRow label="CG 20 37 endorsement (completed ops)"
             value={!!insurance.hasCG2037}
             onValueChange={(v) => patchIns({ hasCG2037: v })} />
-          <ToggleRow label="Waiver of subrogation"
+          <ToggleRow label="Waiver of Subrogation"
             value={!!insurance.waiverOfSubrogation}
             onValueChange={(v) => patchIns({ waiverOfSubrogation: v })} />
 
           {/* ── Safety ──────────────────────────────── */}
-          <SectionHeader icon={<HardHat size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Safety record" />
+          <SectionHeader icon={<HardHat size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Safety Record" />
 
           <Text style={styles.helperText}>
-            3-year EMR (Experience Modification Rate). Lower is better — 1.0 is industry average.
+            3-year EMR (Experience Modification Rate). Lower is better. 1.0 is the industry average.
           </Text>
           <Row>
             {(['Year 1', 'Year 2', 'Year 3'] as const).map((label, i) => (
@@ -677,12 +677,12 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
                     cur[i] = toNum(v);
                     patchSafety({ emr3yr: cur });
                   }}
-                  keyboardType="decimal-pad" placeholder="e.g. 0.87" />
+                  keyboardType="decimal-pad" placeholder="0.87" />
               </View>
             ))}
           </Row>
 
-          <ToggleRow label="Written safety program on file"
+          <ToggleRow label="Written Safety Program on File"
             value={!!safety.writtenSafetyProgram}
             onValueChange={(v) => patchSafety({ writtenSafetyProgram: v })} />
           <ToggleRow label="Recordable incident in last 3 years"
@@ -694,8 +694,8 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
 
           {licenses.length === 0 && (
             <Text style={styles.helperText}>
-              Add each state license. Some trades (e.g. painting in many states) don{"\u2019"}t require
-              a license — leave empty if so.
+              Add each state license. Some trades (painting in many states, for example) don{"\u2019"}t require
+              a license. Leave empty if so.
             </Text>
           )}
 
@@ -730,7 +730,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
               {!locked && (
                 <TouchableOpacity onPress={() => removeLicense(lic.id)} style={styles.removeBtn} hitSlop={8}>
                   <Trash2 size={13} color={themeColors.danger} strokeWidth={1.75} />
-                  <Text style={styles.removeBtnText}>Remove license</Text>
+                  <Text style={styles.removeBtnText}>Remove License</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -739,7 +739,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           {!locked && (
             <TouchableOpacity onPress={addLicense} style={styles.addLicenseBtn}>
               <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.addLicenseText}>Add license</Text>
+              <Text style={styles.addLicenseText}>Add License</Text>
             </TouchableOpacity>
           )}
 
@@ -763,7 +763,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
             <View style={styles.submittedChip}>
               <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.submittedText}>
-                {status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
+                {status === 'approved' ? 'Approved. You\'re all set.' : 'Submitted. Awaiting review.'}
               </Text>
             </View>
             {/* #113: this link used to promise "your work history across every
@@ -778,9 +778,9 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
                 style={styles.subProfileLink}
                 onPress={() => router.push('/sub-profile')}
                 accessibilityRole="link"
-                accessibilityLabel="Open your work profile for this workspace"
+                accessibilityLabel="Open Your Work Profile for This Workspace"
               >
-                <Text style={styles.subProfileLinkText}>Open your work profile (this workspace)</Text>
+                <Text style={styles.subProfileLinkText}>Open Your Work Profile (This Workspace)</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -793,10 +793,10 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
                   router.push('/signup');
                 }}
                 accessibilityRole="link"
-                accessibilityLabel="Create your free MAGE ID account"
+                accessibilityLabel="Create Your Free MAGE ID Account"
                 testID="growth-link-prequal"
               >
-                <Text style={styles.subProfileLinkText}>Create your free MAGE ID account</Text>
+                <Text style={styles.subProfileLinkText}>Create Your Free MAGE ID Account</Text>
                 <Text style={styles.subProfileLinkHint}>
                   A free workspace for your own jobs. This packet stays with the contractor who sent it.
                 </Text>
@@ -826,7 +826,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           >
             <Send size={16} color={'#FFFFFF'} strokeWidth={1.75} />
             <Text style={styles.submitBtnText}>
-              {submitting ? 'Sending…' : needsChanges ? 'Resubmit' : preview.overall === 'pass' ? 'Submit for review' : 'Submit anyway'}
+              {submitting ? 'Sending…' : needsChanges ? 'Resubmit' : preview.overall === 'pass' ? 'Submit for Review' : 'Submit Anyway'}
             </Text>
           </TouchableOpacity>
         )}
@@ -892,7 +892,7 @@ function unreadableDatesOf(insurance: PrequalInsurance, licenses: PrequalLicense
 function dateError(value: string | undefined): string | undefined {
   const v = (value ?? '').trim();
   if (!v || parsePrequalDate(v)) return undefined;
-  return 'Not a date we can read — use YYYY-MM-DD, e.g. 2026-12-31';
+  return 'Not a date we can read. Use YYYY-MM-DD, like 2026-12-31.';
 }
 
 // The local ErrorState that used to live here moved to

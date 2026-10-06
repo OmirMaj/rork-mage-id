@@ -805,11 +805,11 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
   ok('the totals block names the rate it used',
     wizard.includes('testID="wizard-contingency-label"') && wizard.includes('contingencyRateUsed'));
 
-  // (d) the public page row cannot land on "Project not found."
+  // (d) the public page row cannot land on "Project Not Found."
   const publicSetup = stripComments(read('app/public-profile-setup.tsx'));
   const noProject = balancedFrom(publicSetup, publicSetup.indexOf('if (!project) {'));
   ok('opened with no project, the page asks which job instead of erroring',
-    !noProject.includes('Project not found') && noProject.includes('router.setParams({ id: p.id })'),
+    !noProject.includes('Project Not Found') && noProject.includes('router.setParams({ id: p.id })'),
     noProject.slice(0, 200));
   ok('Settings no longer promises a company profile the route does not build',
     !settingsSrc.includes('Used in the sub directory + bid award notifications'));
@@ -906,14 +906,14 @@ console.log('\nITEM 22 — payment terms on the wizard, its PDF, and where he ch
     const at = src.indexOf(`testID="${testID}"`);
     return at >= 0 ? src.slice(src.lastIndexOf('<TouchableOpacity', at), at) : '';
   };
-  ok('the Payment terms row opens the ask sheet for terms',
+  ok('the Payment Terms row opens the ask sheet for terms',
     openTag(profileSrc, 'company-payment-terms').includes("onPress={() => gate.edit('terms')}"));
-  ok('the Workmanship warranty row opens it for the warranty',
+  ok('the Workmanship Warranty row opens it for the warranty',
     openTag(profileSrc, 'company-warranty').includes("onPress={() => gate.edit('warranty')}"));
-  const howIdx = profileSrc.indexOf('>How you get paid<');
-  ok('How you get paid sits after Company branding and before Company logo',
-    howIdx > profileSrc.indexOf('>Company branding<') && howIdx < profileSrc.indexOf('>Company logo<')
-    && profileSrc.indexOf('testID="company-warranty"') < profileSrc.indexOf('>Company logo<'));
+  const howIdx = profileSrc.indexOf('>How You Get Paid<');
+  ok('How You Get Paid sits after Company Branding and before Company Logo',
+    howIdx > profileSrc.indexOf('>Company Branding<') && howIdx < profileSrc.indexOf('>Company Logo<')
+    && profileSrc.indexOf('testID="company-warranty"') < profileSrc.indexOf('>Company Logo<'));
   ok('Company Profile renders the sheet once',
     (profileSrc.match(/<ClientDocumentAskSheet \{\.\.\.gate\.sheet\} \/>/g) ?? []).length === 1);
   ok('the branding Save and the logo/signature autoSave never carry the terms',
@@ -922,7 +922,7 @@ console.log('\nITEM 22 — payment terms on the wizard, its PDF, and where he ch
 
   // Settings shortcut.
   const settingsCode = stripComments(read('app/(tabs)/settings/index.tsx'));
-  ok('Settings has the How you get paid row, opening the same sheet',
+  ok('Settings has the How You Get Paid row, opening the same sheet',
     openTag(settingsCode, 'settings-how-you-get-paid').includes('onPress={() => gate.edit(howYouGetPaidStep)}')
     && (settingsCode.match(/<ClientDocumentAskSheet \{\.\.\.gate\.sheet\} \/>/g) ?? []).length === 1);
   // …at the step its label says is missing: split set + warranty not set opens
@@ -932,7 +932,7 @@ console.log('\nITEM 22 — payment terms on the wizard, its PDF, and where he ch
   const howRowIdx = settingsCode.indexOf('testID="settings-how-you-get-paid"');
   const saveDefIdx = settingsCode.indexOf('testID="save-estimate-defaults"');
   const nextHdr = settingsCode.indexOf('<Text style={styles.sectionHeader}>', saveDefIdx);
-  ok('…directly under the Save estimate defaults button',
+  ok('…directly under the Save Estimate defaults button',
     saveDefIdx >= 0 && howRowIdx > saveDefIdx && (nextHdr < 0 || howRowIdx < nextHdr),
     `save@${saveDefIdx} row@${howRowIdx} nextSection@${nextHdr}`);
   ok('…and its label comes from the resolvers, with a not-set wording',

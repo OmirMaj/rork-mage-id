@@ -54,7 +54,7 @@ const STATUS_LABEL: Record<SmartProposal['status'], string> = {
   draft: 'Draft',
   sent: 'Sent',
   // C9: "yes" on a price is not a signature — the contract records that.
-  accepted: 'Said yes',
+  accepted: 'Said Yes',
   declined: 'Declined',
 };
 
@@ -155,11 +155,11 @@ export default function QuickQuoteScreen() {
       .filter(l => l.amount > 0);
 
     if (!name) {
-      showAlert('Add a client name', 'A quote needs a client name before you can send it.');
+      showAlert('Add a Client Name', 'A quote needs a client name before you can send it.');
       return;
     }
     if (priced.length === 0) {
-      showAlert('Add a line item', 'Add at least one line item with an amount above $0.');
+      showAlert('Add a Line Item', 'Add at least one line item with an amount above $0.');
       return;
     }
 
@@ -190,7 +190,7 @@ export default function QuickQuoteScreen() {
       console.warn('[quickQuote] share failed:', err);
     }
 
-    showAlert('Quote saved', `${formatMoney(quote.tiers[0]?.price ?? 0, 2)} quote for ${name} is in Recent quotes below.`);
+    showAlert('Quote Saved', `${formatMoney(quote.tiers[0]?.price ?? 0, 2)} quote for ${name} is in Recent quotes below.`);
 
     // Reset the form for the next quick quote.
     setClientName('');
@@ -223,7 +223,7 @@ export default function QuickQuoteScreen() {
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Quick Quote · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Fast bid</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Fast Bid</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -236,7 +236,7 @@ export default function QuickQuoteScreen() {
         {/* Client + job */}
         <View style={styles.inputCard}>
           <View style={styles.stackedRow}>
-            <Text style={styles.inputLabel}>Client name</Text>
+            <Text style={styles.inputLabel}>Client Name</Text>
             <TextInput
               style={styles.textInput}
               value={clientName}
@@ -248,12 +248,12 @@ export default function QuickQuoteScreen() {
           </View>
           <View style={styles.inputDivider} />
           <View style={styles.stackedRow}>
-            <Text style={styles.inputLabel}>Job title</Text>
+            <Text style={styles.inputLabel}>Job Title</Text>
             <TextInput
               style={styles.textInput}
               value={jobTitle}
               onChangeText={setJobTitle}
-              placeholder="e.g. Master bath tile"
+              placeholder="Master bath tile"
               placeholderTextColor={t.textMuted}
               returnKeyType="next"
             />
@@ -273,7 +273,7 @@ export default function QuickQuoteScreen() {
         </View>
 
         {/* Line items */}
-        <Text style={styles.sectionTitle}>Line items</Text>
+        <Text style={styles.sectionTitle}>Line Items</Text>
         <View style={styles.inputCard}>
           {lines.map((line, i) => (
             <View key={line.id}>
@@ -306,14 +306,14 @@ export default function QuickQuoteScreen() {
                   style={styles.rowIconBtn}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel="Remove line item"
+                  accessibilityLabel="Remove Line Item"
                 >
                   <Trash2 size={16} color={lines.length <= 1 ? t.textMuted : t.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               {amountUnreadable(line.amountStr) && (
                 <Text style={styles.atCostNote} testID={`quick-quote-amount-unreadable-${i}`}>
-                  Can&apos;t read that amount — type it like 1234.56. It counts as $0 until it reads.
+                  Can&apos;t read that amount. Type it like 1234.56. It counts as $0 until it reads.
                 </Text>
               )}
             </View>
@@ -322,7 +322,7 @@ export default function QuickQuoteScreen() {
 
         <TouchableOpacity style={styles.addRowBtn} onPress={addRow} activeOpacity={0.7} testID="quick-quote-add-row">
           <Plus size={16} color={t.accent} strokeWidth={2} />
-          <Text style={styles.addRowText}>Add line item</Text>
+          <Text style={styles.addRowText}>Add Line Item</Text>
         </TouchableOpacity>
 
         <View style={styles.subtotalRow}>
@@ -397,7 +397,7 @@ export default function QuickQuoteScreen() {
               and this quote goes straight to a client. */}
           {subtotal > 0 && markupPct <= 0 ? (
             <Text style={styles.atCostNote} testID="quick-quote-at-cost-note">
-              No markup on this quote — the total is exactly the amounts you entered.
+              No markup on this quote. The total is exactly the amounts you entered.
             </Text>
           ) : subtotal > 0 ? (
             <Text style={styles.marginNote}>
@@ -414,17 +414,17 @@ export default function QuickQuoteScreen() {
           testID="quick-quote-send"
         >
           <Share2 size={18} color={Colors.textOnAccent} strokeWidth={1.75} />
-          <Text style={[styles.primaryBtnText, { color: Colors.textOnAccent }]}>Create &amp; send quote</Text>
+          <Text style={[styles.primaryBtnText, { color: Colors.textOnAccent }]}>Create and Send Quote</Text>
         </TouchableOpacity>
 
         {/* Recent quotes */}
-        <Text style={styles.sectionTitle}>Recent quotes</Text>
+        <Text style={styles.sectionTitle}>Recent Quotes</Text>
         {quickQuotes.length === 0 ? (
           <View style={styles.emptyCard}>
             <Zap size={24} color={t.accent} strokeWidth={1.7} />
-            <Text style={styles.emptyTitle}>No quick quotes yet</Text>
+            <Text style={styles.emptyTitle}>No Quick Quotes Yet</Text>
             <Text style={styles.emptyBody}>
-              Add a client, a line item or two, and hit Create &amp; send. Your quotes land here so
+              Add a client, a line item or two, and hit Create and Send Quote. Your quotes land here so
               you can track which ones close.
             </Text>
           </View>
@@ -495,7 +495,7 @@ function QuoteRow({ record, t, styles, onAccept, onDecline, onReshare }: {
             activeOpacity={0.85}
           >
             <CheckCircle2 size={15} color={t.success} strokeWidth={1.75} />
-            <Text style={[styles.quoteActionText, { color: t.success }]}>Client said yes (not signed)</Text>
+            <Text style={[styles.quoteActionText, { color: t.success }]}>Client Said Yes (Not Signed)</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.quoteActionBtn, { borderColor: t.danger }, record.status === 'declined' && { backgroundColor: t.danger + '22' }]}

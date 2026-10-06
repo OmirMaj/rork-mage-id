@@ -66,6 +66,6 @@ exports[`lane M2 golden — the phone (390 × 844 iOS) (m) /invoice, sent with a
 exports[`lane M2 golden — the phone (390 × 844 iOS) (pq) /prequal-manager, a packet renewing within 30 days (the coi-requote card; intended copy delta) 1`] = `
 {
   "lines": 481,
-  "sha256": "bda7b657c0f108320ac52e87c03fcb5380d1285f57861c902b3f9310a46bb06f",
+  "sha256": "b5482e12b859bf930aec8a433b7f5c8df92fdc073699c53c8fca370b7303df73",
 }
 `;

@@ -92,7 +92,7 @@ const SCHEMA_HINT = {
   inclusions: [{ text: 'Demolition and haul-off of existing kitchen cabinetry and countertops', trade: 'Demolition' }],
   exclusions: [{ text: 'Hazardous material testing or abatement (asbestos, lead, mold)', trade: 'Environmental', risk: 'high', note: 'Common in pre-1980 structures; not in this estimate' }],
   clarifications: [{ text: 'Final paint colors and finish selections to be confirmed by owner before ordering', trade: 'Finishes', risk: 'medium' }],
-  assumptions: [{ text: 'Work performed during normal business hours, Monday–Friday', risk: 'low' }],
+  assumptions: [{ text: 'Work performed during normal business hours, Monday to Friday', risk: 'low' }],
   allowances: [{ text: 'Tile material allowance: $8.00 / sq ft', trade: 'Finishes' }],
 };
 
@@ -129,7 +129,7 @@ export async function generateScopeSheet(project: Project, opts?: { forceRegener
   const total = estimateTotalOf(project);
   const items = estimateItems(project);
   if (items.length === 0) {
-    return { sheet: heuristicScopeSheet(project), warning: 'No estimate line items found — drafted a generic starter sheet.' };
+    return { sheet: heuristicScopeSheet(project), warning: 'No estimate line items found. Drafted a generic starter sheet.' };
   }
 
   const prompt = [
@@ -168,10 +168,10 @@ export async function generateScopeSheet(project: Project, opts?: { forceRegener
     const reason = consentOff
       ? `${consentOff} Showing a starter sheet you can edit.`
       : res.errorKind === 'unauthenticated'
-      ? 'Sign in to use AI — showing a starter sheet you can edit.'
+      ? 'Sign in to use AI. Showing a starter sheet you can edit.'
       : res.errorKind === 'monthly_cap'
-        ? (res.error || 'AI limit reached this month — showing a starter sheet you can edit.')
-        : 'Could not reach AI — drafted a starter sheet you can edit.';
+        ? (res.error || 'AI limit reached this month. Showing a starter sheet you can edit.')
+        : 'Could not reach AI. Drafted a starter sheet you can edit.';
     return { sheet: heuristicScopeSheet(project), warning: reason, errorKind: res.errorKind };
   }
 
@@ -192,7 +192,7 @@ export async function generateScopeSheet(project: Project, opts?: { forceRegener
   // If the model returned nothing usable, fall back rather than show an empty sheet.
   const count = sheet.inclusions.length + sheet.exclusions.length + sheet.clarifications.length + sheet.assumptions.length + sheet.allowances.length;
   if (count === 0) {
-    return { sheet: heuristicScopeSheet(project), warning: 'AI returned an empty draft — showing a starter sheet you can edit.' };
+    return { sheet: heuristicScopeSheet(project), warning: 'AI returned an empty draft. Showing a starter sheet you can edit.' };
   }
   return { sheet };
 }
@@ -226,7 +226,7 @@ export function heuristicScopeSheet(project: Project): ScopeSheet {
       { text: 'Pricing assumes continuous, unobstructed access to the work area', trade: 'General' },
     ],
     assumptions: [
-      { text: 'Work performed during normal business hours, Monday–Friday', risk: 'low' },
+      { text: 'Work performed during normal business hours, Monday to Friday', risk: 'low' },
       { text: 'Existing structure is sound and code-compliant unless noted otherwise', risk: 'medium' },
       { text: 'Owner provides power and water at the site during construction', risk: 'low' },
     ],

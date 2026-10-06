@@ -578,7 +578,7 @@ console.log('\na contract states when work starts and finishes (CONTRACT-TIME-1)
 }
 
 // ── 7. The price a GC quoted survives the sheet (QUOTE-PERSIST-1) ────────
-// "Mark proposal sent" wrote one sentence to the touch log and nothing else,
+// "Mark Proposal Sent" wrote one sentence to the touch log and nothing else,
 // so the tier inclusions, the assumptions and the grounding basis were gone
 // the moment the modal closed.
 
@@ -608,7 +608,7 @@ const touch = (body: string, occurredAt: string): LeadTouch =>
     /no budget or cost history/.test(quoteTouchBody(tier(48_000), proposal({ basis: 'ai_guess' }))),
     'a quote must not read three weeks later as better-grounded than it was');
   ok('the first line stays a human sentence for the timeline',
-    body.split('\n')[0] === 'Sent Instant Bid proposal — Better tier.', body.split('\n')[0]);
+    body.split('\n')[0] === 'Sent Instant Bid proposal, Better tier.', body.split('\n')[0]);
   ok('…with the machine-readable line anchored on its own line',
     body.split('\n')[1].startsWith(QUOTE_LINE), body.split('\n')[1]);
 }
@@ -636,14 +636,14 @@ const touch = (body: string, occurredAt: string): LeadTouch =>
 }
 {
   const modal = read('components/InstantBidProposalModal.tsx');
-  ok('Mark proposal sent writes the whole quote, not a summary sentence',
+  ok('Mark Proposal Sent writes the whole quote, not a summary sentence',
     /addLeadTouch\(lead\.id, 'email', quoteTouchBody\(tier, proposal\)\)/.test(modal),
     'the old body was `Sent Instant Bid proposal — ${tier.label} ${formatMoney(tier.amount)}.`');
   const lead = read('app/lead-detail.tsx');
   ok('the lead screen shows what the GC quoted, not only the homeowner’s budget',
     /testID="lead-quoted-card"/.test(lead) && /quotedFromTouches\(existing\?\.touches\)/.test(lead));
   ok('…and labels the homeowner’s range as theirs, so the two are not confused',
-    /Budget min \(theirs\)/.test(lead) && /Budget max \(theirs\)/.test(lead));
+    /Budget Min \(Theirs\)/.test(lead) && /Budget Max \(Theirs\)/.test(lead));
   ok('…and says where the number came from rather than implying a stored field',
     /from your activity log/.test(lead),
     'Lead has no quotedAmount column; the screen must not pretend otherwise');
@@ -655,7 +655,7 @@ const touch = (body: string, occurredAt: string): LeadTouch =>
 // Every contract MAGE creates carries a 25/25/25/25 payment schedule, and the
 // contract screen puts the milestone "Create invoice" action and a button into
 // /bill-from-estimate side by side. A milestone invoice used to be invisible to
-// the estimate-keyed ledger, so the billing screen printed "Already billed
+// the estimate-keyed ledger, so the billing screen printed "Already Billed
 // $0.00" over 25/50/75/100% quick-fill buttons: bill the deposit, quick-fill
 // 100%, and the homeowner is invoiced 125% of the contract.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -799,7 +799,7 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
     ok('…and at a $0.00 remainder it does NOT send him somewhere to bill nothing',
       /leaving nothing to bill against it/.test(copy)
       && /change order/.test(copy) && /update the contract value/.test(copy)
-      && !/Bill from estimate/.test(copy),
+      && !/Bill from Estimate/.test(copy),
       copy);
     const partial = milestoneBillability({
       milestone: ms(1) as never, contractValue: CONTRACT, contractStatus: 'signed',
@@ -918,8 +918,8 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
   ok('…and a schedule that under-foots the contract says so',
     /testID="sov-footing"/.test(screen) && /sovFootingShortfall\(estimateRowTotal, estimateGrandTotal\)/.test(screen));
   ok('…and the screen offers the projects instead of dead-ending without one',
-    /<ToolProjectPicker/.test(screen) && !/Project not found/.test(stripComments(screen)),
-    'every sibling money screen mounts a picker; this one printed "Project not found"');
+    /<ToolProjectPicker/.test(screen) && !/Project Not Found/.test(stripComments(screen)),
+    'every sibling money screen mounts a picker; this one printed "Project Not Found"');
 
   const contractScreen = read('app/contract.tsx');
   ok('the CONTRACT screen measures a milestone against contract-level billing too',
@@ -940,7 +940,7 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
   // What stood here was a presence test wearing a control-flow hat: it asked
   // whether the token `return;` appeared anywhere in a slice of screen text.
   // Two mutations walked past it with the suite fully green — the `return;`
-  // moved into the refusal alert's own "Open invoice" arrow, and the `return;`
+  // moved into the refusal alert's own "Open Invoice" arrow, and the `return;`
   // weakened to `if (bill.existingInvoiceId) return;`. Under both, the
   // `contract_fully_billed` refusal (the no-existing-invoice case) fell
   // straight through into the invoice editor: the GC taps past a dialog and
@@ -959,7 +959,7 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
       contractBilledToDate: CONTRACT,
     });
     const blocked = milestoneBillEffect(blockedBill, ms(1) as never,
-      { contractValue: CONTRACT, title: 'Kitchen remodel agreement' });
+      { contractValue: CONTRACT, title: 'Kitchen Remodel agreement' });
     ok('a milestone the ceiling refuses yields NO invoice payload — not a warning beside one',
       blocked.kind === 'refuse' && !('line' in blocked) && !('milestoneId' in blocked),
       JSON.stringify(blocked));
@@ -995,14 +995,14 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
         milestone: ms(1) as never, contractValue: CONTRACT, contractStatus: 'signed',
         contractBilledToDate: 0,
       }),
-      ms(1) as never, { contractValue: CONTRACT, title: 'Kitchen remodel agreement' },
+      ms(1) as never, { contractValue: CONTRACT, title: 'Kitchen Remodel agreement' },
     );
     ok('…while a clean milestone composes the exact line the milestone ledger reads',
       composed.kind === 'compose'
       && composed.line.total === 32_513
       && composed.line.sourceEstimateItemId === 'milestone:m1'
       && composed.milestoneId === 'm1'
-      && composed.note.includes('Kitchen remodel agreement'),
+      && composed.note.includes('Kitchen Remodel agreement'),
       JSON.stringify(composed));
   }
 
@@ -1468,7 +1468,7 @@ console.log('\nbuyout nets against its budget (JOBCOST-PHASE-1):');
   close('two subs cannot both claim the same estimate line', r3.budget, 57_200);
 
   // ── AN INFERRED SIGNAL MAY NOT OVER-CLAIM ──────────────────────────────
-  // Two estimate lines share CSI division 12 — cabinets and countertops, which
+  // Two estimate lines share CSI Division 12 — cabinets and countertops, which
   // is the collision __tests__/fixtures/world.ts itself carries. A cabinetry PO
   // took BOTH budgets, and the countertop subcontract signed later at exactly
   // its estimate then read "Unbudgeted, $8,064 over" on a job that was on
@@ -1500,7 +1500,7 @@ console.log('\nbuyout nets against its budget (JOBCOST-PHASE-1):');
   const collide = computeJobCost({ project: csiProj, commitments: [cabPo, stoneSub], changeOrders: [] });
   const cabRow = collide.byPhase.find(pp => pp.phase === 'Cabinetry');
   const stoneRow = collide.byPhase.find(pp => pp.phase.toLowerCase() === 'stone');
-  close('one commitment cannot absorb the budget of every line sharing its CSI division',
+  close('one commitment cannot absorb the budget of every line sharing its CSI Division',
     cabRow?.budget ?? 0, 41_250);
   ok('…so a later buyout of the OTHER scope is not reported as an overrun',
     (stoneRow?.budget ?? 0) === 8_064 && stoneRow?.status !== 'unbudgeted',
@@ -2529,7 +2529,7 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
 
   // ── Sign & send. ──
   ok('the Sign & send disabled rule is exactly: a non-empty schedule that does not foot, or saving',
-    /label="Sign & send"\s*onPress=\{handleSignPress\}\s*disabled=\{\(contract\.paymentSchedule\.length > 0 && !scheduleMatchesValue\) \|\| saving\}/.test(code),
+    /label="Sign and Send"\s*onPress=\{handleSignPress\}\s*disabled=\{\(contract\.paymentSchedule\.length > 0 && !scheduleMatchesValue\) \|\| saving\}/.test(code),
     'an empty schedule must stay pressable — the press is where he is asked');
   const signStart = code.indexOf('const handleSignPress = useCallback(');
   const signEnd = code.indexOf('}, [askContractTerms]);', signStart);
@@ -2571,7 +2571,7 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
   // goes away with it: `setSignatureModal(false)` in the same tick gives the
   // GC a signature pad that closes and explains nothing, which is the exact
   // outcome this refusal exists to prevent. The sibling refusal two branches
-  // below ("Name required") leaves the modal up; so must this one.
+  // below ("Name Required") leaves the modal up; so must this one.
   {
     // W2 MOMSIGN (A1): the refusal speaks INSIDE the sheet (the ceremony's
     // reason line, no Alert at all), and the sheet closes only in onDone
@@ -2646,14 +2646,14 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
   ok('…which the screen actually RENDERS — an unread state is a press that did nothing',
     /\{reviewBeforeSigning && contract\.status === 'draft' && \(/.test(code)
     && /testID="contract-review-before-signing"/.test(code)
-    && /Review it — the payment schedule and warranty above — then tap Sign &amp; send\./.test(code),
+    && /Review it, the payment schedule and warranty above, then tap Sign and Send\./.test(code),
     'the notice is the only thing that tells him why the signature pad did not open');
   ok('…and the next press clears it before the pad opens',
     /setReviewBeforeSigning\(false\);\s*\n\s*setSignatureModal\(true\);/.test(code));
 
   // ── Reset, and the controls only a draft shows. ──
   ok('the mismatch Reset label comes from splitLabel, and the 25/25/25/25 reset is gone',
-    /Reset to your terms \(\{splitLabel\(profileSplit\)\}\)/.test(code) && !/Reset to 25\/25\/25\/25/.test(code));
+    /Reset to Your Terms \(\{splitLabel\(profileSplit\)\}\)/.test(code) && !/Reset to 25\/25\/25\/25/.test(code));
   // Every one of these renders only on a draft that is already in the database
   // (the notices are gated on contract.id), so a rewrite that lived in state
   // alone was thrown away the moment he left the screen — the ask sheet's
@@ -2687,7 +2687,7 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
     && /const legacyWarranty = !!contract\.id\s*&& contract\.warrantyText\.trim\(\) === LEGACY_WARRANTY_TEXT\s*&& ownWarrantyText\.trim\(\) !== LEGACY_WARRANTY_TEXT;/.test(code),
     'a bare equality against LEGACY_WARRANTY_TEXT accuses his own 12-month answer');
   ok('…and it only claims MAGE filled the paragraph in when he has never answered',
-    /ownWarrantyMonths == null\s*\?\s*"MAGE's old placeholder, not your terms"/.test(code)
+    /ownWarrantyMonths == null\s*\?\s*"MAGE's Old Placeholder, Not Your Terms"/.test(code)
     && /Use your \$\{warrantyShortLabel\(ownWarrantyMonths\)\}/.test(code),
     'with a saved warranty of another length, who chose the paragraph is unknowable — say what differs instead');
 
@@ -2713,7 +2713,7 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
   // (c) The mismatch banner renders on sent and signed contracts too, where
   // the whole draft action row — and therefore Sign & send — is not rendered.
   ok('the mismatch banner only promises Sign & send while that button exists',
-    /\{contract\.status === 'draft' \? ' — Sign & send stays off until it does\.' : '\.'\}/.test(code),
+    /\{contract\.status === 'draft' \? '\. Sign and Send stays off until it does\.' : '\.'\}/.test(code),
     "on a sent contract the clause described a control that is not on the screen");
 
   // (d) A void contract loads (fetchActiveContract filters only on

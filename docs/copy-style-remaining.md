@@ -4,8 +4,8 @@ Written 2026-10-05 by lane COPYSTYLE (the trial lane). The style is in `docs/VOI
 
 ## Where things stand
 
-- **Converted: 143 files**, listed in `scripts/copy-style-converted.json`. Lane 3 (field and safety, 103 files) is done; see its section below. Before it, the app shell and first run: the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces).
-- **Still to convert: 720 files with 7,575 strings the guard would fail today** (counted 2026-10-05 after lane 3, before lane 1 landed). Counts by rule: label not in Title Case 5,070, dash used as punctuation 1,951, "&" 327, "e.g." or "i.e." 132, arrows 95. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
+- **Converted: 287 files**, listed in `scripts/copy-style-converted.json`. The app shell and first run (40 files, the trial lane): the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces). **Lane 1 (144 files, done 2026-10-05):** estimate, takeoff, quotes, cost history, proposals, the contract, selections, bids, buyout, leads, prequal, materials, the marketplace and RFP screens. **Lane 3 (103 files, done 2026-10-05):** daily report, punch, the invoice screen, time tracking, crew, T&M tickets, deliveries, building access, safety, equipment, scan, photos, voice and lineup; see its section below.
+- **Still to convert: 576 files with 5,725 strings the guard would fail today** (counted 2026-10-05 with lanes 1 and 3 both in). Counts by rule: label not in Title Case 3,769, dash used as punctuation 1,537, "&" 263, "e.g." or "i.e." 82, arrows 74. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
 - The count is a floor. The guard only calls a string a label when its position says so (a `title` / `label` prop, an alert title, an alert button, a short VoiceOver label, a constant named `…_LABEL` / `…_TITLE`, a style key such as `rowLabel` or `sectionHeader`, text inside a button). A label held in a plain constant, or drawn with a style key the guard does not know, is found by reading the screen, not by the guard. In the trial lane the guard found about two thirds of the roughly 580 strings that changed; the rest came from reading the dump.
 
 ## How to run a lane
@@ -26,169 +26,38 @@ Written 2026-10-05 by lane COPYSTYLE (the trial lane). The style is in `docs/VOI
 - **Left for a founder decision, not restyled:** the two Discover promo cards (`app/(tabs)/discover/index.tsx` near lines 539 and 548); the name "MAGE Copilot" (the study says the assistant is "MAGE"); price notation such as "$29/mo" and "/month"; the onboarding line "Each finished project makes the next estimate more accurate."
 - **Not in any lane below:** push and email text in `supabase/functions/` (24 files quote strings that are also in the app), the static portal pages, PDFs rendered server-side and the marketing site. They need their own pass, and a deploy.
 
+## Things lane 1 found
+
+- **`--fix-labels` capitalizes a fragment that is printed mid-sentence.** A constant named `…_LABEL`, or a `label:` key, is a label to the guard even when the screen prints it after other words ("priced off {RATE_BASIS_LABEL[…]}", "Why: your scope notes triggers …", the lead-time chip "25d lead · Your record · medium confidence"). Grep the `--fix-labels` log for a string that started with a lower-case letter and read where it prints. Lane 1 put 15 of these back and gave each an allow-list entry.
+- **A label that is also a key.** `CATEGORY_META` labels and the `scopePricing` map ("Lumber & Framing", "Concrete & Masonry" …) are what the cost history is keyed on (`lookupRate`), "Permits & fees" is a line category, "01 - General" is a CSI division saved on estimate lines. They keep their "&" and have allow-list entries. Catalog product names in `constants/materials.ts` are left as typed for the same reason.
+- **Text sent to the model is not copy.** Prompt lines and grounding facts (`utils/scopeQuestions.ts`, `utils/judges/narrateVerdict.ts`, `utils/copilot/estimate/estimateGrounding.ts`, `utils/instantBid.ts`, `utils/bidHistoryFacts.ts`) keep their dashes and have allow-list entries: rewording them changes what the AI does.
+- **A fragment before a value.** `<Text>Add to {name}</Text>` is read as the two-word label "Add to", and Title Case wants its last word capital ("Add To"). Leave the JSX as it is (one template would change the rendered tree and move every golden's line count) and give the fragment an allow-list entry. Lane 1 has seven.
+- **"yet" is a small word.** "No Rate yet" is what `titleCase()` writes. Put it last ("Not Measured Yet") or make it a sentence ("No rate yet. Set one.").
+- **`>` in JSX text does not compile.** A step path inside JSX text is `Settings &gt; Companies`.
+- **`&rsquo;`, `&ldquo;` and `&rdquo;` trip R21.** Type the character itself (’ “ ”); it renders the same.
+- **"Near me" stays.** The iOS location purpose string in `app.json` quotes that pill word for word and `validate-location-consent` holds the two together, so the pill changes only with a native build. Same idea for the units `$/hr` and `$/yr`.
+- **Pins that were rules.** `validate-money-copy` (status label maps) and `validate-ny-home-improvement` asserted sentence case. Both now ask for Title Case on a converted file's labels and still refuse a Title Case sentence. Later lanes will meet more of these.
+- **A pin in another lane's file.** `utils/learn/quizBank.ts` holds `mustContain` literals quoted from lane 1 screens; the four that changed were updated (the pins only, not the questions, so the server key did not move). The quiz sentences still say "Sign & send" and "Convert to estimate": that is lane 4's copy.
+- **Blunt replacement in validators breaks other lanes' pins.** "Try again", "Not now", "Could not open" are in files that are not converted yet. Change a pin only on the check that reads your file.
+- **Labels the same screen takes from another lane.** `toolName` now says "Bill from Estimate" and "Compare Drawings" while `app/_layout.tsx` screen titles, `utils/routeTitle.ts` and `utils/billingFlowCore.ts` sentences (lanes 2 and 5) still say "Bill from estimate".
+
 ## The lanes
 
 File lists do not overlap. A file went to the first group whose words match its path, tried in this order: schedule, field, money, estimate, office, then everything else. So `app/schedule-import.tsx` is in lane 2 and `components/schedule/…` with it, even where a file also has a money word in its name. Check the list, not the description.
 
 | Lane | What it covers | Files | Strings |
 |---|---|---|---|
-| 1. Estimate, bids and contract | Everything with estimate, takeoff, quote, cost, proposal, contract, selections, bid, buyout, lead, prequal, materials, marketplace, RFP, supplier, scope, drawing or company in its path. | 144 | 1,849 |
+| 1. Estimate, bids and contract (**done**) | Everything with estimate, takeoff, quote, cost, proposal, contract, selections, bid, buyout, lead, prequal, materials, marketplace, RFP, supplier, scope, drawing or company in its path. | 144 | 1,849 |
 | 2. Money and schedule | Invoices, pay apps, payments, change orders, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax; and schedule, Last Planner, lookahead, pace, delay, weather. | 195 | 2,164 |
 | 3. Field and safety (**done**) | Daily report, punch, photos, time tracking, crew, T&M tickets, deliveries, safety, equipment, scan, voice, lineup. This is the lane that goes through t(): most of its English has a Spanish entry to re-read and re-stamp. | 0 of 103 left | 0 of 1,621 left |
 | 4. Office, AI and portal | Client portal, RFIs, submittals, plans, permits, Code Check, Construction AI, Ask MAGE, copilot, inspection, warranty, closeout, handover, subs, tutorials, messages, notifications, team. | 178 | 1,678 |
 | 5. Shell remainder and everything else | The project page, Discover and the Tools list, the feature registry, the create menu, Summary, the root layout (every screen title), shared components (ui, desktop, registers), PDFs and emails built in utils/, demo and sample data. | 203 | 1,886 |
-| **Total still to convert** | Lanes 1, 2, 4 and 5 as listed, less two strings lane 3 changed in lane 2 and lane 5 files. | **720** | **7,575** |
+| **Total** | | **823** | **9,198** |
+| **Still to convert (lanes 2, 4 and 5)** | Less the handful of strings lanes 1 and 3 changed in other lanes' files. | **576** | **5,725** |
 
-### Lane 1. Estimate, bids and contract (144 files, 1,849 strings)
+### Lane 1. Estimate, bids and contract (144 files, 1,849 strings): DONE 2026-10-05
 
-Strings the guard would fail, per file, largest first.
-
-```
- 127  app/buyout-package.tsx
- 119  app/contract.tsx
- 107  app/(tabs)/estimate/full.tsx
-  66  app/estimate-wizard.tsx
-  42  app/prequal-form.tsx
-  41  app/prequal-manager.tsx
-  41  app/takeoff-estimate.tsx
-  41  app/takeoff.tsx
-  38  app/drawing-analyzer.tsx
-  37  app/selections.tsx
-  36  app/post-rfp.tsx
-  35  app/buyout.tsx
-  34  app/cost-seed.tsx
-  33  app/compare-drawings.tsx
-  31  app/cost-xray.tsx
-  28  app/bid-detail.tsx
-  26  app/submit-bid-response.tsx
-  25  app/area-takeoff.tsx
-  25  constants/materials.ts
-  24  app/company-profile.tsx
-  24  app/lead-detail.tsx
-  24  utils/widgetEstimate.ts
-  23  app/bill-from-estimate.tsx
-  22  components/AIQuickEstimate.tsx
-  21  app/judges.tsx
-  21  components/estimate/RateProvenanceChip.tsx
-  20  app/rfp-detail.tsx
-  19  app/cost-database.tsx
-  18  app/quick-quote.tsx
-  18  app/smart-proposal.tsx
-  18  constants/estimateTemplates.ts
-  17  app/(tabs)/mage-id-bids/index.tsx
-  17  app/living-estimate.tsx
-  17  app/post-bid.tsx
-  17  app/post-job.tsx
-  17  utils/scopeQuestions.ts
-  16  app/buyout-scope-gap.tsx
-  16  app/leads.tsx
-  14  components/takeoff/ConditionsPanel.tsx
-  14  utils/prequalEngine.ts
-  13  components/takeoff/ConditionEditor.tsx
-  12  app/(tabs)/estimate/review.tsx
-  12  utils/takeoffToBuyout.ts
-  11  app/(tabs)/materials/[category].tsx
-  11  app/auto-bids.tsx
-  11  app/estimate-accuracy.tsx
-  11  app/rfp-responses-review.tsx
-  11  app/win-optimizer.tsx
-  11  components/AIBidScorecard.tsx
-  11  components/scopeGaps/ScopeGapsCard.tsx
-  10  app/(tabs)/materials/index.tsx
-  10  app/estimate-confidence.tsx
-   9  app/estimate-calibration.tsx
-   9  components/InstantBidProposalModal.tsx
-   9  components/MaterialAIEstimateModal.tsx
-   9  utils/estimateHubEntries.ts
-   8  app/(tabs)/discover/hire.tsx
-   8  components/EstimateComparison.tsx
-   8  utils/registers/leadRows.ts
-   7  app/(tabs)/discover/bids.tsx
-   7  app/(tabs)/marketplace/index.tsx
-   7  app/estimate-scorecard.tsx
-   7  app/my-rfps.tsx
-   7  app/scope-sheet.tsx
-   7  components/AIBidScorer.tsx
-   7  components/copilot/EstimateCopilotReview.tsx
-   7  components/rfi/RfiScopeCheckCard.tsx
-   7  utils/copilot/estimate/estimateCapability.ts
-   7  utils/scopePricing.ts
-   6  app/(tabs)/discover/companies.tsx
-   6  app/nearby-rfps.tsx
-   6  app/shared-estimate.tsx
-   6  components/TakeoffPageInspector.tsx
-   6  hooks/useCostBenchmark.ts
-   6  utils/contractSignatureCore.ts
-   6  utils/instantBid.ts
-   6  utils/judges/computeBidVerdict.ts
-   6  utils/scopeSheet.ts
-   6  utils/takeoffCloudSync.ts
-   6  utils/takeoffPricing.ts
-   5  app/company-detail.tsx
-   5  app/project-scope.tsx
-   5  components/BidHitScoreboard.tsx
-   5  components/copilot/EstimateDiffView.tsx
-   5  components/estimate/EstimateSummaryHeader.tsx
-   5  components/registers/LeadsTable.tsx
-   5  utils/automation/leadTimeLibrary.ts
-   5  utils/contractEngine.ts
-   5  utils/prequalAwardGate.ts
-   5  utils/proposalBuilder.ts
-   5  utils/supplierScorecard.ts
-   5  utils/takeoff/aiSuggestions.ts
-   5  utils/tutorial/defs/contractFromEstimate.ts
-   5  utils/tutorial/defs/estimateFirst.ts
-   4  components/AIEstimateValidator.tsx
-   4  components/estimate/EstimateMetricGrid.tsx
-   4  components/judges/VerdictCard.tsx
-   4  components/takeoff/AiSuggestionsSection.tsx
-   4  components/takeoff/TakeoffFirstRun.tsx
-   4  hooks/useTakeoffPdfDrop.ts
-   4  utils/bidInvitePending.ts
-   4  utils/copilot/estimate/estimateGaps.ts
-   4  utils/copilot/estimate/estimatePricing.ts
-   4  utils/copilot/lead/leadGaps.ts
-   4  utils/costSeedCore.ts
-   4  utils/livingEstimate.ts
-   4  utils/scopeGaps.ts
-   3  components/ScopeQuestionStepper.tsx
-   3  components/TakeoffQuotaBadge.tsx
-   3  components/contract/NyContractChecklist.tsx
-   3  components/takeoff/TakeoffCanvas.tsx
-   3  hooks/useMaterialReceipts.ts
-   3  utils/bidHistoryFacts.ts
-   3  utils/copilot/lead/leadCapability.ts
-   3  utils/estimateCalibration.ts
-   3  utils/estimateItemsToScope.ts
-   3  utils/takeoff/conditionPush.ts
-   3  utils/tutorial/defs/takeoffToEstimate.ts
-   2  components/BidConfidenceBadge.tsx
-   2  components/EstimateLoadingOverlay.tsx
-   2  components/estimate/EstimateWizardDesktop.tsx
-   2  utils/bidInviteCore.ts
-   2  utils/copilot/estimate/estimateGrounding.ts
-   2  utils/copilot/estimateEdit/estimateEditCapability.ts
-   2  utils/copilot/projectScope.ts
-   2  utils/estimateCommit.ts
-   2  utils/takeoff/pdfDrop.ts
-   1  components/TakeoffAccuracyPanel.tsx
-   1  components/estimate/EstimateSummaryCard.tsx
-   1  components/judges/BidDriverRow.tsx
-   1  components/scopeGaps/BuildingYearRow.tsx
-   1  utils/bidDocumentIdentity.ts
-   1  utils/bidsFreshness.ts
-   1  utils/buildingScopeTriggers.ts
-   1  utils/contractSealing.ts
-   1  utils/contractTimelineCore.ts
-   1  utils/copilot/estimate/estimatePrice.ts
-   1  utils/estimateMarkup.ts
-   1  utils/judges/narrateVerdict.ts
-   1  utils/leadQuoteCore.ts
-   1  utils/materialEstimateAI.ts
-   1  utils/materialFinder.ts
-   1  utils/prequalMail.ts
-   1  utils/selectionsEngine.ts
-```
+All 144 files are in `scripts/copy-style-converted.json` and the guard reads zero for them. The file list is in git history (this section before the lane landed).
 
 ### Lane 2. Money and schedule (195 files, 2,164 strings)
 

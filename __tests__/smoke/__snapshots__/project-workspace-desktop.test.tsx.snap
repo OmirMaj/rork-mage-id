@@ -2267,7 +2267,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                         ]
                       }
                     >
-                      Bid confidence 
+                      Bid Confidence 
                     </Text>
                     <Text
                       style={

@@ -80,12 +80,12 @@ export default function BidConfidenceBadge({ project, variant = 'light' }: Props
       {report.hasHistory ? (
         <>
           <View style={[styles.dot, { backgroundColor: dot }]} />
-          <Text style={[styles.label, { color: textColor }]}>Bid confidence </Text>
+          <Text style={[styles.label, { color: textColor }]}>Bid Confidence </Text>
           <Text style={[styles.score, { color: textColor }]}>{report.score}</Text>
         </>
       ) : (
         <>
-          <Text style={[styles.label, { color: textColor }]}>Bid confidence</Text>
+          <Text style={[styles.label, { color: textColor }]}>Bid Confidence</Text>
           <Text style={[styles.sub, { color: subColor }]}>Building from your projects</Text>
         </>
       )}

@@ -182,7 +182,7 @@ console.log('\n#61 unpriced crew hours are said, not silently $0:');
     /summary\.unpricedLaborHours > 0/.test(jc) && /unpricedLaborLine\(summary\.unpricedLaborHours\)/.test(jc) && /pathname: '\/time-tracking'/.test(jc));
   const le = src('app/living-estimate.tsx');
   ok('the Living Estimate shows the line and never "On track" while hours are unpriced',
-    /unpricedLaborFor\(project\.id, timeEntries, laborRates\)/.test(le) && /laborGap \? 'Labor unpriced' : 'On track'/.test(le));
+    /unpricedLaborFor\(project\.id, timeEntries, laborRates\)/.test(le) && /laborGap \? 'Labor Unpriced' : 'On Track'/.test(le));
 
   // Margin Alerts: raised as a warning card, never a push, and quiet once seen.
   const b = (h: number): MarginBaseline => ({

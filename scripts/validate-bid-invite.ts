@@ -566,7 +566,7 @@ ok('EVERY door into the invite sheet is gated on the scope existing',
 ok('and the disabled button says what is missing and what unblocks it',
   /No scope written yet/.test(screenSrc) && /disabled=\{!scopeText\}/.test(screenSrc));
 ok('the send path refuses a scope-less package even if a button slips through',
-  /if\s*\(!scopeText\)/.test(screenSrc) && /No scope to send/.test(screenSrc));
+  /if\s*\(!scopeText\)/.test(screenSrc) && /No Scope to Send/.test(screenSrc));
 
 // ── M. a date the GC can chase, on the field that has a writer ──────────────
 // `BidPackage.dueDate` and `requiredByDate` both existed with NO writer
@@ -666,11 +666,11 @@ ok('a typed address that matches a sub on file is attached automatically',
 ok('bids already in the matrix are recovered from the invite that produced them',
   /resolveBidSubcontractor\(/.test(screenSrc) && /updateBidPackageBid\([^)]*subcontractorId/.test(screenSrc));
 ok('and the ones that cannot be resolved get a control instead of a shrug',
-  /setLinkTargetBidId\(/.test(screenSrc) && /Link this bid to a sub/.test(screenSrc));
+  /setLinkTargetBidId\(/.test(screenSrc) && /Link This Bid to a Sub/.test(screenSrc));
 
 // The gate has to stay readable. It pushed a blocker for ANY bid with no
 // prequal packet, and prequal_packets is empty in production, so every award
-// went through the red "Award & accept risk" screen — which a GC stops reading
+// went through the red "Award and Accept Risk" screen — which a GC stops reading
 // in a month, and that is when the genuinely lapsed COI goes through.
 const awardBody = screenSrc.slice(screenSrc.indexOf('const handleAward'), screenSrc.indexOf('const handleGenerateSubcontract'));
 // Screen audit 2026-09-16: it then gated on getComplianceStatus, which is
@@ -688,7 +688,7 @@ ok('a missing prequal packet on a compliant sub is a NOTE, not a blocker',
 ok('an expired or absent COI IS a blocker — the gate\'s COI blockers reach the dialog',
   /blockers\.push\(\.\.\.award\.blockers\)/.test(awardBody));
 ok('and an unlinked bid is a blocker with a one-tap fix rather than a dead sentence',
-  /Pick the sub/.test(awardBody));
+  /Pick the Sub/.test(awardBody));
 
 console.log(`\n${fail === 0 ? `bid invite: ${pass} checks passed` : `${fail} of ${pass + fail} checks FAILED`}\n`);
 process.exit(fail === 0 ? 0 : 1);

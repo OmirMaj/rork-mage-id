@@ -157,12 +157,12 @@ export function pricedHeadline(sources: readonly EstimatePriceSource[], fedEntri
     // and the headline must not either.
     const lead = sources.some((s) => s === 'learned') ? 'Priced from your jobs' : 'Priced from the rates you set';
     return mine === m
-      ? `${lead} — all ${m} line${m === 1 ? '' : 's'} from your costs.`
-      : `${lead} — ${mine} of ${m} lines from your costs; the rest at typical regional rates. Check those.`;
+      ? `${lead}. All ${m} line${m === 1 ? '' : 's'} from your costs.`
+      : `${lead}. ${mine} of ${m} lines from your costs; the rest at typical regional rates. Check those.`;
   }
   return fedEntries > 0
-    ? 'Priced at typical regional rates — none of these lines matched your costs.'
-    : 'Priced at typical regional rates — none of your jobs cover this scope yet.';
+    ? 'Priced at typical regional rates. None of these lines matched your costs.'
+    : 'Priced at typical regional rates. None of your jobs cover this scope yet.';
 }
 
 /** "This replaces your current N-line estimate ($X)." — null when there is none. */

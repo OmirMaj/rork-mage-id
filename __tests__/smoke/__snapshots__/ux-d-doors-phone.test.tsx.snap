@@ -808,7 +808,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                         ]
                       }
                     >
-                      Bid confidence 
+                      Bid Confidence 
                     </Text>
                     <Text
                       style={

@@ -246,7 +246,7 @@ export default function InstantBidProposalModal({
           <View style={styles.head}>
             <View style={styles.headIcon}><MageAIMark size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Instant bid</Text>
+              <Text style={styles.title}>Instant Bid</Text>
               <Text style={styles.sub} numberOfLines={1}>For {lead.name}</Text>
             </View>
             <TouchableOpacity onPress={handleClose} hitSlop={8}><X size={20} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -255,7 +255,7 @@ export default function InstantBidProposalModal({
           {sent ? (
             <View style={styles.sentWrap}>
               <View style={styles.sentIcon}><CheckCircle2 size={36} color={colors.success} strokeWidth={1.75} /></View>
-              <Text style={styles.sentTitle}>Proposal logged</Text>
+              <Text style={styles.sentTitle}>Proposal Logged</Text>
               <Text style={styles.sentBody}>
                 {lead.name} is now in the Proposal stage and the send is on their timeline.
                 Follow up in a few days if you don&apos;t hear back.
@@ -281,13 +281,13 @@ export default function InstantBidProposalModal({
                     Ballpark you&apos;d bid this at?
                   </Text>
                   <Text style={styles.ballparkHint}>
-                    {widgetBallpark ? 'They did not state a budget' : 'No budget was posted'} — a rough number helps anchor the estimate so the prices you send are closer to what you&apos;d actually charge.
+                    {widgetBallpark ? 'They did not state a budget' : 'No budget was posted'}. A rough number helps anchor the estimate so the prices you send are closer to what you&apos;d actually charge.
                   </Text>
                   <TextInput
                     style={styles.ballparkInput}
                     value={ballparkInput}
                     onChangeText={setBallparkInput}
-                    placeholder="e.g. $12,000"
+                    placeholder="$12,000"
                     placeholderTextColor={colors.textMuted}
                     keyboardType="numeric"
                     autoFocus
@@ -301,7 +301,7 @@ export default function InstantBidProposalModal({
                       onPress={() => doGenerate()}
                       activeOpacity={0.75}
                     >
-                      <Text style={styles.ballparkSkipText}>Skip and use AI estimate</Text>
+                      <Text style={styles.ballparkSkipText}>Skip and Use AI Estimate</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.primaryBtn, { flex: 1 }]}
@@ -311,7 +311,7 @@ export default function InstantBidProposalModal({
                     >
                       {generating
                         ? <ActivityIndicator size="small" color="#FFF" />
-                        : <Text style={styles.primaryBtnText}>Draft proposal</Text>}
+                        : <Text style={styles.primaryBtnText}>Draft Proposal</Text>}
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -325,7 +325,7 @@ export default function InstantBidProposalModal({
                 >
                   {generating
                     ? <ActivityIndicator size="small" color="#FFF" />
-                    : <><MageAIMark size={15} color="#FFF" /><Text style={styles.primaryBtnText}>Draft proposal</Text></>}
+                    : <><MageAIMark size={15} color="#FFF" /><Text style={styles.primaryBtnText}>Draft Proposal</Text></>}
                 </TouchableOpacity>
               )}
             </View>
@@ -376,7 +376,7 @@ export default function InstantBidProposalModal({
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.primaryBtn, { flex: 1 }]} onPress={handleMarkSent} activeOpacity={0.85} testID="lead-bid-mark-sent">
                   <Check size={16} color="#FFF" strokeWidth={1.75} />
-                  <Text style={styles.primaryBtnText}>Mark proposal sent</Text>
+                  <Text style={styles.primaryBtnText}>Mark Proposal Sent</Text>
                 </TouchableOpacity>
               </View>
               {proposal.basis === 'history' && proposal.groundingRateCount ? (
@@ -387,7 +387,7 @@ export default function InstantBidProposalModal({
                 <Text style={styles.note}>Blended toward the budget range provided.</Text>
               ) : (
                 <Text style={styles.noteWarning}>
-                  Rough AI guess — no budget or cost history to anchor this. Review the numbers before sending.
+                  Rough AI guess. No budget or cost history to anchor this. Review the numbers before sending.
                 </Text>
               )}
             </ScrollView>

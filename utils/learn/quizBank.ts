@@ -319,7 +319,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Run the whole takeoff again for free'], ['b', 'Drop rows you don’t trust, and restore them later'], ['c', 'Send the rows to a sub']],
       correctId: 'b',
       why: 'Dropping weak rows keeps them out of your buyout. Restore all brings them back.',
-      source: { file: TAKEOFF, mustContain: 'Restore all' },
+      source: { file: TAKEOFF, mustContain: 'Restore All' },
     },
     {
       id: 'q5',
@@ -327,7 +327,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Convert to estimate'], ['b', 'Run again'], ['c', 'Generate sub-trade buyout packages']],
       correctId: 'a',
       why: 'Convert to estimate carries the counts into an estimate.',
-      source: { file: TAKEOFF, mustContain: '>Convert to estimate</Text>' },
+      source: { file: TAKEOFF, mustContain: '>Convert to Estimate</Text>' },
     },
   ]),
 
@@ -639,7 +639,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'The payment schedule'], ['b', 'The start date and length, from your schedule'], ['c', 'The scope of work']],
       correctId: 'b',
       why: 'It fills the start date and duration from your project schedule.',
-      source: { file: CONTRACT, mustContain: 'Use my schedule' },
+      source: { file: CONTRACT, mustContain: 'Use My Schedule' },
     },
     {
       id: 'q2',
@@ -655,7 +655,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Sign & send'], ['b', 'Save draft'], ['c', 'Sign together now']],
       correctId: 'c',
       why: 'Sign together now has you both sign on this phone, with no email.',
-      source: { file: CONTRACT, mustContain: 'label="Sign together now"' },
+      source: { file: CONTRACT, mustContain: 'label="Sign Together Now"' },
     },
     {
       id: 'q4',

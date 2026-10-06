@@ -154,7 +154,7 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
 // driver and Job Costing's "overcommitted" check still compared an at-cost
 // commitment against the marked-up lineTotal. Line cost $10,000 at 15%
 // (lineTotal $11,500), sub signed at exactly $10,000: pre-fix, TWO fake
-// offsetting drivers ("Favorable buyout +$1,500" and "Cost growth −$1,500") on
+// offsetting drivers ("Favorable Buyout +$1,500" and "Cost growth −$1,500") on
 // a job with zero movement, and a sub at $11,700 (17% over cost) was not
 // flagged overcommitted until it passed $11,730.
 {
@@ -267,7 +267,7 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
 //     compared it to a learned rate that is pure COST. With the cart's 15%
 //     default markup and DEVIATION_THRESHOLD at 0.1, EVERY cart-built line
 //     with history was flagged 'overpriced' and the estimate scored 0, while a
-//     line priced 17% BELOW cost scored 100 — "Well-backed estimate" over a
+//     line priced 17% BELOW cost scored 100 — "Well-Backed Estimate" over a
 //     bid that loses money on every unit. Third instance of the class 96d3a295
 //     fixed in estimateActuals and jobCostEngine.
 //   • `hasActual` is literally `actual > 0` and the book preferred it over the
@@ -498,12 +498,12 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
   expect('a closed job with no closeout date still orders by a real date, both ways',
     [noDateA.baseline, noDateB.baseline], [200, 200]);
   expect('…so its suggested rate is stable too', [round2(noDateA.suggestedRate), round2(noDateB.suggestedRate)], [180, 180]);
-  // …BUT "Last measured" MUST STAY BLANK FOR THEM. The sort's third fallback
+  // …BUT "Last Measured" MUST STAY BLANK FOR THEM. The sort's third fallback
   // is project.updatedAt, and ProjectContext.updateProject stamps
   // `updatedAt: new Date().toISOString()` on EVERY write — so the date these
   // books sort on is "last touched", not "last measured". This assertion used
   // to demand the opposite ("it can finally render"), which PINNED a 2019 job
-  // into reporting "Last measured <this month>": a row added to disclose
+  // into reporting "Last Measured <this month>": a row added to disclose
   // staleness, asserting freshness. Ordering by a real-but-wrong date is fine;
   // printing it is not. `measuredAt` carries only a genuine closeout date.
   expect('a closed job with NO closeout date reports no measurement date at all',
@@ -1542,7 +1542,7 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
     // that per-item markups actually produced is the same defect one level
     // down: a cart with a 40% tile line read "Overhead & profit (20%)".
     ok('the markup row prints the realized rate, not the global chip',
-      !/Overhead &amp; profit \(\{globalMarkup\}/.test(screen) && /shownMarkupPct/.test(screen),
+      !/Overhead and Profit \(\{globalMarkup\}/.test(screen) && /shownMarkupPct/.test(screen),
       'both the mobile and the desktop summary must interpolate the effective percent');
     // The at-cost band on the review screen fires on the REALIZED markup, so
     // it must not quote a percentage the estimator's control contradicts.
@@ -1626,7 +1626,7 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
       'seeding the initial state alone still prices him at whatever pill is lit; the write itself has to refuse');
     // A disabled control that does not say why is just a broken control.
     ok('…with the blocked Save button stating why it is blocked',
-      /saveBlocked/.test(takeoff) && /Set your markup to save/.test(takeoff));
+      /saveBlocked/.test(takeoff) && /Set Your Markup to Save/.test(takeoff));
     ok('…and the at-cost total says so instead of implying a markup',
       /This total is your cost/.test(takeoff),
       'a cost total with nothing saying so is the defect, not the zero');
