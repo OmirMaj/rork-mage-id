@@ -37,9 +37,9 @@ import { ThresholdTape } from './ThresholdTape';
 import { BlockedNote, storeGated, type CodeCardAction } from './parts';
 
 export const CLOSE_TO_LINE_NOTE = 'Close to the line: within 2 in. of the trigger. Measure again on site before you build to it.';
-export const EDITION_NOT_CONFIRMED = 'Edition not confirmed';
+export const EDITION_NOT_CONFIRMED = 'Edition Not Confirmed';
 /** A card whose citation carries no section says so; it never prints an empty slot. */
-export const NO_SECTION_GIVEN = 'No section given';
+export const NO_SECTION_GIVEN = 'No Section Given';
 
 export interface CodeCardProps {
   item: CodeCardItem;
@@ -199,7 +199,7 @@ export function CodeCard({
           <View style={styles.free}><Text style={styles.freeText}>Free</Text></View>
         </Pressable>
         {cell('checklist', 'Checklist', ClipboardCheck, storeGated(checklist, item))}
-        {cell('ask', 'Ask town', MessageCircleQuestion, askTown)}
+        {cell('ask', 'Ask Town', MessageCircleQuestion, askTown)}
         <Pressable
           onPress={() => (more ? more(item) : setNote('More: open the full card from the list.'))}
           style={({ pressed }) => [styles.act, styles.actRule, styles.actMore, pressed && styles.pressed]}

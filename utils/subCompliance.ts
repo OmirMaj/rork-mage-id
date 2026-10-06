@@ -99,12 +99,12 @@ export function getComplianceStatus(sub: Subcontractor, nowMs: number = Date.now
  */
 export function complianceLabel(status: ComplianceState, sub?: Subcontractor): string {
   if (status === 'compliant') return 'Compliant';
-  if (status === 'expiring_soon') return 'Expiring soon';
+  if (status === 'expiring_soon') return 'Expiring Soon';
   if (status === 'unknown') {
-    if (!sub) return 'No docs';
+    if (!sub) return 'No Docs';
     const missing = missingComplianceDocs(sub);
-    if (missing.coi && missing.license) return 'No docs';
-    return missing.coi ? 'No COI' : 'No license';
+    if (missing.coi && missing.license) return 'No Docs';
+    return missing.coi ? 'No COI' : 'No License';
   }
   return 'Expired';
 }
@@ -311,7 +311,7 @@ export function vaultCoiStatus(e: VaultCoiExpiry, now: Date = new Date()): Vault
   if (days === null) return { key: 'unknown', label: 'No Expiry on File', tone: 'neutral' };
   if (days < 0) return { key: 'expired', label: `Expired${suffix}`, tone: 'bad' };
   if (days <= COMPLIANCE_WARN_DAYS) {
-    return { key: 'expiring', label: `${days === 0 ? 'Expires today' : `Expires in ${days}d`}${suffix}`, tone: 'warn' };
+    return { key: 'expiring', label: `${days === 0 ? 'Expires Today' : `Expires in ${days}d`}${suffix}`, tone: 'warn' };
   }
   return { key: 'active', label: `Active${suffix}`, tone: 'good' };
 }

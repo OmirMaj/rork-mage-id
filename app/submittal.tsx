@@ -425,7 +425,7 @@ function SubmittalForm() {
   const numberInfo = useServerRecordNumber('submittals', existingSubmittal?.id, existingSubmittal?.number);
   const numberLabel = existingSubmittal
     ? recordNumberLabel('Submittal', numberInfo.state, numberInfo.number, existingSubmittal.number)
-    : 'Approval before order';
+    : 'Approval Before Order';
   const numberHold = existingSubmittal ? numberHoldReason('submittal', numberInfo.state) : null;
   // #58: every send (reviewer email, client portal) is off while there are
   // unsaved edits — Send never saves; see sendBlockReason.
@@ -1089,7 +1089,7 @@ function SubmittalForm() {
               )
             ) : <View style={{ flex: 1 }} />}
             <TouchableOpacity onPress={() => setRequiredDate('')} accessibilityRole="button" testID="submittal-required-clear">
-              <Text style={styles.cycleHint}>Clear date</Text>
+              <Text style={styles.cycleHint}>Clear Date</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -1172,7 +1172,7 @@ function SubmittalForm() {
                   <Text style={styles.cycleDetail}>Reviewer: {cycle.reviewer}</Text>
                   {/* #147: a portal answer with no send on file has no Sent day —
                       say so rather than print a made-up one. */}
-                  <Text style={styles.cycleDetail}>Sent: {cycleDayLabel(cycle.sentDate) ?? 'Not recorded'}</Text>
+                  <Text style={styles.cycleDetail}>Sent: {cycleDayLabel(cycle.sentDate) ?? 'Not Recorded'}</Text>
                   {!!cycle.returnDate && <Text style={styles.cycleDetail}>Returned: {cycleDayLabel(cycle.returnDate) ?? cycle.returnDate}</Text>}
                   {cycle.comments && <Text style={styles.cycleComments}>{cycle.comments}</Text>}
                 </View>
@@ -1257,7 +1257,7 @@ function SubmittalForm() {
                 </View>
                 {(newCycleSent || newCycleReturned) ? (
                   <TouchableOpacity onPress={() => { setNewCycleSent(''); setNewCycleReturned(''); }} accessibilityRole="button">
-                    <Text style={styles.cycleHint}>Clear dates</Text>
+                    <Text style={styles.cycleHint}>Clear Dates</Text>
                   </TouchableOpacity>
                 ) : null}
                 <DatePickerModal
@@ -1283,7 +1283,7 @@ function SubmittalForm() {
                   textAlignVertical="top"
                 />
                 <TouchableOpacity style={styles.addCycleSubmit} onPress={handleAddCycle} activeOpacity={0.85} testID="submittal-cycle-submit">
-                  <Text style={styles.addCycleSubmitText}>{openCycle ? `Close cycle ${openCycleNo}` : 'Add cycle'}</Text>
+                  <Text style={styles.addCycleSubmitText}>{openCycle ? `Close cycle ${openCycleNo}` : 'Add Cycle'}</Text>
                 </TouchableOpacity>
               </View>
             )}

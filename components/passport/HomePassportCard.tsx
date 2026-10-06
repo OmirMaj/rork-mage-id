@@ -50,9 +50,9 @@ function fmtYear(iso: string | null | undefined): string {
 
 /** Human countdown for a signed day delta. */
 function fmtDays(days: number | null): string {
-  if (days == null) return 'Not scheduled';
+  if (days == null) return 'Not Scheduled';
   if (days < 0) return `${Math.abs(days)}d overdue`;
-  if (days === 0) return 'Due today';
+  if (days === 0) return 'Due Today';
   if (days < 45) return `${days}d left`;
   if (days < 365) return `${Math.round(days / 30)}mo left`;
   return `${Math.floor(days / 365)}y left`;
@@ -153,7 +153,7 @@ export function HomePassportCard({
         <View style={styles.heroText}>
           <Text style={styles.eyebrow}>Home Passport</Text>
           <Text style={styles.address} numberOfLines={2}>
-            {home.address || 'Address not recorded'}
+            {home.address || 'Address Not Recorded'}
           </Text>
           <View style={styles.heroMetaRow}>
             <MapPin size={Tokens.iconSize.micro.size} color={t.textMuted} strokeWidth={2} />

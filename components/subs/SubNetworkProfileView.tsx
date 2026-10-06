@@ -112,7 +112,7 @@ export function SubNetworkProfileView({
             detail={
               r.jobsInProgress > 0
                 ? `${r.jobsInProgress} still running`
-                : 'Nothing open right now'
+                : 'Nothing Open Right Now'
             }
             value={String(r.jobsCompleted)}
             styles={styles}

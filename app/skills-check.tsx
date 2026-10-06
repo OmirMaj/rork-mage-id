@@ -269,11 +269,11 @@ function SkillsCheck({ topicId }: { topicId: SkillTopicId }) {
     if (c) pick(c.id);
   };
   useHotkeys([
-    { combo: '1', handler: pickNth(0), label: 'Pick choice 1', group: 'Skills check' },
-    { combo: '2', handler: pickNth(1), label: 'Pick choice 2', group: 'Skills check' },
-    { combo: '3', handler: pickNth(2), label: 'Pick choice 3', group: 'Skills check' },
-    { combo: '4', handler: pickNth(3), label: 'Pick choice 4', group: 'Skills check' },
-    { combo: 'enter', handler: () => { if (stateRef.current.phase.kind === 'answered') next(); }, label: 'Next Question', group: 'Skills check' },
+    { combo: '1', handler: pickNth(0), label: 'Pick choice 1', group: 'Skills Check' },
+    { combo: '2', handler: pickNth(1), label: 'Pick choice 2', group: 'Skills Check' },
+    { combo: '3', handler: pickNth(2), label: 'Pick choice 3', group: 'Skills Check' },
+    { combo: '4', handler: pickNth(3), label: 'Pick choice 4', group: 'Skills Check' },
+    { combo: 'enter', handler: () => { if (stateRef.current.phase.kind === 'answered') next(); }, label: 'Next Question', group: 'Skills Check' },
   ], { scope: 'page', enabled: isDesktopWeb });
 
   // ── The pinned bar ──────────────────────────────────────────────────────

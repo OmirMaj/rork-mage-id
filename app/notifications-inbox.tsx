@@ -373,7 +373,7 @@ export default function NotificationsInboxScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const feed = useNotificationFeed();
-  // "Check again" re-runs a query that has already settled, so `feed.isLoading`
+  // "Check Again" re-runs a query that has already settled, so `feed.isLoading`
   // stays FALSE for the whole round trip (react-query 5: isLoading === isPending
   // && isFetching, and a settled query is not pending). If the inbox is still
   // empty afterwards, nothing on screen changes — the tap read as dead, which
@@ -500,7 +500,7 @@ export default function NotificationsInboxScreen() {
                 testID="notifications-recheck"
               >
                 <Text style={styles.emptyActionText}>
-                  {rechecking ? 'Checking…' : 'Check again'}
+                  {rechecking ? 'Checking…' : 'Check Again'}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -156,7 +156,7 @@ export function CodeCardList(props: CodeCardListProps) {
             <CalendarDays size={13} color={P.accentLabel} strokeWidth={2} />
             <Text style={styles.grpDateText}>{date}</Text>
           </View>
-        ) : <Text style={styles.grpNot}>Not booked</Text>
+        ) : <Text style={styles.grpNot}>Not Booked</Text>
       ) : null}
     </View>
   );
@@ -226,21 +226,21 @@ export function CodeCardList(props: CodeCardListProps) {
             <View style={styles.mk}>
               <View style={styles.mkDot} />
               <Text style={styles.mkText}>
-                <Text style={styles.mkStrong}>Code edition</Text>
+                <Text style={styles.mkStrong}>Code Edition</Text>
                 {info?.editionLabel ? `: ${info.editionLabel}${editionSrc ? `, ${editionSrc}` : ''}.` : ': not confirmed for this address.'}
               </Text>
             </View>
             <View style={styles.mk}>
               <View style={styles.mkBars}><EvidenceBars evidence={null} sunlight={sunlight} /></View>
               <Text style={styles.mkText}>
-                <Text style={styles.mkStrong}>Section numbers</Text>
+                <Text style={styles.mkStrong}>Section Numbers</Text>
                 {': model recall. Confirm before you rely on one.'}
               </Text>
             </View>
             <View style={styles.mk}>
               <View style={styles.mkPen} />
               <Text style={styles.mkText}>
-                <Text style={styles.mkStrong}>Plan reading</Text>
+                <Text style={styles.mkStrong}>Plan Reading</Text>
                 {`: the AI’s read of ${planSourceLabel ?? 'the drawing'}. Check the sheet before you act on it.`}
               </Text>
             </View>
@@ -261,8 +261,8 @@ export function CodeCardList(props: CodeCardListProps) {
           <Text style={styles.secheadText} accessibilityRole="header">{requirementsCount(items)}</Text>
           <SegmentedControl
             options={[
-              { value: 'cards', label: 'Cards', icon: Rows3, accessibilityLabel: 'Show as cards', testID: `${tid}-cards` },
-              { value: 'list', label: 'List', icon: LayoutList, accessibilityLabel: 'Show as a list', testID: `${tid}-list` },
+              { value: 'cards', label: 'Cards', icon: Rows3, accessibilityLabel: 'Show as Cards', testID: `${tid}-cards` },
+              { value: 'list', label: 'List', icon: LayoutList, accessibilityLabel: 'Show as a List', testID: `${tid}-list` },
             ]}
             value={view}
             onChange={(v) => { layoutNext(); setView(v as 'cards' | 'list'); }}

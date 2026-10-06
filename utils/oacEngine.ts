@@ -231,7 +231,7 @@ export function buildCarryForwardAgendaItems(open: OpenOACAction[]): OACAgendaIt
         // "owner" together for ordering, but each line still prints the words
         // that were written down — normalising free text on the way to the
         // screen is how a record stops matching the minutes it came from.
-        detail: `${(o.action.ballInCourt ?? '').trim() || 'Owner unnamed'} · ${actionDueLabel(o)}`,
+        detail: `${(o.action.ballInCourt ?? '').trim() || 'Owner Unnamed'} · ${actionDueLabel(o)}`,
         status: overdue ? 'urgent' : o.needsChasing ? 'warn' : 'info',
         referenceId: o.action.id,
         referenceType: 'oac_action',

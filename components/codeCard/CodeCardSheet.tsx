@@ -193,7 +193,7 @@ function SheetBody({
 
   const stageWord = stage ? stageLabel(stage) : null;
   const stageSuffix = !stage ? '' : stageEdited ? ' · you set it' : item.stageIsGuess ? ' · AI guess' : '';
-  const checklistTitle = stageWord ? `Add to ${stageWord} inspection checklist` : 'Add to an inspection checklist';
+  const checklistTitle = stageWord ? `Add to ${stageWord} inspection checklist` : 'Add to an Inspection Checklist';
 
   const actionRow = (key: string, title: string, sub: string, Icon: typeof Bookmark, action: CodeCardAction | undefined, ruled: boolean) => {
     const done = action?.kind === 'done';
@@ -404,7 +404,7 @@ function SheetBody({
               {info?.editionLabel ? (
                 <>
                   <Text style={styles.rrText}>{info.editionLabel}</Text>
-                  <Text style={styles.rrSmall}>{sourceLine(info.editionSourceUrl, info.editionCheckedOn) ?? 'Source not on file'}</Text>
+                  <Text style={styles.rrSmall}>{sourceLine(info.editionSourceUrl, info.editionCheckedOn) ?? 'Source Not on File'}</Text>
                   {edition.citedLine ? <Text style={styles.rrSmall} testID={`${tid}-cited`}>{edition.citedLine}</Text> : null}
                 </>
               ) : (
@@ -418,7 +418,7 @@ function SheetBody({
           <View style={[styles.rr, styles.ruled]}>
             <Text style={styles.rrKey}>Permit</Text>
             <View style={styles.rrVal}>
-              <Text style={styles.rrText}>{info?.permitOfficeTitle ?? 'Not found for this address'}</Text>
+              <Text style={styles.rrText}>{info?.permitOfficeTitle ?? 'Not Found for This Address'}</Text>
               {info?.permitOfficeTitle ? (
                 <Text style={styles.rrSmall}>
                   {[sourceLine(info.permitOfficeSourceUrl, info.permitOfficeCheckedOn) ?? OFFICE_UNVERIFIED, permitPhone].filter(Boolean).join(' · ')}
@@ -461,12 +461,12 @@ function SheetBody({
 
       <View style={styles.alist}>
         {actionRow('checklist', checklistTitle, 'Shows in Inspection Ready 3 days before that inspection', ClipboardCheck, storeGated(checklist, shown), false)}
-        {actionRow('ask', 'Draft a question for the town', 'Opens in your Mail. MAGE sends nothing.', MessageCircleQuestion, askTown, true)}
-        {actionRow('save', 'Save to the job', 'Kept with the codes and permits', Bookmark, storeGated(save, shown), true)}
+        {actionRow('ask', 'Draft a Question for the Town', 'Opens in your Mail. MAGE sends nothing.', MessageCircleQuestion, askTown, true)}
+        {actionRow('save', 'Save to the Job', 'Kept with the codes and permits', Bookmark, storeGated(save, shown), true)}
       </View>
       <BlockedNote text={note} sunlight={sunlight} testID={`${tid}-note`} />
 
-      <Text style={styles.msgHead}>Send to a sub</Text>
+      <Text style={styles.msgHead}>Send to a Sub</Text>
       <View style={styles.chips}>
         {(recipients ?? []).map((r) => (
           <Pressable

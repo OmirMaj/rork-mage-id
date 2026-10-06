@@ -64,7 +64,7 @@ interface Props {
 }
 
 export default function CodeCheckLoader({
-  eyebrow = 'Code check',
+  eyebrow = 'Code Check',
   // AI-F3: the default headline must not imply a code lookup — the Code
   // Check recalls; nothing is read. (The permit roadmap passes its own.)
   headline = 'Recalling the code that likely governs this project',

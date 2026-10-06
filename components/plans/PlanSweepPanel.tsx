@@ -96,7 +96,7 @@ function lookRightRows(reviewed: unknown): PlanCodeFindingRaw[] {
 }
 
 /** "Punch item added — …. Open punch list" → the sentence and the link words. */
-const OPEN_PUNCH = 'Open punch list';
+const OPEN_PUNCH = 'Open Punch List';
 const withoutLink = (s: string) => (s.endsWith(OPEN_PUNCH) ? s.slice(0, -OPEN_PUNCH.length).trimEnd() : s);
 
 export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: Props) {

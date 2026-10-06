@@ -105,7 +105,7 @@ const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mecha
 /**
  * The permit is issued but its inspection cycle has not begun. The inspection
  * breadcrumb is then correctly all-empty — nothing has been scheduled — and
- * this is what keeps "Schedule inspection" reachable anyway.
+ * this is what keeps "Schedule Inspection" reachable anyway.
  *
  * Both halves come from the model so the screen cannot drift from it:
  * `pipelinePositionFor` says the status belongs to the application path, and
@@ -170,7 +170,7 @@ function PickerOptions({ children, testID }: { children: React.ReactNode; testID
  * Name the gap and point at the fix. Returns null when there is nothing real
  * to print, so each caller decides how to say it.
  */
-const JURISDICTION_UNSET = 'Issuing jurisdiction not set';
+const JURISDICTION_UNSET = 'Issuing Jurisdiction Not Set';
 
 function jurisdictionOrNull(value: string | null | undefined): string | null {
   const v = (value ?? '').trim();
@@ -195,7 +195,7 @@ function permitExpiryLine(permit: Permit, nowMs: number): { text: string; tone: 
         ? { text: `Expired ${-d} day${d === -1 ? '' : 's'} ago`, tone: 'bad' }
         : null;
     }
-    if (d === 0) return { text: 'Expires today', tone: 'warn' };
+    if (d === 0) return { text: 'Expires Today', tone: 'warn' };
     if (d !== null) return { text: `Expires in ${d} day${d === 1 ? '' : 's'}`, tone: 'warn' };
     return null;
   }
@@ -708,7 +708,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
       ...EMPTY_FORM,
       appliedDate: todayCalendarDay(),
       // #51: the job he is looking at. With no job in scope and more than one
-      // project, leave it EMPTY — handleSave's "Pick a project" guard makes
+      // project, leave it EMPTY — handleSave's "Pick a Project" guard makes
       // him choose, instead of quietly filing it under whichever job happens
       // to be first in the list.
       projectId: scopedProjectId
@@ -1043,7 +1043,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
     );
   }, [editingPermit, deletePermit, closeForm]);
 
-  const selectedProjectName = projects.find(p => p.id === form.projectId)?.name ?? 'Pick a project';
+  const selectedProjectName = projects.find(p => p.id === form.projectId)?.name ?? 'Pick a Project';
 
   // #138: "+6 / +12 months" counts from the day the permit was issued when it
   // carries one, else from the applied date — and the chip says which.
@@ -1146,7 +1146,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   {(PERMIT_TYPE_INFO[b.type]?.label ?? b.type)} · {b.projectName}
                 </Text>
                 <Text style={styles.blockerStatus}>
-                  {b.status === 'denied' ? 'Permit denied' : 'Failed inspection'}
+                  {b.status === 'denied' ? 'Permit Denied' : 'Failed Inspection'}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -1304,8 +1304,8 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                         setForm(f => ({ ...f, status: next as PermitStatus }));
                       }}
                       advanceLabel={
-                        form.status === 'applied' ? 'Move to review'
-                        : form.status === 'under_review' ? 'Mark approved'
+                        form.status === 'applied' ? 'Move to Review'
+                        : form.status === 'under_review' ? 'Mark Approved'
                         : undefined
                       }
                     />
@@ -1326,8 +1326,8 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                           setForm(f => ({ ...f, status: next as PermitStatus }));
                         }}
                         advanceLabel={
-                          form.status === 'approved' ? 'Schedule inspection'
-                          : form.status === 'inspection_scheduled' ? 'Mark inspection passed'
+                          form.status === 'approved' ? 'Schedule Inspection'
+                          : form.status === 'inspection_scheduled' ? 'Mark Inspection Passed'
                           : undefined
                         }
                       />
@@ -1782,7 +1782,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                     style={styles.viewScanBtn}
                     onPress={() => openScanViewer(
                       attachmentPreview,
-                      editingPermit ? scanCaption(editingPermit) : 'Permit scan',
+                      editingPermit ? scanCaption(editingPermit) : 'Permit Scan',
                       scanState === 'uploading' ? SCAN_UPLOADING_NOTE : undefined,
                       scanState === 'ready' ? attachmentPreview : undefined,
                     )}

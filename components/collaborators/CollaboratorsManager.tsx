@@ -703,7 +703,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
           ) : null}
         </View>
       ) : view === 'empty' ? (
-        <Text style={[styles.empty, { color: t.textMuted }]}>No team members yet{isOwner ? '. Invite your first above.' : '.'}</Text>
+        <Text style={[styles.empty, { color: t.textMuted }]}>No Team Members Yet{isOwner ? '. Invite your first above.' : '.'}</Text>
       ) : (
         collaborators.map((c) => (
           <View key={c.id} style={[styles.row, { borderColor: t.line }]}>

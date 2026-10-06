@@ -137,7 +137,7 @@ export function SubCredentialCard({
               styles={styles}
               t={t}
             />
-            {r.w9OnFile ? <Chip label="W-9 on file" tone="good" styles={styles} t={t} /> : null}
+            {r.w9OnFile ? <Chip label="W-9 on File" tone="good" styles={styles} t={t} /> : null}
           </View>
 
           {c.highlights.length > 0 ? (

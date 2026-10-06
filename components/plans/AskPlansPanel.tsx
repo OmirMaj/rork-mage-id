@@ -365,7 +365,7 @@ function AskPlansPanelInner({
     if (indexState === 'error') return 'Indexing failed. Try again.';
     const changed = changedSinceIndexLabel(changedCount);
     if (changed) return changed;
-    return currentCount > 0 ? `Index ${currentCount} sheet${currentCount === 1 ? '' : 's'}` : 'Index plans';
+    return currentCount > 0 ? `Index ${currentCount} sheet${currentCount === 1 ? '' : 's'}` : 'Index Plans';
   })();
   const changedWarning = !summary && indexState !== 'indexing' && indexState !== 'error' && (changedCount ?? 0) > 0;
   const toneColor = (tone: IndexTone | undefined): string =>

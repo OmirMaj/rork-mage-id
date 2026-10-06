@@ -98,11 +98,11 @@ export const sweepCopy = {
   findingsTitle: 'Questions raised',
   observed: 'Observed',
   requirementLabel: 'Requirement (model recall, not looked up)',
-  recallBadge: 'Model recall',
+  recallBadge: 'Model Recall',
   noLocation: 'The AI could not place this on the sheet, so no pin will be added.',
-  draftRfi: 'Draft RFI to architect',
+  draftRfi: 'Draft RFI to Architect',
   drafted: (n: number) => `RFI #${n} drafted, not sent`,
-  addPunch: 'Add punch item',
+  addPunch: 'Add Punch Item',
   punchAddedPinned: 'Punch item added, pinned at the approximate spot. Open punch list',
   punchAddedNoPin: 'Punch item added with no pin: the AI couldn’t place it on the sheet. Open punch list',
   approxNote: 'Pins from the sweep are approximate. The AI estimates where the item is on the sheet.',
@@ -119,7 +119,7 @@ export const sweepCopy = {
   whyOverLimit: (n: number) => `Matched, but over this sweep's limit of ${n} sheet${n === 1 ? '' : 's'}`,
   whySearchFailed: 'The plan search didn\'t answer for it, not reviewed',
   severity: { high: 'High', med: 'Medium', low: 'Low' } as Record<'high' | 'med' | 'low', string>,
-  confidence: { high: 'High confidence', med: 'Medium confidence', low: 'Low confidence' } as Record<'high' | 'med' | 'low', string>,
+  confidence: { high: 'High Confidence', med: 'Medium Confidence', low: 'Low Confidence' } as Record<'high' | 'med' | 'low', string>,
 } as const;
 
 // ── 1. What to look for ────────────────────────────────────────────────────
@@ -462,7 +462,7 @@ export function sweepFindingView(
 // ── 4. The RFI draft ───────────────────────────────────────────────────────
 
 /**
- * The addRFI input for "Draft RFI to architect". rfiFromPin's shape exactly —
+ * The addRFI input for "Draft RFI to Architect". rfiFromPin's shape exactly —
  * unsent, ball in the GC's court, no addressee, due 14 calendar days out, the
  * sheet attached by its durable key — with the sweep's question. The pin
  * position only feeds rfiFromPin's own question, which is replaced here, so a
@@ -494,7 +494,7 @@ function clip(s: string, max: number): string {
 }
 
 /**
- * The addPunchItem input for "Add punch item": plan-viewer's pin → punch shape
+ * The addPunchItem input for "Add Punch Item": plan-viewer's pin → punch shape
  * (open, unassigned, no due date, medium), on the formal punch list. The pin
  * fields are set ONLY when the AI placed the finding on the sheet — and then
  * the location says the spot is approximate. A finding with no location gets

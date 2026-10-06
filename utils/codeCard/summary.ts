@@ -71,9 +71,9 @@ export interface CodeGroup<K extends string> {
 }
 
 export const STATUS_GROUP_LABEL: Readonly<Record<CodeCardStatus, string>> = Object.freeze({
-  fix: 'Fix before you submit',
-  ask: 'Needs an answer',
-  ok: 'Look right on the drawing',
+  fix: 'Fix Before You Submit',
+  ask: 'Needs an Answer',
+  ok: 'Look Right on the Drawing',
 });
 
 const STATUS_ORDER: readonly CodeCardStatus[] = ['fix', 'ask', 'ok'];

@@ -51,7 +51,7 @@ export function rfiBallLabel(ball: RFIBallInCourt | null | undefined): string | 
     case 'owner': return 'Owner';
     case 'sub': return 'Subcontractor';
     case 'landlord': return 'Landlord';
-    case 'building_engineer': return 'Building engineer';
+    case 'building_engineer': return 'Building Engineer';
     case 'closed': return 'Closed';
     default: return null;
   }

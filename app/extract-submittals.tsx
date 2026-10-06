@@ -218,11 +218,11 @@ export default function ExtractSubmittalsScreen() {
       //     accurate and the user is spared the upload-then-429 round trip.
       const pageCount = await countPdfPages(asset.uri);
       if (pageCount !== null && pageCount <= SPEC_PAGES_PER_PASS) {
-        const fits = await confirmQuotaFits(pageCount, asset.name ?? 'Spec book PDF', router);
+        const fits = await confirmQuotaFits(pageCount, asset.name ?? 'Spec Book PDF', router);
         if (!fits) return;
       }
 
-      const pickedBook: PickedBook = { uri: asset.uri, name: asset.name ?? 'Spec book PDF', pageCount };
+      const pickedBook: PickedBook = { uri: asset.uri, name: asset.name ?? 'Spec Book PDF', pageCount };
       // A new book starts a new review list.
       setBook(pickedBook);
       setItems([]);
@@ -324,7 +324,7 @@ export default function ExtractSubmittalsScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <ToolHeader eyebrow="Spec Book · MAGE ID" title="Extract Submittals" />
         <ToolProjectPicker
-          toolName="Extract submittals"
+          toolName="Extract Submittals"
           message="MAGE reads a spec book PDF and drafts the submittal log: every product data sheet, shop drawing and sample the spec calls for, filed into the project."
           projects={projects}
           onPick={setPickedProjectId}
@@ -455,7 +455,7 @@ export default function ExtractSubmittalsScreen() {
                         </View>
                       ) : null}
                       <View style={[styles.confChip, confColor(row.confidence, themeColors)]}>
-                        <Text style={styles.confText}>{CONFIDENCE_LABEL[row.confidence] ?? 'Confidence not rated'}</Text>
+                        <Text style={styles.confText}>{CONFIDENCE_LABEL[row.confidence] ?? 'Confidence Not Rated'}</Text>
                       </View>
                     </View>
                     <Text style={styles.itemType}>{row.submittalType}</Text>

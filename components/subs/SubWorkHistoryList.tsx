@@ -81,7 +81,7 @@ function Row({ entry, onPress }: { entry: SubGcHistory; onPress?: () => void }) 
 export function SubWorkHistoryList({
   history,
   onSelectGc,
-  title = 'Who you have worked for',
+  title = 'Who You Have Worked For',
 }: {
   history: SubGcHistory[];
   onSelectGc?: (gcId: string) => void;

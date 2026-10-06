@@ -116,7 +116,7 @@ export function recordSections(rec: CodeCheckRecord): SavedSection[] {
     },
     gated('permits', 'Permits', savedOwnWordsLines(r?.permitsRequired)),
     gated('inspections', 'Inspections', savedOwnWordsLines(r?.inspections)),
-    gated('violations', 'Common violations', savedOwnWordsLines(r?.commonViolations)),
+    gated('violations', 'Common Violations', savedOwnWordsLines(r?.commonViolations)),
   ];
 }
 
@@ -156,7 +156,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
     setTimeout(() => router.push(href), Platform.OS === 'ios' ? IOS_MODAL_NAV_DELAY_MS : 0);
   };
 
-  const sourceLabel = record.source?.label?.trim() || SOURCE_LABEL[record.source?.kind ?? 'manual'] || 'Run by hand';
+  const sourceLabel = record.source?.label?.trim() || SOURCE_LABEL[record.source?.kind ?? 'manual'] || 'Run by Hand';
   const sent = g?.jobDataSent ?? [];
   // The headline as frozen; with none, say 'not checked' only when it wasn't.
   const recordLine = g?.buildingRecordHeadline?.trim()

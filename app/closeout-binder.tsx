@@ -815,7 +815,7 @@ export default function CloseoutBinderScreen() {
         title="Everything the Client Gets at the End"
         subtitle="Warranties, manuals, paint colors, the trades who did the work and as-builts, bundled into one PDF binder you hand over on closeout day."
         explainer={{
-          term: 'Closeout binder',
+          term: 'Closeout Binder',
           definition: 'The closeout binder is the package of everything the client needs to operate what you built: warranty docs from each manufacturer, operating manuals for installed equipment, paint colors and finishes for touch-ups, sub contact info for warranty claims, and as-built drawings showing what was actually built (not just what was designed).',
           whenToUse: [
             'At project closeout, before you hand over the keys',
@@ -1182,7 +1182,7 @@ export default function CloseoutBinderScreen() {
                 {delivering ? <ActivityIndicator size="small" color="#FFF" /> : (
                   <>
                     <Send size={14} color="#FFF" strokeWidth={1.75} />
-                    <Text style={styles.primaryText}>Deliver to client</Text>
+                    <Text style={styles.primaryText}>Deliver to Client</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1299,7 +1299,7 @@ function AiaFormModal({
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
           {needsNotary && (
             <>
-              <Text style={modalStyles.label}>State (2-letter)</Text>
+              <Text style={modalStyles.label}>State (2-Letter)</Text>
               <TextInput
                 style={modalStyles.input}
                 value={state}

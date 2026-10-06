@@ -28,7 +28,7 @@ export function PausedPill({ top, onResume, onEnd }: PausedPillProps) {
         style={[styles.pill, Tokens.shadow.medium, { backgroundColor: colors.surface, borderColor: colors.line }]}
         testID="tutorial-paused-pill"
       >
-        <Text style={[Type.footnoteEmphasized, styles.label, { color: colors.text }]}>Tutorial paused</Text>
+        <Text style={[Type.footnoteEmphasized, styles.label, { color: colors.text }]}>Tutorial Paused</Text>
         <Text style={[Type.footnote, { color: colors.textMuted }]}>·</Text>
         <Pressable onPress={onResume} accessibilityRole="button" accessibilityLabel="Resume Tutorial" hitSlop={6} style={styles.action} testID="tutorial-resume">
           <Text style={[Type.footnoteEmphasized, { color: colors.accentLabel }]}>Resume</Text>

@@ -211,7 +211,7 @@ export default function PlansScreen() {
 
   const handleImport = useCallback(async () => {
     if (importBlock) { showAlert('Can\u2019t Add Sheets', importBlock); return; }
-    const source = await askPlanImageSource('Add a plan image', 'Photograph the paper plan, or pick an image you already have.');
+    const source = await askPlanImageSource('Add a Plan Image', 'Photograph the paper plan, or pick an image you already have.');
     if (!source) return;
     setImporting(true);
     try {
@@ -319,7 +319,7 @@ export default function PlansScreen() {
       // takeoff pages again (convert-pdf-to-images bills per page), so ask
       // BEFORE the upload. Going ahead replaces those pages (Rev +1, the old
       // ones hidden as superseded) instead of listing every page twice.
-      const baseName = asset.name?.replace(/\.[^/.]+$/, '') ?? 'Plan set';
+      const baseName = asset.name?.replace(/\.[^/.]+$/, '') ?? 'Plan Set';
       const prior = priorImportOf(allSheets, projectId, baseName);
       if (prior.length > 0) {
         const again = await new Promise<boolean>((resolve) => {

@@ -64,7 +64,7 @@ interface WalkItem {
 }
 
 const DEFAULT_WALK_ITEMS: WalkItem[] = [
-  { id: 'foundation-cracks',   phase: 'Structural',     title: 'Foundation: hairline cracks under 1/8"', hint: 'Normal settlement; flag anything wider or stair-stepping.' },
+  { id: 'foundation-cracks',   phase: 'Structural',     title: 'Foundation: Hairline Cracks Under 1/8"', hint: 'Normal settlement; flag anything wider or stair-stepping.' },
   { id: 'drywall-nailpops',    phase: 'Structural',     title: 'Drywall: Nail Pops, Seam Cracks, Corner-Bead', hint: 'Early settlement. One-time touch-up is typical.' },
   { id: 'roofing-flashing',    phase: 'Exterior',       title: 'Roof: Flashing, Ridge Caps, Attic for Leaks', hint: 'Look for water staining at top plates / valley penetrations.' },
   { id: 'siding-caulk',        phase: 'Exterior',       title: 'Siding and Exterior Caulk: Shrinkage / Gaps', hint: 'Re-caulk where joints have separated; especially around windows.' },
@@ -104,7 +104,7 @@ export default function WarrantyWalkScreen() {
   // #142: HIS warranty length, 12 only as a stated assumption.
   const { months: warrantyMonths, assumed: monthsAssumed } = resolveWalkMonths(resolveWarrantyMonths(settings));
   const walkLabel = warrantyWalkLabel(warrantyMonths); // '11-month' | '23-month' | 'pre-expiry'
-  const walkTitle = walkLabel === 'pre-expiry' ? 'Pre-expiry walk' : `${walkLabel} walk`;
+  const walkTitle = walkLabel === 'pre-expiry' ? 'Pre-Expiry Walk' : `${walkLabel} walk`;
   const schedule = useMemo(
     () => (project ? warrantyWalkScheduleFor(project, warrantyMonths) : null),
     [project, warrantyMonths],
@@ -314,7 +314,7 @@ export default function WarrantyWalkScreen() {
       // #142: the homeowner reads a month count only when it is HIS — with no
       // warranty set, "11-month" would be our assumption printed as his term.
       const emailWalk = monthsAssumed ? 'warranty walk' : `${walkLabel} warranty walk`;
-      const emailWalkTitle = monthsAssumed ? 'Warranty walk' : walkTitle;
+      const emailWalkTitle = monthsAssumed ? 'Warranty Walk' : walkTitle;
       const checkedRows = DEFAULT_WALK_ITEMS
         .filter(it => items[it.id]?.checked)
         .map(it => `<li style="margin-bottom:6px;color:#4A5159;">${escapeHtml(it.title)}${items[it.id]?.notes ? ` <span style="color:#9AA3AD;">(${escapeHtml(items[it.id].notes)})</span>` : ''}</li>`)

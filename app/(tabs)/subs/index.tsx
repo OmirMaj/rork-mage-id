@@ -319,7 +319,7 @@ export default function SubsScreen() {
   const [w9DocPath, setW9DocPath] = useState<string | undefined>(undefined);
   const [uploadingW9, setUploadingW9] = useState(false);
   // The language texts to this sub go out in (Spanish Phase 1b, docs/I18N.md
-  // §9). Set by the GC, never guessed from a name; null = "Not set" (English).
+  // §9). Set by the GC, never guessed from a name; null = "Not Set" (English).
   // The row shows, and the choice is saved, only once Spanish is switched on.
   const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'es' | null>(null);
 
@@ -423,14 +423,14 @@ export default function SubsScreen() {
   const openW9 = useCallback(async (path: string) => {
     const url = await signW9Url(path);
     if (!url) {
-      showAlert("Couldn't open the W-9", "The link couldn't be made. You may be offline, or the file was removed. Try again when you're online, or upload it again.");
+      showAlert("Couldn't Open the W-9", "The link couldn't be made. You may be offline, or the file was removed. Try again when you're online, or upload it again.");
       return;
     }
     try {
       if (Platform.OS === 'web') await Linking.openURL(url);
       else await WebBrowser.openBrowserAsync(url);
     } catch {
-      showAlert("Couldn't open the W-9", 'Try again.');
+      showAlert("Couldn't Open the W-9", 'Try again.');
     }
   }, []);
 
@@ -564,7 +564,7 @@ export default function SubsScreen() {
                   ? 'No license or COI expiry on file. Insurance unverified.'
                   : missingDocs.coi
                     ? 'No COI expiry on file. Insurance unverified.'
-                    : 'No license expiry on file')
+                    : 'No License Expiry on File')
               : getStatusLabel(status, sub)}
           </Text>
         </View>
@@ -579,10 +579,10 @@ export default function SubsScreen() {
 
         <View style={styles.detailSection}>
           <Text style={styles.detailSectionTitle}>Compliance</Text>
-          <View style={styles.detailRow}><Shield size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License: {sub.licenseNumber || 'Not set'}</Text></View>
-          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License expiry: {sub.licenseExpiry || 'Not set'}</Text></View>
-          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>COI expiry: {sub.coiExpiry || 'Not set'}</Text></View>
-          <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.successLabel : Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On file' : 'Missing'}</Text></View>
+          <View style={styles.detailRow}><Shield size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License: {sub.licenseNumber || 'Not Set'}</Text></View>
+          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License expiry: {sub.licenseExpiry || 'Not Set'}</Text></View>
+          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>COI expiry: {sub.coiExpiry || 'Not Set'}</Text></View>
+          <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.successLabel : Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On File' : 'Missing'}</Text></View>
 
           {/* Verification badges + deep-link to state board.
               Two paths:
@@ -1004,7 +1004,7 @@ export default function SubsScreen() {
                   <View testID="sub-language-row">
                     <Text style={styles.fieldLabel}>Language</Text>
                     <View style={styles.tradeGrid}>
-                      {([[null, 'Not set'], ['en', 'English'], ['es', 'Español']] as const).map(([value, label]) => (
+                      {([[null, 'Not Set'], ['en', 'English'], ['es', 'Español']] as const).map(([value, label]) => (
                         <TouchableOpacity
                           key={value ?? 'unset'}
                           style={[styles.tradeChip, preferredLanguage === value && styles.tradeChipActive]}
@@ -1049,7 +1049,7 @@ export default function SubsScreen() {
                     <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={coiExpiry} onChangeText={setCoiExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
                   </View>
                   <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-                    <Text style={styles.fieldLabel}>W-9 on file</Text>
+                    <Text style={styles.fieldLabel}>W-9 on File</Text>
                     <View style={styles.switchRow}>
                       <Text style={styles.switchLabel}>{w9OnFile ? 'Yes' : 'No'}</Text>
                       <Switch value={w9OnFile} onValueChange={setW9OnFile} trackColor={{ false: Colors.border, true: Colors.primary }} thumbColor={Colors.surface} />
@@ -1063,7 +1063,7 @@ export default function SubsScreen() {
                     differ from companyName (DBA vs. LLC). */}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Legal name (1099)</Text>
+                    <Text style={styles.fieldLabel}>Legal Name (1099)</Text>
                     <TextInput
                       style={styles.input}
                       value={legalName}
@@ -1073,7 +1073,7 @@ export default function SubsScreen() {
                     />
                   </View>
                   <View style={{ width: 130 }}>
-                    <Text style={styles.fieldLabel}>TIN (last 4)</Text>
+                    <Text style={styles.fieldLabel}>TIN (Last 4)</Text>
                     <TextInput
                       style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]}
                       value={taxIdLast4}
@@ -1090,7 +1090,7 @@ export default function SubsScreen() {
                     sub-documents/<subId>/w9.pdf. Picker only accepts PDF
                     + images so the GC doesn't accidentally upload a
                     Word doc. Auto-flips w9OnFile to true on success. */}
-                <Text style={styles.fieldLabel}>W-9 document</Text>
+                <Text style={styles.fieldLabel}>W-9 Document</Text>
                 <TouchableOpacity
                   onPress={async () => {
                     if (!editingSub) {
@@ -1124,7 +1124,7 @@ export default function SubsScreen() {
                       // (20260923150000 + ProjectContext's mapper, CONTRACT 17).
                       updateSubcontractor(editingSub.id, { w9OnFile: true, w9DocPath: path });
                       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      showAlert('W-9 uploaded', 'Stored privately. Only your account can see it.');
+                      showAlert('W-9 Uploaded', 'Stored privately. Only your account can see it.');
                     } catch (err) {
                       console.warn('[subs] W-9 upload failed:', rawErrorMessage(err));
                       const copy = describeError(err, { action: 'upload the W-9' });

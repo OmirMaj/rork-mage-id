@@ -404,7 +404,7 @@ function PlanIntelligenceInner() {
                   ))}
                   <TouchableOpacity style={[styles.pickRow, styles.pickRowDashed]} onPress={() => void pickFromLibrary()} activeOpacity={0.8}>
                     <Plus size={16} color={t.accent} strokeWidth={1.75} />
-                    <Text style={[styles.pickRowTitle, { color: t.accent }]}>Pick a plan image from your library</Text>
+                    <Text style={[styles.pickRowTitle, { color: t.accent }]}>Pick a Plan Image from Your Library</Text>
                   </TouchableOpacity>
                   {planSheets.length === 0 && (
                     <Text style={styles.note}>
@@ -614,7 +614,7 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
             </View>
           </View>
 
-          <Text style={styles.fieldLabel}>Note for MAGE (carried to future plans)</Text>
+          <Text style={styles.fieldLabel}>Note for MAGE (Carried to Future Plans)</Text>
           <TextInput
             style={[styles.fieldInput, styles.fieldInputMultiline]}
             value={note}

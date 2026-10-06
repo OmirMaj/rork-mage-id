@@ -37,10 +37,10 @@ export function submittalBallInCourt(s: Pick<Submittal, 'currentStatus' | 'revie
   }
 }
 
-/** "Cycle n" (the highest cycle number), or "Not sent" before the first. */
+/** "Cycle n" (the highest cycle number), or "Not Sent" before the first. */
 export function submittalCycleLabel(s: Pick<Submittal, 'reviewCycles'>): string {
   const cycles = s.reviewCycles ?? [];
-  if (cycles.length === 0) return 'Not sent';
+  if (cycles.length === 0) return 'Not Sent';
   let n = 0;
   for (const c of cycles) {
     const k = typeof c?.cycleNumber === 'number' && Number.isFinite(c.cycleNumber) ? c.cycleNumber : 0;

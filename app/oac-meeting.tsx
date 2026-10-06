@@ -96,7 +96,7 @@ const EMPTY_TRANSCRIPT_MESSAGE = 'The recording came back with no words. Try a c
  *  detail, not something to show a PM mid-meeting. */
 const STATUS_WORD: Record<OACActionItem['status'], string> = {
   open: 'Open',
-  in_progress: 'In progress',
+  in_progress: 'In Progress',
   done: 'Done',
 };
 
@@ -620,7 +620,7 @@ function OACMeetingInner() {
       ? `${a.ballInCourt} · ${actionDueLabel(origin)} · OAC #${origin.meetingNumber}`
       : `${a.ballInCourt} · ${a.dueBy
           ? `Due ${formatCalendarDay(calendarDayOf(a.dueBy)) || a.dueBy}`
-          : 'No due date agreed'}`;
+          : 'No Due Date Agreed'}`;
     return (
       <View key={a.id} style={styles.actionRow}>
         <TouchableOpacity
@@ -779,7 +779,7 @@ function OACMeetingInner() {
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'OAC Meetings' }} />
         <ToolProjectPicker
-          toolName="OAC meetings"
+          toolName="OAC Meetings"
           message="An Owner-Architect-Contractor meeting keeps attendees, agenda and minutes tied to one project."
           projects={ctx.projects ?? []}
           onPick={setPickedProjectId}
@@ -1148,7 +1148,7 @@ function OACMeetingInner() {
         title="Weekly Project Meeting"
         subtitle="The standing call with the owner, the architect and you. MAGE builds the agenda from open RFIs, change orders and schedule slips, and records and transcribes the meeting."
         explainer={{
-          term: 'OAC meeting',
+          term: 'OAC Meeting',
           definition: '"OAC" stands for Owner / Architect / Contractor, the three parties who meet weekly (or every two weeks) on most projects to align on progress, decisions and changes. This is the meeting where blocking RFIs get resolved, change orders get approved and the schedule gets re-baselined.',
           whenToUse: [
             'You\'re running a project with regular owner/architect involvement',
@@ -1226,8 +1226,8 @@ function labelForStatus(s: OACMeeting['status']): string {
   switch (s) {
     case 'draft':        return 'Draft';
     case 'scheduled':    return 'Scheduled';
-    case 'in_progress':  return 'In progress';
-    case 'concluded':    return 'Concluded, ready to send';
+    case 'in_progress':  return 'In Progress';
+    case 'concluded':    return 'Concluded, Ready to Send';
     case 'distributed':  return 'Distributed';
   }
 }

@@ -264,7 +264,7 @@ export default function CopilotHubScreen() {
                 <View style={styles.cardIcon}><CalendarClock size={18} color={colors.accent} strokeWidth={2} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardLabel} numberOfLines={1}>{c.name}</Text>
-                  <Text style={styles.queueSub} numberOfLines={1}>{schedulePick.then === 'view' ? 'Open this schedule' : `${SCHEDULE_EDIT_INTENT.label} · you review the change before it saves`}</Text>
+                  <Text style={styles.queueSub} numberOfLines={1}>{schedulePick.then === 'view' ? 'Open This Schedule' : `${SCHEDULE_EDIT_INTENT.label} · you review the change before it saves`}</Text>
                 </View>
                 <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
               </TouchableOpacity>

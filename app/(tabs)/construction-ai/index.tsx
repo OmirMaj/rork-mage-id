@@ -3592,7 +3592,7 @@ ${SPECIFICS_RULE}`;
                       style={styles.codeDetailToggle}
                       testID={`code-detail-toggle-${i}`}
                     >
-                      <Text style={styles.codeDetailToggleText}>{isOpen ? 'Hide what the inspector checks' : 'What the inspector checks'}</Text>
+                      <Text style={styles.codeDetailToggleText}>{isOpen ? 'Hide What the Inspector Checks' : 'What the Inspector Checks'}</Text>
                       {isOpen
                         ? <ChevronUp size={14} color={Colors.textMuted} strokeWidth={1.75} />
                         : <ChevronDown size={14} color={Colors.textMuted} strokeWidth={1.75} />}
