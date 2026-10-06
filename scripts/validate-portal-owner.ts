@@ -288,7 +288,7 @@ expect('overdue first, then contract → CO → selection → invoice, then olde
     'sel-far:waiting',
   ]);
 
-ok('an overdue selection outranks the unsigned contract',
+ok('an overdue selection outranks the unSigned Contract',
   D_JUN15.findIndex(d => d.id === 'sel-late') < D_JUN15.findIndex(d => d.id === 'contract'));
 ok('the unsigned contract outranks a pending CO at the same severity',
   D_JUN15.findIndex(d => d.id === 'contract') < D_JUN15.findIndex(d => d.id === 'co1'));
@@ -1067,7 +1067,7 @@ for (const status of ['sent', 'signed'] as const) {
     ...portalSettings, proposalApprovalEnabled: true,
     proposalPaymentTerms: { depositPct: 25, progressPct: 55, finalPct: 10, confirmedAt: '2026-09-17T12:00:00.000Z' },
   } as unknown as ClientPortalSettings).proposal;
-  expect('a stamp that does not total 100% is treated as not confirmed', bad?.paymentTermsPending, true);
+  expect('a stamp that does not total 100% is treated as Not Confirmed', bad?.paymentTermsPending, true);
 
   // THE FREEZE. His saved terms, his location and his tax rate all changing
   // must leave the published text byte-identical.
@@ -1764,7 +1764,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
 {
   const cv = read('app/client-view.tsx');
   ok('client-view renders the proposal the homeowner will see',
-    /title="Your proposal"/.test(cv) && /proposalBlock\.scope\.map/.test(cv));
+    /title="Your Proposal"/.test(cv) && /proposalBlock\.scope\.map/.test(cv));
   // It builds it with the SAME function the snapshot does. A hand-rolled
   // preview is a preview of something else.
   ok('…built with the shared buildPortalProposal, not re-derived',
@@ -1874,7 +1874,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     && /testID="proposal-terms-row"/.test(setup) && /testID="proposal-terms-use-current"/.test(setup)
     && /testID="proposal-terms-confirm"/.test(setup));
   ok('…with the locked, differs and unconfirmed sentences',
-    /these can&apos;t change/.test(setup) && /the terms your client was shown/.test(setup)
+    /These can’t change/.test(setup) && /the terms your client was shown/.test(setup)
     && /without payment terms and can&apos;t accept it yet/.test(setup)
     && /Your client will need to reload the page before accepting/.test(setup));
   ok('a stamp written elsewhere is adopted into local state',
@@ -2091,7 +2091,7 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
     project: henderson, portal: portalSettings,
     invoices: [inv({ id: 'sent1' }), inv({ id: 'draft1', status: 'draft', subtotal: 27_000, taxAmount: 0, totalDue: 27_000 })],
   });
-  expect('a DRAFT invoice the GC has never issued is not billed to the client',
+  expect('a DRAFT invoice the GC has never issued is not billed to the Client',
     withDraft.sections.budget!.outstanding, 10_800);
   expect('…nor counted as invoiced', withDraft.sections.budget!.invoicedToDate, 10_800);
 
@@ -2622,7 +2622,7 @@ ok('the money bar no longer maxes cash-plus-balance against the pre-tax contract
   ok('the never-saved state tells the GC to Save instead of promising a sync',
     /const linkNeedsSave = linkPending && !project\?\.clientPortal\?\.enabled;/.test(setup)
     && /Tap Save to finish securing this link/.test(setup)
-    && /'Save this portal first'/.test(setup));
+    && /'Save This Portal First'/.test(setup));
   ok('the share link builder still appends the access token',
     /buildShortPortalUrl\(PORTAL_BASE_URL, portal\.portalId, undefined, portal\.accessToken\)/.test(setup));
 }

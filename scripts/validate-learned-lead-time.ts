@@ -108,7 +108,7 @@ eq(`${LEARNED_LEAD_FLOOR - 1} permits learn nothing — two points cannot suppor
   const r = resolvePermitReviewLead({ permits: [reviewed(18), reviewed(34)], authority: PHOENIX, permitType: 'electrical', authoredDays: 7 });
   ok('...but the raw count is still reported', r.observed === 2, `observed=${r.observed}`);
   ok('...and the chip says WHY there is no learned value',
-    /2 completed reviews on file — under 3, too few to learn from/.test(r.chipLabel), r.chipLabel);
+    /2 completed reviews on file, under 3, too few to learn from/.test(r.chipLabel), r.chipLabel);
   eq('...and the value falls back to the model guess, LABELLED', r.lead.source, 'ai_estimate');
 }
 
@@ -165,7 +165,7 @@ console.log("\n'learned' is finally produced — from his own dated records:");
   ok('...and no impossible "median 1" inside a 0–0 range survives',
     !/0–0 days, median 1/.test(facts.promptBlock));
   const chip = resolvePermitReviewLead({ permits, authority: PHOENIX, permitType: 'electrical' }).chipLabel;
-  ok('...and the chip admits both numbers', /median 0d — booked at 1d/.test(chip), chip);
+  ok('...and the chip admits both numbers', /median 0d, booked at 1d/.test(chip), chip);
 }
 {
   // Confidence was a pure function of n. Three samples that disagree by two
@@ -238,7 +238,7 @@ for (const r of [
     /no completed review here yet \(3 permits still open\)/.test(r.chipLabel), r.chipLabel);
   const mixed = resolvePermitReviewLead({ permits: [reviewed(18), open_(), open_()], authority: PHOENIX, permitType: 'electrical', authoredDays: 9 });
   ok('...and a partial record says both numbers',
-    /1 completed review on file — under 3, too few to learn from, 2 still open/.test(mixed.chipLabel), mixed.chipLabel);
+    /1 completed review on file, under 3, too few to learn from, 2 still open/.test(mixed.chipLabel), mixed.chipLabel);
   const truly = resolvePermitReviewLead({ permits: [], authority: PHOENIX, authoredDays: 9 });
   ok('an empty file still says it is empty', /no permit history here yet/.test(truly.chipLabel), truly.chipLabel);
 }
@@ -312,7 +312,7 @@ const START = new Date(Date.now()).toISOString().slice(0, 10);
   eq('the SEEDED DEFAULT, resolved through the real path, cannot turn the banner red',
     seeded[0]?.severity, 'med');
   ok('...and says the date is only as real as the placeholder behind it',
-    /book-by date passed IF the ~\d+d lead is right — a seeded national default, not your record/.test(seeded[0]?.message ?? ''),
+    /book-by date passed IF the ~\d+d lead is right \(a seeded national default, not your record\)/.test(seeded[0]?.message ?? ''),
     seeded[0]?.message);
 }
 {

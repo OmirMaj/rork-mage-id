@@ -110,7 +110,7 @@ ok('…even before the invoice is overdue (while he can still fix it)',
 ok('a paid invoice still says paid, not no_recipient', reminderEligibility({ ...base, amountPaid: 1000, hasRecipient: false }).reason !== 'no_recipient');
 ok('a recipient → eligible', reminderEligibility({ ...base, hasRecipient: true }).eligible);
 ok('unknown recipient (cron parity) is not blocked here', reminderEligibility({ ...base }).eligible);
-ok('the card copy says reminders are off and why', /Automatic reminders are off — no client email/.test(reminderBlockMessage('no_recipient')));
+ok('the card copy says reminders are off and why', /Automatic reminders are off: no client email/.test(reminderBlockMessage('no_recipient')));
 
 console.log('\nthe screen is wired to the rules');
 // Wave 4 #34: the send body is runConfirmSend; handleConfirmSend only wraps it

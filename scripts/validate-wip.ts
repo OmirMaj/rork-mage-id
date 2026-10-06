@@ -938,13 +938,13 @@ console.log('\nthe exports print the cost the row was struck against:');
   expect('…the TOTAL excludes the unmeasurable one',
     csvFields(bareCsv[3])[bareHeader.indexOf('Est Gross Profit')], '-250000');
   expect('…and a memo line names it rather than suppressing it silently',
-    bareCsv.some((l) => l.startsWith('"NO COST BASIS — 1 contract (Budget only)')), true);
+    bareCsv.some((l) => l.startsWith('"NO COST BASIS: 1 contract (Budget only)')), true);
   const bareHtml = buildWipHtml(barePeriod, 'Harlow Construction LLC');
   expect('the PDF prints an em dash for it', /<td>—<\/td>/.test(bareHtml), true);
   expect('…and $900,000 of fabricated profit appears nowhere',
     bareHtml.includes('$900,000</td>\n    <td>$900,000'), false);
   expect('…and the page carries the no-cost-basis disclosure',
-    /class="nobasis"/.test(bareHtml) && /No cost basis — 1 contract\s+totalling \$900,000/.test(bareHtml), true);
+    /class="nobasis"/.test(bareHtml) && /No cost basis: 1 contract\s+totalling \$900,000/.test(bareHtml), true);
   const barePortfolio = computeWipPortfolio([bareRow, etcRow]);
   expect('the weighted margin excludes it from BOTH sides',
     Math.round(barePortfolio.weightedMarginPct * 10_000) / 10_000,
@@ -1111,7 +1111,7 @@ console.log('\nthe CSV export hands over a file before it falls back to the clip
   expect('nothing short-circuits the export before it runs',
     returns === 3
     && /if \(!exportPeriod\) return;/.test(body)
-    && /if \(exportPeriod\.rows\.length === 0\) \{ showAlert\('Nothing to export yet', NOTHING_TO_REPORT\); return; \}/.test(body),
+    && /if \(exportPeriod\.rows\.length === 0\) \{ showAlert\('Nothing to Export Yet', NOTHING_TO_REPORT\); return; \}/.test(body),
     true);
   // The fallback must NOT claim the file worked, and must not stay silent.
   expect('the clipboard fallback says it IS a fallback',
@@ -1170,7 +1170,7 @@ console.log('\nthe /reports CSV hands over a file too, not only a clipboard past
   expect('nothing short-circuits the export before it runs',
     returns === 4
     && /if \(tab === 'wip' && !wipUnlocked\) return;/.test(body)
-    && /if \(nothingToExport\) \{ showAlert\('Nothing to report yet', blockedReason\); return; \}/.test(body)
+    && /if \(nothingToExport\) \{ showAlert\('Nothing to Report Yet', blockedReason\); return; \}/.test(body)
     && /if \(!csv\) return;/.test(body),
     true);
   // THE FILE NAME, AS A VALUE. The two reports that ship a CSV each get their
@@ -1257,14 +1257,14 @@ console.log('\nthe export buttons are wired to the handlers every other guard in
       true);
   };
 
-  pinButton(WIP_SCREEN, 'wip-report', 'handleSnapshot', 'Save period');
+  pinButton(WIP_SCREEN, 'wip-report', 'handleSnapshot', 'Save Period');
   pinButton(WIP_SCREEN, 'wip-report', 'handleLock', 'Lock');
   pinButton(WIP_SCREEN, 'wip-report', 'handleExportCsv', 'Export CSV');
   pinButton(WIP_SCREEN, 'wip-report', 'handleExportPdf', 'Export PDF');
   pinButton(REPORTS_SCREEN, 'reports', 'handleCopyCsv', 'Export CSV');
   // The PDF button's label is platform-dependent, so the phone half is the one
   // pinned — it is the press that mails a bank document from the field.
-  pinButton(REPORTS_SCREEN, 'reports', 'handleSharePdf', 'Download & share PDF');
+  pinButton(REPORTS_SCREEN, 'reports', 'handleSharePdf', 'Download and Share PDF');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

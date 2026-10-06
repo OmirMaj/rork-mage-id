@@ -918,7 +918,7 @@ console.log('\n  9. post-ship: credit is not cash, a payment goes once, the righ
       /const QBO_PAYMENT_SWEEP_FLOOR = '([^']+)'/.exec(screen)?.[1] === L.PAYMENT_SWEEP_FLOOR
         && /stuckQboPayments\(ledgerRows, sweepFloor\)/.test(screen) && /connectionQuery\.data\?\.sweepFloor \?\? QBO_PAYMENT_SWEEP_FLOOR/.test(screen));
     check('#102: the list labels a refunded payment and a pre-sweep one honestly',
-      /p\.state === 'reversed' \? 'refunded — record the net in QuickBooks by hand'/.test(screen) && /p\.state === 'not-swept' \? 'from before automatic sending — match by hand'/.test(screen));
+      /p\.state === 'reversed' \? 'refunded, record the net in QuickBooks by hand'/.test(screen) && /p\.state === 'not-swept' \? 'from before automatic sending, match by hand'/.test(screen));
   }
 
   // #10/#11/#98 twins inlined in payment.ts / invoice.ts (sandboxed files).

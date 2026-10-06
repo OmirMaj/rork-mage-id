@@ -221,7 +221,7 @@ console.log('\n3. The lookahead');
   ok('the critical path is flagged, and a started task reads underway', la.rows[0].isCriticalPath && la.rows[0].underway && !la.rows[1].isCriticalPath);
   eq('the start label is "Wkd D Mon"', la.rows[0].startLabel, 'Sun 4 Oct');
   eq('no start date: no rows, and the reason', lookaheadRows(tasks, null, undefined, NOW), { rows: [], reason: NO_START_DATE_REASON });
-  eq('no tasks: "No schedule yet"', lookaheadRows([], '2026-10-01', undefined, NOW).reason, NO_SCHEDULE_REASON);
+  eq('no tasks: "No Schedule Yet"', lookaheadRows([], '2026-10-01', undefined, NOW).reason, NO_SCHEDULE_REASON);
   eq('nothing in the window says so', lookaheadRows([t('z', 60, 2)], '2026-10-01', undefined, NOW), { rows: [], reason: NOTHING_STARTS_REASON });
 }
 

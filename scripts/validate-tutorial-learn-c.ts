@@ -175,7 +175,7 @@ console.log('defs');
 {
   const byId = new Map<string, TutorialDef>(LANE_C_DEFS.map(d => [d.id, d]));
   const want: [string, string, string, number, string][] = [
-    ['schedule-say-it', 'Move a task by saying it', 'Drywall moved 2 days and the finish date updated', 35, 'schedule'],
+    ['schedule-say-it', 'Move a Task by Saying It', 'Drywall moved 2 days and the finish date updated', 35, 'schedule'],
     ['time-clock-in', 'Clock Your Crew In and Out', 'A shift on the sample that never reaches payroll', 40, 'site'],
     ['punch-list-close', 'Add, Assign and Close a Punch Item', "A closed item on the sample's punch list", 40, 'site'],
   ];

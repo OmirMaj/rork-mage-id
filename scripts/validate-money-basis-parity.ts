@@ -192,8 +192,8 @@ console.log('\nthe two bank-facing reports answer with the same number:');
     approvedChangeOrders: 0, originalContract: 155_172,
   });
 
-  close('/reports WIP tab cost at completion', wipTab.estimatedFinalCost, own.value);
-  close('/reports Profit tab cost at completion', profitTab.estimatedFinalCost, own.value);
+  close('/reports WIP tab Cost at Completion', wipTab.estimatedFinalCost, own.value);
+  close('/reports Profit tab Cost at Completion', profitTab.estimatedFinalCost, own.value);
   close('…so the two tabs report one margin', wipTab.projectedMargin, profitTab.projectedMargin);
   close('…and it is the margin the WIP engine computes', wipTab.projectedMargin, 15.25, 0.01);
   ok('…which is profit, not loss', wipTab.projectedProfit > 0, String(wipTab.projectedProfit));
@@ -273,7 +273,7 @@ console.log('\na draft commitment binds nobody:');
 {
   const project = projectWith([100_000]);
   const drafted = [sub('PO-14', 900_000, 'Millwork', { status: 'draft' })];
-  close('an unissued PO does not raise the cost at completion',
+  close('an unissued PO does not raise the Cost at Completion',
     deriveEstimatedCostWithSource(project, drafted).value, 100_000);
   close('…nor the signed total', sumSignedCommitmentValue(drafted), 0);
   // utils/jobCostEngine.ts draws the same line. Two cost engines with two
@@ -362,7 +362,7 @@ console.log('\nthe basis is a sentence a GC can read to his banker:');
     describeCostBasis(onEstimate) === line);
   ok('…the roll-up carries the same warning',
     /overstated/.test(describePortfolioCostBasis([onEstimate, onCommitments], 10_000_000)));
-  ok('…and does not fire when the book is inside its cost at completion',
+  ok('…and does not fire when the book is inside its Cost at Completion',
     !/overstated/.test(describePortfolioCostBasis([onEstimate, onCommitments], 1)));
 
   const none = deriveEstimatedCostWithSource({} as unknown as Project, []);
@@ -584,13 +584,13 @@ console.log('\nan all-zero WIP schedule cannot be frozen or exported:');
     /bank or surety would read a schedule of/.test(WIP_SCREEN) && /zeros as your actual position/.test(WIP_SCREEN));
 
   ok('Save period refuses with no rows',
-    /if \(liveRows\.length === 0\) \{ showAlert\('Nothing to save yet', NOTHING_TO_REPORT\); return; \}/.test(WIP_SCREEN));
+    /if \(liveRows\.length === 0\) \{ showAlert\('Nothing to Save Yet', NOTHING_TO_REPORT\); return; \}/.test(WIP_SCREEN));
   // Locking is irreversible, so it checks the PERIOD it would freeze — a period
   // saved before this guard existed can still be all-zero.
   ok('Lock refuses to freeze an empty period',
     /if \(target\.rows\.length === 0\)/.test(WIP_SCREEN));
   ok('Export CSV refuses',
-    /if \(exportPeriod\.rows\.length === 0\) \{ showAlert\('Nothing to export yet', NOTHING_TO_REPORT\); return; \}/.test(WIP_SCREEN));
+    /if \(exportPeriod\.rows\.length === 0\) \{ showAlert\('Nothing to Export Yet', NOTHING_TO_REPORT\); return; \}/.test(WIP_SCREEN));
   ok('Export PDF refuses',
     (WIP_SCREEN.match(/if \(exportPeriod\.rows\.length === 0\)/g) ?? []).length === 2);
   // `displayRows`, not `hasRows`: the Portfolio card follows the period chip
@@ -609,7 +609,7 @@ console.log('\nan all-zero WIP schedule cannot be frozen or exported:');
   ok('/reports blocks its exports on an empty report',
     /const nothingToExport = exportableRows === 0;/.test(REPORTS));
   ok('…in both handlers',
-    (REPORTS.match(/if \(nothingToExport\) \{ showAlert\('Nothing to report yet', blockedReason\); return; \}/g) ?? []).length === 2);
+    (REPORTS.match(/if \(nothingToExport\) \{ showAlert\('Nothing to Report Yet', blockedReason\); return; \}/g) ?? []).length === 2);
   ok('…and says why beside them', /testID="reports-export-blocked"/.test(REPORTS));
 
   // A SUCCESS VERDICT MAY NOT BE READ OFF ABSENT DATA. The A/R tab printed
@@ -799,7 +799,7 @@ console.log('\nthe report builders are called with everything they take:');
     ok('the PDF export has exactly its two refusals, and runs otherwise',
       at >= 0 && returns === 2
       && /if \(tab === 'wip' && !wipUnlocked\) return;/.test(body)
-      && /if \(nothingToExport\) \{ showAlert\('Nothing to report yet', blockedReason\); return; \}/.test(body),
+      && /if \(nothingToExport\) \{ showAlert\('Nothing to Report Yet', blockedReason\); return; \}/.test(body),
       at < 0
         ? 'handleSharePdf not found — re-point this assertion rather than deleting it'
         : `${returns} return(s) in handleSharePdf; expected 2. A third makes the bank deliverable `
@@ -956,7 +956,7 @@ console.log('\nthe WIP screen renders the period it would export:');
   }
   ok('…and a frozen period says so on screen rather than looking like today',
     /testID="wip-frozen-banner"/.test(WIP_SCREEN)
-    && /Frozen snapshot — as of/.test(WIP_SCREEN));
+    && /Frozen snapshot as of/.test(WIP_SCREEN));
   // A frozen row's cost-to-date must not be editable: the period is the
   // document, and the drill-in writes an override.
   ok('…and a frozen row cannot be edited from the list',
@@ -1165,8 +1165,8 @@ console.log('\nthe WIP screen renders the period it would export:');
   // RETAINAGE reaches the schedule at all.
   ok('retainage held is carried onto the row and rendered',
     /retainageHeld: billings\.retainageHeld/.test(WIP_SCREEN)
-    && /label="Retainage held"/.test(WIP_SCREEN)
-    && /label="Retainage held by client"/.test(WIP_SCREEN),
+    && /label="Retainage Held"/.test(WIP_SCREEN)
+    && /label="Retainage Held by Client"/.test(WIP_SCREEN),
     'the portfolio strip AND the per-project drill-in both have to carry it');
   // A period frozen before the column existed must read "not recorded", never
   // $0 — a zero asserts the owner is holding nothing back, which is the

@@ -288,7 +288,7 @@ console.log('\n2. Labels never imply an official AIA document');
     // Lane SWEEP — the reports screen's own words, the PDF's, and the surety.
     ["<Text style={styles.title}>Bank-ready reports</Text>", false, true], ["subtitle: 'Bank-ready WIP across active projects.',", false, true],
     ["label: 'Surety-ready WIP'", false, true], ["label: 'bank ready'", false, true], ["label: 'Banker-ready PDFs'", false, true],
-    ["<Text style={styles.title}>Reports for your bank</Text>", false, false], ["subtitle: 'WIP across active projects.',", false, false],
+    ["<Text style={styles.title}>Reports for Your Bank</Text>", false, false], ["subtitle: 'WIP across active projects.',", false, false],
     ["label: 'Official AIA forms your bank accepts'", true, true], ["label: 'An official AIA document'", true, true],
     // The hedges pass — and ONLY as written.
     ["Some lenders and architects require their own or the official AIA forms.", false, false],
@@ -340,7 +340,7 @@ console.log('\n2. Labels never imply an official AIA document');
     ["<Text style={styles.title}>Bank-ready reports</Text>", true], ["subtitle: 'Bank-ready WIP across active projects.',", true],
     ["label: 'Lender-ready'", true], ["label: 'architect ready'", true], ["label: 'Surety-ready WIP'", true], ["label: 'BANK-READY'", true],
     ["label: 'An official AIA form'", true],
-    ["<Text style={styles.title}>Reports for your bank</Text>", false], ["label: 'Connect your bank to accept invoice payments in-app.'", false],
+    ["<Text style={styles.title}>Reports for Your Bank</Text>", false], ["label: 'Connect your bank to accept invoice payments in-app.'", false],
     ["// the bank-ready Business deliverable", false], ["{/* A screen may not call itself bank-ready */}", false],
     ["label: 'Already paid'", false], ["label: 'Ready to send to your bank'", false],
   ];
@@ -394,13 +394,13 @@ console.log('\n2. Labels never imply an official AIA document');
     && /\{typeLabel\}<\/Text>/.test(read('app/documents.tsx')) && !/\{typeInfo\.label\}/.test(read('app/documents.tsx')));
 
   // The pay-app screen's own header: no official form, no lender promise.
-  ok('the pay-app header eyebrow says "AIA-style G702 / G703"', /eyebrow="AIA-style G702 \/ G703"/.test(src.pay));
+  ok('the pay-app header eyebrow says "AIA-style G702 / G703"', /eyebrow="AIA-Style G702 \/ G703"/.test(src.pay));
   ok('…its subtitle offers a DRAFT AIA-style pay application',
     /subtitle="Turn your % complete into a draft AIA-style pay application\./.test(src.pay));
   ok('…and no longer promises what "your client’s lender expects"',
     !/lender expects/.test(src.pay) && !/lender-ready|lender ready|bank-ready|architect-ready/i.test(src.pay));
   ok('…its glossary term is "AIA-style pay app", and says it is not the official AIA document',
-    /term: 'AIA-style pay app',/.test(src.pay) && /It is not the official AIA document, and some lenders and architects require their own or the official forms\./.test(src.pay));
+    /term: 'AIA-Style Pay App',/.test(src.pay) && /It is not the official AIA document, and some lenders and architects require their own or the official forms\./.test(src.pay));
   // Lane SWEEP — the screen's two empty states stand ABOVE that header (no
   // project picked, no progress invoice yet), so they name the form with the
   // hedge themselves; and neither glossary line leans on what a lender
@@ -592,7 +592,7 @@ console.log('\n4. The signed contract is the contract sum');
   eq('a saved estimate line 1 under a different signed contract says it differs',
     payAppContractSumSource(100_000, project, signed), 'estimate_not_contract');
   eq('an unprovable figure gets no label at all', payAppContractSumSource(77_777, project, signed), undefined);
-  eq('a matching signed figure is the signed contract', payAppContractSumSource(92_500, project, signed), 'signed_contract');
+  eq('a matching signed figure is the Signed Contract', payAppContractSumSource(92_500, project, signed), 'signed_contract');
 
   // An ANSWERED refresh carries the source with the figure.
   const refreshed = mergeRefreshedContract(none, withSigned);
@@ -865,7 +865,7 @@ console.log('\n6. A contract read that has not answered');
     [0, 1, 92_500, 100_000, 77_777].every(v => !/no signed contract/i.test(view(v, undefined).caption ?? '')));
   eq('answered: none on file', view(100_000, null).caption, 'Estimate (no signed contract yet)');
   eq('answered: signed', view(92_500, signed).caption, 'Signed contract');
-  eq('answered: a saved estimate under a signed contract', view(100_000, signed).caption, 'Estimate (differs from the signed contract)');
+  eq('answered: a saved estimate under a Signed Contract', view(100_000, signed).caption, 'Estimate (differs from the signed contract)');
 
   // The desktop KPI cell: one line, so the words must fit it.
   const tokens = read('constants/designTokens.ts');
@@ -893,7 +893,7 @@ console.log('\n6. A contract read that has not answered');
     ['Not checked', 'Not checked', 'Signed', 'Estimate']);
   eq('…and there is a short word for every source', shorts.map(([k]) => k).sort(), Object.keys(PAY_APP_CONTRACT_SUM_LABEL).sort());
   ok('the KPI cell shows the short words, the G702 card the full caption',
-    /label: 'Original contract', value: formatMoney\(app\.originalContractSum, 2\), sub: lineOne\.short \?\? undefined \}/.test(src.pay)
+    /label: 'Original Contract', value: formatMoney\(app\.originalContractSum, 2\), sub: lineOne\.short \?\? undefined \}/.test(src.pay)
     && /\{lineOne\.caption \? \(\s*<Text style=\{styles\.sovBasisNote\} testID="aia-line1-source">\{lineOne\.caption\}<\/Text>/.test(src.pay));
 
   // 6h. BOTH SCREENS go through the shared read and the shared rule — and
@@ -922,9 +922,9 @@ console.log('\n6. A contract read that has not answered');
     /const contractSumHold = project && !contractSum\.settled \? CONTRACT_READ_PENDING_REASON : null;/.test(src.co));
   const persist = src.co.slice(src.co.indexOf('const persistCO = useCallback('), src.co.indexOf('const now = new Date().toISOString();', src.co.indexOf('const persistCO = useCallback(')));
   ok('…persistCO (every save and send writes through it) refuses before it stamps anything',
-    /if \(contractSumHold\) \{\s*showAlert\('Checking the signed contract', contractSumHold\);\s*return null;\s*\}/.test(persist));
+    /if \(contractSumHold\) \{\s*showAlert\('Checking the Signed Contract', contractSumHold\);\s*return null;\s*\}/.test(persist));
   ok('…and the send path refuses before the email is built',
-    count(src.co, /if \(contractSumHold\) \{ showAlert\('Checking the signed contract', contractSumHold\); return; \}/g) === 2);
+    count(src.co, /if \(contractSumHold\) \{ showAlert\('Checking the Signed Contract', contractSumHold\); return; \}/g) === 2);
   ok('both screens use ONE rule: contractSumView and payAppContractSumSource both call contractSumBasis',
     /const r = contractSumBasis\(project, contract, onDocument\);/.test(src.fin)
     && /const r = contractSumBasis\(project, contract, lineOne\);/.test(src.aia)
@@ -1016,7 +1016,7 @@ console.log('\n7. From the read state to the rule, and to the client');
   const usd = (n: number) => `$${n.toLocaleString('en-US')}`;
   eq('not read, the estimate stands in → ask, naming the figure',
     uncheckedContractSumSendNotice('estimate_unread', 100_000, usd),
-    { title: 'Signed contract not checked', message: 'MAGE ID could not check the signed contract. This change order will show $100,000 as the original contract sum. Send anyway?' });
+    { title: 'Signed Contract Not Checked', message: 'MAGE ID could not check the signed contract. This change order will show $100,000 as the original contract sum. Send anyway?' });
   eq('not read, a saved figure stands → ask, naming that figure',
     uncheckedContractSumSendNotice('saved_unread', 92_500, usd)?.message,
     'MAGE ID could not check the signed contract. This change order will show $92,500 as the original contract sum. Send anyway?');
@@ -1034,10 +1034,10 @@ console.log('\n7. From the read state to the rule, and to the client');
   const send = src.co.slice(sendAt, src.co.indexOf('const html = buildChangeOrderEmailHtml(emailOpts);', sendAt));
   const askAt = send.indexOf('if (uncheckedSumNotice && uncheckedSumAcceptedRef.current !== originalContractSum) {');
   ok('…the send asks AFTER the settle hold and BEFORE it locks the controls or builds the email',
-    sendAt > 0 && askAt > 0 && send.indexOf("if (contractSumHold) { showAlert('Checking the signed contract', contractSumHold); return; }") < askAt
+    sendAt > 0 && askAt > 0 && send.indexOf("if (contractSumHold) { showAlert('Checking the Signed Contract', contractSumHold); return; }") < askAt
     && send.indexOf('if (contractSumHold)') > 0 && askAt < send.indexOf('sendingRef.current = true;') && askAt < send.indexOf('const emailOpts'));
   ok('…Cancel sends nothing; "Send anyway" records the figure he accepted and runs the send again',
-    /if \(uncheckedSumNotice && uncheckedSumAcceptedRef\.current !== originalContractSum\) \{\n\s+showAlert\(uncheckedSumNotice\.title, uncheckedSumNotice\.message, \[\n\s+\{ text: 'Cancel', style: 'cancel' \},\n\s+\{ text: 'Send anyway', onPress: \(\) => \{ uncheckedSumAcceptedRef\.current = originalContractSum; confirmSendRef\.current\(\); \} \},\n\s+\]\);\n\s+return;\n\s+\}/.test(send));
+    /if \(uncheckedSumNotice && uncheckedSumAcceptedRef\.current !== originalContractSum\) \{\n\s+showAlert\(uncheckedSumNotice\.title, uncheckedSumNotice\.message, \[\n\s+\{ text: 'Cancel', style: 'cancel' \},\n\s+\{ text: 'Send Anyway', onPress: \(\) => \{ uncheckedSumAcceptedRef\.current = originalContractSum; confirmSendRef\.current\(\); \} \},\n\s+\]\);\n\s+return;\n\s+\}/.test(send));
   ok('…he is asked once per figure: the acceptance is set only there, and the re-run is the same send',
     count(src.co, /uncheckedSumAcceptedRef\.current = /g) === 1 && count(src.co, /confirmSendRef\.current = /g) === 1
     && /\n  confirmSendRef\.current = \(\) => \{ void handleConfirmSend\(\); \};\n/.test(src.co));
@@ -1304,8 +1304,8 @@ console.log('\n8. The saved base and the screen: one rule for every document tha
   // without signing" — and each refuses on its first line, before the
   // schedule preview's slide or the approve sheet can open. An effect closes
   // an approve already open when the hold appears.
-  const REFUSE = "if (savedBaseHold) { showAlert('Not yet', savedBaseHold); return; }";
-  const ADV_REFUSE = "if (next === 'approved' && savedBaseHold) { showAlert('Not yet', savedBaseHold); return; }";
+  const REFUSE = "if (savedBaseHold) { showAlert('Not Yet', savedBaseHold); return; }";
+  const ADV_REFUSE = "if (next === 'approved' && savedBaseHold) { showAlert('Not Yet', savedBaseHold); return; }";
   const fnBody = (startText: string, endText: string) => {
     const at = src.co.indexOf(startText);
     return at > 0 ? src.co.slice(at, src.co.indexOf(endText, at)) : '';

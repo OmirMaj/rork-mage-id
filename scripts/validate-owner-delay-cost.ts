@@ -110,12 +110,12 @@ const site = { cents: 21000, source: 'your General Conditions line ($12,600 ÷ 6
 }
 {
   const r = delayConsequence({ task: tB, basis: 'linked_task', schedule: sched, cpmFloatDays: fB, today: '2026-06-11', site: null });
-  ok('no site cost → the "add a General Conditions line" words', r.text.endsWith(NO_SITE_COST_TEXT.trimEnd()) || r.text.includes('No daily site cost on file — add a General Conditions line to see dollars.'), r.text);
+  ok('no site cost → the "add a General Conditions line" words', r.text.endsWith(NO_SITE_COST_TEXT.trimEnd()) || r.text.includes('No daily site cost on file. Add a General Conditions line to see dollars.'), r.text);
   ok('no site cost → no $ and no cents', !r.text.includes('$') && r.cents === null);
 }
 {
   const r = delayConsequence({ task: tC, basis: 'linked_task', schedule: sched, cpmFloatDays: fC, today: '2026-06-04', site });
-  ok('float covers the wait → finish holds for F − late more', r.pushesFinishDays === 0 && r.text === 'Paint has 8 days of float — finish holds for 5 more working days.' && r.cents === null, r.text);
+  ok('float covers the wait → finish holds for F − late more', r.pushesFinishDays === 0 && r.text === 'Paint has 8 days of float. Finish holds for 5 more working days.' && r.cents === null, r.text);
   const used = delayConsequence({ task: tC, basis: 'linked_task', schedule: sched, cpmFloatDays: fC, today: '2026-06-15', site });
   ok('float used up → pushes late − F, with dollars', used.pushesFinishDays === 2 && used.cents === 42000 && used.text.includes('finish moves 2 working days'), used);
 }
@@ -178,7 +178,7 @@ ok('selections omitted ≡ selections: [] (the list is exactly as before)', JSON
   ok("a 'pending' selection with an isChosen option never chases", !sels.some(i => i.id === 'selection:s8'));
   ok('only past-due, unchosen selections chase (due today / future / no date do not)', sels.map(i => i.id).sort().join() === 'selection:s1,selection:s6', sels.map(i => i.id));
   const s1 = sels.find(i => i.id === 'selection:s1')!;
-  ok('selection item shape', s1.title === 'Tile selection' && s1.waitingOn === 'the owner' && s1.daysOverdue === 6 && s1.severity === 'high' && s1.route.pathname === '/selections' && s1.route.params.projectId === 'p1', s1);
+  ok('selection item Shape', s1.title === 'Tile selection' && s1.waitingOn === 'the owner' && s1.daysOverdue === 6 && s1.severity === 'high' && s1.route.pathname === '/selections' && s1.route.params.projectId === 'p1', s1);
   ok('selection nudge names the date and the matched task', s1.nudge === 'Checking in on the Tile selection — it was due Jun 5. We need it to keep the schedule on track for Tile.', s1.nudge);
   ok('matched by name → the prefix on its consequence', !!s1.consequence && s1.consequence.startsWith('Matched by name: Tile — '), s1.consequence);
   const s6 = sels.find(i => i.id === 'selection:s6')!;

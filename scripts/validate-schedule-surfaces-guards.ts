@@ -11,7 +11,7 @@
 //        ones dropped (never re-attached to new task ids), the new plan's own
 //        start date. The phone header's one-tap voice "build" no longer shows
 //        over a running schedule.
-//   #53  "What-If" could only snapshot and restore — nothing edits a scenario —
+//   #53  "What-If" could only snapshot and restore: nothing edits a scenario —
 //        yet the Pro paywall sold "try the what-if" and the create card said
 //        changes "only affect that scenario". Renamed to Saved plans; the
 //        three promises reworded (FOUNDER: interim until real scenario editing).
@@ -138,7 +138,7 @@ console.log('\n#52 — replacing a running schedule:');
     confirmAt > accept.indexOf("showAlert('Schedule not saved', scheduleWriteBlockedReason)")
       && confirmAt < accept.indexOf('recordPrediction(') && confirmAt < accept.indexOf('updateProject('));
   ok('...asks with the count, Replace destructive, Keep as the cancel',
-    /showAlert\('Replace the running schedule\?', describeScheduleReplacement\(loss, project\.name\), \[\s*\{ text: 'Keep current schedule', style: 'cancel' \},\s*\{ text: 'Replace', style: 'destructive', onPress: \(\) => commitAccept\(\) \},/.test(accept));
+    /showAlert\('Replace the running schedule\?', describeScheduleReplacement\(loss, project\.name\), \[\s*\{ text: 'Keep Current Schedule', style: 'cancel' \},\s*\{ text: 'Replace', style: 'destructive', onPress: \(\) => commitAccept\(\) \},/.test(accept));
   ok('...and writes through replaceRunningSchedule with the draft\'s start date (not the spread that wiped it)',
     /schedule: replaceRunningSchedule\(project\.schedule, \{ \.\.\.draft\.schedule, \.\.\.rebuilt \}, \{\s*startDate: draft\.schedule\.startDate \?\? rebuilt\.startDate \?\? null,/.test(accept)
       && !/updateProject\(project\.id, \{ schedule: \{ \.\.\.draft\.schedule, \.\.\.rebuilt \} \}\)/.test(accept));
@@ -169,7 +169,7 @@ console.log('\n#52 — replacing a running schedule:');
     sink.indexOf("if (refuseScheduleWrite('Schedule changes')) return;") >= 0
       && sink.indexOf("refuseScheduleWrite(") < sink.indexOf('scheduleReplacementLoss(running)')
       && /const loss = scheduleReplacementLoss\(running\);\s*if \(!loss\) \{ commit\(\); return; \}\s*showAlert\(/.test(sink)
-      && /showAlert\('Replace the running schedule\?', describeScheduleReplacement\(loss, selectedProject\?\.name\), \[\s*\{ text: 'Keep current schedule', style: 'cancel' \},\s*\{ text: 'Replace', style: 'destructive', onPress: commit \},/.test(sink)
+      && /showAlert\('Replace the running schedule\?', describeScheduleReplacement\(loss, selectedProject\?\.name\), \[\s*\{ text: 'Keep Current Schedule', style: 'cancel' \},\s*\{ text: 'Replace', style: 'destructive', onPress: commit \},/.test(sink)
       && /saveSchedule\(replaceRunningSchedule\(running, built, \{ startDate: running\?\.startDate \?\? null \}\), selectedProject\);/.test(sink));
   const tmpl = slice(TAB, 'const handleTemplateSelect = useCallback(', 'const handleBuildFromEstimate');
   const est = slice(TAB, 'const handleBuildFromEstimate = useCallback(', 'const handleOnRampPick');
@@ -254,7 +254,7 @@ console.log('\n#54 — the task sheet opened from a live view acts on the live p
       // persistEditedTasks returns what it saved (null = nothing) for the AI editor's commit.
       && /if \(!opts\?\.live && refuseWhileWhatIf\(\)\) return(?: null)?;/.test(slice(TAB, 'const persistEditedTasks = useCallback(', 'const mobileCommit')));
   const del = slice(TAB, 'const handleDeleteTask = useCallback(', 'const latestScheduleRef');
-  ok('delete from a live-opened sheet deletes from the live plan',
+  ok('delete from a live-opened sheet deletes from the Live Plan',
     /if \(!live && refuseWhileWhatIf\(\)\) return;/.test(del) && /\(live \? liveSortedTasks : sortedTasks\)/.test(del)
       && /\{ liveTasks: live \|\| !activeScenarioTasks \}/.test(del));
 }
@@ -316,7 +316,7 @@ console.log('\n#137 — one active baseline for every reader:');
     baselineStampedOnTasks([task({ id: 'a', baselineStartDay: 2, baselineEndDay: 7 })], [v1, v2], 'v1') === undefined
       && baselineStampedOnTasks([task({ id: 'z' })], [v1, v2], 'v1') === undefined);
   const undo = slice(SP, 'const handleUndo = useCallback(', 'const handleRedo');
-  const redo = slice(SP, 'const handleRedo = useCallback(', '// Project start date');
+  const redo = slice(SP, 'const handleRedo = useCallback(', '// Project Start Date');
   ok('Schedule Pro: Undo and Redo make the active id follow the restored tasks, before the persist',
     /followRestoredBaseline\(n\.present\);\s*schedulePersist\(n\.present\);/.test(undo)
       && /followRestoredBaseline\(n\.present\);\s*schedulePersist\(n\.present\);/.test(redo)
@@ -346,7 +346,7 @@ console.log('\n#91 — Schedule Pro\'s gate:');
     /onPress=\{\(\) => \{ void roleState\.refetch\(\); \}\}/.test(outer) && /You don’t have access to this schedule/.test(outer));
   ok('the inner PDF check is project-scoped too',
     /const \{ canAccess \} = useProjectAccess\(projectId \|\| undefined\);/.test(SP) && !/useTierAccess\(\)/.test(SP));
-  ok('the write-path role read keeps its pinned shape', /const role = useProjectRole\(projectId\);/.test(SP));
+  ok('the write-path role read keeps its pinned Shape', /const role = useProjectRole\(projectId\);/.test(SP));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

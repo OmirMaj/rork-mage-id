@@ -442,7 +442,7 @@ function partG() {
     /\) : bubble\}\s*\{onReadWithAi \? \(\s*<Pressable\s+onPress=\{onReadWithAi\}[\s\S]{0,260}accessibilityRole="button"\s+accessibilityLabel=\{readAiA11y\}\s+testID=\{`message-read-ai-\$\{m\.id\}`\}\s*>[\s\S]{0,260}<\/Pressable>\s*\) : null\}\s*\{isLastInRun && !pending \? \(/.test(cm));
   ok('client-messages: the long-press convert is as it was (the message body, every file name)',
     /prefillDescription: `Client request from portal message:\\n\\n"\$\{messageBody\}"\$\{filesLine\}`,/.test(cm)
-      && /\{ text: 'Convert to change order', onPress: \(\) => handleConvertToCO\(messageBody, fileNames\) \}/.test(cm));
+      && /\{ text: 'Convert to Change Order', onPress: \(\) => handleConvertToCO\(messageBody, fileNames\) \}/.test(cm));
   ok('client-messages: the screen itself never calls askFiles and never guards or stashes a draft',
     !/askFiles\(|guardFileText\(|stashDraftHandoff\(|readDraftHandoff\(/.test(cm));
 

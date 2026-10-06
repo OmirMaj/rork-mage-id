@@ -43,7 +43,7 @@ console.log('\nthe editor sheet and the Copilot column (wide web window):');
   ok('the keyboard cannot cover the follow-up box (KeyboardAvoidingView on iOS)',
     /<KeyboardAvoidingView style=\{styles\.overlay\} behavior=\{Platform\.OS === 'ios' \? 'padding' : undefined\}>/.test(panel));
   ok('"use Undo in the toolbar" only where the host has one',
-    /hasToolbarUndo\s*\?\s*'The schedule changed since — use Undo in the toolbar instead\.'/.test(panel));
+    /hasToolbarUndo\s*\?\s*'The schedule changed since. Use Undo in the toolbar instead\.'/.test(panel));
 
   const shell = code('components/copilot/CopilotShell.tsx');
   ok('/copilot: topbar, body and actionbar share one 720 column',

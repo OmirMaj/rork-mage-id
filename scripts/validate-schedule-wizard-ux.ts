@@ -192,7 +192,7 @@ function saved(tasks: readonly TemplateTask[], opts: { start: string; wd: number
       remapDependencies(t, pid => idMap.get(pid) ?? pid);
     return {
       id: idMap.get(t.id)!,
-      title: t.name.trim() || 'Untitled task',
+      title: t.name.trim() || 'Untitled Task',
       phase: t.phase,
       durationDays: t.duration,
       // Mirrors handleSave's converter. `t.startDay` here is the preview's
@@ -1174,13 +1174,13 @@ console.log('\n14. sentences');
   }
 
   // The picker's stepper caption — the only place the user meets the control.
-  ok('stepper says "No wait" at zero', lagStepperLabel(0) === 'No wait');
+  ok('stepper says "No wait" at zero', lagStepperLabel(0) === 'No Wait');
   ok('stepper counts a wait in plain English', lagStepperLabel(2) === 'Wait 2 days');
   ok('stepper is singular at one day', lagStepperLabel(1) === 'Wait 1 day');
   ok('stepper names the lead direction without jargon', lagStepperLabel(-3) === 'Start 3 days early');
   ok('stepper is singular for a one-day lead', lagStepperLabel(-1) === 'Start 1 day early');
   ok('stepper clamps like the model', lagStepperLabel(9999) === `Wait ${LAG_LIMIT} days`);
-  ok('unnamed rows keep their placeholder', taskName(T('x')) === 'X' && taskName(undefined) === 'Untitled task');
+  ok('unnamed rows keep their placeholder', taskName(T('x')) === 'X' && taskName(undefined) === 'Untitled Task');
 
   // A sentence is only true if the schedule agrees with it. Sweep a range of
   // offsets and check the sentence's direction against the CPM finish.

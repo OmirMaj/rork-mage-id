@@ -12,7 +12,7 @@
 //    fail after the invoice already exists.
 //
 // 2. INVOICE REMINDERS. The dunning cron dedupes purely by "only ever advance
-//    to a higher stage". Adding a manual "send reminder now" button on top of
+//    to a higher Stage". Adding a manual "send reminder now" button on top of
 //    that is exactly how you get a client receiving two FINAL NOTICES in one
 //    afternoon, or a cadence that silently skips from friendly to final. The
 //    manual path relaxes one guard (re-send at the CURRENT stage) and pays for
@@ -104,7 +104,7 @@ console.log('\nmilestone → invoice amounts:');
     JSON.stringify(line));
   ok('derived line is lump-sum quantity 1', line.quantity === 1 && line.unit === 'lump');
   ok('derived line names the milestone', line.name === 'Deposit');
-  ok('derived line explains the % basis to the client',
+  ok('derived line explains the % basis to the Client',
     /25% of contract/.test(line.description), line.description);
 
   const fixedLine = deriveMilestoneInvoiceLine(ms({ amount: 8_000, trigger: 'on_signing' }), 100_000);
@@ -359,9 +359,9 @@ console.log('\nreminder state line:');
   ok('a sent reminder reads "Reminder sent · Stage 2 · <date>"',
     label.startsWith('Reminder sent · Stage 2 · ') && label.length > 26, label);
   ok('stage labels escalate',
-    dunningStageLabel(1) === 'First reminder' &&
-    dunningStageLabel(2) === 'Second notice' &&
-    dunningStageLabel(3) === 'Final notice');
+    dunningStageLabel(1) === 'First Reminder' &&
+    dunningStageLabel(2) === 'Second Notice' &&
+    dunningStageLabel(3) === 'Final Notice');
 }
 
 // ── 7. Cron / core parity + edge-function safety ─────────────────────

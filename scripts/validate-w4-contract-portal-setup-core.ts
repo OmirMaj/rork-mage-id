@@ -246,7 +246,7 @@ async function main() {
   ok('…and it publishes the SAVED portal, not the local switches',
     /const portal = publishPortal;/.test(persist) && /snapshot: publishedSnapshot as unknown as Record<string, unknown>/.test(persist) && !/snapshot: snapshot as/.test(persist));
   ok('the published portal is built from project.clientPortal', /const savedPortal = project\?\.clientPortal;/.test(setup) && /\.\.\.savedPortal,\s*invites: savedPortal\.invites \?\? \[\]/.test(setup));
-  ok('a refused upsert is shown as "not published"', /setPublishState\('refused'\)/.test(persist) && /Not published — the server refused this update/.test(read('app/client-portal-setup.tsx')));
+  ok('a refused upsert is shown as "not published"', /setPublishState\('refused'\)/.test(persist) && /Not published. The server refused this update/.test(read('app/client-portal-setup.tsx')));
   ok('the hold is said on screen', /Portal will update when your lists finish syncing\./.test(read('app/client-portal-setup.tsx')));
   ok('hash / invite links: the SAVED snapshot, short link while lists are not server-read',
     /if \(!publishedSnapshot \|\| !portalListsServerRead\) return portalLink;/.test(setup) && /if \(!portalListsServerRead\) return buildShortPortalUrl\(/.test(setup));

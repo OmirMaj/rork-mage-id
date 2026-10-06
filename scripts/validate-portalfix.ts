@@ -255,17 +255,17 @@ ok('2e. …and the "not confirmed" string claims neither outcome: may have stopp
   S.PORTAL_RESET_UNKNOWN_NOTE);
 const notResetUses = (SETUP.match(/PORTAL_RESET_NOT_RESET_NOTE/g) ?? []).length;
 ok('2e. the screen says "still works" in exactly one place: the server-proven \'not-reset\' branch',
-  notResetUses === 2 && /showAlert\('Link not reset', PORTAL_RESET_NOT_RESET_NOTE\)/.test(notResetBlock),
+  notResetUses === 2 && /showAlert\('Link Not Reset', PORTAL_RESET_NOT_RESET_NOTE\)/.test(notResetBlock),
   `${notResetUses} references (the import and the one branch expected)`);
 const readAt = settle.search(/readBack = await readServerPortalToken\(id\)/);
 const decideAt = settle.search(/const outcome = portalResetOutcome\(heldBefore, readBack\)/);
 ok('2e. that branch is reachable only AFTER a read of the server\'s key (read → decide → say)',
   readAt >= 0 && decideAt > readAt && settle.indexOf(notResetBlock) > decideAt
   && /let readBack: PortalKeyReadBack = \{ ok: false \};/.test(settle), `read ${readAt}, decide ${decideAt}`);
-ok('2e. a different key: the screen adopts it and offers the new link',
+ok('2e. a different key: the screen adopts it and offers the New Link',
   /adoptRotated\(outcome\.token\);/.test(resetBlock) && /announceLinkReset\(\);/.test(resetBlock));
 ok('2e. not confirmed: the held key is dropped first, then only what is known is said',
-  /forgetHeldKey\(\);\s*showAlert\('Reset not confirmed', PORTAL_RESET_UNKNOWN_NOTE\);/.test(unknownTail)
+  /forgetHeldKey\(\);\s*showAlert\('Reset Not Confirmed', PORTAL_RESET_UNKNOWN_NOTE\);/.test(unknownTail)
   && !/PORTAL_RESET_NOT_RESET_NOTE|adoptRotated|announceLinkReset/.test(unknownTail), unknownTail.replace(/\s+/g, ' ').slice(0, 200));
 ok('2e. dropping the key takes it off the screen AND the saved copy, and re-runs the server fetch (Copy / Share lock on a missing key)',
   /const \{ accessToken: _held, \.\.\.savedWithoutKey \} = saved;/.test(forget)

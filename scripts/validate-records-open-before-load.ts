@@ -255,7 +255,7 @@ async function main() {
     for (const email of ['failed', 'composer_opened'] as Outcome[]) {
       for (const write of writes) {
         const r = co.coSendReport({ number: 7, email, emailError: 'Not sent. We opened a draft in your email app — review it and press Send there.', status: 'draft', write, recipient: 'Dana' });
-        ok(`email ${email} / write ${write}: says NOT sent and never "emailed"`, /NOT sent/.test(r.message) && !/emailed/.test(r.message) && r.title === 'Email not sent', r.message);
+        ok(`email ${email} / write ${write}: says NOT sent and never "emailed"`, /NOT sent/.test(r.message) && !/emailed/.test(r.message) && r.title === 'Email Not Sent', r.message);
         if (write === 'failed') ok(`email ${email} / write failed: does not claim MAGE saved it`, /could not save it/.test(r.message) && /on this device only/.test(r.message) && !/is saved/.test(r.message), r.message);
         // Integration round 1: 'failed' also covers a server error / outage and
         // a failed enqueue, so the message must not name a cause as fact, and
@@ -272,7 +272,7 @@ async function main() {
       }
     }
     const sentFailed = co.coSendReport({ number: 7, email: 'sent', status: 'submitted', write: 'failed', recipient: 'Dana' });
-    ok('sent but the write failed: title and body say it is not saved', sentFailed.title === 'Sent — not saved to MAGE' && /could not save it/.test(sentFailed.message));
+    ok('sent but the write failed: title and body say it is not saved', sentFailed.title === 'Sent, Not Saved to MAGE' && /could not save it/.test(sentFailed.message));
     const sentOk = co.coSendReport({ number: 7, email: 'sent', status: 'submitted', write: 'synced', recipient: 'Dana' });
     ok('sent and synced: "emailed to Dana … It is saved."', /emailed to Dana/.test(sentOk.message) && /It is saved\./.test(sentOk.message));
     // Integration round 3: the off-screen close label read "Sent — close" for

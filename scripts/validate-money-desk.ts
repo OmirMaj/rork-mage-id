@@ -242,7 +242,7 @@ console.log('\n(b) paymentsFooter and the cells:');
     && /key: 'pending',\s*label: 'Pending',\s*value: formatMoney\(stats\.pending, 2\)/.test(ps)
     && /key: 'fees', label: 'Est\. fees', value: formatMoney\(stats\.totalFees, 2\)/.test(ps));
   ok('…the Pending cell says so when the buckets do not reconcile',
-    /!ar\.reconciles\s*\?\s*'A\/R buckets differ from Pending — see Reports'/.test(ps));
+    /!ar\.reconciles\s*\?\s*'A\/R buckets differ from Pending. See Reports'/.test(ps));
   ok('…the footer is paymentsFooter(selectedTab, filtered, stats)', /paymentsFooter\(selectedTab, filtered, stats\)/.test(ps));
   const table = ps.slice(ps.indexOf('<DataTable<PaymentRow>'), ps.indexOf('/>', ps.indexOf('renderCard=', ps.indexOf('<DataTable<PaymentRow>'))));
   ok('…the register has NO searchText (the footers are tab totals)', !!table && !/searchText/.test(table), table.slice(0, 80));

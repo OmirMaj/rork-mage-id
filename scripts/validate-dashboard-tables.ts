@@ -383,7 +383,7 @@ console.log('app/job-costing.tsx — the desktop tables read the helpers:');
       tone('0-30') === 'warn' && tone('31-60') === 'warn' && tone('61-90') === 'bad' && tone('90+') === 'bad' && tone('current') === 'muted');
     const REP = read('app/reports.tsx');
     ok("…and the card still prints exactly that word ternary and that ink ternary",
-      REP.includes("{isRetainageOnly ? 'Retainage only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`}")
+      REP.includes("{isRetainageOnly ? 'Retainage Only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`}")
         && /isRetainageOnly\s+\? styles\.bucketPillMuted :\s*r\.bucket === 'current'\s+\? styles\.bucketPillMuted :\s*r\.bucket === '0-30'\s+\? styles\.bucketPillWarn :\s*r\.bucket === '31-60'\s+\? styles\.bucketPillWarn :\s*styles\.bucketPillBad;/.test(REP));
   }
   const af = agingFooter(aging.totals);

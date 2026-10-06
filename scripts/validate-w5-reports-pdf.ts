@@ -172,8 +172,8 @@ console.log('\n#102 retainage on the A/R aging PDF and tab:');
     && /tone=\{outstandingLate \? 'bad' : undefined\}/.test(reports) && !/<KV k="Outstanding"[^>]*tone="bad"/.test(reports));
   ok("…a retainage-only row wears a 'Retainage only' pill", /isRetainageOnly \? 'Retainage only'/.test(reports));
   ok('…the hero adds the held retainage as a receivable, not aged',
-    /Plus \$\{formatMoney\(report\.totals\.retainageHeld\)\} retainage held until closeout — a receivable, not aged\./.test(reports));
-  ok('…the eyebrow counts collectible rows', /OUTSTANDING — \{collectible\} invoice/.test(reports));
+    /Plus \$\{formatMoney\(report\.totals\.retainageHeld\)\} retainage held until closeout: a receivable, not aged\./.test(reports));
+  ok('…the eyebrow counts collectible rows', /Outstanding · \{collectible\} invoice/.test(reports));
   ok('…and VoiceOver hears the held retainage', /retainage held to closeout`/.test(reports) && /\$\{heldSpoken\}/.test(reports));
 }
 

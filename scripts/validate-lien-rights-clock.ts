@@ -83,7 +83,7 @@ console.log('\n── the state');
   const unknown = lienClockFor({ project: { id: 'p1', location: 'Brooklyn' }, dailyReports: dfr, today: '2026-09-26' });
   assert(unknown.kind === 'state_unknown' && unknown.reason === STATE_UNKNOWN_REASON, 'a city with no state is state_unknown (never guessed)');
   const ct = lienClockFor({ project: { ...nyJob, structuredAddress: sa('CT') }, dailyReports: dfr, today: '2026-09-26' });
-  assert(ct.kind === 'unsupported' && ct.state === 'CT' && ct.reason === unsupportedReason('CT') && /No lien-deadline table for CT yet — ask your attorney\./.test(ct.reason), 'CT → unsupported with its reason');
+  assert(ct.kind === 'unsupported' && ct.state === 'CT' && ct.reason === unsupportedReason('CT') && /No lien-deadline table for CT yet. Ask your attorney\./.test(ct.reason), 'CT → unsupported with its reason');
 }
 
 console.log('\n── unverified → no dates');

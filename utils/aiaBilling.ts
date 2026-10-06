@@ -1899,7 +1899,7 @@ export function payAppReviewNotice(state: {
   return {
     title: 'Saved Certificate',
     body: `Saved${when ? ` ${when}` : ''}. This is exactly what was stored, not a fresh calculation. Editing replaces the saved figures.`,
-    editLabel: 'Edit draft',
+    editLabel: 'Edit Draft',
   };
 }
 

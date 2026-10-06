@@ -120,7 +120,7 @@ async function partA() {
     ok('declined: the transport is never called', sent.length === 0);
     ok('declined: the host is not asked again', asked === 0);
     ok('declined: throws AiConsentDeclinedError with the exact sentence',
-      err instanceof AiConsentDeclinedError && (err as Error).message === 'AI features are off. Turn them on in Settings \u2192 AI features.');
+      err instanceof AiConsentDeclinedError && (err as Error).message === 'AI features are off. Turn them on in Settings > AI features.');
     ok('declined: the error carries the machine code', isAiConsentDeclinedError(err) && (err as AiConsentDeclinedError).code === AI_CONSENT_DECLINED_CODE);
     ok('ensure() answers false, never throws', (await gate.ensure()) === false);
   }
@@ -330,7 +330,7 @@ async function partA() {
     let asked = 0;
     gate.setHost({ isWeb: false, prompt: async () => { asked++; return false; } });
     await gate.decline();
-    ok('Settings \u2192 Off: declined stored, next call refused', s.map.get(AI_CONSENT_STORAGE_KEY) === 'declined' && (await gate.ensure()) === false && asked === 0);
+    ok('Settings > Off: declined stored, next call refused', s.map.get(AI_CONSENT_STORAGE_KEY) === 'declined' && (await gate.ensure()) === false && asked === 0);
     await gate.reset();
     ok('reset(): the key is removed, state unknown', !s.map.has(AI_CONSENT_STORAGE_KEY) && gate.getState() === 'unknown');
     await gate.ensure();
@@ -468,7 +468,7 @@ function partB() {
   ok('no edge function calls an AI vendor the question does not name', !hit, hit ? `found ${hit[0]} — add it to AI_CONSENT_COPY.providers` : '');
   ok('says what is sent: typed or said, project details, photos/plans, recordings',
     /What you type or say/.test(msg) && /project details/.test(msg) && /Photos, plan pages and documents/.test(msg) && /Voice recordings/.test(msg));
-  ok('says what it is used for and that it is revocable', /used only to answer that request/.test(msg) && /Settings \u2192 AI features/.test(msg));
+  ok('says what it is used for and that it is revocable', /used only to answer that request/.test(msg) && /Settings > AI features/.test(msg));
   ok('title and buttons are the spec\u2019s words',
     AI_CONSENT_COPY.title === 'Use AI features?' && AI_CONSENT_COPY.allow === 'Allow AI features' && AI_CONSENT_COPY.notNow === 'Not now');
   ok('the privacy link is https://mageid.app/privacy', AI_CONSENT_PRIVACY_URL === 'https://mageid.app/privacy' && AI_CONSENT_COPY.privacyLink === 'Privacy policy');
@@ -921,7 +921,7 @@ function partC() {
     /In this app, AI features send what you choose to our AI providers only after you allow it/.test(settings));
   ok('American spelling and never "unlimited" in the Off row', !/analys(e|ing)|authoris|organis|colour|favour|unlimited/i.test(AI_CONSENT_OFF_ROW));
   ok('the row is phones only (the web app never asks)', /\{Platform\.OS !== 'web' && \(\s*<View style=\{styles\.row\} testID="ai-features-row">/.test(settings));
-  ok('the message names the Settings row that exists', AI_CONSENT_OFF_MESSAGE.includes('Settings \u2192 AI features'));
+  ok('the message names the Settings row that exists', AI_CONSENT_OFF_MESSAGE.includes('Settings > AI features'));
 }
 
 // ── C3. mageAI callers carry the refusal's sentence ───────────────────────

@@ -1895,7 +1895,7 @@ export async function readLinkedEstimateItems() {
     ok('the push succeeded', await pushInvoice() === '');
     const body = invoiceBody(h.posts);
     const lines = (body.Line ?? []) as { Amount: number; Description?: string; SalesItemLineDetail?: { ItemRef?: { value?: string } } }[];
-    close('a taxed, 5%-retainage invoice posts work less retainage', lineSumOf(body), 71815.25);
+    close('a taxed, 5%-retainage invoice posts work Less Retainage', lineSumOf(body), 71815.25);
     close('…with sales tax carried on the body',
       (body.TxnTaxDetail as { TotalTax?: number } | undefined)?.TotalTax ?? 0, 5669.63);
     const ret = lines.find(l => /Retainage withheld/.test(l.Description ?? ''));
@@ -2334,9 +2334,9 @@ console.log('\nEVM measures cost, and says so when it cannot (MONEY-EVM-1):');
     `got ${noCost.costPerformanceIndex}`);
   ok('…no actual cost', noCost.actualCost === undefined, `got ${noCost.actualCost}`);
   ok('…no cost variance', noCost.costVariance === undefined, `got ${noCost.costVariance}`);
-  ok('…no estimate at completion', noCost.estimateAtCompletion === undefined,
+  ok('…no estimate at Completion', noCost.estimateAtCompletion === undefined,
     `got ${noCost.estimateAtCompletion}`);
-  ok('…and no variance at completion', noCost.varianceAtCompletion === undefined,
+  ok('…and no variance at Completion', noCost.varianceAtCompletion === undefined,
     `got ${noCost.varianceAtCompletion}`);
   expect('…the basis says which answer is missing and why',
     [noCost.costBasis.grounded, noCost.costBasis.reason], [false, 'no_cost_ledger']);
@@ -2416,7 +2416,7 @@ console.log('\nEVM measures cost, and says so when it cannot (MONEY-EVM-1):');
   expect('…and no ledger at all is its own reason',
     [empty.grounded, empty.reason], [false, 'no_cost_ledger']);
   ok('…naming every cost stream that holds nothing',
-    ['sub & PO payments', 'material receipts', 'crew hours', 'equipment days', 'permit fees']
+    ['sub and PO payments', 'material receipts', 'crew hours', 'equipment days', 'permit fees']
       .every(l => empty.emptyLedgers.includes(l)),
     empty.emptyLedgers.join(', '));
   const gap = describeCostBasisGap(empty);

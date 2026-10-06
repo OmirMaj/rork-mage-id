@@ -357,7 +357,7 @@ ok('rfi / submittal editors report unsaved edits to the log (useLogRecordDirty o
 ok('Cmd+S / Cmd+Enter: usePrimaryAction on all four editors, desktop only',
   /usePrimaryAction\(existingRFI \? handleSaveInPlace : handleSave, \{\s*label: 'Save RFI',\s*enabled: isDesktop/.test(rfiSrc)
   && /usePrimaryAction\(existingSubmittal \? handleSaveInPlace : handleSave, \{ label: 'Save submittal', enabled: isDesktop \}\)/.test(subSrc)
-  && /usePrimaryAction\(\(\) => withConfirmedImpactDays\(\(\) => handleSave\('draft'\)\), \{\s*label: 'Save change order',\s*enabled: isDesktop,\s*disabled: isLocked,/.test(coSrc)
+  && /usePrimaryAction\(\(\) => withConfirmedImpactDays\(\(\) => handleSave\('draft'\)\), \{\s*label: 'Save Change Order',\s*enabled: isDesktop,\s*disabled: isLocked,/.test(coSrc)
   && /usePrimaryAction\(\(\) => handleSave\('draft'\), \{\s*label: 'Save Invoice',\s*enabled: isDesktop,/.test(invSrc));
 ok('a sheet that sends or records money never binds Cmd+S (saveKey: false)',
   /useSheetPrimaryHotkey\(showSendModal,[^\n]*\{ saveKey: false \}\)/.test(rfiSrc)

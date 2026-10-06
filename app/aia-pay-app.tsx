@@ -1017,7 +1017,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         'Period Locked',
         isLocked
           ? 'This pay app already has a pay link. Create the next period to revise it.'
-          : 'You are viewing the saved certificate. Tap Edit draft to change it.'
+          : 'You are viewing the saved certificate. Tap Edit Draft to change it.'
       );
       return;
     }
@@ -1132,7 +1132,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         isLocked ? 'Period Locked' : 'Viewing the Saved Certificate',
         isLocked
           ? 'This pay app already has an active pay link. To revise the numbers, create the next period.'
-          : 'This is the certificate as it was saved. Tap Edit draft if you need to change it.'
+          : 'This is the certificate as it was saved. Tap Edit Draft if you need to change it.'
       );
       return;
     }

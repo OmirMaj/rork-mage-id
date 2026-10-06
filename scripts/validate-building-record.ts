@@ -809,7 +809,7 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
     && parcelHitFrom({ error: { code: 400 } }, 'baltimore_city', pt('city', 0)).kind === 'unread');
   const allTimedOut = mdResolveOutcome([{ probe: P('city'), hits: [{ side: 'baltimore_city', hit: 'timeout' }] }, { probe: P('county'), hits: [{ side: 'baltimore_county', hit: 'failed' }] }], { county: 'Anne Arundel County' });
   ok('34. a resolve where every probe timed out or failed returns the MD_ERRORS text, never md_outside',
-    allTimedOut.status === 'error' && allTimedOut.error === MD_ERRORS.upstream && MD_ERRORS.upstream === "Couldn't finish the Baltimore lookup — nothing was checked.");
+    allTimedOut.status === 'error' && allTimedOut.error === MD_ERRORS.upstream && MD_ERRORS.upstream === "Couldn't finish the Baltimore lookup. Nothing was checked.");
   const none = { kind: 'none' as const };
   const outside = mdResolveOutcome([{ probe: P('city'), hits: [{ side: 'baltimore_city', hit: none }, { side: 'baltimore_county', hit: none }] }], { county: 'Anne Arundel County' });
   ok('34. both layers read, neither contains the point → md_outside with the Census county', outside.status === 'md_outside' && outside.county === 'Anne Arundel County');
@@ -990,7 +990,7 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
   const clientSrc = read('utils/buildingRecordClient.ts');
   ok('39. the MD client: one helper with the LITERAL invoke, parseMdBuildingRecordResponse(data), one fixed network sentence',
     /async function invokeMd\(req: MdBuildingRecordRequest\)/.test(clientSrc) && /parseMdBuildingRecordResponse\(data\)/.test(clientSrc)
-    && clientSrc.includes('export const MD_BUILDING_RECORD_NETWORK_ERROR = "Couldn\'t reach the Baltimore lookup — nothing was checked.";'));
+    && clientSrc.includes('export const MD_BUILDING_RECORD_NETWORK_ERROR = "Couldn\'t reach the Baltimore lookup. Nothing was checked.";'));
 
   // ── 40. the function + the card + the NYC strings ──
   ok('40. md.ts is pure (no Deno, no import at all)', !/\bDeno\./.test(mdSrcText) && !/^\s*import\s/m.test(mdSrcText));

@@ -157,7 +157,7 @@ console.log('\n── needs your price');
   const rerun = applyLevelingHonestyPure({ ...raw, adjustments: [{ ...raw.adjustments[0], confidence: 70, adjustmentBasis: 'your_history', reason: priced.normalizedAdjustmentReason }] }, [{ id: 'b1', excludes: 'x' }]);
   assert(rerun.labels.b1 === 'book', "a 'Your price' reason is not a leveling label (the pass classifies the new row on its own)");
   // Copy.
-  assert(SAVINGS_NEEDS_PRICE === 'Not shown — needs your price' && AWARD_NEEDS_PRICE_TITLE === 'Price the excluded scope first'
+  assert(SAVINGS_NEEDS_PRICE === 'Not shown. Needs your price' && AWARD_NEEDS_PRICE_TITLE === 'Price the excluded scope first'
     && awardNeedsPriceBody('Dumpster and blocking').startsWith(`Dumpster and blocking needs your price before this bid can be awarded. Tap "${SET_YOUR_PRICE_CTA}" on the bid card`)
     && awardNeedsPriceBody(null).startsWith('The scope this bid excludes needs your price'), 'the refusal says what unlocks it');
   const words = [SAVINGS_NEEDS_PRICE, AWARD_NEEDS_PRICE_TITLE, SET_YOUR_PRICE_CTA, awardNeedsPriceBody('x')];

@@ -235,7 +235,7 @@ ok('JUDGES: an "other" type margin is never a verdict basis (no history, like a 
   const r = tm.aggregateTypeMargin([closedJob('o1', 'other'), closedJob('o2', 'other')] as never, 'other', [tracedCommitment('o1'), tracedCommitment('o2')] as never, []);
   return r.avgMarginPct === null && r.jobCount === 0;
 })());
-ok('portfolio: the Other row is labelled "Other (mixed)"', prof.buildTypeProfitability([], [], []).rows.some((r: { type: string; label: string }) => r.type === 'other' && r.label === 'Other (mixed)'));
+ok('portfolio: the Other row is labelled "Other (mixed)"', prof.buildTypeProfitability([], [], []).rows.some((r: { type: string; label: string }) => r.type === 'other' && r.label === 'Other (Mixed)'));
 ok('an Other job is a residential bid category (not dropped from bid history)', bid.PROJECT_TYPE_TO_BID_CATEGORY.other === 'residential');
 
 // Surfaces that printed the raw id ("new_build") now print the label.
@@ -301,7 +301,7 @@ ok('New Project: Other opens a description box capped at the column', /projectTy
 ok('New Project: Create refuses Other with no words, and says why', /const typeBlock = projectTypeBlockReason\(projectType, projectTypeOther\);\s*if \(typeBlock\) \{\s*showAlert\('Describe the Project', typeBlock\);\s*return;/.test(home));
 ok('New Project: the words are saved only for Other', /\.\.\.\(projectType === 'other' \? \{ projectTypeOther: cleanProjectTypeOther\(projectTypeOther\) \} : \{\}\),/.test(home));
 const detail = code(read('app/project-detail.tsx'));
-ok('Edit project: Other opens a description box, seeded from the job', /editType === 'other' \? \(/.test(detail) && /setEditTypeOther\(project\.projectTypeOther \?\? ''\);/.test(detail));
+ok('Edit project: Other opens a description box, seeded from the Job', /editType === 'other' \? \(/.test(detail) && /setEditTypeOther\(project\.projectTypeOther \?\? ''\);/.test(detail));
 ok('Edit project: Save refuses Other with no words, and says why', /const typeBlock = projectTypeBlockReason\(editType, editTypeOther\);\s*if \(typeBlock\) \{\s*showAlert\('Describe the project', typeBlock\);\s*return;/.test(detail));
 ok('Edit project: leaving Other drops the words', /projectTypeOther: editType === 'other' \? cleanProjectTypeOther\(editTypeOther\) : undefined,/.test(detail));
 const row = code(read('components/ProjectRow.tsx'));

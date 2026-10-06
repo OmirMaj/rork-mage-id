@@ -379,8 +379,8 @@ for (const s of SAMPLES) {
   ok('report inbox: it is gated on rows, not on `filtered` — a chip that matches nothing is not a failure',
     !/filtered\.length === 0 && sourceFailed/.test(inbox));
   ok('report inbox: the teaching empty state survived for a new account',
-    /title="Nothing in this slice"/.test(inbox)
-    && inbox.indexOf('rows.length === 0 && sourceFailed') < inbox.indexOf('title="Nothing in this slice"'));
+    /title="Nothing in This Slice"/.test(inbox)
+    && inbox.indexOf('rows.length === 0 && sourceFailed') < inbox.indexOf('title="Nothing in This Slice"'));
   ok('report inbox: the failure offers a retry', /onRetry=\{retryRemoteReads\}/.test(inbox));
 
   const feed = src('app/activity-feed.tsx');

@@ -333,7 +333,7 @@ console.log('\na move CPM would ignore is not counted as a change (review round 
   const job = [mk('f', { title: 'Framing', startDay: 1, durationDays: 10 }), mk('d', { title: 'Drywall', startDay: 11, durationDays: 4, dependencies: ['f'] }), mk('p', { title: 'Paint', startDay: 15, durationDays: 3, dependencies: ['d'] })];
   const earlier = interpretScheduleOps([{ op: 'move', task: 'd', deltaDays: -5 }], job);
   ok('"pull drywall in 5 days" while it waits on framing → not applied', !earlier.results[0].ok);
-  ok('…says which task holds it and when that finishes', earlier.results[0].reason === '“Drywall” waits on “Framing” (finishes day 10) — shorten “Framing” or unlink it');
+  ok('…says which task holds it and when that finishes', earlier.results[0].reason === '“Drywall” waits on “Framing” (finishes day 10). Shorten “Framing” or unlink it');
   ok('…and writes nothing (startDay restored)', earlier.nextTasks.find((t) => t.id === 'd')!.startDay === 11);
   ok('"move drywall to day 3" → not applied either', !interpretScheduleOps([{ op: 'move', task: 'd', toStartDay: 3 }], job).results[0].ok);
   const later = interpretScheduleOps([{ op: 'move', task: 'd', deltaDays: 7 }], job);
@@ -380,7 +380,7 @@ console.log('\nmoves: counted from the SCHEDULED start, judged by where the task
   const longer = interpretScheduleOps([{ op: 'setDuration', task: 'f', days: 13 }, { op: 'move', task: 'd', deltaDays: 3 }], c);
   ok('"framing 3 days longer + push drywall 3 days" → 2 of 2', longer.results.every((r) => r.ok));
   const pull = interpretScheduleOps([{ op: 'move', task: 'd', deltaDays: -3 }], c);
-  ok('a −3 pull that framing holds is still refused, with the pull advice', !pull.results[0].ok && /waits on “Framing”.*shorten/.test(pull.results[0].reason ?? ''));
+  ok('a −3 pull that framing holds is still refused, with the pull advice', !pull.results[0].ok && /waits on “Framing”.*Shorten/.test(pull.results[0].reason ?? ''));
   const shortened = interpretScheduleOps([{ op: 'setDuration', task: 'f', days: 5 }, { op: 'move', task: 'd', deltaDays: -5 }], c);
   ok('framing shortened by 5 + drywall pulled in 5 → 2 of 2 (drywall starts day 6)', shortened.results.every((r) => r.ok) && es(shortened.nextTasks, 'd') === 6);
 

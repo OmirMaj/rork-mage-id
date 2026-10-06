@@ -139,7 +139,7 @@ console.log('\nstatutory notices survive onto the rendered page:');
 
 /**
  * The notice each (state, type) must carry, '' where the statute prescribes
- * none for that form. This table IS the requirement — a form losing its notice
+ * none for that form. This table IS the requirement, a form losing its notice
  * is the exact defect Georgia's own statute names.
  */
 const REQUIRED_NOTICE: Record<WaiverStateCode, Record<LienWaiverType, string>> = {

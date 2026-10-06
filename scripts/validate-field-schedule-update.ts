@@ -139,9 +139,9 @@ console.log('\nsending:');
   const missing = await sendFieldTaskPatches(client({ data: { applied: [], missing: ['a'] } }), 'p1', patches);
   ok('a task deleted meanwhile is reported as missing', missing.ok && missing.missing.join() === 'a');
   for (const [label, res, re] of [
-    ['RLS/role refusal', { error: { message: 'field access required', code: '42501' } }, /^Not saved — your access/],
-    ['function not deployed yet', { error: { message: 'Could not find the function', code: 'PGRST202' } }, /^Not saved — progress updates on field access are not switched on/],
-    ['disallowed key', { error: { message: 'field_update_schedule_tasks: "startDay" is not a field-access schedule field', code: '22023' } }, /^Not saved — that change isn't a progress update/],
+    ['RLS/role refusal', { error: { message: 'field access required', code: '42501' } }, /^Not saved. Your access/],
+    ['function not deployed yet', { error: { message: 'Could not find the function', code: 'PGRST202' } }, /^Not saved. Progress updates on field access are not switched on/],
+    ['disallowed key', { error: { message: 'field_update_schedule_tasks: "startDay" is not a field-access schedule field', code: '22023' } }, /^Not saved. That change isn't a progress update/],
     ['offline', { throws: true }, /^Not saved — no connection/],
   ] as const) {
     const r = await sendFieldTaskPatches(client(res), 'p1', patches);
@@ -225,7 +225,7 @@ console.log('\nthe phone schedule:');
     && /if \(sent\.ok\) \{\s*accepted = applyFieldTaskPatches\(baseTasks, patches\);/.test(MSS));
   ok('...a failure, a blocked change or a settings change says what was not saved',
     /if \(failure \|\| blocked\.length > 0 \|\| settingsChanged\) \{/.test(MSS)
-    && /Field access saves progress, status, notes and actual start\/finish only — ask the project owner for editor access to move dates or change tasks\./.test(MSS));
+    && /Field access saves progress, status, notes and actual start\/finish only. Ask the project owner for editor access to move dates or change tasks\./.test(MSS));
   ok('...and puts the open task sheet back to what the server accepted',
     /setDetailTask\(\(t\) => \(t \? accepted\.find\(\(x\) => x\.id === t\.id\) \?\? null : t\)\);/.test(MSS));
   ok('...the standing notice tells him BEFORE he taps, and the card carries the refusal after',
@@ -247,8 +247,8 @@ console.log('\nthe phone schedule:');
   // baseline are both outside the RPC, so they must refuse BEFORE the alert
   // that would otherwise say the plan moved.
   ok('the whole-plan actions (catch-up, plan lock) refuse before they confirm themselves',
-    /if \(wholePlanWriteBlocked\) \{ showAlert\('Schedule not changed', wholePlanWriteBlocked\); setShowFinishSheet\(false\); return; \}/.test(MSS)
-    && /if \(wholePlanWriteBlocked\) \{ showAlert\('Plan not locked', wholePlanWriteBlocked\); return; \}/.test(MSS));
+    /if \(wholePlanWriteBlocked\) \{ showAlert\('Schedule Not Changed', wholePlanWriteBlocked\); setShowFinishSheet\(false\); return; \}/.test(MSS)
+    && /if \(wholePlanWriteBlocked\) \{ showAlert\('Plan Not Locked', wholePlanWriteBlocked\); return; \}/.test(MSS));
   ok('...and their buttons carry the reason instead of staying live',
     /writeBlockedReason=\{wholePlanWriteBlocked\}/.test(MSS)
     && /testID="catch-up-blocked-by-access"/.test(MSS)
@@ -445,7 +445,7 @@ console.log('\n#138 — a failed field send:');
     id: 'x', title: 'X', phase: 'P', durationDays: 5, startDay: 1, progress: 0, crew: '', dependencies: [], notes: '', status: 'not_started', ...o,
   } as ScheduleTask);
   const base = [t({ id: 'a', title: 'Framing', progress: 10 }), t({ id: 'b', title: 'Drywall' })];
-  const sent = { message: 'Not saved — no connection.', offline: true, retryable: true };
+  const sent = { message: 'Not saved: no connection.', offline: true, retryable: true };
   const f1 = captureFieldSendFailure('p1', base, [{ id: 'a', progress: 60, status: 'in_progress' }], sent);
   ok('a failure remembers what each key held when it failed', f1.before.a.progress.value === 10 && f1.before.a.status.value === 'not_started', JSON.stringify(f1.before));
   ok('retry re-sends a key still holding that value',
@@ -457,7 +457,7 @@ console.log('\n#138 — a failed field send:');
   ok('...a key whose stamp moved (same value, newer write) is dropped too',
     JSON.stringify(pendingFieldRetryPatches(f1, restamped)) === JSON.stringify([{ id: 'a', status: 'in_progress' }]), JSON.stringify(pendingFieldRetryPatches(f1, restamped)));
   ok('...a task deleted meanwhile is dropped', pendingFieldRetryPatches(f1, [base[1]]).length === 0);
-  const f2 = captureFieldSendFailure('p1', base, [{ id: 'b', notes: 'rained out' }], { message: 'Not saved — no connection (2).', offline: true, retryable: true });
+  const f2 = captureFieldSendFailure('p1', base, [{ id: 'b', notes: 'rained out' }], { message: 'Not saved: no connection (2).', offline: true, retryable: true });
   const merged = mergeFieldSendFailure(f1, f2);
   ok('a second failure on the same job folds in — Retry sends both', pendingFieldRetryPatches(merged, base).length === 2 && merged.message.endsWith('(2).'));
   ok('another job\'s failure replaces it', mergeFieldSendFailure(f1, { ...f2, projectId: 'p2' }).projectId === 'p2' && mergeFieldSendFailure(f1, { ...f2, projectId: 'p2' }).patches.length === 1);

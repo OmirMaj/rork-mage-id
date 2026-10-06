@@ -135,7 +135,7 @@ console.log('defs');
   const byId = new Map<string, TutorialDef>(LANE_D_DEFS.map(d => [d.id, d]));
   const spec: [string, string, string, number, string][] = [
     ['contract-from-estimate', 'Set Up a Contract from the Estimate', 'Start date and payment terms set, ready to sign', 45, 'client'],
-    ['pay-app-period', 'Fill in a pay application period', 'A draft pay application for this period', 45, 'money'],
+    ['pay-app-period', 'Fill In a Pay Application Period', 'A draft pay application for this period', 45, 'money'],
     ['closeout-binder', 'Build a closeout binder', 'A draft binder with every section in one place', 35, 'client'],
   ];
   for (const [id, title, endsWith, seconds, group] of spec) {

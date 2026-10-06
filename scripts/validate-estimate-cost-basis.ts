@@ -180,7 +180,7 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
   const living = computeLivingEstimate({ project: proj, changeOrders: [], commitments: atCost, invoices: [] });
   ok('the Living Estimate fixture has a margin basis', living.hasMarginBasis);
   expect('an at-cost buyout produces NO margin drivers', living.drivers.map(d => d.key), []);
-  expect('…and the projected margin equals the bid margin', Math.round(living.marginErosionDollars), 0);
+  expect('…and the projected margin equals the Bid Margin', Math.round(living.marginErosionDollars), 0);
 
   const jc = computeJobCost({ project: proj, commitments: atCost, invoices: [], changeOrders: [] });
   expect('a sub signed AT COST is not overcommitted', jc.overcommittedCommitments.length, 0);
@@ -1159,7 +1159,7 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
     const est = buildQuickLinkedEstimate(breakdown(), 20, seq);
     expect('the wizard mapper prices at cost basis + markup', est.baseTotal, COST_TOTAL);
     expect('…and sells at cost x 1.20', est.grandTotal, round2(COST_TOTAL * 1.2));
-    ok('…so the estimate carries real profit', est.markupTotal > 0,
+    ok('…so the estimate carries real Profit', est.markupTotal > 0,
       `markupTotal ${est.markupTotal} — a wizard estimate with no profit in it is THE defect`);
     ok('…and it is not at cost', !isAtCost(est));
     // The exact pre-fix state, asserted as a NEGATIVE so the guard fails if the
@@ -1282,7 +1282,7 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
     const under = computeLivingEstimate({ project: underJob, changeOrders: [], commitments: [], invoices: [] });
     ok('a job priced BELOW cost is still seen', under.hasMarginBasis);
     expect('…and is critical', under.health, 'critical');
-    ok('…with a negative bid margin', under.original.marginPct < 0);
+    ok('…with a negative Bid Margin', under.original.marginPct < 0);
 
     // …and the genuinely blind case still reports blind: no cost basis at all.
     const legacy = { id: 'p-legacy', name: 'Legacy', status: 'in_progress',
@@ -1730,8 +1730,8 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
     'the seed is his answered markup or nothing');
 
   // THE TOTALS CARD. One number per change order is what made this invisible.
-  ok('the totals card splits cost from overhead & profit',
-    /Your cost/.test(co) && /Overhead &amp; profit/.test(co),
+  ok('the totals card splits cost from overhead & Profit',
+    /Your cost/.test(co) && /Overhead and Profit/.test(co),
     'a $12,000 CO at cost and a $12,000 CO at 30 points looked identical');
   ok('\u2026and states the margin as well as the markup',
     /marginFraction/.test(co) && /markup is a share of the cost/.test(co),
