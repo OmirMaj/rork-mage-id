@@ -238,7 +238,7 @@ console.log('\ne) the plans skip what they must and name it:');
   const r = (id: string, number: number, status: string) => ({ id, number, status, projectId: 'p1' } as unknown as RFI);
   const rp = rfiBulkClosePlan([r('1', 1, 'open'), r('2', 2, 'answered'), r('3', 3, 'closed'), r('4', 4, 'void')], nowIso, deps);
   ok('bulk Close takes answered RFIs only', same(rp.close.map((c) => c.id), ['2']), JSON.stringify(rp.close));
-  ok('…open → "not answered yet — close it from its record", closed → "already closed", void → "void"',
+  ok('…open → "not answered yet, so close it from its record", closed → "already closed", void → "void"',
     same(rp.skipped, [{ number: 1, reason: RFI_CLOSE_SKIP.open }, { number: 3, reason: RFI_CLOSE_SKIP.closed }, { number: 4, reason: RFI_CLOSE_SKIP.void }])
     && RFI_CLOSE_SKIP.open === 'not answered yet, so close it from its record' && RFI_CLOSE_SKIP.closed === 'already closed' && RFI_CLOSE_SKIP.void === 'void',
     JSON.stringify(rp.skipped));
@@ -246,7 +246,7 @@ console.log('\ne) the plans skip what they must and name it:');
   ok('an answered RFI the regression rule refuses is skipped with that rule\'s words, not written', blocked.close.length === 0
     && same(blocked.skipped, [{ number: 5, reason: 'no' }]), JSON.stringify(blocked));
   ok('the skipped line groups by reason, in order',
-    logBulkSkippedLine(plan.skipped) === 'Skipped 5: #2, #4, #6 — already sent; #3 — paid; #5 — sample job, sends only reach you.',
+    logBulkSkippedLine(plan.skipped) === 'Skipped 5: #2, #4, #6 (already sent); #3 (paid); #5 (sample job, sends only reach you).',
     logBulkSkippedLine(plan.skipped));
   ok('…and is empty when nothing was skipped', logBulkSkippedLine([]) === '');
 }
