@@ -16,7 +16,7 @@ import type { ConditionKind, WastePct } from '@/utils/takeoff/conditions';
 import type { RoomType, ScanQuantities } from './types';
 
 export type RecipeKey =
-  | 'floor' | 'wall_drywall' | 'wall_paint' | 'ceiling_paint' | 'baseboard'
+  | 'floor_tile' | 'floor' | 'wall_drywall' | 'wall_paint' | 'ceiling_paint' | 'baseboard'
   | 'door' | 'window' | 'toilet' | 'sink' | 'bathtub';
 
 export interface RecipeLine {
@@ -31,7 +31,7 @@ export interface RecipeLine {
   catalog: { category: string; item?: string } | null;
 }
 
-const FLOOR_TILE: RecipeLine = { key: 'floor', kind: 'area', defaultTrade: 'Tile', matchWords: 'floor tile flooring', wastePct: 10, catalog: { category: 'flooring' } };
+const FLOOR_TILE: RecipeLine = { key: 'floor_tile', kind: 'area', defaultTrade: 'Tile', matchWords: 'floor tile flooring', wastePct: 10, catalog: { category: 'flooring' } };
 const FLOOR: RecipeLine = { key: 'floor', kind: 'area', defaultTrade: 'Flooring', matchWords: 'floor flooring', wastePct: 10, catalog: { category: 'flooring' } };
 const WALL_DRYWALL: RecipeLine = { key: 'wall_drywall', kind: 'area', defaultTrade: 'Drywall', matchWords: 'drywall sheetrock', wastePct: 10, catalog: null };
 const WALL_PAINT: RecipeLine = { key: 'wall_paint', kind: 'area', defaultTrade: 'Painting', matchWords: 'paint painting walls', wastePct: 0, catalog: null };
@@ -56,6 +56,7 @@ export const ROOM_TYPES: readonly RoomType[] = ['bathroom', 'kitchen', 'bedroom'
 export function recipeQuantity(key: RecipeKey, q: ScanQuantities): number | null {
   const fixture = (c: string) => q.fixtures.find((f) => f.category === c)?.count ?? 0;
   switch (key) {
+    case 'floor_tile':
     case 'floor': return q.floorAreaSF;
     case 'wall_drywall':
     case 'wall_paint': return q.netWallSF;
@@ -71,6 +72,7 @@ export function recipeQuantity(key: RecipeKey, q: ScanQuantities): number | null
 
 /** English line names. The screen passes the person's language instead (hooks/useRoomScanCopy.ts). */
 export const RECIPE_NAMES_EN: Record<RecipeKey, string> = {
+  floor_tile: 'Floor Tile',
   floor: 'Flooring',
   wall_drywall: 'Drywall, Walls',
   wall_paint: 'Paint, Walls',
