@@ -780,7 +780,7 @@ function WarrantiesScreenInner() {
                         <TextInput style={styles.input} value={claimDate} onChangeText={setClaimDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} testID="warranty-claim-date" />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.fieldLabel}>Cost so Far</Text>
+                        <Text style={styles.fieldLabel}>Cost to Date</Text>
                         <TextInput style={styles.input} value={claimCost} onChangeText={setClaimCost} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={themeColors.textMuted} testID="warranty-claim-cost" />
                       </View>
                     </View>
