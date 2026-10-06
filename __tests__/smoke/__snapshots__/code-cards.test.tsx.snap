@@ -277,7 +277,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
             }
           }
         >
-          Code in force
+          Code in Force
         </Text>
         <Text
           style={
@@ -616,7 +616,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
             }
           }
         >
-          Permit office
+          Permit Office
         </Text>
         <Text
           style={
@@ -632,7 +632,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
           Town of Oyster Bay Building Division
         </Text>
         <View
-          accessibilityLabel="Permit office source: oysterbaytown.com · checked Sep 26, 2026"
+          accessibilityLabel="Permit Office source: oysterbaytown.com · checked Sep 26, 2026"
           accessibilityRole="link"
           accessibilityState={
             {
@@ -746,7 +746,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
         }
       >
         <View
-          accessibilityLabel="Show as cards"
+          accessibilityLabel="Show as Cards"
           accessibilityRole="tab"
           accessibilityState={
             {
@@ -964,7 +964,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
           </Text>
         </View>
         <View
-          accessibilityLabel="Show as a list"
+          accessibilityLabel="Show as a List"
           accessibilityRole="tab"
           accessibilityState={
             {
@@ -2003,7 +2003,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                 }
               />
               <View
-                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                 accessible={true}
                 style={
                   {
@@ -2270,7 +2270,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                   ]
                 }
               >
-                Official text
+                Official Text
               </Text>
               <View
                 style={
@@ -2493,7 +2493,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
               </Text>
             </View>
             <View
-              accessibilityLabel="Ask town"
+              accessibilityLabel="Ask Town"
               accessibilityRole="button"
               accessibilityState={
                 {
@@ -2679,7 +2679,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                   ]
                 }
               >
-                Ask town
+                Ask Town
               </Text>
             </View>
             <View
@@ -3408,7 +3408,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                 }
               />
               <View
-                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                 accessible={true}
                 style={
                   {
@@ -3675,7 +3675,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                   ]
                 }
               >
-                Official text
+                Official Text
               </Text>
               <View
                 style={
@@ -3898,7 +3898,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
               </Text>
             </View>
             <View
-              accessibilityLabel="Ask town"
+              accessibilityLabel="Ask Town"
               accessibilityRole="button"
               accessibilityState={
                 {
@@ -4084,7 +4084,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                   ]
                 }
               >
-                Ask town
+                Ask Town
               </Text>
             </View>
             <View
@@ -4854,7 +4854,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                     }
                   }
                 >
-                    MAGE calculator
+                    MAGE Calculator
                 </Text>
               </Text>
             </View>
@@ -4910,7 +4910,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                 }
               />
               <View
-                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                 accessible={true}
                 style={
                   {
@@ -5177,7 +5177,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                   ]
                 }
               >
-                Official text
+                Official Text
               </Text>
               <View
                 style={
@@ -5400,7 +5400,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
               </Text>
             </View>
             <View
-              accessibilityLabel="Ask town"
+              accessibilityLabel="Ask Town"
               accessibilityRole="button"
               accessibilityState={
                 {
@@ -5586,7 +5586,7 @@ exports[`code cards — goldens a: Ask answer, light 1`] = `
                   ]
                 }
               >
-                Ask town
+                Ask Town
               </Text>
             </View>
             <View
@@ -7232,7 +7232,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
             }
           }
         >
-          Code in force
+          Code in Force
         </Text>
         <Text
           style={
@@ -7571,7 +7571,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
             }
           }
         >
-          Permit office
+          Permit Office
         </Text>
         <Text
           style={
@@ -7587,7 +7587,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
           Town of Oyster Bay Building Division
         </Text>
         <View
-          accessibilityLabel="Permit office source: oysterbaytown.com · checked Sep 26, 2026"
+          accessibilityLabel="Permit Office source: oysterbaytown.com · checked Sep 26, 2026"
           accessibilityRole="link"
           accessibilityState={
             {
@@ -7701,7 +7701,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
         }
       >
         <View
-          accessibilityLabel="Show as cards"
+          accessibilityLabel="Show as Cards"
           accessibilityRole="tab"
           accessibilityState={
             {
@@ -7919,7 +7919,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
           </Text>
         </View>
         <View
-          accessibilityLabel="Show as a list"
+          accessibilityLabel="Show as a List"
           accessibilityRole="tab"
           accessibilityState={
             {
@@ -8958,7 +8958,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                 }
               />
               <View
-                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                 accessible={true}
                 style={
                   {
@@ -9225,7 +9225,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                   ]
                 }
               >
-                Official text
+                Official Text
               </Text>
               <View
                 style={
@@ -9448,7 +9448,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
               </Text>
             </View>
             <View
-              accessibilityLabel="Ask town"
+              accessibilityLabel="Ask Town"
               accessibilityRole="button"
               accessibilityState={
                 {
@@ -9634,7 +9634,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                   ]
                 }
               >
-                Ask town
+                Ask Town
               </Text>
             </View>
             <View
@@ -10363,7 +10363,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                 }
               />
               <View
-                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                 accessible={true}
                 style={
                   {
@@ -10630,7 +10630,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                   ]
                 }
               >
-                Official text
+                Official Text
               </Text>
               <View
                 style={
@@ -10853,7 +10853,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
               </Text>
             </View>
             <View
-              accessibilityLabel="Ask town"
+              accessibilityLabel="Ask Town"
               accessibilityRole="button"
               accessibilityState={
                 {
@@ -11039,7 +11039,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                   ]
                 }
               >
-                Ask town
+                Ask Town
               </Text>
             </View>
             <View
@@ -11809,7 +11809,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                     }
                   }
                 >
-                    MAGE calculator
+                    MAGE Calculator
                 </Text>
               </Text>
             </View>
@@ -11865,7 +11865,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                 }
               />
               <View
-                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                 accessible={true}
                 style={
                   {
@@ -12132,7 +12132,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                   ]
                 }
               >
-                Official text
+                Official Text
               </Text>
               <View
                 style={
@@ -12355,7 +12355,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
               </Text>
             </View>
             <View
-              accessibilityLabel="Ask town"
+              accessibilityLabel="Ask Town"
               accessibilityRole="button"
               accessibilityState={
                 {
@@ -12541,7 +12541,7 @@ exports[`code cards — goldens b: Ask answer, dark 1`] = `
                   ]
                 }
               >
-                Ask town
+                Ask Town
               </Text>
             </View>
             <View
@@ -14191,7 +14191,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
             }
           }
         >
-          Code in force
+          Code in Force
         </Text>
         <Text
           style={
@@ -14530,7 +14530,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
             }
           }
         >
-          Permit office
+          Permit Office
         </Text>
         <Text
           style={
@@ -14546,7 +14546,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
           Town of Oyster Bay Building Division
         </Text>
         <View
-          accessibilityLabel="Permit office source: oysterbaytown.com · checked Sep 26, 2026"
+          accessibilityLabel="Permit Office source: oysterbaytown.com · checked Sep 26, 2026"
           accessibilityRole="link"
           accessibilityState={
             {
@@ -14660,7 +14660,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
         }
       >
         <View
-          accessibilityLabel="Show as cards"
+          accessibilityLabel="Show as Cards"
           accessibilityRole="tab"
           accessibilityState={
             {
@@ -14878,7 +14878,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
           </Text>
         </View>
         <View
-          accessibilityLabel="Show as a list"
+          accessibilityLabel="Show as a List"
           accessibilityRole="tab"
           accessibilityState={
             {
@@ -15921,7 +15921,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                 }
               />
               <View
-                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                 accessible={true}
                 style={
                   {
@@ -16089,7 +16089,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                   ]
                 }
               >
-                Official text
+                Official Text
               </Text>
               <View
                 style={
@@ -16186,7 +16186,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
               </Text>
             </View>
             <View
-              accessibilityLabel="Ask town"
+              accessibilityLabel="Ask Town"
               accessibilityRole="button"
               accessibilityState={
                 {
@@ -16251,7 +16251,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                   ]
                 }
               >
-                Ask town
+                Ask Town
               </Text>
             </View>
             <View
@@ -16984,7 +16984,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                 }
               />
               <View
-                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                 accessible={true}
                 style={
                   {
@@ -17152,7 +17152,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                   ]
                 }
               >
-                Official text
+                Official Text
               </Text>
               <View
                 style={
@@ -17249,7 +17249,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
               </Text>
             </View>
             <View
-              accessibilityLabel="Ask town"
+              accessibilityLabel="Ask Town"
               accessibilityRole="button"
               accessibilityState={
                 {
@@ -17314,7 +17314,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                   ]
                 }
               >
-                Ask town
+                Ask Town
               </Text>
             </View>
             <View
@@ -18088,7 +18088,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                     }
                   }
                 >
-                    MAGE calculator
+                    MAGE Calculator
                 </Text>
               </Text>
             </View>
@@ -18144,7 +18144,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                 }
               />
               <View
-                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                 accessible={true}
                 style={
                   {
@@ -18312,7 +18312,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                   ]
                 }
               >
-                Official text
+                Official Text
               </Text>
               <View
                 style={
@@ -18409,7 +18409,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
               </Text>
             </View>
             <View
-              accessibilityLabel="Ask town"
+              accessibilityLabel="Ask Town"
               accessibilityRole="button"
               accessibilityState={
                 {
@@ -18474,7 +18474,7 @@ exports[`code cards — goldens c: Ask answer, Sunlight 1`] = `
                   ]
                 }
               >
-                Ask town
+                Ask Town
               </Text>
             </View>
             <View
@@ -20274,7 +20274,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
               }
             }
           >
-            Code edition
+            Code Edition
           </Text>
           : 2025 Residential Code of New York State, dos.ny.gov · checked Sep 12, 2026.
         </Text>
@@ -20382,7 +20382,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
               }
             }
           >
-            Section numbers
+            Section Numbers
           </Text>
           : model recall. Confirm before you rely on one.
         </Text>
@@ -20428,14 +20428,14 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
               }
             }
           >
-            Plan reading
+            Plan Reading
           </Text>
           : the AI’s read of A-2. Check the sheet before you act on it.
         </Text>
       </View>
     </View>
     <View
-      accessibilityLabel="Group by"
+      accessibilityLabel="Group By"
       accessibilityRole="tablist"
       style={
         [
@@ -20454,7 +20454,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
       }
     >
       <View
-        accessibilityLabel="By status"
+        accessibilityLabel="By Status"
         accessibilityRole="tab"
         accessibilityState={
           {
@@ -20543,11 +20543,11 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
             ]
           }
         >
-          By status
+          By Status
         </Text>
       </View>
       <View
-        accessibilityLabel="By inspection"
+        accessibilityLabel="By Inspection"
         accessibilityRole="tab"
         accessibilityState={
           {
@@ -20619,7 +20619,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
             ]
           }
         >
-          By inspection
+          By Inspection
         </Text>
       </View>
     </View>
@@ -20656,7 +20656,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
               ]
             }
           >
-            Fix before you submit
+            Fix Before You Submit
           </Text>
           <Text
             style={
@@ -22117,7 +22117,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
               ]
             }
           >
-            Needs an answer
+            Needs an Answer
           </Text>
           <Text
             style={
@@ -22885,7 +22885,7 @@ exports[`code cards — goldens d: plan code check, 10 items, By status 1`] = `
               ]
             }
           >
-            Look right on the drawing
+            Look Right on the Drawing
           </Text>
           <Text
             style={
@@ -26133,7 +26133,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
               }
             }
           >
-            Code edition
+            Code Edition
           </Text>
           : 2025 Residential Code of New York State, dos.ny.gov · checked Sep 12, 2026.
         </Text>
@@ -26241,7 +26241,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
               }
             }
           >
-            Section numbers
+            Section Numbers
           </Text>
           : model recall. Confirm before you rely on one.
         </Text>
@@ -26287,14 +26287,14 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
               }
             }
           >
-            Plan reading
+            Plan Reading
           </Text>
           : the AI’s read of A-2. Check the sheet before you act on it.
         </Text>
       </View>
     </View>
     <View
-      accessibilityLabel="Group by"
+      accessibilityLabel="Group By"
       accessibilityRole="tablist"
       style={
         [
@@ -26313,7 +26313,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
       }
     >
       <View
-        accessibilityLabel="By status"
+        accessibilityLabel="By Status"
         accessibilityRole="tab"
         accessibilityState={
           {
@@ -26385,11 +26385,11 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
             ]
           }
         >
-          By status
+          By Status
         </Text>
       </View>
       <View
-        accessibilityLabel="By inspection"
+        accessibilityLabel="By Inspection"
         accessibilityRole="tab"
         accessibilityState={
           {
@@ -26478,7 +26478,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
             ]
           }
         >
-          By inspection
+          By Inspection
         </Text>
       </View>
     </View>
@@ -27254,7 +27254,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
               }
             }
           >
-            Not booked
+            Not Booked
           </Text>
         </View>
         <View
@@ -28713,7 +28713,7 @@ exports[`code cards — goldens e: plan code check, By inspection 1`] = `
               }
             }
           >
-            Not booked
+            Not Booked
           </Text>
         </View>
         <View
@@ -32710,7 +32710,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                       }
                     }
                   >
-                    Why it applies here
+                    Why It Applies Here
                   </Text>
                   <View
                     style={
@@ -33428,7 +33428,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                       }
                     }
                   >
-                    What to build
+                    What to Build
                   </Text>
                   <View
                     style={
@@ -33446,7 +33446,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                       }
                     }
                   >
-                    In our words
+                    In Our Words
                   </Text>
                 </View>
                 <View
@@ -33789,7 +33789,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                       }
                     }
                   >
-                    The code behind it
+                    The Code Behind It
                   </Text>
                 </View>
                 <View
@@ -34017,7 +34017,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                         </View>
                       </View>
                       <View
-                        accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall."
+                        accessibilityLabel="Evidence 2 of 4: Model recall · edition known. MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall."
                         accessible={true}
                         style={
                           {
@@ -34124,7 +34124,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                             }
                           }
                         >
-                          MAGE verified the governing code here — 2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12 — but has no government record naming this section. The section number is the model’s own recall.
+                          MAGE verified the governing code here (2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes), 2025 Energy Conservation Construction Code of New York State, 2025 Residential Code of New York State, checked 2026-09-12) but has no government record naming this section. The section number is the model’s own recall.
                         </Text>
                       </View>
                     </View>
@@ -34424,7 +34424,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                       }
                     }
                   >
-                    Read the official text
+                    Read the Official Text
                   </Text>
                   <View
                     style={
@@ -35007,7 +35007,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                   </RNSVGSvgView>
                 </View>
                 <View
-                  accessibilityLabel="Draft a question for the town. Opens in your Mail. MAGE sends nothing."
+                  accessibilityLabel="Draft a Question for the Town. Opens in your Mail. MAGE sends nothing."
                   accessibilityRole="button"
                   accessibilityState={
                     {
@@ -35214,7 +35214,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                         ]
                       }
                     >
-                      Draft a question for the town
+                      Draft a Question for the Town
                     </Text>
                     <Text
                       style={
@@ -35311,7 +35311,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                   </RNSVGSvgView>
                 </View>
                 <View
-                  accessibilityLabel="Save to the job. Kept with the codes and permits"
+                  accessibilityLabel="Save to the Job. Kept with the codes and permits"
                   accessibilityRole="button"
                   accessibilityState={
                     {
@@ -35474,7 +35474,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                         ]
                       }
                     >
-                      Save to the job
+                      Save to the Job
                     </Text>
                     <Text
                       style={
@@ -35585,7 +35585,7 @@ exports[`code cards — goldens f: one card opened 1`] = `
                   }
                 }
               >
-                Send to a sub
+                Send to a Sub
               </Text>
               <View
                 style={

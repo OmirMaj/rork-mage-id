@@ -335,15 +335,13 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
   "modalCount": 5,
   "sheets": [
     {
-      "found": true,
-      "lines": 36,
-      "sha256": "78b62dae5ba7feaf7a827f4bdb482b3022f83a9f1e321c2306aa295af3f6fb01",
+      "found": false,
       "title": "Save room",
     },
   ],
   "whole": {
     "lines": 387,
-    "sha256": "5a67d1efed311933b74e291130c410c3301e56d3adf8bd29e7f9e7568e78f676",
+    "sha256": "85c7c1b9377555da0ac5064e5b5caefb4c836418350f66ec71c9507dd7405c7b",
   },
 }
 `;

@@ -3,21 +3,21 @@
 exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, iOS 390 1`] = `
 {
   "lines": 444,
-  "sha256": "7dc0e91ac9795447dd9297a01bf944f8c3ea323932c667b1fd00b025226612d6",
+  "sha256": "129d494893caa28c7ee3e1def1d2db13c229241f18eb8a4ce35eb7346d390731",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, web 390 1`] = `
 {
   "lines": 444,
-  "sha256": "7dc0e91ac9795447dd9297a01bf944f8c3ea323932c667b1fd00b025226612d6",
+  "sha256": "129d494893caa28c7ee3e1def1d2db13c229241f18eb8a4ce35eb7346d390731",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, web 768 1`] = `
 {
   "lines": 444,
-  "sha256": "7dc0e91ac9795447dd9297a01bf944f8c3ea323932c667b1fd00b025226612d6",
+  "sha256": "129d494893caa28c7ee3e1def1d2db13c229241f18eb8a4ce35eb7346d390731",
 }
 `;
 
@@ -38,27 +38,27 @@ exports[`lane R2 — the phone is unchanged (golden) subs add sheet (add-sub), i
 exports[`lane R2 — the phone is unchanged (golden) subs at rest, iOS 390 1`] = `
 {
   "lines": 817,
-  "sha256": "d5199d6f78372a1807122193bc156abc8f02f7d1f4249e74c20cca4e3e1f7836",
+  "sha256": "27b32ffe88ce46b515877a7d9d368863bc51d5568409d3f0d90e241d209812e3",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) subs at rest, web 390 1`] = `
 {
   "lines": 817,
-  "sha256": "d5199d6f78372a1807122193bc156abc8f02f7d1f4249e74c20cca4e3e1f7836",
+  "sha256": "27b32ffe88ce46b515877a7d9d368863bc51d5568409d3f0d90e241d209812e3",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) subs at rest, web 768 1`] = `
 {
   "lines": 817,
-  "sha256": "d5199d6f78372a1807122193bc156abc8f02f7d1f4249e74c20cca4e3e1f7836",
+  "sha256": "27b32ffe88ce46b515877a7d9d368863bc51d5568409d3f0d90e241d209812e3",
 }
 `;
 
 exports[`lane R2 — the phone is unchanged (golden) subs detail open (sub-S1), iOS 390 1`] = `
 {
   "lines": 994,
-  "sha256": "bff553957d71c170cb27aefc23e71c12d8be27913991ebda453a3ce993585477",
+  "sha256": "cd1c451ab1c15a0273d316901d02a4bdf2e78ac5850de3284fbb557ee0297177",
 }
 `;

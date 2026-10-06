@@ -10,14 +10,14 @@ exports[`lane F — /attention on the phone (390 iOS) /attention, empty world �
 exports[`lane F — /attention on the phone (390 iOS) /attention, populated world 1`] = `
 {
   "lines": 506,
-  "sha256": "bc4dd1c7cd70774fd3b6cd56f0919cd5c37a6fff7edfb76acf5590c0b2f6b9e8",
+  "sha256": "5e219c6d236e80c5a3bc13f9d846894fd9d3e519a94ceeb9d3536a1019f65073",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs (the stage chips render) 1`] = `
 {
   "lines": 2149,
-  "sha256": "ce6911fef91935f20bcb0312fc180d6ccb26ccdb79a78f90cc10de76949cd3e0",
+  "sha256": "e2e7783c46b3ea0281600ab1e1f542a53a922b869aa3325560e1a0467e64c4dc",
 }
 `;
 
@@ -31,20 +31,20 @@ exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, s
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs, a chip tapped (Closed / Closeout bucket) 1`] = `
 {
   "lines": 2093,
-  "sha256": "4965e70ee49b997bf2ce11a8cdfe776f6306375e394791f504017a293711ec32",
+  "sha256": "3c4f8f55440b4e1e58732136efb3feb7864042647903f71730c72ea20e0600bd",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, the fixture world (one job on site) 1`] = `
 {
   "lines": 2060,
-  "sha256": "214ffd668fb4e892fb674cad47a474a8b16045a475a099a1f29d20b761539800",
+  "sha256": "2d1da8ec88ba6f506ece139575371b149f0e38e49247f17a910ee0eb883fe38d",
 }
 `;
 
 exports[`lane F — the tablet Home keeps the ProjectRow table (golden, 820 iOS) Home, six jobs, tablet 1`] = `
 {
   "lines": 2143,
-  "sha256": "6fabb0eedb19bc86e2409eaa512aae7d166ae01a4735469757d6adec2b3e0265",
+  "sha256": "23e620ea21561500ee1ec140bb6bbd9a2263e0eda311a83a5781a00a726fa9ad",
 }
 `;

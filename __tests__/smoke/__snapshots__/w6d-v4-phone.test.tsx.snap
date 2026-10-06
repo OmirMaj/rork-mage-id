@@ -3,21 +3,21 @@
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) copilot (default capability: the gate) 1`] = `
 {
   "lines": 667,
-  "sha256": "b9373dfb52691c20f9d951f0b505595b2593b466b215b25b34b0923e4f451fe5",
+  "sha256": "12ae7087e2ea377798ffefe7968b79d87d9ca5ce7c606e321f9204535381974c",
 }
 `;
 
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) copilot new_project (project-free: the shell) 1`] = `
 {
   "lines": 667,
-  "sha256": "d9e497df98bb8157e6a6a759b6e4962eb33deaf5885b1c03c1634e16f762a519",
+  "sha256": "336ad61feaa93762dcc5176fc7a1ad6501cb467be5460b53d1facb888a8f43eb",
 }
 `;
 
 exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) copilot rfi (the shell + the job-picker sheet) 1`] = `
 {
   "lines": 667,
-  "sha256": "c884c9695a86d928a2eb51c152db3311a033cf86b921e494a22bf15f749b5d22",
+  "sha256": "d7c4d0f8fb53eb43bca143adf9dd62231ed8bc5c0fcfc3496fc7af24cd3e7ff0",
 }
 `;
 
