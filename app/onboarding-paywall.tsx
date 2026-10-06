@@ -83,29 +83,29 @@ interface Feature {
 
 const FEATURES: Feature[] = [
   {
-    title: 'AI cost estimator',
+    title: 'AI Cost Estimator',
     description: 'Turn a scope description into a line-item estimate.',
     Icon: Calculator,
   },
   {
-    title: 'Schedule builder',
+    title: 'Schedule Builder',
     description: 'Generate critical-path Gantt schedules with crew and phase logic.',
     Icon: CalendarDays,
   },
   {
-    title: 'AI takeoff',
+    title: 'AI Takeoff',
     description: 'Turn a plan PDF into linear- and square-foot quantities.',
     Icon: FileText,
   },
   {
-    title: 'AI photo triage',
+    title: 'AI Photo Triage',
     // #41: punch items are Business (punch_list_closeout); this screen sells
     // Pro first, so it must not promise them.
     description: 'Sort jobsite photos into RFIs, daily-report notes and progress shots.',
     Icon: ClipboardList,
   },
   {
-    title: 'Voice-to-report',
+    title: 'Voice-to-Report',
     description: 'Dictate updates and MAGE drafts the daily report.',
     Icon: Mic,
   },
@@ -377,11 +377,11 @@ export default function OnboardingPaywallScreen() {
       const rawMessage = err instanceof Error ? err.message : '';
       const planSellable = activePlan === 'pro' ? !!(proPackage || proAnnualPackage) : !!(businessPackage || businessAnnualPackage);
       if (purchaseFailureKind(rawMessage, planSellable) === 'unavailable') {
-        showAlert("Couldn't complete purchase", PLAN_UNAVAILABLE_MESSAGE);
+        showAlert("Couldn't Complete Purchase", PLAN_UNAVAILABLE_MESSAGE);
         return;
       }
       showAlert(
-        "Couldn't complete purchase",
+        "Couldn't Complete Purchase",
         "The purchase didn't go through. Try again, or tap Restore if you already paid.",
       );
     }
@@ -465,7 +465,7 @@ export default function OnboardingPaywallScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.hero}>Every tool for the jobsite</Text>
+        <Text style={styles.hero}>Every Tool for the Jobsite</Text>
 
         {/* Feature list with vertical gradient rail */}
         <View style={styles.featureBlock}>
@@ -671,7 +671,7 @@ export default function OnboardingPaywallScreen() {
           accessibilityRole="button"
           testID="onboarding-paywall-decline"
         >
-          <Text style={styles.declineLabel}>Continue on the free plan</Text>
+          <Text style={styles.declineLabel}>Continue on the Free Plan</Text>
         </TouchableOpacity>
 
         {/* App Review 3.1.2 (audit 2026-10 #5): on the phone, cancelling is

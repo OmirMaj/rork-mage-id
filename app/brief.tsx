@@ -90,7 +90,7 @@ function BriefInner() {
   // Verbatim the sentence the home card and the desktop rail use: a reader who
   // has learned what it means on one surface should not relearn it on another.
   const unreachableLine =
-    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+    `Couldn't reach MAGE. Showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}.`;
 
   // Opening the brief counts as "seen today" — hides the pinned home card.
   useEffect(() => {

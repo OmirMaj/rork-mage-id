@@ -389,8 +389,8 @@ export default function SignupScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.sheetEyebrow}>Get started</Text>
-          <Text style={styles.sheetHeading} accessibilityRole="header">Create your account</Text>
+          <Text style={styles.sheetEyebrow}>Get Started</Text>
+          <Text style={styles.sheetHeading} accessibilityRole="header">Create Your Account</Text>
           <View>
             {errorMessage ? (
               <Slot style={bannerFade}>
@@ -421,7 +421,7 @@ export default function SignupScreen() {
                     <Svg width={20} height={20} viewBox="0 0 24 24" fill={Colors.textOnAccent}>
                       <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
                     </Svg>
-                    <Text style={styles.appleAuthButtonText}>Sign up with Apple</Text>
+                    <Text style={styles.appleAuthButtonText}>Sign Up with Apple</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -443,7 +443,7 @@ export default function SignupScreen() {
                     <Path d="M24 44c5.2 0 10-1.8 13.7-4.9l-6.7-5.5C28.9 35.5 26.6 36.5 24 36.5c-6 0-11.1-4-12.8-9.5l-7.3 5.6C7.8 38.9 15.4 44 24 44z" fill="#4CAF50" />
                     <Path d="M44.5 20H24v8.5h11.8c-1 3-3 5.5-5.8 7.1l6.7 5.5C40.6 37.5 46 31.4 46 24c0-1.3-.2-2.7-.5-4z" fill="#1976D2" />
                   </Svg>
-                  <Text style={styles.googleAuthButtonText}>Sign up with Google</Text>
+                  <Text style={styles.googleAuthButtonText}>Sign Up with Google</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -453,7 +453,7 @@ export default function SignupScreen() {
           <Slot style={entrance.slot(4)}>
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Or with email</Text>
+            <Text style={styles.dividerText}>Or with Email</Text>
             <View style={styles.dividerLine} />
           </View>
           </Slot>
@@ -461,7 +461,7 @@ export default function SignupScreen() {
           <Slot style={entrance.slot(5)}>
           <View>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Full name</Text>
+              <Text style={styles.inputLabel}>Full Name</Text>
               <View style={styles.inputWrapper}>
                 <User size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                 <TextInput
@@ -553,7 +553,7 @@ export default function SignupScreen() {
           <Animated.View style={press.style}>
             <AuthSubmitButton
               phase={submitPhase}
-              label="Create account"
+              label="Create Account"
               trailing={<ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />}
               style={[styles.signupButton, isSubmitting && styles.signupButtonDisabled]}
               textStyle={styles.signupButtonText}
@@ -598,7 +598,7 @@ export default function SignupScreen() {
               onPress={() => router.back()}
               testID="signup-go-login"
             >
-              <Text style={styles.loginLink}>Sign in</Text>
+              <Text style={styles.loginLink}>Sign In</Text>
             </TouchableOpacity>
           </View>
           </Slot>

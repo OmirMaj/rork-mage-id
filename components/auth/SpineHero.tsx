@@ -181,7 +181,7 @@ export default function SpineHero({ width, height, maxScale = 1, animate, style,
         <Card clock={clock} beat={p.estimateCard} dim={p.dimEstimate} top={CARD_TOP[1]}>
           <View style={styles.head}><KLabel>Estimate</KLabel><SampleTag /></View>
           <View style={styles.estLine}>
-            <Text style={styles.estText} numberOfLines={1}>Kitchen remodel · 5 lines</Text>
+            <Text style={styles.estText} numberOfLines={1}>Kitchen Remodel · 5 lines</Text>
             <Text style={styles.estAmt}>$31,870</Text>
           </View>
         </Card>
@@ -202,7 +202,7 @@ export default function SpineHero({ width, height, maxScale = 1, animate, style,
           <View style={styles.head}>
             <View style={styles.schHead}>
               <KLabel>Schedule</KLabel>
-              <Text style={styles.schMeta} numberOfLines={1}>· Kitchen remodel · 6 weeks</Text>
+              <Text style={styles.schMeta} numberOfLines={1}>· Kitchen Remodel · 6 weeks</Text>
             </View>
             <SampleTag />
           </View>

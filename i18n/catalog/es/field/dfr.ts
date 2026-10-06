@@ -11,7 +11,7 @@ export const ES_FIELD_DFR: EsCatalog = {
   "field.dfr.card.daysLogged": { s: "{filed} de {expected} días hábiles con reporte", src: "4dde8734" },
   "field.dfr.card.daysMissing": { s: { one: "Falta {count} día", other: "Faltan {count} días" }, src: "67687230" },
   "field.dfr.card.eyebrow": { s: "Reporte diario · últimos 30 días", src: "972d5591", note: "Card eyebrow, uppercased by style. Never \"bitácora\"." },
-  "field.dfr.card.gapManyProjects": { s: "{projects} proyectos tienen huecos en los últimos 30 días: {days} días hábiles entre todos.", src: "b6b79707" },
+  "field.dfr.card.gapManyProjects": { s: "{projects} proyectos tienen huecos en los últimos 30 días, {days} días hábiles en total.", src: "51bd9872" },
   "field.dfr.card.gapOneProject": { s: { one: "A {count} día hábil de los últimos 30 le falta el reporte diario.", other: "A {count} días hábiles de los últimos 30 les falta el reporte diario." }, src: "f8e6eb24" },
   "field.dfr.card.more": { s: "+{overflow} más", src: "3e2a5705" },
   "field.dfr.card.noWorkDays": { s: "{days} sin trabajo en la obra", src: "64063f8c" },
@@ -24,7 +24,7 @@ export const ES_FIELD_DFR: EsCatalog = {
   "field.dfr.card.todayNotFiled": { s: "Hoy sin reporte", src: "5a9e7e05" },
   "field.dfr.card.voiceToFinish": { s: { one: "{count} proyecto tiene una nota de voz por terminar.", other: "{count} proyectos tienen una nota de voz por terminar." }, src: "b67a3b06" },
   "field.dfr.card.voiceToday": { s: { one: "{count} proyecto solo tiene una nota de voz de hoy. Termínala para registrar el día.", other: "{count} proyectos solo tienen una nota de voz de hoy. Termínalas para registrar el día." }, src: "175c6f76" },
-  "field.dfr.card.why": { s: "Un reporte diario completo sirve más que uno muy detallado. Si no pasó nada en la obra, registra el día y dilo: eso también cuenta. Toca un proyecto con un hueco para registrar su día faltante más reciente, con la fecha del día que cubre.", src: "8475506a" },
+  "field.dfr.card.why": { s: "Un reporte diario completo sirve más que uno muy detallado. Si no pasó nada en la obra, registra el día y dilo. Eso también cuenta. Toca un proyecto con un hueco para registrar su día faltante más reciente, con la fecha del día que cubre.", src: "5ca36f20" },
   // app/daily-report.tsx, components/AIDailyReportGen.tsx, components/AIDFRFromPhotos.tsx,
   // utils/dailyLogCompletion.ts (W3 ESDFR). REVIEWED-DRAFT: AI-drafted with docs/i18n-glossary-es.md,
   // awaiting the bilingual reviewer. tú in-app; cuadrilla = crew; reporte diario, never bitácora.

@@ -72,7 +72,7 @@ ok('the sweep is selectTenantKeysToWipe + multiRemove', /selectTenantKeysToWipe\
   ok('RESET_KEEPS names ProjectContext\'s USER_ROLE_KEY and ONBOARDING_KEY', !!role && !!onb && keeps.includes(`'${role}'`) && keeps.includes(`'${onb}'`), `role=${role} onboarding=${onb} keeps=${keeps}`);
   const refuse = reset.indexOf('if (sourceFailed) {');
   ok('the reset is refused (before anything is dropped) while the account is unreachable', refuse > -1 && refuse < dropAt
-    && /if \(sourceFailed\) \{\s*showAlert\('Reset needs a connection'[\s\S]{0,300}?return;\s*\}/.test(reset)
+    && /if \(sourceFailed\) \{\s*showAlert\('Reset Needs a Connection'[\s\S]{0,300}?return;\s*\}/.test(reset)
     && src.includes('}, [user?.id, queryClient, retryRemoteReads, reloadLocalMirrors, sourceFailed]);'));
 }
 ok('never AsyncStorage.clear()', !/AsyncStorage\.clear\(/.test(src));
@@ -97,18 +97,18 @@ ok('pending changes and photos are counted BEFORE the dialog, with the read-only
   /getOwnOfflineQueue\(\)[\s\S]{0,80}getOwnPhotoUploadQueue\(\)[\s\S]*showAlert\(\s*'Reset this device\?'/.test(clear));
 ok("…and the dialog says they haven't reached MAGE and will be lost",
   /on this phone \$\{[^}]*\} reached MAGE and will be lost/.test(clear));
-ok('Cancel is the first (safe) choice', /\[\s*\{ text: 'Cancel', style: 'cancel' \},\s*(?:\.\.\.\(unsaved > 0 \? \[\{ text: 'Review Not saved', onPress: \(\) => requestSyncSheet\(\) \}\] : \[\]\),\s*)?\{ text: 'Reset this device', style: 'destructive'/.test(clear));
+ok('Cancel is the first (safe) choice', /\[\s*\{ text: 'Cancel', style: 'cancel' \},\s*(?:\.\.\.\(unsaved > 0 \? \[\{ text: 'Review Not Saved', onPress: \(\) => requestSyncSheet\(\) \}\] : \[\]\),\s*)?\{ text: 'Reset This Device', style: 'destructive'/.test(clear));
 // w5-join-screens (settings handoff 1): the reset sweep removes the Not-saved
 // list, the only copy of a record the server refused — count it, say so, and
 // offer the list before the reset.
 ok('handleClearAll counts the Not-saved records (countOwnUnsavedRecords)', /countOwnUnsavedRecords\(\)\.catch\(\(\) => 0\)/.test(clear));
-ok('…says a reset deletes them, and offers Review Not saved first',
-  /Resetting deletes/.test(clear) && /\{ text: 'Review Not saved', onPress: \(\) => requestSyncSheet\(\) \}/.test(clear));
+ok('…says a reset deletes them, and offers Review Not Saved first',
+  /Resetting deletes/.test(clear) && /\{ text: 'Review Not Saved', onPress: \(\) => requestSyncSheet\(\) \}/.test(clear));
 ok('the dialog says projects stay on the account and reload', /Your projects stay on your account and reload/.test(clear));
 ok('the Done alert says the device was reset and projects are reloading',
-  /showAlert\('Device reset', 'Your projects are reloading from your account\.'\)/.test(reset));
+  /showAlert\('Device Reset', 'Your projects are reloading from your account\.'\)/.test(reset));
 ok('the row is "Reset this device" (not "Clear All Projects & Data")',
-  />Reset this device</.test(src) && !/Clear All Projects/.test(src) && !/Delete Everything/.test(src));
+  />Reset This Device</.test(src) && !/Clear All Projects/.test(src) && !/Delete Everything/.test(src));
 ok('the row copy says the projects stay on the account', /Your projects stay on your account and reload\./.test(src));
 
 console.log('\n── #46: no security switch that does nothing ──');

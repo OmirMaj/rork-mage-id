@@ -49,7 +49,7 @@ function LanguageSettingsScreen() {
         <View>
           <EyebrowLabel>{t('settings.language.eyebrow', 'Display')}</EyebrowLabel>
           <Text style={[Type.serifTitle, { color: colors.text, marginTop: 4 }]}>
-            {t('settings.language.heading', 'App language')}
+            {t('settings.language.heading', 'App Language')}
           </Text>
           <Text style={[Type.subhead, { color: colors.textSecondary, marginTop: 6 }]}>
             {t(

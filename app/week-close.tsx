@@ -79,7 +79,7 @@ function WeekCloseInner() {
   // reader who has learned what it means on one surface should not have to learn
   // it again on another.
   const unreachableLine =
-    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+    `Couldn't reach MAGE. Showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}.`;
 
   // Stamp last-seen on mount — hides the home card until next week.
   // LOCAL date via the shared helper: WeekCloseCard compares ISO weeks of

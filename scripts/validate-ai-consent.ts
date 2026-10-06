@@ -881,7 +881,7 @@ function partC() {
   }
   const settings = stripComments(read('app/(tabs)/settings/index.tsx'));
   ok('Settings → AI features: On/Off from the stored answer, Off → decline',
-    /<Text style=\{styles\.rowLabel\}>AI features<\/Text>/.test(settings)
+    /<Text style=\{styles\.rowLabel\}>AI Features<\/Text>/.test(settings)
     && /\{aiConsentState === 'granted' \? 'On' : 'Off'\}/.test(settings)
     && /if \(!on\) \{ void declineAiConsent\(\); return; \}/.test(settings)
     && /subscribeAiConsent\(setAiConsentState\)/.test(settings));

@@ -288,7 +288,7 @@ export default function SubmitBidResponseScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         showAlert(
           'Monthly bid limit reached',
-          `You've sent your ${FREE_MONTHLY_BID_RESPONSES} bids for this month. Unlimited marketplace bids are on the Business plan.`,
+          `You've sent your ${FREE_MONTHLY_BID_RESPONSES} bids for this month. On the Business plan you can keep bidding this month.`,
           [
             { text: 'Not now', style: 'cancel' },
             { text: 'See plans', onPress: () => router.push('/paywall' as never) },
@@ -704,7 +704,7 @@ export default function SubmitBidResponseScreen() {
               <Lock size={16} color={themeColors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.capTitle}>You&apos;ve used your {FREE_MONTHLY_BID_RESPONSES} bids this month</Text>
-                <Text style={styles.capSub}>Unlimited marketplace bids are on the Business plan.</Text>
+                <Text style={styles.capSub}>On the Business plan you can keep bidding this month.</Text>
               </View>
               <ArrowRight size={16} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>

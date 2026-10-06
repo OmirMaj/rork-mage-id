@@ -1,5 +1,5 @@
 // validate-sub-overpayment.ts — pins the sub-invoice overpayment guard and the
-// "Advance requested" confirmation, the two places where MAGE tells a GC
+// "Advance Requested" confirmation, the two places where MAGE tells a GC
 // something about money that was not true.
 //
 // WHY THIS EXISTS (finding #13, docs/audits/2026-08-31-medium-sweep.md).
@@ -25,7 +25,7 @@
 // WHY THIS ALSO GUARDS ReadyToBillCard (finding #29). supabase-js RESOLVES on
 // a PostgREST error rather than rejecting. The advance-interest upsert
 // discarded its result and skipped the write entirely on an expired session,
-// then showed "Advance requested — a lending partner will reach out" either
+// then showed "Advance Requested — a lending partner will reach out" either
 // way, and latched the button to 'done' so the GC could not retry. No row, no
 // call, no way to ask again.
 //
@@ -294,7 +294,7 @@ console.log('\nLien release at payment (app/sub-portal-setup.tsx):');
     /setType\(seed\?\.waiverType \?\? 'unconditional_partial'\)/.test(waiverScreen));
 }
 
-// ── finding #29: the "Advance requested" confirmation ───────────────────────
+// ── finding #29: the "Advance Requested" confirmation ───────────────────────
 console.log('\nAdvance-interest write (components/home/ReadyToBillCard.tsx):');
 const card = read('components/home/ReadyToBillCard.tsx');
 const onAdvance = card.slice(card.indexOf('const onAdvance'), card.indexOf('if (ready.count === 0)'));
@@ -304,7 +304,7 @@ ok('the upsert result is checked, not discarded',
   /const\s*\{\s*error\s*\}\s*=\s*await\s+supabase[\s\S]*?\.upsert\(/.test(onAdvance),
   'supabase-js resolves on a PostgREST error. feature_interest has no UPDATE\n'
   + '      policy, so the ON CONFLICT DO UPDATE arm is denied on the second tap —\n'
-  + '      a discarded result showed "Advance requested" for a row that does not exist.');
+  + '      a discarded result showed "Advance Requested" for a row that does not exist.');
 
 ok('a PostgREST error aborts before the success alert',
   /if\s*\(error\)\s*throw error;/.test(onAdvance));
@@ -326,7 +326,7 @@ ok('failure returns the button to idle so the GC can retry',
 
 const iErr = onAdvance.indexOf('if (error) throw error;');
 const iUser = onAdvance.indexOf('if (!user) throw');
-const iAlert = onAdvance.indexOf("'Advance requested'");
+const iAlert = onAdvance.indexOf("'Advance Requested'");
 ok('the success alert is only reachable after the write succeeded',
   iErr >= 0 && iUser >= 0 && iAlert > iErr && iAlert > iUser,
   `error-guard@${iErr} user-guard@${iUser} alert@${iAlert}`);

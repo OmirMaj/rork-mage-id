@@ -279,7 +279,7 @@ console.log('\n#74 — a claimed crew worker:');
   ok('Tools and the sidebar read "My profile" (no chip / lock) for them',
     /crewAsProfile\(row\) \? 'My profile' : row\.title/.test(read('app/(tabs)/discover/tools.tsx'))
     && /if \(crewAsProfile\(row\)\) return undefined;/.test(read('app/(tabs)/discover/tools.tsx'))
-    && /const label = asProfile \? 'My profile' : item\.label;/.test(read('components/DesktopSidebar.tsx'))
+    && /const label = asProfile \? 'My Profile' : item\.label;/.test(read('components/DesktopSidebar.tsx'))
     && /const locked = !asProfile && /.test(read('components/DesktopSidebar.tsx')));
 }
 

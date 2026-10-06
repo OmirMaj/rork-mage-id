@@ -61,7 +61,7 @@ export function SidebarActionRequiredRow({ collapsed = false }: { collapsed?: bo
     // renders where the host is visible) — do nothing rather than dock it
     // invisibly.
     if (!dock.canShow(ATTENTION_DOCK_ID)) return;
-    dock.open(<DesktopActionRail variant="dock" />, { id: ATTENTION_DOCK_ID, title: 'Action required', width: SIDE_PANEL_DEFAULT });
+    dock.open(<DesktopActionRail variant="dock" />, { id: ATTENTION_DOCK_ID, title: 'Action Required', width: SIDE_PANEL_DEFAULT });
   }, [dock]);
 
   const spoken = badge === '!'
@@ -69,7 +69,7 @@ export function SidebarActionRequiredRow({ collapsed = false }: { collapsed?: bo
     : badge
       ? `, ${badge} need${badge === '1' ? 's' : ''} attention`
       : '';
-  const a11y = `Action required${spoken}, opens beside the page${open ? ', open' : ''}`;
+  const a11y = `Action Required${spoken}, opens beside the page${open ? ', open' : ''}`;
 
   if (collapsed) {
     return (
@@ -110,7 +110,7 @@ export function SidebarActionRequiredRow({ collapsed = false }: { collapsed?: bo
           <>
             <CircleAlert size={16} color={open || hovered ? INK.ink : INK.label} strokeWidth={open ? 2.2 : 1.8} />
             <Text style={[styles.rowLabel, (open || hovered) && styles.rowLabelLit]} numberOfLines={1}>
-              Action required
+              Action Required
             </Text>
             {badge ? (
               <View style={styles.countPill} testID="sidebar-action-required-pill">

@@ -20,9 +20,9 @@ export type UserRole = 'contractor' | 'client' | 'both' | 'property_manager';
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   contractor: 'Contractor',
-  client: 'Property owner',
+  client: 'Property Owner',
   both: 'Both',
-  property_manager: 'Property manager',
+  property_manager: 'Property Manager',
 };
 
 export const USER_ROLE_BLURB: Record<UserRole, string> = {

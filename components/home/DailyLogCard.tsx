@@ -109,7 +109,7 @@ export default function DailyLogCard() {
   // translator never assembles a sentence from pieces (docs/I18N.md, "Gender and sentence building").
   const gapHeadline = jobsWithGaps === 1
     ? tn('field.dfr.card.gapOneProject', totalMissed, { one: '{count} working day in the last 30 has no daily report.', other: '{count} working days in the last 30 have no daily report.' })
-    : t('field.dfr.card.gapManyProjects', '{projects} projects have gaps in the last 30 days — {days} working days between them.', { projects: jobsWithGaps, days: totalMissed });
+    : t('field.dfr.card.gapManyProjects', '{projects} projects have gaps in the last 30 days, {days} working days in total.', { projects: jobsWithGaps, days: totalMissed });
 
   const headline = owedToday > 0
     ? tn('field.dfr.card.owedToday', owedToday, { one: '{count} project has no daily report for today.', other: '{count} projects have no daily report for today.' })
@@ -163,7 +163,7 @@ export default function DailyLogCard() {
 
       <Text style={styles.headline}>{headline}</Text>
       <Text style={styles.sub}>
-        {t('field.dfr.card.why', 'A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so — that still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.')}
+        {t('field.dfr.card.why', 'A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so. That still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.')}
       </Text>
 
       <View style={styles.list}>

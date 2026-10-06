@@ -156,7 +156,7 @@ console.log('\n#153 Stripe status:');
     && /stripeCheckFailed=\{stripeCheckFailed\}/.test(home));
   ok('a check that gave up says so (not "Checking…", never "not connected")',
     /\? \(stripeCheckFailed \? STRIPE_CHECK_FAILED_LABEL : 'Checking…'\)/.test(cl)
-    && /export const STRIPE_CHECK_FAILED_LABEL = "Couldn't check Stripe — pull down to refresh";/.test(cl));
+    && /export const STRIPE_CHECK_FAILED_LABEL = "Couldn't check Stripe. Pull down to refresh.";/.test(cl));
   ok('only a running check is announced busy', /busy: !!item\.pendingBusy/.test(cl)
     && /pendingBusy: stripeConnected === undefined && !stripeCheckFailed,/.test(cl));
   ok('a pending row is not tappable and shows no CTA',
@@ -170,21 +170,21 @@ console.log('\n#154 empty bucket:');
   ok('ListEmptyComponent found', empty.length > 0);
   const iErr = empty.indexOf('<ErrorState');
   const iBucket = empty.indexOf(') : projects.length > 0 ? (');
-  const iDayOne = empty.indexOf('title="Build something"');
+  const iDayOne = empty.indexOf('title="No Projects Yet"');
   ok('order: failed read → empty bucket → day-one card', iErr >= 0 && iErr < iBucket && iBucket < iDayOne,
     `${iErr} ${iBucket} ${iDayOne}`);
   const bucket = empty.slice(iBucket, iDayOne);
   ok('the bucket state names the bucket from the shared label map',
-    /title=\{`No \$\{STATUS_FILTER_LABEL\[statusFilter\]\.toLowerCase\(\)\} jobs`\}/.test(bucket));
+    /title=\{`No \$\{STATUS_FILTER_LABEL\[statusFilter\]\} Projects`\}/.test(bucket));
   ok('…says the stage is empty', /message="Nothing in this stage right now\."/.test(bucket));
-  ok('…offers "Show all jobs" → All', /actionLabel="Show all jobs"/.test(bucket) && /onAction=\{\(\) => pickStatusFilter\('all'\)\}/.test(bucket));
-  ok('…and no create / sample CTAs', !/Create your first project|secondaryLabel|handleSeedDemo|handleCreatePress/.test(bucket));
+  ok('…offers "Show All Projects" → All', /actionLabel="Show All Projects"/.test(bucket) && /onAction=\{\(\) => pickStatusFilter\('all'\)\}/.test(bucket));
+  ok('…and no create / sample CTAs', !/Create Your First Project|secondaryLabel|handleSeedDemo|handleCreatePress/.test(bucket));
   ok('the dense header reads the same label map', /\{STATUS_FILTER_LABEL\[statusFilter\]\}/.test(home));
   ok('home drives the filter through the one reducer (no ref, no second effect)',
     /useReducer\(homeStatusFilterReducer, HOME_STATUS_FILTER_INITIAL\)/.test(home)
     && /dispatchStatusFilter\(\{ type: 'data', projectCount: projects\.length, activeCount: statusBuckets\.active\.length \}\);\s*\}, \[projects\.length, statusBuckets\.active\.length\]\);/.test(home)
     && !/autoPickedActiveRef|setStatusFilter\(/.test(home));
-  ok('a chip / "Show all jobs" is his pick', /dispatchStatusFilter\(\{ type: 'pick', filter: next \}\);/.test(home));
+  ok('a chip / "Show All Projects" is his pick', /dispatchStatusFilter\(\{ type: 'pick', filter: next \}\);/.test(home));
 
   // The reducer, executed: the sequence the review replayed.
   const run = (acts: HomeStatusFilterAction[]) => acts.reduce(homeStatusFilterReducer, HOME_STATUS_FILTER_INITIAL);
@@ -247,7 +247,7 @@ console.log('\n#157 voice fill:');
   ok('a parse that found nothing returns filled:false (no false "Filled from your voice")',
     /if \(!heardSomething\) \{\s*return \{\s*filled: false,/.test(home));
   ok('the nothing-heard note never says "try again" (a cap refusal lands here too — CONTRACT 26)',
-    /type them below\.",/.test(home) && !/or try again/.test(home));
+    /Type them below\.",/.test(home) && !/or try again/.test(home));
   ok("a failed parse does not overwrite the type he picked",
     /if \(partial\.type && heardSomething\) setProjectType\(/.test(home));
 

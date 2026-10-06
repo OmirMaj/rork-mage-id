@@ -44,7 +44,7 @@ const { TRANSACTIONAL_DOCUMENT_KEYS } = await import(emailModPath) as { TRANSACT
  *  of showing a switch. A suppressed row under an unknown key still shows as
  *  "Other" (the catch-all), so no unsubscribe is one-way. */
 const EXCLUDED: Record<string, string> = {
-  daily_digest: 'the GC digest is managed in the app (Settings → Push & email preferences); its truth is profiles.* and the resume RPC, not this page',
+  daily_digest: 'the GC digest is managed in the app (Settings > Push and Email Preferences); its truth is profiles.* and the resume RPC, not this page',
   ...Object.fromEntries(TRANSACTIONAL_DOCUMENT_KEYS.map((k) => [k,
     'a document the GC sends his own client or sub through send-email — transactional, no suppression check, no one-click (TRANSACTIONAL_DOCUMENT_KEYS)'])),
 };

@@ -3,27 +3,27 @@
 exports[`lane V3 — /attention on the phone (390 iOS), loaded flags false and true ?view=bill: the NOT-loaded render is byte-identical on the phone 1`] = `
 {
   "lines": 54,
-  "sha256": "edcb3eaf8563b16c5a4de5e5c020053782170b20d5453062a44595f38a7ed11f",
+  "sha256": "0c9a938973c4d7662aefb51c0e1ce22e846830df6ef98d0599e11ba1648e8c87",
 }
 `;
 
 exports[`lane V3 — /attention on the phone (390 iOS), loaded flags false and true ?view=bill: the loaded render is the golden 1`] = `
 {
   "lines": 54,
-  "sha256": "edcb3eaf8563b16c5a4de5e5c020053782170b20d5453062a44595f38a7ed11f",
+  "sha256": "0c9a938973c4d7662aefb51c0e1ce22e846830df6ef98d0599e11ba1648e8c87",
 }
 `;
 
 exports[`lane V3 — /attention on the phone (390 iOS), loaded flags false and true ?view=logs: the NOT-loaded render is byte-identical on the phone 1`] = `
 {
   "lines": 54,
-  "sha256": "c186a4919c8d1e4c9e64b3fcba5e62b5afad64c3a9818f8f2e60e9836ad4b2b4",
+  "sha256": "65bb5e4759671138cfe1f4b0ef8e5d49b5ad524b3de84de19a796544fc03b08a",
 }
 `;
 
 exports[`lane V3 — /attention on the phone (390 iOS), loaded flags false and true ?view=logs: the loaded render is the golden 1`] = `
 {
   "lines": 54,
-  "sha256": "c186a4919c8d1e4c9e64b3fcba5e62b5afad64c3a9818f8f2e60e9836ad4b2b4",
+  "sha256": "65bb5e4759671138cfe1f4b0ef8e5d49b5ad524b3de84de19a796544fc03b08a",
 }
 `;

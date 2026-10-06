@@ -418,7 +418,7 @@ describe('/(tabs)/(home)', () => {
   it('still gives a green all-clear when there IS nothing open — scoped', async () => {
     await primeTrulyQuietWorld();
     const text = collectText((await mountRouteChecked('/(tabs)/(home)')).toJSON()).join(' | ');
-    expect(text).toContain('All clear — nothing overdue on schedules, invoices, permits or certs.');
+    expect(text).toContain('Nothing overdue on schedules, invoices, permits or certificates.');
   });
 });
 
@@ -484,11 +484,11 @@ describe('components/DesktopActionRail', () => {
     const gate = src.indexOf('{items.length === 0 ? (');
     expect(gate).toBeGreaterThan(-1);
     expect(src.indexOf('sourceFailed ? (', gate)).toBeGreaterThan(gate);
-    expect(src.indexOf('sourceFailed ? (', gate)).toBeLessThan(src.indexOf('All caught up'));
+    expect(src.indexOf('sourceFailed ? (', gate)).toBeLessThan(src.indexOf('All Caught Up'));
   });
 
   it('keeps its own claim scoped, and keeps the count canonical', () => {
-    expect(src).toContain('Nothing overdue on schedules, invoices, permits or certs.');
+    expect(src).toContain('Nothing overdue on schedules, invoices, permits or certificates.');
     expect(src).not.toContain('Nothing urgent across your projects');
     // sim-audit #15: the pill is the canonical set and NOTHING else. This used
     // to be `toMatch(/countPillText.*items\.length/s)` with the dot-all flag,

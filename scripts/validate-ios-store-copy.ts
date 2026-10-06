@@ -150,7 +150,7 @@ const clean = (s: unknown) => !new RegExp(BANNED.source).test(typeof s === 'stri
   ok('plan row (ios), paid with no App Store purchase: just "Business plan", not a button', hand.url === null && hand.label === 'Business plan' && hand.subtitle === null);
   ok('…and no email-to-change instruction anywhere in it', !/help@mageid|mailto|email/i.test(JSON.stringify(hand)));
   const store = ios.planChangeRouteFor('store', 'pro') as { url: string; label: string };
-  ok('plan row (ios), App Store subscriber: Manage subscription → the App Store page', store.label === 'Manage subscription' && /^itms-apps:\/\/apps\.apple\.com/.test(store.url));
+  ok('plan row (ios), App Store subscriber: Manage Subscription → the App Store page', store.label === 'Manage Subscription' && /^itms-apps:\/\/apps\.apple\.com/.test(store.url));
   const help = load(stripComments(read(OWNED[1].file)), OWNED[1].fns, [], 'ios');
   ok('HelpFab support email tag (ios): "iOS"', help.helpEmailPlatformTag() === 'iOS');
   const push = load(stripComments(read(OWNED[2].file)), OWNED[2].fns, [], 'ios');
@@ -166,7 +166,7 @@ console.log('\n── 3. Android reads its own store; the web app keeps today’
   const web = load(src, OWNED[0].fns, OWNED[0].consts ?? [], 'web');
   ok('web FAQ subscription: unchanged (both stores + the help@ route)', /App Store or Google Play/.test(String(web.subscriptionFaqAnswer())) && /help@mageid\.app/.test(String(web.subscriptionFaqAnswer())));
   const webHand = web.planChangeRouteFor('manual', 'business') as { url: string; label: string };
-  ok('web plan row, paid by hand: unchanged ("Your plan was turned on by MAGE ID", mailto)', webHand.label === 'Your plan was turned on by MAGE ID' && /^mailto:help@mageid\.app/.test(webHand.url));
+  ok('web plan row, paid by hand: unchanged ("Your Plan Was Turned On by MAGE ID", mailto)', webHand.label === 'Your Plan Was Turned On by MAGE ID' && /^mailto:help@mageid\.app/.test(webHand.url));
   ok('web FAQ iPad: unchanged', web.ipadFaqAnswer() === 'Not yet. MAGE ID runs on iPhone, Android phones and the web app at app.mageid.app.');
   const pushWeb = load(stripComments(read(OWNED[2].file)), OWNED[2].fns, [], 'web');
   ok('web "How push works": unchanged', String(pushWeb.pushHowItWorks()).startsWith('Your iPhone or Android device registers when you sign in.'));

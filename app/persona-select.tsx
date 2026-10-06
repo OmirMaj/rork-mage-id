@@ -317,7 +317,7 @@ export default function PersonaSelectScreen() {
       // showAlert renders on web too — the new-user flow must never
       // silent-fail on first tap.
       showAlert(
-        "Couldn't save your choice",
+        "Couldn't Save Your Choice",
         'Tap your role again.',
       );
     }
@@ -408,7 +408,7 @@ export default function PersonaSelectScreen() {
         <View style={{ flex: 1 }} />
 
         <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-          <Text style={styles.eyebrowDot}>●</Text>  Pick your side
+          <Text style={styles.eyebrowDot}>●</Text>  Pick Your Side
         </Animated.Text>
 
         <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
@@ -471,7 +471,7 @@ export default function PersonaSelectScreen() {
         </View>
 
         <Animated.Text style={[styles.trustLine, { opacity: trustOpacity }]}>
-          You can change this anytime in Settings
+          You can change this anytime in Settings.
         </Animated.Text>
       </Animated.View>
 

@@ -4,7 +4,7 @@ exports[`ESTOOLS — English golden (strings a person reads or hears) daily repo
 [
   "Daily report · last 30 days",
   "1 working day in the last 30 has no daily report.",
-  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so — that still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
+  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so. That still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
   "accessibilityLabel: Elm Street addition: 1 day missing. 17 of 20 working days logged. Open a report for Thu, Sep 24.",
   "Elm Street addition",
   "17 of 20 working days logged · opens Thu, Sep 24",
@@ -16,7 +16,7 @@ exports[`ESTOOLS — English golden (strings a person reads or hears) daily repo
 [
   "Daily report · last 30 days",
   "1 project has no daily report for today.",
-  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so — that still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
+  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so. That still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
   "accessibilityLabel: Henderson kitchen: Today not filed. 17 of 20 working days logged. Open daily report.",
   "Henderson kitchen",
   "17 of 20 working days logged",

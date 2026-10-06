@@ -60,6 +60,8 @@ const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u;
 // are removed first; what is left may not capitalise a word after the first.
 const PROPER = /Cost X-Ray|Schedule Pro|Home Passport|Ask MAGE|Ask Your Home|Last Planner|MAGE ID|MAGE|QuickBooks|Gantt|\b(Free|Pro|Business|Enterprise|AI|ID|CO|RFIs?|COI|PDF|WIP|CPM|EVM|GMP|OSHA|JHAs?|T&M|G702\/G703|AIA|OAC)\b/g;
 const isTitleCase = (s: string) => /\s\(?[A-Z][a-z]+/.test(s.replace(PROPER, 'x'));
+// docs/VOICE.md section 3 (2026-10-05): a heading is a label, and a label is Title Case.
+import { isTitleCase as isLabelTitleCase } from './copy-title-case';
 
 // ── 1. purchase alerts ──────────────────────────────────────────────────────
 console.log('\n1. purchase alerts');
@@ -84,9 +86,10 @@ console.log('\n2. Paywall headings for Title Case feature strings');
   // and plain words ("Invoicing", "Contracts") print as they are.
   const needsHeading = pitchKeys.filter(isTitleCase);
   const missing = needsHeading.filter((k) => !titles.has(k));
-  ok('every Title Case pitch key has a sentence-case heading', missing.length === 0, missing);
-  const titleCaseHeadings = [...titles.values()].filter(isTitleCase);
-  ok('no heading is itself Title Case', titleCaseHeadings.length === 0, titleCaseHeadings);
+  ok('every Title Case pitch key has a heading of its own', missing.length === 0, missing);
+  const notTitleCase = [...titles.values()].filter((h) => !isLabelTitleCase(h));
+  ok('every heading is in Title Case (docs/VOICE.md section 3)', titles.size > 40 && notTitleCase.length === 0, notTitleCase);
+  ok('no heading says "unlimited"', ![...titles.values()].some((h) => /unlimited/i.test(h)));
   ok('the heading is what renders (FEATURE_TITLE[feature] ?? feature)', /const featureTitle = FEATURE_TITLE\[feature\] \?\? feature;/.test(src));
   ok('no pitch says "kept honest" or "not a guess"', !/kept honest|not a guess/.test(pitchBlock));
 }

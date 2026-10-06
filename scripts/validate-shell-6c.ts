@@ -231,8 +231,8 @@ console.log('\n3. source pins');
   ok('a property manager gets PM_NAV_ITEMS, a client CLIENT_NAV_ITEMS',
     /isMinimalPersona \? \(userRole === 'property_manager' \? PM_NAV_ITEMS : CLIENT_NAV_ITEMS\) : NAV_ITEMS/.test(side)
     && /const minimalSections = isPropertyManager \? PM_SECTIONS : CLIENT_SECTIONS;/.test(side));
-  ok('Construction news sits under SETUP & TOOLS',
-    /\{ key: 'construction-news', label: 'Construction news', icon: Newspaper,\s+route: '\/construction-news', section: 'SETUP & TOOLS', feature: 'construction-news' \}/.test(side));
+  ok('Construction News sits under SETUP & TOOLS',
+    /\{ key: 'construction-news', label: 'Construction News', icon: Newspaper,\s+route: '\/construction-news', section: 'SETUP & TOOLS', feature: 'construction-news' \}/.test(side));
   {
     const navBlock = side.slice(side.indexOf('const NAV_ITEMS'), side.indexOf('const JOB_SECTION'));
     const workspace = (navBlock.match(/section: 'WORKSPACE'/g) ?? []).length;
@@ -249,8 +249,8 @@ console.log('\n3. source pins');
   }
   ok('collapsed mode: driven by useSidebarRail(), with a Collapse button and an Expand chevron',
     /const \{ collapsed, toggle: toggleRail \} = useSidebarRail\(\);/.test(side) && /if \(collapsed\) \{/.test(side)
-    && /accessibilityLabel="Collapse sidebar"/.test(side) && /<PanelLeftClose\b/.test(side)
-    && /accessibilityLabel="Expand sidebar"/.test(side) && /<PanelLeftOpen\b/.test(side));
+    && /accessibilityLabel="Collapse Sidebar"/.test(side) && /<PanelLeftClose\b/.test(side)
+    && /accessibilityLabel="Expand Sidebar"/.test(side) && /<PanelLeftOpen\b/.test(side));
   {
     const rail = side.slice(side.indexOf('if (collapsed) {'), side.indexOf('\n  return (\n', side.indexOf('if (collapsed) {')));
     ok('the collapsed rail hides JobSwitcher, RECENT, More-for-this-job and the collapsible groups',
@@ -311,7 +311,7 @@ console.log('\n3. source pins');
   const settings = read('app/(tabs)/settings/index.tsx');
   const OPEN = "{userRole !== 'property_manager' && (<>";
   const CLOSE = '</>)}';
-  for (const header of ['Estimate defaults', 'PDF naming', 'Your costs', 'Supplier marketplace']) {
+  for (const header of ['Estimate Defaults', 'PDF Naming', 'Your Costs', 'Supplier Marketplace']) {
     const at = settings.indexOf(`<Text style={styles.sectionHeader}>${header}</Text>`);
     const open = settings.lastIndexOf(OPEN, at);
     const closeBefore = settings.lastIndexOf(CLOSE, at);
@@ -651,7 +651,7 @@ console.log('\nd6r K1 — the Ask dock, the dock API it stands on, and the keybo
   ok('K1 the dock variant fills the panel and leads with "Needs you now"; the rail keeps its width and title',
     /style=\{\[styles\.rail, variant === 'dock' \? styles\.railDock : \{ width \}\]\}/.test(rail)
     && /railDock: \{ flex: 1, borderLeftWidth: 0 \},/.test(rail)
-    && /variant === 'dock'\s*\? <Text style=\{styles\.dockLead\}>Needs you now<\/Text>\s*: <Text style=\{styles\.headerTitle\}>Action required<\/Text>/.test(rail));
+    && /variant === 'dock'\s*\? <Text style=\{styles\.dockLead\}>Needs you now<\/Text>\s*: <Text style=\{styles\.headerTitle\}>Action Required<\/Text>/.test(rail));
   ok("K1 every 'See all' closes the dock in the dock variant (spread — the rail's RowLinks are unchanged)",
     /const seeAllPress = docked \? dock\.close : undefined;/.test(rail)
     && (rail.match(/onSeeAll=\{seeAllPress\}/g) ?? []).length === 3

@@ -196,7 +196,7 @@ ok('onboarding: it starts on the just-seeded sample with entry onboarding', iSta
 ok('onboarding: only after completeOnboarding and the tab-shell replace', iComplete > 0 && iReplace > iComplete && iGuard > iReplace,
   `complete@${iComplete} replace@${iReplace} guard@${iGuard}`);
 ok('onboarding: the plain sample-job push is still the fallback', iPush > iStart);
-ok("onboarding: the button says 'Try it on a sample project'", /accessibilityLabel="Try it on a sample project"/.test(ob) && /'Try it on a sample project'\}/.test(ob) && !/Tour a sample job/.test(ob));
+ok("onboarding: the button says 'Try It on a Sample Project'", /accessibilityLabel="Try It on a Sample Project"/.test(ob) && /'Try It on a Sample Project'\}/.test(ob) && !/Tour a sample job/.test(ob));
 ok('onboarding: startTutorial appears once (no other auto-start)', (ob.match(/startTutorial\(/g) ?? []).length === 1);
 
 // Every other door: routes to the hub or starts with its own entry name.
