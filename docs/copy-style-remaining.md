@@ -4,8 +4,8 @@ Written 2026-10-05 by lane COPYSTYLE (the trial lane). The style is in `docs/VOI
 
 ## Where things stand
 
-- **Converted: 287 files**, listed in `scripts/copy-style-converted.json`. The app shell and first run (40 files, the trial lane): the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces). **Lane 1 (144 files, done 2026-10-05):** estimate, takeoff, quotes, cost history, proposals, the contract, selections, bids, buyout, leads, prequal, materials, the marketplace and RFP screens. **Lane 3 (103 files, done 2026-10-05):** daily report, punch, the invoice screen, time tracking, crew, T&M tickets, deliveries, building access, safety, equipment, scan, photos, voice and lineup; see its section below.
-- **Still to convert: 576 files with 5,725 strings the guard would fail today** (counted 2026-10-05 with lanes 1 and 3 both in). Counts by rule: label not in Title Case 3,769, dash used as punctuation 1,537, "&" 263, "e.g." or "i.e." 82, arrows 74. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
+- **Converted: 482 files**, listed in `scripts/copy-style-converted.json`. The app shell and first run (40 files, the trial lane): the tab bar, the desktop sidebar, Home and its cards, Needs Attention, Settings, sign-in, sign-up, reset password, onboarding, persona select and the three paywalls, plus the files they print labels from (`utils/planFeatureCopy.ts`, `utils/settingsSections.ts`, `utils/onboardingProfile.ts`, the desktop action rail and the sidebar pieces). **Lane 1 (144 files, done 2026-10-05):** estimate, takeoff, quotes, cost history, proposals, the contract, selections, bids, buyout, leads, prequal, materials, the marketplace and RFP screens. **Lane 3 (103 files, done 2026-10-05):** daily report, punch, the invoice screen, time tracking, crew, T&M tickets, deliveries, building access, safety, equipment, scan, photos, voice and lineup; see its section below. **Lane 2 (195 files, done 2026-10-06):** invoices and pay apps, change orders, payments, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax, the client portal setup and client view, and everything under schedule (Schedule Pro, the phone schedule, Last Planner, delays, weather); see its section below.
+- **Still to convert: 381 files with 3,562 strings the guard would fail today** (counted 2026-10-06 with lanes 1, 2 and 3 in). Counts by rule: label not in Title Case 2,352, dash used as punctuation 935, "&" 184, "e.g." or "i.e." 52, arrows 39. To count again: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"`.
 - The count is a floor. The guard only calls a string a label when its position says so (a `title` / `label` prop, an alert title, an alert button, a short VoiceOver label, a constant named `…_LABEL` / `…_TITLE`, a style key such as `rowLabel` or `sectionHeader`, text inside a button). A label held in a plain constant, or drawn with a style key the guard does not know, is found by reading the screen, not by the guard. In the trial lane the guard found about two thirds of the roughly 580 strings that changed; the rest came from reading the dump.
 
 ## How to run a lane
@@ -48,218 +48,37 @@ File lists do not overlap. A file went to the first group whose words match its 
 | Lane | What it covers | Files | Strings |
 |---|---|---|---|
 | 1. Estimate, bids and contract (**done**) | Everything with estimate, takeoff, quote, cost, proposal, contract, selections, bid, buyout, lead, prequal, materials, marketplace, RFP, supplier, scope, drawing or company in its path. | 144 | 1,849 |
-| 2. Money and schedule | Invoices, pay apps, payments, change orders, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax; and schedule, Last Planner, lookahead, pace, delay, weather. | 195 | 2,164 |
+| 2. Money and schedule (**done**) | Invoices, pay apps, payments, change orders, cash flow, WIP, budget, job costing, retainage, lien waivers, reports, margin, QuickBooks, tax; and schedule, Last Planner, lookahead, pace, delay, weather. | 0 of 195 left | 0 of 2,164 left |
 | 3. Field and safety (**done**) | Daily report, punch, photos, time tracking, crew, T&M tickets, deliveries, safety, equipment, scan, voice, lineup. This is the lane that goes through t(): most of its English has a Spanish entry to re-read and re-stamp. | 0 of 103 left | 0 of 1,621 left |
 | 4. Office, AI and portal | Client portal, RFIs, submittals, plans, permits, Code Check, Construction AI, Ask MAGE, copilot, inspection, warranty, closeout, handover, subs, tutorials, messages, notifications, team. | 178 | 1,678 |
 | 5. Shell remainder and everything else | The project page, Discover and the Tools list, the feature registry, the create menu, Summary, the root layout (every screen title), shared components (ui, desktop, registers), PDFs and emails built in utils/, demo and sample data. | 203 | 1,886 |
 | **Total** | | **823** | **9,198** |
-| **Still to convert (lanes 2, 4 and 5)** | Less the handful of strings lanes 1 and 3 changed in other lanes' files. | **576** | **5,725** |
+| **Still to convert (lanes 4 and 5)** | Less the handful of strings lanes 1, 2 and 3 changed in other lanes' files. | **381** | **3,562** |
 
 ### Lane 1. Estimate, bids and contract (144 files, 1,849 strings): DONE 2026-10-05
 
 All 144 files are in `scripts/copy-style-converted.json` and the guard reads zero for them. The file list is in git history (this section before the lane landed).
 
-### Lane 2. Money and schedule (195 files, 2,164 strings)
+### Lane 2. Money and schedule (195 files, 2,164 strings): DONE 2026-10-06
 
-Strings the guard would fail, per file, largest first.
+All 195 files are in `scripts/copy-style-converted.json` and the guard reads zero for them. About 2,070 source lines changed in 185 files. Four English catalog entries regenerated (`money.coProof`, `schedule.lateness`); those surfaces have no Spanish yet, so no Spanish entry moved. The file list is in git history (this section before the lane landed).
 
-```
- 125  app/change-order.tsx
- 110  app/client-portal-setup.tsx
-  94  app/aia-pay-app.tsx
-  88  app/(tabs)/schedule/index.tsx
-  60  components/schedule/mobile/MobileScheduleScreen.tsx
-  54  app/wip-report.tsx
-  53  app/delay-events.tsx
-  52  app/lien-waivers.tsx
-  51  app/cash-flow.tsx
-  50  utils/scheduleHealthScore.ts
-  46  app/client-view.tsx
-  46  utils/demoSchedule.ts
-  43  app/job-costing.tsx
-  39  utils/aiaForms.ts
-  38  app/last-planner.tsx
-  38  app/reports.tsx
-  38  app/schedule-pro.tsx
-  35  constants/scheduleTemplates.ts
-  33  components/takeoff/TakeoffWorkspace.tsx
-  30  app/schedule-wizard.tsx
-  29  utils/wip.ts
-  26  app/budget-dashboard.tsx
-  25  utils/billingFlowCore.ts
-  22  app/qbo-setup.tsx
-  22  components/schedule/GridPane.tsx
-  22  utils/brain/accuracyReport.ts
-  21  app/schedule-import.tsx
-  20  app/payments.tsx
-  18  app/bid-leveling.tsx
-  18  app/payments-setup.tsx
-  16  app/client-update.tsx
-  15  components/schedule/AIAssistantPanel.tsx
-  15  components/schedule/ScheduleOnRamp.tsx
-  15  utils/financialReportPdf.ts
-  14  app/payment-predictions.tsx
-  14  app/schedule-review.tsx
-  14  utils/copilot/scheduleBuilder/questions.ts
-  13  components/schedule/desktop/ScheduleProToolbar.tsx
-  13  components/schedule/mobile/ExportCenterSheet.tsx
-  13  utils/aiaBilling.ts
-  13  utils/copilot/schedule/scheduleGaps.ts
-  12  app/margin-risk.tsx
-  12  components/automation/AutoScheduleReviewSheet.tsx
-  12  components/schedule/TaskInspector.tsx
-  12  utils/paymentTerms.ts
-  11  app/tax-1099-export.tsx
-  11  components/AIChangeOrderImpact.tsx
-  11  components/CashFlowSetup.tsx
-  11  utils/tax1099Export.ts
-  10  app/qbo-review.tsx
-  10  app/report-inbox.tsx
-  10  components/backcharge/BackchargeSheet.tsx
-  10  components/schedule/AddTaskModal.tsx
-  10  components/schedule/ScenariosModal.tsx
-  10  utils/clientDocumentAsk.ts
-  10  utils/scheduleOps.ts
-   9  components/schedule/BaselineManagerModal.tsx
-   9  components/schedule/InteractiveGantt.tsx
-   9  utils/copilot/scheduleBuilder/buildAnswersPrompt.ts
-   9  utils/marginRiskScore.ts
-   8  app/portfolio-margin.tsx
-   8  components/AIProjectReport.tsx
-   8  components/AIScheduleRisk.tsx
-   8  components/ClientHome.tsx
-   8  components/RecordPaymentModal.tsx
-   8  components/backcharge/BackchargeDeductionCard.tsx
-   8  components/project/ProjectWorkspaceHeader.tsx
-   8  components/schedule/COScheduleReflowPreviewModal.tsx
-   8  components/schedule/ScheduleBuilderInterview.tsx
-   8  utils/wipExport.ts
-   7  app/margin-alerts.tsx
-   7  app/profit-leak-history.tsx
-   7  components/backcharge/BackchargeSection.tsx
-   7  components/copilot/ScheduleDiffView.tsx
-   7  components/schedule/ScheduleSettingsMenu.tsx
-   7  components/schedule/WeatherRescheduleModal.tsx
-   7  components/schedule/mobile/PlanZoneEditor.tsx
-   7  utils/deliverySchedule.ts
-   7  utils/fieldScheduleUpdate.ts
-   7  utils/lastPlanner.ts
-   7  utils/ownerDelayCost.ts
-   6  app/shared-schedule.tsx
-   6  components/AIAutoScheduleButton.tsx
-   6  components/schedule/EarnedValuePanel.tsx
-   6  components/schedule/SchedulerMenuBar.tsx
-   6  components/schedule/SchedulerTabShell.tsx
-   6  components/schedule/mobile/LivingFloorPlan.tsx
-   6  utils/projectFinancials.ts
-   6  utils/scheduleReportModel.ts
-   5  app/client-messages.tsx
-   5  components/schedule/ExportSheet.tsx
-   5  components/schedule/ScheduleShareSheet.tsx
-   5  components/schedule/SubUpdatesPanel.tsx
-   5  components/schedule/tabs/DashboardTab.tsx
-   5  utils/coScheduleReflowCore.ts
-   5  utils/lienWaiverEngine.ts
-   5  utils/lienWaiverForms.ts
-   5  utils/retainageSource.ts
-   5  utils/scheduleAudit.ts
-   4  app/client-outbox.tsx
-   4  components/ClientDocumentAskSheet.tsx
-   4  components/estimate/EstimateClientView.tsx
-   4  components/logs/ChangeOrderLog.tsx
-   4  components/schedule/CriticalPathPanel.tsx
-   4  components/schedule/QuickBuildModal.tsx
-   4  components/schedule/TodayView.tsx
-   4  components/schedule/mobile/ProgressTab.tsx
-   4  utils/backcharges.ts
-   4  utils/bidLevelingEngine.ts
-   4  utils/cpm.ts
-   4  utils/exportSchedulePdf.ts
-   4  utils/marginAlerts.ts
-   4  utils/tutorial/defs/changeOrderDraft.ts
-   4  utils/tutorial/defs/constructionAiAsk.ts
-   4  utils/tutorial/defs/payAppPeriod.ts
-   3  app/(tabs)/discover/schedule.tsx
-   3  app/integrations/qbo/callback.tsx
-   3  app/week-close.tsx
-   3  components/SendToClientButton.tsx
-   3  components/schedule/LevelingPreviewModal.tsx
-   3  components/schedule/PredecessorPicker.tsx
-   3  components/schedule/mobile/MonthCalendarSheet.tsx
-   3  components/schedule/tabs/GanttTab.tsx
-   3  components/schedule/tabs/WorkloadTab.tsx
-   3  hooks/useClientDocumentGate.ts
-   3  utils/automation/learnedLeadTime.ts
-   3  utils/buildingRecordClient.ts
-   3  utils/copilot/billing/billingGaps.ts
-   3  utils/copilot/scheduleEdit/scheduleEditCapability.ts
-   3  utils/jobCostEngine.ts
-   3  utils/lienRightsClock.ts
-   3  utils/paymentPrediction.ts
-   3  utils/profitLeak/scopeSummary.ts
-   3  utils/projectWorkspaceLayout.ts
-   3  utils/scheduleEarnedValue.ts
-   3  utils/tutorial/defs/scheduleSayIt.ts
-   2  components/CostBreakdownReport.tsx
-   2  components/changeOrders/COProofPacketButton.tsx
-   2  components/copilot/ScheduleEditPanel.tsx
-   2  components/schedule/LatenessPadChip.tsx
-   2  components/schedule/ScheduleAuditModal.tsx
-   2  components/schedule/WeatherReschedulePrompt.tsx
-   2  components/schedule/mobile/MobileGantt.tsx
-   2  components/schedule/mobile/WeekStrip.tsx
-   2  components/schedule/tabs/TabComingSoon.tsx
-   2  hooks/useServerChangeOrderNumber.ts
-   2  utils/clientViewMoney.ts
-   2  utils/copilot/billing/billingCapability.ts
-   2  utils/copilot/changeOrder/coCapability.ts
-   2  utils/copilot/changeOrder/coGaps.ts
-   2  utils/copilot/schedule/scheduleCapability.ts
-   2  utils/copilot/scheduleEdit/interpretOps.ts
-   2  utils/financingCore.ts
-   2  utils/judges/targetMargin.ts
-   2  utils/lienWaiverDocument.ts
-   2  utils/pace/stampActuals.ts
-   2  utils/scheduleExportIcal.ts
-   2  utils/scheduleReportHtml.ts
-   2  utils/weatherService.ts
-   2  utils/weeklyClientUpdate.ts
-   1  components/schedule/PaceChip.tsx
-   1  components/schedule/ResourceSwimlanes.tsx
-   1  components/schedule/ScheduleHealthScore.tsx
-   1  components/schedule/ScheduleRowMenu.tsx
-   1  components/schedule/SchedulerHeader.tsx
-   1  components/schedule/StartDayBasisNotice.tsx
-   1  components/schedule/desktop/ScheduleAiPane.tsx
-   1  components/schedule/desktop/ScheduleSignals.tsx
-   1  components/schedule/mobile/MobileScheduleList.tsx
-   1  components/schedule/mobile/MobileTomorrowCard.tsx
-   1  components/schedule/mobile/TaskChecklist.tsx
-   1  components/schedule/mobile/TaskDetailSheet.tsx
-   1  utils/autoScheduleFromEstimate.ts
-   1  utils/automation/eventToScheduleWork.ts
-   1  utils/bidLeveling.ts
-   1  utils/cashFlowEngine.ts
-   1  utils/copilot/billing/billingGrounding.ts
-   1  utils/copilot/changeOrder/coGrounding.ts
-   1  utils/copilot/scheduleBuilder/paceGrounding.ts
-   1  utils/financialReports.ts
-   1  utils/financing.ts
-   1  utils/levelingBasis.ts
-   1  utils/logs/changeOrderLogRows.ts
-   1  utils/permitRoadmapSchedule.ts
-   1  utils/portfolio/typeProfitability.ts
-   1  utils/printableGanttHtml.ts
-   1  utils/profitLeak/leakPrompt.ts
-   1  utils/profitLeak/rfiScopePrompt.ts
-   1  utils/profitLeak/subBidCheck.ts
-   1  utils/retainage.ts
-   1  utils/scheduleAI.ts
-   1  utils/scheduleColors.ts
-   1  utils/scheduleProLayout.ts
-   1  utils/scheduleVerdict.ts
-   1  utils/weatherProvenance.ts
-```
+What this lane left as typed, each with an allow-list entry and its reason in `scripts/copy-voice-allowlist.json`:
+
+- **Legal documents, not restyled at all.** `utils/aiaForms.ts` (the G704, G706, G706A, G707, G714 and A401-style closeout forms and the subcontract), `utils/lienWaiverForms.ts` (statutory waiver text and its field labels), the pay app PDF template in `utils/aiaBilling.ts` (form line text such as "Total Completed &amp; Stored to Date"), the notary labels "State of" and "County of" on the pay app screen, and the contract placeholder `[warranty period — set before signing]` (code matches it).
+- **Captions are sentence case.** A caption beside a figure is helper text, not a label, even when its constant is named `…_LABEL`: `CONTRACT_SUM_BASIS_LABEL` ("Estimate (no signed contract yet)"), the WIP source captions in `utils/wip.ts`, the retainage source captions ("from your contract"), "Over by" and "Under by" before an amount. They are printed after other words and validators pin the exact text. Their dashes were rewritten.
+- **Labels that are also keys.** `LEGACY_SEED_SCHEDULE` labels ("Deposit (signing)" and three more) are matched, case and all, against milestones saved on projects. The `InlineVoiceFill` title "Dictate this change order" is hashed into the dictation queue key. "Billed as work is completed" is held equal to the contract wording. "Subs & pay" in `utils/projectWorkspaceLayout.ts` is held equal to the project page tile in `app/project-detail.tsx` (lane 5). `SAMPLE_PORTAL_NOTE` carries `SAMPLE_PORTAL_REASON` word for word (lane 5). The 1099 CSV column header "Commitment Paid To Date (undated — NOT counted)" is a field name a CPA maps.
+- **Text sent to the model.** `buildAnswersPrompt.ts`, the profit leak prompts, the bid leveling prompt, `scheduleAI.ts`, the EVM prompt in `app/budget-dashboard.tsx`.
+- **Left for a founder decision.** `app/payment-predictions.tsx` line 189 ("to forecast real inflows"), the narrative sentences in `utils/brain/accuracyReport.ts` (they state how accurate MAGE has been), and the financing line in `utils/financing.ts` ("/mo", "see if you prequalify").
+
+Things the next lanes will hit, found here:
+
+- **A caption is not a label.** `--fix-labels` capitalizes every `…_LABEL` map. Read where each one prints before accepting it: lane 2 put about 40 back.
+- **The guard skips a label that opens with This, You, It, We or There.** "This week" (a tab), "This period" (a column) and "Your price" read as sentences to it. Search the `--dump` for short strings that open with those words.
+- **A text change can move a pinned hash.** `validate-money-desk` hashes a block of `app/payments.tsx`; the hash was re-recorded after reading the diff (text only).
+- **Do not run a blanket old-to-new replacement over validators or tests, even only the red ones.** It renamed three `it()` titles (which are snapshot keys), a slice marker that is a code comment, fixture data and a button constant from another lane's file, and one of those made a validator hang. Every one was put back by hand. Fix each red check by reading it.
+- **Task names changed.** Schedule template and demo schedule task names say "and" now ("Prime and Paint"). A schedule already saved keeps the name it was saved with.
+- **`runv`-style parallel runners need stdin closed** (`< /dev/null`), or a validator that waits on a fake alert never exits.
 
 ### Lane 3. Field and safety (done, 2026-10-05)
 
