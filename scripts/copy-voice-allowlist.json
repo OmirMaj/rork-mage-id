@@ -625,6 +625,330 @@
       "rule": "R15",
       "match": "Photo code check",
       "reason": "the feature's one name, pinned in eight files (two of them the server's) by validate-code-look: it becomes \"Photo Code Check\" in all of them together, with the lane that converts CodeLookSheet and the analyze-photos function"
+    },
+    {
+      "file": "app/payment-predictions.tsx",
+      "rule": "R20",
+      "match": "to forecast real inflows",
+      "reason": "a prediction claim: left as typed for a founder decision (lane 2 report)"
+    },
+    {
+      "file": "app/budget-dashboard.tsx",
+      "rule": "R20",
+      "match": "Actual Cost (money paid OUT",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "app/budget-dashboard.tsx",
+      "rule": "R20",
+      "match": "Actual Cost: NOT AVAILABLE",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "app/qbo-review.tsx",
+      "rule": "R15",
+      "match": "Looks like the receipt you scanned",
+      "reason": "the opening words of a sentence that continues through JSX expressions"
+    },
+    {
+      "file": "app/change-order.tsx",
+      "rule": "R15",
+      "match": "Dictate this change order",
+      "reason": "the InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (voiceContextKey)"
+    },
+    {
+      "file": "utils/financing.ts",
+      "rule": "R20",
+      "match": "Prefer to pay monthly?",
+      "reason": "a lender line with price notation (\"/mo\"): left as typed for a founder decision (lane 2 report)"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R15",
+      "match": "Estimate (differs from the signed contract)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R15",
+      "match": "Carried forward (signed contract not checked)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R21",
+      "match": "at variable rates &mdash; see Column I on G703",
+      "reason": "a line of the pay app PDF (G702 cover): a money document, not restyled"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R20",
+      "match": "<!DOCTYPE html>",
+      "reason": "the pay app PDF template (G702/G703): form line text and empty-field dashes on a money document, not restyled"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R21",
+      "match": "<!DOCTYPE html>",
+      "reason": "the pay app PDF template (G702/G703): \"Total Completed &amp; Stored to Date\" is the form's own line text"
+    },
+    {
+      "file": "utils/paymentPrediction.ts",
+      "rule": "R20",
+      "match": "Call Acme LLC about invoice #12",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/copilot/scheduleBuilder/buildAnswersPrompt.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/copilot/scheduleBuilder/buildAnswersPrompt.ts",
+      "rule": "R22",
+      "match": "e.g. rough-in inspection before cover",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/copilot/schedule/scheduleGaps.ts",
+      "rule": "R20",
+      "match": "PHASING: trades may overlap across areas",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/financialReportPdf.ts",
+      "rule": "R20",
+      "match": "<span class=\"num\">—</span>",
+      "reason": "a lone dash in an empty table cell means \"no value\" (VOICE 4)"
+    },
+    {
+      "file": "utils/exportSchedulePdf.ts",
+      "rule": "R20",
+      "match": "<td>—</td><td>—</td>",
+      "reason": "a lone dash in an empty table cell means \"no value\" (VOICE 4)"
+    },
+    {
+      "file": "utils/jobCostEngine.ts",
+      "rule": "R15",
+      "match": "Over by",
+      "reason": "the words before a value on one line (\"Over by $1,200\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "utils/jobCostEngine.ts",
+      "rule": "R15",
+      "match": "Under by",
+      "reason": "the words before a value on one line (\"Over by $1,200\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "utils/pace/stampActuals.ts",
+      "rule": "R15",
+      "match": "on time",
+      "reason": "one value of a chip whose other values carry a number (\"+3d late\", \"started +2d\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/lienWaiverDocument.ts",
+      "rule": "R21",
+      "match": "&middot;",
+      "reason": "the HTML entity for the middle dot in the lien waiver PDF, not an ampersand a person reads"
+    },
+    {
+      "file": "utils/profitLeak/rfiScopePrompt.ts",
+      "rule": "R20",
+      "match": "is in scope — never flag it",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/profitLeak/leakPrompt.ts",
+      "rule": "R20",
+      "match": "is in scope — never flag it",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/profitLeak/scopeSummary.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/bidLeveling.ts",
+      "rule": "R20",
+      "match": "it EXCLUDES that the package needs",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/bidLevelingEngine.ts",
+      "rule": "R20",
+      "match": "SELF-REPORTED",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/bidLevelingEngine.ts",
+      "rule": "R20",
+      "match": "No cost-book data available",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/scheduleAI.ts",
+      "rule": "R20",
+      "match": " — qty ",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/retainageSource.ts",
+      "rule": "R15",
+      "match": "set on this invoice",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/retainageSource.ts",
+      "rule": "R15",
+      "match": "carried from earlier billing (check your contract)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/retainageSource.ts",
+      "rule": "R15",
+      "match": "not on file (retainage not held)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/brain/accuracyReport.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "sentences that state how accurate MAGE has been: left as typed for a founder decision (lane 2 report)"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R20",
+      "match": "[warranty period — set before signing]",
+      "reason": "contract clause placeholder: printed in the contract, matched by hasWarrantyPlaceholder and the portal page, never restyled"
+    },
+    {
+      "file": "utils/tax1099Export.ts",
+      "rule": "R20",
+      "match": "Commitment Paid To Date (undated — NOT counted)",
+      "reason": "a CSV column header a CPA maps into their template: field names another system reads do not change"
+    },
+    {
+      "file": "utils/aiaForms.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/aiaForms.ts",
+      "rule": "R21",
+      "match": "printed name & title",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/aiaForms.ts",
+      "rule": "R22",
+      "match": "e.g. G704",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/lienWaiverForms.ts",
+      "rule": "R15",
+      "match": "Check Payable to",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/lienWaiverForms.ts",
+      "rule": "R15",
+      "match": "State of Georgia, County of",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/lienWaiverForms.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "Signed contract",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "Estimate (no signed contract yet)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "Estimate (signed contract not checked)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "As saved (signed contract not checked)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "Estimate (signed contract has no amount)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Linked estimate: grand total (priced)",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Reconstructed from a change order’s contract snapshot",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Target budget you entered in project setup",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "GMP cap you entered in project setup",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Legacy estimate: grand total",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Linked estimate: base total (cost before markup)",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Signed subcontracts and POs, including CO revisions",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "No source on file (enter this figure yourself)",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Cost-to-date you entered, synced across your devices",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
     }
   ]
 }

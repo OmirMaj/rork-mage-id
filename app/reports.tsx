@@ -582,7 +582,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
       {/* Portfolio header */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryHead}>
-          <Text style={styles.summaryEyebrow}>WIP TOTAL · {report.rows.length} project{report.rows.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.summaryEyebrow}>WIP Total · {report.rows.length} project{report.rows.length === 1 ? '' : 's'}</Text>
         </View>
         <TileGrid preset="kpi" phoneStyle={styles.summaryGrid}>
           <SummaryStat label="Revised Contract" value={formatMoney(report.totals.revisedContract)} accent={themeColors.text} />
@@ -947,7 +947,7 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
     <>
       <View style={styles.summaryCard}>
         <Text style={styles.summaryEyebrow}>
-          OUTSTANDING · {collectible} invoice{collectible === 1 ? '' : 's'}
+          Outstanding · {collectible} invoice{collectible === 1 ? '' : 's'}
           {retainageOnly > 0 ? ` · ${retainageOnly} retainage-only` : ''}
         </Text>
         <Text style={styles.agingHeroAmount}>{formatMoney(report.totals.totalOutstanding)}</Text>
