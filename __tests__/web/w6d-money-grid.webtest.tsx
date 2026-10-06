@@ -162,7 +162,7 @@ describe('the AIA G703 grid (desktop web, 1512)', () => {
     const el = await openEditable();
     const grid = byId(el, 'aia-g703');
     expect(grid).not.toBeNull();
-    for (const h of ['A Item', 'B Description of work', 'C Scheduled value', 'D From previous', 'E This period', 'F Stored', 'G Completed & stored', '% (G ÷ C)', 'H Balance to finish', 'I Retainage']) {
+    for (const h of ['A Item', 'B Description of Work', 'C Scheduled Value', 'D From Previous', 'E This Period', 'F Stored', 'G Completed and Stored', '% (G ÷ C)', 'H Balance to Finish', 'I Retainage']) {
       expect(grid!.textContent).toContain(h);
     }
     expect(byId(el, 'aia-g702-strip')).not.toBeNull();
@@ -190,7 +190,7 @@ describe('the AIA G703 grid (desktop web, 1512)', () => {
     const el = await openEditable();
     const t = computeAIATotals(applicationFromSavedRecord(savedRecord()));
     const foot = byId(el, 'aia-g703-totals')!.textContent ?? '';
-    expect(foot).toContain('Grand total');
+    expect(foot).toContain('Grand Total');
     expect(foot).toContain(fmt(t.totalCompletedAndStored)); // G === line 4
     expect(foot).toContain(fmt(t.totalRetainage)); // I === line 5
     const pairs: [string, string][] = [
@@ -232,10 +232,10 @@ describe('the AIA G703 grid (desktop web, 1512)', () => {
     const el = await openEditable();
     await type(byId(el, 'aia-g703-cell-L2-stored') as HTMLInputElement, '12,5o');
     expect(byId(el, 'aia-g703-row-L2')!.textContent).toContain('is not an amount');
-    const save = Array.from(el.querySelectorAll('div, button')).find((n) => n.textContent === 'Save to project' && n.children.length === 0);
+    const save = Array.from(el.querySelectorAll('div, button')).find((n) => n.textContent === 'Save to Project' && n.children.length === 0);
     expect(save).toBeTruthy();
     await click(save!);
-    expect(showAlert).toHaveBeenCalledWith('Line 2 · Stored', '"12,5o" is not an amount — this line still bills $2,500.25');
+    expect(showAlert).toHaveBeenCalledWith('Line 2 · Stored', '"12,5o" is not an amount. This line still bills $2,500.25');
     expect(addAIAPayApp).not.toHaveBeenCalled();
   });
 

@@ -1863,7 +1863,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     { key: 'itemNo', label: 'A Item', width: 48, getValue: (l) => draftOf(l, 'itemNo') ?? l.itemNo },
     { key: 'description', label: 'B Description of Work', flex: 1, maxWidth: Layout.field.search, getValue: (l) => draftOf(l, 'description') ?? l.description },
     { key: 'scheduled', label: 'C Scheduled Value', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'scheduled') ?? l.scheduledValue.toFixed(2) },
-    { key: 'fromPrevious', label: 'D from Previous', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => l.fromPreviousApp },
+    { key: 'fromPrevious', label: 'D From Previous', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => l.fromPreviousApp },
     { key: 'thisPeriod', label: 'E This Period', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'thisPeriod') ?? l.thisPeriod.toFixed(2) },
     { key: 'stored', label: 'F Stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'stored') ?? l.materialsPresentlyStored.toFixed(2) },
     { key: 'completed', label: 'G Completed and Stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).completedAndStored },

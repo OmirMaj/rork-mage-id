@@ -1087,6 +1087,12 @@
       "rule": "R15",
       "match": "Next week",
       "reason": "a label that carries a date (\"Next week · Mar 9 to 15\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/aia-pay-app.tsx",
+      "rule": "R15",
+      "match": "D From Previous",
+      "reason": "a column letter and then the header: \"From\" is the header's first word, so it takes a capital"
     }
   ]
 }
