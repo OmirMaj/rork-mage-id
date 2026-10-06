@@ -114,6 +114,7 @@ const TITLES_BEFORE: Record<string, string> = {
   'skills-certificates': 'Certificates',
   // Permit Path wave (PPUI): the job's permit route; headerShown false, the title names the web tab.
   'permit-path': 'Permit Path',
+  'scan-room': 'Scan The Room',
 };
 
 /** S3 — the tab bar. Keys are the seed's (exact); English = what the UI shows. */

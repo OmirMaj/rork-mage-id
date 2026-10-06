@@ -180,3 +180,26 @@ export const PORTAL_MESSAGE_AI_ENABLED = false;
 // exactly as before, for everyone. The old component stays in the repo until a
 // later lane deletes it, so this switch is a full way back.
 export const FIRST_JOB_PATH_ENABLED = true;
+
+// SCAN THE ROOM: walk a room with a LiDAR iPhone, get a plan, quantities and a
+// priced draft (2026-10-06). Dark.
+//
+// While this is false, nothing of the feature exists for anyone: /scan-room
+// redirects to Home, no tile, row or button leads to it, and
+// utils/roomScan/native.ts never looks the native module up (its one optional
+// lookup is refused before it runs), so no build, old or new, touches it.
+//
+// Why it is off: the native module (modules/mage-room-scan) typechecks against
+// Apple's iOS SDK but has never been linked into an app or run on a phone, the parser was written from Apple's documented
+// structure and has not read a real export, the camera permission sentence in
+// app.json still says no video is recorded, kept or uploaded (a scan keeps the
+// room's shape), and nobody has measured how far a scan is from a tape.
+//
+// Flip it to true only when ALL of these hold
+// (docs/scan-the-room-native-checklist.md): a native build that contains the
+// module is installed, the app has been seen to launch on a phone WITHOUT the
+// module and on an iOS 15 phone with it, a real export from a LiDAR iPhone
+// parses and is a fixture, the permission sentence and its two validators have
+// been changed together, the App Store privacy answers cover a saved room
+// shape, and the founder's ten-room tape-measure test is done.
+export const SCAN_ROOM_ENABLED = false;
