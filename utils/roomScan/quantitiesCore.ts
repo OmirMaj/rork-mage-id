@@ -215,7 +215,8 @@ export function scanFacts(scan: RoomScan, q: ScanQuantities): ScanFact[] {
   const outline = scan.walls.filter((w) => w.onOutline);
   const label = (id: string) => scan.walls.find((w) => w.id === id)?.label ?? '';
   const found = outline.length;
-  const needed = found + scan.closure.gaps;
+  // A ring that crosses itself is missing no wall: every wall was found, they are in the wrong place.
+  const needed = found + (scan.closure.crossing ? 0 : scan.closure.gaps);
   facts.push({ kind: 'walls_found', tone: scan.closure.closed ? 'ok' : 'check', found, needed });
   if (scan.closure.closed) {
     facts.push({ kind: 'outline_closed', tone: 'ok' });

@@ -926,6 +926,8 @@ rule('G10 the floor is the loop that covers the most ground, and a ring that cro
     check(o, w.M.pricingBlock(q) === 'not_closed', `turned ${deg}: a ring that crosses itself can be priced`);
     const f = w.M.facts(scan, q).find((x) => x.kind === 'outline_crosses');
     check(o, !!f && f.tone === 'check' && (f.wallLabels ?? []).length === 2, `turned ${deg}: the walls that cross are not named`);
+    const wf = w.M.facts(scan, q).find((x) => x.kind === 'walls_found');
+    check(o, !!wf && wf.found === 4 && wf.needed === 4 && wf.tone === 'check', `turned ${deg}: a ring that crosses itself reads "${wf?.found} of ${wf?.needed} walls found" (no wall is missing)`);
   }
   check(o, /case 'outline_crosses': return t\('office\.roomScan\.fact\.crossesBody'/.test(w.F['hooks/useRoomScanCopy.ts']), 'there is no sentence for walls that cross');
   // An ordinary L still closes (a concave room is not a crossing one).

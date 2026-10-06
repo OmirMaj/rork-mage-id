@@ -141,7 +141,8 @@ function bathroom(name = 'Hall Bathroom', id = 'scan-1'): SavedScan {
   });
   return { scan, pushed: {}, manualRates: {}, excluded: [], savedAt: '', pricedAt: null };
 }
-const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
+// Enough turns for a confirmed push: the write, the read-back, the save and the list refresh are each awaited.
+const settle = async () => { await act(async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); }); };
 type Node = { children: (Node | string)[] };
 /** The words a person reads inside one element. (Its props.children are React elements, which do not go through JSON.) */
 const textOf = (n: Node): string => n.children.map((c) => (typeof c === 'string' ? c : textOf(c))).join('');
@@ -355,7 +356,7 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
     expect(source('door')).toBe('Your Price For Doors, 3 Past Jobs');
     expect(textOf(tree.getByTestId('scan-line-door'))).toContain('$380.00');
     expect(textOf(tree.getByTestId('scan-line-door'))).not.toContain('2,400');
-    expect(source('floor_tile')).toBe('No Past Jobs Yet, Catalog Price');
+    expect(source('toilet')).toBe('No Past Jobs Yet, Catalog Price');
   });
 
   it('S7 a scan has no name until he types one, and the name is on the scan the moment it is typed', async () => {
