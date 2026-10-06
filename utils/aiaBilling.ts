@@ -1180,7 +1180,7 @@ export const G703_COL_LABEL: Record<G703Col, string> = {
   scheduled: 'Scheduled Value',
   thisPeriod: 'This Period',
   stored: 'Stored',
-  percent: '% complete',
+  percent: '% Complete',
 };
 
 /**
@@ -1210,7 +1210,7 @@ export function planG703CellEdit(
     if (n === null) return { kind: 'invalid', reason: `"${text}" is not a percent. Type a number from 0 to 100.` };
     if (n < 0 || n > 100) return { kind: 'invalid', reason: 'Percent complete is 0–100.' };
     if (!(line.scheduledValue > 0)) {
-      return { kind: 'invalid', reason: 'Percent needs a positive scheduled value. Type This period instead.' };
+      return { kind: 'invalid', reason: 'Percent needs a positive scheduled value. Type This Period instead.' };
     }
     return { kind: 'percent', percent: n };
   }

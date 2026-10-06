@@ -254,8 +254,8 @@ console.log('\nb) planG703CellEdit');
     ['Scheduled while editing the SOV', planG703CellEdit(L, 'scheduled', '12000.005', S), { kind: 'patch', patch: { scheduledValue: 12000.01 } }],
     ['percent 101 is refused', planG703CellEdit(L, 'percent', '101', E), { kind: 'invalid', reason: 'Percent complete is 0–100.' }],
     ['percent -1 is refused', planG703CellEdit(L, 'percent', '-1', E), { kind: 'invalid', reason: 'Percent complete is 0–100.' }],
-    ['percent on C ≤ 0 is refused (a deductive CO line)', planG703CellEdit(neg, 'percent', '50', E), { kind: 'invalid', reason: 'Percent needs a positive scheduled value. Type This period instead.' }],
-    ['percent on C = 0 is refused', planG703CellEdit({ ...L, scheduledValue: 0 }, 'percent', '50', E), { kind: 'invalid', reason: 'Percent needs a positive scheduled value. Type This period instead.' }],
+    ['percent on C ≤ 0 is refused (a deductive CO line)', planG703CellEdit(neg, 'percent', '50', E), { kind: 'invalid', reason: 'Percent needs a positive scheduled value. Type This Period instead.' }],
+    ['percent on C = 0 is refused', planG703CellEdit({ ...L, scheduledValue: 0 }, 'percent', '50', E), { kind: 'invalid', reason: 'Percent needs a positive scheduled value. Type This Period instead.' }],
     ['percent blank is nothing yet', planG703CellEdit(L, 'percent', '', E), { kind: 'ignore' }],
     ['percent "x" is refused', planG703CellEdit(L, 'percent', 'x', E), { kind: 'invalid', reason: '"x" is not a percent. Type a number from 0 to 100.' }],
     ['percent "62.5%" applies 62.5', planG703CellEdit(L, 'percent', '62.5%', E), { kind: 'percent', percent: 62.5 }],
@@ -282,9 +282,9 @@ console.log('\nc) g703DraftBlocker, g703PastePlan, widths');
     g703DraftBlocker({ 'b:stored': '12,5o' }, lines),
     { title: 'Line 2 · Stored', message: '"12,5o" is not an amount. This line still bills $0.00' });
   eq('the first invalid draft in LINE order wins',
-    g703DraftBlocker({ 'c:percent': '10', 'a:thisPeriod': 'x' }, lines)?.title, 'Line 1 · This period');
+    g703DraftBlocker({ 'c:percent': '10', 'a:thisPeriod': 'x' }, lines)?.title, 'Line 1 · This Period');
   eq('a percent on a deductive line blocks, named',
-    g703DraftBlocker({ 'c:percent': '10' }, lines), { title: 'Line 3 · % complete', message: 'Percent needs a positive scheduled value. Type This period instead.' });
+    g703DraftBlocker({ 'c:percent': '10' }, lines), { title: 'Line 3 · % Complete', message: 'Percent needs a positive scheduled value. Type This Period instead.' });
 
   eq('paste at This period: E then F, one merged patch per line, the past-end row counted',
     g703PastePlan(lines, [['10', '20'], ['30', 'x'], ['40'], ['50']], { rowKey: 'a', colKey: 'thisPeriod' }, { sovEditing: false }),

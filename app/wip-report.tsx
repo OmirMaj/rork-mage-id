@@ -1211,7 +1211,7 @@ function WipReportScreenInner() {
         </View>
       ),
     },
-    { key: 'pct', label: '% complete', width: 72, numeric: true, sortValue: (r) => wipScheduleCells(r).pctComplete, value: (r) => pct(wipScheduleCells(r).pctComplete) },
+    { key: 'pct', label: '% Complete', width: 72, numeric: true, sortValue: (r) => wipScheduleCells(r).pctComplete, value: (r) => pct(wipScheduleCells(r).pctComplete) },
     { key: 'earned', label: 'Earned', width: 110, numeric: true, hideBelow: 1050, sortValue: (r) => wipScheduleCells(r).earned, value: (r) => money(wipScheduleCells(r).earned) },
     { key: 'billed', label: 'Billed', width: 110, numeric: true, sortValue: (r) => wipScheduleCells(r).billed, value: (r) => money(wipScheduleCells(r).billed) },
     {
@@ -1705,7 +1705,7 @@ function WipReportScreenInner() {
                           + 'A surety asks for this figure by name, updated by whoever is running the project.'}
                   </Text>
                   <Row label="Revised Contract" value={money(drillOutput.revisedContract)} styles={styles} />
-                  <Row label="% complete" value={pct(drillOutput.percentComplete)} styles={styles} />
+                  <Row label="% Complete" value={pct(drillOutput.percentComplete)} styles={styles} />
                   <Row label="Earned Revenue" value={money(drillOutput.earnedRevenue)} styles={styles} />
                   <Row label="Overbilling" value={money(drillOutput.overbilling)} styles={styles} />
                   <Row label="Underbilling" value={money(drillOutput.underbilling)} styles={styles} />

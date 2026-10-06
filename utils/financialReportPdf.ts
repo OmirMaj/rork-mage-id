@@ -152,7 +152,7 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
       { header: 'Cost to Date',      align: 'right', width: '6%' },
       { header: 'Est. Final Cost',   align: 'right', width: '6%' },
       { header: 'Cost to Complete',  align: 'right', width: '6%' },
-      { header: '% complete',        align: 'right', width: '5%' },
+      { header: '% Complete',        align: 'right', width: '5%' },
       { header: 'Earned rev.',       align: 'right', width: '7%' },
       { header: 'Billed',            align: 'right', width: '7%' },
       { header: 'Paid',              align: 'right', width: '6%' },

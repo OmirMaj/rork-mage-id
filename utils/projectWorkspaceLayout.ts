@@ -514,7 +514,7 @@ export function buildKpiCells(pulse: ProjectPulse, ctx: KpiContext): KpiCell[] {
   const finish = finishLabel(pulse.forecastFinish);
   cells.push({
     key: 'progress',
-    label: '% complete',
+    label: '% Complete',
     value: p.hasSchedule ? `${p.pct}%` : null,
     sub: p.hasSchedule ? (finish ? `Finish ${finish}` : 'No start date set') : null,
     blockedReason: p.hasSchedule ? null : KPI_NO_SCHEDULE,

@@ -541,7 +541,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
       // Unknown prints '—' (the table's own unknown cell), never $0.
       value: (r) => { const c = reportsWipCells(r).costToDate; return c == null ? null : formatMoney(c); },
     },
-    { key: 'pct', label: '% complete', width: 64, numeric: true, sortValue: (r) => reportsWipCells(r).pctComplete, value: (r) => `${reportsWipCells(r).pctComplete.toFixed(0)}%` },
+    { key: 'pct', label: '% Complete', width: 64, numeric: true, sortValue: (r) => reportsWipCells(r).pctComplete, value: (r) => `${reportsWipCells(r).pctComplete.toFixed(0)}%` },
     { key: 'earned', label: 'Earned', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).earned, value: (r) => formatMoney(reportsWipCells(r).earned) },
     { key: 'billed', label: 'Billed', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).billed, value: (r) => formatMoney(reportsWipCells(r).billed) },
     {

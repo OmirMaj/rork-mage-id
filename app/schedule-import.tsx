@@ -61,7 +61,7 @@ const FIELD_LABELS: { key: ScheduleImportField; label: string }[] = [
   { key: 'startDate', label: 'Start' },
   { key: 'finishDate', label: 'Finish' },
   { key: 'predecessors', label: 'Predecessors' },
-  { key: 'progress', label: '% complete' },
+  { key: 'progress', label: '% Complete' },
   { key: 'wbs', label: 'WBS' },
   { key: 'outlineLevel', label: 'Outline Level' },
   { key: 'resource', label: 'Resource' },
