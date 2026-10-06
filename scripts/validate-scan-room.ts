@@ -72,7 +72,7 @@ import { roomScanAvailability } from '../utils/roomScan/availability';
 import { makeCatalogRater } from '../utils/roomScan/catalogRate';
 import { ROOM_RECIPES, RECIPE_NAMES_EN } from '../utils/roomScan/recipesCore';
 import { RoomScanParseError, type RoomScan, type ScanQuantities } from '../utils/roomScan/types';
-import { SCAN_ROOM_FEATURE_KEY, SCAN_ROOM_REQUIRED_TIER } from '../utils/roomScan/gate';
+import { SCAN_ROOM_FEATURE, SCAN_ROOM_REQUIRED_TIER } from '../utils/roomScan/gate';
 import { SCAN_ROOM_ENABLED } from '../constants/featureFlags';
 import { isAppStorageKey } from '../utils/localCacheKeys';
 import { buildCostDatabase, type CostBookEntry, type CostDatabase } from '../utils/costDatabase';
@@ -832,9 +832,9 @@ rule('N7 house rules: no reanimated, Lucide icons, theme colours, owned storage 
   check(o, isAppStorageKey(STORE.roomScansKey('p1')) && isAppStorageKey(STORE.roomScanRawKey('s1')), 'a storage key is not under an app-owned prefix (it would survive a tenant switch)');
   check(o, (storeSrc.match(/AsyncStorage\.(setItem|removeItem)\(([^,)]+)/g) ?? []).every((c) => /roomScansKey\(|roomScanRawKey\(/.test(c)), 'the store writes a key it did not build from the two owned prefixes');
   const route = stripComments(w.F['app/scan-room.tsx']);
-  check(o, /const \{ canAccess \} = useTierAccess\(\);/.test(route) && /if \(!canAccess\(SCAN_ROOM_FEATURE_KEY\)\) \{\s*return <Paywall /.test(route), 'the route is not gated through hooks/useTierAccess');
-  check(o, SCAN_ROOM_REQUIRED_TIER === 'pro' && SCAN_ROOM_FEATURE_KEY === 'job_costing', 'the gate is not Pro');
-  check(o, route.indexOf('canAccess(SCAN_ROOM_FEATURE_KEY)') < route.indexOf('<RoomScanFlow'), 'the flow mounts before the tier check');
+  check(o, /const \{ canAccess \} = useTierAccess\(\);/.test(route) && /if \(!canAccess\(SCAN_ROOM_FEATURE\)\) \{\s*return <Paywall /.test(route), 'the route is not gated through hooks/useTierAccess');
+  check(o, SCAN_ROOM_REQUIRED_TIER === 'pro' && SCAN_ROOM_FEATURE === 'job_costing', 'the gate is not Pro');
+  check(o, route.indexOf('canAccess(SCAN_ROOM_FEATURE)') < route.indexOf('<RoomScanFlow'), 'the flow mounts before the tier check');
   return o;
 });
 
@@ -1109,7 +1109,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'N7', what: 'a screen imports reanimated', plant: text('components/roomScan/FloorPlanView.tsx', "import { AlertTriangle, Check } from 'lucide-react-native';", "import { AlertTriangle, Check } from 'lucide-react-native';\nimport Animated from 'react-native-reanimated';") },
   { rule: 'N7', what: 'a screen writes a colour', plant: text('components/roomScan/styles.ts', 'screen: { flex: 1, backgroundColor: t.bg },', "screen: { flex: 1, backgroundColor: '#ECEDE9' },") },
   { rule: 'N7', what: 'a storage key leaves the owned prefix', plant: text('utils/roomScan/storeCore.ts', "'mageid_room_scans::'", "'roomscans::'") },
-  { rule: 'N7', what: 'the route loses the tier gate', plant: text('app/scan-room.tsx', 'if (!canAccess(SCAN_ROOM_FEATURE_KEY)) {', 'if (false) {') },
+  { rule: 'N7', what: 'the route loses the tier gate', plant: text('app/scan-room.tsx', 'if (!canAccess(SCAN_ROOM_FEATURE)) {', 'if (false) {') },
   { rule: 'N7', what: 'a screen uses @expo/vector-icons', plant: text('components/roomScan/RoomScanFlow.tsx', "import { ChevronLeft, Ruler } from 'lucide-react-native';", "import { ChevronLeft, Ruler } from 'lucide-react-native';\nimport { Ionicons } from '@expo/vector-icons';") },
   { rule: 'N7', what: 'a screen carries its own t() key', plant: text('components/roomScan/QuantitiesView.tsx', "const sf = copy.unitWord('SF');", "const sf = t('office.roomScan.unit.sf', 'sq ft');") },
   { rule: 'N8', what: 'app.json gets the scan sentence in this lane', plant: text('app.json', '"NSCameraUsageDescription": "', '"NSCameraUsageDescription": "It also measures a room when you start a room scan. ') },

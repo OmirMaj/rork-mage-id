@@ -7,5 +7,5 @@
 // per-tier tables for a feature that calls no edge function.
 import { REQUIRED_TIER, type FeatureKey } from '@/utils/featureTiers';
 
-export const SCAN_ROOM_FEATURE_KEY: FeatureKey = 'job_costing';
-export const SCAN_ROOM_REQUIRED_TIER = REQUIRED_TIER[SCAN_ROOM_FEATURE_KEY] as 'pro' | 'business';
+export const SCAN_ROOM_FEATURE: FeatureKey = 'job_costing';
+export const SCAN_ROOM_REQUIRED_TIER = REQUIRED_TIER[SCAN_ROOM_FEATURE] as 'pro' | 'business';

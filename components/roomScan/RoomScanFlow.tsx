@@ -37,7 +37,7 @@ import { buildRoomScan } from '@/utils/roomScan/geometryCore';
 import * as RoomScanNative from '@/utils/roomScan/native';
 import { buildEstimatePatch, buildScanDraft, draftBlock, draftPushLines } from '@/utils/roomScan/pricingCore';
 import { computeQuantities, pricingBlock, scanFacts } from '@/utils/roomScan/quantitiesCore';
-import type { RecipeKey } from '@/utils/roomScan/recipesCore';
+import { ROOM_RECIPES, type RecipeKey } from '@/utils/roomScan/recipesCore';
 import { hashRawScan, loadSavedScans, saveScan } from '@/utils/roomScan/store';
 import type { SavedScan } from '@/utils/roomScan/storeCore';
 import type { RoomScan, RoomType } from '@/utils/roomScan/types';
@@ -96,10 +96,9 @@ export function RoomScanFlow({ projectId, initial }: RoomScanFlowProps) {
   const facts = useMemo(() => (scan && quantities ? scanFacts(scan, quantities) : []), [scan, quantities]);
   const draft = useMemo(() => {
     if (!saved || !quantities) return null;
+    // The estimate line carries the room's name, in the person's language.
     const names: Partial<Record<RecipeKey, string>> = {};
-    const d = buildScanDraft(saved.scan, quantities, db, catalog, { manualRates: saved.manualRates, excluded: saved.excluded });
-    for (const l of d.lines) names[l.key] = `${copy.lineName(l.key)}, ${saved.scan.name}`;
-    // Priced twice so the estimate line carries the room's name in the person's language.
+    for (const r of ROOM_RECIPES[saved.scan.roomType]) names[r.key] = `${copy.lineName(r.key)}, ${saved.scan.name}`;
     return buildScanDraft(saved.scan, quantities, db, catalog, { manualRates: saved.manualRates, excluded: saved.excluded, names });
   }, [saved, quantities, db, catalog, copy]);
 

@@ -15,7 +15,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { RoomScanFlow } from '@/components/roomScan/RoomScanFlow';
 import { useRoomScanCopy } from '@/hooks/useRoomScanCopy';
-import { SCAN_ROOM_FEATURE_KEY, SCAN_ROOM_REQUIRED_TIER } from '@/utils/roomScan/gate';
+import { SCAN_ROOM_FEATURE, SCAN_ROOM_REQUIRED_TIER } from '@/utils/roomScan/gate';
 
 export default function ScanRoomRoute() {
   if (!SCAN_ROOM_ENABLED) return <Redirect href="/(tabs)/(home)" />;
@@ -27,7 +27,7 @@ function ScanRoomScreen() {
   const copy = useRoomScanCopy();
   const { canAccess } = useTierAccess();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  if (!canAccess(SCAN_ROOM_FEATURE_KEY)) {
+  if (!canAccess(SCAN_ROOM_FEATURE)) {
     return <Paywall visible feature={copy.paywallFeatureLabel} requiredTier={SCAN_ROOM_REQUIRED_TIER} onClose={() => router.back()} />;
   }
   if (!projectId) return <Redirect href="/(tabs)/(home)" />;
