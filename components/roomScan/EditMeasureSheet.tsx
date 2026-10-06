@@ -5,10 +5,10 @@
 // hands back metres. It changes nothing by itself: the caller applies the
 // correction (utils/roomScan/editsCore), which records it as typed by hand.
 import React, { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Button } from '@/components/ui';
+import { Sheet } from '@/components/ui';
 import type { RoomScanCopy, RoomScanEditKind } from '@/hooks/useRoomScanCopy';
 import { formatFeetInches, parseTapeMeasure } from '@/utils/roomScan/units';
 import { makeRoomScanStyles } from './styles';
@@ -39,37 +39,37 @@ export function EditMeasureSheet({ target, copy, onCancel, onSave }: {
     onSave(m);
   };
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <KeyboardAvoidingView style={styles.sheetBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={{ flex: 1 }} onPress={onCancel} accessibilityLabel={copy.cancelLabel} />
-        <View style={styles.sheet} testID="scan-edit-sheet">
-          <Text style={styles.sheetTitle}>{copy.editTitleLabel(target.kind)}</Text>
-          <Text style={styles.sub}>{target.what}</Text>
-          {target.currentM > 0 && (
-            <Text style={styles.rowSub}>{copy.editScanValueSub(formatFeetInches(target.currentM))}</Text>
-          )}
-          <Text style={styles.eyebrow}>{copy.editInputLabel}</Text>
-          <TextInput
-            testID="scan-edit-input"
-            style={styles.input}
-            value={text}
-            onChangeText={(v) => { setText(v); setBad(false); }}
-            placeholderTextColor={colors.textMuted}
-            autoFocus
-            autoCorrect={false}
-            keyboardType="numbers-and-punctuation"
-            returnKeyType="done"
-            onSubmitEditing={submit}
-            accessibilityLabel={copy.editInputLabel}
-          />
-          <Text style={bad ? styles.errorText : styles.note}>{bad ? copy.editInvalidBody : copy.editHintBody}</Text>
-          <Text style={styles.note}>{copy.editRecordNote}</Text>
-          <View style={styles.sheetActions}>
-            <Button label={copy.cancelLabel} variant="ghost" onPress={onCancel} />
-            <Button label={copy.editSaveLabel} variant="primary" onPress={submit} testID="scan-edit-save" />
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    <Sheet
+      visible
+      onClose={onCancel}
+      size="form"
+      title={copy.editTitleLabel(target.kind)}
+      subtitle={target.what}
+      testID="scan-edit-sheet"
+      primaryAction={{ label: copy.editSaveLabel, onPress: submit, testID: 'scan-edit-save' }}
+      secondaryAction={{ label: copy.cancelLabel, onPress: onCancel }}
+    >
+      <View style={{ gap: 10 }}>
+        {target.currentM > 0 && (
+          <Text style={styles.rowSub}>{copy.editScanValueSub(formatFeetInches(target.currentM))}</Text>
+        )}
+        <Text style={styles.eyebrow}>{copy.editInputLabel}</Text>
+        <TextInput
+          testID="scan-edit-input"
+          style={styles.input}
+          value={text}
+          onChangeText={(v) => { setText(v); setBad(false); }}
+          placeholderTextColor={colors.textMuted}
+          autoFocus
+          autoCorrect={false}
+          keyboardType="numbers-and-punctuation"
+          returnKeyType="done"
+          onSubmitEditing={submit}
+          accessibilityLabel={copy.editInputLabel}
+        />
+        <Text style={bad ? styles.errorText : styles.note}>{bad ? copy.editInvalidBody : copy.editHintBody}</Text>
+        <Text style={styles.note}>{copy.editRecordNote}</Text>
+      </View>
+    </Sheet>
   );
 }

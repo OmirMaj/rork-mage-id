@@ -8,10 +8,10 @@
 // NOTHING IS SAVED FROM THIS SCREEN WITHOUT A YES. Open In Estimate opens a
 // sheet that says what will happen. Only its confirm button calls onConfirm.
 import React, { useState } from 'react';
-import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { Button } from '@/components/ui';
+import { Button, Sheet } from '@/components/ui';
 import { formatMoney } from '@/utils/formatters';
 import type { RoomScanCopy } from '@/hooks/useRoomScanCopy';
 import type { DraftBlock, ScanDraft, ScanDraftLine } from '@/utils/roomScan/pricingCore';
@@ -132,19 +132,17 @@ export function PricedDraftView(p: PricedDraftViewProps) {
       {p.result === 'failed' && <Text style={styles.errorText}>{copy.addFailedBody}</Text>}
       <Button label={copy.openInEstimateLabel} variant="primary" onPress={() => setConfirming(true)} disabled={p.block != null} testID="scan-open-estimate" />
 
-      <Modal visible={confirming} transparent animationType="fade" onRequestClose={() => setConfirming(false)}>
-        <View style={styles.sheetBackdrop}>
-          <Pressable style={{ flex: 1 }} onPress={() => setConfirming(false)} accessibilityLabel={copy.confirmNoLabel} />
-          <View style={styles.sheet} testID="scan-confirm-sheet">
-            <Text style={styles.sheetTitle}>{copy.confirmTitleLabel}</Text>
-            <Text style={styles.para}>{copy.confirmBody(p.pushCount, total)}</Text>
-            <View style={styles.sheetActions}>
-              <Button label={copy.confirmNoLabel} variant="ghost" onPress={() => setConfirming(false)} testID="scan-confirm-no" />
-              <Button label={copy.confirmYesLabel} variant="primary" onPress={() => { setConfirming(false); p.onConfirm(); }} testID="scan-confirm-yes" />
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <Sheet
+        visible={confirming}
+        onClose={() => setConfirming(false)}
+        size="form"
+        title={copy.confirmTitleLabel}
+        testID="scan-confirm-sheet"
+        primaryAction={{ label: copy.confirmYesLabel, onPress: () => { setConfirming(false); p.onConfirm(); }, testID: 'scan-confirm-yes' }}
+        secondaryAction={{ label: copy.confirmNoLabel, onPress: () => setConfirming(false), testID: 'scan-confirm-no' }}
+      >
+        <Text style={styles.para}>{copy.confirmBody(p.pushCount, total)}</Text>
+      </Sheet>
     </View>
   );
 }
