@@ -31,7 +31,7 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c1) construction
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c2) construction-ai, tier enterprise (Project Roadmap) 1`] = `
 {
   "lines": 796,
-  "sha256": "be95233f373a1bd98e50d8b7170b8ae8c7e3bf17fad4fafc1795da18ff8b25e6",
+  "sha256": "8899ff71ae024f6197292b601b74b83ab3e241f4cc4519bc20d5c10fc9d116a5",
 }
 `;
 
@@ -59,6 +59,6 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (e) dev-ar-measur
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (f) WeatherRescheduleModal, fully simulated, mounted alone 1`] = `
 {
   "lines": 80,
-  "sha256": "0d8b5fcb91d798f8f6c43a635a88a3794e2b6220609159c87be4dde02e9768ae",
+  "sha256": "26679914b923ba44c289adba54542037bbad29d142acad1ea17c2666475dcd8b",
 }
 `;
