@@ -120,11 +120,11 @@ function linkWalls(segs: Seg[]): { loop: Loop | null; chains: Loop[]; partner: (
     let headFlip = false;
     let isLoop = false;
     for (;;) {
-      const inEnd = head * 2 + (headFlip ? 1 : 0);
-      const p = partner[inEnd];
+      const inEnd: number = head * 2 + (headFlip ? 1 : 0);
+      const p: number | null = partner[inEnd];
       if (p == null) break;
-      const w = p >> 1;
-      const wFlip = (p & 1) === 0; // the wall before us ends at its own `a`, so it runs backwards
+      const w: number = p >> 1;
+      const wFlip: boolean = (p & 1) === 0; // the wall before us ends at its own `a`, so it runs backwards
       if (w === start) { isLoop = true; break; }
       head = w; headFlip = wFlip;
     }

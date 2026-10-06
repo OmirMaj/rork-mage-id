@@ -66,7 +66,7 @@ export function formatSizeIn(widthIn: number, heightIn: number): string {
  */
 export function parseTapeMeasure(input: string): number | null {
   const raw = (input ?? '').trim().toLowerCase();
-  if (!raw) return null;
+  if (!raw || raw.startsWith('-')) return null;
   const s = raw
     .replace(/feet|foot|ft\.?|′|'/g, ' ft ')
     .replace(/inches|inch|in\.?|″|"/g, ' in ')
