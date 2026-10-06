@@ -7,9 +7,11 @@
 //   * the two entry points below (`capabilities`, `present`) are callable on
 //     any iOS and answer in words when RoomPlan is not there.
 //
-// WRITTEN AGAINST APPLE'S DOCUMENTATION, NOT COMPILED AGAINST THE iOS SDK.
-// Lines marked UNSURE are the ones to read first when the first build fails;
-// docs/scan-the-room-native-checklist.md lists each with what to check.
+// TYPECHECKED AGAINST APPLE'S iOS SDK (iPhoneOS 27.0, deployment target 15.1,
+// and the simulator SDK) by scripts/validate-scan-room.ts on a Mac with Xcode,
+// with only ExpoModulesCore stubbed. NEVER LINKED INTO AN APP AND NEVER RUN ON
+// A PHONE. What is still open is behaviour, not spelling;
+// docs/scan-the-room-native-checklist.md lists each line with what to check.
 
 import ExpoModulesCore
 import AVFoundation
@@ -98,9 +100,9 @@ internal enum RoomScanSupport {
 /// Apple's RoomCaptureView under a navigation bar with Cancel and Done.
 ///
 /// The controller is its own RoomCaptureViewDelegate. That protocol inherits
-/// from NSCoding (UNSURE: true in the iOS 16 and 17 SDKs; a UIViewController
-/// already conforms, which is why the delegate is the controller and not a
-/// small helper object).
+/// from NSCoding (so the iPhoneOS 27.0 SDK says, and the typecheck against it
+/// passes); a UIViewController already conforms, which is why the delegate is
+/// the controller and not a small helper object.
 @available(iOS 16.0, *)
 internal final class RoomScanViewController: UIViewController, RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
   private let options: RoomScanStartOptions

@@ -26,6 +26,7 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
+  # (RoomPlan.framework IS in the simulator SDK, so a simulator link finds it.)
   # RoomPlan does not exist on iOS 15. With a 15.1 deployment target Swift
   # weak-links a framework whose every symbol is newer than the target, but
   # that has NOT been checked on an iOS 15 phone for this module, so the weak

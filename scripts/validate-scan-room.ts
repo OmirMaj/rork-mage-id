@@ -55,7 +55,7 @@
 // Run: bun run scripts/validate-scan-room.ts
 // Pure node:fs + pure modules; no react-native import (those crash bun).
 
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -1003,6 +1003,59 @@ for (const [id, fn] of Object.entries(RULES)) {
       const js = walk('modules/mage-room-scan');
       if (js.length === 0 && swiftFiles.filter((f) => f.endsWith('.swift')).sort().join() === [...SWIFT_FILES].sort().join()) { pass += 1; console.log('  ✓ modules/mage-room-scan holds no JavaScript, and exactly the three Swift files this check reads'); }
       else { fail += 1; console.log(`  ✗ modules/mage-room-scan: JavaScript ${js.join(', ') || 'none'}; Swift ${swiftFiles.join(', ')}`); }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+}
+
+// ── the Swift against APPLE'S OWN iOS SDK (only when full Xcode is on the machine) ──
+// The stub check above proves the Swift is well formed. This one proves it
+// matches the real UIKit, AVFoundation and RoomPlan: the three files are
+// typechecked UNCHANGED against the iPhoneOS SDK (deployment target 15.1, the
+// app's floor) and the simulator SDK. Only ExpoModulesCore is still a stub
+// (the top section of typecheck/Stubs.swift, built as a module of that name);
+// its signatures were read against node_modules/expo-modules-core/ios.
+// A typecheck is not a link and not a run: the weak link on iOS 15 and
+// everything RoomPlan does on a phone are still on the device checklist.
+{
+  const sdkPath = (name: string): string | null => {
+    if (!existsSync('/usr/bin/xcrun')) return null;
+    const r = spawnSync('/usr/bin/xcrun', ['--sdk', name, '--show-sdk-path'], { encoding: 'utf8', timeout: 30_000 });
+    const out = (r.stdout || '').trim();
+    return r.status === 0 && out && existsSync(join(out, 'System/Library/Frameworks/RoomPlan.framework')) ? out : null;
+  };
+  const slices = [
+    ['a real iPhone (iPhoneOS SDK, iOS 15.1 floor)', sdkPath('iphoneos'), 'arm64-apple-ios15.1'],
+    ['the simulator (iPhoneSimulator SDK)', sdkPath('iphonesimulator'), 'arm64-apple-ios15.1-simulator'],
+  ] as const;
+  if (slices.some(([, sdk]) => !sdk)) {
+    const msg = "Swift typecheck against Apple's iOS SDK SKIPPED: no Xcode with an iOS SDK that has RoomPlan on this machine";
+    if (process.env.SCAN_ROOM_REQUIRE_SWIFT === '1') { fail += 1; console.log(`  ✗ ${msg}`); } else console.log(`  - ${msg}`);
+  } else {
+    const dir = mkdtempSync(join(tmpdir(), 'scan-room-sdk-'));
+    try {
+      const stubs = read('modules/mage-room-scan/typecheck/Stubs.swift');
+      const cut = stubs.indexOf('// ── UIKit');
+      const expoOnly = stubs.slice(0, cut).replace(/^import AVFoundation$/m, 'import AVFoundation\nimport UIKit');
+      if (cut < 0 || !/open class Module/.test(expoOnly) || /class UIViewController/.test(expoOnly)) {
+        fail += 1; console.log('  ✗ typecheck/Stubs.swift: the ExpoModulesCore section could not be cut out on its own');
+      } else {
+        const expoFile = join(dir, 'ExpoModulesCore.swift');
+        writeFileSync(expoFile, expoOnly);
+        const sources = SWIFT_FILES.map((f) => join(ROOT, 'modules/mage-room-scan/ios', f));
+        for (const [label, sdk, target] of slices) {
+          const out = join(dir, target);
+          mkdirSync(out);
+          const mod = spawnSync('/usr/bin/xcrun', ['swiftc', '-emit-module', '-module-name', 'ExpoModulesCore', '-parse-as-library', '-sdk', sdk as string, '-target', target, expoFile, '-emit-module-path', join(out, 'ExpoModulesCore.swiftmodule')], { encoding: 'utf8', timeout: 180_000 });
+          const r = mod.status === 0
+            ? spawnSync('/usr/bin/xcrun', ['swiftc', '-typecheck', '-sdk', sdk as string, '-target', target, '-I', out, '-module-name', 'MageRoomScan', ...sources], { encoding: 'utf8', timeout: 180_000 })
+            : mod;
+          const errs = (r.stderr || r.error?.message || '').split('\n').filter((l) => /error/.test(l)).slice(0, 5);
+          if (r.status === 0) { pass += 1; console.log(`  ✓ the Swift, unchanged, typechecks against Apple's real UIKit, AVFoundation and RoomPlan for ${label}`); }
+          else { fail += 1; console.log(`  ✗ the Swift does not typecheck against Apple's SDK for ${label}`); for (const e of errs) console.log(`      ${e}`); }
+        }
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

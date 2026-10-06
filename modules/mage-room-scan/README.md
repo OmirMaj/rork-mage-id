@@ -6,10 +6,11 @@ It presents Apple's own scanner full screen and hands back Apple's
 TypeScript under `utils/roomScan/`, where they are tested without a phone and
 can be fixed over the air.
 
-**Status: written, never compiled against the iOS SDK, never run on a phone,
-not in any release.** The feature is dark behind `SCAN_ROOM_ENABLED = false`
-(`constants/featureFlags.ts`). Read `docs/scan-the-room-native-checklist.md`
-before the first build.
+**Status: written and typechecked against Apple's iOS SDK (iPhoneOS 27.0 at
+the 15.1 floor, and the simulator SDK) with only ExpoModulesCore stubbed. Never
+linked into an app, never run on a phone, not in any release.** The feature is
+dark behind `SCAN_ROOM_ENABLED = false` (`constants/featureFlags.ts`). Read
+`docs/scan-the-room-native-checklist.md` before the first build.
 
 ## Why there is no JavaScript in here
 
@@ -70,14 +71,25 @@ This lane does not touch `app.json`.
 
 Each has its own sentence on the screen (`hooks/useRoomScanCopy.ts`).
 
-## Typechecking the Swift without Xcode
+## Typechecking the Swift
 
-`scripts/validate-scan-room.ts` typechecks the three files in `ios/` against
-`typecheck/Stubs.swift`, with RoomPlan present and with it compiled out,
-whenever the Command Line Tools' `swiftc` is on the machine. The stubs are a
-claim about Apple's API, written from the documentation. They catch typos,
-access control and optionality. They cannot catch a RoomPlan signature the
-stubs have wrong. EAS and a real phone are the final word.
+`scripts/validate-scan-room.ts` does it two ways.
+
+1. **Against stubs, on any Mac with the Command Line Tools.** The three files
+   in `ios/` are typechecked against `typecheck/Stubs.swift`, with RoomPlan
+   present and with it compiled out. The stubs are a claim about Apple's API.
+   They catch typos, access control and optionality.
+2. **Against Apple's own iOS SDK, when full Xcode is installed.** The same three
+   files, unchanged, are typechecked against the real UIKit, AVFoundation and
+   RoomPlan for a phone (deployment target 15.1) and for the simulator. Only
+   ExpoModulesCore is a stub there (the top section of `Stubs.swift`); the
+   calls it stands in for were read against
+   `node_modules/expo-modules-core/ios`. This is the check that says the
+   RoomPlan names and signatures are right. It last passed on Xcode's
+   iPhoneOS 27.0 SDK on 2026-10-06.
+
+Neither is a link or a run. Whether the weak link holds on iOS 15, and
+everything RoomPlan does with a camera, is settled only by a build on a phone.
 
 ## Not in this module yet
 

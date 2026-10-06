@@ -189,8 +189,8 @@ export const FIRST_JOB_PATH_ENABLED = true;
 // utils/roomScan/native.ts never looks the native module up (its one optional
 // lookup is refused before it runs), so no build, old or new, touches it.
 //
-// Why it is off: the native module (modules/mage-room-scan) has never been
-// compiled or run on a phone, the parser was written from Apple's documented
+// Why it is off: the native module (modules/mage-room-scan) typechecks against
+// Apple's iOS SDK but has never been linked into an app or run on a phone, the parser was written from Apple's documented
 // structure and has not read a real export, the camera permission sentence in
 // app.json still says no video is recorded, kept or uploaded (a scan keeps the
 // room's shape), and nobody has measured how far a scan is from a tape.

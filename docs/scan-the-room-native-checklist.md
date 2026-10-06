@@ -2,8 +2,9 @@
 
 Written 2026-10-06 by lane SCANROOM. The JavaScript for Phase 1 is in the repo
 and dark (`SCAN_ROOM_ENABLED = false`). The native module
-(`modules/mage-room-scan`) is written and has never been compiled against the
-iOS SDK or run on a phone. Nothing here has been applied, built or submitted.
+(`modules/mage-room-scan`) is written and typechecks against Apple's iOS SDK
+(iPhoneOS 27.0, deployment target 15.1, and the simulator SDK). It has never
+been linked into an app or run on a phone. Nothing here has been applied, built or submitted.
 
 Work through this page in order. Do not turn the flag on until section 8 is
 done.
@@ -89,25 +90,38 @@ Also in that commit, outside the code:
 
 ## 4. Every Swift line to read before trusting the build (UNSURE list)
 
-Written from Apple's documentation. The Mac typecheck uses hand-written stubs
-(`modules/mage-room-scan/typecheck/Stubs.swift`), so it proves the Swift is
-well-formed, not that it matches Apple's SDK.
+Two things were checked on a Mac with Xcode on 2026-10-06, and
+`bun run test:scan-room` repeats both whenever Xcode is installed:
+
+- The three Swift files, unchanged, typecheck against Apple's real UIKit,
+  AVFoundation and RoomPlan (iPhoneOS 27.0 SDK, deployment target 15.1) and
+  against the simulator SDK. So the RoomPlan type names, delegate method
+  labels, `Instruction` cases, `export(to:exportOptions:)` and the `NSCoding`
+  inheritance are right for that SDK.
+- ExpoModulesCore was a stub in that check. Each call into it
+  (`Record`, `@Field`, `Exception.code` and `reason`, `GenericException`,
+  `Promise.resolve` and `reject`, `AsyncFunction` with a record and a promise,
+  `.runOnQueue(.main)`, `appContext?.utilities?.currentViewController()`) was
+  read against `node_modules/expo-modules-core/ios` and is used the same way by
+  Expo's own modules (`expo-document-picker`, `expo-apple-authentication`).
+
+A typecheck is not a link and not a run. What is still unsure:
 
 | # | File | What | Why unsure | What to do |
 |---|---|---|---|---|
-| 1 | `MageRoomScan.podspec` | `s.weak_frameworks = 'RoomPlan'` | Not checked that CocoaPods plus a static framework carries the weak link into the app target | Launch on iOS 15. If it crashes at launch, add `-weak_framework RoomPlan` to `OTHER_LDFLAGS` through a config plugin |
-| 2 | `RoomScanSupport.swift` | `class RoomScanViewController: UIViewController, RoomCaptureViewDelegate, RoomCaptureSessionDelegate` | `RoomCaptureViewDelegate` inherits `NSCoding` in the SDK. A `UIViewController` already conforms, which is why the controller is its own delegate. If the compiler asks for `encode(with:)`, add an empty override | First compile |
-| 3 | `RoomScanSupport.swift` | `captureView(shouldPresent:error:)` and `captureView(didPresent:error:)` | Exact parameter labels (`roomDataForProcessing`, `processedResult`) are from Apple's sample | First compile |
-| 4 | `RoomScanSupport.swift` | `captureSession(_:didProvide:)` switch over `RoomCaptureSession.Instruction` | Case names (`moveCloseToWall`, `moveAwayFromWall`, `slowDown`, `turnOnLight`, `lowTexture`, `normal`) are from the documentation | First compile |
-| 5 | `RoomScanSupport.swift` | `captureSession(_:didEndWith:error:)` | Whether a failed session also calls `captureView(didPresent:)`. The code reports the error here and guards against resolving twice | Deny the camera mid-scan, cover the lens, and check one result arrives |
-| 6 | `RoomScanSupport.swift` | `try processedResult.export(to: url, exportOptions: .parametric)` | Signature from the documentation; off by default (`exportUsdz: false`) | Turn it on in a dev build and log the file size |
-| 7 | `RoomScanSupport.swift` | `JSONEncoder().encode(processedResult)` | `CapturedRoom` is documented as `Codable`. The KEY NAMES and the layout of `transform` and `dimensions` in the output are not documented | Section 5 |
+| 1 | `MageRoomScan.podspec` | `s.weak_frameworks = 'RoomPlan'` | Not checked that CocoaPods plus a static framework carries the weak link into the app target. RoomPlan is in the simulator SDK, so a simulator link should find it | Launch on iOS 15. If it crashes at launch, add `-weak_framework RoomPlan` to `OTHER_LDFLAGS` through a config plugin |
+| 2 | all three | The typecheck used the iPhoneOS 27.0 SDK | EAS may build with an older Xcode. The RoomPlan calls used are all iOS 16 API, so an older SDK should accept them, but that was not run | First EAS build log |
+| 3 | `MageRoomScanModule.swift` | Every call into ExpoModulesCore | Read against the source, not compiled against it | First EAS build log |
+| 4 | `RoomScanSupport.swift` | `captureSession(_:didEndWith:error:)` | Whether a failed session also calls `captureView(didPresent:)`. The code reports the error here and guards against resolving twice | Deny the camera mid-scan, cover the lens, and check one result arrives |
+| 5 | `RoomScanSupport.swift` | `captureView(shouldPresent:error:)` returns false on an error | Whether RoomPlan then leaves the screen waiting. The session delegate should have reported the error first | Force an error (cover the lens for a long time) and check the screen closes |
+| 6 | `RoomScanSupport.swift` | `try processedResult.export(to: url, exportOptions: .parametric)` | Compiles; never run. Off by default (`exportUsdz: false`) | Turn it on in a dev build and log the file size |
+| 7 | `RoomScanSupport.swift` | `JSONEncoder().encode(processedResult)` | Compiles (`CapturedRoom` is `Codable`). The KEY NAMES and the layout of `transform` and `dimensions` in the output are not documented | Section 5 |
 | 8 | `RoomScanSupport.swift` | `UINavigationController` wrapper with system Cancel and Done | Whether the bar covers Apple's own coaching text at the top of `RoomCaptureView` | Look at it on a phone. If it does, make the bar transparent or move the buttons |
-| 9 | `RoomScanSupport.swift` | `viewWillDisappear` stops the session | Whether stopping there also fires when Apple presents its own sheet on top | Check a normal Done still returns a room |
-| 10 | `MageRoomScanModule.swift` | `AsyncFunction("startScan") { (options: RoomScanStartOptions, promise: Promise) in ... }.runOnQueue(.main)` | The record-plus-promise closure form with `runOnQueue` is used by Expo's own modules, not by `mage-ar-track` | First compile |
+| 9 | `RoomScanSupport.swift` | `viewWillDisappear` stops the session | Whether that also fires when Apple presents its own sheet on top, and so ends a scan early | Check a normal Done still returns a room |
+| 10 | `RoomScanSupport.swift` | `doneTapped` calls `captureSession.stop()` and waits for `captureView(didPresent:)` | Apple's sample does the same. How long processing takes, and what the person sees meanwhile, is not known | Time it on a phone. Add a "Working" label if it is more than a second or two |
 | 11 | `MageRoomScanModule.swift` | `self.appContext?.utilities?.currentViewController()` | Returns the top controller in Expo SDK 54. Not checked from inside a modal route | Start a scan from the screen as it is presented |
 | 12 | `RoomScanSupport.swift` | `UIApplication.shared.isIdleTimerDisabled` | Restored in two places; check the phone still sleeps after a scan | Leave the phone after a scan |
-| 13 | `RoomScanSupport.swift` | `#if canImport(RoomPlan) && !targetEnvironment(simulator)` | Whether RoomPlan can be imported on the simulator at all is moot here: the simulator slice never imports it | Build for the simulator once |
+| 13 | `MageRoomScanModule.swift` | `private var scanning` read and written on the main queue | `.runOnQueue(.main)` is what keeps it on one queue; the completion is called from `dismiss`, also on main | Tap Start Scan twice quickly |
 
 ## 5. First real export (the parser has not read one)
 

@@ -67,8 +67,10 @@ public class MageRoomScanModule: Module {
         return
       }
       self.scanning = true
-      RoomScanSupport.present(from: presenter, options: options) { [weak self] result in
-        self?.scanning = false
+      // The module lives as long as the app does, so the strong `self` the
+      // outer closure already holds is used here too.
+      RoomScanSupport.present(from: presenter, options: options) { result in
+        self.scanning = false
         switch result {
         case .success(let payload): promise.resolve(payload)
         case .failure(let error): promise.reject(error)
