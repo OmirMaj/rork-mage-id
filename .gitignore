@@ -19,6 +19,9 @@ android/
 # every commit (autolinking then silently omits the module).
 !/modules/*/ios/
 !/modules/*/android/
+# A native module that is written but not yet proven waits in native-staging/
+# (outside Expo autolinking). Its Swift is source too.
+!/native-staging/*/ios/
 
 # macOS
 .DS_Store

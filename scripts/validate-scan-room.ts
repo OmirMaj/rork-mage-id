@@ -132,7 +132,7 @@ const FEATURE_FILES = [
 ] as const;
 const SWIFT_FILES = ['RoomScanTypes.swift', 'MageRoomScanModule.swift', 'RoomScanSupport.swift'] as const;
 const OTHER_FILES = [
-  'constants/featureFlags.ts', 'app.json', 'package.json', 'docs/scan-the-room-native-checklist.md',
+  'constants/featureFlags.ts', 'app.json', 'package.json', '.gitignore', 'docs/scan-the-room-native-checklist.md',
   'native-staging/mage-room-scan/package.json', 'native-staging/mage-room-scan/expo-module.config.json',
   'native-staging/mage-room-scan/ios/MageRoomScan.podspec', 'native-staging/mage-room-scan/README.md',
   'scripts/fixtures/scan-room/builder.ts',
@@ -1107,6 +1107,7 @@ rule('N4 the native module is one optional lookup, not at module scope, refused 
   const linking = JSON.stringify(rootPkg.expo?.autolinking ?? {});
   check(o, !/native-staging/.test(linking) && !/nativeModulesDir/.test(linking), `package.json points Expo autolinking somewhere new: ${linking}`);
   check(o, !('mage-room-scan' in (rootPkg.dependencies ?? {})) && !('mage-room-scan' in (rootPkg.devDependencies ?? {})) && !/native-staging/.test(JSON.stringify(rootPkg.dependencies ?? {})), 'package.json depends on the staged module (a dependency is autolinked too)');
+  check(o, /^!\/native-staging\/\*\/ios\/$/m.test(w.F['.gitignore']), '.gitignore would drop the staged Swift (the `ios/` rule matches at any depth; native-staging needs its own negation)');
   const pkg = JSON.parse(w.F['native-staging/mage-room-scan/package.json'] || '{}') as Record<string, unknown>;
   check(o, pkg.private === true && !('main' in pkg) && !('module' in pkg) && !('exports' in pkg), 'the module package has a JS entry point');
   const cfg = JSON.parse(w.F['native-staging/mage-room-scan/expo-module.config.json'] || '{}') as { platforms?: string[]; apple?: { modules?: string[] } };
@@ -1584,6 +1585,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'J1', what: 'Back drops an unsaved scan without asking', plant: text('components/roomScan/RoomScanFlow.tsx', "    else if (step === 'plan' && dirty) setLeaving(true);\n", '') },
   { rule: 'J1', what: 'the saved list is not read again after a push', plant: text('components/roomScan/RoomScanFlow.tsx', 'if (stored) { setDirty(false); await refreshSavedList(); }', 'if (stored) { setDirty(false); }') },
   { rule: 'N4', what: 'the module is moved back under modules/ (autolinked)', plant: (w) => ({ ...w, modulesDirs: [...w.modulesDirs, 'mage-room-scan'] }) },
+  { rule: 'N4', what: '.gitignore drops the staged Swift', plant: text('.gitignore', '!/native-staging/*/ios/', '') },
   { rule: 'N4', what: 'package.json points autolinking at the staging folder', plant: text('package.json', '"scripts": {', '"expo": { "autolinking": { "nativeModulesDir": "./native-staging" } },\n  "scripts": {') },
   { rule: 'N5', what: 'the idle timer is set to false instead of what it was', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', 'UIApplication.shared.isIdleTimerDisabled = prior', 'UIApplication.shared.isIdleTimerDisabled = false') },
   { rule: 'N5', what: 'shouldPresent returns false on an error and tells nobody', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', '      onMain { self.fail(message) }\n      return false', '      return false') },
