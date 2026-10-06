@@ -371,7 +371,7 @@ describe('Z2 golden — the phone is unchanged (390 × 844 iOS)', () => {
   // utils/weatherService.ts (content rights, 2026-10-03, had removed the old
   // read from an unlicensed service). NAMED DELTA in both goldens below, one
   // re-record each: the Refresh control is back in the Weather header; b1 gains
-  // the reading, its "From OpenWeather at <time>." line and OpenWeather's
+  // the reading, its "From OpenWeather at <time> <UTC offset>." line and OpenWeather's
   // credit ("1 of 5 filled"); b2 (a country on its own is no location) gains
   // the one quiet line and nothing else. The W6D_DUMP_DIR diff against the
   // base daily-report.tsx shows those lines are the only change.
@@ -380,7 +380,7 @@ describe('Z2 golden — the phone is unchanged (390 × 844 iOS)', () => {
     const tree = await mountDailyReport(PARK_SLOPE);
     expect(fetchCalls.filter((u) => u.includes('wttr.in'))).toEqual([]);
     expect(currentAsks).toHaveLength(1);
-    expect(screen.getByTestId('dfr-weather-provenance').props.children).toMatch(/^From OpenWeather at \d{1,2}:\d{2} [AP]M\.$/);
+    expect(screen.getByTestId('dfr-weather-provenance').props.children).toMatch(/^From OpenWeather at \d{1,2}:\d{2} [AP]M UTC(?:[+-]\d{1,2}(?::\d{2})?)?\.$/);
     expect(screen.getByTestId('weather-credit')).toBeTruthy();
     expect(screen.getByText('Weather data provided by OpenWeather')).toBeTruthy();
     expect(screen.getByDisplayValue('61°F')).toBeTruthy();
@@ -513,6 +513,53 @@ describe('Z2 deltas — the sanctioned copy and the weather place', () => {
     expect(screen.getByTestId('dfr-weather-provenance').props.children).toBe('Typed by hand.');
     expect(screen.queryByTestId('weather-credit')).toBeNull();
     expect(screen.getByDisplayValue('58')).toBeTruthy();
+  });
+
+  // Review finding 1 (2026-10-06): the "ask first" check runs at the tap, the
+  // answer arrives later. Words typed while the read is in flight were never
+  // asked about, so the answer is dropped.
+  it('daily-report: Refresh never replaces a temperature typed while it was reading', async () => {
+    await mountDailyReport(PARK_SLOPE);
+    expect(screen.getByDisplayValue('61°F')).toBeTruthy();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ws = require('@/utils/weatherService') as typeof import('@/utils/weatherService');
+    type Answer = Awaited<ReturnType<import('@/utils/weatherService').CurrentWeatherTransport>>;
+    const reading = (temp: number): Answer => ({ cod: 200, dt: Math.floor(new Date().getTime() / 1000) - 60, ...OPENWEATHER_NOW, main: { temp } });
+    /** A read that stays in flight until the test answers it. */
+    const hang = () => {
+      let answer: (v: Answer) => void = () => {};
+      // Replacing the transport also clears the 10-minute cache, so the next
+      // Refresh really asks.
+      ws.__setCurrentWeatherTransportForTests(() => new Promise<Answer>((resolve) => { answer = resolve; }));
+      return (v: Answer) => answer(v);
+    };
+
+    // Control: an untouched Refresh does land, so the drop below is the rule
+    // and not a read that never arrived.
+    let answer = hang();
+    fireEvent.press(screen.getByTestId('dfr-weather-refresh'));
+    await pump(2);
+    expect(screen.getByText('Reading')).toBeTruthy();
+    answer(reading(70.2));
+    await pump(2);
+    expect(screen.getByDisplayValue('70°F')).toBeTruthy();
+    expect(screen.getByTestId('dfr-weather-provenance').props.children).toMatch(/^From OpenWeather at /);
+
+    // The case: tap Refresh, type while it is reading, then the answer comes.
+    answer = hang();
+    fireEvent.press(screen.getByTestId('dfr-weather-refresh'));
+    await pump(2);
+    expect(screen.getByText('Reading')).toBeTruthy();
+    fireEvent.changeText(screen.getByDisplayValue('70°F'), '58');
+    await pump(2);
+    answer(reading(80.4));
+    await pump(3);
+    expect(screen.getByDisplayValue('58')).toBeTruthy();
+    expect(screen.queryByDisplayValue('80°F')).toBeNull();
+    expect(screen.getByTestId('dfr-weather-provenance').props.children).toBe('Typed by hand.');
+    expect(screen.queryByTestId('weather-credit')).toBeNull();
+    // The read is over: the control is offered again.
+    expect(screen.getByText('Refresh')).toBeTruthy();
   });
 
   it("daily-report: a country-only location is never sent to any weather service", async () => {

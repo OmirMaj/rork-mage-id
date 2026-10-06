@@ -18,7 +18,10 @@
 // OpenWeather's CURRENT conditions instead (/data/2.5/weather, same free plan,
 // same key), for the daily report's "conditions on site today":
 //   { cod: '200', kind: 'current', dt, name, main: { temp },
-//     weather: [{ main, description }], wind: { speed, deg } }
+//     weather: [{ main, description }], wind: { speed?, deg? } }
+// `wind.speed` and `wind.deg` are each present only when OpenWeather sent a
+// number: a missing wind is never answered as 0 (that would print "Calm",
+// an observation nobody made).
 // Same sign-in check, same per-user hourly ceiling, same 10-minute cache
 // (keyed apart from the forecast). No `kind`, or any other value, is the
 // forecast exactly as before.
@@ -177,7 +180,10 @@ serve(async (req) => {
       name: now.name ?? '',
       main: { temp },
       weather: (now.weather ?? []).slice(0, 1).map((w) => ({ main: w.main ?? '', description: w.description ?? '' })),
-      wind: { speed: now.wind?.speed ?? 0, ...(typeof now.wind?.deg === 'number' ? { deg: now.wind.deg } : {}) },
+      wind: {
+        ...(typeof now.wind?.speed === 'number' && Number.isFinite(now.wind.speed) ? { speed: now.wind.speed } : {}),
+        ...(typeof now.wind?.deg === 'number' ? { deg: now.wind.deg } : {}),
+      },
     };
     if (cache.size > 500) cache.clear();
     cache.set(key, { at: Date.now(), body: current });

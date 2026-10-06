@@ -306,7 +306,7 @@ ok('the one unattended weather read is marked as the app acting, and is the lice
     && !/wttr\.in/.test(dfrCode) && !/getSimulatedForecast|getForecastWithFallback/.test(dfrCode),
   'an unmarked mount read is indistinguishable from the super tapping Refresh');
 ok('a fill that replaced nothing a person wrote joins the unsaved-work baseline',
-  /const personsWords = !autoReadMayWrite\(weatherRef\.current, weatherTouchedRef\.current\);\s*if \(auto && personsWords\) return;[\s\S]{0,260}if \(!personsWords\) setAutoFilled\(p => \(\{ \.\.\.p, weather: result\.weather \}\)\);/.test(dfrCode),
+  /const personsWords = !autoReadMayWrite\(weatherRef\.current, weatherTouchedRef\.current\);\s*if \(auto && personsWords\) return;[\s\S]{0,700}if \(!personsWords\) setAutoFilled\(p => \(\{ \.\.\.p, weather: result\.weather \}\)\);/.test(dfrCode),
   'otherwise every new DFR on a project with a location is dirty a second after it opens, ' +
   'and a draft of the app\'s own reading is written and offered back the next morning');
 ok('a read that replaced what a person typed (Refresh, after asking) is an edit, not a baseline',

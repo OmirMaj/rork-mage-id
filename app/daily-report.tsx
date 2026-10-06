@@ -113,7 +113,7 @@ import { isRecordableCase } from '@/utils/safety/oshaLog';
 import { useLaborRates } from '@/hooks/useLaborRates';
 import {
   appWeatherIsMisdated, autoReadMayWrite, canReadLiveWeatherFor, isOpenWeatherReading,
-  readLiveWeatherForDailyReport, readOnReportDay, settleDfrWeather, weatherProvenanceKind,
+  dfrReadPlaceTime, readLiveWeatherForDailyReport, readOnReportDay, settleDfrWeather, weatherProvenanceKind,
 } from '@/utils/weatherService';
 import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 import { useT } from '@/contexts/LanguageContext';
@@ -235,6 +235,8 @@ const MAX_DFR_PHOTOS = 10;
 /** The weather block a brand-new report starts with. Shared with the draft
  *  baseline below so "untouched" means the same thing in both places. */
 const EMPTY_DFR_WEATHER: DFRWeather = { temperature: '', conditions: '', wind: '', isManual: true };
+/** The three weather strings as one value, to tell whether the block changed. */
+const dfrWeatherText = (w: DFRWeather): string => JSON.stringify([w.temperature, w.conditions, w.wind]);
 /** What WeatherCredit is handed: one live day for a reading the app took from
  *  OpenWeather, nothing for typed weather (so it renders nothing). */
 const DFR_CREDIT_LIVE = [{ source: 'live' }] as const;
@@ -1928,26 +1930,34 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
    *  its source and the time stored with it; typed weather says typed; a record
    *  saved before the source was stored never claims one. */
   const weatherFromOpenWeather = isOpenWeatherReading(weather);
+  /** The clock WHERE the reading was taken, with its UTC offset ("3:42 PM
+   *  UTC-4"), so an office in another zone reads the same time the foreman
+   *  saw. A block saved without the place falls back to this device's clock. */
+  const weatherReadAtLabel = useMemo(() => {
+    const place = dfrReadPlaceTime(weather);
+    if (place) return `${formatTimeL(place.wall, lang, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })} ${place.zone}`;
+    return formatTimeL(new Date(weather.readAt ?? ''), lang);
+  }, [weather, lang]);
   const weatherProvenance = useMemo(() => {
     const kind = weatherProvenanceKind({
       isManual: weather.isManual,
       reportIsToday,
       hasValue: Boolean(weather.temperature || weather.conditions || weather.wind),
       source: weather.source,
-      readAtLabel: weatherFromOpenWeather && weather.readAt ? formatTimeL(new Date(weather.readAt), lang) : undefined,
+      readAtLabel: weatherFromOpenWeather && weather.readAt ? weatherReadAtLabel : undefined,
       readOnReportDay: readOnReportDay(weather, calendarDayOf(reportDate)),
     });
     switch (kind) {
       case 'typed': return t('field.dfr.weather.typedByHand', 'Typed by hand.');
       case 'openweather': return t('field.dfr.weather.fromOpenWeatherAt', 'From OpenWeather at {time}.', {
-        time: formatTimeL(new Date(weather.readAt ?? ''), lang),
+        time: weatherReadAtLabel,
       });
       case 'openweather_other_day': return t('field.dfr.weather.fromOpenWeatherOtherDay', 'From OpenWeather, read on a different day than this report. Check it against what you saw.');
       case 'saved_today': return t('field.dfr.weather.savedNoSource', 'Saved with this report. The source was not recorded.');
       case 'saved_past': return t('field.dfr.weather.savedNoSourcePast', 'Saved without a source. MAGE cannot read a past day, so check it against what you saw.');
       default: return '';
     }
-  }, [weather, weatherFromOpenWeather, reportIsToday, reportDate, lang, t]);
+  }, [weather, weatherFromOpenWeather, weatherReadAtLabel, reportIsToday, reportDate, t]);
 
   // Pre-fill manpower for the report's day. Two sources, in order of truth:
   //
@@ -2897,13 +2907,21 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // `opts.auto` marks the read the screen makes by itself. The Refresh control
   // passes nothing. Never wire this straight to onPress: the press event would
   // arrive as `opts`.
-  const readLiveWeather = useCallback(async (opts?: { auto?: boolean }) => {
+  // `opts.confirmedReplace` marks the one read the person asked to overwrite
+  // their own words with (the "Replace" answer).
+  const readLiveWeather = useCallback(async (opts?: { auto?: boolean; confirmedReplace?: boolean }) => {
     const auto = opts?.auto === true;
+    const confirmedReplace = opts?.confirmedReplace === true;
     // The day this read is FOR. The service refuses any day but today before
     // it asks and again after the answer; the screen re-checks that the report
     // was not re-dated while the request was in flight.
     const requestedDay = calendarDayOf(reportDateRef.current);
     const seq = ++weatherReadSeqRef.current;
+    // The block as it stands when the read STARTS. The "ask first" check ran at
+    // the tap; the answer arrives seconds later, and anything typed or dictated
+    // in between was never asked about.
+    const beforeText = dfrWeatherText(weatherRef.current);
+    const touchedBefore = weatherTouchedRef.current;
     setWeatherLoading(true);
     try {
       const result = await readLiveWeatherForDailyReport({
@@ -2921,6 +2939,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       // dictated is theirs: an unattended read never replaces it.
       const personsWords = !autoReadMayWrite(weatherRef.current, weatherTouchedRef.current);
       if (auto && personsWords) return;
+      // Words that arrived while the read was in flight win: the answer is
+      // dropped without writing. The one exception is the read the person
+      // just confirmed with "Replace": they asked for their words to go.
+      const changedInFlight = dfrWeatherText(weatherRef.current) !== beforeText
+        || (weatherTouchedRef.current && !touchedBefore);
+      if (changedInFlight && !confirmedReplace) return;
       setLiveWeatherMissing(false);
       weatherTouchedRef.current = false;
       setWeather(result.weather);
@@ -2957,7 +2981,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       t('field.dfr.weather.replaceBody', 'The weather you typed will be replaced with the current reading from OpenWeather.'),
       [
         { text: t('field.dfr.weather.keepMine', 'Keep Mine'), style: 'cancel' },
-        { text: t('field.dfr.weather.replace', 'Replace'), onPress: () => { void readLiveWeather(); } },
+        { text: t('field.dfr.weather.replace', 'Replace'), onPress: () => { void readLiveWeather({ confirmedReplace: true }); } },
       ],
     );
   }, [readLiveWeather, t]);
@@ -2988,10 +3012,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // "3 sections from one note" from this list, never from a guess.
     const fields: string[] = [];
     // Dictated weather beats a reading the app took (his account of the day
-    // wins), but an empty dictation never wipes that reading.
+    // wins). A note that said nothing about the weather does nothing here: it
+    // neither claims the block nor wipes a reading or a half-typed value.
     const dictatedWeather = Boolean(parsed.weather
       && (parsed.weather.temperature || parsed.weather.conditions || parsed.weather.wind));
-    if (parsed.weather && (!weather.temperature || (dictatedWeather && isOpenWeatherReading(weather)))) {
+    if (parsed.weather && dictatedWeather && (!weather.temperature || isOpenWeatherReading(weather))) {
       weatherTouchedRef.current = true;
       // isManual TRUE: dictated weather is the super's own account
       // of the day, not a reading from a weather service. The
@@ -4452,7 +4477,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 onGenerated={(parsed) => {
                   // Inferred from photos, never read from a weather service —
                   // so it is not a fetched reading. See DFR-WEATHER-DAY.
-                  if (parsed.weather && !weather.temperature) { weatherTouchedRef.current = true; setWeather({ ...parsed.weather, isManual: true }); }
+                  if (parsed.weather && (parsed.weather.temperature || parsed.weather.conditions || parsed.weather.wind) && !weather.temperature) { weatherTouchedRef.current = true; setWeather({ ...parsed.weather, isManual: true }); }
                   if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
                   if (parsed.workPerformed && !workPerformed) setWorkPerformed(parsed.workPerformed);
                   if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);

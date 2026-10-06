@@ -25,6 +25,14 @@
 //       wherever that reading shows: screen, PDF, email, client portal, the
 //       report log and lists. Never on typed weather.
 //   R7  An unattended fill does not make a new report "dirty".
+//   Review round (2026-10-06), folded into the rules above:
+//     R3  a missing wind is never recorded as "Calm"; a reading older than 45
+//         minutes is not "now"; the direct request gives up after 8 seconds.
+//     R5  words typed while a Refresh is in flight win; a note that said
+//         nothing about the weather neither claims the block nor wipes it.
+//     R6  the reading carries the calendar day and UTC offset WHERE it was
+//         taken, and the same-day test and the printed time use those, never
+//         the viewing device's zone ("9:30 PM UTC-7" on every device).
 //   R8  Rate-limit discipline: one request per location per 10 minutes; the
 //       relay keeps its sign-in check and per-user hourly ceiling for both kinds.
 //
@@ -56,6 +64,7 @@ const LOG = 'components/logs/DailyReportLog.tsx';
 const PROJECT = 'app/project-detail.tsx';
 const WEEKLY = 'app/weekly-snapshot.tsx';
 const TYPES = 'types/index.ts';
+const INBOX = 'app/report-inbox.tsx';
 
 // ── planted mutations (in memory; SERVICE ones are also imported as a copy) ──
 type Mutation = { name: string; rule: string; file: string; from?: string; to?: string; append?: string };
@@ -72,14 +81,23 @@ const MUTATIONS: Mutation[] = [
     to: "  if (!reading) { const sim = getSimulatedForecast(new Date(), 1)[0]; return { ok: true, weather: { temperature: `${sim.tempHigh}°F`, conditions: sim.condition, wind: `${sim.windSpeed} mph`, isManual: false, source: 'openweather', readAt: new Date().toISOString() } }; }\n" },
   { rule: 'R3', name: 'the screen uses a simulated forecast', file: SCREEN, append: "\nvoid getSimulatedForecast(new Date(), 1);\n" },
   { rule: 'R3', name: 'a forecast payload is accepted as a current reading', file: SERVICE, from: '  if (data.list !== undefined) return null;\n', to: '' },
-  { rule: 'R3', name: 'a reading calculated hours ago is accepted as now', file: SERVICE, from: 'export const CURRENT_WEATHER_MAX_AGE_MS = 2 * 60 * 60 * 1000;', to: 'export const CURRENT_WEATHER_MAX_AGE_MS = 2000 * 60 * 60 * 1000;' },
+  { rule: 'R3', name: 'a reading calculated hours ago is accepted as now', file: SERVICE, from: 'export const CURRENT_WEATHER_MAX_AGE_MS = 45 * 60 * 1000;', to: 'export const CURRENT_WEATHER_MAX_AGE_MS = 2000 * 60 * 60 * 1000;' },
+  { rule: 'R3', name: 'the allowed age of a reading goes back to two hours', file: SERVICE, from: 'export const CURRENT_WEATHER_MAX_AGE_MS = 45 * 60 * 1000;', to: 'export const CURRENT_WEATHER_MAX_AGE_MS = 2 * 60 * 60 * 1000;' },
+  { rule: 'R3', name: 'a payload with no wind is recorded as calm (service)', file: SERVICE,
+    from: "    windMph: typeof speed === 'number' && Number.isFinite(speed) && speed >= 0 ? speed : null,", to: "    windMph: typeof speed === 'number' && Number.isFinite(speed) && speed >= 0 ? speed : 0," },
+  { rule: 'R3', name: 'an unobserved wind prints as calm', file: SERVICE, from: "    wind: mph == null ? '' : mph < 1 ? 'Calm'", to: "    wind: mph == null || mph < 1 ? 'Calm'" },
+  { rule: 'R3', name: 'the relay answers a missing wind as 0', file: RELAY,
+    from: "...(typeof now.wind?.speed === 'number' && Number.isFinite(now.wind.speed) ? { speed: now.wind.speed } : {}),", to: 'speed: now.wind?.speed ?? 0,' },
+  { rule: 'R3', name: 'the direct request has no time limit', file: SERVICE, from: ', { signal: controller.signal });', to: ');' },
+  { rule: 'R3', name: 'the time limit is never armed', file: SERVICE, from: '  const timer = setTimeout(() => controller.abort(), timeoutMs);', to: '  const timer = setTimeout(() => {}, timeoutMs);' },
+  { rule: 'R3', name: 'the time limit is minutes, not 8 seconds', file: SERVICE, from: 'export const CURRENT_WEATHER_TIMEOUT_MS = 8000;', to: 'export const CURRENT_WEATHER_TIMEOUT_MS = 800000;' },
   // R4
   { rule: 'R4', name: 'the service asks before checking the day', file: SERVICE,
     from: "  if (!canReadLiveWeatherFor(input.reportDay, today())) return { ok: false, reason: 'not_today' };\n  let query", to: '  let query' },
   { rule: 'R4', name: 'the service does not re-check the day after the answer', file: SERVICE,
     from: "  if (!canReadLiveWeatherFor(input.reportDay, day)) return { ok: false, reason: 'not_today' };\n", to: '' },
   { rule: 'R4', name: "yesterday's reading (or cache entry) is accepted today", file: SERVICE,
-    from: "  if (localCalendarDay(new Date(reading.fetchedAt)) !== day || localCalendarDay(new Date(reading.observedAt)) !== day) {\n    return { ok: false, reason: 'unavailable' };\n  }\n", to: '' },
+    from: "  if (dayAt(reading.fetchedAt) !== day || dayAt(reading.observedAt) !== day) {\n    return { ok: false, reason: 'unavailable' };\n  }\n", to: '' },
   { rule: 'R4', name: 'the unattended read runs on a report for another day', file: SCREEN,
     from: '    if (!reportIsToday) { autoWeatherDayRef.current = null; return; }\n', to: '' },
   { rule: 'R4', name: 'the unattended read runs on a saved report', file: SCREEN, from: '    if (isSavedReport || !project) return;\n', to: '    if (!project) return;\n' },
@@ -106,7 +124,24 @@ const MUTATIONS: Mutation[] = [
   { rule: 'R5', name: 'the misdated clear touches typed weather', file: SERVICE, from: '  if (w.isManual !== false) return false;\n  if (!(w.temperature', to: '  if (!(w.temperature' },
   { rule: 'R5', name: 'the misdated clear rewrites a saved report', file: SCREEN,
     from: '    if (existingReport) return;\n    if (!appWeatherIsMisdated(', to: '    if (!appWeatherIsMisdated(' },
+  { rule: 'R5', name: 'Refresh replaces words typed while it was reading', file: SCREEN, from: '      if (changedInFlight && !confirmedReplace) return;\n', to: '' },
+  { rule: 'R5', name: 'only a touch counts as a change in flight, not the words', file: SCREEN,
+    from: '      const changedInFlight = dfrWeatherText(weatherRef.current) !== beforeText\n        || (weatherTouchedRef.current && !touchedBefore);', to: '      const changedInFlight = false;' },
+  { rule: 'R5', name: 'every Refresh counts as a confirmed Replace', file: SCREEN, from: "    const confirmedReplace = opts?.confirmedReplace === true;", to: '    const confirmedReplace = !auto;' },
+  { rule: 'R5', name: 'an empty dictation claims the weather block', file: SCREEN,
+    from: '    if (parsed.weather && dictatedWeather && (!weather.temperature || isOpenWeatherReading(weather))) {', to: '    if (parsed.weather && (!weather.temperature || (dictatedWeather && isOpenWeatherReading(weather)))) {' },
   // R6
+  { rule: 'R6', name: 'the same-day test goes back to the viewing device\'s zone', file: SERVICE, from: '  if (place) return place.day === reportDay;\n', to: '' },
+  { rule: 'R6', name: 'the printed time loses its zone', file: SERVICE, from: " ${h24 < 12 ? 'AM' : 'PM'} ${place.zone}`;", to: " ${h24 < 12 ? 'AM' : 'PM'}`;" },
+  { rule: 'R6', name: 'the printed time is the viewing device\'s clock', file: SERVICE, from: '  const h24 = place.wall.getUTCHours();', to: '  const h24 = new Date(place.wall.getTime() - 5 * 3600_000).getUTCHours();' },
+  { rule: 'R6', name: 'the read does not store where it was taken', file: SERVICE, from: '      readDay,\n      readOffsetMin,\n', to: '' },
+  { rule: 'R6', name: 'saving a reading drops where it was taken', file: SERVICE, from: '      ...(place ? { readDay: w.readDay, readOffsetMin: w.readOffsetMin } : {}),\n', to: '' },
+  { rule: 'R6', name: 'a day and offset that disagree with the instant are trusted', file: SERVICE, from: '  if (wallClockDay(at, off) !== w.readDay) return null;\n', to: '' },
+  { rule: 'R6', name: 'the screen prints the read time on its own clock', file: SCREEN,
+    from: "    if (place) return `${formatTimeL(place.wall, lang, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })} ${place.zone}`;\n", to: '' },
+  { rule: 'R6', name: 'the place of the read no longer fits in the weather JSON', file: TYPES, from: '  readDay?: string;\n  readOffsetMin?: number;\n', to: '' },
+  { rule: 'R6', name: 'the report inbox drops the credit', file: INBOX, from: "ListFooterComponent={<WeatherCredit days={filtered.some(r => r.openWeather) ? [{ source: 'live' }] : []} />}", to: '' },
+  { rule: 'R6', name: 'the report inbox credits OpenWeather on typed weather', file: INBOX, from: 'openWeather: Boolean(dr.weather?.conditions) && isOpenWeatherReading(dr.weather),', to: 'openWeather: Boolean(dr.weather?.conditions),' },
   { rule: 'R6', name: 'typed weather with a leftover source counts as a reading', file: SERVICE, from: '  if (!w || w.isManual !== false) return false;\n', to: '  if (!w) return false;\n' },
   { rule: 'R6', name: 'a value with no stored read time counts as a reading', file: SERVICE, from: "  if (w.source !== 'openweather' || !w.readAt) return false;\n", to: '' },
   { rule: 'R6', name: 'the stored read time is the time of asking, not of the read', file: SERVICE, from: '      readAt: new Date(reading.fetchedAt).toISOString(),\n', to: '      readAt: new Date(now()).toISOString(),\n' },
@@ -292,6 +327,7 @@ async function main(): Promise<void> {
       ['no observation time', payload(at(6, 15, 40), { dt: undefined })],
       ['no words for the sky', payload(at(6, 15, 40), { weather: [] })],
       ['a reading calculated three hours ago', payload(at(6, 12, 30))],
+      ['a reading calculated 46 minutes ago', payload(at(6, 14, 56))],
     ];
     for (const [label, body] of bad) {
       S.__setCurrentWeatherTransportForTests(async () => { if (body instanceof Error) throw body; return body as never; });
@@ -306,10 +342,113 @@ async function main(): Promise<void> {
     ok('R8: a location that just failed is not asked again within a minute', failing === 1, `${failing} requests`);
     S.__setCurrentWeatherTransportForTests(null);
 
+    // ── Review finding 4: 45 minutes, and the label stays the READ time ──
+    ok('R3: the allowed age of a reading is 45 minutes', S.CURRENT_WEATHER_MAX_AGE_MS === 45 * 60 * 1000, String(S.CURRENT_WEATHER_MAX_AGE_MS));
+    S.__setCurrentWeatherTransportForTests(async () => payload(at(6, 14, 52)) as never);
+    const old50 = await run({ now: at(6, 15, 42) });
+    ok('R3: a reading calculated 50 minutes before it arrived → nothing is filled', old50.ok === false && old50.reason === 'unavailable', JSON.stringify(old50));
+    S.__setCurrentWeatherTransportForTests(async () => payload(at(6, 15, 2)) as never);
+    const old40 = await run({ now: at(6, 15, 42) });
+    ok('R3: one calculated 40 minutes before is accepted, and its stored time is the READ time (3:42 PM), not the calculation time',
+      old40.ok === true && old40.weather.readAt === new Date(at(6, 15, 42)).toISOString(), JSON.stringify(old40));
+
+    // ── Review finding 6: no wind in the payload is not "Calm" ───────────
+    S.__setCurrentWeatherTransportForTests(async () => payload(at(6, 15, 40), { wind: undefined }) as never);
+    const noWind = await run({ now: at(6, 15, 42) });
+    ok('R3: a payload with no wind is still a reading, and its wind is left empty (never "Calm")',
+      noWind.ok === true && noWind.weather.wind === '' && noWind.weather.temperature === '72°F' && S.isOpenWeatherReading(noWind.weather), JSON.stringify(noWind));
+    S.__setCurrentWeatherTransportForTests(async () => payload(at(6, 15, 40), { wind: { deg: 315 } }) as never);
+    const degOnly = await run({ now: at(6, 15, 42) });
+    ok('R3: a direction with no speed (the relay\'s answer for a missing wind) writes no wind either', degOnly.ok === true && degOnly.weather.wind === '', JSON.stringify(degOnly));
+    S.__setCurrentWeatherTransportForTests(async () => payload(at(6, 15, 40), { wind: { speed: 0 } }) as never);
+    const measuredCalm = await run({ now: at(6, 15, 42) });
+    ok('R3: a MEASURED 0 mph is "Calm"', measuredCalm.ok === true && measuredCalm.weather.wind === 'Calm', JSON.stringify(measuredCalm));
+    ok('R3: parseCurrentConditions carries the missing wind as null',
+      S.parseCurrentConditions(payload(at(6, 15, 40), { wind: {} }) as never, at(6, 15, 42))?.windMph === null
+      && S.parseCurrentConditions(payload(at(6, 15, 40)) as never, at(6, 15, 42))?.windMph === 8.4);
+
+    // ── Review finding 2: the reading says where it was taken ────────────
+    // Two reads no single viewing zone can judge right on its own clock: one
+    // at 9:30 PM in UTC-7 (already the 7th in UTC), one at 6:00 AM in UTC+10
+    // (still the 5th in UTC). Both are the 6th where they were taken.
+    const zoned = async (utcMs: number, offsetMin: number) => {
+      S.__setCurrentWeatherTransportForTests(async () => payload(utcMs - 120_000) as never);
+      return S.readLiveWeatherForDailyReport({ reportDay: DAY6, today: () => DAY6, now: () => utcMs, utcOffsetMinutes: () => offsetMin, location: SITE });
+    };
+    const pacific = await zoned(Date.UTC(2026, 9, 7, 4, 30), -420);
+    const sydney = await zoned(Date.UTC(2026, 9, 5, 20, 0), 600);
+    ok('R6: a read stores the calendar day and UTC offset where it was taken (9:30 PM, UTC-7)',
+      pacific.ok === true && pacific.weather.readDay === DAY6 && pacific.weather.readOffsetMin === -420
+      && pacific.weather.readAt === '2026-10-07T04:30:00.000Z', JSON.stringify(pacific));
+    ok('R6: ...and east of UTC as well (6:00 AM, UTC+10)',
+      sydney.ok === true && sydney.weather.readDay === DAY6 && sydney.weather.readOffsetMin === 600, JSON.stringify(sydney));
+    if (pacific.ok && sydney.ok) {
+      const P = S.settleDfrWeather(pacific.weather);
+      const Y = S.settleDfrWeather(sydney.weather);
+      ok('R6: saving keeps the day and the offset', P.readDay === DAY6 && P.readOffsetMin === -420 && Y.readOffsetMin === 600, JSON.stringify(P));
+      ok('R6: both were read on the report\'s day, on any viewing device', S.readOnReportDay(P, DAY6) && S.readOnReportDay(Y, DAY6));
+      ok('R4: ...so neither is misdated, and neither gets the "different day" caveat',
+        !S.appWeatherIsMisdated(P, DAY6, DAY7) && !S.appWeatherIsMisdated(Y, DAY6, DAY6)
+        && S.dfrWeatherSourceLine(P, DAY6) === 'From OpenWeather at 9:30 PM UTC-7'
+        && S.dfrWeatherSourceLine(Y, DAY6) === 'From OpenWeather at 6:00 AM UTC+10',
+        `${S.dfrWeatherSourceLine(P, DAY6)} | ${S.dfrWeatherSourceLine(Y, DAY6)}`);
+      ok('R6: the label is the clock where it was read, with its offset', S.dfrReadTimeLabel(P) === '9:30 PM UTC-7' && S.dfrReadTimeLabel(Y) === '6:00 AM UTC+10', `${S.dfrReadTimeLabel(P)} | ${S.dfrReadTimeLabel(Y)}`);
+      ok('R6: a report re-dated away from the reading names the day where it was read',
+        S.dfrWeatherSourceLine(P, '2026-10-05') === 'From OpenWeather on Oct 6, 2026 at 9:30 PM UTC-7' && !S.readOnReportDay(P, DAY7) && S.appWeatherIsMisdated(P, DAY7, DAY7),
+        S.dfrWeatherSourceLine(P, '2026-10-05'));
+      ok('R6: typed over, the day and offset go with the rest of the stamp',
+        !('readDay' in S.settleDfrWeather({ ...P, temperature: '75', isManual: true })) && !('readOffsetMin' in S.settleDfrWeather({ ...P, temperature: '75', isManual: true })));
+      ok('R6: a day or offset that disagrees with the instant is ignored, not trusted',
+        S.dfrReadPlaceTime({ ...P, readDay: '2026-10-09' }) === null && S.dfrReadPlaceTime({ ...P, readOffsetMin: 6000 }) === null
+        && S.dfrReadPlaceTime({ ...P, readOffsetMin: -419.5 }) === null && S.dfrReadTimeLabel({ readAt: P.readAt }) === null);
+    }
+    ok('R6: offsets print short and unambiguous', S.utcOffsetLabel(0) === 'UTC' && S.utcOffsetLabel(-240) === 'UTC-4' && S.utcOffsetLabel(330) === 'UTC+5:30' && S.utcOffsetLabel(-210) === 'UTC-3:30');
+    ok('R6: noon and midnight read 12, not 0',
+      S.dfrReadTimeLabel({ readAt: '2026-10-06T16:05:00.000Z', readDay: DAY6, readOffsetMin: -240 }) === '12:05 PM UTC-4'
+      && S.dfrReadTimeLabel({ readAt: '2026-10-06T04:05:00.000Z', readDay: DAY6, readOffsetMin: -240 }) === '12:05 AM UTC-4');
+
+    // ── Review finding 5: the direct request gives up ────────────────────
+    ok('R3: the direct request is limited to 8 seconds, the relay\'s own limit',
+      S.CURRENT_WEATHER_TIMEOUT_MS === 8000 && /const UPSTREAM_TIMEOUT_MS = 8000;/.test(code(RELAY)), String(S.CURRENT_WEATHER_TIMEOUT_MS));
+    {
+      const realFetch = globalThis.fetch;
+      const realSet = globalThis.setTimeout;
+      const realClear = globalThis.clearTimeout;
+      let sawSignal = false;
+      let armedMs = -1;
+      let armed: unknown = null;
+      let cleared = false;
+      try {
+        // A connection that never answers; it ends only if the caller aborts.
+        globalThis.fetch = ((_url: unknown, init?: { signal?: AbortSignal }) => new Promise((_res, rej) => {
+          sawSignal = Boolean(init?.signal);
+          init?.signal?.addEventListener('abort', () => rej(new Error('aborted')));
+        })) as never;
+        const hung = await Promise.race([
+          S.directCurrentTransport('k', { city: 'Austin, TX' }, 40).then(() => 'answered', () => 'gave up'),
+          new Promise<string>((res) => realSet(() => res('still hanging'), 1500)),
+        ]);
+        ok('R3: a request that never answers is abandoned at the limit, not left hanging', hung === 'gave up' && sawSignal, hung);
+        // An answer in time: the limit armed is the 8 seconds, and it is cleared.
+        globalThis.fetch = (async () => ({ ok: true, status: 200, json: async () => payload(at(6, 15, 40)) })) as never;
+        globalThis.setTimeout = ((fn: () => void, ms?: number) => { const h = realSet(fn, ms); armedMs = ms ?? 0; armed = h; return h; }) as never;
+        globalThis.clearTimeout = ((h?: unknown) => { if (h === armed) cleared = true; return realClear(h as never); }) as never;
+        const quick = await S.directCurrentTransport('k', { city: 'Austin, TX' });
+        ok('R3: an answer in time is returned, the limit armed was 8 seconds, and its timer is cleared',
+          Boolean(quick && quick.main?.temp === 71.6) && armedMs === 8000 && cleared, JSON.stringify({ armedMs, cleared }));
+      } finally {
+        globalThis.fetch = realFetch;
+        globalThis.setTimeout = realSet;
+        globalThis.clearTimeout = realClear;
+      }
+    }
+    S.__setCurrentWeatherTransportForTests(null);
+
     const calm = S.formatCurrentForReport({ tempF: -3.4, description: 'clear sky', windMph: 0.4, windDeg: null, observedAt: 0, fetchedAt: 0 });
     ok('still air reads "Calm", a missing direction prints none, and a negative temperature keeps its sign',
       calm.wind === 'Calm' && calm.temperature === '-3°F'
-      && S.formatCurrentForReport({ tempF: 50, description: 'mist', windMph: 12, windDeg: null, observedAt: 0, fetchedAt: 0 }).wind === '12 mph');
+      && S.formatCurrentForReport({ tempF: 50, description: 'mist', windMph: 12, windDeg: null, observedAt: 0, fetchedAt: 0 }).wind === '12 mph'
+      && S.formatCurrentForReport({ tempF: 50, description: 'mist', windMph: null, windDeg: 90, observedAt: 0, fetchedAt: 0 }).wind === '');
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -423,6 +562,15 @@ async function main(): Promise<void> {
         dfr.includes(`{ weatherTouchedRef.current = true; setWeather(prev => ({ ...prev, ${f}: v, isManual: true })); }`)));
     ok('R5: an unattended read never replaces a person\'s words',
       /const personsWords = !autoReadMayWrite\(weatherRef\.current, weatherTouchedRef\.current\);\s*if \(auto && personsWords\) return;/.test(dfr));
+    ok('R5: words typed or dictated while a Refresh is in flight win; only a confirmed Replace may overwrite',
+      /const beforeText = dfrWeatherText\(weatherRef\.current\);\s*const touchedBefore = weatherTouchedRef\.current;\s*setWeatherLoading\(true\);\s*try \{\s*const result = await readLiveWeatherForDailyReport\(/.test(dfr)
+      && /const changedInFlight = dfrWeatherText\(weatherRef\.current\) !== beforeText\s*\|\| \(weatherTouchedRef\.current && !touchedBefore\);\s*if \(changedInFlight && !confirmedReplace\) return;\s*setLiveWeatherMissing\(false\);\s*weatherTouchedRef\.current = false;\s*setWeather\(result\.weather\);/.test(dfr)
+      && /const confirmedReplace = opts\?\.confirmedReplace === true;/.test(dfr)
+      && count(dfr, /confirmedReplace: true/g) === 1
+      && /'Replace'\), onPress: \(\) => \{ void readLiveWeather\(\{ confirmedReplace: true \}\); \} \}/.test(dfr)
+      && /const dfrWeatherText = \(w: DFRWeather\): string => JSON\.stringify\(\[w\.temperature, w\.conditions, w\.wind\]\);/.test(dfr));
+    ok('R5: a note that said nothing about the weather neither claims the block nor wipes it',
+      /const dictatedWeather = Boolean\(parsed\.weather\s*&& \(parsed\.weather\.temperature \|\| parsed\.weather\.conditions \|\| parsed\.weather\.wind\)\);\s*if \(parsed\.weather && dictatedWeather && \(!weather\.temperature \|\| isOpenWeatherReading\(weather\)\)\) \{\s*weatherTouchedRef\.current = true;/.test(dfr));
     ok('R5: dictated weather claims the block and is the super\'s own account (isManual: true)',
       /weatherTouchedRef\.current = true;\s*setWeather\(\{ \.\.\.parsed\.weather, isManual: true \}\);\s*populated\.weather/.test(dfr) && !/isManual: false/.test(dfr));
     ok('R5: Refresh asks before replacing typed weather',
@@ -433,6 +581,10 @@ async function main(): Promise<void> {
     ok('R6: the provenance line is built from the stored source and read time',
       /weatherProvenanceKind\(\{[\s\S]{0,300}source: weather\.source,[\s\S]{0,200}weather\.readAt/.test(dfr)
       && /'From OpenWeather at \{time\}\.'/.test(dfr) && /'Typed by hand\.'/.test(dfr));
+    ok('R6: the time on screen is the clock where the reading was taken, with its offset',
+      dfr.includes("const place = dfrReadPlaceTime(weather);\n    if (place) return `${formatTimeL(place.wall, lang, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })} ${place.zone}`;")
+      && /time: weatherReadAtLabel,/.test(dfr) && /readAtLabel: weatherFromOpenWeather && weather\.readAt \? weatherReadAtLabel : undefined,/.test(dfr)
+      && /readOnReportDay: readOnReportDay\(weather, calendarDayOf\(reportDate\)\),/.test(dfr));
     ok('R6: ...and it is on screen', dfr.includes('<Text style={styles.weatherProvenance} testID="dfr-weather-provenance">{weatherProvenance}</Text>'));
     ok('R6: the credit shows for a reading the app took, and only then',
       /const weatherFromOpenWeather = isOpenWeatherReading\(weather\);/.test(dfr)
@@ -461,6 +613,14 @@ async function main(): Promise<void> {
     const block = /export interface DFRWeather \{[\s\S]*?\n\}/.exec(types)?.[0] ?? '';
     ok('the source and read time live inside the weather JSON (no new column)',
       /source\?: 'openweather';/.test(block) && /readAt\?: string;/.test(block) && /isManual: boolean;/.test(block), block);
+    ok('...and so do the day and the UTC offset where it was read', /readDay\?: string;\s*readOffsetMin\?: number;/.test(block), block);
+    ok('every printed copy takes its time from the one source line (PDF, email, portal payload, report log), and none formats the read time itself',
+      [PDF, EMAIL, SNAPSHOT, LOG].every((f) => /dfrWeatherSourceLine\(/.test(code(f)) && !/new Date\([^)]*readAt/.test(code(f)))
+      && !/weatherReadAt\)/.test(read(PORTAL)) && !/new Date\(d\.weatherReadAt/.test(read(PORTAL)));
+    const inbox = code(INBOX);
+    ok('report inbox: credit under the list when a row shows conditions the app read, and only then',
+      inbox.includes('openWeather: Boolean(dr.weather?.conditions) && isOpenWeatherReading(dr.weather),')
+      && inbox.includes("ListFooterComponent={<WeatherCredit days={filtered.some(r => r.openWeather) ? [{ source: 'live' }] : []} />}"));
 
     const pdf = code(PDF);
     ok('PDF: the source line and the credit print under the weather figures',
@@ -521,6 +681,9 @@ async function main(): Promise<void> {
       /\(body as Record<string, unknown>\)\.kind === 'current' \? 'current' : 'forecast'/.test(fn));
     ok('a current answer is refused unless it has a time and a numeric temperature',
       /typeof now\.dt !== 'number' \|\| typeof now\.main\?\.temp !== 'number'/.test(fn));
+    ok('R3: a missing wind is answered as missing, never as 0 (the forecast kind is untouched)',
+      fn.includes("...(typeof now.wind?.speed === 'number' && Number.isFinite(now.wind.speed) ? { speed: now.wind.speed } : {}),")
+      && !/speed: now\.wind\?\.speed \?\? 0/.test(fn) && fn.includes('wind: { speed: e.wind?.speed ?? 0 },'));
     ok('the key never leaves the server', /Deno\.env\.get\('OPENWEATHER_API_KEY'\)/.test(fn) && !/EXPO_PUBLIC/.test(fn) && !/json\([^)]*\burl\b/.test(fn));
   }
 

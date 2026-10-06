@@ -154,7 +154,7 @@ console.log('\n2. daily report: the sample note is free, the mic is metered, bot
   ok('the fill never overwrites what he typed (each field gated on empty; weather also over the app\'s own reading)',
     /parsed\.manpower && manpower\.length === 0/.test(apply) && /parsed\.workPerformed && !workPerformed/.test(apply)
     && /parsed\.issuesAndDelays && !issuesAndDelays/.test(apply)
-    && /parsed\.weather && \(!weather\.temperature \|\| \(dictatedWeather && isOpenWeatherReading\(weather\)\)\)/.test(apply)
+    && /parsed\.weather && dictatedWeather && \(!weather\.temperature \|\| isOpenWeatherReading\(weather\)\)/.test(apply)
     && /const dictatedWeather = Boolean\(parsed\.weather\s*&& \(parsed\.weather\.temperature \|\| parsed\.weather\.conditions \|\| parsed\.weather\.wind\)\);/.test(apply));
 
   const sample = region(DFR, 'const applySampleNote = useCallback(');
