@@ -135,7 +135,7 @@ export function useCodeFlagsCopy(): CodeFlagsCopy {
       builtBody: (id, year) => (id === 'asbestos_age' && year === 1987
         ? t('office.codeFlags.age.built1987Body', 'On file as built in 1987. The rule depends on whether the new-building permit was issued before April 1, 1987.')
         : t('office.codeFlags.age.builtBody', 'On file as built in {year}.', { year: String(year) })),
-      marylandLeadBody: t('office.codeFlags.age.marylandLeadBody', 'Maryland: if this is a rental home, the owner registers it with the state and keeps a lead inspection certificate for each new tenant, unless the home is certified lead-free.'),
+      marylandLeadBody: t('office.codeFlags.age.marylandLeadBody', 'Maryland has its own lead law for rental homes built before 1978. The owner registers the home with the state and keeps a lead inspection certificate for each new tenant, unless the home is certified lead-free.'),
       ageNotCheckedBody: t('office.codeFlags.age.notCheckedBody', 'The year built is not on file for this project, so lead and asbestos rules were not checked.'),
       noSectionBody: t('office.codeFlags.section.noneBody', 'MAGE ID has no checked section number for this yet.'),
       sectionBody: (id, label) => sectionBodies[id](label),

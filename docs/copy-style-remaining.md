@@ -4,7 +4,7 @@ Written 2026-10-05 by lane COPYSTYLE (the trial lane); closed out 2026-10-06 by 
 
 ## Where things stand
 
-- **The app is converted: 863 files**, listed in `scripts/copy-style-converted.json` (`CONVERTED_PINNED` = 863). That is every file the five lanes and the trial lane were given: `app/`, `components/`, `utils/`, `constants/`, `hooks/` and `contexts/`. The guard reads zero for R15 (label case), R20 (dash as punctuation), R21 ("&"), R22 ("e.g." / "i.e.") and R23 (arrows) in all of them, and R24 ("unlimited") is zero everywhere.
+- **The app is converted: 868 files**, listed in `scripts/copy-style-converted.json` (`CONVERTED_PINNED` = 868). That is every file the five lanes and the trial lane were given: `app/`, `components/`, `utils/`, `constants/`, `hooks/` and `contexts/`. The guard reads zero for R15 (label case), R20 (dash as punctuation), R21 ("&"), R22 ("e.g." / "i.e.") and R23 (arrows) in all of them, and R24 ("unlimited") is zero everywhere.
 - **Nothing in the app is still waiting for a lane.** To check: `bun scripts/validate-copy-voice.ts --strict-preview "app/,components/,utils/,constants/,hooks/,contexts/"` prints 0 strict hits.
 - **What is NOT converted is everything that ships from the server or from the static sites.** It is listed under "Not converted: the to-do list for the server pass" at the end of this file. None of it can change without a deploy.
 - **What is left as typed inside the app** has an entry in `scripts/copy-voice-allowlist.json` (422 entries) with the reason: a string that is also a key, text the server compares, prompt text, legal and consent text, captions, another organization's name.

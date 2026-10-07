@@ -7,7 +7,7 @@ import type { EnCatalog } from '../../types';
 export const EN: EnCatalog = {
   "office.codeFlags.age.built1987Body": "On file as built in 1987. The rule depends on whether the new-building permit was issued before April 1, 1987.",
   "office.codeFlags.age.builtBody": "On file as built in {year}.",
-  "office.codeFlags.age.marylandLeadBody": "Maryland: if this is a rental home, the owner registers it with the state and keeps a lead inspection certificate for each new tenant, unless the home is certified lead-free.",
+  "office.codeFlags.age.marylandLeadBody": "Maryland has its own lead law for rental homes built before 1978. The owner registers the home with the state and keeps a lead inspection certificate for each new tenant, unless the home is certified lead-free.",
   "office.codeFlags.age.notCheckedBody": "The year built is not on file for this project, so lead and asbestos rules were not checked.",
   "office.codeFlags.chip.ageA11yBody": "Check building-age rules. Opens the reason.",
   "office.codeFlags.chip.ageLabel": "Check Building-Age Rules",
