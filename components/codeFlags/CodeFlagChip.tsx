@@ -20,6 +20,8 @@ import { CODE_FLAGS_ENABLED } from '@/constants/featureFlags';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ThemeColors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import { useCodeFlagsCopy } from '@/hooks/useCodeFlagsCopy';
 import { flagLine, hitFamilyIds } from '@/utils/codeFlags/match';
 import { dismissScope, isDismissed } from '@/utils/codeFlags/dismissCore';
@@ -108,11 +110,11 @@ export default function CodeFlagChip(props: CodeFlagChipProps) {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
-  name: { fontSize: 12, color: t.textSecondary, flexShrink: 1, maxWidth: '45%' },
+  name: { ...Type.caption1, color: t.textSecondary, flexShrink: 1, maxWidth: '45%' },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full,
     borderWidth: 1, borderColor: t.line, backgroundColor: t.surfaceAlt,
   },
-  chipText: { fontSize: 11.5, color: t.textSecondary, fontWeight: '600' },
+  chipText: { ...Type.caption1, color: t.textSecondary, fontWeight: '600' },
 });

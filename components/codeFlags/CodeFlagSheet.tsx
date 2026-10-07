@@ -19,6 +19,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ThemeColors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
 import { useCodeFlagsCopy } from '@/hooks/useCodeFlagsCopy';
 import { showAlert } from '@/utils/alert';
 import { codeCheckFromJobHref } from '@/utils/uxRoutes';
@@ -138,11 +139,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   scroll: { maxHeight: 460 },
   body: { gap: 8, paddingBottom: 8 },
   block: { gap: 6, paddingTop: 10, marginTop: 4, borderTopWidth: 1, borderTopColor: t.line },
-  familyName: { fontSize: 15, fontWeight: '700', color: t.text },
-  heading: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', color: t.textMuted, marginTop: 6 },
-  text: { fontSize: 13.5, lineHeight: 19, color: t.textSecondary },
-  muted: { fontSize: 12, lineHeight: 17, color: t.textMuted },
+  familyName: { ...Type.subheadEmphasized, color: t.text },
+  heading: { ...Type.caption2, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', color: t.textMuted, marginTop: 6 },
+  text: { ...Type.footnote, color: t.textSecondary },
+  muted: { ...Type.caption1, color: t.textMuted },
   link: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 6 },
   linkText: { flex: 1 },
-  linkLabel: { fontSize: 13.5, color: t.text, fontWeight: '600', textDecorationLine: 'underline' },
+  linkLabel: { ...Type.footnoteEmphasized, color: t.text, textDecorationLine: 'underline' },
 });
