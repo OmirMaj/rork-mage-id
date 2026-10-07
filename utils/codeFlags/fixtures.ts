@@ -157,6 +157,8 @@ export const CODE_FLAG_NEGATIVES: readonly CodeFlagFixture[] = [
   { line: { name: 'Post light at driveway' }, expect: [] },
   { line: { name: 'Column of tile at shower niche' }, expect: [] },
   { line: { name: 'Hang wall cabinets' }, expect: [] },
+  { line: { name: 'Structural Screw 3 in. Hex (50ct)', category: 'hardware' }, expect: [], note: 'a box of screws is not structural work' },
+  { line: { name: 'Joist Hanger LUS26 (50ct)', category: 'hardware' }, expect: [] },
   // ── close to electrical ──
   { line: { name: 'Panel door' }, expect: [] },
   { line: { name: 'Six panel door slab, solid core' }, expect: [] },
@@ -171,6 +173,7 @@ export const CODE_FLAG_NEGATIVES: readonly CodeFlagFixture[] = [
   { line: { name: 'Portable generator rental for site power' }, expect: [] },
   { line: { name: 'LED recessed light, 6 in.', category: 'electrical' }, expect: [] },
   { line: { name: 'Cabinet end panel and filler panel' }, expect: [] },
+  { line: { name: '20A circuit breaker, single pole', category: 'electrical' }, expect: [], note: 'a breaker is a part, not a new circuit' },
   // ── close to plumbing ──
   { line: { name: 'Replace faucet at kitchen sink' }, expect: [] },
   { line: { name: 'Toilet seat, elongated' }, expect: [] },

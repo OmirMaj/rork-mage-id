@@ -214,6 +214,7 @@ export const CODE_FLAG_FAMILIES: readonly CodeFlagFamily[] = [
       'in addition', 'addition to scope', 'addition to contract',
       'foundation planting', 'foundation plants', 'foundation vent', 'foundation paint', 'foundation coating',
       'foundation sealer', 'foundation waterproofing',
+      'structural screw', 'structural adhesive', 'joist hanger', 'joist tape',
     ],
     quiet: [
       'faux beam for the living room ceiling', 'in addition to the base scope', 'foundation planting bed',
@@ -250,6 +251,7 @@ export const CODE_FLAG_FAMILIES: readonly CodeFlagFamily[] = [
       'food service', 'service elevator', 'service visit', 'service agreement', 'service contract', 'service plan',
       'bird feeder', 'steam generator', 'generator rental', 'rent generator', 'portable generator',
       'solar shade', 'solar screen', 'solar tube', 'solar light', 'solar film',
+      'circuit breaker', 'circuit tester', 'meter reading',
     ],
     quiet: [
       'panel door', 'six panel door slab', 'access panel for the tub', 'service call fee', 'bird feeder post',
@@ -402,7 +404,7 @@ export const CODE_FLAG_FAMILIES: readonly CodeFlagFamily[] = [
       'popcorn ceiling', 'tear out', 'tear off', 'floor tile removal', 'vinyl tile removal', 'remove flooring',
       'flooring removal', 'siding removal', 'remove siding',
     ],
-    mask: ['demo day lunch'],
+    mask: [],
     quiet: ['gutter cleaning', 'snow removal', 'new sod'],
   },
 ];
