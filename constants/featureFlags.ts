@@ -203,3 +203,26 @@ export const FIRST_JOB_PATH_ENABLED = true;
 // been changed together, the App Store privacy answers cover a saved room
 // shape, and the founder's ten-room tape-measure test is done.
 export const SCAN_ROOM_ENABLED = false;
+
+// CODE FLAGS (Big Bets, Bet 4, Phase 1, 2026-10-06): a quiet chip on a change
+// order line or an estimate line that touches code-sensitive work ("May Need a
+// Permit Amendment or an Inspection"), with a sheet that says in the app's own
+// words why that kind of work is commonly looked at, which words triggered it,
+// and where the official page is. It is a rule table (utils/codeFlags), never
+// a model call. It flags and never blocks, and it is the contractor's private
+// note: nothing of it is stored on the line or reaches a client.
+//
+// While this is false: no chip, no sheet, and the two screens that would show
+// it (app/change-order.tsx, app/(tabs)/estimate/full.tsx) never load the
+// feature's modules (scripts/validate-code-flags.ts proves both).
+//
+// Why it is off: the rule table is a STARTER LIST. The founder has not yet
+// read it (design-previews/big-bets/CODE-FLAGS-RULES.md is the sheet he owes;
+// utils/codeScopeTriggers CODE_SCOPE_RULES_REVIEW still says
+// pending_founder_review), the lane has not had its independent review, and
+// only two section numbers exist in the app's checked data (Phase 2 is a
+// licensed architect or expediter checking a real table).
+//
+// Flip it to true only after the founder's review of the rule sheet and the
+// independent review are both done.
+export const CODE_FLAGS_ENABLED = false;
