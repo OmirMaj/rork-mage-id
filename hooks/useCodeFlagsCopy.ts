@@ -23,6 +23,7 @@
 // changes.
 import { useMemo } from 'react';
 import { useT } from '@/contexts/LanguageContext';
+import { calendarDayOf, formatCalendarDay } from '@/utils/calendarDate';
 import type { CodeFlagFamilyId, CodeFlagKind } from '@/utils/codeFlags/rules';
 import type { CodeFlagPlace, CodeFlagSectionId } from '@/utils/codeFlags/place';
 import type { CodeFlagTrigger } from '@/utils/codeFlags/match';
@@ -64,7 +65,7 @@ export interface CodeFlagsCopy {
 }
 
 export function useCodeFlagsCopy(): CodeFlagsCopy {
-  const { t } = useT();
+  const { t, lang } = useT();
   return useMemo<CodeFlagsCopy>(() => {
     const familyNames: Record<CodeFlagFamilyId, string> = {
       egress: t('office.codeFlags.family.egress.nameLabel', 'Exits and Ways Out'),
@@ -138,7 +139,7 @@ export function useCodeFlagsCopy(): CodeFlagsCopy {
       ageNotCheckedBody: t('office.codeFlags.age.notCheckedBody', 'The year built is not on file for this project, so lead and asbestos rules were not checked.'),
       noSectionBody: t('office.codeFlags.section.noneBody', 'MAGE ID has no checked section number for this yet.'),
       sectionBody: (id, label) => sectionBodies[id](label),
-      checkedSub: (date) => t('office.codeFlags.source.checkedSub', 'Checked {date}', { date }),
+      checkedSub: (date) => t('office.codeFlags.source.checkedSub', 'Checked {date}', { date: formatCalendarDay(calendarDayOf(date), undefined, lang) }),
       placeBody: (place, hasProject) => {
         if (place.id !== 'other' && place.name) {
           return t('office.codeFlags.place.localBody', 'Local links are for {place}.', { place: place.name });
@@ -162,7 +163,7 @@ export function useCodeFlagsCopy(): CodeFlagsCopy {
       closeLabel: t('office.codeFlags.sheet.closeLabel', 'Close'),
       openLinkFailedBody: t('office.codeFlags.source.openFailedBody', 'That page did not open. Try again in a moment.'),
     };
-  }, [t]);
+  }, [t, lang]);
 }
 
 export default useCodeFlagsCopy;

@@ -70,6 +70,14 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { LineItemGrid, type LineItemColumn } from '@/components/desktop/LineItemGrid';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePrimaryAction } from '@/hooks/useHotkeys';
+import { CODE_FLAGS_ENABLED } from '@/constants/featureFlags';
+
+// Code Flags (dark behind CODE_FLAGS_ENABLED): a quiet chip on a line that
+// touches code-sensitive work. Loaded only while the flag is on, so with it
+// off this screen never evaluates the feature's modules. The chip is a note:
+// no handler on this screen reads it.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const CodeFlags: typeof import('@/components/codeFlags') | null = CODE_FLAGS_ENABLED ? require('@/components/codeFlags') : null;
 import { ChangeOrderLog } from '@/components/logs/ChangeOrderLog';
 import { useLogAwareBack, useLogRecordHost } from '@/components/logs/LogRecordHost';
 import { logRouteMode } from '@/utils/logs/logRoutes';
@@ -3378,6 +3386,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               )}
             </View>
 
+            {CodeFlags ? <CodeFlags.CodeFlagsProbe projectId={projectId} /> : null}
             {lineItems.length === 0 && (
               <View style={styles.emptyItems}>
                 <Text style={styles.emptyItemsText}>No line items yet. Add items to define this change order.</Text>
@@ -3410,6 +3419,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   renderCard={() => null}
                 />
                 <Text style={styles.helperText}>CSI division, line notes and margin are in Cards.</Text>
+                {CodeFlags ? lineItems.map((item) => (
+                  <CodeFlags.CodeFlagChip key={item.id} projectId={projectId} lineKey={item.id} name={item.name} description={item.description} csiDivision={item.csiDivision} showName />
+                )) : null}
               </>
             ) : lineItems.map((item) => (
               <View key={item.id} style={styles.lineItemCard}>
@@ -3424,6 +3436,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     </TouchableOpacity>
                   )}
                 </View>
+                {CodeFlags ? <CodeFlags.CodeFlagChip projectId={projectId} lineKey={item.id} name={item.name} description={item.description} csiDivision={item.csiDivision} /> : null}
                 {!isLocked ? (
                   <>
                     <View style={styles.lineItemFields}>

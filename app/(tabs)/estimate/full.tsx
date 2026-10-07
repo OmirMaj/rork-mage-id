@@ -86,6 +86,14 @@ import { pdfFailureMessage } from '@/utils/platformFile';
 import { useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import { jobBackLink, readUxDoorParams } from '@/utils/uxRoutes';
+import { CODE_FLAGS_ENABLED } from '@/constants/featureFlags';
+
+// Code Flags (dark behind CODE_FLAGS_ENABLED): a quiet chip on a line that
+// touches code-sensitive work. Loaded only while the flag is on, so with it
+// off this screen never evaluates the feature's modules. The chip is a note:
+// no handler on this screen reads it.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const CodeFlags: typeof import('@/components/codeFlags') | null = CODE_FLAGS_ENABLED ? require('@/components/codeFlags') : null;
 
 // CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
 // component (which carries an optional priceSource) keeps compiling. The
@@ -1663,6 +1671,7 @@ export default function EstimateScreen() {
           entry={rateEntry}
           testID={`rate-provenance-${item.material.id}`}
         />
+        {CodeFlags ? <CodeFlags.CodeFlagChip projectId={selectedProjectId} lineKey={item.material.id} name={item.material.name} category={item.material.category} categoryName={CATEGORY_META[item.material.category]?.label ?? item.material.category} /> : null}
 
         {(labCostPerUnit > 0 || eqCostPerUnit > 0) && (
           <TouchableOpacity
@@ -1758,7 +1767,7 @@ export default function EstimateScreen() {
         )}
       </View>
     );
-  }, [expandedItem, expandedCostBreakdown, updateQuantity, updateItemMarkup, removeFromCart, rateEntryFor, themeColors]);
+  }, [expandedItem, expandedCostBreakdown, updateQuantity, updateItemMarkup, removeFromCart, rateEntryFor, themeColors, selectedProjectId]);
 
   const listHeaderComponent = useMemo(() => (
     <View>
@@ -3699,6 +3708,7 @@ export default function EstimateScreen() {
                     <>
                       <Text style={styles.cartSectionTitle}>Materials ({cart.length})</Text>
                       <View style={styles.cartList}>
+                        {CodeFlags ? <CodeFlags.CodeFlagsProbe projectId={selectedProjectId} /> : null}
                         {cart.map(item => renderCartItem(item))}
                       </View>
                     </>
