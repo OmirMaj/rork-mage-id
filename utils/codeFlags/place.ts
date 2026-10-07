@@ -164,7 +164,7 @@ function baltimoreCityRefs(family: CodeFlagFamilyId, matched: readonly string[])
   ]);
   const meta = CODE_FLAG_SECTION_LABELS.baltimore_city_105_1_3;
   const underpinning = family === 'structural' && matched.some((m) => UNDERPINNING_WORDS.includes(m));
-  const section: CodeFlagSection | null = underpinning && r.notes.includes(meta.needle)
+  const section: CodeFlagSection | null = underpinning && (r.notes ?? '').includes(meta.needle)
     ? { id: 'baltimore_city_105_1_3', label: meta.label, link: code }
     : null;
   return { links, section };
@@ -177,7 +177,7 @@ function baltimoreCountyRefs(family: CodeFlagFamilyId): CodeFlagLocalRefs {
   const codePage = channel(r, 'in_review');
   const links = compact([channel(r, 'pre_filing'), channel(r, 'inspection'), codePage]);
   const meta = CODE_FLAG_SECTION_LABELS.baltimore_county_21_7_303;
-  const section: CodeFlagSection | null = family === 'electrical_service' && r.notes.includes(meta.needle) && codePage
+  const section: CodeFlagSection | null = family === 'electrical_service' && (r.notes ?? '').includes(meta.needle) && codePage
     ? { id: 'baltimore_county_21_7_303', label: meta.label, link: codePage }
     : null;
   return { links, section };
