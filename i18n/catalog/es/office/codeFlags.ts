@@ -3,12 +3,13 @@
 // inspección, renglón for a line, estimado, plomería, subcontratista). Spanish
 // labels are in sentence case, which is correct Spanish; only the English is
 // written in Title Case. "Aviso" is the word for a flag: a note, not an alarm.
-// The trigger words printed after "Estas palabras" stay in English because they
-// are the words on his own line and in the rule table.
+// The trigger words printed after "Estas palabras" are the rule table's own
+// words: English ones in English, Spanish ones (utils/codeFlags/rules `es`) in Spanish.
 // DRAFT: written by the build lane, not yet read by a bilingual construction
 // person. The trade words to check first: recalce (underpinning), bajante
 // (stack), zapata (footing), vigueta (joist), vano (opening), tiro (flue),
-// gestor de permisos (expediter), enmienda al permiso (permit amendment).
+// gestor de permisos (expediter), enmienda al permiso (permit amendment),
+// tabique (partition), distribución (layout), trámite (a filing).
 // HONESTY: no entry may say a thing is in order, allowed or mandatory.
 // scripts/validate-code-flags.ts holds the banned Spanish forms.
 // `src` = fnv1a32 of the English each entry translates (i18n/hash.ts): the stale
@@ -44,8 +45,11 @@ export const ES_OFFICE_CODE_FLAGS: EsCatalog = {
   "office.codeFlags.family.fireRating.why": { s: "Un muro, una puerta o un techo con resistencia al fuego se construye como un conjunto probado. Es común que cambiarlo, o cruzarlo con un tubo, un ducto o un cable, se revise en un permiso. Es común que se mire antes de taparlo.", src: "a06168d1" },
   "office.codeFlags.family.gas.nameLabel": { s: "Tubería de gas y aparatos de gas", src: "aeeed1ab" },
   "office.codeFlags.family.gas.why": { s: "La tubería de gas nueva o modificada y los aparatos de gas suelen hacerse con permiso, por un plomero o gasista con licencia, con una prueba de presión. La compañía de gas puede tener sus propios pasos.", src: "f9ebc31f" },
+  "office.codeFlags.family.layoutChange.nameLabel": { s: "Cambios en la distribución de los cuartos", src: "92fafd89" },
+  "office.codeFlags.family.layoutChange.nycWhy": { s: "Quitar, agregar o mover una pared o un tabique cambia la distribución de los cuartos. En la ciudad de Nueva York, cambiar la distribución de los cuartos comúnmente implica un trámite ante el Departamento de Edificios.", src: "c964fb62" },
+  "office.codeFlags.family.layoutChange.why": { s: "Quitar, agregar o mover una pared o un tabique cambia la distribución de los cuartos. Es común que los departamentos de edificios revisen un cambio de distribución en un permiso.", src: "0060d32a" },
   "office.codeFlags.family.leadAge.nameLabel": { s: "Trabajo seguro con plomo en una vivienda antigua", src: "33bf7777" },
-  "office.codeFlags.family.leadAge.why": { s: "Este renglón toca superficies pintadas en una vivienda que consta como construida antes de 1978. Las reglas federales de trabajo seguro con plomo cubren las viviendas construidas antes de 1978 cuando el trabajo altera la pintura. Los trabajos pequeños y los edificios con prueba de estar libres de plomo pueden quedar exentos. MAGE ID no sabe si este edificio tiene pintura con plomo.", src: "0bc9d2af" },
+  "office.codeFlags.family.leadAge.why": { s: "Parte de este trabajo toca superficies pintadas en una vivienda que consta como construida antes de 1978. Las reglas federales de trabajo seguro con plomo cubren las viviendas construidas antes de 1978 cuando el trabajo altera la pintura. Los trabajos pequeños y los edificios con prueba de estar libres de plomo pueden quedar exentos. MAGE ID no sabe si este edificio tiene pintura con plomo.", src: "9dfa3371" },
   "office.codeFlags.family.mechanical.nameLabel": { s: "Calefacción, enfriamiento, ventilación y salida de gases", src: "5208b3df" },
   "office.codeFlags.family.mechanical.why": { s: "Los equipos de calefacción y enfriamiento nuevos o reemplazados, los ductos, los extractores, las campanas, los tiros y los forros de chimenea suelen hacerse con permiso mecánico y con inspección. Cómo saca los gases un aparato reemplazado es una de las cosas que se suelen revisar.", src: "9bc9733d" },
   "office.codeFlags.family.plumbing.nameLabel": { s: "Plomería agregada o movida", src: "abc55f6f" },
@@ -58,18 +62,20 @@ export const ES_OFFICE_CODE_FLAGS: EsCatalog = {
   "office.codeFlags.place.noProjectBody": { s: "Este estimado todavía no está en un proyecto. Este es un aviso general, sin número de sección y sin enlace local.", src: "099cedd4" },
   "office.codeFlags.place.otherBody": { s: "MAGE ID no tiene reglas locales para este lugar. Este es un aviso general, sin número de sección y sin enlace local. Pregunta en tu departamento de construcción.", src: "8d0c12e0" },
   "office.codeFlags.section.baltimoreCityUnderpinningBody": { s: "{label}. Trata de quién solicita el permiso para trabajos de recalce de cimientos.", src: "74795d4e" },
-  "office.codeFlags.section.baltimoreCountyElectricalBody": { s: "{label}. Fija cuándo entra en vigor cada edición nueva del código eléctrico.", src: "d8b48930" },
+  "office.codeFlags.section.baltimoreCountyElectricalBody": { s: "{label} fija cuándo entra en vigor cada edición nueva del código eléctrico.", src: "cde508d7" },
   "office.codeFlags.section.noneBody": { s: "MAGE ID todavía no tiene un número de sección verificado para esto.", src: "ad9caf59" },
+  "office.codeFlags.sheet.ageBody": { s: "Un solo aviso para toda la página, no uno en cada renglón.", src: "5ba165da" },
+  "office.codeFlags.sheet.ageTitleLabel": { s: "Reglas por la edad del edificio", src: "1dc6a3b4" },
+  "office.codeFlags.sheet.askBody": { s: "Abre Code Check para ver el detalle. Code Check tiene su propio límite diario según tu plan.", src: "e2e943a0" },
   "office.codeFlags.sheet.askLabel": { s: "Preguntar a Code Check", src: "c7eb6f93" },
-  "office.codeFlags.sheet.askSub": { s: "Abre Code Check para ver el detalle. Code Check tiene su propio límite diario según tu plan", src: "aeb271ce" },
   "office.codeFlags.sheet.booksBody": { s: "Familia de códigos: {books}.", src: "b01a3b94" },
-  "office.codeFlags.sheet.closeLabel": { s: "Cerrar", src: "cd86acc3" },
+  "office.codeFlags.sheet.hideBody": { s: "Se oculta en este dispositivo. Vuelve si el renglón cambia a otro tipo de trabajo.", src: "5cd4e724" },
   "office.codeFlags.sheet.hideLabel": { s: "Ocultar este aviso", src: "2f8e4787" },
-  "office.codeFlags.sheet.hideSub": { s: "Se oculta en este dispositivo. Vuelve si el renglón cambia a otro tipo de trabajo", src: "103d82e2" },
+  "office.codeFlags.sheet.hideNoProjectBody": { s: "Se oculta mientras este estimado esté abierto. No se guarda nada, porque el estimado todavía no está en un proyecto.", src: "7e039ded" },
   "office.codeFlags.sheet.introBody": { s: "Es común que este tipo de trabajo se revise en un permiso o lo mire un inspector. MAGE ID lo marca para que lo revises. Tú decides qué hacer.", src: "2c3004fc" },
   "office.codeFlags.sheet.neverBlocksBody": { s: "Un aviso nunca te impide guardar, enviar, firmar ni facturar.", src: "9cc2c7bd" },
   "office.codeFlags.sheet.noFlagBody": { s: "Un renglón sin aviso todavía puede necesitar un permiso o una inspección. Que no haya aviso no significa nada.", src: "43870887" },
-  "office.codeFlags.sheet.privateBody": { s: "Solo tú y tu equipo ven este aviso. No aparece en nada que vean tu cliente, tus subcontratistas o tu arquitecto.", src: "876593d7" },
+  "office.codeFlags.sheet.privateBody": { s: "Solo tú ves este aviso. No aparece en nada de lo que envías.", src: "a74522d1" },
   "office.codeFlags.sheet.sectionHeadingLabel": { s: "Número de sección", src: "e9efe4f5" },
   "office.codeFlags.sheet.sourcesHeadingLabel": { s: "Fuentes oficiales", src: "f8536942" },
   "office.codeFlags.sheet.standingNoteBody": { s: "No sustituye al código adoptado. Confírmalo con tu departamento de construcción.", src: "f2a79512" },
@@ -80,6 +86,7 @@ export const ES_OFFICE_CODE_FLAGS: EsCatalog = {
   "office.codeFlags.source.checkedSub": { s: "Verificado el {date}", src: "458b0266" },
   "office.codeFlags.source.openFailedBody": { s: "Esa página no abrió. Intenta de nuevo en un momento.", src: "da81705e" },
   "office.codeFlags.trigger.categoryBody": { s: "Estas palabras en un renglón clasificado como {category}: {words}.", src: "50f3ff78" },
-  "office.codeFlags.trigger.permitFlagBody": { s: "Este renglón tiene un aviso de permiso, y la edad del edificio agrega este.", src: "ef774aca" },
+  "office.codeFlags.trigger.docWordsBody": { s: "Estas palabras, en {count} de los renglones: {words}.", src: "4c3dd0e7" },
+  "office.codeFlags.trigger.permitFlagBody": { s: "Un renglón de aquí tiene un aviso de permiso, y la edad del edificio agrega este.", src: "2a4f40cf" },
   "office.codeFlags.trigger.wordsBody": { s: "Estas palabras en el renglón: {words}.", src: "ca6792ee" },
 };

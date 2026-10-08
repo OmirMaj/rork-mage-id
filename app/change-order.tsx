@@ -3387,6 +3387,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             </View>
 
             {CodeFlags ? <CodeFlags.CodeFlagsProbe projectId={projectId} /> : null}
+            {CodeFlags ? <CodeFlags.CodeFlagAgeRow projectId={projectId} lines={lineItems} /> : null}
             {lineItems.length === 0 && (
               <View style={styles.emptyItems}>
                 <Text style={styles.emptyItemsText}>No line items yet. Add items to define this change order.</Text>

@@ -3709,6 +3709,7 @@ export default function EstimateScreen() {
                       <Text style={styles.cartSectionTitle}>Materials ({cart.length})</Text>
                       <View style={styles.cartList}>
                         {CodeFlags ? <CodeFlags.CodeFlagsProbe projectId={selectedProjectId} /> : null}
+                        {CodeFlags ? <CodeFlags.CodeFlagAgeRow projectId={selectedProjectId} lines={cart} /> : null}
                         {cart.map(item => renderCartItem(item))}
                       </View>
                     </>
