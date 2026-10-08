@@ -11,6 +11,12 @@
 // line is later edited into a new kind of work (a family that was not there),
 // the chip comes back: he hid the flag he read, not every future one.
 //
+// NO PROJECT, NO MEMORY. An estimate that is not on a project yet keys its
+// lines by catalog material id, and every such estimate would share one scope:
+// hiding "200 amp panel" once would hide it on every later estimate. So a line
+// with no project has NO scope ('') and nothing is ever stored for it; the
+// chip hides it for as long as that line stays on screen and no longer.
+//
 // Pure: no React, no storage. utils/codeFlags/dismissStore.ts wires AsyncStorage.
 import type { CodeFlagFamilyId } from '@/utils/codeFlags/rules';
 
@@ -23,7 +29,7 @@ export interface CodeFlagDismissRecord {
   v: number;
   /** The signed-in account id, or '' when nobody was signed in. */
   account: string;
-  /** scope ('p:<projectId>' or 'cart') → line key → dismissal. */
+  /** scope ('p:<projectId>') to line key to dismissal. Never a scope without a project. */
   lines: Record<string, Record<string, CodeFlagDismissal>>;
 }
 
@@ -31,9 +37,18 @@ export function emptyDismissRecord(account: string): CodeFlagDismissRecord {
   return { v: CODE_FLAG_DISMISS_VERSION, account, lines: {} };
 }
 
+/** The key the building-age row of a project is remembered under. */
+export const CODE_FLAG_AGE_LINE_KEY = '@building-age';
+
+/** 'p:<projectId>', or '' when there is no project (nothing is remembered then). */
 export function dismissScope(projectId: string | null | undefined): string {
   const id = (projectId ?? '').trim();
-  return id ? `p:${id}` : 'cart';
+  return id ? `p:${id}` : '';
+}
+
+/** True for a scope a dismissal may be stored under. */
+export function isStorableScope(scope: string | null | undefined): boolean {
+  return typeof scope === 'string' && scope.startsWith('p:') && scope.length > 2;
 }
 
 /** The stored record for THIS account, or an empty one. Never throws. */
@@ -47,7 +62,7 @@ export function parseDismissRecord(raw: string | null | undefined, account: stri
   if (r.v !== CODE_FLAG_DISMISS_VERSION || r.account !== account) return fresh;
   if (!r.lines || typeof r.lines !== 'object' || Array.isArray(r.lines)) return fresh;
   for (const [scope, byLine] of Object.entries(r.lines)) {
-    if (!scope || !byLine || typeof byLine !== 'object' || Array.isArray(byLine)) continue;
+    if (!isStorableScope(scope) || !byLine || typeof byLine !== 'object' || Array.isArray(byLine)) continue;
     const out: Record<string, CodeFlagDismissal> = {};
     for (const [lineKey, d] of Object.entries(byLine as Record<string, unknown>)) {
       const row = d as Partial<CodeFlagDismissal> | null;
@@ -63,7 +78,7 @@ export function parseDismissRecord(raw: string | null | undefined, account: stri
 export function withDismissal(
   record: CodeFlagDismissRecord, scope: string, lineKey: string, families: readonly CodeFlagFamilyId[], nowISO: string,
 ): CodeFlagDismissRecord {
-  if (!scope || !lineKey || !families.length) return record;
+  if (!isStorableScope(scope) || !lineKey || !families.length) return record;
   return {
     ...record,
     lines: { ...record.lines, [scope]: { ...(record.lines[scope] ?? {}), [lineKey]: { families: [...families], at: nowISO } } },
@@ -74,6 +89,7 @@ export function withDismissal(
 export function isDismissed(
   record: CodeFlagDismissRecord | null | undefined, scope: string, lineKey: string, families: readonly CodeFlagFamilyId[],
 ): boolean {
+  if (!isStorableScope(scope)) return false;
   const d = record?.lines?.[scope]?.[lineKey];
   if (!d || !families.length) return false;
   return families.every((f) => d.families.includes(f));

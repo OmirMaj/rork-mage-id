@@ -23,7 +23,9 @@
 //   - Baltimore City Building Code § 105.1.3 (who applies for the permit for
 //     underpinning), shown only on a line that says underpinning;
 //   - Baltimore County Code § 21-7-303 (when each new edition of the
-//     electrical code takes effect), shown on electrical service lines.
+//     electrical code takes effect), shown on electrical service lines AS A
+//     NOTE, never under the "Section Number" heading: it is about which
+//     edition applies, not about a panel swap (`asNote`).
 // New York City has NONE on file. The study's "section number and official
 // link on every flag" is Phase 2 (a licensed architect or expediter checks a
 // real table); Phase 1 says "no checked section number yet" everywhere else.
@@ -99,6 +101,9 @@ export interface CodeFlagSection {
   label: string;
   /** The code page the row cites for it. */
   link: CodeFlagLink;
+  /** True when the section is background (which edition applies), shown as a
+   *  plain sentence with no "Section Number" heading. */
+  asNote: boolean;
 }
 
 export interface CodeFlagLocalRefs {
@@ -165,7 +170,7 @@ function baltimoreCityRefs(family: CodeFlagFamilyId, matched: readonly string[])
   const meta = CODE_FLAG_SECTION_LABELS.baltimore_city_105_1_3;
   const underpinning = family === 'structural' && matched.some((m) => UNDERPINNING_WORDS.includes(m));
   const section: CodeFlagSection | null = underpinning && (r.notes ?? '').includes(meta.needle)
-    ? { id: 'baltimore_city_105_1_3', label: meta.label, link: code }
+    ? { id: 'baltimore_city_105_1_3', label: meta.label, link: code, asNote: false }
     : null;
   return { links, section };
 }
@@ -178,7 +183,7 @@ function baltimoreCountyRefs(family: CodeFlagFamilyId): CodeFlagLocalRefs {
   const links = compact([channel(r, 'pre_filing'), channel(r, 'inspection'), codePage]);
   const meta = CODE_FLAG_SECTION_LABELS.baltimore_county_21_7_303;
   const section: CodeFlagSection | null = family === 'electrical_service' && (r.notes ?? '').includes(meta.needle) && codePage
-    ? { id: 'baltimore_county_21_7_303', label: meta.label, link: codePage }
+    ? { id: 'baltimore_county_21_7_303', label: meta.label, link: codePage, asNote: true }
     : null;
   return { links, section };
 }
