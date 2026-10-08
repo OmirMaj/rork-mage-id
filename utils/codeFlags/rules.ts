@@ -288,6 +288,7 @@ export const CODE_FLAG_FAMILIES: readonly CodeFlagFamily[] = [
       'footing', 'foundation', 'underpinning', 'underpin', 'shoring', 'retaining wall',
       'wall removal',
       'door header', 'window header', 'lvl header', 'steel header', 'wood header', 'flush header', 'dropped header', 'header beam',
+      'header at', 'header over', 'header above',
       'helical pier', 'concrete pier', 'dormer', 'addition', 'second story', 'second floor addition', 'bump out',
       'roof framing', 'floor framing',
     ],
@@ -586,10 +587,17 @@ export const CODE_FLAG_FAMILIES: readonly CodeFlagFamily[] = [
       'barandal temporal', 'baranda temporal', 'pasamanos temporal',
       'step flashing', 'step ladder', 'step stool',
     ],
+    // Refinishing a rail or a deck is upkeep, not a new or rebuilt one.
+    maskPairs: [
+      {
+        first: ['sand', 'sanding', 'stain', 'staining', 'restain', 're stain', 'refinish', 'refinishing', 'paint', 'painting', 'varnish', 'tighten', 'clean'],
+        then: ['handrail', 'hand rail', 'guardrail', 'guard rail', 'railing', 'stair railing', 'balcony', 'deck', 'porch', 'stoop', 'banister handrail'],
+      },
+    ],
     quiet: [
       'deck stain and seal', 'replace deck boards', 'ledger stone veneer', 'stair runner carpet', 'replace roof decking', 'power wash the deck',
       'replace rotted roof deck plywood', 'roof deck sheathing', 'ledger entry adjustment', 'temporary guardrail at stair opening',
-      'replace stair treads', 'replace step flashing',
+      'replace stair treads', 'replace step flashing', 'sand and re stain banister handrail',
     ],
   },
   {
@@ -614,9 +622,9 @@ export const CODE_FLAG_FAMILIES: readonly CodeFlagFamily[] = [
         then: ['pared', 'tabique', 'pared divisoria', 'muro divisorio', 'división'],
       },
     ],
-    mask: [...NOT_A_WALL],
+    mask: [...NOT_A_WALL, 'exterior wall'],
     quiet: [
-      'paint the wall', 'install wall tile', 'hang wall cabinets', 'new wall sconce', 'temporary dust partition',
+      'frame exterior wall', 'paint the wall', 'install wall tile', 'hang wall cabinets', 'new wall sconce', 'temporary dust partition',
       'toilet partitions', 'remove wall paper', 'build retaining wall',
     ],
   },

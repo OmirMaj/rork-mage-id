@@ -224,6 +224,9 @@ export const CODE_FLAG_POSITIVES: readonly CodeFlagFixture[] = [
   { line: { name: 'Install EVSE in garage' }, expect: ['electrical_service'] },
   { line: { name: 'Brick up door at rear' }, expect: ['egress'] },
   { line: { name: 'Replace AC' }, expect: ['mechanical'] },
+  // ── from the run across the app's own sample data ──
+  { line: { name: 'Rough carpentry, wall relocation, header at island' }, expect: ['structural'], note: 'a header at an opening is structural; the layout flag stays off a line the structural family took' },
+  { line: { name: 'Frame Interior Wall (2x4)' }, expect: ['layout_change'] },
 ];
 
 export const CODE_FLAG_NEGATIVES: readonly CodeFlagFixture[] = [
@@ -407,4 +410,7 @@ export const CODE_FLAG_NEGATIVES: readonly CodeFlagFixture[] = [
   { line: { name: 'Hand sanding of floors' }, expect: [] },
   { line: { name: 'Stair tread carpet' }, expect: [] },
   { line: { name: 'Punch list and touch up' }, expect: [] },
+  // ── from the run across the app's own sample data ──
+  { line: { name: 'Sand and re-stain banister handrail' }, expect: [], note: 'refinishing a rail is upkeep' },
+  { line: { name: 'Frame Exterior Wall (2x6)' }, expect: [], note: 'an exterior wall is not a room layout change' },
 ];

@@ -5,8 +5,9 @@
  * false. Here it is mocked ON, and the REAL change order screen is mounted in
  * the real app (mountRouteChecked) on a change order with two lines:
  *
- *   "Add subpanel in garage"   a kind of work the rule table knows
- *   "Quartz countertop"        an ordinary line
+ *   "Add subpanel in garage"      a kind of work the rule table knows
+ *   "Quartz countertop"           an ordinary line
+ *   "Paint trim at garage door"   words the lead rule reads in an older home
  *
  *   1  the first line shows the chip, the second shows nothing;
  *   2  with a flag on screen, Save and Send are exactly as enabled as before
@@ -18,6 +19,9 @@
  *   4  "Hide This Flag" removes the chip and writes only the app-owned key;
  *   5  the change order in storage is byte for byte what was seeded: nothing
  *      of a flag is written onto the line.
+ *   6  building age is ONE row for the page: nothing while no year is on
+ *      file, one row once the home is on file as built in 1925, never a chip
+ *      on the painted line, and its sheet says how many lines have the words.
  *
  * __tests__/smoke/code-flags-off.test.tsx mounts the same screen with the
  * flag as shipped. The pure rules are run under bun by
@@ -30,6 +34,8 @@ import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { PROJECT_ID } from '@/__tests__/fixtures/world';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { CODE_FLAG_DISMISS_KEY } from '@/utils/codeFlags/dismissCore';
+import { NO_PLACE } from '@/utils/codeFlags/place';
+import { publishCodeFlagContext } from '@/components/codeFlags/contextStore';
 
 jest.mock('@/constants/featureFlags', () => {
   const mod = { ...jest.requireActual('@/constants/featureFlags') };
@@ -62,6 +68,7 @@ afterEach(() => {
 const CO_ID = 'co-cf-1';
 const FLAGGED = 'coli-cf-1';
 const PLAIN = 'coli-cf-2';
+const PAINT = 'coli-cf-3';
 const changeOrders = [{
   id: CO_ID,
   number: 1,
@@ -72,6 +79,7 @@ const changeOrders = [{
   lineItems: [
     { id: FLAGGED, name: 'Add subpanel in garage', description: '', quantity: 1, unit: 'ea', unitPrice: 1850, total: 1850, isNew: true },
     { id: PLAIN, name: 'Quartz countertop', description: '', quantity: 42, unit: 'sf', unitPrice: 95, total: 3990, isNew: true },
+    { id: PAINT, name: 'Paint trim at garage door', description: '', quantity: 1, unit: 'ls', unitPrice: 0, total: 0, isNew: true },
   ],
   originalContractValue: 155172,
   changeAmount: 5840,
@@ -138,6 +146,22 @@ describe('Code Flags on a change order, flag on', () => {
     expect(screen.queryByTestId(`code-flag-${FLAGGED}`)).toBeNull();
     const stored = JSON.parse((await AsyncStorage.getItem(CODE_FLAG_DISMISS_KEY)) ?? '{}');
     expect(stored.lines[`p:${PROJECT_ID}`][FLAGGED].families).toEqual(['electrical_service']);
+
+    // 6. Building age: one row for the page, never a chip on a line.
+    expect(screen.queryByTestId(`code-flag-${PAINT}`)).toBeNull();
+    expect(screen.queryByTestId('code-flag-age-row')).toBeNull();
+    await act(async () => { publishCodeFlagContext(PROJECT_ID, { place: NO_PLACE, yearBuilt: 1925, jobKind: 'residential' }); });
+    await pump(2);
+    expect(screen.getAllByTestId('code-flag-age-row')).toHaveLength(1);
+    expect(screen.getByText('Check Building-Age Rules')).toBeTruthy();
+    expect(screen.queryByTestId(`code-flag-${PAINT}`)).toBeNull();
+    await act(async () => { fireEvent.press(screen.getByTestId('code-flag-age-row')); });
+    await pump(2);
+    expect(screen.getByText('Building-Age Rules')).toBeTruthy();
+    expect(screen.getByText('Lead-Safe Work in an Older Home')).toBeTruthy();
+    expect(screen.getByText('These words, on 1 of the lines: paint, door, trim.')).toBeTruthy();
+    expect(disabledOf('save-co-draft')).toBe(false);
+    expect(disabledOf('send-co-btn')).toBe(false);
 
     // 5. The change order itself was never touched.
     expect(await AsyncStorage.getItem('mageid_change_orders')).toBe(SEEDED);
