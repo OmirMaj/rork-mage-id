@@ -37,8 +37,8 @@ export function emptyDismissRecord(account: string): CodeFlagDismissRecord {
   return { v: CODE_FLAG_DISMISS_VERSION, account, lines: {} };
 }
 
-/** The key the building-age row of a project is remembered under. */
-export const CODE_FLAG_AGE_LINE_KEY = '@building-age';
+/** The name the building-age row of a project is remembered under (a line name inside the one record, not a storage key). */
+export const CODE_FLAG_AGE_ROW_ID = 'building-age-row';
 
 /** 'p:<projectId>', or '' when there is no project (nothing is remembered then). */
 export function dismissScope(projectId: string | null | undefined): string {

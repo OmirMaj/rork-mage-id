@@ -26,7 +26,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useCodeFlagChipLabels } from '@/hooks/useCodeFlagsCopy';
 import { flagBuildingAge, hitFamilyIds, type CodeFlagLine } from '@/utils/codeFlags/match';
-import { CODE_FLAG_AGE_LINE_KEY, dismissScope, isDismissed } from '@/utils/codeFlags/dismissCore';
+import { CODE_FLAG_AGE_ROW_ID, dismissScope, isDismissed } from '@/utils/codeFlags/dismissCore';
 import { dismissLine, dismissalsSnapshot, subscribeDismissals } from '@/utils/codeFlags/dismissStore';
 import { useCodeFlagContext } from '@/components/codeFlags/contextStore';
 import CodeFlagSheet from '@/components/codeFlags/CodeFlagSheet';
@@ -61,11 +61,11 @@ function RowOn({ projectId, lines, testID }: CodeFlagAgeRowProps) {
   const result = useMemo(() => flagBuildingAge(lines.map(toCodeFlagLine), ctx), [lines, ctx]);
   const scope = dismissScope(projectId);
   const families = useMemo(() => hitFamilyIds(result), [result]);
-  const hidden = isDismissed(dismissals, scope, CODE_FLAG_AGE_LINE_KEY, families);
+  const hidden = isDismissed(dismissals, scope, CODE_FLAG_AGE_ROW_ID, families);
 
   const onHide = useCallback(() => {
     setOpen(false);
-    void dismissLine(scope, CODE_FLAG_AGE_LINE_KEY, families);
+    void dismissLine(scope, CODE_FLAG_AGE_ROW_ID, families);
   }, [scope, families]);
 
   if (!result.flagged || hidden) return null;
