@@ -263,7 +263,7 @@ export const CODE_FLAG_FAMILIES: readonly CodeFlagFamily[] = [
     ]),
     es: [
       'rociadores contra incendios', 'rociador contra incendios', 'sistema de rociadores', 'cabeza de rociador', 'cabezal de rociador',
-      'alarma contra incendios', 'alarma de incendio', 'detector de humo', 'alarma de humo',
+      'alarma contra incendios', 'alarma de incendio', 'detector de humo', 'detectores de humo', 'alarma de humo', 'alarmas de humo',
       'detector de monóxido', 'monóxido de carbono', 'sistema de supresión',
     ],
     pairs: [{ first: [...MOVE_VERBS, ...MOVE_VERBS_ES], then: ['sprinkler', 'rociador'] }],
@@ -502,6 +502,9 @@ export const CODE_FLAG_FAMILIES: readonly CodeFlagFamily[] = [
       'boiler plate', 'boiler room', 'furnace room',
       'aire acondicionado de ventana', 'aire de ventana', 'limpieza de ductos', 'limpieza de caldera', 'mantenimiento de caldera',
       'cuarto de caldera',
+    ],
+    maskPairs: [
+      { first: ['clean', 'cleaning', 'clear', 'unclog', 'limpiar'], then: ['dryer vent', 'vent', 'duct', 'ductwork', 'chimney', 'flue', 'furnace', 'boiler', 'ducto', 'caldera'] },
     ],
     quiet: [
       'ridge vent', 'dryer vent cleaning', 'furnace filter change', 'ceiling fan install', 'window air conditioner sleeve', 'soffit vent strip',

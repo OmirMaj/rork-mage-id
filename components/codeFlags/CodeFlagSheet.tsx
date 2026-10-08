@@ -8,11 +8,18 @@
 // for the place. It always says that a line with no flag means nothing, that
 // a flag never stops an action, and that only the contractor's side sees it.
 //
+// The same sheet is behind the one building-age row of a change order or an
+// estimate (`variant="age"`): the lead and asbestos rules, once for the page.
+//
+// The sixty-odd sentences (useCodeFlagsCopy) are built HERE, when a sheet
+// opens, never once per line. The body sits straight in Sheet's own scroll
+// view: no scroll view of its own.
+//
 // Two actions, neither of which touches the line: open Code Check (the
 // existing flow, with its own plan gate, daily limit and one-time notice), and
 // hide this flag on this device.
 import React, { useCallback } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ExternalLink } from 'lucide-react-native';
 import { Sheet } from '@/components/ui/Sheet';
@@ -24,21 +31,27 @@ import { useCodeFlagsCopy } from '@/hooks/useCodeFlagsCopy';
 import { showAlert } from '@/utils/alert';
 import { codeCheckFromJobHref } from '@/utils/uxRoutes';
 import { codeFlagFamily } from '@/utils/codeFlags/rules';
-import type { CodeFlagLink } from '@/utils/codeFlags/place';
-import type { CodeFlagHit, CodeFlagLineResult } from '@/utils/codeFlags/match';
+import type { CodeFlagLink, CodeFlagPlace } from '@/utils/codeFlags/place';
+import type { CodeFlagHit } from '@/utils/codeFlags/match';
 
 export interface CodeFlagSheetProps {
   visible: boolean;
   onClose: () => void;
   onHide: () => void;
-  lineName: string;
+  /** 'line': the chip on one line. 'age': the one building-age row of the page. */
+  variant: 'line' | 'age';
+  /** The line's name ('line' only). */
+  lineName?: string;
   categoryName: string | null;
   projectId: string | null;
-  result: CodeFlagLineResult;
+  hits: readonly CodeFlagHit[];
+  place: CodeFlagPlace;
+  /** True when the year built is missing and a building-age rule had words to read. */
+  ageNotChecked?: boolean;
   testID?: string;
 }
 
-export default function CodeFlagSheet({ visible, onClose, onHide, lineName, categoryName, projectId, result, testID }: CodeFlagSheetProps) {
+export default function CodeFlagSheet({ visible, onClose, onHide, variant, lineName, categoryName, projectId, hits, place, ageNotChecked, testID }: CodeFlagSheetProps) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const copy = useCodeFlagsCopy();
@@ -54,47 +67,47 @@ export default function CodeFlagSheet({ visible, onClose, onHide, lineName, cate
     else router.push('/(tabs)/construction-ai');
   }, [onClose, projectId, router]);
 
-  const marylandLead = (hit: CodeFlagHit) => hit.familyId === 'lead_age' && result.place.state === 'MD';
+  const marylandLead = (hit: CodeFlagHit) => hit.familyId === 'lead_age' && place.state === 'MD';
 
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
-      title={copy.sheetTitleLabel}
-      subtitle={lineName}
+      title={variant === 'age' ? copy.ageSheetTitleLabel : copy.sheetTitleLabel}
+      subtitle={variant === 'age' ? copy.ageSheetBody : lineName}
       size="form"
       primaryAction={{ label: copy.askLabel, onPress: askCodeCheck, testID: testID ? `${testID}-ask` : undefined }}
       secondaryAction={{ label: copy.hideLabel, onPress: onHide, testID: testID ? `${testID}-hide` : undefined }}
       testID={testID}
     >
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
+      <View style={styles.body}>
         <Text style={styles.text}>{copy.introBody}</Text>
 
-        {result.hits.map((hit) => {
+        {hits.map((hit) => {
           const family = codeFlagFamily(hit.familyId);
           return (
             <View key={hit.familyId} style={styles.block} testID={testID ? `${testID}-family-${hit.familyId}` : undefined}>
-              <Text style={styles.familyName}>{copy.familyNameLabel(hit.familyId)}</Text>
+              <Text style={styles.familyName} accessibilityRole="header">{copy.familyNameLabel(hit.familyId)}</Text>
 
-              <Text style={styles.heading}>{copy.whyHeadingLabel}</Text>
-              <Text style={styles.text}>{copy.familyWhy(hit.familyId)}</Text>
+              <Text style={styles.heading} accessibilityRole="header">{copy.whyHeadingLabel}</Text>
+              <Text style={styles.text}>{copy.familyWhy(hit.familyId, place.id)}</Text>
               {hit.yearBuilt != null ? <Text style={styles.text}>{copy.builtBody(hit.familyId, hit.yearBuilt)}</Text> : null}
               {marylandLead(hit) ? <Text style={styles.text}>{copy.marylandLeadBody}</Text> : null}
               {family.books.length ? <Text style={styles.muted}>{copy.booksLabel(family.books.join(', '))}</Text> : null}
 
-              <Text style={styles.heading}>{copy.triggerHeadingLabel}</Text>
+              <Text style={styles.heading} accessibilityRole="header">{copy.triggerHeadingLabel}</Text>
               <Text style={styles.text} testID={testID ? `${testID}-trigger-${hit.familyId}` : undefined}>
-                {copy.triggerBody(hit.triggers, categoryName)}
+                {variant === 'age' ? copy.docTriggerBody(hit.triggers, hit.lineCount ?? 0) : copy.triggerBody(hit.triggers, categoryName)}
               </Text>
 
-              <Text style={styles.heading}>{copy.sectionHeadingLabel}</Text>
+              {hit.local.section?.asNote ? null : <Text style={styles.heading} accessibilityRole="header">{copy.sectionHeadingLabel}</Text>}
               <Text style={styles.text} testID={testID ? `${testID}-section-${hit.familyId}` : undefined}>
                 {hit.local.section ? copy.sectionBody(hit.local.section.id, hit.local.section.label) : copy.noSectionBody}
               </Text>
 
               {hit.local.links.length ? (
                 <>
-                  <Text style={styles.heading}>{copy.sourcesHeadingLabel}</Text>
+                  <Text style={styles.heading} accessibilityRole="header">{copy.sourcesHeadingLabel}</Text>
                   {hit.local.links.map((link) => (
                     <TouchableOpacity
                       key={link.url}
@@ -117,8 +130,8 @@ export default function CodeFlagSheet({ visible, onClose, onHide, lineName, cate
           );
         })}
 
-        <Text style={styles.text} testID={testID ? `${testID}-place` : undefined}>{copy.placeBody(result.place, !!projectId)}</Text>
-        {result.ageNotChecked ? <Text style={styles.text}>{copy.ageNotCheckedBody}</Text> : null}
+        <Text style={styles.text} testID={testID ? `${testID}-place` : undefined}>{copy.placeBody(place, !!projectId)}</Text>
+        {ageNotChecked ? <Text style={styles.text}>{copy.ageNotCheckedBody}</Text> : null}
 
         <View style={styles.block}>
           <Text style={styles.text} testID={testID ? `${testID}-no-flag` : undefined}>{copy.noFlagBody}</Text>
@@ -128,15 +141,14 @@ export default function CodeFlagSheet({ visible, onClose, onHide, lineName, cate
           <Text style={styles.muted}>{copy.standingNoteBody}</Text>
         </View>
 
-        <Text style={styles.muted}>{copy.askSub}</Text>
-        <Text style={styles.muted}>{copy.hideSub}</Text>
-      </ScrollView>
+        <Text style={styles.muted}>{copy.askBody}</Text>
+        <Text style={styles.muted}>{copy.hideBody(!!projectId)}</Text>
+      </View>
     </Sheet>
   );
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
-  scroll: { maxHeight: 460 },
   body: { gap: 8, paddingBottom: 8 },
   block: { gap: 6, paddingTop: 10, marginTop: 4, borderTopWidth: 1, borderTopColor: t.line },
   familyName: { ...Type.subheadEmphasized, color: t.text },

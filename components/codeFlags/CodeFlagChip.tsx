@@ -11,6 +11,15 @@
 // Save, Send, Sign, Approve or Bill button can depend on it. It is not red and
 // carries no warning triangle; the accent colour is never its background.
 //
+// PERMIT KINDS ONLY. The two building-age rules are one row for the whole
+// change order or estimate (CodeFlagAgeRow), never a chip on a line.
+//
+// COST. The chip reads two labels (useCodeFlagChipLabels, one shared object).
+// The sheet and its sentences exist only while the sheet is open.
+//
+// NO PROJECT, NO MEMORY. On an estimate that is not on a project yet, hiding a
+// flag hides it on this line while it stays on screen, and nothing is stored.
+//
 // Renders nothing while CODE_FLAGS_ENABLED is false, for a line with no flag,
 // and for a line whose flag he has hidden.
 import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
@@ -22,9 +31,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { useCodeFlagsCopy } from '@/hooks/useCodeFlagsCopy';
-import { flagLine, hitFamilyIds } from '@/utils/codeFlags/match';
-import { dismissScope, isDismissed } from '@/utils/codeFlags/dismissCore';
+import { useCodeFlagChipLabels } from '@/hooks/useCodeFlagsCopy';
+import { flagBuildingAge, flagLine, hitFamilyIds } from '@/utils/codeFlags/match';
+import { dismissScope, isDismissed, isStorableScope } from '@/utils/codeFlags/dismissCore';
 import { dismissLine, dismissalsSnapshot, subscribeDismissals } from '@/utils/codeFlags/dismissStore';
 import { useCodeFlagContext } from '@/components/codeFlags/contextStore';
 import CodeFlagSheet from '@/components/codeFlags/CodeFlagSheet';
@@ -50,10 +59,11 @@ function ChipOn(props: CodeFlagChipProps) {
   const { projectId, lineKey, name, description, category, categoryName, csiDivision, showName, testID } = props;
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const copy = useCodeFlagsCopy();
+  const labels = useCodeFlagChipLabels();
   const ctx = useCodeFlagContext(projectId);
   const dismissals = useSyncExternalStore(subscribeDismissals, dismissalsSnapshot, dismissalsSnapshot);
   const [open, setOpen] = useState(false);
+  const [hiddenHere, setHiddenHere] = useState(false);
 
   const result = useMemo(
     () => flagLine({ name, description, category, csiDivision }, ctx),
@@ -61,14 +71,20 @@ function ChipOn(props: CodeFlagChipProps) {
   );
   const scope = dismissScope(projectId);
   const families = useMemo(() => hitFamilyIds(result), [result]);
-  const hidden = isDismissed(dismissals, scope, lineKey, families);
+  const hidden = hiddenHere || isDismissed(dismissals, scope, lineKey, families);
+  // Read only while the sheet is open: whether the year is missing for this line.
+  const ageNotChecked = useMemo(
+    () => (open ? flagBuildingAge([{ name, description, category, csiDivision }], ctx).ageNotChecked : false),
+    [open, name, description, category, csiDivision, ctx],
+  );
 
   // A line edited out of its flag while the sheet is open closes the sheet.
   useEffect(() => { if (!result.flagged) setOpen(false); }, [result.flagged]);
 
   const onHide = useCallback(() => {
     setOpen(false);
-    void dismissLine(scope, lineKey, families);
+    if (isStorableScope(scope)) void dismissLine(scope, lineKey, families);
+    else setHiddenHere(true);
   }, [scope, lineKey, families]);
 
   if (!result.flagged || !result.kind || hidden) return null;
@@ -80,12 +96,13 @@ function ChipOn(props: CodeFlagChipProps) {
         style={styles.chip}
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
+        hitSlop={10}
         accessibilityRole="button"
-        accessibilityLabel={copy.chipA11yBody(result.kind)}
+        accessibilityLabel={labels.permitA11yBody}
         testID={id}
       >
         <Info size={12} color={colors.textMuted} strokeWidth={1.75} />
-        <Text style={styles.chipText}>{copy.chipLabel(result.kind)}</Text>
+        <Text style={styles.chipText}>{labels.permitLabel}</Text>
       </TouchableOpacity>
       {open ? (
         <CodeFlagSheet
@@ -95,7 +112,10 @@ function ChipOn(props: CodeFlagChipProps) {
           lineName={name}
           categoryName={categoryName ?? null}
           projectId={projectId ?? null}
-          result={result}
+          variant="line"
+          hits={result.hits}
+          place={result.place}
+          ageNotChecked={ageNotChecked}
           testID={`${id}-sheet`}
         />
       ) : null}

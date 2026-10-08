@@ -91,6 +91,7 @@ export const BREAK_WORDS: ReadonlySet<string> = set(`
 export const HEAD_TAIL_WORDS: ReadonlySet<string> = set(`
   section sections framing assembly completely entirely only complete approx separating dividing
   nic typ lf sf ea ft allowance
+  nuevo nueva nuevos nuevas existente existentes adicional adicionales
 `);
 
 /** "no X", "excluding X", "sin X": the word right before a trigger that cancels it. */
@@ -99,7 +100,7 @@ export const NEGATORS: ReadonlySet<string> = set('no excluding excludes exclude 
 export const NEGATOR_SECOND: ReadonlySet<string> = set('including included incl incluye incluido incluyendo');
 export const NEGATOR_FIRST: ReadonlySet<string> = set('not no');
 /** Words that may stand between the negation and the trigger ("no NEW circuits"). */
-export const NEGATION_SKIP: ReadonlySet<string> = set('the a an any new additional un una ningun ninguna nuevo nueva');
+export const NEGATION_SKIP: ReadonlySet<string> = set('the a an any new additional un una ningun ninguna nuevo nueva trabajo trabajos obra');
 
 /**
  * A trigger followed by one of these (directly, or after one more word) is the

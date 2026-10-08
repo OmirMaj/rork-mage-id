@@ -19,21 +19,52 @@
 // gate (utils/codeCard/echoCheck) would withhold, and when the sentence saying
 // that no flag means nothing is missing.
 //
-// Never call t() at module scope: the object is rebuilt when the language
+// TWO HOOKS, for cost. A chip is drawn on every flagged line, so it reads only
+// its two labels (useCodeFlagChipLabels: one small object, built once per
+// language and shared by every chip on the screen). The sheet's sixty-odd
+// sentences are built by useCodeFlagsCopy, which ONLY the sheet calls, so they
+// are built when a sheet opens and not once per line.
+//
+// Never call t() at module scope: the objects are rebuilt when the language
 // changes.
 import { useMemo } from 'react';
 import { useT } from '@/contexts/LanguageContext';
 import { calendarDayOf, formatCalendarDay } from '@/utils/calendarDate';
-import type { CodeFlagFamilyId, CodeFlagKind } from '@/utils/codeFlags/rules';
-import type { CodeFlagPlace, CodeFlagSectionId } from '@/utils/codeFlags/place';
+import type { CodeFlagFamilyId } from '@/utils/codeFlags/rules';
+import type { CodeFlagPlace, CodeFlagPlaceId, CodeFlagSectionId } from '@/utils/codeFlags/place';
 import type { CodeFlagTrigger } from '@/utils/codeFlags/match';
 
+/** All a chip or the building-age row needs: its words and what a screen reader says. */
+export interface CodeFlagChipLabels {
+  permitLabel: string;
+  permitA11yBody: string;
+  ageLabel: string;
+  ageA11yBody: string;
+}
+
+const LABELS = new Map<string, CodeFlagChipLabels>();
+
+/** The chip's labels. One object per language, shared by every chip on screen. */
+export function useCodeFlagChipLabels(): CodeFlagChipLabels {
+  const { t, displayLang } = useT();
+  let labels = LABELS.get(displayLang);
+  if (!labels) {
+    labels = {
+      permitLabel: t('office.codeFlags.chip.permitLabel', 'May Need a Permit Amendment or an Inspection'),
+      permitA11yBody: t('office.codeFlags.chip.permitA11yBody', 'May need a permit amendment or an inspection. Opens the reason.'),
+      ageLabel: t('office.codeFlags.chip.ageLabel', 'Check Building-Age Rules'),
+      ageA11yBody: t('office.codeFlags.chip.ageA11yBody', 'Check building-age rules. Opens the reason.'),
+    };
+    LABELS.set(displayLang, labels);
+  }
+  return labels;
+}
+
 export interface CodeFlagsCopy {
-  // ── the chip ──
-  chipLabel: (kind: CodeFlagKind) => string;
-  chipA11yBody: (kind: CodeFlagKind) => string;
   // ── the sheet ──
   sheetTitleLabel: string;
+  ageSheetTitleLabel: string;
+  ageSheetBody: string;
   introBody: string;
   /** The sentence that says an unflagged line means nothing. */
   noFlagBody: string;
@@ -46,8 +77,10 @@ export interface CodeFlagsCopy {
   sourcesHeadingLabel: string;
   booksLabel: (books: string) => string;
   familyNameLabel: (id: CodeFlagFamilyId) => string;
-  familyWhy: (id: CodeFlagFamilyId) => string;
+  familyWhy: (id: CodeFlagFamilyId, place: CodeFlagPlaceId) => string;
   triggerBody: (triggers: readonly CodeFlagTrigger[], categoryName: string | null) => string;
+  /** The building-age row: the words, and how many lines carry them. */
+  docTriggerBody: (triggers: readonly CodeFlagTrigger[], lineCount: number) => string;
   builtBody: (id: CodeFlagFamilyId, year: number) => string;
   marylandLeadBody: string;
   ageNotCheckedBody: string;
@@ -57,10 +90,9 @@ export interface CodeFlagsCopy {
   placeBody: (place: CodeFlagPlace, hasProject: boolean) => string;
   standingNoteBody: string;
   askLabel: string;
-  askSub: string;
+  askBody: string;
   hideLabel: string;
-  hideSub: string;
-  closeLabel: string;
+  hideBody: (hasProject: boolean) => string;
   openLinkFailedBody: string;
 }
 
@@ -79,6 +111,7 @@ export function useCodeFlagsCopy(): CodeFlagsCopy {
       change_of_use: t('office.codeFlags.family.changeOfUse.nameLabel', 'Change of Use or Occupancy'),
       energy_tests: t('office.codeFlags.family.energyTests.nameLabel', 'Energy Code Tests'),
       decks_stairs: t('office.codeFlags.family.decksStairs.nameLabel', 'Decks, Stairs, Guards and Railings'),
+      layout_change: t('office.codeFlags.family.layoutChange.nameLabel', 'Room Layout Changes'),
       lead_age: t('office.codeFlags.family.leadAge.nameLabel', 'Lead-Safe Work in an Older Home'),
       asbestos_age: t('office.codeFlags.family.asbestosAge.nameLabel', 'Asbestos Check in an Older New York City Building'),
     };
@@ -94,25 +127,24 @@ export function useCodeFlagsCopy(): CodeFlagsCopy {
       change_of_use: t('office.codeFlags.family.changeOfUse.why', 'This work turns a space into something it was not. A garage becomes a room, a basement becomes an apartment, a store becomes a restaurant, or a bedroom or a dwelling unit is added. That commonly changes which rules the building falls under, and it can change the Certificate of Occupancy.'),
       energy_tests: t('office.codeFlags.family.energyTests.why', 'A blower door test, a duct leakage test and a heating and cooling load calculation are commonly asked for with the permit or at the final inspection. A line for one of them usually means an inspector will want to see the result.'),
       decks_stairs: t('office.codeFlags.family.decksStairs.why', 'New or rebuilt decks, porches, stairs, guards and handrails are commonly built under a permit and inspected. How a deck attaches to the house is commonly looked at. So are the height and the openings of a guard.'),
-      lead_age: t('office.codeFlags.family.leadAge.why', 'This line touches painted surfaces in a home on file as built before 1978. Federal lead-safe work rules cover homes built before 1978 when the work disturbs paint. Small jobs and buildings tested lead-free can be exempt. MAGE ID does not know whether this building has lead paint.'),
+      layout_change: t('office.codeFlags.family.layoutChange.why', 'Taking out, adding or moving a wall or a partition changes the layout of rooms. Building departments commonly look at a layout change on a permit.'),
+      lead_age: t('office.codeFlags.family.leadAge.why', 'Some of this work touches painted surfaces in a home on file as built before 1978. Federal lead-safe work rules cover homes built before 1978 when the work disturbs paint. Small jobs and buildings tested lead-free can be exempt. MAGE ID does not know whether this building has lead paint.'),
       asbestos_age: t('office.codeFlags.family.asbestosAge.why', 'New York City has asbestos rules for permit work on buildings from before April 1, 1987. An asbestos investigation, on form ACP-5, commonly comes before the permit. MAGE ID does not know whether this building has asbestos.'),
     };
+    const layoutNycWhy = t('office.codeFlags.family.layoutChange.nycWhy', 'Taking out, adding or moving a wall or a partition changes the layout of rooms. In New York City, changing the layout of rooms commonly involves a filing with the Department of Buildings.');
     const sectionBodies: Record<CodeFlagSectionId, (label: string) => string> = {
       baltimore_city_105_1_3: (label) => t('office.codeFlags.section.baltimoreCityUnderpinningBody', '{label}. It covers who applies for the permit for underpinning work.', { label }),
-      baltimore_county_21_7_303: (label) => t('office.codeFlags.section.baltimoreCountyElectricalBody', '{label}. It sets when each new edition of the electrical code takes effect.', { label }),
+      baltimore_county_21_7_303: (label) => t('office.codeFlags.section.baltimoreCountyElectricalBody', '{label} sets when each new edition of the electrical code takes effect.', { label }),
     };
-    const permitLabel = t('office.codeFlags.chip.permitLabel', 'May Need a Permit Amendment or an Inspection');
-    const ageLabel = t('office.codeFlags.chip.ageLabel', 'Check Building-Age Rules');
+    const wordsOf = (triggers: readonly CodeFlagTrigger[]) => triggers.filter((x) => x.via !== 'permit_flag').map((x) => x.phrase).join(', ');
     return {
-      chipLabel: (kind) => (kind === 'permit' ? permitLabel : ageLabel),
-      chipA11yBody: (kind) => (kind === 'permit'
-        ? t('office.codeFlags.chip.permitA11yBody', 'May need a permit amendment or an inspection. Opens the reason.')
-        : t('office.codeFlags.chip.ageA11yBody', 'Check building-age rules. Opens the reason.')),
       sheetTitleLabel: t('office.codeFlags.sheet.titleLabel', 'Why This Line Has a Flag'),
+      ageSheetTitleLabel: t('office.codeFlags.sheet.ageTitleLabel', 'Building-Age Rules'),
+      ageSheetBody: t('office.codeFlags.sheet.ageBody', 'One flag for the whole page, not one on each line.'),
       introBody: t('office.codeFlags.sheet.introBody', 'This kind of work is commonly looked at on a permit or by an inspector. MAGE ID flags it so you can check. You decide what to do.'),
       noFlagBody: t('office.codeFlags.sheet.noFlagBody', 'A line with no flag can still need a permit or an inspection. No flag means nothing.'),
       neverBlocksBody: t('office.codeFlags.sheet.neverBlocksBody', 'A flag never stops you from saving, sending, signing or billing.'),
-      privateBody: t('office.codeFlags.sheet.privateBody', 'Only you and your team see this flag. It is not on anything your client, your subs or your architect see.'),
+      privateBody: t('office.codeFlags.sheet.privateBody', 'Only you see this flag. It is not on anything you send.'),
       starterBody: t('office.codeFlags.sheet.starterBody', 'This is a starter list of work types. An architect or an expediter has not checked it yet.'),
       whyHeadingLabel: t('office.codeFlags.sheet.whyHeadingLabel', 'Why It Is Flagged'),
       triggerHeadingLabel: t('office.codeFlags.sheet.triggerHeadingLabel', 'What Triggered It'),
@@ -120,17 +152,20 @@ export function useCodeFlagsCopy(): CodeFlagsCopy {
       sourcesHeadingLabel: t('office.codeFlags.sheet.sourcesHeadingLabel', 'Official Sources'),
       booksLabel: (books) => t('office.codeFlags.sheet.booksBody', 'Code family: {books}.', { books }),
       familyNameLabel: (id) => familyNames[id],
-      familyWhy: (id) => familyWhys[id],
+      familyWhy: (id, place) => (id === 'layout_change' && place === 'nyc' ? layoutNycWhy : familyWhys[id]),
       triggerBody: (triggers, categoryName) => {
         const first = triggers[0];
-        if (!first || first.via === 'permit_flag') {
-          return t('office.codeFlags.trigger.permitFlagBody', 'This line has a permit flag, and the age of the building adds this one.');
-        }
-        const words = triggers.filter((x) => x.via !== 'permit_flag').map((x) => x.phrase).join(', ');
+        if (!first) return '';
+        const words = wordsOf(triggers);
         if (first.via === 'category' && categoryName) {
           return t('office.codeFlags.trigger.categoryBody', 'These words on a line filed under {category}: {words}.', { category: categoryName, words });
         }
         return t('office.codeFlags.trigger.wordsBody', 'These words on the line: {words}.', { words });
+      },
+      docTriggerBody: (triggers, lineCount) => {
+        const words = wordsOf(triggers);
+        if (!words) return t('office.codeFlags.trigger.permitFlagBody', 'A line here has a permit flag, and the age of the building adds this one.');
+        return t('office.codeFlags.trigger.docWordsBody', 'These words, on {count} of the lines: {words}.', { count: String(lineCount), words });
       },
       builtBody: (id, year) => (id === 'asbestos_age' && year === 1987
         ? t('office.codeFlags.age.built1987Body', 'On file as built in 1987. The rule depends on whether the new-building permit was issued before April 1, 1987.')
@@ -157,10 +192,11 @@ export function useCodeFlagsCopy(): CodeFlagsCopy {
       },
       standingNoteBody: t('office.codeFlags.sheet.standingNoteBody', 'Not a substitute for the adopted code. Confirm with your building department.'),
       askLabel: t('office.codeFlags.sheet.askLabel', 'Ask Code Check'),
-      askSub: t('office.codeFlags.sheet.askSub', 'Opens Code Check for the detail. Code Check has its own daily limit on your plan'),
+      askBody: t('office.codeFlags.sheet.askBody', 'Opens Code Check for the detail. Code Check has its own daily limit on your plan.'),
       hideLabel: t('office.codeFlags.sheet.hideLabel', 'Hide This Flag'),
-      hideSub: t('office.codeFlags.sheet.hideSub', 'Hidden on this device. It comes back if the line changes to a new kind of work'),
-      closeLabel: t('office.codeFlags.sheet.closeLabel', 'Close'),
+      hideBody: (hasProject) => (hasProject
+        ? t('office.codeFlags.sheet.hideBody', 'Hidden on this device. It comes back if the line changes to a new kind of work.')
+        : t('office.codeFlags.sheet.hideNoProjectBody', 'Hidden while this estimate is open. Nothing is saved, because the estimate is not on a project yet.')),
       openLinkFailedBody: t('office.codeFlags.source.openFailedBody', 'That page did not open. Try again in a moment.'),
     };
   }, [t, lang]);
