@@ -31,7 +31,7 @@
 import type { ComponentType } from 'react';
 import { Platform, type ViewProps } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
-import type { JobSceneHandle } from '../threeScene';
+import type { JobSceneHandle, JobSceneOptions } from '../threeScene';
 import type { LivingModelPalette } from '@/utils/livingModel/palette';
 
 /** The names expo-gl registers its native module and its native view under. */
@@ -56,7 +56,7 @@ export type PhoneGlViewProps = ViewProps & {
 export interface Phone3DEngine {
   GLView: ComponentType<PhoneGlViewProps>;
   /** Builds the scene on a drawing context. The same builder the web view calls. */
-  createScene: (canvas: unknown, palette: LivingModelPalette) => JobSceneHandle;
+  createScene: (canvas: unknown, palette: LivingModelPalette, opts?: JobSceneOptions) => JobSceneHandle;
 }
 
 let inBuild: boolean | null = null;
@@ -101,7 +101,7 @@ export function loadPhone3DEngine(): Promise<Phone3DEngine | null> {
       }
       return {
         GLView,
-        createScene: (canvas, palette) => scene.createJobScene(THREE, canvas as HTMLCanvasElement, palette),
+        createScene: (canvas, palette, opts) => scene.createJobScene(THREE, canvas as HTMLCanvasElement, palette, opts),
       };
     } catch (e) {
       lastError = say(e);

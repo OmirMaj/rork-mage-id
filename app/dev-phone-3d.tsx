@@ -20,7 +20,8 @@
 //
 // The address, or the launch argument (utils/phone3dSpikeLaunch.ts), takes: week (1 to 10), rooms (7 or 40), dx and dy (turn the
 // view, in points of finger travel), zoom (a factor), planned (1 for the
-// planned reading), spin (time this many frames and print the result), msaa (samples per pixel, 0 for none).
+// planned reading), spin (time this many frames and print the result), msaa (samples per pixel, 0 for none),
+// quality (high for the full screen; standard, the default, is what everyone gets).
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
@@ -59,7 +60,7 @@ function Spike() {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const phoneCopy = usePhone3DCopy();
-  const linkParams = useLocalSearchParams<{ week?: string; rooms?: string; dx?: string; dy?: string; zoom?: string; planned?: string; spin?: string; msaa?: string }>();
+  const linkParams = useLocalSearchParams<{ week?: string; rooms?: string; dx?: string; dy?: string; zoom?: string; planned?: string; spin?: string; msaa?: string; quality?: string }>();
   // The launch argument's words first, the address's over them (utils/phone3dSpikeLaunch.ts).
   const params = useMemo<Record<string, string | string[] | undefined>>(() => ({ ...phone3dSpikeLaunchParams(), ...linkParams }), [linkParams]);
   const big = num(params.rooms) === 40;
@@ -75,6 +76,9 @@ function Spike() {
   const [spin, setSpin] = useState<string | null>(null);
   const [spinToken, setSpinToken] = useState(0);
   const [threw, setThrew] = useState<string | null>(null);
+  const [flat, setFlat] = useState(false);
+  const [held, setHeld] = useState(false);
+  const quality = (Array.isArray(params.quality) ? params.quality[0] : params.quality) === 'high' ? 'high' as const : 'standard' as const;
 
   const week = num(params.week);
   const planned = num(params.planned) === 1;
@@ -111,7 +115,7 @@ function Spike() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.screen, { paddingTop: insets.top }]} testID="dev-phone-3d">
-        <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]}>
+        <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]} scrollEnabled={!held}>
           <Text style={styles.headerName} accessibilityRole="header">Phone 3D Check</Text>
           <Text style={styles.note}>Sample job. Nothing here is saved.</Text>
           <JobReplay3D
@@ -121,6 +125,9 @@ function Spike() {
             selectedId={selectedId}
             onSelect={setSelectedId}
             onUnavailable={() => {}}
+            onFlat={setFlat}
+            onHold={setHeld}
+            quality={quality}
             weekLine={weekLine}
             atToday={atToday}
             height={380}
@@ -128,9 +135,9 @@ function Spike() {
             debug={debug}
           />
           <StageLegend />
-          <Text style={styles.note}>{phoneCopy.touchHelpSub}</Text>
+          {flat ? null : <Text style={styles.note}>{phoneCopy.touchHelpSub}</Text>}
           {spin ? <Text style={styles.para} testID="dev-phone-3d-timing">{spin}</Text> : null}
-          <Text style={styles.note} testID="dev-phone-3d-engine">{`Engine in this build: ${phone3DEngineInBuild() ? 'yes' : 'no'}.${threw ? ` Threw: ${threw}` : ''}${phone3DEngineError() ? ` Load: ${phone3DEngineError()}` : ''}`}</Text>
+          <Text style={styles.note} testID="dev-phone-3d-engine">{`Engine in this build: ${phone3DEngineInBuild() ? 'yes' : 'no'}. Quality: ${quality}.${threw ? ` Threw: ${threw}` : ''}${phone3DEngineError() ? ` Load: ${phone3DEngineError()}` : ''}`}</Text>
           <ReplayControls input={input} state={state} />
           <HonestyLines ghost={past} />
         </ScrollView>

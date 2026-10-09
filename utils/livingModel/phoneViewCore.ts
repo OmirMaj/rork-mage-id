@@ -9,9 +9,10 @@
 // THREE THINGS LIVE HERE.
 //   1. Fingers. One finger turns the model, two fingers move it, a pinch
 //      zooms, and a short still touch is a tap that picks a room.
-//   2. Sizes. The scene works in its own units; the screen works in points.
-//      viewSize says how many scene units the drawing buffer is, and the
-//      factor between the two.
+//   2. Sizes and cost. The scene is handed the view's size in points and the
+//      drawing buffer's pixels a point (viewSize). PHONE_3D_QUALITY is the one
+//      place that says how large that buffer may be, how smooth its edges
+//      are and how large the shadow map is.
 //   3. Labels. Two labels never sit on one another: the larger room keeps
 //      its label. (How MUCH of a label a room carries is the scene's own
 //      rule, sceneCore.pinSize, the same on the web.)
@@ -116,31 +117,90 @@ export function gestureEnd(prev: GestureState, now: number): GestureAct[] {
 }
 
 export interface PhoneViewSize {
-  /** The width and height handed to the scene, in scene units. */
+  /** The width and height handed to the scene: the view's own size, in points. */
   width: number;
   height: number;
-  /** The pixel ratio handed to the scene: the scene accepts 1 to 2. */
+  /** Pixels of the drawing buffer per point of the view. 2 on a 2x phone, 3 on a 3x phone drawn in full, 2 on a 3x phone held to the 2x cap. */
   pixelRatio: number;
-  /** Scene units per point of the screen. 1 on a 2x phone, 1.5 on a 3x phone. */
-  unitsPerPoint: number;
 }
 
+/** The most pixels a point the scene is asked to accept on the phone (threeScene's own default is 2, the web's). No phone screen is past 4. */
+export const PHONE_MAX_PIXEL_RATIO = 4;
+
 /**
- * The scene (threeScene.resize) caps its pixel ratio at 2 and sets its
- * viewport to width x height x ratio. The phone's drawing buffer is the view's
- * size times the screen's scale, which is 3 on a Pro Max. Handing the scene
- * the size in POINTS would fill two thirds of the buffer. So the scene is
- * handed buffer / ratio, which fills the buffer on every screen, and every
- * point that goes in (a tap, a two-finger move) or comes out (a label) is
- * multiplied or divided by unitsPerPoint.
+ * The scene is handed the view's size in POINTS and the buffer's pixels per
+ * point, so a tap, a two-finger move and a label are all in points with no
+ * conversion. The ratio is read from the buffer the phone really made, not
+ * from the screen's scale, so the picture fills the buffer whatever the cap
+ * (PHONE_3D_QUALITY) did to it.
  */
 export function viewSize(layoutWidthPt: number, layoutHeightPt: number, bufferWidthPx: number, bufferHeightPx: number): PhoneViewSize | null {
   if (![layoutWidthPt, layoutHeightPt, bufferWidthPx, bufferHeightPx].every((n) => finite(n) && n >= 1)) return null;
-  const scale = bufferWidthPx / layoutWidthPt;
-  const pixelRatio = Math.max(1, Math.min(2, scale));
-  const width = bufferWidthPx / pixelRatio;
-  return { width, height: bufferHeightPx / pixelRatio, pixelRatio, unitsPerPoint: width / layoutWidthPt };
+  const pixelRatio = Math.max(1, Math.min(PHONE_MAX_PIXEL_RATIO, bufferWidthPx / layoutWidthPt));
+  return { width: layoutWidthPt, height: layoutHeightPt, pixelRatio };
 }
+
+export type Phone3DQuality = 'standard' | 'high';
+
+/**
+ * WHAT THE 3D VIEW COSTS A PHONE, IN ONE PLACE. Chosen for a real iPhone, not
+ * for the simulator the view was first proven in.
+ *
+ *   maxBufferScale  the most buffer pixels a point. A 3x screen drawn at 2x
+ *                   has under half the pixels to fill (4 a point, not 9).
+ *   msaaSamples     samples a pixel for smooth edges (iPhone only). Every
+ *                   sample is a pixel to fill again.
+ *   shadowMapSize   the one shadow map, square. 1024 is a quarter of 2048.
+ *
+ * Standard is what everyone gets. High is the full screen, the way the view
+ * was first built; the owner can switch to it on the phone to compare.
+ */
+export const PHONE_3D_QUALITY = {
+  standard: { maxBufferScale: 2, msaaSamples: 2, msaaSamples3x: 4, shadowMapSize: 1024 },
+  high: { maxBufferScale: 3, msaaSamples: 4, msaaSamples3x: 4, shadowMapSize: 2048 },
+} as const;
+
+export interface Phone3DSettings {
+  /** The drawing surface is laid out at this fraction of the view and scaled back up. 1 draws every pixel of the screen. */
+  surfaceScale: number;
+  msaaSamples: number;
+  shadowMapSize: number;
+}
+
+/**
+ * The settings for one phone. `screenScale` is the screen's pixels a point
+ * (PixelRatio.get()), the one cheap thing a phone says about its class: the
+ * 3x phones are the Plus, Pro and Max ones, and get four samples; a 2x phone
+ * gets two. A scale that cannot be read is taken as 2.
+ */
+export function phone3DSettings(quality: Phone3DQuality, screenScale: number): Phone3DSettings {
+  const q = PHONE_3D_QUALITY[quality === 'high' ? 'high' : 'standard'];
+  const scale = finite(screenScale) && screenScale >= 1 ? screenScale : 2;
+  return {
+    surfaceScale: Math.min(1, q.maxBufferScale / scale),
+    msaaSamples: scale >= 3 ? q.msaaSamples3x : q.msaaSamples,
+    shadowMapSize: q.shadowMapSize,
+  };
+}
+
+export interface SurfaceBox { width: number; height: number; translateX: number; translateY: number; scale: number }
+
+/**
+ * Where the drawing surface sits inside a view of `widthPt` by `heightPt`
+ * when it is laid out at `surfaceScale` of the view (so its buffer is that
+ * much smaller) and scaled back up to cover the view. A scale grows a view
+ * about its middle, so the surface is first moved to the middle of the view.
+ * At 1 the surface is the view: no move, no scale.
+ */
+export function surfaceBox(widthPt: number, heightPt: number, surfaceScale: number): SurfaceBox {
+  const k = finite(surfaceScale) && surfaceScale > 0 && surfaceScale < 1 ? surfaceScale : 1;
+  const width = widthPt * k;
+  const height = heightPt * k;
+  return { width, height, translateX: (widthPt - width) / 2, translateY: (heightPt - height) / 2, scale: 1 / k };
+}
+
+/** How long the drawing surface has to start before the flat replay is drawn instead. */
+export const SURFACE_START_WAIT_MS = 10000;
 
 export interface LabelBox { id: string; x: number; y: number; w: number; h: number; weight: number }
 

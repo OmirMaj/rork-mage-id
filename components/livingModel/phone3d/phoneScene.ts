@@ -14,11 +14,12 @@
 //   addEventListener / removeEventListener   nothing: a phone context is not
 //                         lost and restored the way a browser tab's is
 //
-// and then wraps the scene's handle so that the rest of the phone view talks
-// in POINTS of the screen (utils/livingModel/phoneViewCore.viewSize says why
-// the scene's own units are not points on a 3x phone), and so that every
-// drawn frame is shown: expo-gl draws off screen until endFrameEXP is called.
-import { viewSize, type PhoneViewSize } from '@/utils/livingModel/phoneViewCore';
+// and then wraps the scene's handle so that every drawn frame is shown: expo-gl
+// draws off screen until endFrameEXP is called. The scene is handed the view's
+// size in POINTS and the buffer's pixels a point
+// (utils/livingModel/phoneViewCore.viewSize), so a tap, a move and a label are
+// in points here and in the scene alike: nothing is converted.
+import { viewSize } from '@/utils/livingModel/phoneViewCore';
 import type { PlacedRoom } from '@/utils/livingModel/types';
 import type { JobSceneHandle, RoomLook } from '../threeScene';
 import type { PhoneGl } from './engine';
@@ -73,12 +74,10 @@ export interface PhoneScene {
 }
 
 export function makePhoneScene(handle: JobSceneHandle, gl: PhoneGl): PhoneScene {
-  let size: PhoneViewSize | null = null;
   return {
     layout(widthPt, heightPt) {
       const next = viewSize(widthPt, heightPt, gl.drawingBufferWidth, gl.drawingBufferHeight);
       if (!next) return false;
-      size = next;
       handle.resize(next.width, next.height, next.pixelRatio);
       return true;
     },
@@ -91,29 +90,20 @@ export function makePhoneScene(handle: JobSceneHandle, gl: PhoneGl): PhoneScene 
       if (wait) gl.getError?.();
     },
     settle: () => { gl.getError?.(); },
-    // Turning is by the finger's travel in points, the same feel as a mouse on the web.
+    // Turning and moving are by the fingers' travel in points, the same feel as a mouse on the web.
     orbit: (dxPt, dyPt) => handle.orbit(dxPt, dyPt),
-    // Moving follows the fingers, so it is worked in the scene's own units.
-    pan(dxPt, dyPt) {
-      const k = size?.unitsPerPoint ?? 1;
-      handle.pan(dxPt * k, dyPt * k);
-    },
+    pan: (dxPt, dyPt) => handle.pan(dxPt, dyPt),
     zoomBy: (factor) => handle.zoomBy(factor),
     turnBy: (radians) => handle.turnBy(radians),
     resetView: () => handle.resetView(),
-    pickAt(xPt, yPt) {
-      const k = size?.unitsPerPoint ?? 1;
-      return handle.pick(xPt * k, yPt * k);
-    },
+    pickAt: (xPt, yPt) => handle.pick(xPt, yPt),
     labelAt(roomId) {
       const p = handle.project(roomId);
-      const k = size?.unitsPerPoint ?? 1;
-      return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { x: p.x / k, y: p.y / k } : null;
+      return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { x: p.x, y: p.y } : null;
     },
     roomWidthPt(roomId) {
-      const px = handle.roomWidthPx(roomId);
-      const k = size?.unitsPerPoint ?? 1;
-      return px != null && Number.isFinite(px) ? px / k : null;
+      const w = handle.roomWidthPx(roomId);
+      return w != null && Number.isFinite(w) ? w : null;
     },
     dispose: () => handle.dispose(),
   };

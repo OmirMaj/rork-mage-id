@@ -14,14 +14,17 @@
 //
 // THREE THINGS CAN BE ON THE SCREEN, and every one of them is a replay:
 //   the 3D view             the engine is in the build and it started
-//   the flat replay + one   the build has no engine: "3D needs the newest
-//   quiet line              version of the app."
-//   the flat replay + one   the engine is there and would not start, or a
-//   plain sentence          frame failed
+//   one line + the flat     the build has no engine: "3D needs the newest
+//   replay                  version of the app."
+//   one sentence + the      the engine is there and would not start, or a
+//   flat replay             frame failed
+// The flat replay is drawn HERE, not by the screen, so it is on the glass even
+// if the screen never hears about it. The screen is told (onFlat) only so that
+// it can leave out the line that says how to turn a 3D model.
 // Nothing here may take the screen down: a throw while the 3D view is being
 // drawn is caught by the boundary below and the flat replay is drawn instead.
 // scripts/validate-phone-3d.ts pins all of this, each with a planted break.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
@@ -55,7 +58,7 @@ export function JobReplay3D(props: JobReplay3DProps & {
   /** For tests, which cannot run a dynamic import: how the engine is read. The app never passes it. */
   loadEngine?: () => Promise<Phone3DEngine | null>;
 }) {
-  const { model, level, moments, selectedId, onSelect, height, loadEngine = loadPhone3DEngine } = props;
+  const { model, level, moments, selectedId, onSelect, height, onFlat, quality = 'standard', loadEngine = loadPhone3DEngine } = props;
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const phoneCopy = usePhone3DCopy();
@@ -73,18 +76,27 @@ export function JobReplay3D(props: JobReplay3DProps & {
     return () => { alive = false; };
   }, [mode, loadEngine]);
 
+  // The screen hears which of the two is on the glass before the frame is shown, so its 3D-only line never flashes over a flat picture.
+  const flat = mode === 'no_engine' || mode === 'failed';
+  const onFlatRef = useRef(onFlat);
+  onFlatRef.current = onFlat;
+  useLayoutEffect(() => { onFlatRef.current?.(flat); }, [flat]);
+
   // A new theme is a new palette: the scene is built again on a new drawing surface.
   const paletteKey = useRef({ palette, n: 0 });
   if (paletteKey.current.palette !== palette) paletteKey.current = { palette, n: paletteKey.current.n + 1 };
 
   if (mode === '3d' && engine) {
     // onUnavailable is the web's. The phone never calls it: the flat replay is drawn from here, with the phone's own line.
-    const { onUnavailable, debug, loadEngine: _loader, ...rest } = props;
+    const { onUnavailable, onFlat: _onFlat, quality: _quality, debug, loadEngine: _loader, ...rest } = props;
     void onUnavailable;
+    void _onFlat;
+    void _quality;
     void _loader;
+    // A new quality is a new drawing surface too: its size and its smoothing are fixed when it is made.
     return (
       <Phone3DBoundary onError={() => setMode('failed')}>
-        <Phone3DView key={paletteKey.current.n} {...rest} engine={engine} debug={debug} onFailed={() => setMode('failed')} />
+        <Phone3DView key={`${paletteKey.current.n}-${quality}`} {...rest} quality={quality} engine={engine} debug={debug} onFailed={() => setMode('failed')} />
       </Phone3DBoundary>
     );
   }
@@ -97,7 +109,9 @@ export function JobReplay3D(props: JobReplay3DProps & {
   }
   return (
     <View style={styles.stack} testID={mode === 'no_engine' ? 'lm-phone-no-engine' : 'lm-phone-3d-failed'}>
-      <Text style={styles.note} testID="lm-phone-3d-note">{mode === 'no_engine' ? phoneCopy.needsNewVersionBody : phoneCopy.couldNotStartBody}</Text>
+      <View style={styles.panel}>
+        <Text style={styles.para} testID="lm-phone-3d-note">{mode === 'no_engine' ? phoneCopy.needsNewVersionBody : phoneCopy.couldNotStartBody}</Text>
+      </View>
       <FlatReplay model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} />
     </View>
   );

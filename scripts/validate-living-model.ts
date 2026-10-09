@@ -1728,7 +1728,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'F4', name: 'a task with nothing reported shows 0 percent', plant: edit('components/livingModel/replayShared.tsx', 'row.reportedPct == null', 'row.reportedPct == undefined && false') },
   { rule: 'F4', name: 'Other Work is renamed General', plant: en('stage.otherLabel', 'General') },
   { rule: 'F5', name: 'a lower-case label', plant: en('editor.addRoomLabel', 'Add room') },
-  { rule: 'F5', name: 'an em dash', plant: en('replay.phoneNoteBody', 'Open this job in the web app — the model turns there.') },
+  { rule: 'F5', name: 'an em dash', plant: en('replay.noWebglBody', 'This browser could not start the 3D view — the same replay is drawn flat below.') },
   { rule: 'F5', name: 'an "and" sign', plant: en('card.tasksLabel', 'Tasks & Stages') },
   { rule: 'F5', name: 'a sentence with no end', plant: en('editor.emptyBody', 'Add a room by typing its size') },
   { rule: 'F5', name: 'an arrow', plant: en('tasks.introBody', 'Rooms -> tasks. Tick the tasks that happen in each room.') },

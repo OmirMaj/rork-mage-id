@@ -20,6 +20,11 @@ export interface Phone3DCopy {
   couldNotStartBody: string;
   touchHelpSub: string;
   modelA11yBody: string;
+  /** The owner's switch between the two costs of the 3D view (PHONE_3D_QUALITY). */
+  qualityLabel: string;
+  qualityStandardLabel: string;
+  qualityHighLabel: string;
+  qualityHelpSub: string;
 }
 
 export function usePhone3DCopy(): Phone3DCopy {
@@ -29,5 +34,9 @@ export function usePhone3DCopy(): Phone3DCopy {
     couldNotStartBody: t('office.livingModelPhone.couldNotStartBody', 'The 3D view could not start on this phone. The same replay is drawn flat below.'),
     touchHelpSub: t('office.livingModelPhone.touchHelpSub', 'Drag to turn. Use two fingers to move. Pinch to zoom. Tap a room to pick it'),
     modelA11yBody: t('office.livingModelPhone.modelA11yBody', 'Schematic 3D model of the job. The room list below reads each room.'),
+    qualityLabel: t('office.livingModelPhone.qualityLabel', '3D Quality'),
+    qualityStandardLabel: t('office.livingModelPhone.qualityStandardLabel', 'Standard'),
+    qualityHighLabel: t('office.livingModelPhone.qualityHighLabel', 'High'),
+    qualityHelpSub: t('office.livingModelPhone.qualityHelpSub', 'Owner only. High draws every pixel of the screen and uses more battery'),
   }), [t]);
 }

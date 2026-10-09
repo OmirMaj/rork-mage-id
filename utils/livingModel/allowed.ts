@@ -35,6 +35,14 @@ export function livingModelIsOwnerPreview(): boolean {
   return !flagOn;
 }
 
+/**
+ * The owner's own switches inside the feature (the phone's 3D Quality: Standard or High). The owner account only,
+ * flag on or off: they are for comparing on his own phone, not a setting for customers.
+ */
+export function livingModelOwnerTools(userEmail: string | null | undefined): boolean {
+  return isOwner(userEmail);
+}
+
 export type LivingModelSeat = 'open' | 'checking' | 'refused' | 'unknown';
 
 /** His seat on THIS project: open only for a seat that may edit the schedule. */

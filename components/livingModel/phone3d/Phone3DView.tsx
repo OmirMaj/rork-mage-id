@@ -21,14 +21,22 @@
 //            scrubber, Play) and nothing is drawn otherwise. Drawing stops
 //            when the screen is not the one in front and when the app is not
 //            active: an iPhone ends an app that draws in the background.
-//   Failure  a start or a frame that throws is reported once (onFailed) and
-//            the caller draws the flat replay. Nothing here may take the
-//            screen down.
+//   Failure  a start or a frame that throws, or a drawing surface that never
+//            starts, is reported once (onFailed) and the caller draws the flat
+//            replay. Nothing here may take the screen down.
+//   Cost     utils/livingModel/phoneViewCore.PHONE_3D_QUALITY: how many pixels
+//            the surface has, how smooth its edges are, how large the shadow
+//            map is. On a 3x phone at Standard the surface is laid out at two
+//            thirds of the view and scaled back up, so it has 2 pixels a point.
+//   The page while a finger is on the model the page behind is told to hold
+//            still (onHold): an iPhone's scrolling page would otherwise take
+//            an up-and-down drag for itself. The page scrolls from anywhere
+//            outside the model's box.
 //
 // MOTION. Nothing here moves on its own. The drawing fades in once when its
 // first frame is ready, and not at all under Reduce Motion.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, PanResponder, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
+import { Animated, AppState, PanResponder, PixelRatio, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
@@ -37,8 +45,8 @@ import { useReducedMotion } from '@/components/ui';
 import { nativeDriver } from '@/components/ui/motion';
 import { roomBounds } from '@/utils/livingModel/modelCore';
 import {
-  LABEL_THROTTLE_MS, frameStats, gestureBegin, gestureEnd, gestureMove, labelsToHide,
-  type FingerPoint, type GestureState, type LabelBox,
+  LABEL_THROTTLE_MS, PHONE_MAX_PIXEL_RATIO, SURFACE_START_WAIT_MS, frameStats, gestureBegin, gestureEnd, gestureMove, labelsToHide, phone3DSettings, surfaceBox,
+  type FingerPoint, type GestureState, type LabelBox, type Phone3DQuality,
 } from '@/utils/livingModel/phoneViewCore';
 import { roomLayers } from '@/utils/livingModel/replayCore';
 import { DEFAULT_CUT_M, pinSize, type PinSize } from '@/utils/livingModel/sceneCore';
@@ -63,12 +71,14 @@ export interface Phone3DDebug {
   onSpin?: (r: { frames: number; medianMs: number; p95Ms: number; worstMs: number; medianGapMs: number; p95GapMs: number; medianJsMs: number; p95JsMs: number }) => void;
   /** What threw, in the error's own words. The Living Model screen shows a plain sentence instead. */
   onError?: (what: string) => void;
-  /** Samples per pixel for smooth edges. The view uses 4 when this is not given. */
+  /** Samples per pixel for smooth edges. The view uses its quality's own (PHONE_3D_QUALITY) when this is not given. */
   msaaSamples?: number;
 }
 
-export type Phone3DViewProps = Omit<JobReplay3DProps, 'onUnavailable'> & {
+export type Phone3DViewProps = Omit<JobReplay3DProps, 'onUnavailable' | 'onFlat' | 'quality'> & {
   engine: Phone3DEngine;
+  /** What the view may cost the phone. A new quality is a new view: the caller mounts it again. */
+  quality: Phone3DQuality;
   /** The view could not start, or a frame threw. Called at most once. */
   onFailed: () => void;
   debug?: Phone3DDebug;
@@ -77,7 +87,7 @@ export type Phone3DViewProps = Omit<JobReplay3DProps, 'onUnavailable'> & {
 const touchesOf = (e: GestureResponderEvent): FingerPoint[] =>
   (e.nativeEvent.touches ?? []).map((t) => ({ id: String(t.identifier), x: t.pageX, y: t.pageY }));
 
-export function Phone3DView({ engine, model, level, moments, selectedId, onSelect, onFailed, weekLine, atToday, height, debug }: Phone3DViewProps) {
+export function Phone3DView({ engine, quality, model, level, moments, selectedId, onSelect, onFailed, onHold, weekLine, atToday, height, debug }: Phone3DViewProps) {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const phoneCopy = usePhone3DCopy();
@@ -86,6 +96,8 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
   const { GLView } = engine;
   const rooms = useMemo(() => model.rooms.filter((r) => r.level === level), [model, level]);
   const [ready, setReady] = useState(false);
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+  const settings = useMemo(() => phone3DSettings(quality, PixelRatio.get()), [quality]);
   const [cut, setCut] = useState(true);
   const [details, setDetails] = useState<Record<string, PinSize>>({});
 
@@ -111,6 +123,15 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
   selectedRef.current = selectedId;
   const onFailedRef = useRef(onFailed);
   onFailedRef.current = onFailed;
+  const onHoldRef = useRef(onHold);
+  onHoldRef.current = onHold;
+  const held = useRef(false);
+  /** A finger is on the model, or the last one left it. Said once each way. */
+  const hold = useCallback((on: boolean) => {
+    if (held.current === on) return;
+    held.current = on;
+    onHoldRef.current?.(on);
+  }, []);
   const reduceRef = useRef(reduceMotion);
   reduceRef.current = reduceMotion;
   const frameRef = useRef<(ts: number) => void>(() => {});
@@ -126,8 +147,9 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
     const s = sceneRef.current;
     sceneRef.current = null;
     try { s?.dispose(); } catch { /* the drawing surface is already gone */ }
+    hold(false);
     if (alive.current) onFailedRef.current();
-  }, []);
+  }, [hold]);
 
   /** Ask for one frame. Nothing is asked for while the screen is not in front or the app is not active. */
   const requestDraw = useCallback(() => {
@@ -188,7 +210,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
   const onContextCreate = useCallback((gl: PhoneGl) => {
     if (!alive.current || failed.current) return;
     try {
-      const scene = makePhoneScene(engine.createScene(canvasStandIn(gl), palette), gl);
+      const scene = makePhoneScene(engine.createScene(canvasStandIn(gl), palette, { antialias: false, maxPixelRatio: PHONE_MAX_PIXEL_RATIO, shadowMapSize: settings.shadowMapSize }), gl);
       sceneRef.current = scene;
       if (sizeRef.current.w > 0) scene.layout(sizeRef.current.w, sizeRef.current.h);
       setReady(true);
@@ -197,13 +219,24 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
     }
     // The palette is read once per drawing surface: JobReplay3D.tsx mounts a new view when the theme changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine, fail]);
+  }, [engine, fail, settings]);
 
   const onBox = useCallback((e: LayoutChangeEvent) => {
     const { width, height: h } = e.nativeEvent.layout;
     sizeRef.current = { w: width, h };
+    // The drawing surface is mounted once the box has a size, at the size its quality allows.
+    setBox((prev) => (prev && prev.w === width && prev.h === h ? prev : { w: width, h }));
     if (sceneRef.current?.layout(width, h)) requestDraw();
   }, [requestDraw]);
+
+  // A drawing surface that never starts must not leave "Loading" up for good: the flat replay is drawn instead.
+  useEffect(() => {
+    if (ready) return;
+    const id = setTimeout(() => {
+      if (!sceneRef.current && appActive.current) fail(new Error('The drawing surface did not start.'));
+    }, SURFACE_START_WAIT_MS);
+    return () => clearTimeout(id);
+  }, [ready, fail]);
 
   // The rooms, or the wall height, changed: build the shapes again.
   useEffect(() => {
@@ -283,8 +316,10 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       const s = sceneRef.current;
       sceneRef.current = null;
       try { s?.dispose(); } catch { /* the drawing surface is already gone */ }
+      // The page gets its scrolling back even if the view left with a finger still down.
+      hold(false);
     };
-  }, []);
+  }, [hold]);
 
   // The spike's timed turn (app/dev-phone-3d.tsx). Each frame waits for the phone to finish drawing.
   useEffect(() => {
@@ -318,7 +353,9 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, debug?.spinToken]);
 
-  // Fingers. The model keeps the touch once it has it: the page behind does not scroll while it turns.
+  // Fingers. The model asks for the touch as it lands and does not hand it over. On an iPhone that is not enough:
+  // a scrolling page takes an up-and-down drag at the native level, whatever JavaScript answers. So the page is told
+  // to hold still (hold) for as long as a finger is on the model, and given back the moment the last one lifts.
   const gesture = useRef<GestureState | null>(null);
   const tapAt = useRef({ x: 0, y: 0 });
   const pan = useMemo(() => PanResponder.create({
@@ -326,6 +363,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
     onMoveShouldSetPanResponder: () => true,
     onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: (e) => {
+      hold(true);
       gesture.current = gestureBegin(touchesOf(e), Date.now());
       tapAt.current = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
     },
@@ -346,6 +384,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       requestDraw();
     },
     onPanResponderRelease: () => {
+      hold(false);
       const g = gesture.current;
       gesture.current = null;
       const scene = sceneRef.current;
@@ -358,14 +397,20 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       labelsAt.current = 0;
       requestDraw();
     },
-    onPanResponderTerminate: () => { gesture.current = null; },
-  }), [requestDraw, fail]);
+    onPanResponderTerminate: () => { hold(false); gesture.current = null; },
+  }), [requestDraw, fail, hold]);
+
+  const surface = box ? surfaceBox(box.w, box.h, settings.surfaceScale) : null;
 
   return (
     <View style={[styles.stage3d, { height }]} testID="lm-replay-3d">
       {/* Measured here, inside the border: the drawing, the fingers and the labels all share this box. */}
-      <Animated.View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, opacity: fade }} onLayout={onBox}>
-        <GLView style={{ flex: 1 }} msaaSamples={debug?.msaaSamples ?? 4} onContextCreate={onContextCreate} />
+      <Animated.View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, opacity: fade, overflow: 'hidden' }} onLayout={onBox} testID="lm-replay-3d-box">
+        {surface ? (
+          <View style={{ width: surface.width, height: surface.height, transform: [{ translateX: surface.translateX }, { translateY: surface.translateY }, { scale: surface.scale }] }} testID="lm-replay-3d-surface">
+            <GLView style={{ flex: 1 }} msaaSamples={debug?.msaaSamples ?? settings.msaaSamples} onContextCreate={onContextCreate} />
+          </View>
+        ) : null}
       </Animated.View>
       <View
         style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}

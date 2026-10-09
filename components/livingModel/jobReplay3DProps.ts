@@ -1,5 +1,6 @@
 // components/livingModel/jobReplay3DProps.ts — what the 3D view is handed, on
-// the web (JobReplay3D.web.tsx) and on the phone (JobReplay3D.tsx, which draws nothing).
+// the web (JobReplay3D.web.tsx) and on the phone (JobReplay3D.tsx). The last
+// three are the phone's own; the web view does not read them.
 import type { RoomMoment } from '@/utils/livingModel/replayCore';
 import type { JobModel } from '@/utils/livingModel/types';
 
@@ -17,4 +18,13 @@ export interface JobReplay3DProps {
   height: number;
   /** A narrow screen: the corner card shows the week alone and each room label its name alone. */
   compact: boolean;
+  /**
+   * The phone only. The view is drawing the flat replay itself, with its own one line (the build has no 3D engine, or
+   * the engine would not start), or has gone back to 3D. The screen then leaves out what belongs to a 3D picture.
+   */
+  onFlat?: (flat: boolean) => void;
+  /** The phone only. A finger is on the model (true) or the last one lifted (false): the page behind must not scroll meanwhile. */
+  onHold?: (held: boolean) => void;
+  /** The phone only. What the 3D view may cost the phone (utils/livingModel/phoneViewCore.PHONE_3D_QUALITY). Standard when left out. */
+  quality?: 'standard' | 'high';
 }

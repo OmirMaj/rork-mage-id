@@ -8,5 +8,9 @@ export const EN: EnCatalog = {
   "office.livingModelPhone.couldNotStartBody": "The 3D view could not start on this phone. The same replay is drawn flat below.",
   "office.livingModelPhone.modelA11yBody": "Schematic 3D model of the job. The room list below reads each room.",
   "office.livingModelPhone.needsNewVersionBody": "3D needs the newest version of the app.",
+  "office.livingModelPhone.qualityHelpSub": "Owner only. High draws every pixel of the screen and uses more battery",
+  "office.livingModelPhone.qualityHighLabel": "High",
+  "office.livingModelPhone.qualityLabel": "3D Quality",
+  "office.livingModelPhone.qualityStandardLabel": "Standard",
   "office.livingModelPhone.touchHelpSub": "Drag to turn. Use two fingers to move. Pinch to zoom. Tap a room to pick it",
 };
