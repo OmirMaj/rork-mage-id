@@ -199,7 +199,7 @@ export const ES_OFFICE_LIVING_MODEL: EsCatalog = {
   "office.livingModel.sync.removeConfirmBody": { s: "Esto quita el modelo de tu cuenta para todos en este proyecto. El modelo de este teléfono se queda. Tus otros dispositivos y tu equipo conservan las copias que ya tienen, y ya no encontrarán una en la cuenta.", src: "17567b26" },
   "office.livingModel.sync.removeConfirmLabel": { s: "Sí, quitarlo", src: "67efeff9" },
   "office.livingModel.sync.removeFailedBody": { s: "No se pudo quitar de tu cuenta. No se cambió nada. Inténtalo de nuevo cuando este teléfono tenga conexión.", src: "61eb85aa" },
-  "office.livingModel.sync.removeFromAccountLabel": { s: "Quitarlo de mi cuenta", src: "e931170f" },
+  "office.livingModel.sync.removeFromAccountLabel": { s: "Quitarlo de mi cuenta", src: "811f566f" },
   "office.livingModel.sync.removeKeptLabel": { s: "Quitar el modelo guardado aparte", src: "376dd543" },
   "office.livingModel.sync.removedBody": { s: "Se quitó de tu cuenta. El modelo de este teléfono no se cambió.", src: "31b1429b" },
   "office.livingModel.sync.retryingBody": { s: "Guardado en este dispositivo. Todavía no se pudo revisar tu cuenta. MAGE ID lo intentará de nuevo en un momento.", src: "c3655e04" },

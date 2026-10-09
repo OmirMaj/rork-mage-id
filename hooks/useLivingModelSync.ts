@@ -82,7 +82,7 @@ export interface LastChange {
   at: string;
 }
 
-/** What became of Remove It From My Account. */
+/** What became of Remove It from My Account. */
 export type RemoveState = 'idle' | 'removed' | 'failed';
 
 export interface LivingModelSync {

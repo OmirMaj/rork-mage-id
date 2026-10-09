@@ -294,7 +294,7 @@ export function useLivingModelCopy(): LivingModelCopy {
       keptOnPhoneBody: t('office.livingModel.sync.keptOnPhoneBody', 'Kept on this phone only, as you chose. It will not appear on your other devices.'),
       keptOnPhoneStoppedBody: t('office.livingModel.sync.keptOnPhoneStoppedBody', 'Nothing more will be sent from this phone, as you chose.'),
       keptOnPhoneMayBody: t('office.livingModel.sync.keptOnPhoneMayBody', 'A copy may already be in your account.'),
-      removeFromAccountLabel: t('office.livingModel.sync.removeFromAccountLabel', 'Remove It From My Account'),
+      removeFromAccountLabel: t('office.livingModel.sync.removeFromAccountLabel', 'Remove It from My Account'),
       removeConfirmBody: t('office.livingModel.sync.removeConfirmBody', 'This removes the model from your account for everyone on this project. The model on this phone stays. Your other devices and your team keep the copies they already have, and they will no longer find one in the account.'),
       removeConfirmLabel: t('office.livingModel.sync.removeConfirmLabel', 'Yes, Remove It'),
       removedBody: t('office.livingModel.sync.removedBody', 'Removed from your account. The model on this phone has not been changed.'),

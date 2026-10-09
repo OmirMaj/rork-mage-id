@@ -15,7 +15,7 @@
 // until he taps Save to My Account. A room scanned and added later is asked
 // about again. Keep on This Phone stops every send from this phone and takes
 // a waiting save back; if a copy may already be in the account the panel says
-// so and offers Remove It From My Account, which asks once more before it
+// so and offers Remove It from My Account, which asks once more before it
 // deletes the account's copy. The model on the phone is never touched by it.
 //
 // THE BOTH-CHANGED QUESTION. When this device and the account have both

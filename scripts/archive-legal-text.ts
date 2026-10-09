@@ -17,6 +17,9 @@
 //   bun run scripts/archive-legal-text.ts            print version, hash and file for both pages; write a missing archive file
 //   bun run scripts/archive-legal-text.ts --check    write nothing; exit 1 if a constant or an archive file is wrong
 //
+// It also files the in-app questions that are recorded with a hash (NOTICES
+// below: the Living Model's scan question, English and Spanish), the same way.
+//
 // When a page's words change: edit the page, put its new "Last updated" date
 // and the hash this prints into utils/legalAcceptanceCore.ts, run this again
 // (it writes the new archive file; the old one stays, it is the record of the
@@ -30,15 +33,17 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ES_OFFICE_LIVING_MODEL } from '../i18n/catalog/es/office/livingModel';
 import {
-  PRIVACY_TEXT_SHA256, PRIVACY_VERSION, TERMS_TEXT_SHA256, TERMS_VERSION, normalizeLegalHtml,
+  PRIVACY_TEXT_SHA256, PRIVACY_VERSION, SCAN_UPLOAD_COPY, SCAN_UPLOAD_TEXT_SHA256, SCAN_UPLOAD_TEXT_SHA256_ES, SCAN_UPLOAD_VERSION,
+  TERMS_TEXT_SHA256, TERMS_VERSION, legalNoticeText, normalizeLegalHtml,
 } from '../utils/legalAcceptanceCore';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const LEGAL_ARCHIVE_DIR = 'docs/legal/versions';
 
 /** The archive file for one version of one document. */
-export function legalArchivePath(kind: 'terms' | 'privacy', version: string, sha256: string): string {
+export function legalArchivePath(kind: 'terms' | 'privacy' | 'scan_room_upload-en' | 'scan_room_upload-es', version: string, sha256: string): string {
   return `${LEGAL_ARCHIVE_DIR}/${kind}-${version}-${sha256.slice(0, 8)}.txt`;
 }
 
@@ -55,6 +60,21 @@ function pageDate(text: string): string {
 const PAGES = [
   { kind: 'terms' as const, page: 'marketing/terms.html', version: TERMS_VERSION, hash: TERMS_TEXT_SHA256, names: 'TERMS_VERSION / TERMS_TEXT_SHA256' },
   { kind: 'privacy' as const, page: 'marketing/privacy.html', version: PRIVACY_VERSION, hash: PRIVACY_TEXT_SHA256, names: 'PRIVACY_VERSION / PRIVACY_TEXT_SHA256' },
+];
+
+/**
+ * IN-APP QUESTIONS that are recorded with a hash (lane LIVINGSYNC): the Living
+ * Model's question before a scanned room is sent to the account. One file per
+ * language, the exact string the hash is taken over (title, one newline,
+ * body). The English is the constant in utils/legalAcceptanceCore; the
+ * Spanish is the catalog entry a Spanish-language phone shows.
+ */
+const esText = (key: string): string => String((ES_OFFICE_LIVING_MODEL as Record<string, { s: unknown }>)[key]?.s ?? '');
+export const NOTICES = [
+  { kind: 'scan_room_upload-en' as const, version: SCAN_UPLOAD_VERSION, hash: SCAN_UPLOAD_TEXT_SHA256, names: 'SCAN_UPLOAD_VERSION / SCAN_UPLOAD_TEXT_SHA256',
+    text: legalNoticeText(SCAN_UPLOAD_COPY.title, SCAN_UPLOAD_COPY.body) },
+  { kind: 'scan_room_upload-es' as const, version: SCAN_UPLOAD_VERSION, hash: SCAN_UPLOAD_TEXT_SHA256_ES, names: 'SCAN_UPLOAD_VERSION / SCAN_UPLOAD_TEXT_SHA256_ES',
+    text: legalNoticeText(esText('office.livingModel.sync.scanAskTitleBody'), esText('office.livingModel.sync.scanAskBody')) },
 ];
 
 if (import.meta.main) {
@@ -82,6 +102,28 @@ if (import.meta.main) {
       mkdirSync(path.dirname(abs), { recursive: true });
       writeFileSync(abs, text, 'utf8');
       console.log(`  ✓ wrote ${file} (${Buffer.byteLength(text, 'utf8')} bytes)`);
+    }
+  }
+  for (const n of NOTICES) {
+    const hash = sha(n.text);
+    const file = legalArchivePath(n.kind, n.version, hash);
+    console.log(`${n.kind}: version ${n.version}, sha256 ${hash}`);
+    if (hash !== n.hash) {
+      bad++;
+      console.log(`  ✗ utils/legalAcceptanceCore.ts ${n.names} say ${n.hash.slice(0, 12)}…; the words hash to ${hash.slice(0, 12)}…. The words changed: bump SCAN_UPLOAD_VERSION and put this hash there.`);
+    }
+    const abs = path.join(ROOT, file);
+    if (existsSync(abs)) {
+      const same = readFileSync(abs, 'utf8') === n.text;
+      console.log(`  ${same ? '✓' : '✗'} ${file}${same ? '' : ' exists with DIFFERENT words: a version\'s archive is never rewritten. Bump the version.'}`);
+      if (!same) bad++;
+    } else if (check) {
+      bad++;
+      console.log(`  ✗ ${file} is missing. Run: bun run scripts/archive-legal-text.ts`);
+    } else {
+      mkdirSync(path.dirname(abs), { recursive: true });
+      writeFileSync(abs, n.text, 'utf8');
+      console.log(`  ✓ wrote ${file} (${Buffer.byteLength(n.text, 'utf8')} bytes)`);
     }
   }
   process.exit(bad > 0 ? 1 : 0);

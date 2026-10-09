@@ -11,7 +11,7 @@
 // `supabase.from(...).insert/update/upsert/delete` here and there must never
 // be one (scripts/validate-living-model-sync.ts fails on it).
 // THE ONE DELETE is public.living_model_remove, called only from the person's
-// confirmed tap on Remove It From My Account. It goes through the same queue
+// confirmed tap on Remove It from My Account. It goes through the same queue
 // call so it waits behind a save of the same job that is still on the wire,
 // but it is NEVER LEFT QUEUED: when it cannot be sent now it is taken back out
 // and the screen says the copy was not removed (a delete that fires hours

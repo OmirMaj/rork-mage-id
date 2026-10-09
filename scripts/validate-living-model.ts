@@ -418,7 +418,7 @@ rule('A7', 'a saved model that cannot be read never throws, is said to be unread
   // The store: the unread text is copied as it is, and the model key is written only past the guard.
   const store = code(w.files['utils/livingModel/store.ts'] ?? '');
   const load = store.slice(store.indexOf('export async function loadJobModel'), store.indexOf('export async function keepUnreadText'));
-  if (!/readSavedModel\(raw, projectId\)/.test(load) || !/await keepUnreadText\(userId, projectId, raw as string\);\s*return \{ model: emptyJobModel\(projectId\), state: 'unreadable' \};/.test(load)) out.push('loadJobModel does not keep unread text and answer "unreadable"');
+  if (!/readSavedModel\(raw, projectId\)/.test(load) || !/await keepUnreadText\(userId, projectId, raw as string\);\s*return \{ model: emptyJobModel\(projectId\), state: 'unreadable', found: true \};/.test(load)) out.push('loadJobModel does not keep unread text and answer "unreadable"');
   if (/setItem\(key|removeItem|\.clear\(/.test(load)) out.push('loadJobModel writes over or removes the stored model');
   const keep = store.slice(store.indexOf('export async function keepUnreadText'), store.indexOf('export async function saveJobModel'));
   if (!/AsyncStorage\.setItem\(backup, raw\)/.test(keep)) out.push('the unread text is not copied untouched under the backup key');
@@ -428,7 +428,7 @@ rule('A7', 'a saved model that cannot be read never throws, is said to be unread
   if (guardAt < 0 || writeAt < 0 || guardAt > writeAt || !/if \(!key \|\| !mayWriteModel\(state\)\) return false;/.test(save)) out.push('saveJobModel writes the model key without asking mayWriteModel first');
   // The screen: a plain sentence, no editor until the person chooses, and the choice is a tap.
   const scr = code(w.files['components/livingModel/LivingModelScreen.tsx'] ?? '');
-  if (!/\.catch\(\(\) => \{/.test(scr.slice(scr.indexOf('void loadJobModel('), scr.indexOf('const persist =')))) out.push('the screen has no catch on the load: a failed read would leave it on "Reading the model"');
+  if (!/\.catch\(\(\) => \{/.test(scr.slice(scr.indexOf('void recoverKeptSwap('), scr.indexOf('const persist =')))) out.push('the screen has no catch on the load: a failed read would leave it on "Reading the model"');
   if (!/const blocked = loadState === 'unreadable';/.test(scr)) out.push('the screen does not know when the saved model could not be read');
   if (!/\{model && blocked \? \(\s*<View[^>]*testID="lm-unreadable">[\s\S]{0,400}\{copy\.unreadableTitleBody\}[\s\S]{0,200}\{copy\.unreadableBody\}[\s\S]{0,200}<Button label=\{copy\.startNewLabel\}[^>]*onPress=\{onStartNew\}/.test(scr)) out.push('the screen does not say the model could not be read, with a Start a New Model button');
   for (const tab of ['rooms', 'tasks', 'replay']) if (!new RegExp(`\\{model && !blocked && tab === '${tab}' \\?`).test(scr)) out.push(`the ${tab} tab is drawn while the saved model is unread: an edit there would be the first step to saving over it`);
@@ -1753,7 +1753,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'A7', name: 'the backup is the model key itself', plant: swap({ livingModelBackupKey: (u, p) => livingModelKey(u, p) }) },
   { rule: 'A7', name: 'the store saves without the guard', plant: edit('utils/livingModel/store.ts', '  if (!key || !mayWriteModel(state)) return false;', '  if (!key) return false;') },
   { rule: 'A7', name: 'the store drops the unread text instead of keeping it', plant: edit('utils/livingModel/store.ts', '  await keepUnreadText(userId, projectId, raw as string);\n', '') },
-  { rule: 'A7', name: 'the store answers "ready" for unread text, so the first edit saves over it', plant: edit('utils/livingModel/store.ts', "  return { model: emptyJobModel(projectId), state: 'unreadable' };", "  return { model: emptyJobModel(projectId), state: 'ready' };") },
+  { rule: 'A7', name: 'the store answers "ready" for unread text, so the first edit saves over it', plant: edit('utils/livingModel/store.ts', "  return { model: emptyJobModel(projectId), state: 'unreadable', found: true };", "  return { model: emptyJobModel(projectId), state: 'ready', found: true };") },
   { rule: 'A7', name: 'the Room Editor is drawn while the model is unread', plant: edit('components/livingModel/LivingModelScreen.tsx', "{model && !blocked && tab === 'rooms' ? (", "{model && tab === 'rooms' ? (") },
   { rule: 'A7', name: 'the screen starts a new model by itself', plant: edit('components/livingModel/LivingModelScreen.tsx', "      loadStateRef.current = loaded.state;\n", "      loadStateRef.current = loaded.state === 'unreadable' ? 'started_new' : loaded.state;\n") },
   { rule: 'A7', name: 'the screen saves without the guard', plant: edit('components/livingModel/LivingModelScreen.tsx', '    if (!mayWriteModel(loadStateRef.current)) return;\n', '') },

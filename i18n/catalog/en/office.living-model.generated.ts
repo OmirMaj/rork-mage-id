@@ -186,7 +186,7 @@ export const EN: EnCatalog = {
   "office.livingModel.sync.removeConfirmBody": "This removes the model from your account for everyone on this project. The model on this phone stays. Your other devices and your team keep the copies they already have, and they will no longer find one in the account.",
   "office.livingModel.sync.removeConfirmLabel": "Yes, Remove It",
   "office.livingModel.sync.removeFailedBody": "Could not remove it from your account. Nothing was changed. Try again when this phone is online.",
-  "office.livingModel.sync.removeFromAccountLabel": "Remove It From My Account",
+  "office.livingModel.sync.removeFromAccountLabel": "Remove It from My Account",
   "office.livingModel.sync.removeKeptLabel": "Remove the Kept Model",
   "office.livingModel.sync.removedBody": "Removed from your account. The model on this phone has not been changed.",
   "office.livingModel.sync.retryingBody": "Saved on this device. Your account could not be checked yet. MAGE ID will try again shortly.",
