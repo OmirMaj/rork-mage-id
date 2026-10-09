@@ -61,6 +61,46 @@ export interface Delivery {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+
+  // ── Deliveries That Follow The Schedule (lane DELIVERIES-1) ───────────────
+  // Every field below is OPTIONAL and absent on every delivery made before the
+  // lane, and on every delivery made while the feature is off. Needed On Site
+  // By is NOT here and never will be: it is worked out on every read from the
+  // linked task (utils/deliveries/neededBy.ts), so it moves when the task does.
+  // With the feature on, `expectedDate` may be '' : "No date yet", a real
+  // state that is never counted as before the day it is needed.
+
+  /** The schedule task that needs this load (ScheduleTask.id, a client-made string inside projects.schedule). */
+  taskId?: string;
+  /** Working days before the task's start the load is needed. Absent = the default (utils/deliveries/neededBy DEFAULT_BUFFER_WORKING_DAYS). */
+  bufferDays?: number;
+  /** The lead time the contractor typed, in CALENDAR days (weeks are stored as 7 each). Absent = none typed; there is no starter value. */
+  leadTimeDays?: number;
+  /** The day the contractor marked it ordered (YYYY-MM-DD). */
+  orderedOn?: string;
+  /** The ORIGINAL promised date: the first supplier date recorded, or the supplier date standing when it was marked ordered. The Supplier Scorecard scores against this, so editing the supplier date to match a late truck does not erase the slip. */
+  promisedDate?: string;
+  /** Each change of the supplier date, oldest first, capped (utils/deliveries/provenance DATE_HISTORY_MAX). */
+  dateHistory?: DeliveryDateChange[];
+  /** The linked task's start date the person last looked at (YYYY-MM-DD). The "schedule moved" flag is today's start against this. A record of what was seen, never a needed-by date. */
+  taskStartSeen?: string;
+}
+
+/** One change of a delivery's supplier date: what it became, what it was, when it was recorded, who said it and how. */
+export interface DeliveryDateChange {
+  /** The supplier date after the change (YYYY-MM-DD), or '' for "no date". */
+  date: string;
+  /** The supplier date before the change, or '' when there was none. */
+  previousDate: string;
+  /** When it was recorded in MAGE ID (an ISO instant). */
+  at: string;
+  /** 'supplier_said' = the supplier gave this date and a person typed it in. 'typed' = a person typed it with no word on where it came from. */
+  source: 'supplier_said' | 'typed';
+  /** How they were told, in the person's words ("by phone"). */
+  note?: string;
+  /** The account that typed it. */
+  by?: string;
+  byName?: string;
 }
 
 /**
