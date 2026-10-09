@@ -245,6 +245,11 @@ export const SURFACES: Surface[] = [
   // component file. Spanish drafts are in es/office/protect.ts; a legal
   // translator has not read them.
   { id: 'office.protect', phase: 2, state: 'pending', keyPrefixes: ['office.protect.'], files: ['components/ProtectNotices.tsx'], lane: 'PROTECT-TEXT' },
+  // WEBCANCEL (2026-10-09): the Manage Subscription row in Settings and on the
+  // paywall (where a plan is changed or cancelled, and the date RevenueCat
+  // reports). Every string lives in the one copy hook. Complete: each key has
+  // Spanish (i18n/catalog/es/office/manageSub.ts).
+  { id: 'office.manage-sub', phase: 2, state: 'complete', keyPrefixes: ['office.manageSub.'], files: ['hooks/useManageSubscriptionCopy.ts'], lane: 'WEBCANCEL' },
   // Your First Job: the interactive starter path on Home (the question, the
   // seven steps, the stage pills, hide / remove, the finish state). Every
   // string lives in the one copy hook. Complete: each key has Spanish

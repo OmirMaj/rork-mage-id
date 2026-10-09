@@ -473,7 +473,10 @@ async function runChecks(files: Files): Promise<Result[]> {
     // The sentence is either typed on the screen or drawn by the shared <AgreementNotice /> (components/AgreementNotice.tsx).
     const sentence = (src: string): boolean => (/Terms of Service/.test(src) && /Privacy Policy/.test(src) && /agree/i.test(src)) || /<AgreementNotice\b/.test(src);
     ok('C16 TERMS_SENTENCE_ON_SIGNUP_SCREEN is true and app/signup.tsx displays the sentence, with a link to each document',
-      core.TERMS_SENTENCE_ON_SIGNUP_SCREEN === true && /By creating an account you agree to our/.test(signup) && sentence(signup) && /mageid\.app\/terms/.test(signup) && /mageid\.app\/privacy/.test(signup));
+      core.TERMS_SENTENCE_ON_SIGNUP_SCREEN === true && /<AgreementNotice testID="signup-agreement"/.test(signup) && sentence(signup)
+      // WEBCANCEL: the sentence is shown once, by the shared notice; the links live in the component.
+      && !/By creating an account you agree to our/.test(signup)
+      && /mageid\.app\/terms/.test(readFileSync(path.join(ROOT, 'components/ProtectNotices.tsx'), 'utf8')) && /mageid\.app\/privacy/.test(readFileSync(path.join(ROOT, 'components/ProtectNotices.tsx'), 'utf8')));
     ok('C17 TERMS_SENTENCE_ON_LOGIN_SCREEN is true ONLY IF app/login.tsx displays the sentence (today it does, and the constant is true)',
       core.TERMS_SENTENCE_ON_LOGIN_SCREEN === false || sentence(login), 'the constant says the login screen shows the Terms sentence and app/login.tsx does not contain it');
     // The two files that call setSession themselves must go on to onNewSessionEstablished.
@@ -734,7 +737,8 @@ const M: Mutation[] = [
   { name: 'a sign-up waiting for its link notes nothing', file: F.auth, from: "        recordSignInAcceptance(data.user, 'signup_email');\n", to: '', red: 'C13' },
   { name: 'Apple defaults to the sign-up screen', file: F.auth, from: "const signInWithApple = useCallback(async (startedFrom: SignInScreen = 'login')", to: "const signInWithApple = useCallback(async (startedFrom: SignInScreen = 'signup')", red: 'C14' },
   { name: 'the sign-up screen stops saying where Apple was started', file: F.signup, from: "await signInWithApple('signup')", to: 'await signInWithApple()', red: 'C15' },
-  { name: 'the sign-up screen loses its sentence', file: F.signup, from: 'By creating an account you agree to our', to: 'Welcome to', red: 'C16' },
+  { name: 'the sign-up screen loses its sentence', file: F.signup, from: '<AgreementNotice testID="signup-agreement"', to: '<Text testID="signup-agreement"', red: 'C16' },
+  { name: 'the sign-up screen shows the older sentence again, a second time', file: F.signup, from: '<View style={styles.loginRow}>', to: '<Text>By creating an account you agree to our Terms</Text><View style={styles.loginRow}>', red: 'C16' },
   { name: 'the sign-in awaits the recorder', file: F.auth, from: '    recordSignInAcceptance(signedIn, method, startedFrom);\n', to: '    await recordSignInAcceptance(signedIn, method, startedFrom);\n', red: 'C7' },
   { name: 'the wiring notes whatever the decision was', file: F.wiring, from: '    if (!surface) return;\n', to: '', red: 'C11' },
   { name: 'the wiring ignores the re-acceptance flag', file: F.wiring, from: 'reacceptOn: TERMS_REACCEPT_ENABLED });', to: 'reacceptOn: false });', red: 'C11' },

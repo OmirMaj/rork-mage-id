@@ -52805,17 +52805,27 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Enterprise plan",
+                                                                                            {
+                                                                                              "children": [
+                                                                                                "Enterprise plan",
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "style": {
+                                                                                                  "color": "#2B3038",
+                                                                                                  "fontSize": 16,
+                                                                                                  "fontWeight": "400",
+                                                                                                },
+                                                                                                "testID": "manage-subscription-label",
+                                                                                              },
+                                                                                              "type": "Text",
+                                                                                            },
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
-                                                                                              "color": "#2B3038",
                                                                                               "flex": 1,
-                                                                                              "fontSize": 16,
-                                                                                              "fontWeight": "400",
                                                                                             },
                                                                                           },
-                                                                                          "type": "Text",
+                                                                                          "type": "View",
                                                                                         },
                                                                                       ],
                                                                                       "props": {
@@ -52827,7 +52837,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                           "paddingHorizontal": 16,
                                                                                           "paddingVertical": 12,
                                                                                         },
-                                                                                        "testID": "plan-name-row",
+                                                                                        "testID": "manage-subscription-line",
                                                                                       },
                                                                                       "type": "View",
                                                                                     },
@@ -52836,11 +52846,13 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                     "style": {
                                                                                       "backgroundColor": "#FFFFFF",
                                                                                       "borderColor": "#D7DAD4",
+                                                                                      "borderCurve": "continuous",
                                                                                       "borderRadius": 12,
                                                                                       "borderWidth": 1,
                                                                                       "marginBottom": 20,
                                                                                       "marginHorizontal": 16,
                                                                                       "overflow": "hidden",
+                                                                                      "padding": 0,
                                                                                     },
                                                                                   },
                                                                                   "type": "View",
@@ -73332,17 +73344,27 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Enterprise plan",
+                                                                                            {
+                                                                                              "children": [
+                                                                                                "Enterprise plan",
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "style": {
+                                                                                                  "color": "#2B3038",
+                                                                                                  "fontSize": 16,
+                                                                                                  "fontWeight": "400",
+                                                                                                },
+                                                                                                "testID": "manage-subscription-label",
+                                                                                              },
+                                                                                              "type": "Text",
+                                                                                            },
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
-                                                                                              "color": "#2B3038",
                                                                                               "flex": 1,
-                                                                                              "fontSize": 16,
-                                                                                              "fontWeight": "400",
                                                                                             },
                                                                                           },
-                                                                                          "type": "Text",
+                                                                                          "type": "View",
                                                                                         },
                                                                                       ],
                                                                                       "props": {
@@ -73354,7 +73376,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                           "paddingHorizontal": 16,
                                                                                           "paddingVertical": 12,
                                                                                         },
-                                                                                        "testID": "plan-name-row",
+                                                                                        "testID": "manage-subscription-line",
                                                                                       },
                                                                                       "type": "View",
                                                                                     },
@@ -73363,11 +73385,13 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                     "style": {
                                                                                       "backgroundColor": "#FFFFFF",
                                                                                       "borderColor": "#D7DAD4",
+                                                                                      "borderCurve": "continuous",
                                                                                       "borderRadius": 12,
                                                                                       "borderWidth": 1,
                                                                                       "marginBottom": 20,
                                                                                       "marginHorizontal": 16,
                                                                                       "overflow": "hidden",
+                                                                                      "padding": 0,
                                                                                     },
                                                                                   },
                                                                                   "type": "View",
