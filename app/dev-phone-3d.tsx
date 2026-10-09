@@ -18,7 +18,7 @@
 // Model's own checks use, and a forty-room grid for timing
 // (utils/livingModel/phoneSpikeSample.ts). Nothing is read from or written to an account.
 //
-// The address takes: week (1 to 10), rooms (7 or 40), dx and dy (turn the
+// The address, or the launch argument (utils/phone3dSpikeLaunch.ts), takes: week (1 to 10), rooms (7 or 40), dx and dy (turn the
 // view, in points of finger travel), zoom (a factor), planned (1 for the
 // planned reading), spin (time this many frames and print the result).
 import React, { useEffect, useMemo, useState } from 'react';
@@ -33,6 +33,7 @@ import { phone3DEngineError, phone3DEngineInBuild } from '@/components/livingMod
 import { HonestyLines } from '@/components/livingModel/HonestyLines';
 import { ReplayControls, StageLegend, useReplayState, useRoomMoments, useRoomTasks } from '@/components/livingModel/replayShared';
 import { makeLivingModelStyles } from '@/components/livingModel/styles';
+import { phone3dSpikeLaunchParams } from '@/utils/phone3dSpikeLaunch';
 import { spikeFortyRoomJob, spikeSevenRoomJob, spikeTenWeekSchedule } from '@/utils/livingModel/phoneSpikeSample';
 import { offsetOfWeek, weekCount, weekOf } from '@/utils/livingModel/replayCore';
 import type { ReplayInput } from '@/utils/livingModel/replayInput';
@@ -55,7 +56,9 @@ function Spike() {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const phoneCopy = usePhone3DCopy();
-  const params = useLocalSearchParams<{ week?: string; rooms?: string; dx?: string; dy?: string; zoom?: string; planned?: string; spin?: string }>();
+  const linkParams = useLocalSearchParams<{ week?: string; rooms?: string; dx?: string; dy?: string; zoom?: string; planned?: string; spin?: string }>();
+  // The launch argument's words first, the address's over them (utils/phone3dSpikeLaunch.ts).
+  const params = useMemo<Record<string, string | string[] | undefined>>(() => ({ ...phone3dSpikeLaunchParams(), ...linkParams }), [linkParams]);
   const big = num(params.rooms) === 40;
   const model = useMemo(() => (big ? spikeFortyRoomJob() : spikeSevenRoomJob()), [big]);
   const input = useMemo<ReplayInput>(() => {

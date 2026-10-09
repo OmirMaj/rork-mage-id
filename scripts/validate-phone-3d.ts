@@ -90,6 +90,7 @@ const VIEW = 'components/livingModel/phone3d/Phone3DView.tsx';
 const SCENE = 'components/livingModel/phone3d/phoneScene.ts';
 const SPIKE = 'app/dev-phone-3d.tsx';
 const LAYOUT = 'app/_layout.tsx';
+const LAUNCH = 'utils/phone3dSpikeLaunch.ts';
 const SWITCH = 'EXPO_PUBLIC_PHONE3D_SPIKE';
 const K = 'office.livingModelPhone.';
 
@@ -375,7 +376,9 @@ rule('E1', 'the simulator check\'s switch is in no build profile, no app config,
   }
   if (!('eas.json' in w.files) || !('app.json' in w.files)) out.push('eas.json or app.json could not be read');
   const namers = Object.keys(w.files).filter((f) => /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(f) && !f.startsWith('scripts/') && code(w.files[f]).includes(SWITCH));
-  if (namers.slice().sort().join() !== [LAYOUT, SPIKE].sort().join()) out.push(`the switch is read by ${namers.join(', ') || 'nobody'}; want only the route and the auth wall`);
+  if (namers.slice().sort().join() !== [LAYOUT, SPIKE, LAUNCH].sort().join()) out.push(`the switch is read by ${namers.join(', ') || 'nobody'}; want only the route, the auth wall and the launch argument reader`);
+  const launch = code(w.files[LAUNCH] ?? '');
+  if (!/if \(process\.env\.EXPO_PUBLIC_PHONE3D_SPIKE !== '1' \|\| Platform\.OS !== 'ios'\) return null;\s*try \{/.test(launch)) out.push('the launch argument is read in a build made without the switch');
   return out;
 });
 
@@ -388,10 +391,11 @@ rule('E2', 'without the switch the route sends everyone Home and mounts nothing,
   if (!route || !/^\s*if \(!PHONE3D_SPIKE_ON\) return <Redirect href="\/\(tabs\)\/\(home\)" \/>;\s*return <Spike \/>;\s*$/.test(route[1])) out.push('the route does not redirect, before anything else, when the switch is off');
   const layout = code(w.files[LAYOUT] ?? '');
   if (!/const inPhone3dSpike = process\.env\.EXPO_PUBLIC_PHONE3D_SPIKE === '1' && \(segments\[0\] as string\) === 'dev-phone-3d';/.test(layout)) out.push('the auth wall does not tie its opening to the switch');
-  if ((layout.match(/dev-phone-3d/g) ?? []).length !== 2) out.push('app/_layout.tsx names the route somewhere other than its Stack.Screen and the auth wall');
+  if (!/if \(!inPhone3dSpike && !phone3dSpikeOpened\.current && phone3dSpikeLaunchArgs\(\)\) \{\s*phone3dSpikeOpened\.current = true;\s*router\.replace\('\/dev-phone-3d'\);/.test(layout)) out.push('the check is opened by something other than a launch argument, or more than once');
+  if ((layout.match(/dev-phone-3d/g) ?? []).length !== 3) out.push('app/_layout.tsx names the route somewhere other than its Stack.Screen, the auth wall and the launch argument');
   if (!/name="dev-phone-3d"/.test(layout)) out.push('the route is not declared in the Stack');
   for (const f of ['app/(tabs)/_layout.tsx', 'components/DesktopSidebar.tsx']) if (/dev-phone-3d/.test(w.files[f] ?? '')) out.push(`${f} links the simulator check`);
-  const linkers = Object.keys(w.files).filter((f) => /\.(ts|tsx)$/.test(f) && !f.startsWith('scripts/') && f !== LAYOUT && f !== SPIKE && f !== 'utils/desktopPage.ts' && /dev-phone-3d/.test(code(w.files[f])));
+  const linkers = Object.keys(w.files).filter((f) => /\.(ts|tsx)$/.test(f) && !f.startsWith('scripts/') && f !== LAYOUT && f !== SPIKE && f !== LAUNCH && f !== 'utils/desktopPage.ts' && /dev-phone-3d/.test(code(w.files[f])));
   // utils/desktopPage.ts gives every route file a page width; that table is not a door.
   if (linkers.length) out.push(`the simulator check is linked from ${linkers.join(', ')}`);
   return out;
@@ -527,6 +531,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E1', name: 'the switch is put in the app config', plant: edit('app.json', '{', `{ "extra_note": "${SWITCH}",`) },
   { rule: 'E1', name: 'the switch is committed in an env file', plant: (w) => ({ ...addFile('.env.production', `${SWITCH}=1\n`)(w) }) },
   { rule: 'E1', name: 'another screen reads the switch', plant: addFile('app/other.tsx', `export const on = process.env.${SWITCH} === '1';\n`) },
+  { rule: 'E1', name: 'a launch argument is read in every build', plant: edit(LAUNCH, "if (process.env.EXPO_PUBLIC_PHONE3D_SPIKE !== '1' || Platform.OS !== 'ios') return null;", "if (Platform.OS !== 'ios') return null;") },
+  { rule: 'E2', name: 'the check opens itself on every launch', plant: edit(LAYOUT, "if (!inPhone3dSpike && !phone3dSpikeOpened.current && phone3dSpikeLaunchArgs()) {", "if (!inPhone3dSpike && !phone3dSpikeOpened.current) {") },
   { rule: 'E2', name: 'the route draws for everyone', plant: edit(SPIKE, '  if (!PHONE3D_SPIKE_ON) return <Redirect href="/(tabs)/(home)" />;\n', '') },
   { rule: 'E2', name: 'the route is on unless switched off', plant: edit(SPIKE, "process.env.EXPO_PUBLIC_PHONE3D_SPIKE === '1'", "process.env.EXPO_PUBLIC_PHONE3D_SPIKE !== '0'") },
   { rule: 'E2', name: 'the auth wall opens for the route in every build', plant: edit(LAYOUT, "const inPhone3dSpike = process.env.EXPO_PUBLIC_PHONE3D_SPIKE === '1' && (segments[0] as string) === 'dev-phone-3d';", "const inPhone3dSpike = (segments[0] as string) === 'dev-phone-3d';") },
