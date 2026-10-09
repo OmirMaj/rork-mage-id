@@ -531,7 +531,7 @@ export default function DiscoverScreen() {
           icon={Truck}
           headline="Finance a truck or new equipment"
           body="When you outgrow rentals: financing for trucks, lifts, scaffold and tools through partner lenders. No application fee."
-          footer="Lower priority per the strategy doc — added for completeness"
+          footer="Not available yet. Tap to be told when it is."
           testID="discover-equipment-cta"
         />
         </>

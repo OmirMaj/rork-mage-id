@@ -136,7 +136,7 @@ export function contractSentTitleNoName(): string {
 
 /** The back face under "Signed and sent": what happens next. */
 export function contractSentBody(): string {
-  return 'They counter-sign from their portal link. The contract is binding when they sign.';
+  return 'They counter-sign from their portal link. The contract is signed by both parties when they do.';
 }
 
 /** Announced when the fold lands and the email went out. */
@@ -260,12 +260,12 @@ export function inPersonSrConfirm(): string {
 
 /** Announced when the seal lands: the one celebratory moment, in plain words. */
 export function inPersonSealedAnnounce(): string {
-  return 'Signed. The contract is binding.';
+  return 'Signed by both parties.';
 }
 
 /** Confirmed: the client's signature closed the contract. */
 export function inPersonSignedTitle(): string {
-  return 'Signed. The contract is binding.';
+  return 'Signed by both parties.';
 }
 
 /** Confirmed, neutral: the contract was already signed elsewhere, so this signature was not stored. */
@@ -399,12 +399,12 @@ export function paperRecordedTitle(): string {
 
 /** What happens next, shown only when a deposit milestone is due and unbilled. */
 export function paperRecordedNext(): string {
-  return 'The contract is binding. The deposit invoice can go out.';
+  return 'The contract is signed by both parties. The deposit invoice can go out.';
 }
 
 /** What happens next when no deposit is due. */
 export function paperRecordedNextNoDeposit(): string {
-  return 'The contract is binding.';
+  return 'The contract is signed by both parties.';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

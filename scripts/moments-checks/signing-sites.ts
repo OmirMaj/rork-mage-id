@@ -446,7 +446,7 @@ export function checkCopy(): Fails {
     [S.contractDuplicate(), 'Not signed. This project already has a contract. Close this to see it.'],
     [S.ticketRefused('FT-12'), 'Not signed. FT-12 could not be saved. Nothing was signed.'],
     [S.clientCoLegalQueued(), 'Not approved. Approving needs a connection, so nothing was approved.'],
-    [S.inPersonSignedTitle(), 'Signed. The contract is binding.'],
+    [S.inPersonSignedTitle(), 'Signed by both parties.'],
     [S.contractSentTitle('Jane Smith'), 'Signed and sent to Jane Smith'],
     [S.contractNotSentTitle(), 'Signed. Not sent yet.'],
     [S.ticketSignedTitle('FT-12', '$1,240.00'), 'FT-12 signed · $1,240.00'],

@@ -454,7 +454,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
   const seal = a.host.querySelector('.mp-seal');
   ok('E1 EXECUTED: a confirmed answer draws the seal (two arcs, check, chip, record line with the server time)',
     !!seal && seal.querySelectorAll('.mp-arc').length === 2 && !!seal.querySelector('.mp-check')
-    && seal.querySelector('.mp-chip')?.textContent === 'Binding' && /\(server time\)\.$/.test(seal.querySelector('.mp-seal-record')?.textContent ?? '')
+    && seal.querySelector('.mp-chip')?.textContent === 'Signed' && /\(server time\)\.$/.test(seal.querySelector('.mp-seal-record')?.textContent ?? '')
     && !/MAGE ID/.test(seal.textContent));
   await wait(MOMENT_TIMING.holdMs + 100);
   ok('E1 EXECUTED: onDone fires after the result hold', (a.done() as { status?: string } | null)?.status === 'confirmed');
@@ -594,8 +594,8 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     await wait(60);
     const host = s.d.querySelector('[data-contract-seal="c-1"]');
     ok('E2 EXECUTED: {ok: true} draws the closing seal with "Binding" and "Signed. Keep a copy for your records." and no Recorded line yet',
-      !!host?.querySelector('.mp-seal[data-moment-seal="closing"]') && host.querySelector('.mp-chip')?.textContent === 'Binding'
-      && /Signed\. This contract is binding\./.test(host.textContent) && host.querySelector('.mp-seal-record')?.hidden === true
+      !!host?.querySelector('.mp-seal[data-moment-seal="closing"]') && host.querySelector('.mp-chip')?.textContent === 'Signed'
+      && /Signed\. Keep a copy for your records\./.test(host.textContent) && host.querySelector('.mp-seal-record')?.hidden === true
       && !/notified/i.test(s.d.getElementById('sec-contract')?.textContent ?? ''),
       host?.outerHTML?.slice(0, 600));
     await wait(1800 + 400);
@@ -678,7 +678,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     await wait(MOMENT_TIMING.minBusy + 150);
     const seal = lineOf(s.d)?.querySelector('.mp-seal[data-moment-seal="closing"]');
     ok('E4 EXECUTED: {ok: true} closes the ring on the line: "Binding", "Signed. Keep a copy for your records.", no Recorded line yet, no "notified"',
-      !!seal && seal.querySelector('.mp-chip')?.textContent === 'Binding' && /Signed\. This contract is binding\./.test(seal.textContent)
+      !!seal && seal.querySelector('.mp-chip')?.textContent === 'Signed' && /Signed\. Keep a copy for your records\./.test(seal.textContent)
       && seal.querySelector('.mp-seal-record')?.hidden === true && !/notified/i.test(s.d.getElementById('sec-contract')?.textContent ?? ''),
       lineOf(s.d)?.outerHTML.slice(0, 900));
     await wait(MOMENT_TIMING.holdMs + 600);
