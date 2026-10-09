@@ -483,7 +483,7 @@ export const LIEN_WAIVER_SIGN_RPC = 'lien_waiver_submit_signature';
  */
 export const LIEN_WAIVER_SIGN_BASE_URL = 'https://mageid.app/lien-waiver/';
 /** Bumped whenever the E-SIGN consent wording on the signing page changes. */
-export const LIEN_WAIVER_CONSENT_VERSION = '2026-10-esign-v2';
+export const LIEN_WAIVER_CONSENT_VERSION = '2026-09-esign-v1';
 
 /**
  * The link the sub opens. Null — never a token-less URL — when there is no

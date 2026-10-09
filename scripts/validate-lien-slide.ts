@@ -251,7 +251,7 @@ console.log('\nLS2 only the server\'s {ok:true} confirms, with the server\'s tim
   ok('the line posts the same signature the button does (strokes as text, consent, token)',
     typeof posted.p_signature_paths === 'string' && posted.p_consent_accepted === true
     && posted.p_access_token === TOKEN && posted.p_waiver_id === 'w1'
-    && String(posted.p_consent_record).includes('I intend this to be my signature'));
+    && String(posted.p_consent_record).includes('E-SIGN'));
   line.opts.onDone(a!);
   ok('onDone(confirmed) shows the done card, the button\'s own path',
     r.get('done').hidden === false && r.get('signing').hidden === true
@@ -358,12 +358,12 @@ for (const [name, sign, note, pressable] of [
 
 // ── LS6 ─────────────────────────────────────────────────────────────────────
 console.log('\nLS6 the consent record is unchanged');
-// Pinned as changed by PROTECT-TEXT (2026-10-09, version bumped to v2; the stored
-// record keeps its own version and text per signature). Changing signed consent wording needs a new
+// Pinned as on main (b5c123cc). Changing signed consent wording needs a new
 // CONSENT_VERSION and a legal-text pass, never a ride-along in a UI lane.
-const CONSENT_SOURCE_ON_MAIN = `  var CONSENT_VERSION = '2026-10-esign-v2';
+const CONSENT_SOURCE_ON_MAIN = `  var CONSENT_VERSION = '2026-09-esign-v1';
   var CONSENT_TEXT =
-    'I agree to sign this lien waiver electronically. I intend this to be my signature. '
+    'I agree to sign this lien waiver electronically. I understand my electronic signature is legally binding, '
+    + 'the same as signing on paper, under the federal E-SIGN Act and my state’s Uniform Electronic Transactions Act. '
     + 'I have read the document above and I am the person named as the claimant, or I am authorised to sign for them.';
 `;
 ok('CONSENT_VERSION and CONSENT_TEXT are byte-identical to main', page.includes(CONSENT_SOURCE_ON_MAIN));
@@ -372,8 +372,8 @@ ok('CONSENT_VERSION and CONSENT_TEXT are byte-identical to main', page.includes(
   await commit(r.lines[0]);
   const rec = String(r.posted[r.posted.length - 1].p_consent_record);
   ok('the consent record the line posts carries the same version and text',
-    rec.includes('version: 2026-10-esign-v2') && rec.includes('or I am authorised to sign for them.')
-    && r.posted[r.posted.length - 1].p_consent_version === '2026-10-esign-v2');
+    rec.includes('version: 2026-09-esign-v1') && rec.includes('or I am authorised to sign for them.')
+    && r.posted[r.posted.length - 1].p_consent_version === '2026-09-esign-v1');
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-lien-slide: ${pass} passed, ${fail} failed\n`);

@@ -211,9 +211,10 @@
   // Mirrors utils/lienWaiverEngine.ts. Change one, change both.
   var FETCH_RPC = 'lien_waiver_get_for_signing';
   var SIGN_RPC  = 'lien_waiver_submit_signature';
-  var CONSENT_VERSION = '2026-10-esign-v2';
+  var CONSENT_VERSION = '2026-09-esign-v1';
   var CONSENT_TEXT =
-    'I agree to sign this lien waiver electronically. I intend this to be my signature. '
+    'I agree to sign this lien waiver electronically. I understand my electronic signature is legally binding, '
+    + 'the same as signing on paper, under the federal E-SIGN Act and my state’s Uniform Electronic Transactions Act. '
     + 'I have read the document above and I am the person named as the claimant, or I am authorised to sign for them.';
 
   var $ = function (id) { return document.getElementById(id); };

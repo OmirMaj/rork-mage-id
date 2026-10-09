@@ -304,6 +304,14 @@ export const BAN_EXEMPT: { file: string; has: string; why: string }[] = [
   { file: 'marketing/portal/index.html', has: 'có giá trị pháp lý', why: 'same, Vietnamese' },
   { file: 'marketing/portal/index.html', has: 'juridiquement contraignant', why: 'same, French' },
   { file: 'utils/portalLanguages.ts', has: 'contractFinePrint:', why: 'the same consent sentence in the published language packs' },
+  // CONSENT TEXT, NOT CHANGED. The sentence a subcontractor consents to when
+  // he signs a lien waiver. It is stored per signature with its version
+  // (2026-09-esign-v1). Whether to reword it is the founder's attorney's
+  // decision: a weaker consent could hurt the contractor relying on the
+  // waiver. Byte-pinned in scripts/validate-lien-slide.ts (LS6); the proposed
+  // alternative is in docs/legal/consent-texts-for-counsel.md.
+  { file: 'marketing/lien-waiver/index.html', has: 'I understand my electronic signature is legally binding, ', why: 'versioned lien waiver consent text: counsel decides' },
+  { file: 'marketing/lien-waiver/index.html', has: 'the same as signing on paper, under the federal E-SIGN Act and my state', why: 'same sentence, second source line' },
   { file: 'app/dev-seeder.tsx', has: 'verified', why: 'dev seed data' },
   { file: 'utils/instantBid.ts', has: 'APR', why: 'dead while FINANCING_FIGURES_ENABLED is false (pinned in P7)' },
 ];
@@ -543,7 +551,7 @@ const MUTATIONS: Mutation[] = [
   { what: 'a new screen signs people in with Google and no sentence', rule: 'P3 the agreement sentence sits above the buttons on every account-creating screen', edit: (f) => { f['app/quick-start.tsx'] = 'export default function Q() { const go = async () => { await signInWithGoogle(); }; return null; }'; } },
   { what: 'the sentence turns into a recording checkbox', rule: 'P3 the agreement sentence sits above the buttons on every account-creating screen', edit: (f) => sub(f, 'components/ProtectNotices.tsx', "import React from 'react';", "import React from 'react';\nimport { Switch } from 'react-native';") },
   { what: '"legally binding" returns to the portal', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'marketing/portal/index.html', "contractSignedDisclaimer: 'This is the agreement you signed. Keep a copy for your records.'", "contractSignedDisclaimer: 'Your signature is legally binding. Keep it for your records.'") },
-  { what: 'the E-SIGN sentence returns to the waiver page', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'marketing/lien-waiver/index.html', 'I intend this to be my signature.', 'It is binding under the federal E-SIGN Act.') },
+  { what: 'an E-SIGN sentence appears on the waiver page outside the stored consent', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'marketing/lien-waiver/index.html', '<strong>Read this before you sign.</strong>', '<strong>Signing here is binding under the federal E-SIGN Act.</strong>') },
   { what: 'Spanish "legalmente vinculante" returns', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'utils/portalLanguages.ts', 'Revise el contrato y fírmelo.', 'Revise el contrato y fírmelo para hacerlo vinculante.') },
   { what: 'an accuracy promise returns to Post a Project', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'app/post-rfp.tsx', 'More detail helps contractors price your job.', 'The more details you add, the more accurate your bids.') },
   { what: '"Verified Pros" returns', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'app/post-rfp.tsx', 'Notify Only Contractors With a License on File', 'Notify Verified Pros Only') },

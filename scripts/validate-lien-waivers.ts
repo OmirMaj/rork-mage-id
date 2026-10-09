@@ -931,7 +931,7 @@ for (const c of SUBMIT_CASES) {
   ok('the consent record, version and acceptance all go with the signature',
     submitted.p_consent_accepted === true
     && typeof submitted.p_consent_record === 'string'
-    && (submitted.p_consent_record as string).includes('I intend this to be my signature')
+    && (submitted.p_consent_record as string).includes('E-SIGN')
     && submitted.p_consent_version === pageConsentVersion(),
     JSON.stringify({ v: submitted.p_consent_version }));
   ok('the token — not just the id — is what the page sends',
