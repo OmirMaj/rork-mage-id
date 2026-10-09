@@ -56,14 +56,17 @@
   function paintCompany() {
     if (!company) return;
     var nodes = document.querySelectorAll('[data-notice-company]');
-    for (var i = 0; i < nodes.length; i++) nodes[i].textContent = company;
+    /* Write only when the text differs. Setting textContent always swaps the
+       text node, which the observer below sees as a change; an unconditional
+       write would repaint every 60ms for as long as the page is open. */
+    for (var i = 0; i < nodes.length; i++) if (nodes[i].textContent !== company) nodes[i].textContent = company;
   }
   function setCompany(name) {
     var c = String(name == null ? '' : name).replace(/\s+/g, ' ').trim();
     /* MAGE ID is never the author of a contractor's page. */
     if (!c || /^mage\s*id$/i.test(c)) return;
     company = c;
-    paintCompany();
+    try { paintCompany(); } catch (e) { /* never break the page that called us */ }
   }
 
   /* ── Field names ─────────────────────────────────────────────────────── */
@@ -119,20 +122,28 @@
   function queueNaming() {
     if (queued) return;
     queued = true;
-    setTimeout(function () { queued = false; nameFields(document); paintCompany(); }, 60);
+    setTimeout(function () {
+      queued = false;
+      try { nameFields(document); paintCompany(); } catch (e) { /* naming is a nicety */ }
+    }, 60);
   }
 
   function start() {
-    addCss();
-    nameFields(document);
-    paintCompany();
-    if (window.MutationObserver && document.body) {
-      new MutationObserver(queueNaming).observe(document.body, { childList: true, subtree: true });
-    }
+    try {
+      addCss();
+      nameFields(document);
+      paintCompany();
+      if (window.MutationObserver && document.body) {
+        new MutationObserver(queueNaming).observe(document.body, { childList: true, subtree: true });
+      }
+    } catch (e) { /* the notice is static markup; the page works without this file */ }
   }
 
-  window.mageNotice = { setCompany: setCompany, nameFields: nameFields };
-  addCss();
+  window.mageNotice = {
+    setCompany: setCompany,
+    nameFields: function (root) { try { nameFields(root); } catch (e) { /* naming is a nicety */ } }
+  };
+  try { addCss(); } catch (e) { /* see start() */ }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
 })();
