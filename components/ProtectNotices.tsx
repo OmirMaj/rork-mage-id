@@ -58,7 +58,7 @@ export function AgreementNotice({ testID, style }: { testID: string; style?: Sty
       <Text
         style={styles.link}
         accessibilityRole="link"
-        onPress={() => { void Linking.openURL(TERMS_URL); }}
+        onPress={() => { Linking.openURL(TERMS_URL).catch(() => { /* no browser to open it: the address is printed in Settings */ }); }}
         testID={`${testID}-terms`}
       >
         {t('office.protect.termsOfService', 'Terms of Service')}
@@ -67,7 +67,7 @@ export function AgreementNotice({ testID, style }: { testID: string; style?: Sty
       <Text
         style={styles.link}
         accessibilityRole="link"
-        onPress={() => { void Linking.openURL(PRIVACY_URL); }}
+        onPress={() => { Linking.openURL(PRIVACY_URL).catch(() => { /* no browser to open it: the address is printed in Settings */ }); }}
         testID={`${testID}-privacy`}
       >
         {t('office.protect.privacyPolicy', 'Privacy Policy')}
