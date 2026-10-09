@@ -408,7 +408,7 @@ export function settleLandedPending(meta: ModelSyncMeta, server: Pick<ReconcileS
   const p = meta.pending;
   if (!p || !server || server.writeId === p.writeId) return meta;
   const landed = (server.recentWrites ?? []).find((w) => w.writeId === p.writeId);
-  if (!landed || landed.revision !== p.base + 1 || landed.revision >= server.revision) return meta;
+  if (!landed || landed.revision <= p.base || landed.revision >= server.revision) return meta;
   return { ...meta, baseRevision: landed.revision, baseFingerprint: p.fingerprint, pending: null, accountScanRoomIds: [...p.scanRoomIds], startedNew: false, chosenOver: null, everSent: true };
 }
 

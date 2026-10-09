@@ -35,6 +35,17 @@ if (process.argv[3] === '--all') {
     16: ['6', '7'],      // the read policy asks for the edit seat: a viewer and a field seat read nothing
     17: ['4'],           // the revision does not go up
     18: ['21'],          // deleting the last editor's account deletes the row (set null became cascade)
+    19: ['23'],          // lower() removed: a job id written in capitals is refused
+    20: ['24'],          // the room and part limits removed (the function's and the table's)
+    21: ['25'],          // the row forgets its recent saves: a save that landed and was saved over is called stale
+    22: ['25'],          // the replay of an earlier save answers with the head's revision, not the one it landed at
+    23: ['26'],          // the remove function asks for any seat: a viewer and a field seat delete the account copy
+    24: ['26'],          // the remove function's permission check removed: a stranger deletes it
+    25: ['26'],          // anon may call the remove function
+    26: ['27'],          // a job whose copy was removed starts again at revision 1
+    27: ['28'],          // clients may read and write the removals table
+    28: ['27'],          // removing leaves no line behind
+    29: ['26'],          // the remove function deletes every row
   });
 }
 
@@ -71,6 +82,26 @@ switch (MUTATE) {
   case 16: rep('using (public.can_access_project(project_id));', "using (public.can_access_project(project_id, 'editor'));"); break;
   case 17: rep('         revision = m.revision + 1,', '         revision = m.revision,'); break;
   case 18: rep('updated_by     uuid references auth.users(id) on delete set null,', 'updated_by     uuid references auth.users(id) on delete cascade,'); break;
+  case 19:
+    rep("or pg_catalog.lower(p_model ->> 'projectId') is distinct from pg_catalog.lower(p_project_id::text)", "or (p_model ->> 'projectId') is distinct from p_project_id::text");
+    rep("check (lower(model ->> 'projectId') = lower(project_id::text))", "check ((model ->> 'projectId') = project_id::text)");
+    break;
+  case 20:
+    rep("if pg_catalog.jsonb_array_length(p_model -> 'rooms') > 60 then", 'if false then');
+    rep("pg_catalog.jsonb_array_length(v_room -> 'room' -> 'walls') > 200 then", "pg_catalog.jsonb_array_length(v_room -> 'room' -> 'walls') > 200000 then");
+    rep("pg_catalog.jsonb_array_length(v_room -> 'room' -> 'openings') > 400 then", "pg_catalog.jsonb_array_length(v_room -> 'room' -> 'openings') > 400000 then");
+    rep("pg_catalog.jsonb_array_length(v_room -> 'room' -> 'objects') > 400 then", "pg_catalog.jsonb_array_length(v_room -> 'room' -> 'objects') > 400000 then");
+    rep(" and jsonb_array_length(model -> 'rooms') <= 60),", '),');
+    break;
+  case 21: rep('         recent_writes = v_recent,\n', ''); break;
+  case 22: rep("'revision', (v_hit ->> 'r')::integer, 'updated_at', v_row.updated_at, 'replay', true,", "'revision', v_row.revision, 'updated_at', v_row.updated_at, 'replay', true,"); break;
+  case 23: rep("if not public.can_access_project(p_project_id, 'editor') then\n    raise exception 'living_model_remove:", "if not public.can_access_project(p_project_id) then\n    raise exception 'living_model_remove:"); break;
+  case 24: rep("if not public.can_access_project(p_project_id, 'editor') then\n    raise exception 'living_model_remove:", "if false then\n    raise exception 'living_model_remove:"); break;
+  case 25: rep('revoke all on function public.living_model_remove(uuid) from public, anon;', ''); noSelfCheck(); break;
+  case 26: rep("select coalesce((select x.last_revision from public.living_model_removals x where x.project_id = p_project_id), 0) + 1 into v_start;", 'v_start := 1;'); break;
+  case 27: rep('revoke all on public.living_model_removals from public, anon, authenticated;', ''); noSelfCheck(); break;
+  case 28: rep("  insert into public.living_model_removals (project_id, last_revision, removed_at, removed_by)\n  values (p_project_id, v_rev, pg_catalog.clock_timestamp(), v_uid)\n  on conflict (project_id) do update\n    set last_revision = greatest(public.living_model_removals.last_revision, excluded.last_revision),\n        removed_at = excluded.removed_at,\n        removed_by = excluded.removed_by;\n", ''); break;
+  case 29: rep('delete from public.living_models m where m.project_id = p_project_id returning m.revision into v_rev;', 'delete from public.living_models m where m.project_id = p_project_id returning m.revision into v_rev;\n  delete from public.living_models;'); break;
   default: console.error('unknown MUTATE'); process.exit(2);
 }
 if (MUTATE) console.log(`(planted mutation M${MUTATE} applied)`);
@@ -94,6 +125,8 @@ const REVOKED = '00000000-0000-4000-8000-000000000a07';
 const P1 = '10000000-0000-4000-8000-000000000001';
 const P2 = '10000000-0000-4000-8000-000000000002';   // the stranger's own job
 const GHOST = '10000000-0000-4000-8000-00000000dead';   // no such project
+const P3 = '10000000-0000-4000-8000-0000000000c3';      // the job of the later cases (ids with letters, for the capitals case)
+const P4 = '10000000-0000-4000-8000-0000000000d4';      // a second job of the owner's, to show a removal takes one row only
 const W = (n) => `20000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 const PGlite = await loadPGlite();
@@ -109,10 +142,11 @@ create table public.project_collaborators (
   project_id uuid not null references public.projects(id) on delete cascade,
   user_id uuid references auth.users(id) on delete cascade,
   role text not null, status text not null);
-insert into public.projects (id, user_id, name) values ('${P1}', '${OWNER}', 'Job one'), ('${P2}', '${STRANGER}', 'Another firm');
+insert into public.projects (id, user_id, name) values ('${P1}', '${OWNER}', 'Job one'), ('${P2}', '${STRANGER}', 'Another firm'), ('${P3}', '${OWNER}', 'Job three'), ('${P4}', '${OWNER}', 'Job four');
 insert into public.project_collaborators (project_id, user_id, role, status) values
   ('${P1}', '${EDITOR}', 'editor', 'accepted'), ('${P1}', '${VIEWER}', 'viewer', 'accepted'), ('${P1}', '${FIELD}', 'field', 'accepted'),
-  ('${P1}', '${PENDING}', 'editor', 'pending'), ('${P1}', '${REVOKED}', 'editor', 'revoked');
+  ('${P1}', '${PENDING}', 'editor', 'pending'), ('${P1}', '${REVOKED}', 'editor', 'revoked'),
+  ('${P3}', '${EDITOR}', 'editor', 'accepted'), ('${P3}', '${VIEWER}', 'viewer', 'accepted'), ('${P3}', '${FIELD}', 'field', 'accepted');
 ${CAN_ACCESS}
 revoke all on function public.can_access_project(uuid, text) from public, anon;
 grant execute on function public.can_access_project(uuid, text) to authenticated, service_role;
@@ -132,7 +166,7 @@ const READ = `select revision from public.living_models where project_id = '${P1
 const verdict = (r) => (r.ok ? r.rows[0].r : null);
 
 const cols = (await rows(`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'living_models' order by ordinal_position`)).map((r) => r.column_name);
-const WANT = ['project_id', 'owner_id', 'model', 'schema_version', 'revision', 'last_write_id', 'created_at', 'updated_at', 'updated_by'];
+const WANT = ['project_id', 'owner_id', 'model', 'schema_version', 'revision', 'last_write_id', 'recent_writes', 'created_at', 'updated_at', 'updated_by'];
 ok('2 the columns are exactly the list in the header', JSON.stringify(cols) === JSON.stringify(WANT), cols.join(','));
 
 // ── the owner ──
@@ -274,6 +308,103 @@ for (const [n, who, uid] of [['6', 'a viewer', VIEWER], ['7', 'a field seat', FI
   await db.query(`select set_config('request.claimed_user', '', false)`);
   const now2 = await theRow();
   ok('22 the author is auth.uid(): nothing the caller sends names anyone else', verdict(claim)?.saved === true && now2?.updated_by === EDITOR && now2?.owner_id === OWNER, `${claim.err ?? JSON.stringify(verdict(claim))} by ${now2?.updated_by}`);
+}
+
+// ── a job id in capitals ──
+{
+  const UP = P3.toUpperCase();
+  const s = await save(OWNER, P3, 0, W(200), JSON.stringify({ version: 1, projectId: UP, rooms: [{ id: 'caps' }], links: {}, updatedAt: '' }));
+  const row = await theRow(P3);
+  const other = await save(OWNER, P3, row?.revision ?? 1, W(201), JSON.stringify({ version: 1, projectId: P2.toUpperCase(), rooms: [], links: {}, updatedAt: '' }));
+  ok('23 a model whose job id is written in capitals is this job\'s model (lower() on both sides), and another job\'s id in capitals is still refused',
+    verdict(s)?.saved === true && row?.model?.projectId === UP && !other.ok,
+    `${s.err ?? JSON.stringify(verdict(s))} | other ${other.ok ? 'ran' : 'refused'}`);
+}
+
+// ── no more than the app makes ──
+{
+  const at = (await theRow(P3))?.revision ?? 0;
+  const room = (id, parts = {}) => ({ id, room: { walls: [], openings: [], objects: [], ...parts } });
+  const many = (n) => Array.from({ length: n }, (_, i) => ({ id: `x${i}` }));
+  const r61 = await save(OWNER, P3, at, W(210), model(P3, { rooms: Array.from({ length: 61 }, (_, i) => room(`r${i}`)) }));
+  const walls = await save(OWNER, P3, at, W(211), model(P3, { rooms: [room('a', { walls: many(201) })] }));
+  const openings = await save(OWNER, P3, at, W(212), model(P3, { rooms: [room('a', { openings: many(401) })] }));
+  const objects = await save(OWNER, P3, at, W(213), model(P3, { rooms: [room('a', { objects: many(401) })] }));
+  const mid = await theRow(P3);
+  let direct = null;
+  try { await db.query(`update public.living_models set model = $1::jsonb where project_id = '${P3}'`, [model(P3, { rooms: Array.from({ length: 61 }, (_, i) => room(`r${i}`)) })]); direct = 'ran'; } catch (e) { direct = String(e.message); }
+  const full = await save(OWNER, P3, at, W(214), model(P3, { rooms: Array.from({ length: 60 }, (_, i) => room(`r${i}`, { walls: many(i === 0 ? 200 : 4), openings: many(i === 0 ? 400 : 1), objects: many(i === 0 ? 400 : 0) })) }));
+  const codes = [r61, walls, openings, objects].map((x) => `${verdict(x)?.saved}/${verdict(x)?.code}/${verdict(x)?.what}`);
+  ok('24 61 rooms, 201 walls, 401 doors and windows and 401 fixtures in a room are refused with code out_of_bounds and nothing is written; the table refuses 61 rooms too; 60 rooms at the limits save',
+    codes.join() === 'false/out_of_bounds/rooms,false/out_of_bounds/walls,false/out_of_bounds/openings,false/out_of_bounds/objects'
+      && mid?.revision === at && /living_models_model_rooms_check/.test(direct ?? '') && verdict(full)?.saved === true && verdict(full)?.revision === at + 1,
+    `${codes.join(' ')} | direct: ${String(direct).slice(0, 70)} | full: ${full.err ?? JSON.stringify(verdict(full))}`);
+}
+
+// ── the revision a save landed at, and a save that was saved over ──
+{
+  const at = (await theRow(P3))?.revision ?? 0;
+  const mine = await save(OWNER, P3, at, W(220), model(P3, { rooms: [{ id: 'mine' }] }));
+  const theirs = await save(EDITOR, P3, at + 1, W(221), model(P3, { rooms: [{ id: 'theirs' }] }));
+  const again = await save(OWNER, P3, at, W(220), model(P3, { rooms: [{ id: 'mine' }] }));
+  const notMine = await save(VIEWER, P3, at, W(220), model(P3, { rooms: [{ id: 'mine' }] }));
+  const asEditor = await save(EDITOR, P3, at, W(220), model(P3, { rooms: [{ id: 'mine' }] }));
+  const row = await theRow(P3);
+  const recent = Array.isArray(row?.recent_writes) ? row.recent_writes : [];
+  const last2 = recent.slice(-2).map((x) => `${x.w}@${x.r}`).join(',');
+  for (let i = 0; i < 9; i++) await save(OWNER, P3, at + 2 + i, W(230 + i), model(P3, { rooms: [{ id: `n${i}` }] }));
+  const later = await theRow(P3);
+  ok('25 a save answers with the revision it landed at; sent again after a teammate saved on top it answers saved (replay) with THAT revision and writes nothing; another account sending the same id is stale; the row keeps its last 8 saves',
+    verdict(mine)?.saved === true && verdict(mine)?.revision === at + 1 && verdict(theirs)?.revision === at + 2
+      && verdict(again)?.saved === true && verdict(again)?.replay === true && verdict(again)?.revision === at + 1 && verdict(again)?.head_revision === at + 2
+      && !notMine.ok && verdict(asEditor)?.saved === false && verdict(asEditor)?.code === 'stale_revision'
+      && row?.revision === at + 2 && JSON.stringify(row?.model?.rooms) === JSON.stringify([{ id: 'theirs' }])
+      && last2 === `${W(220)}@${at + 1},${W(221)}@${at + 2}` && later?.recent_writes?.length === 8 && later.recent_writes[7].r === later.revision && later.recent_writes[7].w === later.last_write_id,
+    `${again.err ?? JSON.stringify(verdict(again))} | editor ${asEditor.err ?? JSON.stringify(verdict(asEditor))} | recent ${last2} | kept ${later?.recent_writes?.length}`);
+}
+
+// ── removing the account copy ──
+{
+  const REMOVE = 'select public.living_model_remove($1::uuid) as r';
+  const remove = (uid, project, role = 'authenticated') => tryRun(role, REMOVE, uid, [project]);
+  await save(OWNER, P4, 0, W(300), model(P4, { rooms: [{ id: 'job-four' }] }));
+  const before = await theRow(P3);
+  const refused = [];
+  for (const [who, uid] of [['a viewer', VIEWER], ['a field seat', FIELD], ['a stranger', STRANGER], ['an invited editor who has not accepted', PENDING]]) {
+    const r = await remove(uid, P3);
+    if (r.ok || !/permission denied/.test(r.err ?? '')) refused.push(who);
+  }
+  const anon = await remove('', P3, 'anon');
+  const anonFn = (await rows(`select has_function_privilege('anon', 'public.living_model_remove(uuid)', 'execute') as x`))[0].x;
+  const ghost = await remove(OWNER, GHOST.replace('dead', 'beef'));
+  const still = await theRow(P3);
+  const gone = await remove(EDITOR, P3);
+  const after = await theRow(P3);
+  const others = [await theRow(P2), await theRow(P4)];
+  const twice = await remove(OWNER, P3);
+  const f = (await rows(`select prosecdef, proconfig from pg_proc where oid = 'public.living_model_remove(uuid)'::regprocedure`))[0];
+  ok('26 only the owner and editors remove the account copy: a viewer, a field seat, a stranger, an editor who has not accepted and anon are refused and nothing is deleted; an editor removes this job\'s row and no other; removing again answers removed:false',
+    refused.length === 0 && !anon.ok && anonFn === false && !ghost.ok && still?.revision === before?.revision
+      && verdict(gone)?.removed === true && verdict(gone)?.revision === before?.revision && after === null && others.every((x) => x !== null)
+      && verdict(twice)?.removed === false && f?.prosecdef === true && JSON.stringify(f?.proconfig) === JSON.stringify(['search_path=""']),
+    `refused wrongly: ${refused.join('; ') || 'none'} | anon ${anon.ok ? 'ran' : 'refused'} | gone ${gone.err ?? JSON.stringify(verdict(gone))} | row ${after ? 'still there' : 'gone'} | others ${others.map((x) => (x ? 'kept' : 'gone')).join(',')} | twice ${twice.err ?? JSON.stringify(verdict(twice))}`);
+
+  const line = (await rows(`select last_revision, removed_by from public.living_model_removals where project_id = '${P3}'`))[0] ?? null;
+  const stale = await save(OWNER, P3, before.revision, W(301), model(P3, { rooms: [{ id: 'late-save' }] }));
+  const none = await theRow(P3);
+  const fresh = await save(OWNER, P3, 0, W(302), model(P3, { rooms: [{ id: 'saved-again' }] }));
+  const row = await theRow(P3);
+  ok('27 a removal leaves a line (who, the revision reached) and no model; a save still on its way, based on the old revision, is refused and makes no row; the next first save starts ABOVE the old revision',
+    line?.last_revision === before.revision && line?.removed_by === EDITOR
+      && verdict(stale)?.saved === false && verdict(stale)?.code === 'stale_revision' && none === null
+      && verdict(fresh)?.saved === true && verdict(fresh)?.revision === before.revision + 1 && row?.revision === before.revision + 1 && row?.recent_writes?.length === 1,
+    `line ${JSON.stringify(line)} | stale ${stale.err ?? JSON.stringify(verdict(stale))} | fresh ${fresh.err ?? JSON.stringify(verdict(fresh))}`);
+
+  const sel = await tryRun('authenticated', 'select * from public.living_model_removals', OWNER);
+  const ins = await tryRun('authenticated', `insert into public.living_model_removals (project_id, last_revision) values ('${P4}', 99)`, OWNER);
+  const del = await tryRun('authenticated', 'delete from public.living_model_removals', OWNER);
+  const anonSel = await tryRun('anon', 'select * from public.living_model_removals');
+  ok('28 no client reads or writes the removals table', !sel.ok && !ins.ok && !del.ok && !anonSel.ok, `select ${sel.ok ? 'ran' : 'refused'} insert ${ins.ok ? 'ran' : 'refused'} delete ${del.ok ? 'ran' : 'refused'} anon ${anonSel.ok ? 'ran' : 'refused'}`);
 }
 
 // ── deletions ──
