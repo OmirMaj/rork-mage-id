@@ -58,9 +58,9 @@ const mockAccount: {
   table: boolean; row: Row | null; outcome: 'synced' | 'queued' | 'failed'; pushes: Push[]; headReads: number;
   /** Saves waiting in the offline queue (outcome 'queued'). */
   queue: Push[]; cancels: number; removes: number; removable: boolean; yes: string[];
-  /** The next N reads of the row fail as "offline". */
-  failHeadReads: number;
-} = { table: true, row: null, outcome: 'synced', pushes: [], headReads: 0, queue: [], cancels: 0, removes: 0, removable: true, yes: [], failHeadReads: 0 };
+  /** Which reads of the row (1 = the first after the reset) fail as "offline". */
+  failHeadAt: number[];
+} = { table: true, row: null, outcome: 'synced', pushes: [], headReads: 0, queue: [], cancels: 0, removes: 0, removable: true, yes: [], failHeadAt: [] };
 /** The migration's rule: saved only when based on the row's revision (0 = no row). */
 function mockLand(p: Push): void {
   const at = mockAccount.row ? mockAccount.row.revision : 0;
@@ -82,7 +82,7 @@ jest.mock('@/utils/livingModel/syncIo', () => {
     accountSessionUserId: async () => 'user-1',
     fetchAccountHead: async () => {
       mockAccount.headReads += 1;
-      if (mockAccount.failHeadReads > 0) { mockAccount.failHeadReads -= 1; return { kind: 'offline' }; }
+      if (mockAccount.failHeadAt.includes(mockAccount.headReads)) return { kind: 'offline' };
       return read(false);
     },
     fetchAccountModel: async () => read(true),
@@ -163,7 +163,7 @@ beforeEach(async () => {
   mockAccount.removes = 0;
   mockAccount.removable = true;
   mockAccount.yes = [];
-  mockAccount.failHeadReads = 0;
+  mockAccount.failHeadAt = [];
   await AsyncStorage.clear();
 });
 afterEach(async () => { await cleanupAsync(); });
@@ -331,6 +331,7 @@ describe('saving the model to the account', () => {
     await AsyncStorage.clear();
     mockAccount.outcome = 'failed';
     mockAccount.pushes = [];
+    mockAccount.queue = [];
     await seedDevice(modelOf(rect('r1', 'Kitchen')));
     await open();
     expect(screen.getByTestId('lm-sync-failed').props.children).toBe('Could not save to your account. It is saved on this device.');
@@ -620,16 +621,19 @@ describe('the promises around the sends', () => {
 
   it('18 a read-back that fails after a save went out leaves a true line, not Checking your account', async () => {
     await seedDevice(modelOf(rect('r1', 'Kitchen')));
-    const realHead = mockAccount.headReads;
     // The first read answers (no row); the read-back after the save does not get through.
-    render(<SafeAreaProvider initialMetrics={METRICS}><LivingModelScreen projectId={PROJECT} userId={ME} /></SafeAreaProvider>);
-    await act(async () => { for (let i = 0; i < 40 && mockAccount.pushes.length === 0; i++) { if (mockAccount.headReads > realHead) mockAccount.failHeadReads = 1; await new Promise((r) => setTimeout(r, 2)); } });
-    await settle();
+    mockAccount.failHeadAt = [2];
+    await open();
     expect(mockAccount.pushes).toHaveLength(1);
+    expect(mockAccount.headReads).toBe(2);
     expect(screen.queryByTestId('lm-sync-checking')).toBeNull();
-    if (screen.queryByTestId('lm-sync-saved') === null) {
-      expect(screen.getByTestId('lm-sync-retrying').props.children).toBe('Saved on this device. Your account could not be checked yet. MAGE ID will try again shortly.');
-      expect((JSON.parse((await AsyncStorage.getItem(META)) as string) as ModelSyncMeta).pending).not.toBeNull();
-    }
+    expect(screen.queryByTestId('lm-sync-saved')).toBeNull();
+    expect(screen.getByTestId('lm-sync-retrying').props.children).toBe('Saved on this device. Your account could not be checked yet. MAGE ID will try again shortly.');
+    // The save is still in the notes, so the next look at the account recognises it as landed.
+    expect((JSON.parse((await AsyncStorage.getItem(META)) as string) as ModelSyncMeta).pending).not.toBeNull();
+    await cleanupAsync();
+    await open();
+    expect(screen.getByTestId('lm-sync-saved')).toBeTruthy();
+    expect(mockAccount.pushes).toHaveLength(1);
   });
 });
