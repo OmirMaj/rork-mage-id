@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured, SUPABASE_URL } from '@/lib/supabase';
+import { rfpAttachmentStoredValue } from '@/utils/rfpAttachmentPath';
 import { readFileBytes } from '@/utils/fileBytes';
 import { PHOTO_BUCKET } from '@/utils/photoUploadCore';
 
@@ -178,19 +179,17 @@ export async function uploadProfileImage(
 }
 
 // Upload a homeowner-RFP attachment (photo or drawing PDF) to the
-// rfp-attachments bucket. Returns the storage PATH, never a URL: the bucket is
-// being made private (audit DB-F11b,
-// supabase/migrations/20261010120000_rfp_attachments_private.sql) and a link is
-// minted at read time for people allowed to see the posting
-// (utils/rfpAttachmentUrls.ts). Path convention is
+// rfp-attachments bucket. Returns the value to STORE in public_bids.photo_urls /
+// drawing_urls, decided by ONE constant: utils/rfpAttachmentPath.ts
+// RFP_ATTACHMENT_STORED_FORM. Today that is the legacy public URL (the one
+// value a phone on an older build can render while the bucket is still
+// public); after supabase/migrations/20261010140000_rfp_attachments_flip.sql it
+// becomes the bare path. No reader renders the stored value: every screen maps
+// it back to a path and asks Storage for a short-lived signed link
+// (utils/rfpAttachmentUrls.ts, audit DB-F11b). Path convention is
 // <userId>/<rfpId>/<timestamp>_<filename>, which the insert policy on
 // storage.objects expects (folder[1] must equal auth.uid()) and which
 // supabase/functions/_shared/storagePath.ts RFP_ATTACHMENT_PATH describes.
-//
-// This used to return getPublicUrl(): a permanent, unsigned link to a photo of
-// the inside of someone's house, stored in a table every signed-in account can
-// list. No code builds a public URL for this bucket any more
-// (scripts/validate-rfp-attachments-private.ts).
 export async function uploadRfpAttachment(
   userId: string,
   rfpId: string,
@@ -210,7 +209,7 @@ export async function uploadRfpAttachment(
       console.log('[Storage] RFP attachment upload error:', error.message);
       return null;
     }
-    return path;
+    return rfpAttachmentStoredValue(path, SUPABASE_URL) ?? path;
   } catch (err) {
     console.log('[Storage] RFP attachment upload failed:', err);
     return null;

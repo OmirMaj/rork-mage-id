@@ -59,9 +59,74 @@ export function rfpAttachmentDisplayName(stored: string): string {
   return name.length > 0 ? name : 'attachment';
 }
 
+// ── what a new upload stores ────────────────────────────────────────────────
+
+export type RfpAttachmentStoredForm = 'public_url' | 'path';
+
+/**
+ * THE ONE SWITCH for what utils/storage.ts uploadRfpAttachment writes into
+ * public_bids.photo_urls / drawing_urls.
+ *
+ *   'public_url'  the legacy public URL. It is the only value a phone still on
+ *                 an older build can render, and it is what award_rfp copies
+ *                 into the winner's project and the award email. Keep this
+ *                 while the bucket is public.
+ *   'path'        the bare path <owner id>/<posting id>/<digits>_<name>.
+ *
+ * WHEN TO CHANGE IT: to 'path', in the first app update published AFTER
+ * supabase/migrations/20261010140000_rfp_attachments_flip.sql has been applied
+ * (once the bucket is private a public URL opens for nobody, so nothing is
+ * lost by no longer storing one). Not before: between this release and the
+ * flip, a bare path is a blank photo on every older build.
+ *
+ * Either way this build reads BOTH forms: rfpAttachmentPath() recovers the
+ * path from a URL or a path, and the screens sign it. The validator proves it
+ * for both values of this constant, with the bucket public and private.
+ */
+export const RFP_ATTACHMENT_STORED_FORM: RfpAttachmentStoredForm = 'public_url';
+
+/**
+ * The value to store for a file just uploaded at `path`. Null when `path` is
+ * not a writer's key. With form 'public_url' and no project URL to build one
+ * from, the bare path is stored (this build still signs it).
+ * This is the ONLY place a /object/public/ URL for this bucket is built, and
+ * it is built to be STORED, never rendered: every reader maps it back to a
+ * path and signs it.
+ */
+export function rfpAttachmentStoredValue(
+  path: string,
+  supabaseUrl: string | null | undefined,
+  form: RfpAttachmentStoredForm = RFP_ATTACHMENT_STORED_FORM,
+): string | null {
+  if (typeof path !== 'string' || path.length > PATH_MAX || !RFP_ATTACHMENT_PATH_RE.test(path)) return null;
+  if (form === 'path') return path;
+  const base = typeof supabaseUrl === 'string' ? supabaseUrl.trim().replace(/\/+$/, '') : '';
+  if (!/^https:\/\/[^/\s]+$/i.test(base)) return path;
+  return `${base}/storage/v1/object/public/${RFP_ATTACHMENT_BUCKET}/${path}`;
+}
+
 const isHttp = (v: string): boolean => /^https?:\/\//i.test(v);
 
-/** What to show when a value could not be signed: a legacy URL as stored (it still opens while the bucket is public), else nothing. */
+/**
+ * What to show when a value IN THIS BUCKET could not be signed: a legacy URL
+ * as stored (it still opens while the bucket is public), else nothing. A value
+ * that is not in this bucket is never shown or opened: it gets ''.
+ */
 export function rfpAttachmentFallback(stored: string): string {
-  return isHttp(stored) ? stored : '';
+  return isHttp(stored) && rfpAttachmentPath(stored) !== null ? stored : '';
+}
+
+/**
+ * What one stored value resolves to, given what Storage answered for its path
+ * (a signed link, or nothing). The whole read rule in one pure function:
+ *   not in this bucket          '' (dropped: never rendered, never opened)
+ *   in the bucket, signed       the signed link
+ *   in the bucket, not signed   the stored public URL if that is what was
+ *                               stored (works only while the bucket is public),
+ *                               else ''
+ */
+export function rfpAttachmentResolved(stored: string | null | undefined, signedUrl: string | null | undefined): string {
+  if (typeof stored !== 'string' || rfpAttachmentPath(stored) === null) return '';
+  if (typeof signedUrl === 'string' && signedUrl.length > 0) return signedUrl;
+  return rfpAttachmentFallback(stored);
 }

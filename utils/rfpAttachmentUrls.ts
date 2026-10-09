@@ -10,29 +10,31 @@
 // plan-sheets (utils/planSheetUrls): store the PATH, and ask Storage for a
 // short-lived signed link when a person who is allowed to see it opens it.
 //
-// WHAT IS STORED NOW. utils/storage.ts uploadRfpAttachment returns the bare
-// path `<owner id>/<posting id>/<digits>_<name>`. Rows written before this
-// release hold the old public URL; rfpAttachmentPath() recovers the path from
-// either, so old rows keep working for the people the bucket's read policy
-// admits (the owner; a contractor while the posting is open; a bidder).
+// WHAT IS STORED. One constant decides: utils/rfpAttachmentPath.ts
+// RFP_ATTACHMENT_STORED_FORM. Today it is 'public_url' (the legacy public URL,
+// the one value a phone on an older build can render); after the bucket is
+// flipped it becomes 'path'. rfpAttachmentPath() recovers the path from
+// either, so every row keeps working for the people the bucket's read rule
+// admits (the owner; any signed-in account while the posting is open; the
+// awarded bidder after it closes).
 //
-// ORDERING. The migration that flips the bucket private
-// (supabase/migrations/20261010120000_rfp_attachments_private.sql) is applied
-// AFTER this release has reached phones. So this module works in both worlds:
-//   bucket still public  → the signing call is refused (a public bucket has no
-//                          read policy), and a stored legacy URL is handed back
-//                          unchanged: it still opens. A stored bare path has no
-//                          public URL built for it here, ever; it shows blank
-//                          until the migration lands. (That is a photo posted
-//                          in the window between this release and the
-//                          migration, viewed in that same window.)
-//   bucket private       → signing succeeds for the people allowed; a legacy
-//                          URL nobody may sign degrades to a missing image,
-//                          never to a crash.
+// ORDERING. Two migrations: the read rule and its policy
+// (20261010120000_rfp_attachments_private.sql, no gate) and, later, the flip
+// (20261010140000_rfp_attachments_flip.sql, founder opt-in). This module works
+// at every step:
+//   no read policy yet   the signing call is refused; an in-bucket public URL
+//                        is handed back as stored and still opens.
+//   read policy, public  signing succeeds for the people allowed.
+//   bucket private       signing succeeds for the people allowed; for anyone
+//                        else the image is missing and a tap says "Could Not
+//                        Open". Never a crash.
+// A stored value that is NOT in this bucket (some other URL, a local file
+// path, junk) is never rendered and never opened: it resolves to ''.
 //
-// No function in this file, or anywhere in the app, builds a
-// /object/public/rfp-attachments/ URL: scripts/validate-rfp-attachments-private.ts
-// fails the build if one appears.
+// No function here builds a /object/public/rfp-attachments/ URL. The one place
+// that does is rfpAttachmentStoredValue (the value to STORE), and
+// scripts/validate-rfp-attachments-private.ts fails the build if another
+// appears or if a screen renders a stored value without going through here.
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -40,9 +42,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
   RFP_ATTACHMENT_BUCKET,
   RFP_ATTACHMENT_URL_TTL_SECONDS,
-  isRfpAttachmentRef,
-  rfpAttachmentFallback,
   rfpAttachmentPath,
+  rfpAttachmentResolved,
 } from '@/utils/rfpAttachmentPath';
 
 export {
@@ -53,12 +54,15 @@ export {
   rfpAttachmentDisplayName,
   rfpAttachmentFallback,
   rfpAttachmentPath,
+  rfpAttachmentResolved,
+  rfpAttachmentStoredValue,
+  RFP_ATTACHMENT_STORED_FORM,
 } from '@/utils/rfpAttachmentPath';
 
 /**
- * Stored values → viewable links, batched. Every input gets an entry:
- * a signed link when Storage grants one, else rfpAttachmentFallback(stored).
- * A value that is not in this bucket at all maps to itself. Never throws.
+ * Stored values to viewable links, batched. Every input gets an entry:
+ * rfpAttachmentResolved(stored, the signed link Storage granted or nothing).
+ * A value that is not in this bucket maps to '' (dropped). Never throws.
  */
 export async function resolveRfpAttachmentUrls(values: readonly (string | null | undefined)[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
@@ -66,8 +70,8 @@ export async function resolveRfpAttachmentUrls(values: readonly (string | null |
   for (const v of values) {
     if (typeof v !== 'string' || v.length === 0 || out.has(v)) continue;
     const path = rfpAttachmentPath(v);
-    if (!path) { out.set(v, v); continue; }
-    out.set(v, rfpAttachmentFallback(v));
+    if (!path) { out.set(v, ''); continue; }
+    out.set(v, rfpAttachmentResolved(v, null));
     const list = byPath.get(path);
     if (list) list.push(v); else byPath.set(path, [v]);
   }
@@ -84,7 +88,7 @@ export async function resolveRfpAttachmentUrls(values: readonly (string | null |
         const path = (entry as { path?: string | null }).path;
         const signedUrl = (entry as { signedUrl?: string | null }).signedUrl;
         if (!path || !signedUrl) continue;
-        for (const stored of byPath.get(path) ?? []) out.set(stored, signedUrl);
+        for (const stored of byPath.get(path) ?? []) out.set(stored, rfpAttachmentResolved(stored, signedUrl));
       }
     } catch { /* offline: the fallbacks stand */ }
   }
@@ -114,10 +118,8 @@ export function useRfpAttachmentUrls(values: readonly (string | null | undefined
   }, [key]);
   return useMemo(() => (stored) => {
     if (typeof stored !== 'string' || stored.length === 0) return '';
-    const hit = resolved.get(stored);
-    if (hit !== undefined) return hit;
-    // Not resolved yet: a value outside this bucket is shown as it is; one
-    // inside it waits for its link.
-    return isRfpAttachmentRef(stored) ? '' : stored;
+    // Not resolved yet, or not in this bucket: nothing. A stored value is never
+    // handed to an <Image> as it is.
+    return resolved.get(stored) ?? '';
   }, [resolved]);
 }

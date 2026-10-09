@@ -9,6 +9,7 @@
 // homeowners hit it first, regardless of which mode they're in.
 
 import React, { useCallback, useMemo, useState } from 'react';
+import { useRfpAttachmentUrls } from '@/utils/rfpAttachmentUrls';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
   RefreshControl,
@@ -177,6 +178,14 @@ export default function MageIdBidsTabScreen() {
     },
   });
 
+  // Each posting's first photo, as a short-lived signed link. The stored value
+  // (a legacy public URL or a bare path) is never handed to an <Image>.
+  const heroRefs = useMemo(
+    () => [...(browseQ.data ?? []), ...(mineQ.data ?? [])].map(r => r.photo_urls?.[0]).filter((v): v is string => !!v),
+    [browseQ.data, mineQ.data],
+  );
+  const attachmentUrl = useRfpAttachmentUrls(heroRefs);
+
   const enrichedBrowse = useMemo<BrowseWithDistance[]>(() => {
     const rows = browseQ.data ?? [];
     return rows.map(r => {
@@ -232,9 +241,9 @@ export default function MageIdBidsTabScreen() {
         activeOpacity={0.85}
         testID={`browse-card-${r.id}`}
       >
-        {heroPhoto && (
-          <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
-        )}
+        {heroPhoto && attachmentUrl(heroPhoto) ? (
+          <Image source={{ uri: attachmentUrl(heroPhoto) }} style={styles.rfpHero} resizeMode="cover" />
+        ) : null}
         <View style={styles.rfpBody}>
           <View style={styles.rfpHead}>
             <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
@@ -280,7 +289,7 @@ export default function MageIdBidsTabScreen() {
         </View>
       </TouchableOpacity>
     );
-  }, [styles, handleOpenRfp]);
+  }, [styles, handleOpenRfp, attachmentUrl]);
 
   const myStats = useMemo(() => {
     const rows = mineQ.data ?? [];
@@ -582,9 +591,9 @@ export default function MageIdBidsTabScreen() {
               activeOpacity={0.85}
               testID={`mine-card-${r.id}`}
             >
-              {heroPhoto && (
-                <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
-              )}
+              {heroPhoto && attachmentUrl(heroPhoto) ? (
+                <Image source={{ uri: attachmentUrl(heroPhoto) }} style={styles.rfpHero} resizeMode="cover" />
+              ) : null}
               <View style={styles.rfpBody}>
                 <View style={styles.rfpHead}>
                   <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
