@@ -4,6 +4,7 @@
 // NOTHING HERE RUNS ON ITS OWN. A write happens after the person changes the
 // model on the screen; a read happens when he opens it.
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { parseSavedScans, roomScansKey, type SavedScan } from '@/utils/roomScan/storeCore';
 import { emptyJobModel, parseJobModel } from './modelCore';
 import { MAX_MODEL_CHARS, livingModelKey } from './storeCore';
 import type { JobModel } from './types';
@@ -29,4 +30,15 @@ export async function saveJobModel(userId: string | null | undefined, model: Job
   } catch {
     return false;
   }
+}
+
+/**
+ * The scans saved for this project on this device (the scanner's own list,
+ * read only). The scanner keeps scans on the phone that made them, so on the
+ * web this is empty until scans sync.
+ */
+export async function loadProjectScans(projectId: string): Promise<SavedScan[]> {
+  let raw: string | null = null;
+  try { raw = await AsyncStorage.getItem(roomScansKey(projectId)); } catch { /* treated as nothing saved */ }
+  return parseSavedScans(raw).scans;
 }
