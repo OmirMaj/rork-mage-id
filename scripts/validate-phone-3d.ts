@@ -38,7 +38,7 @@ import type { JobSceneHandle } from '../components/livingModel/threeScene';
 import { EN as EN_SHARD } from '../i18n/catalog/en/office.living-model-phone.generated';
 import { ES_OFFICE_LIVING_MODEL_PHONE } from '../i18n/catalog/es/office/livingModelPhone';
 import {
-  LABEL_MIN_PT, MAX_ZOOM_STEP, SECOND_LINE_MIN_PT, TAP_MAX_MS, TAP_SLOP_PT,
+  LABEL_MIN_LONG_PT, LABEL_MIN_SHORT_PT, MAX_ZOOM_STEP, SECOND_LINE_MIN_PT, TAP_MAX_MS, TAP_SLOP_PT,
   frameStats, gestureBegin, gestureEnd, gestureMove, labelDetail, nextZoom, pointsPerMetre, viewSize,
 } from '../utils/livingModel/phoneViewCore';
 
@@ -176,12 +176,13 @@ rule('A4', 'a room shows two lines only when it is wide on the screen, its name 
   if (!near(ppm, 30)) out.push(`points a metre is ${ppm}; want 30`);
   if (!near(P(size, 10, 2), 60)) out.push('zooming by 2 does not double the points a metre');
   if (P(size, 0, 1) !== 0 || P(size, 10, 0) !== 0) out.push('a job with no size, or no zoom, is not answered with 0');
-  // At 30 points a metre: 4 m is 120 points (two lines), 2 m is 60 (the name), 1 m is 30 (nothing).
-  if (L(4, 30) !== 'full') out.push(`a room 120 points wide shows "${L(4, 30)}"; want both lines`);
-  if (L(2, 30) !== 'name') out.push(`a room 60 points wide shows "${L(2, 30)}"; want the name alone`);
-  if (L(1, 30) !== 'none') out.push(`a room 30 points wide shows "${L(1, 30)}"; want no label`);
-  if (L(Number.NaN, 30) !== 'none') out.push('a room with no size gets a label');
-  if (!(LABEL_MIN_PT < SECOND_LINE_MIN_PT)) out.push('the two label limits are the wrong way round');
+  // At 30 points a metre. 4 m by 4 m is 120 by 120 points: both lines. 2.9 by 4 is 87 by 120: both lines.
+  // 2 by 4 is 60 by 120: the name. A hall 1 by 4 is 30 by 120: the name. 0.6 by 4 is 18 points deep: nothing.
+  // A closet 1 by 1.5 is 30 by 45: nothing (too short to carry a name).
+  const want: [number, number, string][] = [[4, 4, 'full'], [2.9, 4, 'full'], [2, 4, 'name'], [1, 4, 'name'], [4, 1, 'name'], [0.6, 4, 'none'], [1, 1.5, 'none']];
+  for (const [a, b, d] of want) if (L(a, b, 30) !== d) out.push(`a room ${a} m by ${b} m at 30 points a metre shows "${L(a, b, 30)}"; want "${d}"`);
+  if (L(Number.NaN, 4, 30) !== 'none' || L(4, 4, 0) !== 'none') out.push('a room with no size on the screen gets a label');
+  if (!(LABEL_MIN_SHORT_PT < LABEL_MIN_LONG_PT && LABEL_MIN_LONG_PT < SECOND_LINE_MIN_PT)) out.push('the label limits are out of order');
   if (Z(1, 100) !== 6 || Z(1, 0.01) !== 0.5 || Z(2, 1.5) !== 3 || Z(2, Number.NaN) !== 2) out.push('the zoom this view keeps does not follow the scene\'s own limits (0.5 to 6)');
   const st = w.impl.frameStats([10, 30, 20, 40, Number.NaN]);
   if (st.frames !== 4 || st.medianMs !== 30 || st.worstMs !== 40) out.push(`frame timing of 10, 20, 30, 40 gave ${JSON.stringify(st)}`);

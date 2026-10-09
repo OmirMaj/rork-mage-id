@@ -143,18 +143,21 @@ export function pointsPerMetre(size: PhoneViewSize, spanM: number, zoom: number)
   return ((Math.min(size.width, size.height * 1.4) / (spanM * 1.3)) * zoom) / size.unitsPerPoint;
 }
 
-/** A room narrower than this on the screen shows its name alone. */
-export const SECOND_LINE_MIN_PT = 104;
-/** A room narrower than this on the screen shows no label: the room list below still names it. */
-export const LABEL_MIN_PT = 34;
+/** A room whose shorter side is under this many points on the screen shows its name alone. */
+export const SECOND_LINE_MIN_PT = 84;
+/** A room needs a longer side of at least this many points to carry its name... */
+export const LABEL_MIN_LONG_PT = 56;
+/** ...and a shorter side of at least this many. Smaller, it shows no label: the room list below still names it. */
+export const LABEL_MIN_SHORT_PT = 22;
 
 export type LabelDetail = 'none' | 'name' | 'full';
 
-/** How much of a room's label fits, from the room's shorter side in metres. */
-export function labelDetail(roomShortSideM: number, ptPerMetre: number): LabelDetail {
-  const onScreen = roomShortSideM * ptPerMetre;
-  if (!(onScreen >= LABEL_MIN_PT)) return 'none';
-  return onScreen >= SECOND_LINE_MIN_PT ? 'full' : 'name';
+/** How much of a room's label fits, from the room's two sides in metres. */
+export function labelDetail(shortSideM: number, longSideM: number, ptPerMetre: number): LabelDetail {
+  const short = Math.min(shortSideM, longSideM) * ptPerMetre;
+  const long = Math.max(shortSideM, longSideM) * ptPerMetre;
+  if (!(short >= LABEL_MIN_SHORT_PT) || !(long >= LABEL_MIN_LONG_PT)) return 'none';
+  return short >= SECOND_LINE_MIN_PT ? 'full' : 'name';
 }
 
 /** The slowest the labels are moved while the model turns: about thirty times a second. */

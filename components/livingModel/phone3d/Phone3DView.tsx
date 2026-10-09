@@ -145,7 +145,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
         if (size && v) v.setNativeProps({ style: { opacity: 1, transform: [{ translateX: Math.round(p.x - size.w / 2) }, { translateY: Math.round(p.y - size.h / 2) }] } });
       }
       const b = roomBounds(r);
-      const d = b ? labelDetail(Math.min(b.maxX - b.minX, b.maxY - b.minY), ppm) : 'none';
+      const d = b ? labelDetail(b.maxX - b.minX, b.maxY - b.minY, ppm) : 'none';
       (next ??= {})[r.id] = d;
     }
     if (next) {
