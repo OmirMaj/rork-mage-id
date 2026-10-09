@@ -40,6 +40,7 @@ import {
   INVITE_PARAM, postSignInHref, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
 } from '@/utils/deepLinksInvite';
 import { captureGrowthRefFromLocation } from '@/utils/growthAttribution';
+import { AgreementNotice } from '@/components/ProtectNotices';
 
 // The wordmark while the splash's own "MAGE ID" is still flying onto it.
 const HIDDEN = { opacity: 0 } as const;
@@ -405,6 +406,9 @@ export default function SignupScreen() {
               Apple uses the iOS native sheet — no Supabase URL prompt.
               Both create the account instantly with no form to fill. */}
           <Slot style={entrance.slot(3)}>
+          {/* Above Sign Up with Apple, Sign Up with Google and Create Account:
+              the agreement is read before any of the three is tapped. */}
+          <AgreementNotice testID="signup-agreement" style={{ marginBottom: 12 }} />
           <View style={styles.primaryAuthStack}>
             {Platform.OS === 'ios' || Platform.OS === 'web' ? (
               <TouchableOpacity

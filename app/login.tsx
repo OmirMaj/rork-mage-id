@@ -30,6 +30,7 @@ import { layoutNext, nativeDriver, reducedMotion, useSwapFade } from '@/componen
 import {
   INVITE_PARAM, postSignInHref, signupHrefForInvite, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
 } from '@/utils/deepLinksInvite';
+import { AgreementNotice } from '@/components/ProtectNotices';
 
 let _LocalAuthentication: typeof import('expo-local-authentication') | null = null;
 
@@ -515,6 +516,10 @@ export default function LoginScreen() {
               through the standard OAuth flow. Both at the top because
               they're the lowest-friction paths. */}
           <Slot style={entrance.slot(5)}>
+          {/* Apple, Google and the email link below can each create a new
+              account, so the agreement sits above all of them. Text only:
+              nothing is recorded and nobody is blocked here. */}
+          <AgreementNotice testID="login-agreement" style={{ marginBottom: 12 }} />
           <View style={styles.primaryAuthStack}>
             {Platform.OS === 'ios' || Platform.OS === 'web' ? (
               <TouchableOpacity

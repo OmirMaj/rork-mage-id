@@ -16,6 +16,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ClaimedWorkerSelfView } from './crew';
 import { useT } from '@/contexts/LanguageContext';
+import { AgreementNotice } from '@/components/ProtectNotices';
 
 // Worker claim redemption. Opened from the magic-link invite
 // (https://app.mageid.app/claim-crew?token=crew_...). MagicLinkHandler
@@ -213,6 +214,7 @@ export default function ClaimCrewScreen() {
           <Text style={styles.msg}>
             {t('field.crew.thisSignInLink', 'This sign-in link has expired or was already used. Your invite is still good. Sign in to finish claiming your profile.')}
           </Text>
+          <AgreementNotice testID="claim-crew-agreement" style={{ marginBottom: 12 }} />
           {sentTo ? (
             <Text style={styles.msg}>{t('field.crew.weSentANew', 'We sent a new link to {sentTo}. Open it on this device to finish.', { sentTo })}</Text>
           ) : (
