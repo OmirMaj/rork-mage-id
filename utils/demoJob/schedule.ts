@@ -115,6 +115,7 @@ export const TASK_SPECS: readonly DemoTaskSpec[] = [
 /** Tasks that ran, or are running, longer than planned, with the reason the contractor recorded. */
 export const LATE: Readonly<Record<string, { days: number; reason: string }>> = {
   exc: { days: 4, reason: 'Ran 4 working days over. Unsuitable fill found at the east footings. Over-excavated and replaced with structural fill (Change Order 1).' },
+  'pod-deck': { days: 3, reason: 'Ran 3 working days over. A transfer beam was added at gridline C by a structural revision (Change Order 3).' },
   'pod-col': { days: 4, reason: 'Ran 4 working days over. Rebar shop drawings for the shear walls came back Revise and Resubmit and the bars were released late.' },
   windows: { days: 12, reason: 'Running 12 working days over. The Level 5 to 7 window shipment was pushed two weeks by the supplier. Levels 2 to 4 are set.' },
 };
