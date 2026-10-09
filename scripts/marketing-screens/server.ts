@@ -16,6 +16,8 @@ export interface ServerWorld {
   subscription: Record<string, unknown> | null;
   /** Edge function name -> JSON answer, or a function of the request body. */
   functions: Record<string, unknown | ((body: any) => unknown)>;
+  /** Files under /__fixture/ (name -> SVG text): the flat tinted tiles that stand where site photos would be. */
+  assets: Record<string, string>;
 }
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -81,6 +83,11 @@ export function startServer(dist: string, port: number, world: () => ServerWorld
       }
 
       if (p.startsWith('/storage/v1/') || p.startsWith('/realtime/v1/')) return json({ message: 'stand-in backend' }, 404);
+
+      if (p.startsWith('/__fixture/')) {
+        const svg = w.assets[p.slice(11)];
+        return svg ? new Response(svg, { headers: { 'content-type': 'image/svg+xml' } }) : new Response('not found', { status: 404 });
+      }
 
       // The exported app. One page; every route falls back to index.html.
       const file = normalize(join(dist, decodeURIComponent(p)));

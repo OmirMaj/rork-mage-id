@@ -137,16 +137,16 @@ async function shoot(browser: Browser, screen: Screen, shot: Shot, file: string)
     });
     await page.send('Page.addScriptToEvaluateOnNewDocument', { source: bootScript(current, theme) });
     await page.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_HELPERS });
-    await page.send('Page.navigate', { url: `http://127.0.0.1:${PORT}${screen.via ?? screen.route}` });
+    await page.send('Page.navigate', { url: `http://127.0.0.1:${PORT}${shot.route ?? screen.via ?? screen.route}` });
     // The app is up when its launch curtain is gone and the fonts are in.
     await page.eval(`new Promise((resolve) => { const t0 = performance.now(); const tick = () => { const root = document.getElementById('root'); if ((root && root.innerText.trim().length > 20 && document.fonts.status === 'loaded') || performance.now() - t0 > 20000) resolve(true); else setTimeout(tick, 150); }; tick(); })`);
     await wait(screen.settle ?? 2500);
-    if (screen.via) {
+    if (screen.via && !shot.route) {
       // Arrive the way a person does, from another screen, so the header has its back button.
       await page.eval(`(() => { history.pushState({}, '', ${JSON.stringify(screen.route)}); dispatchEvent(new PopStateEvent('popstate', { state: {} })); })()`);
       await wait(screen.settle ?? 2500);
     }
-    for (const step of [...(screen.steps ?? []), ...(shot.steps ?? [])]) await runStep(page, step);
+    for (const step of [...(shot.route ? [] : screen.steps ?? []), ...(shot.steps ?? [])]) await runStep(page, step);
     await page.eval('document.fonts.ready.then(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); return true; })');
     await wait(shot.settle ?? 700);
     if (!shot.noStatusBar) await page.eval(statusBarScript(theme, INSETS, shot.statusBar));
