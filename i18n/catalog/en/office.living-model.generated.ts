@@ -98,7 +98,7 @@ export const EN: EnCatalog = {
   "office.livingModel.opening.windowPlaceholder": "3 ft",
   "office.livingModel.opening.windowSub": "Window, {width}",
   "office.livingModel.opening.windowTitleLabel": "Add a Window",
-  "office.livingModel.replay.canvasA11yLabel": "Schematic 3D model of the job. Arrow keys turn it, plus and minus zoom. The room list below reads each room.",
+  "office.livingModel.replay.canvasA11yBody": "Schematic 3D model of the job. Arrow keys turn it, plus and minus zoom. The room list below reads each room.",
   "office.livingModel.replay.cutWallsLabel": "Cut Away Walls",
   "office.livingModel.replay.fullWallsLabel": "Full Height Walls",
   "office.livingModel.replay.legendHeadingLabel": "Stages",

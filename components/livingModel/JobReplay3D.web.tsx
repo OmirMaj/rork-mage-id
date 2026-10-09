@@ -218,7 +218,7 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
         ref: canvasRef,
         tabIndex: 0,
         role: 'img',
-        'aria-label': copy.canvasA11yLabel,
+        'aria-label': copy.canvasA11yBody,
         style: { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', display: 'block', touchAction: 'none', outlineOffset: -2 },
       })}
       {!ready ? <Text style={[styles.note, { position: 'absolute', left: 12, bottom: 12 }]}>{copy.loading3dBody}</Text> : null}

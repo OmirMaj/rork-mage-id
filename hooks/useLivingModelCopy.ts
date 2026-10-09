@@ -132,7 +132,7 @@ export interface LivingModelCopy {
   resetViewLabel: string;
   legendHeadingLabel: string;
   orbitHelpSub: string;
-  canvasA11yLabel: string;
+  canvasA11yBody: string;
   noStartBody: string;
   nothingTickedBody: string;
   loading3dBody: string;
@@ -322,7 +322,7 @@ export function useLivingModelCopy(): LivingModelCopy {
       resetViewLabel: t('office.livingModel.replay.resetViewLabel', 'Reset View'),
       legendHeadingLabel: t('office.livingModel.replay.legendHeadingLabel', 'Stages'),
       orbitHelpSub: t('office.livingModel.replay.orbitHelpSub', 'Drag to turn. Hold Shift and drag, or use two fingers, to move. Scroll or pinch to zoom'),
-      canvasA11yLabel: t('office.livingModel.replay.canvasA11yLabel', 'Schematic 3D model of the job. Arrow keys turn it, plus and minus zoom. The room list below reads each room.'),
+      canvasA11yBody: t('office.livingModel.replay.canvasA11yBody', 'Schematic 3D model of the job. Arrow keys turn it, plus and minus zoom. The room list below reads each room.'),
       noStartBody: t('office.livingModel.replay.noStartBody', 'The schedule has no start date, so nothing can be placed against today. All of it shows as the plan.'),
       nothingTickedBody: t('office.livingModel.replay.nothingTickedBody', 'No tasks are ticked for any room yet. Open Tasks and tick them, and the replay will have something to play.'),
       loading3dBody: t('office.livingModel.replay.loading3dBody', 'Loading the 3D view.'),
