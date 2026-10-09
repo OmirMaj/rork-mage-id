@@ -27,7 +27,12 @@
 // When his own long walls (12 ft and over) have taped LONGER than the scan,
 // by half an inch or more, on at least three in four of at least
 // MIN_LONG_PAIRS walls, `longWallSuggestion` offers to add the typical
-// shortfall to each long wall he has NOT taped, in the order list only. It
+// shortfall to each long wall whose length is still the scan's own (not one he
+// taped, and not one the app moved to match a taped wall), in the order list
+// only. THE PHONE MODEL: when the scan in hand names its phone model and at
+// least MIN_LONG_PAIRS of his long taped walls came from that same model, only
+// those are read. Otherwise the long walls from every phone are read together
+// and the suggestion says so (`pooled`). It
 // returns a suggestion. It changes nothing: the order list reads
 // `options.longWallAddIn`, which is set only when he accepts. Scans that run
 // LONG get no suggestion: this file never suggests ordering less.
@@ -119,6 +124,12 @@ export function removeScanPairs(list: readonly TapePair[], scanId: string): Tape
   return list.filter((p) => p.scanId !== scanId);
 }
 
+/** Remove the pairs of several scans at once (a delete, or scans the saved-list cap pushed off the phone). */
+export function removeScansPairs(list: readonly TapePair[], scanIds: readonly string[]): TapePair[] {
+  const gone = new Set(scanIds);
+  return list.filter((p) => !gone.has(p.scanId));
+}
+
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** Pairs read back from the phone. Never throws; a row that is not a pair is dropped. */
@@ -188,14 +199,21 @@ export interface LongWallSuggestion {
   shortCount: number;
   /** The middle shortfall on those long walls, inches, to a quarter. */
   typicalIn: number;
+  /** True when the walls read were scanned with other phone models too, because this model alone had too few. The card says so. */
+  pooled: boolean;
 }
 
 /**
  * A suggestion to allow a little more on long walls, or null. Read the top of
  * this file for when. This returns words for a card; it changes no quantity.
  */
-export function longWallSuggestion(pairs: readonly TapePair[]): LongWallSuggestion | null {
-  const long = pairs.filter((p) => !isFar(p) && p.lengthClass === 'long');
+export function longWallSuggestion(pairs: readonly TapePair[], deviceModel = ''): LongWallSuggestion | null {
+  const every = pairs.filter((p) => !isFar(p) && p.lengthClass === 'long');
+  // The same phone model only, when there are enough of them. Otherwise every phone, said as pooled.
+  const same = deviceModel ? every.filter((p) => p.deviceModel === deviceModel) : [];
+  const useSame = same.length >= MIN_LONG_PAIRS;
+  const long = useSame ? same : every;
+  const pooled = !useSame && every.some((p) => !deviceModel || p.deviceModel !== deviceModel);
   if (long.length < MIN_LONG_PAIRS) return null;
   const diffs = long.map(diffIn);
   const short = diffs.filter((d) => d >= LEAN_MIN_IN - 1e-6);
@@ -203,7 +221,7 @@ export function longWallSuggestion(pairs: readonly TapePair[]): LongWallSuggesti
   const typical = median(diffs);
   if (typical < LEAN_MIN_IN - 1e-6) return null;
   const addIn = Math.min(MAX_SUGGEST_IN, Math.ceil(typical * 2 - 1e-6) / 2);
-  return { addIn, longCount: long.length, shortCount: short.length, typicalIn: quarter(typical) };
+  return { addIn, longCount: long.length, shortCount: short.length, typicalIn: quarter(typical), pooled };
 }
 
 // ── bought versus scanned (the pure core; not wired to data in this lane) ───

@@ -4,12 +4,11 @@
 // Pure. Inches for cuts, feet for the sticks a yard sells (8, 12 and 16 ft).
 //
 // THE PROBLEM. Each wall run of baseboard or crown, and each leg and head of
-// casing, is a length to cut. Sticks come in a few stock lengths. Buy the
-// fewest feet that cut every piece. That is bin packing, which has no fast
-// method that is always best, so this file uses a known good rule of thumb and
-// says which.
+// casing, is a length to cut. Sticks come in a few stock lengths. Buy few feet
+// and still cut every piece. That is bin packing, which has no fast method
+// that is always best.
 //
-// THE METHOD, in two steps.
+// THE METHOD, in three steps.
 //
 // 1. FEWEST JOINTS. A run no longer than the longest stick he buys is ONE
 //    piece: no joint. A longer run is cut into ceil(run / longest) pieces: full
@@ -20,31 +19,43 @@
 //    first. Put each into the first open stick of the LONGEST stock length that
 //    still has room; open a new one only when none does. Then swap every stick
 //    for the shortest stock length that still holds what was put in it.
+//    THIS IS NOT ALWAYS THE FEWEST FEET. On random lists it bought more than
+//    the best grouping about three times in a hundred. Nothing on screen says
+//    it is the fewest.
+//
+// 3. A SHORT LIST IS SEARCHED. With OPTIMAL_MAX_PIECES pieces or fewer, every
+//    way of grouping the pieces into sticks is tried (`fewestFeet` below) and
+//    the grouping that buys the fewest feet is used, fewest sticks among
+//    equals. `method` is then 'searched', and only then may the screen say
+//    that no grouping of these pieces buys fewer feet. That is a statement
+//    about grouping these pieces into the stick lengths he chose, with joints
+//    cut as in step 1. It says nothing about the room.
 //
 // THE GUARANTEE: NEVER WORSE THAN ONE STICK PER PIECE. "One stick per piece" is
 // buying, for each piece, the shortest stock length that holds it.
-//   Sticks:  a new stick is opened only for a piece that fits no open stick,
-//            so each stick holds at least one piece: sticks <= pieces.
+//   Sticks:  each stick holds at least one piece: sticks <= pieces.
 //   Feet:    the result is compared with one stick per piece and the cheaper
 //            of the two is returned (`method` says which), so the feet bought
-//            are never more. (For 8, 12 and 16 ft, first fit already wins or
-//            ties every time: two of the shortest stick are as long as the
-//            longest, so putting two pieces in one stick cannot cost more than
-//            giving each its own.)
+//            are never more.
 // And no cut is ever longer than its stick: step 1 makes every piece at most
 // the longest stick, and a stick is only swapped for one that holds its cuts.
-// scripts/validate-scan-order.ts checks all three on every fixture and on a
-// few thousand random lists.
+// scripts/validate-scan-order.ts checks all of this against figures it works
+// out for itself, on every fixture and on a few thousand random lists.
 //
-// WHAT IT DOES NOT KNOW: the saw kerf, the extra a mitre or a cope eats, and
-// bad ends on a stick. `allowanceIn` adds a fixed length to every piece for
-// those, and is shown as an assumption.
+// WHAT IT DOES NOT KNOW: the saw kerf, the extra a cope eats, and bad ends on
+// a stick. `allowanceIn` adds a fixed length to every piece for those, and is
+// shown as an assumption. The mitres on casing are NOT left to that: the
+// order list adds the casing's own width to each piece (orderListCore).
 
 export const STOCK_LENGTHS_FT = [8, 12, 16] as const;
 export type StockFt = typeof STOCK_LENGTHS_FT[number];
 
 /** The shortest piece a joint may leave at the end of a run. */
 export const MIN_JOINT_PIECE_IN = 24;
+/** A run shorter than this is not a cut: nobody nails a sliver of baseboard between a casing and a corner. */
+export const MIN_RUN_IN = 1;
+/** Lists this short are searched for the grouping that buys the fewest feet. 3 to the 10th groupings at most. */
+export const OPTIMAL_MAX_PIECES = 10;
 
 const EPS = 1e-6;
 const r8 = (n: number): number => Math.round(n * 8) / 8;
@@ -54,7 +65,7 @@ export interface TrimRun {
   lengthIn: number;
   /** The wall, door or window this run is on, for the cut list. */
   on: string;
-  what: 'wall' | 'leg' | 'head' | 'sill';
+  what: 'wall' | 'leg' | 'head' | 'sill' | 'apron';
 }
 
 export interface TrimCut {
@@ -89,8 +100,8 @@ export interface TrimPlan {
   /** Joints in runs longer than the longest stick. */
   joints: number;
   pieceCount: number;
-  /** 'first_fit' = the packing above. 'one_per_piece' = it did not beat one stick per piece, so that is returned. */
-  method: 'first_fit' | 'one_per_piece';
+  /** 'searched' = every grouping was tried and this buys the fewest feet. 'first_fit' = longest piece first, not proven fewest. 'one_per_piece' = packing did not beat one stick per piece, so that is returned. */
+  method: 'searched' | 'first_fit' | 'one_per_piece';
   /** What one stick per piece would have bought, for the comparison on screen and in the tests. */
   onePerPiece: { stickCount: number; boughtFt: number };
   allowanceIn: number;
@@ -107,7 +118,7 @@ export function splitRuns(runs: readonly TrimRun[], longestIn: number, allowance
   const cuts: TrimCut[] = [];
   for (const run of runs) {
     const len = r8(run.lengthIn);
-    if (!(len > EPS)) continue;
+    if (!Number.isFinite(len) || len < MIN_RUN_IN - EPS) continue;
     const of = Math.max(1, Math.ceil((len - EPS) / longestIn));
     // Full sticks first, then the remainder. A remainder shorter than
     // MIN_JOINT_PIECE_IN is lengthened to it and the stick before gives up the
@@ -146,26 +157,70 @@ function finish(stock: number[], bins: TrimCut[][], method: TrimPlan['method'], 
   };
 }
 
+/**
+ * The grouping of `cuts` into sticks that buys the fewest feet (fewest sticks
+ * among equals), by trying every grouping. Only for short lists: the work
+ * grows as 3 to the number of pieces. Returns the groups as lists of indexes.
+ */
+export function fewestFeet(lengthsIn: readonly number[], stock: readonly number[]): number[][] {
+  const n = lengthsIn.length;
+  const longestIn = stock[stock.length - 1] * 12;
+  const size = 1 << n;
+  const sum = new Float64Array(size);
+  for (let m = 1; m < size; m++) { const low = m & -m; sum[m] = sum[m ^ low] + lengthsIn[31 - Math.clz32(low)]; }
+  // One stick's cost: its feet, and a thousandth so that fewer sticks wins among equal feet.
+  const stickCost = (m: number): number => (sum[m] <= longestIn + EPS ? shortestHolding(stock, sum[m]) + 0.001 : Infinity);
+  const best = new Float64Array(size).fill(Infinity);
+  const pick = new Int32Array(size);
+  best[0] = 0;
+  for (let m = 1; m < size; m++) {
+    const low = m & -m;
+    const rest = m ^ low;
+    // Every group that holds the lowest piece still unplaced.
+    for (let sub = rest; ; sub = (sub - 1) & rest) {
+      const group = sub | low;
+      const cost = stickCost(group);
+      if (cost + best[m ^ group] < best[m] - 1e-9) { best[m] = cost + best[m ^ group]; pick[m] = group; }
+      if (sub === 0) break;
+    }
+  }
+  const out: number[][] = [];
+  for (let m = size - 1; m > 0; m ^= pick[m]) {
+    const group: number[] = [];
+    for (let i = 0; i < n; i++) if (pick[m] & (1 << i)) group.push(i);
+    out.push(group);
+  }
+  return out;
+}
+
 /** Pack trim runs into the stock lengths he buys. See the top of this file for the method and what it guarantees. */
 export function packTrim(runs: readonly TrimRun[], stockFt: readonly number[], allowanceIn = 0): TrimPlan {
   const stock = cleanStock(stockFt);
   const longestIn = stock[stock.length - 1] * 12;
-  const cuts = splitRuns(runs, longestIn, Math.max(0, allowanceIn));
+  const allowance = Number.isFinite(allowanceIn) ? Math.min(12, Math.max(0, allowanceIn)) : 0;
+  const cuts = splitRuns(runs, longestIn, allowance);
   const joints = cuts.filter((c) => c.part > 1).length;
   const naiveBins = cuts.map((c) => [c]);
   const naive = { stickCount: cuts.length, boughtFt: cuts.reduce((s, c) => s + shortestHolding(stock, c.lengthIn), 0) };
-
-  // Step 2: first fit, longest first, into sticks of the longest stock length.
   const sorted = [...cuts].sort((a, b) => b.lengthIn - a.lengthIn);
-  const bins: { cuts: TrimCut[]; used: number }[] = [];
-  for (const cut of sorted) {
-    const bin = bins.find((b) => b.used + cut.lengthIn <= longestIn + EPS);
-    if (bin) { bin.cuts.push(cut); bin.used += cut.lengthIn; }
-    else bins.push({ cuts: [cut], used: cut.lengthIn });
+
+  let packed: TrimPlan;
+  if (sorted.length > 0 && sorted.length <= OPTIMAL_MAX_PIECES) {
+    // Step 3: a short list is searched for the grouping that buys the fewest feet.
+    const groups = fewestFeet(sorted.map((c) => c.lengthIn), stock);
+    packed = finish(stock, groups.map((g) => g.map((i) => sorted[i])), 'searched', naive, allowance, joints);
+  } else {
+    // Step 2: first fit, longest first, into sticks of the longest stock length.
+    const bins: { cuts: TrimCut[]; used: number }[] = [];
+    for (const cut of sorted) {
+      const bin = bins.find((b) => b.used + cut.lengthIn <= longestIn + EPS);
+      if (bin) { bin.cuts.push(cut); bin.used += cut.lengthIn; }
+      else bins.push({ cuts: [cut], used: cut.lengthIn });
+    }
+    packed = finish(stock, bins.map((b) => b.cuts), 'first_fit', naive, allowance, joints);
   }
-  const packed = finish(stock, bins.map((b) => b.cuts), 'first_fit', naive, Math.max(0, allowanceIn), joints);
   if (packed.boughtFt <= naive.boughtFt + EPS && packed.stickCount <= naive.stickCount) return packed;
-  return finish(stock, naiveBins, 'one_per_piece', naive, Math.max(0, allowanceIn), joints);
+  return finish(stock, naiveBins, 'one_per_piece', naive, allowance, joints);
 }
 
 /** A sentence for every way a plan breaks its own guarantees. Empty when it keeps them. For the tests. */
@@ -181,7 +236,7 @@ export function checkTrimPlan(plan: TrimPlan, runs: readonly TrimRun[]): string[
   if (plan.boughtFt > plan.onePerPiece.boughtFt + 1e-3) problems.push(`${plan.boughtFt} ft bought is more than one stick per piece (${plan.onePerPiece.boughtFt} ft)`);
   for (const run of runs) {
     const len = r8(run.lengthIn);
-    if (!(len > EPS)) continue;
+    if (!Number.isFinite(len) || len < MIN_RUN_IN - EPS) continue;
     const mine = plan.sticks.flatMap((s) => s.cuts).filter((c) => c.runId === run.id);
     const fewest = Math.max(1, Math.ceil((len - EPS) / longestIn));
     if (mine.length !== fewest) problems.push(`run ${run.id} (${len} in) is cut in ${mine.length} pieces, and ${fewest} is the fewest`);

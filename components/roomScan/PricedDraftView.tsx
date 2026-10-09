@@ -35,6 +35,8 @@ export interface PricedDraftViewProps {
   starting: boolean;
   /** His stated markup, shown on the confirm sheet when the confirm starts the estimate. */
   markupPct: number | null;
+  /** True when material lines from this room's order list are already in the estimate: the confirm says the material would be in there twice. */
+  materialsAlreadyIn?: boolean;
   /** 'added' only after the estimate was seen to hold the lines. 'unconfirmed' when it was not. */
   result: 'idle' | 'added' | 'failed' | 'unconfirmed';
   /** True while a confirmed push is being written and checked. */
@@ -156,6 +158,7 @@ export function PricedDraftView(p: PricedDraftViewProps) {
         secondaryAction={{ label: copy.confirmNoLabel, onPress: () => setConfirming(false), testID: 'scan-confirm-no' }}
       >
         <Text style={styles.para} testID="scan-confirm-body">{p.starting && p.markupPct != null ? copy.startConfirmBody(p.pushCount, total, p.markupPct) : copy.confirmBody(p.pushCount, total)}</Text>
+        {p.materialsAlreadyIn === true && <Text style={styles.para} testID="scan-confirm-materials-in">{copy.confirmMaterialsInBody}</Text>}
       </Sheet>
     </View>
   );

@@ -22,6 +22,7 @@
 
 import { parseTapePairs, type TapePair } from './learnCore';
 import { parseOrderOptions, type OrderOptions, type OrderSnapshot } from './orderListCore';
+import type { OrderWrote } from './orderPricingCore';
 import type { RecipeKey } from './recipesCore';
 import type { RoomScan } from './types';
 
@@ -50,6 +51,8 @@ export interface SavedScan {
   orderRates?: Record<string, number>;
   /** Order line (condition id) to the estimate line it became, so sending the list twice updates in place. */
   orderPushed?: Record<string, string>;
+  /** What each of those estimate lines said the moment the send wrote it, so a later send can tell a line he has since changed by hand and leave it alone. */
+  orderWrote?: Record<string, OrderWrote>;
   /** What the list said each time it left the screen (copied, shared, or put in the estimate), newest first. */
   orderSent?: OrderSnapshot[];
   /** Scanned and taped lengths for the walls he typed over (utils/roomScan/learnCore). */
@@ -66,6 +69,16 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 function numberMap(v: Record<string, unknown>): Record<string, number> {
   const out: Record<string, number> = {};
   for (const [k, n] of Object.entries(v)) if (typeof n === 'number' && Number.isFinite(n) && n > 0) out[k] = n;
+  return out;
+}
+
+function parseOrderWrote(v: Record<string, unknown>): Record<string, OrderWrote> {
+  const out: Record<string, OrderWrote> = {};
+  for (const [k, r] of Object.entries(v)) {
+    if (!isObj(r) || typeof r.materialId !== 'string' || typeof r.name !== 'string' || typeof r.unit !== 'string') continue;
+    if (typeof r.quantity !== 'number' || !Number.isFinite(r.quantity) || typeof r.unitPrice !== 'number' || !Number.isFinite(r.unitPrice)) continue;
+    out[k] = { materialId: r.materialId, name: r.name, unit: r.unit, quantity: r.quantity, unitPrice: r.unitPrice };
+  }
   return out;
 }
 
@@ -106,6 +119,7 @@ export function parseSavedScans(raw: string | null | undefined): SavedScanList {
       ...(isObj(row.order) ? { order: parseOrderOptions(row.order, s.roomType) } : {}),
       ...(isObj(row.orderRates) ? { orderRates: numberMap(row.orderRates) } : {}),
       ...(isObj(row.orderPushed) ? { orderPushed: row.orderPushed as Record<string, string> } : {}),
+      ...(isObj(row.orderWrote) ? { orderWrote: parseOrderWrote(row.orderWrote) } : {}),
       ...(Array.isArray(row.orderSent) ? { orderSent: parseOrderSent(row.orderSent) } : {}),
       ...(Array.isArray(row.tapePairs) ? { tapePairs: parseTapePairs(row.tapePairs) } : {}),
     });

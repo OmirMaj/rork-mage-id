@@ -13,6 +13,12 @@
 // and each passes the literal `true` the pure core asks for
 // (orderListCore.confirmOrderSend). scripts/validate-scan-order.ts reads this
 // file to check it.
+//
+// THE ESTIMATE SHEET SAYS EVERYTHING THE YES WILL DO. How many lines go in,
+// the double-count warning (the general one, or the specific one when this
+// room's installed lines are already in the estimate), and on a second send
+// the NAMES of the lines that will be removed and of the lines left alone
+// because he changed them by hand (orderPricingCore.planOrderResend).
 import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { AlertTriangle } from 'lucide-react-native';
@@ -25,7 +31,7 @@ import type { ScanOrderCopy } from '@/hooks/useScanOrderCopy';
 import { SHEET_KEYS, type SurfacePlan } from '@/utils/roomScan/cutPlanCore';
 import type { LongWallSuggestion, TapeFacts } from '@/utils/roomScan/learnCore';
 import {
-  FLOOR_LAYOUTS, ORDER_GROUPS, TRIM_KINDS, orderLinesToBuy,
+  CASING_WIDTHS_IN, FLOOR_LAYOUTS, ORDER_GROUPS, TRIM_KINDS, WINDOW_TRIMS, orderLinesToBuy,
   type OrderGroup, type OrderLine, type OrderList, type OrderOptions, type OrderSendVia,
 } from '@/utils/roomScan/orderListCore';
 import type { OrderDraft } from '@/utils/roomScan/orderPricingCore';
@@ -52,6 +58,10 @@ export interface OrderListViewProps {
   pushCount: number;
   starting: boolean;
   markupPct: number | null;
+  /** True when this room's installed lines (Price It) are already in the estimate: the double-count sentence is then the specific one. */
+  installedAlreadyIn: boolean;
+  /** What a second send would do beyond adding and updating, as estimate line names. `again` is true once this list has been sent to the estimate before. */
+  resend: { again: boolean; remove: string[]; leftAlone: string[] };
   sendState: OrderSendState;
   busy: boolean;
   onOptions: (patch: Partial<OrderOptions>) => void;
@@ -116,6 +126,7 @@ export function OrderListView(p: OrderListViewProps) {
 
   const surfaces: SurfacePlan[] = [...(list.wallPlan?.surfaces ?? []), ...(list.ceilingPlan?.surfaces ?? [])];
   const shown = surfaces.find((s) => s.surfaceId === surfaceId) ?? surfaces[0] ?? null;
+  const pieceLines = React.useMemo(() => (shown ? shown.pieces.map((x) => ocopy.pieceSub(x)) : []), [shown, ocopy]);
   const surfaceName = (s: SurfacePlan): string => (s.kind === 'ceiling' ? ocopy.layoutCeilingLabel : copy.wallName(list.walls.find((w) => w.wallId === s.surfaceId)?.label ?? ''));
   const addedWalls = list.walls.filter((w) => w.addedIn > 0);
 
@@ -136,14 +147,14 @@ export function OrderListView(p: OrderListViewProps) {
               <View style={[styles.pill, styles.pillOwn]} testID={`scan-order-typed-${l.key}`}><Text style={[styles.pillText, styles.pillTextOwn]}>{ocopy.typedLabel}</Text></View>
             )}
           </View>
-          {l.typed && <Text style={styles.rowSub}>{ocopy.workedSub(ocopy.quantity({ ...l, quantity: l.computed }))}</Text>}
+          {l.typed && <Text style={styles.rowSub}>{ocopy.workedSub(ocopy.quantity({ ...l, quantity: l.computed, typed: false }))}</Text>}
           <Text style={styles.note} testID={`scan-order-basis-${l.key}`}>{ocopy.assumption(l)}</Text>
           {!zero && (
             <View style={styles.pill} testID={`scan-order-source-${l.key}`}>
-              <Text style={styles.pillText}>{copy.sourceLabel(price?.source ?? null, null)}</Text>
+              <Text style={styles.pillText}>{ocopy.materialSourceLabel(price?.source ?? null, copy.sourceLabel('manual', null), copy.sourceLabel(null, null))}</Text>
             </View>
           )}
-          {!zero && priced && <Text style={styles.rowSub}>{l.unit === 'sqft' ? ocopy.priceSqFtSub(formatMoney(price.rate as number, 2)) : ocopy.priceEachSub(formatMoney(price.rate as number, 2))}</Text>}
+          {!zero && priced && <Text style={styles.rowSub}>{l.unit === 'sqft' ? ocopy.priceSqFtSub(formatMoney(price.rate as number, 2)) : l.unit === 'foot' ? ocopy.priceFootSub(formatMoney(price.rate as number, 2)) : ocopy.priceEachSub(formatMoney(price.rate as number, 2))}</Text>}
           {typing?.key === l.key ? (
             <View style={styles.choice}>
               <Text style={styles.eyebrow}>{typing.what === 'qty' ? ocopy.qtyInputLabel : copy.priceInputLabel}</Text>
@@ -230,14 +241,14 @@ export function OrderListView(p: OrderListViewProps) {
             {(['tile', 'flooring'] as const).map((k) => <Chip styles={styles} key={k} label={ocopy.floorKindName(k)} on={o.floorKind === k} testID={`scan-order-floor-${k}`} onPress={() => p.onOptions({ floorKind: k })} />)}
           </Choice>
         )}
-        {(o.groups.flooring || o.groups.wallTile) && (
+        {o.groups.flooring && (
           <>
             <Choice styles={styles} label={ocopy.layoutLabel}>
               {FLOOR_LAYOUTS.map((l) => <Chip styles={styles} key={l} label={ocopy.layoutName(l)} on={o.floorLayout === l} testID={`scan-order-layout-${l}`} onPress={() => p.onOptions({ floorLayout: l })} />)}
             </Choice>
             <Choice styles={styles} label={ocopy.wasteLabel}>
-              <Chip styles={styles} label={ocopy.wasteAutoLabel} on={o.floorWastePct == null} testID="scan-order-waste-auto" onPress={() => p.onOptions({ floorWastePct: null, wallTileWastePct: null })} />
-              {WASTE_STEPS.map((w) => <Chip styles={styles} key={w} label={ocopy.wastePctLabel(w)} on={o.floorWastePct === w} testID={`scan-order-waste-${w}`} onPress={() => p.onOptions({ floorWastePct: w, wallTileWastePct: w })} />)}
+              <Chip styles={styles} label={ocopy.wasteAutoLabel} on={o.floorWastePct == null} testID="scan-order-waste-auto" onPress={() => p.onOptions({ floorWastePct: null })} />
+              {WASTE_STEPS.map((w) => <Chip styles={styles} key={w} label={ocopy.wastePctLabel(w)} on={o.floorWastePct === w} testID={`scan-order-waste-${w}`} onPress={() => p.onOptions({ floorWastePct: w })} />)}
             </Choice>
           </>
         )}
@@ -252,6 +263,10 @@ export function OrderListView(p: OrderListViewProps) {
             <Choice styles={styles} label={ocopy.wetHeightLabel}>
               {WET_HEIGHTS_FT.map((ft) => <Chip styles={styles} key={ft} label={ocopy.wetHeightFtLabel(ft)} on={o.wetHeightIn === ft * 12} testID={`scan-order-wet-height-${ft}`} onPress={() => p.onOptions({ wetHeightIn: ft * 12 })} />)}
               <Chip styles={styles} label={ocopy.wetHeightFullLabel} on={o.wetHeightIn == null} testID="scan-order-wet-height-full" onPress={() => p.onOptions({ wetHeightIn: null })} />
+            </Choice>
+            <Choice styles={styles} label={ocopy.wallTileWasteLabel}>
+              <Chip styles={styles} label={ocopy.wasteAutoLabel} on={o.wallTileWastePct == null} testID="scan-order-wall-waste-auto" onPress={() => p.onOptions({ wallTileWastePct: null })} />
+              {WASTE_STEPS.map((w) => <Chip styles={styles} key={w} label={ocopy.wastePctLabel(w)} on={o.wallTileWastePct === w} testID={`scan-order-wall-waste-${w}`} onPress={() => p.onOptions({ wallTileWastePct: w })} />)}
             </Choice>
           </>
         )}
@@ -286,6 +301,18 @@ export function OrderListView(p: OrderListViewProps) {
               <Chip styles={styles} label={ocopy.yesLabel} on={o.casingWindows} testID="scan-order-window-casing-yes" onPress={() => p.onOptions({ casingWindows: true })} />
               <Chip styles={styles} label={ocopy.noLabel} on={!o.casingWindows} testID="scan-order-window-casing-no" onPress={() => p.onOptions({ casingWindows: false })} />
             </Choice>
+            <Choice styles={styles} label={ocopy.casingWidthLabel}>
+              {CASING_WIDTHS_IN.map((w) => <Chip styles={styles} key={w} label={ocopy.casingWidthName(w)} on={o.casingWidthIn === w} testID={`scan-order-casing-width-${String(w).replace('.', '-')}`} onPress={() => p.onOptions({ casingWidthIn: w })} />)}
+            </Choice>
+            <Choice styles={styles} label={ocopy.casingSidesLabel}>
+              <Chip styles={styles} label={ocopy.casingOneSideLabel} on={!o.casingBothSides} testID="scan-order-casing-one-side" onPress={() => p.onOptions({ casingBothSides: false })} />
+              <Chip styles={styles} label={ocopy.casingBothSidesLabel} on={o.casingBothSides} testID="scan-order-casing-both-sides" onPress={() => p.onOptions({ casingBothSides: true })} />
+            </Choice>
+            {o.casingWindows && (
+              <Choice styles={styles} label={ocopy.windowTrimLabel}>
+                {WINDOW_TRIMS.map((w) => <Chip styles={styles} key={w} label={ocopy.windowTrimName(w)} on={o.windowTrim === w} testID={`scan-order-window-trim-${w}`} onPress={() => p.onOptions({ windowTrim: w })} />)}
+              </Choice>
+            )}
           </>
         )}
       </View>
@@ -318,11 +345,21 @@ export function OrderListView(p: OrderListViewProps) {
           <View style={styles.chips}>
             {surfaces.map((s) => <Chip styles={styles} key={s.surfaceId} label={surfaceName(s)} on={s.surfaceId === shown.surfaceId} testID={`scan-order-surface-${s.kind === 'ceiling' ? 'ceiling' : surfaceName(s).replace(/\D+/g, '')}`} onPress={() => setSurfaceId(s.surfaceId)} />)}
           </View>
-          <CutLayoutView surface={shown} a11yLabel={ocopy.layoutA11y(surfaceName(shown))} testID="scan-order-layout-drawing" />
+          <CutLayoutView surface={shown} a11yLabel={ocopy.layoutA11y(surfaceName(shown))} listLabel={ocopy.pieceListLabel} pieceLines={pieceLines} testID="scan-order-layout-drawing" />
           <Text style={styles.rowSub} testID="scan-order-layout-count">{ocopy.layoutCountSub(shown.pieces.length, shown.newSheets)}</Text>
-          {shown.gapIn > 0 && <Text style={styles.note}>{ocopy.gapNote(String(shown.gapIn))}</Text>}
+          <Text style={styles.note} testID="scan-order-layout-rules">{ocopy.layoutRulesNote(list.wallPlan?.minPieceIn ?? list.ceilingPlan?.minPieceIn ?? 0, list.wallPlan?.staggerIn ?? list.ceilingPlan?.staggerIn ?? 0)}</Text>
+          {shown.stackedJoints > 0 && <Text style={styles.note} testID="scan-order-layout-stacked">{ocopy.stackedNote(shown.stackedJoints, list.wallPlan?.staggerIn ?? list.ceilingPlan?.staggerIn ?? 0)}</Text>}
+          {shown.floorGapIn > 0 && <Text style={styles.note} testID="scan-order-layout-floor-gap">{ocopy.floorGapNote(shown.floorGapIn)}</Text>}
+          {shown.gapIn > 0 && <Text style={styles.note}>{ocopy.gapNote(ocopy.inchFraction(shown.gapIn))}</Text>}
+          {shown.longerSheet && (
+            <Text style={styles.note} testID="scan-order-layout-longer-sheet">{ocopy.longerSheetNote(shown.longerSheet.overIn, shown.longerSheet.sheet, shown.longerSheet.along)}</Text>
+          )}
+          <Text style={styles.note} testID="scan-order-spare-note">{o.spareSheets > 0 ? ocopy.spareAddedNote(o.spareSheets) : ocopy.noSpareNote}</Text>
+          {o.spareSheets > 0
+            ? <Button label={ocopy.removeSpareLabel} variant="ghost" size="sm" onPress={() => p.onOptions({ spareSheets: 0 })} testID="scan-order-spare-remove" />
+            : <Button label={ocopy.addSpareLabel} variant="secondary" size="sm" onPress={() => p.onOptions({ spareSheets: 1 })} testID="scan-order-spare-add" />}
           <View style={styles.legendRow}><View style={styles.legendBox} /><Text style={styles.rowSub}>{ocopy.legendNewSub}</Text></View>
-          <View style={styles.legendRow}><View style={[styles.legendBox, styles.legendBoxOffcut]} /><Text style={styles.rowSub}>{ocopy.legendOffcutSub}</Text></View>
+          <View style={styles.legendRow}><View style={[styles.legendBox, styles.legendBoxOffcut]}><View style={styles.legendStripe} /><View style={styles.legendStripe} /></View><Text style={styles.rowSub}>{ocopy.legendOffcutSub}</Text></View>
           <View style={styles.legendRow}><View style={[styles.legendBox, styles.legendBoxCut]} /><Text style={styles.rowSub}>{ocopy.legendCutoutSub}</Text></View>
           {shown.kind === 'ceiling' && shown.pieces.some((x) => x.cutToShape) && (
             <View style={styles.legendRow}><View style={[styles.legendBox, styles.legendBoxShape]} /><Text style={styles.rowSub}>{ocopy.legendShapeSub}</Text></View>
@@ -342,7 +379,7 @@ export function OrderListView(p: OrderListViewProps) {
                 {plan.sticks.map((s, i) => (
                   <Text key={`${k}-${i}`} style={styles.rowSub}>{ocopy.stickSub(s.stockFt, s.cuts.map((c) => feetInches(c.lengthIn)).join(', '), feetInches(s.dropIn))}</Text>
                 ))}
-                <Text style={styles.note}>{ocopy.packNote(plan.onePerPiece.boughtFt, plan.boughtFt)}</Text>
+                <Text style={styles.note}>{ocopy.packNote(plan.onePerPiece.boughtFt, plan.boughtFt, plan.method)}</Text>
               </View>
             );
           })}
@@ -418,6 +455,10 @@ export function OrderListView(p: OrderListViewProps) {
         <Text style={styles.para} testID="scan-order-confirm-estimate-body">
           {p.starting && p.markupPct != null ? ocopy.confirmEstimateStartBody(p.pushCount, total, p.markupPct) : ocopy.confirmEstimateBody(p.pushCount, total)}
         </Text>
+        <Text style={styles.para} testID="scan-order-confirm-double-count">{ocopy.doubleCountBody(p.installedAlreadyIn)}</Text>
+        {p.resend.remove.length > 0 && <Text style={styles.para} testID="scan-order-confirm-remove">{ocopy.resendRemoveBody(p.resend.remove)}</Text>}
+        {p.resend.leftAlone.length > 0 && <Text style={styles.para} testID="scan-order-confirm-left-alone">{ocopy.resendLeftAloneBody(p.resend.leftAlone)}</Text>}
+        {p.resend.again && <Text style={styles.note} testID="scan-order-confirm-untouched">{ocopy.resendUntouchedNote}</Text>}
       </Sheet>
     </View>
   );

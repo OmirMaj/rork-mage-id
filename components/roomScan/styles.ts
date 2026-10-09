@@ -65,7 +65,8 @@ export const makeRoomScanStyles = (t: ThemeColors) => StyleSheet.create({
   choice: { gap: 6 },
   qtyCol: { alignItems: 'flex-end' as const, gap: 2, maxWidth: 130 },
   legendBox: { width: 14, height: 14, borderWidth: 1, borderColor: t.text, backgroundColor: t.surfaceAlt },
-  legendBoxOffcut: { backgroundColor: t.accentSoft },
+  legendBoxOffcut: { flexDirection: 'row' as const, justifyContent: 'space-evenly' as const },
+  legendStripe: { width: 1, alignSelf: 'stretch' as const, backgroundColor: t.textMuted },
   legendBoxCut: { backgroundColor: t.bg, borderColor: t.textMuted, borderStyle: 'dashed' as const },
   legendBoxShape: { backgroundColor: t.bg, borderColor: t.accent, borderWidth: 2 },
   // sheet

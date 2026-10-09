@@ -19,8 +19,12 @@ export async function loadSavedScans(projectId: string): Promise<SavedScanList> 
   return parseSavedScans(raw);
 }
 
-/** Save one scan with its project. Returns false when the phone could not write it, so the screen can say so. */
-export async function saveScan(saved: SavedScan, rawJson?: string | null): Promise<boolean> {
+/**
+ * Save one scan with its project. Returns false when the phone could not write it, so the screen can say so.
+ * `onDropped` is handed the ids of scans the cap pushed off the saved list, so whatever else is keyed by a
+ * scan (his taped walls, utils/roomScan/learnStore) goes with it.
+ */
+export async function saveScan(saved: SavedScan, rawJson?: string | null, onDropped?: (scanIds: string[]) => void | Promise<void>): Promise<boolean> {
   try {
     const before = await loadSavedScans(saved.scan.projectId);
     const { list, dropped } = upsertSavedScan(before, saved);
@@ -29,6 +33,9 @@ export async function saveScan(saved: SavedScan, rawJson?: string | null): Promi
     // A scan the cap pushed off the list takes its raw JSON with it.
     for (const id of dropped) {
       try { await AsyncStorage.removeItem(roomScanRawKey(id)); } catch { /* the scan itself is saved; a stray raw key is swept at the next tenant switch */ }
+    }
+    if (dropped.length && onDropped) {
+      try { await onDropped(dropped); } catch { /* the scan itself is saved */ }
     }
     return true;
   } catch {

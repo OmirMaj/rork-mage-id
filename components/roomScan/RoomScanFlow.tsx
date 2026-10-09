@@ -27,9 +27,16 @@
 // as material lines through the same buildEstimatePatch. `sendOrder` asks the
 // pure core for the record of the send first (orderListCore.confirmOrderSend,
 // which refuses without `confirmed: true`) and does nothing without it.
+// SENT A SECOND TIME, the same yes also takes out the lines an earlier send
+// wrote that the list no longer has, and leaves alone any line he changed by
+// hand in the estimate since (orderPricingCore.planOrderResend). The plan is
+// worked out before the sheet opens, the sheet names every such line, and the
+// patch the yes builds is handed that same plan.
 // HIS TAPE: a typed wall length makes a scanned-and-taped pair, kept with the
 // scan and, when he SAVES the scan, in his own list on this phone
 // (utils/roomScan/learnStore). Nothing about it is uploaded or sent to a model.
+// A scan the saved-list cap pushes off the phone takes its taped walls with it
+// in the same save (`dropTape`).
 //
 // A SCAN IS NEVER NAMED FOR HIM. It starts with an empty name; the name goes
 // on every estimate line, so Save and Price both ask for one.
@@ -61,14 +68,14 @@ import { makeCatalogRater } from '@/utils/roomScan/catalogRate';
 import { correctCeilingHeight, correctOpening, correctWallLength, renameScan } from '@/utils/roomScan/editsCore';
 import { buildRoomScan } from '@/utils/roomScan/geometryCore';
 import { longWallSuggestion, tapeFacts, tapePairFromEdit, upsertTapePairs, type TapePair } from '@/utils/roomScan/learnCore';
-import { forgetScanTapePairs, loadTapePairs, recordTapePairs } from '@/utils/roomScan/learnStore';
+import { forgetScanTapePairs, forgetScansTapePairs, loadTapePairs, recordTapePairs } from '@/utils/roomScan/learnStore';
 import * as RoomScanNative from '@/utils/roomScan/native';
 import {
   buildOrderList, confirmOrderSend, defaultOrderOptions, orderListText,
   type OrderOptions, type OrderSendVia,
 } from '@/utils/roomScan/orderListCore';
-import { buildOrderDraft, makeMaterialRater } from '@/utils/roomScan/orderPricingCore';
-import { buildEstimatePatch, buildScanDraft, draftBlock, draftPushLines, estimateHoldsPush, startsEstimate } from '@/utils/roomScan/pricingCore';
+import { buildOrderDraft, makeMaterialRater, orderDraftWithout, orderPriceSources, orderWroteFrom, planOrderResend } from '@/utils/roomScan/orderPricingCore';
+import { buildEstimatePatch, buildScanDraft, draftBlock, draftPushLines, estimateHoldsPush, pushedLinesInEstimate, startsEstimate } from '@/utils/roomScan/pricingCore';
 import { computeQuantities, scanFacts, scanPricingBlock } from '@/utils/roomScan/quantitiesCore';
 import { ROOM_RECIPES, type RecipeKey } from '@/utils/roomScan/recipesCore';
 import { deleteScan, hashRawScan, loadSavedScans, saveScan } from '@/utils/roomScan/store';
@@ -197,7 +204,20 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
   // What the panel reads: his saved pairs plus the ones typed on the scan in hand.
   const tapePairs = useMemo(() => upsertTapePairs(tapeLog, saved?.tapePairs ?? []), [tapeLog, saved]);
   const tape = useMemo(() => tapeFacts(tapePairs), [tapePairs]);
-  const suggestion = useMemo(() => longWallSuggestion(tapePairs), [tapePairs]);
+  // The same phone model as the scan in hand, when he has taped enough long walls with it (learnCore).
+  const suggestion = useMemo(() => longWallSuggestion(tapePairs, scan?.device?.model ?? ''), [tapePairs, scan]);
+  // What a second send of this list to the estimate would remove and what it would leave alone.
+  const estimateNow = project?.linkedEstimate ?? null;
+  const resend = useMemo(() => planOrderResend({
+    estimate: estimateNow, scanId: saved?.scan.id ?? '', pushed: saved?.orderPushed, wrote: saved?.orderWrote,
+    lines: orderDraft ? draftPushLines(orderDraft) : [],
+  }), [estimateNow, saved, orderDraft]);
+  const orderSendDraft = useMemo(() => (orderDraft ? orderDraftWithout(orderDraft, resend.skip) : null), [orderDraft, resend]);
+  // A scan the cap pushed off the saved list takes its taped walls out of his list too.
+  const dropTape = useCallback(async (scanIds: string[]) => {
+    const log = await forgetScansTapePairs(userId, scanIds);
+    if (log) setTapeLog(log);
+  }, [userId]);
 
   const changeOrder = useCallback((fn: (cur: SavedScan) => SavedScan) => {
     setSaved((cur) => (cur ? fn(cur) : cur));
@@ -301,11 +321,11 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     if (!saved) return;
     if (!saved.scan.name.trim()) { setSaveState('needsName'); return; }
     const next: SavedScan = { ...saved, savedAt: new Date().toISOString() };
-    const ok = await saveScan(next, rawJson);
+    const ok = await saveScan(next, rawJson, dropTape);
     setSaveState(ok ? 'saved' : 'failed');
     if (ok) { setSaved(next); setDirty(false); await refreshSavedList(); }
     if (ok) await keepTape(next);
-  }, [saved, rawJson, refreshSavedList, keepTape]);
+  }, [saved, rawJson, refreshSavedList, keepTape, dropTape]);
 
   const confirmDraft = useCallback(async () => {
     if (!saved || !draft || pushing) return;
@@ -328,7 +348,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
       const now = new Date().toISOString();
       const next: SavedScan = { ...saved, pushed: res.pushed, savedAt: now, pricedAt: now };
       setSaved(next);
-      const stored = await saveScan(next, rawJson);
+      const stored = await saveScan(next, rawJson, dropTape);
       if (stored) { setDirty(false); await refreshSavedList(); }
       if (stored) await keepTape(next);
       setResult('added');
@@ -336,11 +356,11 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     } finally {
       setPushing(false);
     }
-  }, [saved, draft, pushing, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, router, keepTape]);
+  }, [saved, draft, pushing, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, router, keepTape, dropTape]);
 
   // ── the order list leaving the screen: only from a confirm sheet's yes ──
   const sendOrder = useCallback(async (via: OrderSendVia, confirmed: true) => {
-    if (!saved || !orderList || !orderDraft || orderBusy) return;
+    if (!saved || !orderList || !orderDraft || !orderSendDraft || orderBusy) return;
     const snap = confirmOrderSend({ confirmed, via, list: orderList, at: new Date().toISOString() });
     if (!snap) { setOrderSend(via === 'copy' ? 'copyFailed' : via === 'share' ? 'shareFailed' : 'failed'); return; }
     if (via === 'copy' || via === 'share') {
@@ -358,9 +378,10 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
       if (outcome !== 'failed') { setSaved((cur) => (cur ? withOrderSent(cur, snap) : cur)); setDirty(true); }
       return;
     }
+    // The lines the list no longer has come out in the same patch. A line he changed by hand is not in the draft and not in `remove`.
     const res = buildEstimatePatch({
-      confirmed, mayEdit: mayEditEstimate, project, draft: orderDraft, pushed: saved.orderPushed ?? {},
-      newId: generateUUID, markupPct, now: snap.at,
+      confirmed, mayEdit: mayEditEstimate, project, draft: orderSendDraft, pushed: saved.orderPushed ?? {},
+      newId: generateUUID, markupPct, now: snap.at, remove: resend.remove, sources: orderPriceSources(orderSendDraft),
     });
     if (!res || !project) { setOrderSend('failed'); return; }
     setOrderBusy(true);
@@ -372,9 +393,12 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
         if (!kept) await pause(KEPT_STEP_MS);
       }
       if (!kept) { setOrderSend('unconfirmed'); return; }
-      const next: SavedScan = { ...withOrderSent(saved, snap), orderPushed: res.pushed, savedAt: snap.at };
+      // What each written line says now, so a later send can tell a line he has changed since.
+      const orderWrote = { ...(saved.orderWrote ?? {}), ...orderWroteFrom(res, draftPushLines(orderSendDraft).map((l) => l.conditionId)) };
+      for (const id of res.removedIds) delete orderWrote[id];
+      const next: SavedScan = { ...withOrderSent(saved, snap), orderPushed: res.pushed, orderWrote, savedAt: snap.at };
       setSaved(next);
-      const stored = await saveScan(next, rawJson);
+      const stored = await saveScan(next, rawJson, dropTape);
       if (stored) { setDirty(false); await refreshSavedList(); }
       if (stored) await keepTape(next);
       setOrderSend('added');
@@ -382,7 +406,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     } finally {
       setOrderBusy(false);
     }
-  }, [saved, orderList, orderDraft, orderBusy, ocopy, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, keepTape, router]);
+  }, [saved, orderList, orderDraft, orderBusy, orderSendDraft, resend, ocopy, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, keepTape, dropTape, router]);
 
   // ── deleting a saved scan, only from its confirm sheet ──
   const confirmDelete = useCallback(async () => {
@@ -507,7 +531,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
             order={{ label: ocopy.openLabel, onPress: () => { setOrderSend('idle'); setStep('order'); } }}
           />
         )}
-        {step === 'order' && saved && orderList && orderDraft && orderOptions && (
+        {step === 'order' && saved && orderList && orderDraft && orderSendDraft && orderOptions && (
           <OrderListView
             roomName={saved.scan.name}
             list={orderList}
@@ -516,10 +540,12 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
             ocopy={ocopy}
             tape={tape}
             suggestion={suggestion}
-            block={draftBlock(project, orderDraft, { mayEdit: mayEditEstimate, markupPct })}
-            pushCount={draftPushLines(orderDraft).length}
+            block={draftBlock(project, orderSendDraft, { mayEdit: mayEditEstimate, markupPct })}
+            pushCount={draftPushLines(orderSendDraft).length}
             starting={startsEstimate(project)}
             markupPct={markupPct}
+            installedAlreadyIn={pushedLinesInEstimate(project, saved.pushed) > 0}
+            resend={{ again: Object.keys(saved.orderPushed ?? {}).length > 0, remove: resend.remove.map((r) => r.name), leftAlone: resend.leftAlone.map((r) => r.name) }}
             sendState={orderSend}
             busy={orderBusy}
             onOptions={(patch) => changeOrder((cur) => ({ ...cur, order: { ...(cur.order ?? defaultOrderOptions(cur.scan.roomType)), ...patch } }))}
@@ -546,6 +572,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
             pushCount={draftPushLines(draft).length}
             starting={startsEstimate(project)}
             markupPct={markupPct}
+            materialsAlreadyIn={pushedLinesInEstimate(project, saved.orderPushed) > 0}
             result={result}
             busy={pushing}
             onManualRate={(key, rate) => {

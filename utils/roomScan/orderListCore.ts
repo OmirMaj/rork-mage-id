@@ -26,17 +26,41 @@
 // stays beside it in `computed`. Changing a sheet size or a coat count never
 // overwrites a typed quantity.
 //
+// CASING IS CUT LONGER THAN THE OPENING. A mitred casing runs past the opening
+// by its own width at each mitre. Every leg, head, sill and apron here carries
+// that: a head, a sill and an apron are the opening's width plus TWICE the
+// casing width; a door leg (one mitre, square at the floor) and a window leg
+// over a stool are the opening's height plus ONCE the width; a picture-framed
+// window leg (a mitre at both ends) is the height plus twice. The reveal (about
+// 3/16 in) is not added. WHAT IS ASSUMED, and said in the casing line's basis:
+// a door is cased on ONE side, the side in this room (`casingBothSides` doubles
+// it); a window is picture-framed on four sides (`windowTrim: 'stool'` gives
+// two legs, a head and an apron, and the stool itself, a different stock, is
+// not on the list). The Quantities screen's "Door Casing" is the same doors on
+// one side at the bare opening size: `basis.casing.doorOpeningFt` is that
+// number, so the two screens can be laid side by side.
+//
+// THE OPTIONS ARE GUARDED HERE, NOT ONLY WHERE THEY ARE READ BACK.
+// `cleanOrderOptions` clamps every choice (spread rate, waste percent, coats,
+// sheet and stick sizes) at the top of `buildOrderList`, and a line whose
+// worked number is not a finite number is dropped before it can be drawn or
+// sent.
+//
 // A SUGGESTION NEVER CHANGES A QUANTITY BY ITSELF. What the phone has learned
 // from his tape (utils/roomScan/learnCore) is not an input here. Only
 // `options.longWallAddIn`, which is set when he ACCEPTS a suggestion, adds to
-// the long walls, and only in this list's maths: the scan keeps its numbers.
+// the long walls whose length is still the scan's own (not one he taped, and
+// not one the app moved to match a taped wall across from it), and only in
+// this list's maths: the scan keeps its numbers. It changes the wall board,
+// the wall paint, the baseboard and the crown. It does not change the floor,
+// the ceiling or any tile.
 
 import {
   DEFAULT_MIN_OFFCUT_IN, SHEET_KEYS, planSheets, r8, rectUnionArea,
-  type CutPlan, type CutSurface, type HangDirection, type RectIn, type SheetKey,
+  type CutPlan, type CutSurface, type HangDirection, type OpeningRect, type SheetKey,
 } from './cutPlanCore';
 import { CEILING_TOL_M, FLOOR_TOL_M, polygonArea, signedArea } from './geometryCore';
-import { cleanStock, packTrim, type TrimPlan, type TrimRun } from './trimPackCore';
+import { MIN_RUN_IN, cleanStock, packTrim, type TrimPlan, type TrimRun } from './trimPackCore';
 import type { RoomScan, RoomType, ScanOpening, ScanWall } from './types';
 import { M2_TO_SF, metresToInches } from './units';
 
@@ -56,6 +80,18 @@ export const CORNER_BEAD_STICK_FT = 10;
 export const LAYOUT_WASTE_PCT = { straight: 10, diagonal: 15, herringbone: 20 } as const;
 /** Added when the room is not a plain rectangle: more cuts at the corners. */
 export const SHAPE_WASTE_PCT = 5;
+/** Waste on wall tile: the cuts at the edges and around openings. It has nothing to do with the floor's layout. */
+export const WALL_TILE_WASTE_PCT = 10;
+/** Casing widths a yard stocks, inches. The first is the default. */
+export const CASING_WIDTHS_IN = [2.25, 2.5, 3.25, 3.5] as const;
+export const DEFAULT_CASING_WIDTH_IN = 2.25;
+export type WindowTrim = 'picture' | 'stool';
+export const WINDOW_TRIMS: readonly WindowTrim[] = ['picture', 'stool'];
+/** The most spare sheets the list will carry. */
+export const MAX_SPARE_SHEETS = 5;
+/** The limits `cleanOrderOptions` holds a spread rate to, square feet a gallon. */
+export const SPREAD_LIMITS_SF = [50, 1000] as const;
+export const MAX_COATS = 4;
 export const DEFAULT_SPREAD_SF_PER_GAL = 350;
 export const DEFAULT_PRIMER_SPREAD_SF_PER_GAL = 300;
 /** A wall at least this long is a "long wall" (the class his tape history is read by). */
@@ -93,9 +129,17 @@ export interface OrderOptions {
   stockFt: number[];
   crown: boolean;
   casingWindows: boolean;
+  /** How wide the casing is, inches. Each mitre runs the piece past the opening by this much. */
+  casingWidthIn: number;
+  /** false = doors are cased on the side in this room only. true = both sides. */
+  casingBothSides: boolean;
+  /** 'picture' = a window is cased on four sides. 'stool' = two legs, a head and an apron under a stool. */
+  windowTrim: WindowTrim;
+  /** Spare drywall sheets he added to the list. 0 = none, and the list says so. */
+  spareSheets: number;
   /** Added to every trim piece for the cut at each end, inches. */
   trimAllowanceIn: number;
-  /** Inches added to each long wall that was NOT taped, set only by accepting a suggestion. 0 = none. */
+  /** Inches added to each long wall whose length is still the scan's own, set only by accepting a suggestion. 0 = none. */
   longWallAddIn: number;
   /** Quantities typed over the worked ones, by line key. */
   typed: Record<string, number>;
@@ -110,7 +154,8 @@ export function defaultOrderOptions(roomType: RoomType): OrderOptions {
     floorLayout: 'straight', floorWastePct: null, boxSF: null,
     wetWallIds: [], wetHeightIn: null, wallTileWastePct: null,
     coats: 2, spreadSFPerGal: DEFAULT_SPREAD_SF_PER_GAL, primer: true, primerSpreadSFPerGal: DEFAULT_PRIMER_SPREAD_SF_PER_GAL,
-    stockFt: [8, 12, 16], crown: true, casingWindows: true, trimAllowanceIn: 0,
+    stockFt: [8, 12, 16], crown: true, casingWindows: true,
+    casingWidthIn: DEFAULT_CASING_WIDTH_IN, casingBothSides: false, windowTrim: 'picture', spareSheets: 0, trimAllowanceIn: 0,
     longWallAddIn: 0, typed: {},
   };
 }
@@ -127,7 +172,7 @@ export function parseOrderOptions(raw: unknown, roomType: RoomType): OrderOption
   const typed: Record<string, number> = {};
   if (isObj(raw.typed)) for (const [k, v] of Object.entries(raw.typed)) if (typeof v === 'number' && Number.isFinite(v) && v >= 0) typed[k] = v;
   const pct = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100 ? v : null);
-  return {
+  return cleanOrderOptions({
     groups,
     sheet: (SHEET_KEYS as readonly string[]).includes(raw.sheet as string) ? (raw.sheet as SheetKey) : d.sheet,
     hang: raw.hang === 'upright' ? 'upright' : raw.hang === 'across' ? 'across' : d.hang,
@@ -146,33 +191,99 @@ export function parseOrderOptions(raw: unknown, roomType: RoomType): OrderOption
     stockFt: Array.isArray(raw.stockFt) ? cleanStock(raw.stockFt.filter((x): x is number => typeof x === 'number')) : d.stockFt,
     crown: typeof raw.crown === 'boolean' ? raw.crown : d.crown,
     casingWindows: typeof raw.casingWindows === 'boolean' ? raw.casingWindows : d.casingWindows,
+    casingWidthIn: posNum(raw.casingWidthIn) ? raw.casingWidthIn : d.casingWidthIn,
+    casingBothSides: typeof raw.casingBothSides === 'boolean' ? raw.casingBothSides : d.casingBothSides,
+    windowTrim: raw.windowTrim === 'stool' ? 'stool' : 'picture',
+    spareSheets: posNum(raw.spareSheets) ? raw.spareSheets : 0,
     trimAllowanceIn: typeof raw.trimAllowanceIn === 'number' && raw.trimAllowanceIn >= 0 && raw.trimAllowanceIn <= 12 ? raw.trimAllowanceIn : d.trimAllowanceIn,
     longWallAddIn: typeof raw.longWallAddIn === 'number' && raw.longWallAddIn > 0 && raw.longWallAddIn <= 6 ? raw.longWallAddIn : 0,
+    typed,
+  });
+}
+
+const within = (v: unknown, lo: number, hi: number, fallback: number): number =>
+  (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback);
+
+/**
+ * The options with every number held inside what the maths can take. A spread
+ * rate of zero, a coat count that is not a number or a waste of minus 500
+ * percent never reaches a quantity: each falls back to the default or is held
+ * to its limit. `buildOrderList` runs this on whatever it is handed.
+ */
+export function cleanOrderOptions(o: OrderOptions): OrderOptions {
+  const pct = (v: unknown): number | null => (v == null ? null : typeof v === 'number' && Number.isFinite(v) ? Math.min(100, Math.max(0, v)) : null);
+  const groups = {} as Record<OrderGroup, boolean>;
+  for (const g of ORDER_GROUPS) groups[g] = o.groups?.[g] === true;
+  const typed: Record<string, number> = {};
+  for (const [k, v] of Object.entries(o.typed ?? {})) if (typeof v === 'number' && Number.isFinite(v) && v >= 0) typed[k] = v;
+  return {
+    groups,
+    sheet: (SHEET_KEYS as readonly string[]).includes(o.sheet) ? o.sheet : '4x8',
+    hang: o.hang === 'upright' ? 'upright' : 'across',
+    minOffcutIn: within(o.minOffcutIn, 0, 48, DEFAULT_MIN_OFFCUT_IN),
+    floorKind: o.floorKind === 'tile' ? 'tile' : 'flooring',
+    floorLayout: (FLOOR_LAYOUTS as readonly string[]).includes(o.floorLayout) ? o.floorLayout : 'straight',
+    floorWastePct: pct(o.floorWastePct),
+    boxSF: posNum(o.boxSF) ? o.boxSF : null,
+    wetWallIds: Array.isArray(o.wetWallIds) ? o.wetWallIds.filter((x) => typeof x === 'string') : [],
+    wetHeightIn: posNum(o.wetHeightIn) ? o.wetHeightIn : null,
+    wallTileWastePct: pct(o.wallTileWastePct),
+    coats: Math.round(within(o.coats, 1, MAX_COATS, 2)),
+    spreadSFPerGal: within(o.spreadSFPerGal, SPREAD_LIMITS_SF[0], SPREAD_LIMITS_SF[1], DEFAULT_SPREAD_SF_PER_GAL),
+    primer: o.primer === true,
+    primerSpreadSFPerGal: within(o.primerSpreadSFPerGal, SPREAD_LIMITS_SF[0], SPREAD_LIMITS_SF[1], DEFAULT_PRIMER_SPREAD_SF_PER_GAL),
+    stockFt: cleanStock(Array.isArray(o.stockFt) ? o.stockFt.filter((x) => typeof x === 'number') : []),
+    crown: o.crown === true,
+    casingWindows: o.casingWindows === true,
+    casingWidthIn: within(o.casingWidthIn, 1, 6, DEFAULT_CASING_WIDTH_IN),
+    casingBothSides: o.casingBothSides === true,
+    windowTrim: o.windowTrim === 'stool' ? 'stool' : 'picture',
+    spareSheets: Math.round(within(o.spareSheets, 0, MAX_SPARE_SHEETS, 0)),
+    trimAllowanceIn: within(o.trimAllowanceIn, 0, 12, 0),
+    longWallAddIn: within(o.longWallAddIn, 0, 6, 0),
     typed,
   };
 }
 
-export type OrderUnit = 'sheet' | 'box' | 'bucket' | 'roll' | 'stick' | 'sqft' | 'gallon';
+export type OrderUnit = 'sheet' | 'box' | 'bucket' | 'roll' | 'stick' | 'sqft' | 'gallon' | 'foot';
 
 /** Why an allowance is what it is. */
 export type WasteReason =
   | { kind: 'layout'; layout: FloorLayout; pct: number }
   | { kind: 'shape'; pct: number; corners: number; angled: boolean }
+  | { kind: 'wallTile'; pct: number }
   | { kind: 'typed'; pct: number };
+
+/** What the casing line counted, so the sentence beside it can say every assumption. */
+export interface CasingBasis {
+  widthIn: number;
+  bothSides: boolean;
+  windowTrim: WindowTrim;
+  doors: number;
+  /** Windows cased. 0 when window casing is off. */
+  windows: number;
+  /** The doors at the bare opening size, one side or both as chosen: the Quantities screen's "Door Casing". */
+  doorOpeningFt: number;
+  /** The doors as cut, with the mitres. */
+  doorFt: number;
+  /** The windows as cut, with the mitres. */
+  windowFt: number;
+}
 
 /** How a line was worked out, for the sentence beside the number. */
 export type OrderBasis =
-  | { kind: 'sheets'; where: 'walls' | 'ceiling'; sheet: SheetKey; hang: HangDirection; minOffcutIn: number; hungSF: number; boardSF: number; offcutPieces: number }
+  | { kind: 'sheets'; where: 'walls' | 'ceiling'; sheet: SheetKey; hang: HangDirection; minOffcutIn: number; minPieceIn: number; staggerIn: number; stackedJoints: number; hungSF: number; boardSF: number; offcutPieces: number; /** Spare sheets on the list, on the first sheet line only (null on the other). 0 = "No spare sheet included." */ spare: number | null }
+  | { kind: 'spare'; sheet: SheetKey }
   | { kind: 'screws'; boardSF: number; perSF: number; perBox: number }
   | { kind: 'compound'; boardSF: number; galPer100SF: number; bucketGal: number }
   | { kind: 'tape'; boardSF: number; ftPer1000SF: number; rollFt: number }
   | { kind: 'cornerBead'; corners: number; stickFt: number; sticksPerCorner: number }
   | { kind: 'area'; what: 'floor' | 'wallTile'; floorKind: 'tile' | 'flooring'; netSF: number; wastePct: number; reasons: WasteReason[]; orderSF: number; boxSF: number | null; walls: number; heightIn: number | null }
   | { kind: 'paint'; what: 'walls' | 'ceiling' | 'primer'; netSF: number; coats: number; spreadSFPerGal: number; workedGal: number }
-  | { kind: 'trim'; what: TrimKind; stockFt: number; runFt: number; pieces: number; joints: number; boughtFt: number; method: TrimPlan['method'] };
+  | { kind: 'trim'; what: TrimKind; counts: { stockFt: number; count: number }[]; runFt: number; cutFt: number; pieces: number; joints: number; boughtFt: number; method: TrimPlan['method']; casing: CasingBasis | null };
 
 export interface OrderLine {
-  /** Stable for one room: 'drywall_walls', 'paint_walls', 'baseboard:16' ... */
+  /** Stable for one room whatever he chooses: 'drywall_walls', 'paint_walls', 'baseboard', 'casing' ... A trim line's key does NOT carry the stick length, so buying 16 ft sticks instead of 12 is the same line. */
   key: string;
   group: OrderGroup;
   unit: OrderUnit;
@@ -195,9 +306,11 @@ export interface WallUsed {
   /** The length this list used, inches. */
   lengthIn: number;
   heightIn: number;
-  /** Inches added by an accepted suggestion. 0 for a taped wall and for a short one. */
+  /** Inches added by an accepted suggestion. 0 for a taped wall, for one the app moved to match a taped wall, and for a short one. */
   addedIn: number;
   taped: boolean;
+  /** 'scan' = the scan's own length. 'typed' = he taped it. 'adjusted' = the app moved it to match a taped wall across from it. */
+  source: ScanWall['lengthSource'];
 }
 
 export interface OrderList {
@@ -256,12 +369,12 @@ export function roomShape(scan: Pick<RoomScan, 'floor'>): { corners: number; ang
   return { corners, angled, plain: corners === 4 && !angled };
 }
 
-function openingRect(o: ScanOpening, wall: ScanWall, heightIn: number): RectIn {
+function openingRect(o: ScanOpening, wall: ScanWall, heightIn: number): OpeningRect {
   const x0 = Math.max(0, metresToInches(o.offsetM));
   const x1 = Math.min(metresToInches(wall.lengthM), metresToInches(o.offsetM + o.widthM));
   const y0 = Math.max(0, metresToInches(o.sillM));
   const y1 = Math.min(heightIn, metresToInches(o.sillM + o.heightM));
-  return { x0: r8(x0), x1: r8(x1), y0: r8(y0), y1: r8(y1) };
+  return { x0: r8(x0), x1: r8(x1), y0: r8(y0), y1: r8(y1), kind: o.kind };
 }
 
 function complementRuns(blocked: [number, number][], hi: number): [number, number][] {
@@ -280,7 +393,7 @@ const ceilTo = (n: number): number => (n <= 1e-9 ? 0 : Math.ceil(n - 1e-9));
 
 /** Build the order list for one room. Reads the scan only; nothing is saved or sent from here. */
 export function buildOrderList(scan: RoomScan, options: OrderOptions): OrderList {
-  const o = options;
+  const o = cleanOrderOptions(options);
   const outline = scan.walls.filter((w) => w.onOutline);
   const closed = scan.closure.closed && scan.floor.length >= 3;
   const heightKnown = scan.ceilingHeightM.known;
@@ -299,14 +412,17 @@ export function buildOrderList(scan: RoomScan, options: OrderOptions): OrderList
   const walls: WallUsed[] = outline.map((w) => {
     const scanned = r8(metresToInches(w.lengthM));
     const taped = w.lengthSource === 'typed';
-    const addedIn = !taped && add > 0 && scanned >= LONG_WALL_IN ? add : 0;
-    return { wallId: w.id, label: w.label, lengthIn: r8(scanned + addedIn), heightIn: r8(metresToInches(wallHeightM(w, scan))), addedIn, taped };
+    // Only a wall whose length is still the scan's own. One he taped is his number; one the app moved to match a taped wall is not a scan reading either.
+    const addedIn = w.lengthSource === 'scan' && add > 0 && scanned >= LONG_WALL_IN ? add : 0;
+    return { wallId: w.id, label: w.label, lengthIn: r8(scanned + addedIn), heightIn: r8(metresToInches(wallHeightM(w, scan))), addedIn, taped, source: w.lengthSource };
   });
   const used = new Map(walls.map((w) => [w.wallId, w]));
-  const rectsOf = (w: ScanWall): RectIn[] => (byWall.get(w.id) ?? []).map((op) => openingRect(op, w, (used.get(w.id) as WallUsed).heightIn));
+  const rectsOf = (w: ScanWall): OpeningRect[] => (byWall.get(w.id) ?? []).map((op) => openingRect(op, w, (used.get(w.id) as WallUsed).heightIn));
 
   const lines: OrderLine[] = [];
   const push = (line: Omit<OrderLine, 'quantity' | 'typed'>) => {
+    // A worked number that is not a number never becomes a line.
+    if (!Number.isFinite(line.computed) || line.computed < 0) return;
     const t = o.typed[line.key];
     const typed = typeof t === 'number' && Number.isFinite(t) && t >= 0;
     lines.push({ ...line, quantity: typed ? t : line.computed, typed });
@@ -326,7 +442,7 @@ export function buildOrderList(scan: RoomScan, options: OrderOptions): OrderList
       wallPlan = planSheets(surfaces, { sheet: o.sheet, hang: o.hang, minOffcutIn: o.minOffcutIn });
       push({
         key: 'drywall_walls', group: 'drywall', unit: 'sheet', computed: wallPlan.sheets, ruleOfThumb: false,
-        basis: { kind: 'sheets', where: 'walls', sheet: o.sheet, hang: o.hang, minOffcutIn: wallPlan.minOffcutIn, hungSF: wallPlan.hungSF, boardSF: wallPlan.boardSF, offcutPieces: wallPlan.surfaces.reduce((s, x) => s + x.offcutPieces, 0) },
+        basis: { kind: 'sheets', where: 'walls', sheet: o.sheet, hang: o.hang, minOffcutIn: wallPlan.minOffcutIn, minPieceIn: wallPlan.minPieceIn, staggerIn: wallPlan.staggerIn, stackedJoints: wallPlan.surfaces.reduce((s, x) => s + x.stackedJoints, 0), hungSF: wallPlan.hungSF, boardSF: wallPlan.boardSF, offcutPieces: wallPlan.surfaces.reduce((s, x) => s + x.offcutPieces, 0), spare: o.spareSheets },
         net: { quantity: wallPlan.hungSF, unit: 'SF' },
       });
     }
@@ -336,11 +452,15 @@ export function buildOrderList(scan: RoomScan, options: OrderOptions): OrderList
       ceilingPlan = planSheets([{ kind: 'ceiling', id: 'ceiling', polygon }], { sheet: o.sheet, hang: 'across', minOffcutIn: o.minOffcutIn });
       push({
         key: 'drywall_ceiling', group: 'drywall', unit: 'sheet', computed: ceilingPlan.sheets, ruleOfThumb: false,
-        basis: { kind: 'sheets', where: 'ceiling', sheet: o.sheet, hang: 'across', minOffcutIn: ceilingPlan.minOffcutIn, hungSF: ceilingPlan.hungSF, boardSF: ceilingPlan.boardSF, offcutPieces: ceilingPlan.surfaces.reduce((s, x) => s + x.offcutPieces, 0) },
+        basis: { kind: 'sheets', where: 'ceiling', sheet: o.sheet, hang: 'across', minOffcutIn: ceilingPlan.minOffcutIn, minPieceIn: ceilingPlan.minPieceIn, staggerIn: ceilingPlan.staggerIn, stackedJoints: ceilingPlan.surfaces.reduce((s, x) => s + x.stackedJoints, 0), hungSF: ceilingPlan.hungSF, boardSF: ceilingPlan.boardSF, offcutPieces: ceilingPlan.surfaces.reduce((s, x) => s + x.offcutPieces, 0), spare: wallPlan ? null : o.spareSheets },
         net: { quantity: ceilingPlan.hungSF, unit: 'SF' },
       });
     }
-    // The four below are rules of thumb on the board bought, and say so.
+    // A spare is on the list only because he added it. With none, the first sheet line says "No spare sheet included."
+    if (o.spareSheets > 0 && (wallPlan || ceilingPlan)) {
+      push({ key: 'drywall_spare', group: 'drywall', unit: 'sheet', computed: o.spareSheets, ruleOfThumb: false, basis: { kind: 'spare', sheet: o.sheet }, net: null });
+    }
+    // The four below are rules of thumb on the board hung (a spare is not in them), and say so.
     const sheetQty = (key: string, plan: CutPlan | null): number => {
       if (!plan) return 0;
       const t = o.typed[key];
@@ -362,9 +482,11 @@ export function buildOrderList(scan: RoomScan, options: OrderOptions): OrderList
   const areaLine = (key: string, group: OrderGroup, what: 'floor' | 'wallTile', netSF: number, typedPct: number | null, wallCount: number, heightIn: number | null) => {
     const reasons: WasteReason[] = typedPct != null
       ? [{ kind: 'typed', pct: typedPct }]
+      // Wall tile has its own allowance. The floor's layout (straight, diagonal, herringbone) is the floor's.
+      : what === 'wallTile' ? [{ kind: 'wallTile', pct: WALL_TILE_WASTE_PCT }]
       : [
         { kind: 'layout', layout: o.floorLayout, pct: LAYOUT_WASTE_PCT[o.floorLayout] },
-        ...(what === 'floor' && !shape.plain ? [{ kind: 'shape' as const, pct: SHAPE_WASTE_PCT, corners: shape.corners, angled: shape.angled }] : []),
+        ...(!shape.plain ? [{ kind: 'shape' as const, pct: SHAPE_WASTE_PCT, corners: shape.corners, angled: shape.angled }] : []),
       ];
     const wastePct = reasons.reduce((s, r) => s + r.pct, 0);
     const orderSF = ceilTo(netSF * (1 + wastePct / 100));
@@ -393,7 +515,8 @@ export function buildOrderList(scan: RoomScan, options: OrderOptions): OrderList
         const u = used.get(w.id) as WallUsed;
         const top = o.wetHeightIn != null ? Math.min(o.wetHeightIn, u.heightIn) : u.heightIn;
         const holes = rectsOf(w).map((r) => ({ ...r, y1: Math.min(r.y1, top) }));
-        in2 += u.lengthIn * top - rectUnionArea(holes);
+        // The scan's own length: an accepted long-wall suggestion does not change tile.
+        in2 += (u.lengthIn - u.addedIn) * top - rectUnionArea(holes);
       }
       areaLine('wall_tile', 'wallTile', 'wallTile', Math.max(0, in2) / 144, o.wallTileWastePct, wet.length, o.wetHeightIn);
     }
@@ -446,17 +569,37 @@ export function buildOrderList(scan: RoomScan, options: OrderOptions): OrderList
         const h = wallHeightM(w, scan);
         if (op.kind === 'opening' && h > 0 && op.sillM + op.heightM >= h - CEILING_TOL_M) atCeiling.push([r.x0, r.x1]);
       }
-      complementRuns(atFloor, u.lengthIn).forEach(([a, b], i) => base.push({ id: `${w.id}:base:${i}`, lengthIn: b - a, on: w.label, what: 'wall' }));
-      complementRuns(atCeiling, u.lengthIn).forEach(([a, b], i) => crown.push({ id: `${w.id}:crown:${i}`, lengthIn: b - a, on: w.label, what: 'wall' }));
+      // A run under an inch (the sliver between a casing and a corner) is not a cut.
+      complementRuns(atFloor, u.lengthIn).forEach(([a, b], i) => { if (b - a >= MIN_RUN_IN) base.push({ id: `${w.id}:base:${i}`, lengthIn: b - a, on: w.label, what: 'wall' }); });
+      complementRuns(atCeiling, u.lengthIn).forEach(([a, b], i) => { if (b - a >= MIN_RUN_IN) crown.push({ id: `${w.id}:crown:${i}`, lengthIn: b - a, on: w.label, what: 'wall' }); });
     }
+    // Casing, cut with its mitres (read the top of this file).
+    const cw = o.casingWidthIn;
+    const sides = o.casingBothSides ? 2 : 1;
+    const cb: CasingBasis = { widthIn: cw, bothSides: o.casingBothSides, windowTrim: o.windowTrim, doors: 0, windows: 0, doorOpeningFt: 0, doorFt: 0, windowFt: 0 };
     for (const op of openings) {
       if (op.kind === 'opening') continue;
       if (op.kind === 'window' && !o.casingWindows) continue;
       const wIn = r8(metresToInches(op.widthM));
       const hIn = r8(metresToInches(op.heightM));
-      casing.push({ id: `${op.id}:leg:1`, lengthIn: hIn, on: op.id, what: 'leg' }, { id: `${op.id}:leg:2`, lengthIn: hIn, on: op.id, what: 'leg' }, { id: `${op.id}:head`, lengthIn: wIn, on: op.id, what: 'head' });
-      // A window is cased on four sides (a picture frame). A door has no sill.
-      if (op.kind === 'window') casing.push({ id: `${op.id}:sill`, lengthIn: wIn, on: op.id, what: 'sill' });
+      if (!(wIn > 0) || !(hIn > 0)) continue;
+      if (op.kind === 'door') {
+        // One mitre at the head, square at the floor: each leg runs one width past the opening, the head two.
+        for (let side = 1; side <= sides; side++) {
+          casing.push({ id: `${op.id}:${side}:leg:1`, lengthIn: hIn + cw, on: op.id, what: 'leg' }, { id: `${op.id}:${side}:leg:2`, lengthIn: hIn + cw, on: op.id, what: 'leg' }, { id: `${op.id}:${side}:head`, lengthIn: wIn + 2 * cw, on: op.id, what: 'head' });
+        }
+        cb.doors += 1;
+        cb.doorOpeningFt += ((2 * hIn + wIn) * sides) / 12;
+        cb.doorFt += ((2 * (hIn + cw) + wIn + 2 * cw) * sides) / 12;
+        continue;
+      }
+      // A window is cased on the room side only.
+      const legIn = o.windowTrim === 'picture' ? hIn + 2 * cw : hIn + cw;
+      casing.push({ id: `${op.id}:leg:1`, lengthIn: legIn, on: op.id, what: 'leg' }, { id: `${op.id}:leg:2`, lengthIn: legIn, on: op.id, what: 'leg' }, { id: `${op.id}:head`, lengthIn: wIn + 2 * cw, on: op.id, what: 'head' });
+      // A picture frame has a fourth mitred side. Under a stool the fourth piece is the apron, the same length; the stool is another stock and is not counted.
+      casing.push({ id: `${op.id}:${o.windowTrim === 'picture' ? 'sill' : 'apron'}`, lengthIn: wIn + 2 * cw, on: op.id, what: o.windowTrim === 'picture' ? 'sill' : 'apron' });
+      cb.windows += 1;
+      cb.windowFt += (2 * legIn + 2 * (wIn + 2 * cw)) / 12;
     }
     const kinds: [TrimKind, TrimRun[], boolean][] = [['baseboard', base, true], ['crown', crown, o.crown], ['casing', casing, true]];
     for (const [kind, runs, on] of kinds) {
@@ -465,13 +608,12 @@ export function buildOrderList(scan: RoomScan, options: OrderOptions): OrderList
       if (!plan.stickCount) continue;
       trimPlans[kind] = plan;
       const runFt = runs.reduce((s, r) => s + r.lengthIn, 0) / 12;
-      for (const c of plan.counts) {
-        push({
-          key: `${kind}:${c.stockFt}`, group: 'trim', unit: 'stick', computed: c.count, ruleOfThumb: false,
-          basis: { kind: 'trim', what: kind, stockFt: c.stockFt, runFt, pieces: plan.pieceCount, joints: plan.joints, boughtFt: plan.boughtFt, method: plan.method },
-          net: { quantity: runFt, unit: 'LF' },
-        });
-      }
+      // ONE line for each kind of trim, in feet of stick, under a key that does not carry the stick length.
+      push({
+        key: kind, group: 'trim', unit: 'foot', computed: plan.boughtFt, ruleOfThumb: false,
+        basis: { kind: 'trim', what: kind, counts: plan.counts, runFt, cutFt: plan.cutFt, pieces: plan.pieceCount, joints: plan.joints, boughtFt: plan.boughtFt, method: plan.method, casing: kind === 'casing' ? cb : null },
+        net: { quantity: runFt, unit: 'LF' },
+      });
     }
   }
 

@@ -157,6 +157,8 @@ export interface RoomScanCopy {
   draftBlockBody: (b: DraftBlock) => string;
   confirmTitleLabel: string;
   confirmBody: (count: number, total: string) => string;
+  /** Shown on the Price It confirm when this room's order list already put material lines in the estimate. */
+  confirmMaterialsInBody: string;
   confirmYesLabel: string;
   confirmNoLabel: string;
   startTitleLabel: string;
@@ -422,6 +424,7 @@ export function useRoomScanCopy(): RoomScanCopy {
         one: 'This puts 1 line into the estimate for this project, {total} before markup. The estimate as it stands now is kept in its history. Nothing is sent to your client.',
         other: 'This puts {count} lines into the estimate for this project, {total} before markup. The estimate as it stands now is kept in its history. Nothing is sent to your client.',
       }, { total }),
+      confirmMaterialsInBody: t('office.roomScan.confirm.materialsInBody', 'Material lines from this room\'s order list are already in this estimate, and an installed price includes its material. With these lines the material is in the estimate twice until you take one of the two out.'),
       confirmYesLabel: t('office.roomScan.confirm.yesLabel', 'Add To Estimate'),
       confirmNoLabel: t('office.roomScan.confirm.noLabel', 'Not Yet'),
       startTitleLabel: t('office.roomScan.confirm.startTitleLabel', 'Start The Estimate'),

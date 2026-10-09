@@ -18,15 +18,19 @@
 // number is. A rule of thumb is CALLED a rule of thumb, with the rule. What
 // the phone has learned from his tape is stated as counts and inches about the
 // walls he taped, never as a score, and a suggestion says why and waits for a
-// yes.
+// yes. Trim is "packed longest piece first"; only a short list that was
+// searched in full (trimPackCore `method: 'searched'`) may say that no grouping
+// buys fewer feet, and nothing says "the fewest" about anything else.
 //
 // Never call t() at module scope: the object is rebuilt when the language
 // changes.
 import { useMemo } from 'react';
 import { useT } from '@/contexts/LanguageContext';
-import type { HangDirection } from '@/utils/roomScan/cutPlanCore';
+import type { CutPiece, HangDirection, OpeningKind, SheetKey } from '@/utils/roomScan/cutPlanCore';
 import type { LongWallSuggestion, TapeFacts } from '@/utils/roomScan/learnCore';
-import type { FloorLayout, OrderGap, OrderGroup, OrderLine, OrderTextWords, TrimKind, WasteReason } from '@/utils/roomScan/orderListCore';
+import type { FloorLayout, OrderBasis, OrderGap, OrderGroup, OrderLine, OrderTextWords, TrimKind, WasteReason, WindowTrim } from '@/utils/roomScan/orderListCore';
+import type { OrderPriceSource } from '@/utils/roomScan/orderPricingCore';
+import type { TrimPlan } from '@/utils/roomScan/trimPackCore';
 import { formatFeetInches, inchesToMetres, round1 } from '@/utils/roomScan/units';
 
 export interface ScanOrderCopy {
@@ -59,13 +63,23 @@ export interface ScanOrderCopy {
   primerLabel: string;
   crownLabel: string;
   windowCasingLabel: string;
+  casingWidthLabel: string;
+  casingWidthName: (inches: number) => string;
+  casingSidesLabel: string;
+  casingOneSideLabel: string;
+  casingBothSidesLabel: string;
+  windowTrimLabel: string;
+  windowTrimName: (w: WindowTrim) => string;
+  wallTileWasteLabel: string;
   yesLabel: string;
   noLabel: string;
   stockLabel: string;
   stockName: (ft: number) => string;
   // ── the lines ──
   lineName: (l: Pick<OrderLine, 'key' | 'basis'>) => string;
-  quantity: (l: Pick<OrderLine, 'key' | 'unit' | 'quantity'>) => string;
+  quantity: (l: Pick<OrderLine, 'key' | 'unit' | 'quantity'> & { typed?: boolean; basis?: OrderBasis }) => string;
+  /** Where a material price came from. A catalog price here is for the material itself: no past job changes it. */
+  materialSourceLabel: (source: OrderPriceSource | null, typedLabel: string, noPriceLabel: string) => string;
   workedSub: (qty: string) => string;
   typedLabel: string;
   ruleOfThumbLabel: string;
@@ -78,6 +92,7 @@ export interface ScanOrderCopy {
   qtyInvalidBody: string;
   priceEachSub: (rate: string) => string;
   priceSqFtSub: (rate: string) => string;
+  priceFootSub: (rate: string) => string;
   materialPriceNote: string;
   gapBody: (g: OrderGap) => string;
   nothingBody: string;
@@ -87,6 +102,17 @@ export interface ScanOrderCopy {
   layoutCeilingLabel: string;
   layoutCountSub: (pieces: number, sheets: number) => string;
   layoutA11y: (what: string) => string;
+  layoutRulesNote: (pieceIn: number, staggerIn: number) => string;
+  pieceListLabel: string;
+  pieceSub: (p: Pick<CutPiece, 'sheet' | 'w' | 'h' | 'fromOffcut' | 'cutouts' | 'narrow' | 'cutToShape'>) => string;
+  floorGapNote: (gapIn: number) => string;
+  longerSheetNote: (overIn: number, sheet: SheetKey, along: 'length' | 'height') => string;
+  stackedNote: (count: number, staggerIn: number) => string;
+  noSpareNote: string;
+  spareAddedNote: (count: number) => string;
+  addSpareLabel: string;
+  removeSpareLabel: string;
+  inchFraction: (inches: number) => string;
   legendNewSub: string;
   legendOffcutSub: string;
   legendCutoutSub: string;
@@ -96,7 +122,7 @@ export interface ScanOrderCopy {
   cutListHeadingLabel: string;
   trimKindLabel: (k: TrimKind) => string;
   stickSub: (ft: number, cuts: string, drop: string) => string;
-  packNote: (naiveFt: number, boughtFt: number) => string;
+  packNote: (naiveFt: number, boughtFt: number, method: TrimPlan['method']) => string;
   // ── what your tape says ──
   tapeHeadingLabel: string;
   tapeFactsBody: (f: TapeFacts) => string;
@@ -124,6 +150,11 @@ export interface ScanOrderCopy {
   confirmEstimateTitleLabel: string;
   confirmEstimateBody: (lines: number, total: string) => string;
   confirmEstimateStartBody: (lines: number, total: string, markup: number) => string;
+  /** The material is in there twice: the general sentence, or the one for a room whose installed lines are already in the estimate. */
+  doubleCountBody: (installedAlreadyIn: boolean) => string;
+  resendRemoveBody: (names: string[]) => string;
+  resendLeftAloneBody: (names: string[]) => string;
+  resendUntouchedNote: string;
   confirmEstimateYesLabel: string;
   copiedNote: string;
   copyFailedBody: string;
@@ -136,6 +167,16 @@ export interface ScanOrderCopy {
 
 const n1 = (n: number): string => round1(n).toFixed(1);
 const trimInches = (inches: number): string => String(Math.round(inches * 100) / 100);
+/** Inches as a tape reads them, to an eighth: 2.25 is "2 1/4", 0.5 is "1/2", 16 is "16". */
+export function inchFraction(inches: number): string {
+  const eighths = Math.round(Math.abs(inches) * 8);
+  const whole = Math.floor(eighths / 8);
+  let num = eighths % 8;
+  let den = 8;
+  while (num > 0 && num % 2 === 0) { num /= 2; den /= 2; }
+  if (num === 0) return String(whole);
+  return whole > 0 ? `${whole} ${num}/${den}` : `${num}/${den}`;
+}
 
 export function useScanOrderCopy(): ScanOrderCopy {
   const { t, tn } = useT();
@@ -161,13 +202,9 @@ export function useScanOrderCopy(): ScanOrderCopy {
       : t('office.roomScan.order.tape.inchesValue', '{n} inches', { n: trimInches(inches) }));
     const lineName: ScanOrderCopy['lineName'] = (l) => {
       const b = l.basis;
-      if (b.kind === 'trim') {
-        switch (b.what) {
-          case 'baseboard': return t('office.roomScan.order.line.baseboardLabel', 'Baseboard, {ft} Ft Sticks', { ft: b.stockFt });
-          case 'crown': return t('office.roomScan.order.line.crownLabel', 'Crown, {ft} Ft Sticks', { ft: b.stockFt });
-          case 'casing': return t('office.roomScan.order.line.casingLabel', 'Casing, {ft} Ft Sticks', { ft: b.stockFt });
-        }
-      }
+      // One line for each kind of trim, whatever stick lengths it is bought in.
+      if (b.kind === 'trim') return trimKindLabel(b.what);
+      if (b.kind === 'spare') return t('office.roomScan.order.line.drywallSpareLabel', 'Drywall Sheets {size}, Spare', { size: b.sheet });
       switch (l.key) {
         case 'drywall_walls': return t('office.roomScan.order.line.drywallWallsLabel', 'Drywall Sheets {size}, Walls', { size: b.kind === 'sheets' ? b.sheet : '' });
         case 'drywall_ceiling': return t('office.roomScan.order.line.drywallCeilingLabel', 'Drywall Sheets {size}, Ceiling', { size: b.kind === 'sheets' ? b.sheet : '' });
@@ -193,7 +230,18 @@ export function useScanOrderCopy(): ScanOrderCopy {
         case 'tape': return tn('office.roomScan.order.qty.tapeValue', count, { one: '1 roll, 500 ft', other: '{count} rolls, 500 ft each' });
         case 'corner_bead': return tn('office.roomScan.order.qty.cornerBeadValue', count, { one: '1 stick, 10 ft', other: '{count} sticks, 10 ft each' });
       }
+      if (l.unit === 'foot') {
+        const b = l.basis;
+        if (b && b.kind === 'trim' && !l.typed && b.counts.length) {
+          const sticks = [...b.counts].sort((p, q) => q.stockFt - p.stockFt)
+            .map((c) => tn('office.roomScan.order.qty.sticksOfValue', c.count, { one: '1 stick of {ft} ft', other: '{count} sticks of {ft} ft' }, { ft: c.stockFt }))
+            .join(', ');
+          return t('office.roomScan.order.qty.footSticksValue', '{count} ft of stick: {sticks}', { count, sticks });
+        }
+        return t('office.roomScan.order.qty.footValue', '{count} ft of stick', { count });
+      }
       switch (l.unit) {
+        case 'foot': return t('office.roomScan.order.qty.footValue', '{count} ft of stick', { count });
         case 'sheet': return tn('office.roomScan.order.qty.sheetValue', count, { one: '1 sheet', other: '{count} sheets' });
         case 'gallon': return tn('office.roomScan.order.qty.gallonValue', count, { one: '1 gallon', other: '{count} gallons' });
         case 'stick': return tn('office.roomScan.order.qty.stickValue', count, { one: '1 stick', other: '{count} sticks' });
@@ -205,6 +253,97 @@ export function useScanOrderCopy(): ScanOrderCopy {
     };
     const reason = (r: WasteReason): string => {
       if (r.kind === 'typed') return t('office.roomScan.order.reason.typedNote', 'You set the allowance to {pct} percent.', { pct: r.pct });
+      if (r.kind === 'wallTile') return t('office.roomScan.order.reason.wallTileNote', 'Wall tile takes {pct} percent, for the cuts at the edges and around openings.', { pct: r.pct });
+      if (r.kind === 'shape') return r.angled
+        ? t('office.roomScan.order.reason.angledNote', 'This room has angled walls, so {pct} percent more.', { pct: r.pct })
+        : t('office.roomScan.order.reason.cornersNote', 'This room has {corners} corners, so {pct} percent more.', { corners: r.corners, pct: r.pct });
+      switch (r.layout) {
+        case 'straight': return t('office.roomScan.order.reason.straightNote', 'A straight layout takes {pct} percent.', { pct: r.pct });
+        case 'diagonal': return t('office.roomScan.order.reason.diagonalNote', 'A diagonal layout takes {pct} percent, for the cuts along every wall.', { pct: r.pct });
+        case 'herringbone': return t('office.roomScan.order.reason.herringboneNote', 'A herringbone layout takes {pct} percent, for the cuts along every wall.', { pct: r.pct });
+      }
+    };
+    const noSpareNote = t('office.roomScan.order.layout.noSpareNote', 'No spare sheet included.');
+    const spareAddedNote = (count: number): string => tn('office.roomScan.order.layout.spareAddedNote', count, {
+      one: '1 spare sheet is on its own line.',
+      other: '{count} spare sheets are on their own line.',
+    });
+    const stackedNote = (count: number, staggerIn: number): string => tn('office.roomScan.order.layout.stackedNote', count, {
+      one: '1 butt joint sits within {stagger} in of a joint in the next course, because no way of cutting that run kept it clear.',
+      other: '{count} butt joints sit within {stagger} in of a joint in the next course, because no way of cutting those runs kept them clear.',
+    }, { stagger: staggerIn });
+    const packedHow = (method: TrimPlan['method']): string => {
+      switch (method) {
+        case 'searched': return t('office.roomScan.order.basis.trimSearchedNote', 'Every way of grouping these pieces into the stick lengths you buy was tried, and none buys fewer feet.');
+        case 'first_fit': return t('office.roomScan.order.basis.trimFirstFitNote', 'Packed longest piece first.');
+        case 'one_per_piece': return t('office.roomScan.order.basis.trimOnePerPieceNote', 'One stick for each piece.');
+      }
+    };
+    const cutoutWord = (k: OpeningKind | undefined): string => {
+      switch (k) {
+        case 'door': return t('office.roomScan.order.layout.cutDoorSub', 'door cut out');
+        case 'window': return t('office.roomScan.order.layout.cutWindowSub', 'window cut out');
+        default: return t('office.roomScan.order.layout.cutOpeningSub', 'opening cut out');
+      }
+    };
+    const assumption: ScanOrderCopy['assumption'] = (l) => {
+      const b = l.basis;
+      switch (b.kind) {
+        case 'sheets': {
+          const head = b.where === 'walls'
+            ? t('office.roomScan.order.basis.sheetsWallsNote', 'Laid out wall by wall on {hung} sq ft of wall, with doors and windows cut out once. No piece is under {piece} in long unless the wall is that narrow, and butt joints are kept {stagger} in apart from one course to the next. Offcuts of {min} in and over are used again.', { hung: n1(b.hungSF), min: b.minOffcutIn, piece: b.minPieceIn, stagger: b.staggerIn })
+            : t('office.roomScan.order.basis.sheetsCeilingNote', 'Laid out on the true shape of the ceiling, {hung} sq ft, with the sheets along the longest wall. No piece is under {piece} in long unless the ceiling is that narrow.', { hung: n1(b.hungSF), piece: b.minPieceIn });
+          const stacked = b.stackedJoints > 0 ? ` ${stackedNote(b.stackedJoints, b.staggerIn)}` : '';
+          const spare = b.spare == null ? '' : ` ${b.spare > 0 ? spareAddedNote(b.spare) : noSpareNote}`;
+          return `${head}${stacked}${spare}`;
+        }
+        case 'spare': return t('office.roomScan.order.basis.spareNote', 'You added this. It is not in the cut layout.');
+        case 'screws': return t('office.roomScan.order.line.screwsLabel', 'Drywall Screws');
+        case 'compound': return t('office.roomScan.order.line.compoundLabel', 'Joint Compound');
+        case 'tape': return t('office.roomScan.order.line.tapeLabel', 'Joint Tape');
+        case 'corner_bead': return t('office.roomScan.order.line.cornerBeadLabel', 'Corner Bead');
+        case 'floor': return b.kind === 'area' && b.floorKind === 'tile'
+          ? t('office.roomScan.order.line.floorTileLabel', 'Floor Tile')
+          : t('office.roomScan.order.line.flooringLabel', 'Flooring');
+        case 'wall_tile': return t('office.roomScan.order.line.wallTileLabel', 'Wall Tile');
+        case 'paint_walls': return t('office.roomScan.order.line.paintWallsLabel', 'Paint, Walls');
+        case 'paint_ceiling': return t('office.roomScan.order.line.paintCeilingLabel', 'Paint, Ceiling');
+        case 'primer': return t('office.roomScan.order.line.primerLabel', 'Primer');
+        default: return l.key;
+      }
+    };
+    const quantity: ScanOrderCopy['quantity'] = (l) => {
+      const count = l.quantity;
+      switch (l.key) {
+        case 'screws': return tn('office.roomScan.order.qty.screwsValue', count, { one: '1 box, 5 lb', other: '{count} boxes, 5 lb each' });
+        case 'compound': return tn('office.roomScan.order.qty.compoundValue', count, { one: '1 bucket, 5 gal', other: '{count} buckets, 5 gal each' });
+        case 'tape': return tn('office.roomScan.order.qty.tapeValue', count, { one: '1 roll, 500 ft', other: '{count} rolls, 500 ft each' });
+        case 'corner_bead': return tn('office.roomScan.order.qty.cornerBeadValue', count, { one: '1 stick, 10 ft', other: '{count} sticks, 10 ft each' });
+      }
+      if (l.unit === 'foot') {
+        const b = l.basis;
+        if (b && b.kind === 'trim' && !l.typed && b.counts.length) {
+          const sticks = [...b.counts].sort((p, q) => q.stockFt - p.stockFt)
+            .map((c) => tn('office.roomScan.order.qty.sticksOfValue', c.count, { one: '1 stick of {ft} ft', other: '{count} sticks of {ft} ft' }, { ft: c.stockFt }))
+            .join(', ');
+          return t('office.roomScan.order.qty.footSticksValue', '{count} ft of stick: {sticks}', { count, sticks });
+        }
+        return t('office.roomScan.order.qty.footValue', '{count} ft of stick', { count });
+      }
+      switch (l.unit) {
+        case 'foot': return t('office.roomScan.order.qty.footValue', '{count} ft of stick', { count });
+        case 'sheet': return tn('office.roomScan.order.qty.sheetValue', count, { one: '1 sheet', other: '{count} sheets' });
+        case 'gallon': return tn('office.roomScan.order.qty.gallonValue', count, { one: '1 gallon', other: '{count} gallons' });
+        case 'stick': return tn('office.roomScan.order.qty.stickValue', count, { one: '1 stick', other: '{count} sticks' });
+        case 'box': return tn('office.roomScan.order.qty.boxValue', count, { one: '1 box', other: '{count} boxes' });
+        case 'bucket': return tn('office.roomScan.order.qty.bucketValue', count, { one: '1 bucket', other: '{count} buckets' });
+        case 'roll': return tn('office.roomScan.order.qty.rollValue', count, { one: '1 roll', other: '{count} rolls' });
+        case 'sqft': return t('office.roomScan.order.qty.sqftValue', '{count} sq ft', { count });
+      }
+    };
+    const reason = (r: WasteReason): string => {
+      if (r.kind === 'typed') return t('office.roomScan.order.reason.typedNote', 'You set the allowance to {pct} percent.', { pct: r.pct });
+      if (r.kind === 'wallTile') return t('office.roomScan.order.reason.wallTileNote', 'Wall tile takes {pct} percent, for the cuts at the edges and around openings.', { pct: r.pct });
       if (r.kind === 'shape') return r.angled
         ? t('office.roomScan.order.reason.angledNote', 'This room has angled walls, so {pct} percent more.', { pct: r.pct })
         : t('office.roomScan.order.reason.cornersNote', 'This room has {corners} corners, so {pct} percent more.', { corners: r.corners, pct: r.pct });
@@ -244,12 +383,24 @@ export function useScanOrderCopy(): ScanOrderCopy {
         case 'trim': {
           const head = tn('office.roomScan.order.basis.trimNote', b.pieces, {
             one: '{run} ft to cover in 1 piece. {bought} ft of stick bought in all.',
-            other: '{run} ft to cover in {count} pieces, packed into the fewest feet of stick. {bought} ft of stick bought in all.',
+            other: '{run} ft to cover in {count} pieces. {bought} ft of stick bought in all.',
           }, { run: n1(b.runFt), bought: b.boughtFt });
+          const how = b.pieces < 2 ? '' : ` ${packedHow(b.method)}`;
           const joints = b.joints > 0
             ? ` ${tn('office.roomScan.order.basis.trimJointsNote', b.joints, { one: '1 joint, on a run longer than the longest stick.', other: '{count} joints, on runs longer than the longest stick.' })}`
             : '';
-          return `${head}${joints}`;
+          if (!b.casing) return `${head}${how}${joints}`;
+          const c = b.casing;
+          const parts: string[] = [t('office.roomScan.order.basis.casingWidthNote', 'Casing {width} in wide, mitred: each mitre runs the piece past the opening by that much.', { width: inchFraction(c.widthIn) })];
+          if (c.doors > 0) parts.push(c.bothSides
+            ? tn('office.roomScan.order.basis.casingDoorsBothNote', c.doors, { one: '1 door, cased on both sides.', other: '{count} doors, cased on both sides.' })
+            : tn('office.roomScan.order.basis.casingDoorsOneNote', c.doors, { one: '1 door, cased on the side in this room only.', other: '{count} doors, cased on the side in this room only.' }));
+          if (c.windows > 0) parts.push(c.windowTrim === 'picture'
+            ? tn('office.roomScan.order.basis.casingWindowsPictureNote', c.windows, { one: '1 window, picture-framed on four sides.', other: '{count} windows, picture-framed on four sides.' })
+            : tn('office.roomScan.order.basis.casingWindowsStoolNote', c.windows, { one: '1 window with two legs, a head and an apron. The stool is a different stock and is not on this list.', other: '{count} windows, each with two legs, a head and an apron. The stools are a different stock and are not on this list.' }));
+          else parts.push(t('office.roomScan.order.basis.casingNoWindowsNote', 'No window casing is on this list.'));
+          if (c.doors > 0) parts.push(t('office.roomScan.order.basis.casingQuantitiesNote', 'The Quantities screen shows door casing at the bare opening, {bare} ft. With the mitres it is {cut} ft here.', { bare: n1(c.doorOpeningFt), cut: n1(c.doorFt) }));
+          return `${head}${how}${joints} ${parts.join(' ')}`;
         }
       }
     };
@@ -295,6 +446,16 @@ export function useScanOrderCopy(): ScanOrderCopy {
       primerLabel: t('office.roomScan.order.choices.primerLabel', 'Primer'),
       crownLabel: t('office.roomScan.order.choices.crownLabel', 'Crown'),
       windowCasingLabel: t('office.roomScan.order.choices.windowCasingLabel', 'Window Casing'),
+      casingWidthLabel: t('office.roomScan.order.choices.casingWidthLabel', 'Casing Width'),
+      casingWidthName: (inches) => t('office.roomScan.order.choices.casingWidthValueLabel', '{width} In', { width: inchFraction(inches) }),
+      casingSidesLabel: t('office.roomScan.order.choices.casingSidesLabel', 'Door Casing'),
+      casingOneSideLabel: t('office.roomScan.order.choices.casingOneSideLabel', 'This Side Only'),
+      casingBothSidesLabel: t('office.roomScan.order.choices.casingBothSidesLabel', 'Both Sides'),
+      windowTrimLabel: t('office.roomScan.order.choices.windowTrimLabel', 'Window Trim'),
+      windowTrimName: (w) => (w === 'picture'
+        ? t('office.roomScan.order.choices.windowPictureLabel', 'Picture Frame')
+        : t('office.roomScan.order.choices.windowStoolLabel', 'Stool And Apron')),
+      wallTileWasteLabel: t('office.roomScan.order.choices.wallTileWasteLabel', 'Wall Tile Allowance'),
       yesLabel: t('office.roomScan.order.choices.yesLabel', 'Yes'),
       noLabel: t('office.roomScan.order.choices.noLabel', 'No'),
       stockLabel: t('office.roomScan.order.choices.stockLabel', 'Stick Lengths You Buy'),
@@ -302,13 +463,16 @@ export function useScanOrderCopy(): ScanOrderCopy {
 
       lineName,
       quantity,
+      materialSourceLabel: (source, typedLabel, noPriceLabel) => (source === 'engine'
+        ? t('office.roomScan.order.source.catalogLabel', 'Catalog Price For This Material')
+        : source === 'manual' ? typedLabel : noPriceLabel),
       workedSub: (qty) => t('office.roomScan.order.workedSub', 'Worked out as {qty}', { qty }),
       typedLabel,
       ruleOfThumbLabel,
       assumption,
       addedNote: (inches, walls) => tn('office.roomScan.order.addedNote', walls, {
-        one: 'This list adds {inches} to 1 long wall you have not taped, because your own taped walls ran longer than the scan. The scan keeps its numbers.',
-        other: 'This list adds {inches} to each of {count} long walls you have not taped, because your own taped walls ran longer than the scan. The scan keeps its numbers.',
+        one: 'This list adds {inches} to 1 long wall that you have not taped and that was not adjusted to match a taped wall, because your own taped walls ran longer than the scan. It changes the wall board, the wall paint, the baseboard and the crown. It does not change the floor, the ceiling or any tile. The scan keeps its numbers.',
+        other: 'This list adds {inches} to each of {count} long walls that you have not taped and that were not adjusted to match a taped wall, because your own taped walls ran longer than the scan. It changes the wall board, the wall paint, the baseboard and the crown. It does not change the floor, the ceiling or any tile. The scan keeps its numbers.',
       }, { inches }),
       typeQtyLabel: t('office.roomScan.order.typeQtyLabel', 'Type A Quantity'),
       qtyInputLabel: t('office.roomScan.order.qtyInputLabel', 'Quantity To Buy'),
@@ -317,7 +481,8 @@ export function useScanOrderCopy(): ScanOrderCopy {
       qtyInvalidBody: t('office.roomScan.order.qtyInvalidBody', 'Type a whole number, zero or more.'),
       priceEachSub: (rate) => t('office.roomScan.order.priceEachSub', 'At {rate} each', { rate }),
       priceSqFtSub: (rate) => t('office.roomScan.order.priceSqFtSub', 'At {rate} a sq ft', { rate }),
-      materialPriceNote: t('office.roomScan.order.materialPriceNote', 'A catalog price is a list price for the material in your area. Your own cost book holds installed prices, so it is not used for materials.'),
+      priceFootSub: (rate) => t('office.roomScan.order.priceFootSub', 'At {rate} a ft', { rate }),
+      materialPriceNote: t('office.roomScan.order.materialPriceNote', 'A catalog price is a list price for the material in your area. Your past jobs do not change it: your own cost book holds installed prices, so it is not used for materials.'),
       gapBody: (g) => {
         switch (g) {
           case 'floor_not_known': return t('office.roomScan.order.gap.floorBody', 'The outline did not close, so the floor and the ceiling cannot be worked out.');
@@ -328,12 +493,35 @@ export function useScanOrderCopy(): ScanOrderCopy {
       nothingBody: t('office.roomScan.order.nothingBody', 'Nothing is on the list yet. Turn on at least one kind of material.'),
 
       layoutHeadingLabel: t('office.roomScan.order.layout.headingLabel', 'Drywall Cut Layout'),
-      layoutIntroBody: t('office.roomScan.order.layout.introBody', 'One wall at a time, as the sheets go up. A piece cut from an earlier offcut is shaded. Studs and joists are not on a scan, so check where the joints land.'),
+      layoutIntroBody: t('office.roomScan.order.layout.introBody', 'One wall at a time, as the sheets go up. A piece cut from an earlier offcut is striped, and every piece is listed with its size under the drawing. Studs and joists are not on a scan, so check where the joints land.'),
       layoutCeilingLabel: t('office.roomScan.order.layout.ceilingLabel', 'Ceiling'),
       layoutCountSub: (pieces, sheets) => t('office.roomScan.order.layout.countSub', 'Pieces: {pieces}. New sheets opened here: {sheets}', { pieces, sheets }),
       layoutA11y: (what) => t('office.roomScan.order.layout.a11y', 'Drywall cut layout for {what}', { what }),
+      layoutRulesNote: (pieceIn, staggerIn) => t('office.roomScan.order.layout.rulesNote', 'No piece is under {piece} in long unless the wall is that narrow. Butt joints are kept {stagger} in apart from one course to the next where the wall allows.', { piece: pieceIn, stagger: staggerIn }),
+      pieceListLabel: t('office.roomScan.order.layout.pieceListLabel', 'Pieces'),
+      pieceSub: (p) => {
+        const parts: string[] = [p.fromOffcut
+          ? t('office.roomScan.order.layout.fromOffcutSub', 'from an offcut')
+          : t('office.roomScan.order.layout.fromNewSub', 'from a new sheet')];
+        for (const k of [...new Set(p.cutouts.map((c) => c.kind))]) parts.push(cutoutWord(k));
+        if (p.narrow) parts.push(t('office.roomScan.order.layout.narrowSub', 'the wall is this narrow here'));
+        if (p.cutToShape) parts.push(t('office.roomScan.order.layout.shapeSub', 'cut to the shape of the room'));
+        const long = Math.max(p.w, p.h);
+        const wide = Math.min(p.w, p.h);
+        return t('office.roomScan.order.layout.pieceSub', 'Sheet {sheet}: {long} by {wide} in, {parts}', { sheet: p.sheet, long: inchFraction(long), wide: inchFraction(wide), parts: parts.join(', ') });
+      },
+      floorGapNote: (gapIn) => t('office.roomScan.order.layout.floorGapNote', 'A {gap} in gap at the floor is left for the baseboard.', { gap: inchFraction(gapIn) }),
+      longerSheetNote: (overIn, sheet, along) => (along === 'height'
+        ? t('office.roomScan.order.layout.tallerSheetNote', 'This wall is {over} in taller than the sheet. A {sheet} sheet would stand with no butt joint. Nothing here has been changed.', { over: inchFraction(overIn), sheet })
+        : t('office.roomScan.order.layout.longerSheetNote', 'The longest run here is {over} in longer than the sheet. A {sheet} sheet would hang it with no butt joint. Nothing here has been changed.', { over: inchFraction(overIn), sheet })),
+      stackedNote,
+      noSpareNote,
+      spareAddedNote,
+      addSpareLabel: t('office.roomScan.order.layout.addSpareLabel', 'Add One Spare'),
+      removeSpareLabel: t('office.roomScan.order.layout.removeSpareLabel', 'Take The Spare Off'),
+      inchFraction,
       legendNewSub: t('office.roomScan.order.layout.legendNewSub', 'From a new sheet'),
-      legendOffcutSub: t('office.roomScan.order.layout.legendOffcutSub', 'From an offcut'),
+      legendOffcutSub: t('office.roomScan.order.layout.legendOffcutSub', 'From an offcut, striped'),
       legendCutoutSub: t('office.roomScan.order.layout.legendCutoutSub', 'Cut out for a door, window or opening'),
       legendShapeSub: t('office.roomScan.order.layout.legendShapeSub', 'Cut to the shape of the room'),
       gapNote: (gap) => t('office.roomScan.order.layout.gapNote', 'A gap of {gap} in is left for the corner or the trim.', { gap }),
@@ -341,7 +529,7 @@ export function useScanOrderCopy(): ScanOrderCopy {
       cutListHeadingLabel: t('office.roomScan.order.cutList.headingLabel', 'Trim Cut List'),
       trimKindLabel,
       stickSub: (ft, cuts, drop) => t('office.roomScan.order.cutList.stickSub', '{ft} ft stick: {cuts}. Left over: {drop}', { ft, cuts, drop }),
-      packNote: (naiveFt, boughtFt) => t('office.roomScan.order.cutList.packNote', 'Packed longest piece first. One stick for each piece would be {naive} ft of stick. This is {bought} ft.', { naive: naiveFt, bought: boughtFt }),
+      packNote: (naiveFt, boughtFt, method) => `${packedHow(method)} ${t('office.roomScan.order.cutList.packNote', 'One stick for each piece would be {naive} ft of stick. This is {bought} ft.', { naive: naiveFt, bought: boughtFt })}`,
 
       tapeHeadingLabel: t('office.roomScan.order.tape.headingLabel', 'What Your Tape Says'),
       tapeFactsBody: (f) => {
@@ -362,12 +550,14 @@ export function useScanOrderCopy(): ScanOrderCopy {
       }),
       tapeScopeNote: t('office.roomScan.order.tape.scopeNote', 'These numbers are about the walls you taped on this phone. They say nothing about a wall you did not check.'),
       inchesText,
-      suggestBody: (s) => t('office.roomScan.order.suggest.body', 'On {short} of the {long} long walls you taped, the tape read longer than the scan. The typical shortfall was {typical}. You can add {add} to each long wall you have not taped. It changes this order list only, not the scan.', {
+      suggestBody: (s) => `${t('office.roomScan.order.suggest.body', 'On {short} of the {long} long walls you taped, the tape read longer than the scan. The typical shortfall was {typical}. You can add {add} to each long wall that you have not taped and that was not adjusted to match a taped wall. On this order list it changes the wall board, the wall paint, the baseboard and the crown. It does not change the floor, the ceiling, any tile or the scan.', {
         short: s.shortCount, long: s.longCount, typical: inchesText(s.typicalIn), add: inchesText(s.addIn),
-      }),
+      })} ${s.pooled
+        ? t('office.roomScan.order.suggest.pooledNote', 'There are not enough taped long walls from this phone model alone, so walls scanned with other phones are counted with them.')
+        : t('office.roomScan.order.suggest.sameModelNote', 'Only walls scanned with the same phone model as this scan are counted.')}`,
       suggestAcceptLabel: (add) => t('office.roomScan.order.suggest.acceptLabel', 'Add {add}', { add }),
       suggestIgnoreLabel: t('office.roomScan.order.suggest.ignoreLabel', 'Not Now'),
-      suggestAcceptedNote: (add) => t('office.roomScan.order.suggest.acceptedNote', 'You added {add} to each long wall you have not taped.', { add }),
+      suggestAcceptedNote: (add) => t('office.roomScan.order.suggest.acceptedNote', 'You added {add} to each long wall that you have not taped and that was not adjusted to match a taped wall.', { add }),
       suggestRemoveLabel: t('office.roomScan.order.suggest.removeLabel', 'Take It Off'),
       wasteOfferBody: (trade, jobs, pct) => t('office.roomScan.order.wasteOffer.body', 'On your last {jobs} jobs you bought about {pct} percent more {trade} than the scan said.', { trade, jobs, pct }),
       wasteOfferAcceptLabel: (pct) => t('office.roomScan.order.wasteOffer.acceptLabel', 'Use {pct} Percent', { pct }),
@@ -390,13 +580,25 @@ export function useScanOrderCopy(): ScanOrderCopy {
       confirmShareYesLabel: t('office.roomScan.order.send.shareYesLabel', 'Share'),
       confirmEstimateTitleLabel: t('office.roomScan.order.send.estimateTitleLabel', 'Add Materials To The Estimate'),
       confirmEstimateBody: (lines, total) => tn('office.roomScan.order.send.estimateBody', lines, {
-        one: 'This puts 1 material line into the estimate for this project, {total} before markup. It is material only. If the estimate already prices this work installed, the material would be in there twice. The estimate as it stands now is kept in its history. Nothing is sent to your client.',
-        other: 'This puts {count} material lines into the estimate for this project, {total} before markup. They are material only. If the estimate already prices this work installed, the material would be in there twice. The estimate as it stands now is kept in its history. Nothing is sent to your client.',
+        one: 'This puts 1 material line into the estimate for this project, {total} before markup. The estimate as it stands now is kept in its history. Nothing is sent to your client.',
+        other: 'This puts {count} material lines into the estimate for this project, {total} before markup. The estimate as it stands now is kept in its history. Nothing is sent to your client.',
       }, { total }),
       confirmEstimateStartBody: (lines, total, markup) => tn('office.roomScan.order.send.estimateStartBody', lines, {
         one: 'This project has no estimate yet. This starts one with 1 material line, {total} before markup, at your markup of {markup} percent. Nothing is sent to your client.',
         other: 'This project has no estimate yet. This starts one with {count} material lines, {total} before markup, at your markup of {markup} percent. Nothing is sent to your client.',
       }, { total, markup }),
+      doubleCountBody: (installedAlreadyIn) => (installedAlreadyIn
+        ? t('office.roomScan.order.send.doubleCountInBody', 'The installed lines for this room from Price It are already in this estimate, and an installed price includes its material. With these lines the material is in the estimate twice until you take one of the two out.')
+        : t('office.roomScan.order.send.doubleCountBody', 'These lines are material only. If the estimate also prices this work installed, now or later, the material is in the estimate twice.')),
+      resendRemoveBody: (names) => tn('office.roomScan.order.send.resendRemoveBody', names.length, {
+        one: '1 line will be removed, because it is no longer on this list: {names}.',
+        other: '{count} lines will be removed, because they are no longer on this list: {names}.',
+      }, { names: names.join('; ') }),
+      resendLeftAloneBody: (names) => tn('office.roomScan.order.send.resendLeftAloneBody', names.length, {
+        one: '1 line is left as it is, because you changed it in the estimate after it was added: {names}.',
+        other: '{count} lines are left as they are, because you changed them in the estimate after they were added: {names}.',
+      }, { names: names.join('; ') }),
+      resendUntouchedNote: t('office.roomScan.order.send.resendUntouchedNote', 'Only lines an earlier send of this order list put there are updated or removed. Every other line in the estimate is left as it is.'),
       confirmEstimateYesLabel: t('office.roomScan.order.send.estimateYesLabel', 'Add Materials'),
       copiedNote: t('office.roomScan.order.send.copiedNote', 'Copied.'),
       copyFailedBody: t('office.roomScan.order.send.copyFailedBody', 'The list could not be copied. Try again.'),

@@ -35,7 +35,8 @@
 //
 // Pure: no React, no storage. The caller passes the cost book and the clock.
 
-import type { LinkedEstimate, Project } from '@/types';
+import type { LinkedEstimate, LinkedEstimateItem, Project } from '@/types';
+import { roundCents } from '@/utils/invoiceBilling';
 import { lookupRate, type CostBookEntry, type CostDatabase } from '@/utils/costDatabase';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { buildNewEstimate } from '@/utils/estimateLanding';
@@ -269,12 +270,66 @@ export function draftBlock(project: Project | null, draft: PushableDraft, ctx: P
   return pushBlockReason(project, lines) ? 'nothing_priced' : null;
 }
 
+/** One estimate line a re-send takes out: the draft line it was pushed from and the estimate line it became. */
+export interface PushRemoval { conditionId: string; materialId: string }
+
+/** Where a pushed line's unit price came from, in the estimate's own words (types LinkedEstimateItem.priceSource). */
+export type PushedPriceSource = NonNullable<LinkedEstimateItem['priceSource']>;
+
+const num = (n: unknown): number => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
+
+/**
+ * Take lines out of an estimate, moving the three totals by each line's own
+ * amounts (the takeoff push's UPDATE arithmetic run to zero; never a re-total,
+ * which would drop permits and contingency carried outside the lines). A line
+ * is removed only when BOTH ids match: the draft line it was pushed from and
+ * the estimate line that push wrote. Anything else is left where it is.
+ */
+export function removePushedLines(est: LinkedEstimate, removals: readonly PushRemoval[]): { next: LinkedEstimate; removedIds: string[] } {
+  let { baseTotal, markupTotal, grandTotal } = est;
+  const removedIds: string[] = [];
+  const items = est.items.filter((it) => {
+    const hit = removals.find((r) => r.materialId === it.materialId && r.conditionId === it.sourceTakeoffConditionId);
+    if (!hit) return true;
+    const cost = roundCents(num(it.quantity) * num(it.usesBulk ? it.bulkPrice : it.unitPrice));
+    const line = num(it.lineTotal);
+    baseTotal = roundCents(baseTotal - cost);
+    grandTotal = roundCents(grandTotal - line);
+    markupTotal = roundCents(markupTotal - roundCents(line - cost));
+    removedIds.push(hit.conditionId);
+    return false;
+  });
+  return removedIds.length ? { next: { ...est, items, baseTotal, markupTotal, grandTotal }, removedIds } : { next: est, removedIds };
+}
+
+/** Write where each pushed line's price came from onto its estimate line. Lines not named are left as they are. */
+function stampSources(est: LinkedEstimate, sources: Record<string, PushedPriceSource> | undefined): LinkedEstimate {
+  if (!sources) return est;
+  let changed = false;
+  const items = est.items.map((it) => {
+    const src = it.sourceTakeoffConditionId ? sources[it.sourceTakeoffConditionId] : undefined;
+    if (!src || it.priceSource === src) return it;
+    changed = true;
+    return { ...it, priceSource: src };
+  });
+  return changed ? { ...est, items } : est;
+}
+
+/** How many of the lines a push recorded are still on the project's estimate, under both ids the push wrote. */
+export function pushedLinesInEstimate(project: Project | null, pushed: Record<string, string> | undefined): number {
+  const items = project?.linkedEstimate?.items;
+  if (!items || !pushed) return 0;
+  return Object.entries(pushed).filter(([conditionId, materialId]) => items.some((it) => it.materialId === materialId && it.sourceTakeoffConditionId === conditionId)).length;
+}
+
 export interface EstimatePatchResult {
   patch: Partial<Project>;
   next: LinkedEstimate;
   pushed: Record<string, string>;
   added: number;
   updated: number;
+  /** Lines this patch took out of the estimate (a re-send of an order list that no longer has them), by draft line id. */
+  removedIds: string[];
   beforeGrand: number;
   afterGrand: number;
   /** True when this patch started the project's estimate. */
@@ -296,6 +351,10 @@ export interface EstimatePatchResult {
  * (so each keeps its scan line id and its price source), then footed at his
  * stated markup by buildNewEstimate, the app's one "new estimate from cost
  * lines" writer. `now` is the new estimate's createdAt.
+ *
+ * `remove` (the order list only) names lines an earlier send wrote that the
+ * list no longer has: they are taken out in the same patch, after the push.
+ * `sources` stamps each written line with where its price came from.
  */
 export function buildEstimatePatch(args: {
   confirmed: boolean;
@@ -306,6 +365,8 @@ export function buildEstimatePatch(args: {
   newId: () => string;
   markupPct: MarkupPct;
   now: string;
+  remove?: readonly PushRemoval[];
+  sources?: Record<string, PushedPriceSource>;
 }): EstimatePatchResult | null {
   if (args.confirmed !== true) return null;
   if (args.mayEdit !== true) return null;
@@ -317,25 +378,30 @@ export function buildEstimatePatch(args: {
     const blank: LinkedEstimate = { id: '', items: [], globalMarkup: 0, baseTotal: 0, markupTotal: 0, grandTotal: 0, createdAt: args.now };
     const atCost = applyTakeoffPush(blank, lines, {}, args.newId);
     const footed = buildNewEstimate(atCost.next.items, args.markupPct, args.newId(), args.now);
-    const next: LinkedEstimate = { ...footed, globalMarkup: args.markupPct };
+    const next: LinkedEstimate = stampSources({ ...footed, globalMarkup: args.markupPct }, args.sources);
     const patch = commitEstimatePatch(project, next, { reason: 'pre_overwrite' });
-    return { patch, next, pushed: atCost.pushed, added: atCost.added, updated: 0, beforeGrand: 0, afterGrand: next.grandTotal, started: true };
+    return { patch, next, pushed: atCost.pushed, added: atCost.added, updated: 0, removedIds: [], beforeGrand: 0, afterGrand: next.grandTotal, started: true };
   }
   const est = project.linkedEstimate;
   const res = applyTakeoffPush(est, lines, args.pushed, args.newId);
-  const patch = commitEstimatePatch(project, res.next, { reason: 'pre_overwrite' });
-  return { patch, next: res.next, pushed: res.pushed, added: res.added, updated: res.updated, beforeGrand: res.beforeGrand, afterGrand: res.afterGrand, started: false };
+  const cut = removePushedLines(stampSources(res.next, args.sources), args.remove ?? []);
+  const pushed = { ...res.pushed };
+  for (const id of cut.removedIds) delete pushed[id];
+  const patch = commitEstimatePatch(project, cut.next, { reason: 'pre_overwrite' });
+  return { patch, next: cut.next, pushed, added: res.added, updated: res.updated, removedIds: cut.removedIds, beforeGrand: res.beforeGrand, afterGrand: cut.next.grandTotal, started: false };
 }
 
 /**
  * Is the push in the project the app now holds? True when every line the
  * patch wrote is on the project's estimate, under the id the patch gave it and
  * carrying its scan line id. The screen says "Added to the estimate." only
- * after this is true for the project read back from the app's own state.
+ * after this is true for the project read back from the app's own state. A
+ * line the patch took out must be gone too.
  */
-export function estimateHoldsPush(project: Project | null, res: Pick<EstimatePatchResult, 'pushed' | 'next'>): boolean {
+export function estimateHoldsPush(project: Project | null, res: Pick<EstimatePatchResult, 'pushed' | 'next'> & { removedIds?: readonly string[] }): boolean {
   const items = project?.linkedEstimate?.items;
   if (!items || project?.linkedEstimate?.id !== res.next.id) return false;
+  if ((res.removedIds ?? []).some((id) => items.some((it) => it.sourceTakeoffConditionId === id))) return false;
   const written = res.next.items.filter((it) => it.sourceTakeoffConditionId && res.pushed[it.sourceTakeoffConditionId] === it.materialId);
   if (written.length === 0) return false;
   return written.every((w) => items.some((it) =>
