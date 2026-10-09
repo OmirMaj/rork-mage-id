@@ -155,6 +155,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
   const lostChecked = useRef(-1);
   const startedNewDone = useRef(-1);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLoadState = useRef<LoadState>(loadState);
   // After the hook replaces the device's model, the very next run must read THAT model, not the one the screen
   // has not redrawn yet (a run on the old one would send it over the account). The override ends the moment the
   // screen hands down a different model, whatever it is.
@@ -191,6 +192,15 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
     const my = gen.current;
     if (retryTimer.current) clearTimeout(retryTimer.current);
     retryTimer.current = setTimeout(() => { retryTimer.current = null; if (gen.current === my) runRef.current(); }, SYNC_RETRY_MS);
+  }, []);
+
+  /**
+   * Notes written at the end of a run carry the ANSWERS as they are now, not as they were when the run began: a tap
+   * on Keep on This Phone (or a yes) in the middle of a run is never undone by the run finishing.
+   */
+  const withAnswers = useCallback((next: ModelSyncMeta): ModelSyncMeta => {
+    const cur = metaRef.current;
+    return cur ? { ...next, scanChoice: cur.scanChoice, scanConsentRoomIds: cur.scanConsentRoomIds } : next;
   }, []);
 
   /** Hand one save to the offline queue, after the seat, the scan question and the queue checks. */
@@ -326,7 +336,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
     switch (action.kind) {
       case 'nothing':
         // Nothing here and nothing there. Notes that still speak of an account copy are cleared: there is none.
-        if (hasSyncHistory(meta) && !meta.pending) { await commit(metaAfterRemoval(meta)); if (!live()) return; }
+        if (hasSyncHistory(meta) && !meta.pending) { await commit(withAnswers({ ...metaAfterRemoval(meta), scanConsentRoomIds: meta.scanConsentRoomIds })); if (!live()) return; }
         setStatus('empty');
         return;
       case 'wait':
@@ -336,7 +346,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
       case 'landed': {
         if (!head || !meta.pending) return;
         const sent = meta.pending;
-        await commit(metaAfterMatch(meta, head, sent.fingerprint, sent.scanRoomIds));
+        await commit(withAnswers(metaAfterMatch(meta, head, sent.fingerprint, sent.scanRoomIds)));
         if (!live()) return;
         setLastChange(null);
         if (modelFingerprint(modelRef.current ?? m) !== sent.fingerprint) again.current = true;
@@ -346,10 +356,10 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
       case 'in_sync':
         if (!head) return;
         if (meta.baseRevision !== head.revision || meta.baseFingerprint !== local.fingerprint || meta.pending) {
-          await commit(metaAfterMatch(meta, head, local.fingerprint, scanRoomIds(m)));
+          await commit(withAnswers(metaAfterMatch(meta, head, local.fingerprint, scanRoomIds(m))));
           if (!live()) return;
         } else if (meta.savedAt !== head.updatedAt) {
-          await commit({ ...meta, savedAt: head.updatedAt });
+          await commit(withAnswers({ ...meta, savedAt: head.updatedAt }));
           if (!live()) return;
         }
         setStatus('saved');
@@ -381,7 +391,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
           again.current = true;
           return;
         }
-        await commit(metaAfterMatch(meta, head, fingerprint, scanRoomIds(accountModel)));
+        await commit(withAnswers(metaAfterMatch(meta, head, fingerprint, scanRoomIds(accountModel))));
         if (!live()) return;
         adopt(accountModel);
         setStatus('saved');
@@ -409,7 +419,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
         again.current = true;
         return;
     }
-  }, [projectId, userId, commit, send, adopt, scheduleRetry]);
+  }, [projectId, userId, commit, send, adopt, scheduleRetry, withAnswers]);
 
   const run = useCallback(() => {
     const my = gen.current;
@@ -483,8 +493,10 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
   useEffect(() => {
     if (fingerprintNow === null) return;
     if (refused.current !== fingerprintNow) refused.current = null;
-    const first = opened.current !== gen.current;
+    // Not delayed: the first run after the device was read, and the run after Start a New Model (a tap, not typing).
+    const first = opened.current !== gen.current || lastLoadState.current !== loadState;
     opened.current = gen.current;
+    lastLoadState.current = loadState;
     const t = setTimeout(run, first ? 0 : SYNC_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [fingerprintNow, loadState, eligible, viewOnly, run]);

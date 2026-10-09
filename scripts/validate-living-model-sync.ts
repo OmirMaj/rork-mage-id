@@ -727,8 +727,9 @@ rule('I1', 'Keep on This Phone takes this job\'s waiting save back out of the qu
   if (count(send, 'if (metaRef.current !== sending) { again.current = true; return; }') < 3) out.push('a save in flight goes on after the notes changed under it (Keep on This Phone tapped mid-send)');
   const pushAt = send.indexOf('pushAccountModel(');
   if (pushAt < 0 || send.indexOf('if (metaRef.current !== sending) { again.current = true; return; }') > pushAt) out.push('the notes are not checked between writing them and sending');
-  const pass = fnBody(hook, 'const pass = useCallback(', '}, [projectId, userId, commit, send, adopt, scheduleRetry]);');
+  const pass = fnBody(hook, 'const pass = useCallback(', '}, [projectId, userId, commit, send, adopt, scheduleRetry, withAnswers]);');
   if (count(pass, 'if (metaRef.current !== meta) { again.current = true; return; }') < 2) out.push('a run that was reading the account goes on after the notes changed under it');
+  if (!hook.includes('return cur ? { ...next, scanChoice: cur.scanChoice, scanConsentRoomIds: cur.scanConsentRoomIds } : next;') || count(pass, 'await commit(withAnswers(') < 5) out.push('a run that finishes after Keep on This Phone was tapped writes the old answer back');
   if (!/holds\.modelSave: entries|modelSave: entries\.some\(\(m\) => m\.table === LIVING_MODELS_TABLE && m\.data\?\.id === projectId && \(m\.operation !== 'rpc' \|\| m\.rpc\?\.fn === LIVING_MODEL_SAVE_FN\)\)/.test(io)) out.push('"a save is waiting" counts something that is not a save');
   // The sentence is keyed on what may have left the phone, never on the last saved time.
   const M = w.impl.accountMayHoldCopy;
@@ -842,7 +843,7 @@ rule('I4', 'a teammate\'s save is not taken without first keeping this device\'s
   if (A(modelOfRooms([bigRoom('a', { heightM: ACCOUNT_LIMITS.heightM * 2 })])) !== 'room_too_large') out.push('a wall taller than the editor allows is taken');
   const V = w.impl.accountValueTooLarge;
   if (!V({ rooms: Array.from({ length: 5000 }, () => ({})) }) || !V({ rooms: [{ room: { walls: Array.from({ length: 201 }, () => null) } }] }) || V({ rooms: [{ room: { walls: [] } }] }) || V(null) || V({ rooms: 'x' })) out.push('the raw size check does not count rooms and parts');
-  const pass = fnBody(hook, 'const pass = useCallback(', '}, [projectId, userId, commit, send, adopt, scheduleRetry]);');
+  const pass = fnBody(hook, 'const pass = useCallback(', '}, [projectId, userId, commit, send, adopt, scheduleRetry, withAnswers]);');
   const countAt = pass.indexOf('const tooLarge = accountValueTooLarge(full.value);');
   const readAt = pass.indexOf('readSavedModel(JSON.stringify(full.value ?? null), projectId)');
   if (countAt < 0 || readAt < countAt || !pass.includes('const read = tooLarge ? null : readSavedModel(')) out.push('an account copy is read through before its size is counted');
@@ -855,7 +856,7 @@ rule('I5', 'the status line never sits on a lie: a failed read-back is retried, 
   const out: string[] = [];
   const hook = code(w.files[HOOK]);
   const send = fnBody(hook, 'const send = useCallback(', '}, [projectId, commit, scheduleRetry]);');
-  const pass = fnBody(hook, 'const pass = useCallback(', '}, [projectId, userId, commit, send, adopt, scheduleRetry]);');
+  const pass = fnBody(hook, 'const pass = useCallback(', '}, [projectId, userId, commit, send, adopt, scheduleRetry, withAnswers]);');
   if (!send.includes("if (back.kind === 'offline' || back.kind === 'error' || back.kind === 'missing') { setStatus('retrying'); scheduleRetry(); return; }")) out.push('after a save that went out, a read-back that fails leaves the line where it was with no later try');
   if (/setStatus\('checking'\)/.test(send) || /setStatus\('checking'\)/.test(pass)) out.push('a run can leave the line on "Checking your account"');
   const run = fnBody(hook, 'const run = useCallback(', '}, [pass, scheduleRetry]);');
@@ -982,6 +983,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'I1', name: 'the sentence forgets a save that was sent and not seen to land', plant: swap({ accountMayHoldCopy: (m) => m.baseRevision > 0 }) },
   { rule: 'I1', name: 'the panel says "kept on this phone only" while a copy may be in the account', plant: edit(STATUS, '{sync.accountMayHold ? `${copy.keptOnPhoneStoppedBody} ${copy.keptOnPhoneMayBody}` : copy.keptOnPhoneBody}', '{copy.keptOnPhoneBody}') },
   { rule: 'I1', name: 'a queued removal counts as a waiting save', plant: edit(IO, " && (m.operation !== 'rpc' || m.rpc?.fn === LIVING_MODEL_SAVE_FN)),", '),') },
+  { rule: 'I1', name: 'a run that finishes after the tap writes the old answer back', plant: edit(HOOK, 'return cur ? { ...next, scanChoice: cur.scanChoice, scanConsentRoomIds: cur.scanConsentRoomIds } : next;', 'return next;') },
   { rule: 'I2', name: 'a removal that cannot be sent now is left in the queue', plant: edit(IO, "    if (outcome !== 'synced') {\n      await cloud.queue.cancelQueuedRpc(LIVING_MODELS_TABLE, projectId, LIVING_MODEL_REMOVE_FN, userId);\n      return 'not_removed';\n    }", "    if (outcome === 'failed') return 'not_removed';") },
   { rule: 'I2', name: 'the copy is called removed without reading the account', plant: edit(IO, "    return back.kind === 'none' ? 'removed' : 'not_removed';", "    return 'removed';") },
   { rule: 'I2', name: 'the first tap removes at once', plant: edit(STATUS, 'onPress={() => setConfirmRemove(true)}', 'onPress={() => sync.removeFromAccount()}') },

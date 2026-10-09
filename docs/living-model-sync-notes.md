@@ -1,7 +1,8 @@
 # The Living Model saved to the account: notes (lane LIVINGSYNC)
 
 Status: built dark. `LIVING_MODEL_ENABLED = false`, owner preview only. The
-migration `supabase/migrations/20261011090000_living_models.sql` is NOT applied
+migrations `supabase/migrations/20261011090000_living_models.sql` and
+`20261011091000_legal_acceptance_scan_room_upload.sql` are NOT applied
 by this lane. Until it is applied the app behaves as before: the model is saved
 on one device and the screen says so.
 
@@ -16,23 +17,25 @@ Sent, for every room:
 
 - the room's id, the name a person typed, its kind, its floor, where it sits
   and its quarter turn;
-- whether it was typed or came from a scan, and for a scanned room the id of
-  the saved scan it came from (an id, not the scan);
-- its sizes: each wall (two end points, length, the scanner's own length, where
-  the length came from, height, how sure the scanner was, curved or not, on the
+- one word that says whether it was typed or came from a scan;
+- its sizes: each wall (two end points, length, height, curved or not, on the
   outline or not, and the wall's own corner outline when the scan gave one);
-  each door, window and opening (wall, offset, width, height, sill, how sure
-  the scanner was, where each number came from); each fixture (Apple's
-  category such as toilet or sink, centre, width, depth, height, turn, how sure
-  the scanner was); the floor outline; the ceiling height.
+  each door, window and opening (wall, offset, width, height, sill); each
+  fixture (Apple's category such as toilet or sink, centre, width, depth,
+  height, turn); the floor outline; the ceiling height.
 
-Also sent: which schedule tasks a person ticked for a room, the stage a person
-picked for a task, and the time of the last change on the device.
+Also sent: which schedule tasks a person ticked for a room and the stage a
+person picked for a task.
 
 Never sent, by this lane or any code in it:
 
 - a photo or a video (the scanner records neither);
 - Apple's raw scan data (`mageid_room_scan_raw::<scanId>`), or its hash;
+- the id of the saved scan a room came from, Apple's own width for a wall,
+  which single numbers a person typed over, how sure the scanner was of a
+  wall, a door or a fixture (the screens on another device read none of
+  these);
+- the time on the device's clock (the server keeps its own time for a save);
 - the list of saved scans (`mageid_room_scans::<projectId>`), a scan's capture
   time, the phone's model and iOS version, the scan's warnings, the taped-wall
   checks, the list of hand corrections, the closure record;
@@ -42,42 +45,85 @@ When it is sent: a moment after a change (1.5 seconds), when the screen opens,
 when the offline queue moves, and when the app comes back to the front. Every
 send goes through the offline queue.
 
+What is never sent on its own: an EMPTY model over an account copy that has
+rooms. Start a New Model, a saved model that went missing from the device, and
+a model a person emptied all lead to the account's copy being taken or put to
+him as a question (`syncCore.reconcile`, the header of that file lists the
+rules in order).
+
+What the account will not store, and the app will not open: more than 60
+rooms, or a room with more than 200 walls, 400 doors and windows or 400
+fixtures. The save function refuses those (`out_of_bounds`); an account copy
+over the limits is not opened on a device and the device's model is left as it
+is.
+
 ## 2. The scan question
 
 A room dropped into the model with Add from Scan is marked in the model
-(`source: 'scan'`, and `scanId`). That was already so before this lane.
+(`source: 'scan'`, and `scanId` on the device). That was already so before this
+lane.
 
-Before the FIRST time a model holding such a room would be sent, the person is
-asked, once per project:
+Before a scanned room is sent for the FIRST time the person is asked. The
+question is PER ROOM: his yes is kept by room id, and a room scanned and added
+to the job later is asked about again.
 
 > **This model includes a room you scanned.**
-> Saving it to your account sends that room's sizes (walls, doors, windows and
-> fixtures) to MAGE ID's servers so your other devices and your team on this
-> project can see it. No photo or video is sent.
+> Saving it to your account sends the room's name and its sizes: floor outline,
+> ceiling height, walls, doors, windows and fixtures, and that the room came
+> from a scan. They go to MAGE ID's servers so your other devices and your team
+> on this project can see them. No photo or video is sent. You are asked again
+> for each scanned room you add later.
+>
+> Scanned rooms that would be sent: Hall Bathroom.
 >
 > [ Save to My Account ]   [ Keep on This Phone ]
 
 - Until he answers, nothing is sent. The status line says "Not sent to your
   account yet. It is saved on this device."
-- **Keep on This Phone** keeps the WHOLE model on the device, not only the
-  scanned room, until he changes it. The screen then says "Kept on this phone
-  only, as you chose. It will not appear on your other devices." with the same
-  explanation and a Save to My Account button. If an earlier copy had already
-  been saved to the account, the screen says it stays there (this lane does not
-  delete an account copy).
-- **Save to My Account** sends the model. A Keep on This Phone button stays on
-  the screen while the model holds a scanned room.
-- The answer is kept per person and per project on the device
-  (`mageid_living_model_sync::<user>::<project>`). It is erased at sign-out with
-  the model, so a person who signs back in is asked again before a scanned room
-  that is not in the account is sent.
+- **Save to My Account** sends the model and records his yes (see below). A
+  Keep on This Phone button stays on the screen while the model holds a
+  scanned room. Under the saved line the screen lists "Rooms in your account
+  that came from a scan: ...".
+- **Keep on This Phone** stops every send of the WHOLE model from this phone,
+  not only the scanned room, until he changes it. A save that was still
+  waiting in the offline queue is taken back out, so it does not go out when
+  the phone is online again (`utils/offlineQueue.ts` `cancelQueuedRpc`, only
+  this account's `living_model_save` for this project). A request already on
+  the wire cannot be recalled. So:
+  - if nothing was ever handed to the queue, the screen says "Kept on this
+    phone only, as you chose. It will not appear on your other devices.";
+  - if a save was ever handed to the queue, or a revision was ever matched,
+    it says "Nothing more will be sent from this phone, as you chose. A copy
+    may already be in your account." and offers **Remove It from My Account**.
+- **Remove It from My Account** asks once more ("This removes the model from
+  your account for everyone on this project. The model on this phone stays.
+  Your other devices and your team keep the copies they already have, and they
+  will no longer find one in the account."). Yes, Remove It calls
+  `public.living_model_remove` (the owner and editors only), reads the account
+  back, and says "Removed from your account." only when the row is gone. It is
+  sent now or not at all: with no connection it says the copy was not removed
+  and leaves nothing waiting. It never touches the model on the device. A
+  device that had matched the account's copy then finds none, says "The copy
+  of this model in your account was removed. It is saved on this device
+  only.", and sends nothing until its person taps Save to My Account.
+- The answers are kept per person and per project on the device
+  (`mageid_living_model_sync::<user>::<project>`). They are erased at sign-out
+  with the model, so a person who signs back in is asked again before a
+  scanned room that is not in the account is sent.
 - A scanned room that is ALREADY in the account copy (a teammate said yes on
   his phone and it came down with the model) is not asked about again on
-  another device: sending it back discloses nothing new. The ask is about a
-  scanned room that is not in the account yet.
+  another device: sending it back discloses nothing new.
 
-The answer is NOT recorded on the server. `legal_acceptances` accepts four
-kinds today and none fits. See section 5.
+The yes is recorded on the server, best effort: one row in
+`public.legal_acceptances`, kind `scan_room_upload`, with the version
+(`SCAN_UPLOAD_VERSION`) and a SHA-256 of the title and body in the language he
+read. That needs `supabase/migrations/20261011091000_legal_acceptance_scan_room_upload.sql`
+(NOT applied by this lane); before it is applied the server refuses the kind
+and the note waits on the phone. One row per person per wording: it is his
+FIRST yes to these words, and it does not name the job or the room. The later,
+room by room answers are on the phone only. The exact words are archived in
+`docs/legal/versions/scan_room_upload-en-1-05617f16.txt` and
+`scan_room_upload-es-1-8595d776.txt`.
 
 ## 3. Needs the next native build and the founder's yes
 
@@ -126,7 +172,7 @@ These change together, in the same commit as the camera sentence:
 | `scripts/validate-ios-permission-strings.ts` and `scripts/validate-ios-store-copy.ts` | Hold the permission strings and the store copy to the code | Re-run; update whatever they pin of the camera sentence. |
 | `docs/scan-the-room-native-checklist.md` section 2 (and section 1, item 3, "Where the scan lives") | Quotes the sentence; says the lane keeps a scan on the phone | Quote the new sentence; say a placed room can be saved to the account after a yes. |
 | `utils/legalAcceptanceCore.ts` `SCAN_ACK_COPY` and `i18n/catalog/es/office/notices.ts` | The first-use notice (no storage sentence today) | The proposed notice above, version 2. |
-| `docs/legal/consent-texts-for-counsel.md` section 8 | Quotes the first-use notice | Quote version 2, and add the scan question of section 2 of this file as a consent text for counsel. |
+| `docs/legal/consent-texts-for-counsel.md` section 8 | Quotes the first-use notice | Quote version 2. (The scan question of section 2 of this file is already there, as section 8a.) |
 | `docs/legal/privacy-policy-versus-code.md` row 12 | "Room scans stay on the phone ... Nothing is uploaded" and a proposed policy line "A room scan is stored on your phone only. It is not uploaded." | Amended by this lane to point here. The proposed policy line must become: "A room scan is stored on your phone. If you place a scanned room in a job model and choose to save it to your account, that room's measurements are stored on our servers and shown to the people on that project. No photo or video of a scan is recorded." |
 | `marketing/privacy.html` (the Privacy Policy itself) and `PRIVACY_VERSION` / `PRIVACY_TEXT_SHA256` | Says nothing about room scans | Add the policy line above BEFORE `LIVING_MODEL_ENABLED` or `SCAN_ROOM_ENABLED` is turned on for anyone but the owner. A new policy version means re-acceptance. |
 | App Store Connect, App Privacy answers | Room measurements are not listed as collected | If counsel treats room measurements tied to an account as collected data, add them (linked to the user, used for app functionality) before the flag is on. |
@@ -172,13 +218,19 @@ Needed before it opens to others:
 1. Is the in-app question enough while the camera sentence still says "on your
    phone"? The lane's view is in its report: yes for the owner preview, no for
    anyone else.
-2. Should the yes be recorded on the server, like the Terms acceptance? It
-   needs a new kind in `record_my_legal_acceptance` (one line, a new
-   migration), for example `scan_room_upload`.
+2. The yes is recorded once per person per wording (section 2). Is that
+   enough when the app asks room by room, or should every answer be a row that
+   names the job? That would need a column on `legal_acceptances` or a table
+   of its own.
 3. Retention. A model saved to the account stays until the project or the
-   account is deleted. Keep on This Phone, chosen later, does not remove a copy
-   already saved. Should there be a Remove from My Account button?
+   account is deleted, or until an owner or editor taps Remove It from My
+   Account. That removes the account's copy for everyone on the job and leaves
+   every device's own copy alone. Should a teammate be told when it happens?
+   Today his device says "The copy of this model in your account was removed."
+   and nothing more. `living_model_removals` keeps who removed it and when.
 4. A homeowner's rooms. The measurements are of someone else's home. The
    contractor chooses to save them; the homeowner is not asked. The Terms
    already make the contractor responsible for what he puts in; confirm that
    covers interior measurements.
+5. The Spanish wording of the question has not been read by counsel or by a
+   legal translator (`docs/legal/consent-texts-for-counsel.md` section 8a).
