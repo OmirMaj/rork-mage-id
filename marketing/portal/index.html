@@ -5114,8 +5114,8 @@
     var partner = String((fin && fin.partnerName) || '').trim();
     return (
       '<div class="fin-card" data-financing="1">' +
-        '<p class="fin-lead">Prefer to pay monthly? Your contractor works with ' + esc(partner) +
-          '. See if you prequalify on their site. It opens in a new tab.</p>' +
+        '<p class="fin-lead">Your contractor works with ' + esc(partner) +
+          ' for financing. The button below opens their site in a new tab.</p>' +
         '<a class="invoice-pay-btn fin-btn" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" ' +
           'aria-label="' + esc('Check Financing Options with ' + partner) + '">' +
           icn(ICONS.creditCard, 14) + '<span>Check Financing Options</span>' +
@@ -8940,7 +8940,7 @@
     // key the redirect needs (see financingPortalUrl).
     var finUrl = data.financing && data.financing.partnerName ? financingPortalUrl(data) : '';
     if (finUrl) {
-      addSection('financing', 'creditCard', 'Paying Monthly', 'Financing through ' + data.financing.partnerName, null,
+      addSection('financing', 'creditCard', 'Financing', 'Financing through ' + data.financing.partnerName, null,
         renderFinancingCard(data.financing, finUrl));
     }
     if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {

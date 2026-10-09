@@ -628,12 +628,6 @@
       "reason": "the InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (voiceContextKey)"
     },
     {
-      "file": "utils/financing.ts",
-      "rule": "R20",
-      "match": "Prefer to pay monthly?",
-      "reason": "a lender line with price notation (\"/mo\"): left as typed for a founder decision (lane 2 report)"
-    },
-    {
       "file": "utils/aiaBilling.ts",
       "rule": "R15",
       "match": "Estimate (differs from the signed contract)",
