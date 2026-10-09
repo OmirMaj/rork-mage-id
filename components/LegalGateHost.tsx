@@ -21,6 +21,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Modal, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import { Button } from '@/components/ui';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import type { ThemeColors } from '@/constants/colors';
@@ -82,6 +83,8 @@ function ReacceptGate({ userId }: { userId: string }) {
   const open = (url: string) => { Linking.openURL(url).catch(() => { /* the sheet stays up either way */ }); };
 
   const visible = shouldShowReaccept(TERMS_REACCEPT_ENABLED, userId, state) && !agreedHere;
+  // While the sheet is up, the page's keyboard shortcuts behind it are silent (desktop web).
+  useSheetDialogScope(visible);
   if (!visible) return null;
   return (
     <Modal visible animationType="fade" presentationStyle="fullScreen" onRequestClose={() => { /* no dismiss: agree or sign out */ }} testID="legal-reaccept">

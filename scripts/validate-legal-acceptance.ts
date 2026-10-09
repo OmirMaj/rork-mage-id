@@ -344,7 +344,7 @@ async function runChecks(files: Files): Promise<Result[]> {
     ok('D2 with the flag off (or signed out) the host returns before the gate component is mounted', /if \(!TERMS_REACCEPT_ENABLED \|\| !userId\) return null;\s*return <ReacceptGate userId=\{userId\} \/>;/.test(gate));
     const hostAt = gate.indexOf('export default function LegalGateHost()');
     ok('D3 the account\'s rows are read only inside the gate component, never by the host', hostAt !== -1 && !/readReacceptState\(/.test(gate.slice(hostAt)) && /readReacceptState\(userId\)/.test(gate.slice(0, hostAt)));
-    ok('D4 the sheet shows only through shouldShowReaccept(flag, user, state)', /const visible = shouldShowReaccept\(TERMS_REACCEPT_ENABLED, userId, state\) && !agreedHere;\s*if \(!visible\) return null;/.test(gate));
+    ok('D4 the sheet shows only through shouldShowReaccept(flag, user, state)', /const visible = shouldShowReaccept\(TERMS_REACCEPT_ENABLED, userId, state\) && !agreedHere;\s*useSheetDialogScope\(visible\);\s*if \(!visible\) return null;/.test(gate));
     const T = core.shouldShowReaccept;
     ok('D5 the rule: shown only for flag on + signed in + a row known to be missing',
       T(true, A1, 'needed') === true && T(false, A1, 'needed') === false && T(true, null, 'needed') === false && T(true, A1, 'unknown') === false && T(true, A1, 'accepted') === false && T(false, A1, 'unknown') === false);
