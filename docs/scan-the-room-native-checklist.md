@@ -294,3 +294,136 @@ The app quotes nobody's accuracy number until this exists.
   Quick Look, `ARWorldMap`.
 - The tape check prompt on the plan screen; a trade picker on a draft line.
 - A file cleanup step on sign-out (nothing writes a file yet).
+
+## The Order List And The Learning Loop
+
+Lane SCANORDER (2026-10-08). Dark behind the same `SCAN_ROOM_ENABLED = false`.
+It needs no native code: it reads the room model the scanner will produce. Until
+then every room it has seen is a hand-built fixture. **No real scan has been
+through it.**
+
+### What Was Built
+
+- **The order list** (`utils/roomScan/orderListCore.ts`): what to buy for the
+  room from its true outline. Drywall sheets with a cut layout per wall and for
+  the ceiling (`cutPlanCore.ts`). Flooring or floor tile, and wall tile on the
+  wet walls he marks. Paint and primer. Baseboard, crown and casing as stock
+  lengths with a cut list (`trimPackCore.ts`).
+- **The learning loop** (`utils/roomScan/learnCore.ts`, `learnStore.ts`): the
+  scanned and taped length of every wall he types over, the facts those pairs
+  support, and a suggestion he can accept or ignore.
+- **Three ways out, each after its own confirm:** copied as plain text, the
+  share sheet as plain text, and material lines in the estimate through the
+  same takeoff path the room draft uses. There is no PDF: the app's only
+  purchase PDF (`utils/purchaseOrderPdf.ts`) needs a commitment and its linked
+  estimate lines, and cannot take a list.
+
+### What Stays On The Phone
+
+Nothing uploaded, nothing sent to a model, no table, no migration.
+
+| Key | Holds |
+| --- | --- |
+| `mageid_room_scans::<projectId>` | each saved scan now also carries his order choices, the quantities and prices he typed, what the list said each time it left the screen, and the scan's taped pairs |
+| `mageid_room_scan_tape::<userId>` | his taped walls across every saved scan on this phone, capped at 500 |
+
+Both are under the owned `mageid_` prefix, so the tenant-switch sweep removes
+them. The tape list carries the user's id in its key. A pair is written when he
+saves the scan and removed when he deletes it.
+
+### What Needs A Real Scan Or A Real Job Before It Is Trusted
+
+1. **Every sheet count.** The layout assumes a flat rectangle per wall at the
+   wall's tallest point, 48 in courses from the ceiling, no knowledge of studs
+   or joists, and offcuts kept at 12 in and over. Hang one real room from the
+   list and count what was left.
+2. **The rules of thumb.** About 1 screw per square foot, 1 gallon of compound
+   per 100 sq ft, 370 ft of tape per 1,000 sq ft, 10, 15 and 20 percent for
+   straight, diagonal and herringbone, 5 percent more for a room that is not a
+   plain rectangle, 350 sq ft to a gallon of paint and 300 for primer. Each is
+   labelled a rule of thumb or shown as an allowance, and each is a number a
+   working contractor should read and correct.
+3. **The trim cut list** takes wall-to-wall lengths with no extra for a mitre
+   or a cope unless he sets an allowance, and joints a run longer than the
+   longest stick at the end of a full stick.
+4. **The "long wall" line** is 12 ft. Outside tests put the sensor's error
+   growing on long walls; ten real rooms taped by the founder say whether 12 ft
+   is the right place to draw it, and whether `MIN_TAPE_PAIRS = 5` and
+   `MIN_LONG_PAIRS = 4` are enough.
+5. **Outside corners** are read from the outline. A real scan may break one
+   wall into two with a small kink; corners turning under 10 degrees are
+   ignored, and that number is a guess.
+
+### Bought Versus Scanned: What The App Does Not Hold
+
+`learnCore.wasteFactors` compares what the order list said a room measures
+with what was bought, per trade, on finished jobs, and offers "On your last 4
+jobs you bought about 9 percent more tile than the scan said." It runs on
+fixtures only. It is **not wired**, because the app has no reliable record of a
+bought quantity:
+
+- `MaterialReceipt.lines` (`types/index.ts`, `utils/materialReceipt.ts`,
+  `mageid_material_receipts` and the `material_receipts` table) is the only
+  record with a quantity, a unit and a project. Its trade is optional free text
+  that falls back to "Materials". Its unit is whatever the receipt printed
+  (box, sheet, bag), and nothing converts a box of tile to square feet. Nothing
+  says every receipt for a trade on a job was scanned, so a missing receipt
+  would read as negative waste.
+- `qbo_cost_lines` (`utils/qbo/qboCostMap.ts`) has dollars and no quantity. A
+  confirmed line becomes a receipt with a made-up quantity of 1.
+- `DeliveryReceipt.items` (`utils/deliverySchedule.ts`) has an optional
+  quantity that neither writer fills (`app/deliveries.tsx`,
+  `utils/deliveryArrival.ts`).
+- `Commitment` (`types/index.ts`) has dollars only. A purchase order's
+  quantities are copied from the estimate, so they are the prediction again.
+- The cost book (`utils/costDatabase.ts`) learns a price from a closed job
+  using the ESTIMATE's quantity. It never sees a bought one.
+
+What would make it real, smallest first:
+
+1. Keep what the list said. Done in this lane: `SavedScan.orderSent` records
+   each line's quantity and the room's own measure before waste.
+2. On the receipt review screen, let him tie a receipt line to an order line
+   ("this is the tile for the hall bath") and type what a box covers. That
+   gives a trade, a unit that matches, and a deliberate link in one tap.
+3. A "that is everything for this trade" tick when the job closes, so a missing
+   receipt is not read as thrift.
+4. Then feed `wasteFactors` only from jobs that are closed
+   (`utils/estimateActuals.isClosedProject`) and ticked, never from
+   QuickBooks-origin receipts.
+
+### What A Later Cloud Phase Needs
+
+Nothing here is needed while the lane is dark and on one phone.
+
+- **A table for tape pairs**, so his history follows him to a new phone and,
+  only if he agrees, joins everyone's:
+
+  ```sql
+  create table public.room_scan_tape_pairs (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id) on delete cascade,
+    scan_id uuid not null,
+    wall_id text not null,
+    scanned_m numeric not null,
+    taped_m numeric not null,
+    length_class text not null check (length_class in ('short', 'mid', 'long')),
+    device_model text not null default '',
+    room_type text not null,
+    taped_at timestamptz not null,
+    unique (user_id, scan_id, wall_id)
+  );
+  -- RLS: a row is readable and writable by its user_id only.
+  ```
+
+- **Writes through `utils/offlineQueue`**, after the `room_scans` table above
+  exists, with `delete-account` listing both tables.
+- **A plain consent line** before any pair leaves the phone. Pooled numbers
+  ("on this iPhone model, long walls run about an inch short") are the part
+  nobody else can copy, and they need his yes, a privacy paragraph, and an App
+  Store privacy line, in the repo before the switch.
+- **Order snapshots** (`SavedScan.orderSent`) ride on the scan row. No table of
+  their own.
+- **Nothing is sent to a model.** If a later phase wants a model to read a
+  receipt against an order line, that goes through the existing AI consent and
+  the call log, and is a separate decision.

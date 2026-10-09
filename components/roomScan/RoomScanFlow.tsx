@@ -290,6 +290,12 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     else change((s) => correctOpening(s, e.id, e.field, metres, at));
   }, [editing, change]);
 
+  // His taped walls go into his own list on this phone WITH a save of the scan, never before it.
+  const keepTape = useCallback(async (s: SavedScan) => {
+    const log = await recordTapePairs(userId, s.tapePairs ?? []);
+    if (log) setTapeLog(log);
+  }, [userId]);
+
   // ── saving, only from a tap ──
   const save = useCallback(async () => {
     if (!saved) return;
@@ -297,15 +303,40 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     const next: SavedScan = { ...saved, savedAt: new Date().toISOString() };
     const ok = await saveScan(next, rawJson);
     setSaveState(ok ? 'saved' : 'failed');
-    if (ok) {
+    if (ok) { setSaved(next); setDirty(false); await refreshSavedList(); }
+    if (ok) await keepTape(next);
+  }, [saved, rawJson, refreshSavedList, keepTape]);
+
+  const confirmDraft = useCallback(async () => {
+    if (!saved || !draft || pushing) return;
+    const res = buildEstimatePatch({
+      confirmed: true, mayEdit: mayEditEstimate, project, draft, pushed: saved.pushed,
+      newId: generateUUID, markupPct, now: new Date().toISOString(),
+    });
+    if (!res || !project) { setResult('failed'); return; }
+    setPushing(true);
+    try {
+      updateProject(project.id, res.patch);
+      // Read the project back from the app's own state until it carries the
+      // lines. Only then is anything said, recorded or opened.
+      let kept = false;
+      for (let i = 0; i < KEPT_TRIES && !kept; i++) {
+        kept = estimateHoldsPush(getProjectRef.current(project.id) ?? null, res);
+        if (!kept) await pause(KEPT_STEP_MS);
+      }
+      if (!kept) { setResult('unconfirmed'); return; }
+      const now = new Date().toISOString();
+      const next: SavedScan = { ...saved, pushed: res.pushed, savedAt: now, pricedAt: now };
       setSaved(next);
-      setDirty(false);
-      await refreshSavedList();
-      // His taped walls go into his own list on this phone with the save, never before it.
-      const log = await recordTapePairs(userId, next.tapePairs ?? []);
-      if (log) setTapeLog(log);
+      const stored = await saveScan(next, rawJson);
+      if (stored) { setDirty(false); await refreshSavedList(); }
+      if (stored) await keepTape(next);
+      setResult('added');
+      router.push({ pathname: '/project-detail', params: { id: project.id, tile: 'linkedEstimate' } });
+    } finally {
+      setPushing(false);
     }
-  }, [saved, rawJson, refreshSavedList, userId]);
+  }, [saved, draft, pushing, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, router, keepTape]);
 
   // ── the order list leaving the screen: only from a confirm sheet's yes ──
   const sendOrder = useCallback(async (via: OrderSendVia, confirmed: true) => {
@@ -344,53 +375,14 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
       const next: SavedScan = { ...withOrderSent(saved, snap), orderPushed: res.pushed, savedAt: snap.at };
       setSaved(next);
       const stored = await saveScan(next, rawJson);
-      if (stored) {
-        setDirty(false);
-        await refreshSavedList();
-        const log = await recordTapePairs(userId, next.tapePairs ?? []);
-        if (log) setTapeLog(log);
-      }
+      if (stored) { setDirty(false); await refreshSavedList(); }
+      if (stored) await keepTape(next);
       setOrderSend('added');
       router.push({ pathname: '/project-detail', params: { id: project.id, tile: 'linkedEstimate' } });
     } finally {
       setOrderBusy(false);
     }
-  }, [saved, orderList, orderDraft, orderBusy, ocopy, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, userId, router]);
-
-  const confirmDraft = useCallback(async () => {
-    if (!saved || !draft || pushing) return;
-    const res = buildEstimatePatch({
-      confirmed: true, mayEdit: mayEditEstimate, project, draft, pushed: saved.pushed,
-      newId: generateUUID, markupPct, now: new Date().toISOString(),
-    });
-    if (!res || !project) { setResult('failed'); return; }
-    setPushing(true);
-    try {
-      updateProject(project.id, res.patch);
-      // Read the project back from the app's own state until it carries the
-      // lines. Only then is anything said, recorded or opened.
-      let kept = false;
-      for (let i = 0; i < KEPT_TRIES && !kept; i++) {
-        kept = estimateHoldsPush(getProjectRef.current(project.id) ?? null, res);
-        if (!kept) await pause(KEPT_STEP_MS);
-      }
-      if (!kept) { setResult('unconfirmed'); return; }
-      const now = new Date().toISOString();
-      const next: SavedScan = { ...saved, pushed: res.pushed, savedAt: now, pricedAt: now };
-      setSaved(next);
-      const stored = await saveScan(next, rawJson);
-      if (stored) {
-        setDirty(false);
-        await refreshSavedList();
-        const log = await recordTapePairs(userId, next.tapePairs ?? []);
-        if (log) setTapeLog(log);
-      }
-      setResult('added');
-      router.push({ pathname: '/project-detail', params: { id: project.id, tile: 'linkedEstimate' } });
-    } finally {
-      setPushing(false);
-    }
-  }, [saved, draft, pushing, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, router, userId]);
+  }, [saved, orderList, orderDraft, orderBusy, ocopy, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, keepTape, router]);
 
   // ── deleting a saved scan, only from its confirm sheet ──
   const confirmDelete = useCallback(async () => {

@@ -129,6 +129,11 @@ const FEATURE_FILES = [
   'utils/roomScan/editsCore.ts', 'utils/roomScan/gate.ts', 'utils/roomScan/geometryCore.ts', 'utils/roomScan/native.ts',
   'utils/roomScan/pricingCore.ts', 'utils/roomScan/quantitiesCore.ts', 'utils/roomScan/recipesCore.ts',
   'utils/roomScan/store.ts', 'utils/roomScan/storeCore.ts', 'utils/roomScan/types.ts', 'utils/roomScan/units.ts',
+  // The order list and the learning loop (lane SCANORDER; its own rules are in scripts/validate-scan-order.ts).
+  'components/roomScan/OrderListView.tsx', 'components/roomScan/CutLayoutView.tsx', 'components/roomScan/TapeFactsPanel.tsx',
+  'hooks/useScanOrderCopy.ts',
+  'utils/roomScan/cutPlanCore.ts', 'utils/roomScan/trimPackCore.ts', 'utils/roomScan/orderListCore.ts',
+  'utils/roomScan/learnCore.ts', 'utils/roomScan/learnStore.ts', 'utils/roomScan/orderPricingCore.ts',
 ] as const;
 const SWIFT_FILES = ['RoomScanTypes.swift', 'MageRoomScanModule.swift', 'RoomScanSupport.swift'] as const;
 const OTHER_FILES = [
@@ -704,11 +709,18 @@ rule('R3 nothing is built or saved without the person confirming', (w) => {
   const confirm = body('confirmDraft');
   const save = body('save');
   const count = (re: RegExp, s: string) => (s.match(re) ?? []).length;
-  check(o, count(/buildEstimatePatch\(/g, flow) === 1 && /buildEstimatePatch\(\{\s*confirmed: true, mayEdit: mayEditEstimate,/.test(confirm), 'buildEstimatePatch is not called exactly once, inside confirmDraft, with confirmed: true and the seat it was handed');
-  check(o, count(/updateProject\(/g, flow) === 1 && confirm.indexOf('updateProject(') > confirm.indexOf('buildEstimatePatch('), 'updateProject is not called exactly once, after the patch is built, inside confirmDraft');
-  check(o, count(/\bsaveScan\(/g, flow) === 2 && /saveScan\(/.test(save) && /saveScan\(/.test(confirm), 'saveScan is called somewhere other than the Save tap and the confirmed draft');
+  // Two ways into the estimate, each from its own confirm sheet: the priced
+  // draft (confirmDraft, the literal true) and the order list's material lines
+  // (sendOrder, which is handed the confirm sheet's own `true` and refuses
+  // first through orderListCore.confirmOrderSend; scripts/validate-scan-order.ts
+  // rule O13 pins that side).
+  const order = body('sendOrder');
+  check(o, count(/buildEstimatePatch\(/g, flow) === 2 && /buildEstimatePatch\(\{\s*confirmed: true, mayEdit: mayEditEstimate,/.test(confirm) && /buildEstimatePatch\(\{\s*confirmed, mayEdit: mayEditEstimate, project, draft: orderDraft,/.test(order), 'buildEstimatePatch is not called exactly twice: inside confirmDraft with confirmed: true, and inside sendOrder with the confirm sheet\'s own value, each with the seat it was handed');
+  check(o, count(/updateProject\(/g, flow) === 2 && confirm.indexOf('updateProject(') > confirm.indexOf('buildEstimatePatch(') && order.indexOf('updateProject(') > order.indexOf('buildEstimatePatch(') && order.indexOf('buildEstimatePatch(') > order.indexOf('if (!snap)') && order.indexOf('if (!snap)') > 0, 'updateProject is not called exactly once in confirmDraft and once in sendOrder, each after its patch is built');
+  check(o, count(/\bsaveScan\(/g, flow) === 3 && /saveScan\(/.test(save) && /saveScan\(/.test(confirm) && order.indexOf('saveScan(') > order.indexOf('updateProject('), 'saveScan is called somewhere other than the Save tap, the confirmed draft and the confirmed order list');
+  check(o, count(/sendOrder\(/g, flow) === 1 && /onSend=\{\(via, confirmed\) => void sendOrder\(via, confirmed\)\}/.test(flow), 'sendOrder is reachable from somewhere other than the order list\'s onSend');
   for (const m of flow.matchAll(/useEffect\(\(\) => \{([\s\S]*?)\n  \}, \[/g)) {
-    check(o, !/saveScan|updateProject|buildEstimatePatch|confirmDraft|\bsave\(|startScan/.test(m[1]), 'an effect saves, prices or starts a scan by itself');
+    check(o, !/saveScan|updateProject|buildEstimatePatch|confirmDraft|sendOrder|recordTapePairs|keepTape|\bsave\(|startScan/.test(m[1]), 'an effect saves, prices, sends or starts a scan by itself');
   }
   check(o, count(/confirmDraft\(\)/g, flow) === 1 && /onConfirm=\{\(\) => void confirmDraft\(\)\}/.test(flow), 'confirmDraft is reachable from somewhere other than the draft view\'s onConfirm');
   check(o, count(/void save\(\)/g, flow) === 1 && /onSave=\{\(\) => void save\(\)\}/.test(flow), 'save is reachable from somewhere other than the Save Scan button');
@@ -1333,7 +1345,7 @@ rule('W5 English and Spanish carry the same keys, plural shapes and placeholders
 rule('W6 the surface is registered the way the newest ones are', () => {
   const o: string[] = [];
   const s = SURFACES.find((x) => x.id === 'office.room-scan');
-  check(o, !!s && s.state === 'complete' && s.keyPrefixes.join() === 'office.roomScan.' && s.files.join() === 'hooks/useRoomScanCopy.ts', 'i18n/surfaces.ts does not list office.room-scan as complete with the one copy hook');
+  check(o, !!s && s.state === 'complete' && s.keyPrefixes.join() === 'office.roomScan.' && s.files.join() === 'hooks/useRoomScanCopy.ts,hooks/useScanOrderCopy.ts', 'i18n/surfaces.ts does not list office.room-scan as complete with its two copy hooks');
   check(o, EN_SHARDS['office.room-scan'] === (EN_REAL as unknown) && ES_SHARDS['office/roomScan'] === (ES_REAL as unknown), 'the shards are not listed in EN_SHARDS and ES_SHARDS');
   for (const key of Object.keys(RECIPE_NAMES_EN)) {
     const camel = key.replace(/_(\w)/g, (_m, c: string) => c.toUpperCase());
