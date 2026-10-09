@@ -42,7 +42,7 @@ import { ES_OFFICE_LIVING_MODEL_PHONE } from '../i18n/catalog/es/office/livingMo
 import { spikeFortyRoomJob, spikeSevenRoomJob, spikeTenWeekSchedule } from '../utils/livingModel/phoneSpikeSample';
 import {
   LABEL_MIN_LONG_PT, LABEL_MIN_SHORT_PT, MAX_ZOOM_STEP, SECOND_LINE_MIN_PT, TAP_MAX_MS, TAP_SLOP_PT,
-  frameStats, gestureBegin, gestureEnd, gestureMove, labelDetail, nextZoom, pointsPerMetre, viewSize,
+  frameStats, gestureBegin, gestureEnd, gestureMove, labelDetail, labelsToHide, nextZoom, pointsPerMetre, viewSize,
 } from '../utils/livingModel/phoneViewCore';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,7 +69,7 @@ try { tracked = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' 
 const ENV_FILES = tracked.filter((f) => /(^|\/)\.env(\.|$)/.test(f));
 const WORKFLOWS = tracked.filter((f) => f.startsWith('.github/workflows/'));
 
-const impl = { spikeSevenRoomJob, spikeTenWeekSchedule, spikeFortyRoomJob, gestureBegin, gestureMove, gestureEnd, viewSize, pointsPerMetre, labelDetail, nextZoom, frameStats, canvasStandIn, makePhoneScene };
+const impl = { spikeSevenRoomJob, spikeTenWeekSchedule, spikeFortyRoomJob, gestureBegin, gestureMove, gestureEnd, viewSize, pointsPerMetre, labelDetail, labelsToHide, nextZoom, frameStats, canvasStandIn, makePhoneScene };
 type Impl = typeof impl;
 type Catalog = Record<string, unknown>;
 interface World { files: Record<string, string>; EN: Catalog; ES: Catalog; impl: Impl; pkg: { scripts: Record<string, string>; dependencies: Record<string, string> } }
@@ -187,6 +187,10 @@ rule('A4', 'a room shows two lines only when it is wide on the screen, its name 
   for (const [a, b, d] of want) if (L(a, b, 30) !== d) out.push(`a room ${a} m by ${b} m at 30 points a metre shows "${L(a, b, 30)}"; want "${d}"`);
   if (L(Number.NaN, 4, 30) !== 'none' || L(4, 4, 0) !== 'none') out.push('a room with no size on the screen gets a label');
   if (!(LABEL_MIN_SHORT_PT < LABEL_MIN_LONG_PT && LABEL_MIN_LONG_PT < SECOND_LINE_MIN_PT)) out.push('the label limits are out of order');
+  // Three labels 60 by 24. A at (100, 100) for a 20 m2 room, B at (130, 110) for a 6 m2 room (on top of A),
+  // C at (200, 100) for a 4 m2 room (40 points clear of A's edge). B is hidden; A and C stay.
+  const hide = w.impl.labelsToHide([{ id: 'b', x: 130, y: 110, w: 60, h: 24, weight: 6 }, { id: 'a', x: 100, y: 100, w: 60, h: 24, weight: 20 }, { id: 'c', x: 200, y: 100, w: 60, h: 24, weight: 4 }]);
+  if ([...hide].join() !== 'b') out.push(`of three labels where the small room's sits on the large room's, hidden: ${[...hide].join(', ') || 'none'}; want only the small room's`);
   if (Z(1, 100) !== 6 || Z(1, 0.01) !== 0.5 || Z(2, 1.5) !== 3 || Z(2, Number.NaN) !== 2) out.push('the zoom this view keeps does not follow the scene\'s own limits (0.5 to 6)');
   const st = w.impl.frameStats([10, 30, 20, 40, Number.NaN]);
   if (st.frames !== 4 || st.medianMs !== 30 || st.worstMs !== 40) out.push(`frame timing of 10, 20, 30, 40 gave ${JSON.stringify(st)}`);
@@ -493,6 +497,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'A3', name: 'a view with no size is laid out', plant: swap({ viewSize: (lw, lh, bw, bh) => viewSize(Math.max(1, lw || 1), Math.max(1, lh || 1), Math.max(1, bw || 1), Math.max(1, bh || 1)) }) },
   { rule: 'A4', name: 'every room shows both lines', plant: swap({ labelDetail: () => 'full' }) },
   { rule: 'A4', name: 'points a metre forgets the 3x factor', plant: swap({ pointsPerMetre: (s, span, z) => pointsPerMetre({ ...s, unitsPerPoint: 1 }, span, z) }) },
+  { rule: 'A4', name: 'labels may sit on one another', plant: swap({ labelsToHide: () => new Set<string>() }) },
+  { rule: 'A4', name: 'the large room loses its label to the small one', plant: swap({ labelsToHide: (boxes) => labelsToHide(boxes.map((x) => ({ ...x, weight: -x.weight }))) }) },
   { rule: 'A4', name: 'the kept zoom has no limits', plant: swap({ nextZoom: (z, f) => z * f }) },
   { rule: 'A5', name: 'a frame is drawn and never shown', plant: swap({ makePhoneScene: (h, gl) => makePhoneScene(h, { ...gl, endFrameEXP: () => {} }) }) },
   { rule: 'A5', name: 'a tap is asked in points on a 3x phone', plant: swap({ makePhoneScene: (h, gl) => { const s = makePhoneScene(h, gl); return { ...s, pickAt: (x, y) => h.pick(x, y) }; } }) },

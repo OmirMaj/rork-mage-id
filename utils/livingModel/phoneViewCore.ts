@@ -160,6 +160,24 @@ export function labelDetail(shortSideM: number, longSideM: number, ptPerMetre: n
   return short >= SECOND_LINE_MIN_PT ? 'full' : 'name';
 }
 
+export interface LabelBox { id: string; x: number; y: number; w: number; h: number; weight: number }
+
+/**
+ * Labels that would sit on top of one another: the heavier one (the larger
+ * room) stays, the other is hidden until the model is turned or zoomed so
+ * that both fit. x and y are a label's centre. Returns the ids to hide.
+ */
+export function labelsToHide(boxes: readonly LabelBox[], gapPt = 2): Set<string> {
+  const kept: LabelBox[] = [];
+  const hidden = new Set<string>();
+  const order = boxes.slice().sort((a, b) => b.weight - a.weight || (a.id < b.id ? -1 : 1));
+  for (const b of order) {
+    const hit = kept.some((k) => Math.abs(k.x - b.x) < (k.w + b.w) / 2 + gapPt && Math.abs(k.y - b.y) < (k.h + b.h) / 2 + gapPt);
+    if (hit) hidden.add(b.id); else kept.push(b);
+  }
+  return hidden;
+}
+
 /** The slowest the labels are moved while the model turns: about thirty times a second. */
 export const LABEL_THROTTLE_MS = 33;
 

@@ -35,8 +35,8 @@ import { usePhone3DCopy } from '@/hooks/usePhone3DCopy';
 import { useReducedMotion } from '@/components/ui';
 import { roomBounds } from '@/utils/livingModel/modelCore';
 import {
-  LABEL_THROTTLE_MS, frameStats, gestureBegin, gestureEnd, gestureMove, labelDetail,
-  type FingerPoint, type GestureState, type LabelDetail,
+  LABEL_THROTTLE_MS, frameStats, gestureBegin, gestureEnd, gestureMove, labelDetail, labelsToHide,
+  type FingerPoint, type GestureState, type LabelBox, type LabelDetail,
 } from '@/utils/livingModel/phoneViewCore';
 import { roomLayers } from '@/utils/livingModel/replayCore';
 import { DEFAULT_CUT_M } from '@/utils/livingModel/sceneCore';
@@ -97,7 +97,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
   const alive = useRef(true);
   const labelViews = useRef(new Map<string, View>());
   const labelSizes = useRef(new Map<string, { w: number; h: number }>());
-  const labelSpots = useRef(new Map<string, { x: number; y: number }>());
+  const labelSpots = useRef(new Map<string, { x: number; y: number; hidden: boolean }>());
   const fade = useRef(new Animated.Value(0)).current;
   const roomsRef = useRef(rooms);
   roomsRef.current = rooms;
@@ -135,23 +135,24 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
 
   const placeLabels = useCallback((scene: PhoneScene) => {
     const ppm = scene.pointsPerMetre();
-    let next: Record<string, LabelDetail> | null = null;
+    const next: Record<string, LabelDetail> = {};
+    const boxes: LabelBox[] = [];
     for (const r of roomsRef.current) {
-      const p = scene.labelAt(r.id);
-      if (p) {
-        labelSpots.current.set(r.id, p);
-        const size = labelSizes.current.get(r.id);
-        const v = labelViews.current.get(r.id);
-        if (size && v) v.setNativeProps({ style: { opacity: 1, transform: [{ translateX: Math.round(p.x - size.w / 2) }, { translateY: Math.round(p.y - size.h / 2) }] } });
-      }
       const b = roomBounds(r);
-      const d = b ? labelDetail(b.maxX - b.minX, b.maxY - b.minY, ppm) : 'none';
-      (next ??= {})[r.id] = d;
+      next[r.id] = b ? labelDetail(b.maxX - b.minX, b.maxY - b.minY, ppm) : 'none';
+      const p = scene.labelAt(r.id);
+      const size = labelSizes.current.get(r.id);
+      if (p) labelSpots.current.set(r.id, { x: p.x, y: p.y, hidden: labelSpots.current.get(r.id)?.hidden ?? false });
+      if (p && size && b && next[r.id] !== 'none') boxes.push({ id: r.id, x: p.x, y: p.y, w: size.w, h: size.h, weight: (b.maxX - b.minX) * (b.maxY - b.minY) });
     }
-    if (next) {
-      const n = next;
-      setDetails((prev) => (Object.keys(n).length === Object.keys(prev).length && Object.keys(n).every((k) => prev[k] === n[k]) ? prev : n));
+    // Two labels never sit on one another: the larger room keeps its label.
+    const hide = labelsToHide(boxes);
+    for (const box of boxes) {
+      const spot = labelSpots.current.get(box.id);
+      if (spot) spot.hidden = hide.has(box.id);
+      labelViews.current.get(box.id)?.setNativeProps({ style: { opacity: hide.has(box.id) ? 0 : 1, transform: [{ translateX: Math.round(box.x - box.w / 2) }, { translateY: Math.round(box.y - box.h / 2) }] } });
     }
+    setDetails((prev) => (Object.keys(next).length === Object.keys(prev).length && Object.keys(next).every((k) => prev[k] === next[k]) ? prev : next));
   }, []);
 
   frameRef.current = (ts: number) => {
@@ -363,7 +364,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
         const m = moments.get(r.id);
         const spot = labelSpots.current.get(r.id);
         const size = labelSizes.current.get(r.id);
-        const placed = spot && size ? { opacity: 1, transform: [{ translateX: Math.round(spot.x - size.w / 2) }, { translateY: Math.round(spot.y - size.h / 2) }] } : { opacity: 0 };
+        const placed = spot && size ? { opacity: spot.hidden ? 0 : 1, transform: [{ translateX: Math.round(spot.x - size.w / 2) }, { translateY: Math.round(spot.y - size.h / 2) }] } : { opacity: 0 };
         return (
           <View
             key={r.id}
