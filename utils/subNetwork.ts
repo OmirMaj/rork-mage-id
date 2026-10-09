@@ -670,10 +670,10 @@ function buildCredential(o: {
   const verifiedParts: string[] = [];
   if (jobCount > 0) {
     verifiedParts.push(
-      `Verified by MAGE ID from ${plural(jobCount, 'job record', 'job records')} across ${plural(gcCount, 'general contractor', 'general contractors')}`,
+      `Built from ${plural(jobCount, 'job record', 'job records')} kept in MAGE ID by ${plural(gcCount, 'general contractor', 'general contractors')}. MAGE ID did not check them`,
     );
   } else {
-    verifiedParts.push('Verified by MAGE ID, no linked job records yet');
+    verifiedParts.push('No linked job records yet. MAGE ID has not checked anything on this card');
   }
 
   return {

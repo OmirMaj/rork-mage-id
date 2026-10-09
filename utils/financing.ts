@@ -26,9 +26,24 @@ export function isFinancingAvailable(settings: AppSettings | undefined): boolean
   return financingConfigLive(settings?.financing);
 }
 
+/**
+ * OFF (PROTECT-TEXT, 2026-10-09). A monthly payment and an APR shown to a
+ * homeowner were worked out from a rate and a term the CONTRACTOR typed
+ * (app/payments-setup.tsx). No lender supplied them: MAGE ID has no financing
+ * partner integration, only a link to the contractor's own lender. A payment
+ * figure with a rate, in an invoice email, is a credit advertisement nobody
+ * with a lending licence has read. Until a real, named partner integration
+ * supplies the figures (and counsel has read the disclosure), no surface
+ * prints a monthly amount, a rate or a term. Turning this on is a founder
+ * and counsel decision; scripts/validate-protections.ts pins it false.
+ */
+export const FINANCING_FIGURES_ENABLED: boolean = false;
+
 /** Standard amortized monthly payment. Returns null when an illustrative
- *  figure must NOT be shown (no example terms configured, or no amount). */
+ *  figure must NOT be shown (figures are off, no example terms configured, or
+ *  no amount). */
 export function illustrativeMonthly(amountCents: number, cfg: FinancingConfig): number | null {
+  if (!FINANCING_FIGURES_ENABLED) return null;
   if (!cfg.exampleApr || !cfg.exampleTermMonths || amountCents <= 0) return null;
   const principal = amountCents / 100;
   const r = cfg.exampleApr / 100 / 12;
@@ -71,16 +86,14 @@ export function financingEmailBlockHtml(args: {
   if (!isFinancingRefToken(refToken)) return '';
   const cfg = settings!.financing!;
   const url = buildFinancingRedirectUrl(refToken);
-  const monthly = illustrativeMonthly(amountCents, cfg);
-  const headline = monthly
-    ? `Prefer to pay monthly? Est. <strong>$${monthly.toLocaleString('en-US')}/mo</strong> — see if you prequalify with ${escapeHtml(cfg.partnerName)}.`
-    : `Prefer to pay monthly? See if you prequalify with ${escapeHtml(cfg.partnerName)}.`;
-  const safePartner = escapeHtml(cfg.partnerName);
+  // No monthly figure and no rate here: see FINANCING_FIGURES_ENABLED above.
+  void amountCents;
+  const headline = `Your contractor works with ${escapeHtml(cfg.partnerName)} for financing. The button below opens their site.`;
   const disclosureHtml = escapeHtml(financingDisclosureText(cfg.partnerName));
   return `
     <div style="margin:18px 0;padding:16px;border:1px solid #E2E5E9;border-radius:12px;background:#F7F8FA;">
       <p style="margin:0 0 10px;font-size:14px;color:#2B3038;">${headline}</p>
       <a href="${url}" style="display:inline-block;padding:10px 18px;background:#1F6FEB;color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;">Check Financing Options</a>
-      <p style="margin:10px 0 0;font-size:11px;color:#9AA3AD;">${monthly ? 'Estimated payment, not an offer. Actual terms from ' + safePartner + ' on approval. ' : ''}${disclosureHtml}</p>
+      <p style="margin:10px 0 0;font-size:11px;color:#9AA3AD;">${disclosureHtml}</p>
     </div>`;
 }

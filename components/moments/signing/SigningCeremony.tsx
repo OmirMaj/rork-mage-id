@@ -625,7 +625,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
         {fold.body ??
           (fold.sent === false
             ? t('common.moment.shareLinkInstead', 'Share the link instead.')
-            : t('common.moment.counterSignNote', 'They counter-sign from their portal link. The contract is binding when they sign.'))}
+            : t('common.moment.counterSignNote', 'They counter-sign from their portal link. The contract is signed by both parties when they do.'))}
       </Text>
       {(fold.rows ?? [
         { label: t('common.moment.rowTo', 'To'), value: fold.email },

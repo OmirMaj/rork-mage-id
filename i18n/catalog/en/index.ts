@@ -45,12 +45,14 @@ import { EN as EN_SCHEDULE_LATENESS } from './schedule.lateness.generated';
 import { EN as EN_FIELD_PUNCH_SEAL } from './field.punch-seal.generated';
 import { EN as EN_OFFICE_PERMIT_PATH } from './office.permit-path.generated';
 import { EN as EN_OFFICE_WHOSON } from './office.whoson.generated';
+import { EN as EN_OFFICE_PROTECT } from './office.protect.generated';
 import { EN as EN_OFFICE_CODE_FLAGS } from './office.code-flags.generated';
 import { EN as EN_OFFICE_FIRST_JOB } from './office.first-job.generated';
 import { EN as EN_OFFICE_ROOM_SCAN } from './office.room-scan.generated';
 import { EN as EN_OFFICE_LIVING_MODEL } from './office.living-model.generated';
 import { EN as EN_OFFICE_PROOF_PACK } from './office.proof-pack.generated';
 import { EN as EN_OFFICE_SCAN_CLEARANCE } from './office.scan-clearance.generated';
+import { EN as EN_OFFICE_NOTICES } from './office.notices.generated';
 
 /** Every generated shard by surface id (validate-i18n checks duplicates across them). */
 export const EN_SHARDS: Record<string, EnCatalog> = {
@@ -85,12 +87,14 @@ export const EN_SHARDS: Record<string, EnCatalog> = {
   'field.punch-seal': EN_FIELD_PUNCH_SEAL,
   'office.permit-path': EN_OFFICE_PERMIT_PATH,
   'office.whoson': EN_OFFICE_WHOSON,
+  'office.protect': EN_OFFICE_PROTECT,
   'office.code-flags': EN_OFFICE_CODE_FLAGS,
   'office.first-job': EN_OFFICE_FIRST_JOB,
   'office.room-scan': EN_OFFICE_ROOM_SCAN,
   'office.living-model': EN_OFFICE_LIVING_MODEL,
   'office.proof-pack': EN_OFFICE_PROOF_PACK,
   'office.scan-clearance': EN_OFFICE_SCAN_CLEARANCE,
+  'office.notices': EN_OFFICE_NOTICES,
 };
 
 export { EN_SEED, EN_UNASSIGNED };

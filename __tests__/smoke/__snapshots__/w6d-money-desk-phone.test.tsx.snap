@@ -30,22 +30,22 @@ exports[`lane M2 golden — the phone (390 × 844 iOS) (h) /payments, empty 1`] 
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (i) /lien-waivers, four waivers 1`] = `
 {
-  "lines": 736,
-  "sha256": "73d9277f947e71bfcaf9f95e0290240937849598e91127554c6c4704aadccf9f",
+  "lines": 738,
+  "sha256": "401cf667019552e3086ffa680c1f679feccf9250325c989038cb3b9cfdc46652",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (j) /lien-waivers, a failed read with a cache (the stale banner) 1`] = `
 {
-  "lines": 623,
-  "sha256": "9f6cb0b0f0df63870d2c237a0282d91ef919a2f9d23ebd84ea11eecc535999bb",
+  "lines": 625,
+  "sha256": "2ade0234577e71779dea5682745658ac43301080377ff9df9ce8ce62d894cd46",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (k) /lien-waivers, a failed read without a cache 1`] = `
 {
-  "lines": 472,
-  "sha256": "cd2fa4a9c1ac19f636a593a310a4f9ef91f58b79a5a78bc3cd0b5ca6c8cbccc7",
+  "lines": 474,
+  "sha256": "ed84a2c19fc59005d1fcd22d07e25481b26460bcdcfaebc9b8fd73b0116eb0de",
 }
 `;
 
@@ -59,7 +59,7 @@ exports[`lane M2 golden — the phone (390 × 844 iOS) (l) /invoice, a draft wit
 exports[`lane M2 golden — the phone (390 × 844 iOS) (m) /invoice, sent with a pay link and a balance (the ONE intended delta) 1`] = `
 {
   "lines": 1047,
-  "sha256": "a4fbfd1e69fbed15757d5e3233d23a1c1051efb1167fd0045dce00724ddf2537",
+  "sha256": "ec04217683a3b540659cd8ebbf1052259add3d775403f8d5f3e4d614c846510a",
 }
 `;
 

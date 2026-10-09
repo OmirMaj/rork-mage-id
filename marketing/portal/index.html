@@ -2789,6 +2789,12 @@
 </style>
 </head>
 <body>
+<a class="mg-skip" href="#mg-main">Skip to Main Content</a>
+<aside class="mg-notice" data-recipient-notice="1" aria-label="About This Page" style="box-sizing:border-box;padding:12px 16px;background:#F4F5F2;color:#0B0D10;font-size:14px;line-height:1.5;border-bottom:1px solid #C9CDC6;text-align:left">
+  <p style="margin:0 auto;max-width:960px;color:#0B0D10">Prepared by <span data-notice-company>your contractor</span> using MAGE ID software. MAGE ID did not prepare, review or check this document and makes no statement to the reader about its contents.</p>
+  <p style="margin:4px auto 0;max-width:960px;color:#0B0D10">This page is run by MAGE ID for <span data-notice-company>your contractor</span>. <a href="https://mageid.app/terms" style="color:#1F4D29;font-weight:600">Terms of Service</a> · <a href="https://mageid.app/privacy" style="color:#1F4D29;font-weight:600">Privacy Policy</a></p>
+</aside>
+<script src="/protect-notice.js?v=2026-10-09"></script>
 
   <!-- Passcode gate -->
   <div id="gate" class="gate-wrap" style="display:none">
@@ -2802,7 +2808,7 @@
            locked the client out for good. -->
       <input id="gate-input" type="text" minlength="4" maxlength="20" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Passcode" placeholder="Passcode" />
       <button id="gate-submit">Unlock Portal</button>
-      <div class="err" id="gate-err"></div>
+      <div class="err" id="gate-err" role="alert"></div>
     </div>
   </div>
 
@@ -2852,7 +2858,7 @@
       <div class="nav" id="nav"></div>
     </nav>
 
-    <main class="container">
+    <main class="container" id="mg-main">
       <div id="latest-update" class="latest-update" style="display:none"></div>
       <div id="budget-banner" class="budget-banner" style="display:none"></div>
       <div id="sections"></div>
@@ -3006,7 +3012,7 @@
   var FALLBACK_STRINGS = {
     latestUpdateEyebrow: 'Latest update from {company}',
     contractSectionTitle: 'Construction Agreement',
-    contractSectionSubtitleSign: 'Review the contract and sign to make it binding.',
+    contractSectionSubtitleSign: 'Review the contract and sign it.',
     contractSectionSubtitleSigned: 'Signed by both parties on file.',
     selectionsSectionTitle: 'Selections and Allowances',
     selectionsSectionSubtitle: 'Pick from options within your allowance.',
@@ -3049,10 +3055,10 @@
     contractStatusSigned: 'Signed by Both Parties',
     contractTitleLabel: 'Title',
     contractValueLabel: 'Contract Value',
-    contractSignedDisclaimer: 'This is your binding agreement. Keep it for your records.',
-    contractSignerExplainer: 'Your contractor has signed and sent this agreement. Read the scope, payment schedule, warranty and terms below, then enter your full legal name to counter-sign and make it binding.',
+    contractSignedDisclaimer: 'This is the agreement you signed. Keep a copy for your records.',
+    contractSignerExplainer: 'Your contractor has signed and sent this agreement. Read the scope, payment schedule, warranty and terms below, then enter your full legal name to counter-sign.',
     contractSignNamePlaceholder: 'Type your full legal name',
-    contractSignButton: 'Sign and Make Binding',
+    contractSignButton: 'Sign the Agreement',
     contractFinePrint: 'By typing your name and tapping Sign, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
     // ── The signing moments (wave-next W3, MOMPORTAL) ─────────────────────
     // ENGLISH ONLY, on purpose. No other language table on this page, and no
@@ -3066,11 +3072,11 @@
     contractSignNameReason: 'Type your full legal name to sign.',
     contractSignBusy: 'Waiting for the server to record your signature.',
     contractSignAlready: 'Already signed. Updating the page.',
-    contractSignedSeal: 'Signed. This contract is binding.',
-    contractSealChip: 'Binding',
+    contractSignedSeal: 'Signed. Keep a copy for your records.',
+    contractSealChip: 'Signed',
     contractSignDeniedSigned: 'This contract is already signed.',
     contractSignDeniedPending: 'Your contractor has not published this contract\'s terms to your portal yet, so it cannot be signed here. Nothing was signed. Check back once the terms appear.',
-    contractSignDeniedLink: 'To sign, ask your contractor to re-send your portal link. It carries a secure access code required to make this binding.',
+    contractSignDeniedLink: 'To sign, ask your contractor to re-send your portal link. It carries a secure access code required to sign.',
     momentRecordedAt: 'Recorded {date}, {time} (server time).',
     momentNoAnswer: 'No answer yet. Refresh the page to check before trying again.',
     momentHint: 'Slide the handle to the end of the line, or press and hold Space.',
@@ -3093,7 +3099,7 @@
     // (contractFinePrint, and CONTRACT_COPY in every language) stays, word for
     // word, for the tap button: the other five languages, and English when
     // moments.js did not load. Consent text: never machine-translated.
-    contractSlideLabel: 'Slide along the line to make it binding',
+    contractSlideLabel: 'Slide along the line to sign',
     contractFinePrintSlide: 'By typing your name and sliding along the line, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
     closeoutPrint: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print or Save as PDF',
     closeoutDelivered: 'Delivered',
@@ -3959,27 +3965,27 @@
   // the bundle.
   var CONTRACT_COPY = {
     en: {
-      explainer: 'Your contractor has signed and sent this agreement. Read the scope, payment schedule, warranty and terms below, then enter your full legal name to counter-sign and make it binding.',
+      explainer: 'Your contractor has signed and sent this agreement. Read the scope, payment schedule, warranty and terms below, then enter your full legal name to counter-sign.',
       finePrint: 'By typing your name and tapping Sign, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
     },
     es: {
-      explainer: 'Su contratista ha firmado y enviado este acuerdo. Lea abajo el alcance, el cronograma de pagos, la garantía y los términos; luego escriba su nombre legal completo para firmar y hacerlo vinculante.',
+      explainer: 'Su contratista ha firmado y enviado este acuerdo. Lea abajo el alcance, el cronograma de pagos, la garantía y los términos; luego escriba su nombre legal completo para firmar.',
       finePrint: 'Al escribir su nombre y pulsar Firmar, acepta el acuerdo como legalmente vinculante. Su contratista conserva la copia firmada y sellada y puede enviársela.',
     },
     pt: {
-      explainer: 'Seu construtor assinou e enviou este acordo. Leia abaixo o escopo, o cronograma de pagamentos, a garantia e os termos; depois digite seu nome legal completo para contra-assinar e torná-lo vinculante.',
+      explainer: 'Seu construtor assinou e enviou este acordo. Leia abaixo o escopo, o cronograma de pagamentos, a garantia e os termos; depois digite seu nome legal completo para contra-assinar.',
       finePrint: 'Ao digitar seu nome e tocar em Assinar, você aceita o acordo como legalmente vinculante. Seu construtor guarda a cópia assinada e selada e pode enviá-la a você.',
     },
     zh: {
-      explainer: '您的承包商已签署并发送此协议。请阅读下方的工程范围、付款计划、保修和条款,然后输入您的法定全名进行会签,使其生效。',
+      explainer: '您的承包商已签署并发送此协议。请阅读下方的工程范围、付款计划、保修和条款,然后输入您的法定全名进行会签。',
       finePrint: '输入姓名并点击"签字"即表示您接受此协议具有法律约束力。您的承包商会保留已签署并加封的副本,并可发送给您。',
     },
     vi: {
-      explainer: 'Nhà thầu đã ký và gửi thỏa thuận này. Hãy đọc phạm vi công việc, lịch thanh toán, bảo hành và các điều khoản bên dưới, sau đó nhập tên đầy đủ hợp pháp của bạn để đối ký và làm hợp đồng có hiệu lực.',
+      explainer: 'Nhà thầu đã ký và gửi thỏa thuận này. Hãy đọc phạm vi công việc, lịch thanh toán, bảo hành và các điều khoản bên dưới, sau đó nhập tên đầy đủ hợp pháp của bạn để đối ký.',
       finePrint: 'Bằng cách nhập tên và bấm Ký, bạn chấp nhận thỏa thuận có giá trị pháp lý. Nhà thầu giữ bản đã ký có niêm phong và có thể gửi cho bạn.',
     },
     fr: {
-      explainer: "Votre entrepreneur a signé et envoyé cet accord. Lisez ci-dessous l'étendue des travaux, le calendrier de paiement, la garantie et les conditions, puis saisissez votre nom légal complet pour contresigner et le rendre exécutoire.",
+      explainer: "Votre entrepreneur a signé et envoyé cet accord. Lisez ci-dessous l'étendue des travaux, le calendrier de paiement, la garantie et les conditions, puis saisissez votre nom légal complet pour contresigner.",
       finePrint: "En saisissant votre nom et en touchant Signer, vous acceptez l'accord comme juridiquement contraignant. Votre entrepreneur conserve la copie signée et scellée et peut vous l'envoyer.",
     },
   };
@@ -5114,8 +5120,8 @@
     var partner = String((fin && fin.partnerName) || '').trim();
     return (
       '<div class="fin-card" data-financing="1">' +
-        '<p class="fin-lead">Prefer to pay monthly? Your contractor works with ' + esc(partner) +
-          '. See if you prequalify on their site. It opens in a new tab.</p>' +
+        '<p class="fin-lead">Your contractor works with ' + esc(partner) +
+          ' for financing. The button below opens their site in a new tab.</p>' +
         '<a class="invoice-pay-btn fin-btn" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" ' +
           'aria-label="' + esc('Check Financing Options with ' + partner) + '">' +
           icn(ICONS.creditCard, 14) + '<span>Check Financing Options</span>' +
@@ -8657,6 +8663,7 @@
     // Brand
     var companyName = company.name || 'MAGE ID';
     document.getElementById('brand-name').textContent = companyName;
+    if (window.mageNotice) window.mageNotice.setCompany(company.name);
     document.getElementById('brand-mark').textContent = (companyName.charAt(0) || 'M').toUpperCase();
 
     // Hero
@@ -8940,7 +8947,7 @@
     // key the redirect needs (see financingPortalUrl).
     var finUrl = data.financing && data.financing.partnerName ? financingPortalUrl(data) : '';
     if (finUrl) {
-      addSection('financing', 'creditCard', 'Paying Monthly', 'Financing through ' + data.financing.partnerName, null,
+      addSection('financing', 'creditCard', 'Financing', 'Financing through ' + data.financing.partnerName, null,
         renderFinancingCard(data.financing, finUrl));
     }
     if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {
@@ -9210,7 +9217,7 @@
               var msg = /co_not_shared/.test(errText)
                 ? 'This change order was withdrawn by your contractor, so it can\'t be signed. Message your contractor if you have questions.'
                 : /Supabase 4/.test(errText)
-                  ? 'To sign, ask your contractor to re-send your portal link. It carries a secure access code required to make this binding.'
+                  ? 'To sign, ask your contractor to re-send your portal link. It carries a secure access code required to sign.'
                   : "We couldn't record your decision. Check your connection and try again, or message your contractor.";
               ui.setError(msg);
             });
@@ -9987,7 +9994,7 @@
       out.push({
         id: 'contract', kind: 'contract', urgency: 'waiting',
         title: 'Contract Waiting for Your Signature',
-        detail: 'Review the scope, payment schedule, and warranty, then counter-sign to make it binding.',
+        detail: 'Review the scope, payment schedule, and warranty, then counter-sign.',
         target: 'sec-contract',
       });
     }

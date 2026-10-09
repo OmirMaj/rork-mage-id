@@ -598,12 +598,6 @@
       "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
     },
     {
-      "file": "app/payment-predictions.tsx",
-      "rule": "R20",
-      "match": "to forecast real inflows",
-      "reason": "a prediction claim: left as typed for a founder decision (lane 2 report)"
-    },
-    {
       "file": "app/budget-dashboard.tsx",
       "rule": "R20",
       "match": "Actual Cost (money paid OUT",
@@ -626,12 +620,6 @@
       "rule": "R15",
       "match": "Dictate this change order",
       "reason": "the InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (voiceContextKey)"
-    },
-    {
-      "file": "utils/financing.ts",
-      "rule": "R20",
-      "match": "Prefer to pay monthly?",
-      "reason": "a lender line with price notation (\"/mo\"): left as typed for a founder decision (lane 2 report)"
     },
     {
       "file": "utils/aiaBilling.ts",
@@ -2197,12 +2185,6 @@
       "file": "app/(tabs)/discover/index.tsx",
       "rule": "R15",
       "match": "Finance a truck or new equipment",
-      "reason": "a Discover promo card (equipment financing): left exactly as typed for a founder decision"
-    },
-    {
-      "file": "app/(tabs)/discover/index.tsx",
-      "rule": "R20",
-      "match": "Lower priority per the strategy doc",
       "reason": "a Discover promo card (equipment financing): left exactly as typed for a founder decision"
     },
     {

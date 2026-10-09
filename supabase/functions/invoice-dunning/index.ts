@@ -49,7 +49,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // dunning reminders match sub-portal invites, contract sends, payment
 // receipts, the morning brief, the homeowner weekly digest, and COI
 // warnings.
-import { wrapEmailHtml, resendSend, emailButton, isEmailUnsubscribed } from '../_shared/email.ts';
+import { wrapEmailHtml, resendSend, emailButton, isEmailUnsubscribed, escapeHtml } from '../_shared/email.ts';
 // EDGE-F6: the ONE place a customer-facing portal URL is built (minted id + ?t= token).
 import { portalUrlFor, portalLinkEnded, storedPortalKey } from '../_shared/portalLinks.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
@@ -372,24 +372,27 @@ function buildDunningHtml(opts: {
   })();
 
   const stageLabel =
-    opts.stage === 3 ? 'Final notice' :
-    opts.stage === 2 ? 'Second notice' :
+    opts.stage === 3 ? 'Third reminder' :
+    opts.stage === 2 ? 'Second reminder' :
     'Payment reminder';
 
   const subject = opts.stage === 3
-    ? `Final notice: invoice #${opts.invoiceNumber} is ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} overdue`
+    ? `Third reminder: invoice #${opts.invoiceNumber} is ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} overdue`
     : opts.stage === 2
-    ? `Second notice: invoice #${opts.invoiceNumber} is ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} overdue`
+    ? `Second reminder: invoice #${opts.invoiceNumber} is ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} overdue`
     : `Reminder: invoice #${opts.invoiceNumber} is past due`;
 
-  // Stage-appropriate intro tone:
-  // 1 = friendly, 2 = firmer, 3 = urgent
+  // One plain reminder at every stage: the amount, the due date and how to pay.
+  // PROTECT-TEXT (2026-10-09): stage 3 used to be titled "Final notice" and
+  // told a homeowner to pay "to avoid further action". A reminder sent by
+  // software in a contractor's name names no deadline, no consequence and no
+  // next step. Only the count changes between stages.
   const introLine =
     opts.stage === 3
-      ? `This is a final notice about an outstanding balance on your project. Arrange payment now to avoid further action.`
+      ? `This is the third reminder about the invoice below. The amount, the due date and the ways to pay are shown here.`
       : opts.stage === 2
-      ? `Payment for the invoice below hasn't been received yet. Review it and arrange payment as soon as you can.`
-      : `The invoice below is now past due. If you've already sent payment, you can ignore this notice.`;
+      ? `This is the second reminder about the invoice below. The amount, the due date and the ways to pay are shown here.`
+      : `The invoice below is past its due date. The amount, the due date and the ways to pay are shown here.`;
 
   // Exact to the cent (#135 family): the shared fmtMoney rounds to whole
   // dollars, so the notice demanded "$77,485" while the Pay button beside it
@@ -426,7 +429,7 @@ function buildDunningHtml(opts: {
     ${opts.payUrl ? emailButton(`Pay ${amountFormatted} now`, opts.payUrl) : ''}
     ${opts.portalUrl ? emailButton('View invoice', opts.portalUrl) : ''}
     <p style="margin:18px 0 0;font-family:${FONT_STACK};font-size:13px;color:${FOG};line-height:19px;">
-      Questions about this invoice? Reply to this email${opts.portalUrl ? ' or visit your project portal' : ''}.
+      If you have already paid, or you think this invoice is wrong, reply to this email to reach ${escapeHtml(opts.companyName)}${opts.portalUrl ? ', or visit your project portal' : ''}.
     </p>
   `;
 
@@ -437,6 +440,7 @@ function buildDunningHtml(opts: {
     subtitle: `${opts.projectName}`,
     bodyHtml,
     companyName: opts.companyName,
+    preparedBy: opts.companyName,
     unsubscribe: {
       recipientEmail: opts.recipientEmail,
       eventKey: 'payment_reminders',
@@ -636,9 +640,9 @@ async function processInvoice(
   // ── Compose email ──
   const subject =
     target === 3
-      ? `Final notice: invoice #${invoice.number} is ${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'} overdue`
+      ? `Third reminder: invoice #${invoice.number} is ${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'} overdue`
       : target === 2
-      ? `Second notice: invoice #${invoice.number} is ${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'} overdue`
+      ? `Second reminder: invoice #${invoice.number} is ${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'} overdue`
       : `Reminder: invoice #${invoice.number} is past due`;
 
   // #81: the portal link only to a portal invitee — a bill-to address the

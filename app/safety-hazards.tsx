@@ -51,6 +51,7 @@ import {
 import { getLang, t } from '@/i18n/core';
 import { useSheetFrame, useSheetPrimaryHotkey, segmentedDesktop } from '@/components/ui';
 import { useT } from '@/contexts/LanguageContext';
+import { ProtectNote } from '@/components/ProtectNotices';
 
 const SCALE_OPTIONS: HazardScale[] = [1, 2, 3, 4, 5];
 
@@ -315,7 +316,7 @@ function SafetyHazardsInner() {
       setSuggestions(found);
       await recordAIUsage('smart', 'photoAnalysis');
       if (found.length === 0) {
-        setScanNote(t('safety.hazard.scanNone', 'No hazards detected in that photo. Try a wider shot or better lighting, or log hazards manually.'));
+        setScanNote(t('safety.hazard.scanNone', 'The AI did not pick out a hazard in that photo. That does not mean the site is safe. Try a wider shot or better lighting, or log hazards by hand.'));
       } else {
         // A count next to the button, so a found hazard never reads as
         // "nothing happened".
@@ -597,6 +598,10 @@ function SafetyHazardsInner() {
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
+
+                <ProtectNote testID="hazard-record-notice" style={{ marginBottom: 12 }}>
+                  {t('safety.protect.recordNotice', 'This log is your own record. MAGE ID does not review it. Reporting an incident or a hazard to OSHA or any other authority is your responsibility.')}
+                </ProtectNote>
 
                 <Text style={styles.fieldLabel}>{t('safety.hazard.description', 'Description *')}</Text>
                 <TextInput

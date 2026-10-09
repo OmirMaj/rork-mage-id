@@ -16,15 +16,15 @@ exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout (pop
 
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout-package: awarded (commitment link + A401) 1`] = `
 {
-  "lines": 621,
-  "sha256": "cebdb7008deace1564dae8814d392708217e3f1941942be8722b325beeb2639e",
+  "lines": 623,
+  "sha256": "4436f50f5e1851928ab614762083b1ffc30b50d77c2bc177f41b8053447d70d8",
 }
 `;
 
 exports[`lane B3 — the phone is unchanged (golden, 390 × 844 iOS) buyout-package: awarded over budget 1`] = `
 {
-  "lines": 603,
-  "sha256": "99a8d4c5ee4678b631ee47a92554dca3e7bc20984d135a3b5d53638af96bab35",
+  "lines": 605,
+  "sha256": "f33ffb0d2ca13a34e1aec8f1d3787f1f78bcb851c630121264bf464dd7735a09",
 }
 `;
 

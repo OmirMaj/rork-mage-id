@@ -35,7 +35,7 @@ export function crewMemberToWorkerProfile(cm: CrewMember): WorkerProfile {
     // The badge, not the raw flag (#165/#166): a record flagged verified with
     // no masked number (a scan that read nothing), or whose ID has since
     // expired, must never be published as "ID Verified" on the marketplace.
-    licenses: verifiedBadge(cm) === 'id_verified' ? ['ID Verified'] : [],
+    licenses: verifiedBadge(cm) === 'id_verified' ? ['ID on File'] : [],
     city: '',
     state: '',
     availability: 'available',

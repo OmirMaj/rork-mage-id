@@ -291,8 +291,8 @@ expect('highlights include trades', sam.credential.highlights.includes('Trades p
 expect('highlights include first year on platform', sam.credential.highlights.includes('Working through MAGE ID since 2024'), true);
 expect('summary opens with the reach claim', sam.credential.summary.startsWith('Volt Edge Electric has run 3 jobs for 2 general contractors on MAGE ID'), true);
 expect('summary states the on-time rate', sam.credential.summary.includes('75% of the time'), true);
-expect('verified line names the evidence and disclaims pricing', sam.credential.verifiedLine, 'Verified by MAGE ID from 3 job records across 2 general contractors. No pricing, rates, or contract values are shared.');
-expect('empty credential says so instead of bluffing', stranger.credential.verifiedLine.includes('no linked job records yet'), true);
+expect('verified line names the evidence and disclaims pricing', sam.credential.verifiedLine, 'Built from 3 job records kept in MAGE ID by 2 general contractors. MAGE ID did not check them. No pricing, rates, or contract values are shared.');
+expect('empty credential says so instead of bluffing', stranger.credential.verifiedLine.includes('No linked job records yet'), true);
 
 // ── Referral hook ───────────────────────────────────────────────────────────
 console.log('\nreferral hook (the sub pulls their other GCs in):');

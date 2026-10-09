@@ -654,7 +654,7 @@ export function buildReadmeText(
     lines.push(`• mage-id-export-*-closeout.pdf`);
     lines.push(`  The substantial-completion handover packet. Includes contract`);
     lines.push(`  summary, change orders, payments, warranties, finishes, punch`);
-    lines.push(`  list, and photo summary. Safe to print and file with the client.`);
+    lines.push(`  list, and photo summary. Made to print and file with the client.`);
     lines.push(``);
   }
   lines.push(`COUNTS`);

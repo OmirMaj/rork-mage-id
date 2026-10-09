@@ -7,7 +7,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ShieldAlert, Plus, X, Trash2, AlertTriangle, ChevronLeft, Check, Mic,
+  ShieldAlert, Plus, X, Trash2, AlertTriangle, ChevronLeft, Check, Mic, Minus,
   Camera, Images,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -53,6 +53,7 @@ import { ensureAiConsent, AI_CONSENT_OFF_MESSAGE, AI_CONSENT_OFF_TITLE } from '@
 import { getLang, t } from '@/i18n/core';
 import { useSheetFrame, useSheetPrimaryHotkey, segmentedDesktop } from '@/components/ui';
 import { useT } from '@/contexts/LanguageContext';
+import { ProtectNote } from '@/components/ProtectNotices';
 
 /** Photos one incident report can carry. Eight is a scene, a hazard, the
  *  equipment, the corrective action and a couple of angles — past that it is a
@@ -719,7 +720,7 @@ function SafetyIncidentsInner() {
             <EmptyState
               icon={<ShieldAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title={t('safety.incident.noIncidentsLogged', 'No Incidents Logged')}
-              message={t('safety.incident.reportInjuriesNearMisses', 'Report injuries, near misses and property damage as they happen. MAGE drafts the report from your notes and classifies OSHA-recordable status.')}
+              message={t('safety.incident.reportInjuriesNearMisses', 'Report injuries, near misses and property damage as they happen. MAGE drafts the report from your notes and suggests whether the case is OSHA-recordable. You decide.')}
               actionLabel={t('safety.incident.reportIncident', 'Report Incident')}
               onAction={() => { resetForm(); setShowForm(true); }}
             />
@@ -758,6 +759,10 @@ function SafetyIncidentsInner() {
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
+
+                <ProtectNote testID="incident-record-notice" style={{ marginBottom: 12 }}>
+                  {t('safety.protect.recordNotice', 'This log is your own record. MAGE ID does not review it. Reporting an incident or a hazard to OSHA or any other authority is your responsibility.')}
+                </ProtectNote>
 
                 {/* AI draft-from-notes */}
                 {!editingIncident ? (
@@ -936,11 +941,14 @@ function SafetyIncidentsInner() {
                 <View style={[styles.verdictBox, liveVerdict.recordable ? styles.verdictBoxHot : null]} testID="incident-recordability">
                   {liveVerdict.recordable
                     ? <AlertTriangle size={14} color={themeColors.danger} strokeWidth={2} />
-                    : <Check size={14} color={themeColors.textSecondary} strokeWidth={2} />}
+                    : <Minus size={14} color={themeColors.textSecondary} strokeWidth={2} />}
                   <Text style={[styles.verdictText, liveVerdict.recordable ? styles.verdictTextHot : null]}>
                     {liveVerdict.reason}
                   </Text>
                 </View>
+                <ProtectNote testID="incident-recordability-notice" style={{ marginTop: 6 }}>
+                  {t('safety.protect.verdictNotice', 'This line comes from the answers above. It is a suggestion, not a ruling. You decide what goes on your OSHA log.')}
+                </ProtectNote>
 
                 {/* People involved — directly under the verdict, because a
                     recordable case needs its injured worker before it can be

@@ -23,6 +23,7 @@
 // hands a client. Pass `cpmByTaskId` and it is right; the no-CPM fallback keeps
 // the old geometry so callers that have no engine result still render something.
 import type { ScheduleTask } from '../types';
+import { withRecipientNotice } from './recipientNotice';
 
 /** The only fields this builder needs off a CpmTaskResult. */
 export interface PrintableGanttCpmRow {
@@ -211,7 +212,7 @@ export function buildPrintableGanttHtml(tasks: ScheduleTask[], opts: PrintableGa
 
   const generatedOn = opts.generatedOnLabel ?? new Date().toLocaleDateString();
 
-  return `<!DOCTYPE html>
+  return withRecipientNotice(`<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8" />
@@ -229,7 +230,7 @@ export function buildPrintableGanttHtml(tasks: ScheduleTask[], opts: PrintableGa
 </head>
 <body>
   <h1>${esc(projectName)}</h1>
-  <p class="sub">Gantt schedule from MAGE ID &nbsp;·&nbsp; ${esc(generatedOn)} &nbsp;·&nbsp; ${totalDays} day plan</p>
+  <p class="sub">Gantt schedule &nbsp;·&nbsp; ${esc(generatedOn)} &nbsp;·&nbsp; ${totalDays} day plan</p>
   <div class="chart">
     <svg viewBox="0 0 ${canvasW} ${canvasH}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMinYMin meet">
       <rect x="0" y="0" width="${canvasW}" height="${canvasH}" fill="#ffffff" />
@@ -242,5 +243,5 @@ export function buildPrintableGanttHtml(tasks: ScheduleTask[], opts: PrintableGa
     </svg>
   </div>
 </body>
-</html>`;
+</html>`, undefined);
 }

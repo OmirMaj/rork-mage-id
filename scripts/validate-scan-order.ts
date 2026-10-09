@@ -1774,7 +1774,7 @@ rule('N1 with the flag off the owner alone has a way in, the module is linked wi
   }
   // One way in: the Quantities step, inside the flow the route mounts.
   const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
-  check(o, [...flow.matchAll(/setStep\('order'\)/g)].length === 1 && /order=\{\{ label: ocopy\.openLabel, onPress: \(\) => \{ setOrderSend\('idle'\); setStep\('order'\); \} \}\}/.test(flow), 'the order list can be reached from somewhere other than The Quantities');
+  check(o, [...flow.matchAll(/setStep\('order'\)/g)].length === 1 && /order=\{\{ label: ocopy\.openLabel, onPress: \(\) => afterScanAck\(\(\) => \{ setOrderSend\('idle'\); setStep\('order'\); \}\) \}\}/.test(flow), 'the order list can be reached from somewhere other than The Quantities');
   check(o, [...flow.matchAll(/<OrderListView/g)].length === 1 && /\{step === 'order' && saved && orderList && orderDraft && orderSendDraft && orderOptions && \(\s*<OrderListView/.test(flow), 'the order list is mounted outside its step');
   const q = stripComments(w.F['components/roomScan/QuantitiesView.tsx']);
   check(o, /\{order && <Button label=\{order\.label\} variant="secondary" onPress=\{order\.onPress\} disabled=\{block != null\} testID="scan-order-open" \/>\}/.test(q), 'the order list opens for a room that cannot be priced (an open outline, no ceiling height, an unsure wall, no name)');

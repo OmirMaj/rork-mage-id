@@ -24,7 +24,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription, restoreOutcome, PLAN_UNAVAILABLE_MESSAGE } from '@/contexts/SubscriptionContext';
 import {
-  autoRenewText, plansLoadFailedText, purchaseFailureKind, soldPeriod, storePlanState,
+  autoRenewText, renewalFactsText, plansLoadFailedText, purchaseFailureKind, soldPeriod, storePlanState,
   StorePlansUnavailable, useRetryStorePlans,
 } from '@/components/Paywall';
 import {
@@ -33,7 +33,7 @@ import {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
+import { readSignupIntent, clearSignupIntent, SIGNUP_TRIAL_BADGE_ENABLED } from '@/utils/signupIntent';
 import { useProjects } from '@/contexts/ProjectContext';
 import { INCLUDED_ADMIN_SEATS } from '@/utils/seatModel';
 import { nativeDriver, reducedMotion, useSwapFade } from '@/components/ui/motion';
@@ -277,7 +277,7 @@ export default function OnboardingPaywallScreen() {
         setSelectedPlan('business');
       }
       // trial framing — surface badge near CTA if trialDays > 0
-      if (intent.trialDays > 0) {
+      if (SIGNUP_TRIAL_BADGE_ENABLED && intent.trialDays > 0) {
         setIntentTrialDays(intent.trialDays);
       }
       await clearSignupIntent();
@@ -645,6 +645,9 @@ export default function OnboardingPaywallScreen() {
           </View>
         )}
 
+        {/* Price, period, renewal and how to cancel, ABOVE the buy button. */}
+        <Text style={styles.renewalFacts} testID="onboarding-paywall-renewal-facts">{renewalFactsText(Platform.OS, intentTrialDays)}</Text>
+
         <TouchableOpacity
           style={[styles.cta, (isPurchasing || isLoading) && styles.ctaDisabled]}
           onPress={handlePurchase}
@@ -678,7 +681,7 @@ export default function OnboardingPaywallScreen() {
             done in the store account, not this app's Settings — the same
             auto-renew sentence as the other two purchase screens. */}
         <Text style={styles.reassurance}>
-          {Platform.OS === 'web' ? 'Cancel anytime in Settings. No hidden fees.' : autoRenewText(Platform.OS)}
+          {Platform.OS === 'web' ? '' : autoRenewText(Platform.OS)}
         </Text>
 
         <View style={styles.legalRow}>
@@ -1091,6 +1094,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: t.textSecondary,
+  },
+  renewalFacts: {
+    fontSize: Type.footnote.fontSize,
+    color: t.text,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 12,
   },
   reassurance: {
     fontSize: Type.caption2.fontSize,

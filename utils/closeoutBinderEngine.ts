@@ -533,7 +533,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
       meta: [
         { label: 'Address',     value: project.location ?? '—' },
         { label: 'Completion',  value: completionLabel(completionDate) },
-        { label: 'Built By',    value: branding.companyName ?? 'MAGE ID' },
+        { label: 'Built By',    value: branding.companyName ?? 'Contractor' },
       ],
     })}
     ${heroSection}

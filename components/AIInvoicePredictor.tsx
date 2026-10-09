@@ -173,11 +173,11 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
           disabled={isLoading}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Predict When This Invoice Will Be Paid"
+          accessibilityLabel="Estimate When This Invoice May Be Paid"
         >
           <MageAIMark size={14} color={themeColors.accentLabel} />
           <Text style={styles.triggerText}>
-            {error ? 'Try Payment Prediction Again' : 'Predict When This Gets Paid'}
+            {error ? 'Try Payment Estimate Again' : 'Estimate When This Gets Paid'}
           </Text>
         </TouchableOpacity>
         <Text style={styles.groundingChip}>{history.summary}</Text>

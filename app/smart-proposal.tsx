@@ -45,6 +45,7 @@ import { PriceDriftCheck, usePriceDriftAtSend } from '@/components/priceWatch/Pr
 import type { DriftAtSend } from '@/utils/priceDriftGate';
 import { defaultValidUntil } from '@/utils/proposalValidity';
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { TemplateNotice } from '@/components/ProtectNotices';
 
 export default function SmartProposalScreen() {
   const router = useRouter();
@@ -470,6 +471,10 @@ function SmartProposalInner() {
             ) : (
               <Text style={styles.lockInLine} testID="proposal-lock-in-contract">To lock it in, send the contract</Text>
             )}
+
+            {/* GC-facing: the proposal wording is a template. Not printed on
+                the proposal the client reads. */}
+            <TemplateNotice testID="proposal-template-notice" style={{ marginBottom: 14 }} />
 
             {/* GC-facing reasoning */}
             <Text style={styles.sectionTitle}>Why These Prices</Text>

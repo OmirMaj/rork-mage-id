@@ -93,6 +93,7 @@ import { tutorialSignal, useTutorialSandboxId } from '@/utils/tutorial/store';
 import { binderSectionsFilled } from '@/utils/tutorial/learn/fixturesD';
 import { isSampleProject, SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
 import { usePunchSeal } from '@/hooks/usePunchSeal';
+import { TemplateNotice } from '@/components/ProtectNotices';
 
 type BinderStatus = CloseoutBinder['status'];
 
@@ -1078,6 +1079,7 @@ export default function CloseoutBinderScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardLabel}>AIA-Styled Closeout Forms</Text>
                 <Text style={styles.cardHelper}>Create G704 (substantial completion), G706 and G706A affidavits, and G707 (surety) as PDFs you can sign and send. Filled from project data.</Text>
+                <TemplateNotice testID="closeout-forms-template-notice" style={{ marginTop: 8 }} />
               </View>
             </View>
             {AIA_FORM_LIST.map(form => (

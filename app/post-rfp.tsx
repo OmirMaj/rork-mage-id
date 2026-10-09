@@ -768,7 +768,7 @@ function DetailsStep({
       {/* Description */}
       <FadeRise delay={180}>
         <View style={styles.card}>
-          <CardHead icon={FileText} title="Tell Us About Your Project" subtitle="The more details you add, the more accurate your bids." styles={styles} themeColors={themeColors} />
+          <CardHead icon={FileText} title="Tell Us About Your Project" subtitle="More detail helps contractors price your job." styles={styles} themeColors={themeColors} />
           <TextInput
             style={[styles.input, styles.inputMultiline]}
             value={description}
@@ -813,7 +813,7 @@ function DetailsStep({
             <MageAIMark size={13} color={themeColors.accent} />
             <Text style={styles.proTipText}>
               <Text style={styles.proTipBold}>Pro tip: </Text>
-              Add at least 3 photos for better, more accurate bids.
+              Add at least 3 photos so contractors can see the job.
             </Text>
           </View>
         </View>
@@ -969,9 +969,9 @@ function BudgetStep({
                 strangers could not bid on their job, which was untrue. Until
                 the WITH CHECK predicate exists server-side, the promise here
                 is scoped to what actually happens: notification targeting. */}
-            <Text style={styles.verifyToggleTitle}>Notify Verified Pros Only</Text>
+            <Text style={styles.verifyToggleTitle}>Notify Only Contractors With a License on File</Text>
             <Text style={styles.verifyToggleSub}>
-              We only alert contractors with a current license on file. Fewer bids, higher quality.
+              We only alert contractors who have given MAGE ID a license number. MAGE ID does not check that number with the state.
             </Text>
             {/* Audit round 2, #8: licenses are self-added and contractor_licenses
                 is select-own under RLS, so this screen cannot count them — and

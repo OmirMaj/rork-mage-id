@@ -27,7 +27,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
 
 export const USER_ROLE_BLURB: Record<UserRole, string> = {
   contractor: 'Estimates, schedules, daily reports, AIA-style pay apps and AI takeoffs.',
-  client: 'Post a project, get bids from vetted contractors, pick one, and track the work without managing the site.',
+  client: 'Post a project, get bids from contractors, pick one, and track the work without managing the site.',
   both: 'Switch between contractor mode and property-owner mode any time. You start in contractor mode.',
   property_manager: 'Track every property you manage, log maintenance work orders and dispatch them to contractors.',
 };

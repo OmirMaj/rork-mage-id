@@ -184,9 +184,9 @@ function PaymentPredictionsScreenInner() {
 
       {!result && !loading && (
         <View style={styles.introCard}>
-          <Text style={styles.introHeadline}>Predict when each invoice will actually clear.</Text>
+          <Text style={styles.introHeadline}>Estimate when each invoice may be paid.</Text>
           <Text style={styles.introBody}>
-            MAGE Brain analyzes due dates, client payment history, project status, and retention holds to forecast real inflows — so you know which invoices need a call today vs. which are safe to let ride.
+            MAGE Brain reads due dates, how late each client has paid your past invoices, project status and retention holds, and estimates a pay date for each open invoice. It is an estimate, not a promise of payment.
           </Text>
           <View style={styles.featureRow}>
             <View style={styles.featureChip}><Clock size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Per-Invoice Pay Date</Text></View>

@@ -26,7 +26,7 @@ import { HIRE_ENABLED } from '@/contexts/HireContext';
 // MAGE has no right to store or show them (contentfix-specs/RIGHTS-VERDICT.md).
 // Every door below is gated on COMPANIES_DIRECTORY_ENABLED; the route itself
 // redirects to Discover.
-import { RFP_BROWSE_ENABLED, COMPANIES_DIRECTORY_ENABLED } from '@/constants/featureFlags';
+import { RFP_BROWSE_ENABLED, COMPANIES_DIRECTORY_ENABLED, DISCOVER_WAITLIST_CARDS_ENABLED } from '@/constants/featureFlags';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 interface BidSource {
@@ -489,6 +489,8 @@ export default function DiscoverScreen() {
             evidence for the partner pitches (Wisetack, altLINE,
             Coterie, Track1099, etc.). See docs/audits/2026-05-14-
             billion-dollar-strategy.md for the full thesis. */}
+        {DISCOVER_WAITLIST_CARDS_ENABLED ? (
+        <>
         <View style={[styles.sectionHeaderRow, { marginTop: 24, alignItems: 'flex-start' }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.success, marginTop: 2 }]} />
           <View style={{ flex: 1 }}>
@@ -529,9 +531,11 @@ export default function DiscoverScreen() {
           icon={Truck}
           headline="Finance a truck or new equipment"
           body="When you outgrow rentals: financing for trucks, lifts, scaffold and tools through partner lenders. No application fee."
-          footer="Lower priority per the strategy doc — added for completeness"
+          footer="Not available yet. Tap to be told when it is."
           testID="discover-equipment-cta"
         />
+        </>
+        ) : null}
 
       </ScrollView>
     </View>

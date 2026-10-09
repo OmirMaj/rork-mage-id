@@ -239,6 +239,12 @@ export const SURFACES: Surface[] = [
   // block, the roster row lines, the question card and the switch. Every
   // string of the feature lives in the one copy hook.
   { id: 'office.whoson', phase: 2, state: 'pending', keyPrefixes: ['office.whoson.'], files: ['hooks/useWhosOnCopy.ts'], lane: 'WHOKIT' },
+  // PROTECT-TEXT (2026-10-09): the agreement sentence above the sign-in
+  // buttons and the template notice a contractor reads where he edits a
+  // contract, proposal, lien waiver or AIA-style form. Both live in the one
+  // component file. Spanish drafts are in es/office/protect.ts; a legal
+  // translator has not read them.
+  { id: 'office.protect', phase: 2, state: 'pending', keyPrefixes: ['office.protect.'], files: ['components/ProtectNotices.tsx'], lane: 'PROTECT-TEXT' },
   // Your First Job: the interactive starter path on Home (the question, the
   // seven steps, the stage pills, hide / remove, the finish state). Every
   // string lives in the one copy hook. Complete: each key has Spanish
@@ -267,6 +273,12 @@ export const SURFACES: Surface[] = [
   // inspector commonly looks at, measured off a scan. Every string lives in the
   // one copy hook. Complete: each key has Spanish (i18n/catalog/es/office/scanClearance.ts).
   { id: 'office.scan-clearance', phase: 2, state: 'complete', keyPrefixes: ['office.scanClearance.'], files: ['hooks/useScanClearanceCopy.ts'], lane: 'CLEARANCE' },
+  // Notices (lane PROTECT-SERVER): the first-use scan notice and the
+  // re-acceptance sheet (dark behind TERMS_REACCEPT_ENABLED). Every string lives
+  // in the one copy hook. Complete: the scan notice has Spanish
+  // (i18n/catalog/es/office/notices.ts); the sheet's keys are `.legal.` keys,
+  // which only a human legal translator may put into Spanish.
+  { id: 'office.notices', phase: 2, state: 'complete', keyPrefixes: ['office.notices.'], files: ['hooks/useLegalCopy.ts'], lane: 'PROTECT' },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

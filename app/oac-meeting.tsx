@@ -63,6 +63,7 @@ import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import type {
   OACMeeting, OACAgendaItem, OACAgendaSection, OACAttendee, OACActionItem,
 } from '@/types';
+import { withRecipientNotice } from '@/utils/recipientNotice';
 
 const SECTION_LABELS: Record<OACAgendaSection, string> = {
   safety:          'Safety',
@@ -1270,7 +1271,7 @@ function buildMinutesEmailHtml(opts: {
   // token. The eyebrow sits on the ink header band, so it is the DARK-ground
   // brand green #5DB36E (BRAND_ACCENT_ON_DARK, 7.5:1 on #0B0D10; the light brand
   // #2F6B3A would be ~3:1 there) — the same pair as utils/emailLayout.ts.
-  return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f4f5f7;padding:24px;color:#111">
+  return withRecipientNotice(`<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f4f5f7;padding:24px;color:#111">
     <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.06)">
       <div style="background:#0B0D10;color:#5DB36E;padding:24px 28px">
         <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase">OAC meeting minutes</div>
@@ -1295,11 +1296,11 @@ function buildMinutesEmailHtml(opts: {
           </table>
         ` : ''}
         <p style="margin-top:24px;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:12px">
-          Sent with MAGE ID. Reply to this email with corrections; replies go to the contractor.
+          Reply to this email with corrections. Replies go to the contractor.
         </p>
       </div>
     </div>
-  </body></html>`;
+  </body></html>`, undefined);
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({

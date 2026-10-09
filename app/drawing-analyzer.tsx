@@ -668,7 +668,7 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.teaserEyebrow}>Business Plan · Pro Estimator</Text>
-              <Text style={styles.teaserTitle}>Want sharper numbers on this set?</Text>
+              <Text style={styles.teaserTitle}>Want a closer look at this set?</Text>
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </View>

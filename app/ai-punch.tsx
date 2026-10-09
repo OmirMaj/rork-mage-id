@@ -700,7 +700,7 @@ function AiPunchScreenInner() {
                     <View style={styles.reviewBody}>
                       <View style={styles.reviewMetaRow}>
                         <View style={[styles.confidenceDot, { backgroundColor: item.confidence >= 80 ? themeColors.success : Colors.warning }]} />
-                        <Text style={styles.reviewMeta}>{t('field.punch.ai.aiConfidence', 'AI confidence {confidence}%', { confidence: item.confidence })}</Text>
+                        <Text style={styles.reviewMeta}>{t('field.punch.ai.aiConfidence', 'AI self-rating {confidence}%', { confidence: item.confidence })}</Text>
                       </View>
                       <TextInput
                         style={styles.reviewInput}

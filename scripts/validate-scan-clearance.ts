@@ -1167,7 +1167,7 @@ rule('N1 it never blocks: no action depends on a state, the result holds no verd
     "'clearance'", 'const clearance = useMemo(() => (scan && clearanceOn ? buildClearanceCheck(scan, tapePairs, { nyc: clearanceNyc }) : null), [scan, clearanceOn, tapePairs, clearanceNyc]);',
     'const clearanceNyc = useMemo(() => clearanceInNyc(project), [project]);', "import { clearanceInNyc } from '@/utils/roomScan/clearancePlace';",
     'const clearanceOn = clearanceCheckAllowed(userEmail);', "import { clearanceCheckAllowed } from '@/utils/roomScan/clearanceAllowed';",
-    "clearanceOn && scan && clearance && (", 'check={clearance}', 'clearance={clearanceOn ? { label: ccopy.openLabel, onPress: () => setStep(', 'clearanceOn',
+    "clearanceOn && scan && clearance && (", 'check={clearance}', 'clearance={clearanceOn ? { label: ccopy.openLabel, onPress: () => afterScanAck(() => setStep(', 'clearanceOn',
   ];
   for (const line of flow.split('\n')) {
     let rest = line;
@@ -1242,7 +1242,7 @@ rule('N2 Clearance Check has its own gate: the owner always, anyone else only wi
   check(o, !/scanRoomAllowed/.test(flow), 'the flow asks the scanner\'s gate');
   check(o, /const clearance = useMemo\(\(\) => \(scan && clearanceOn \? buildClearanceCheck\(scan, tapePairs, \{ nyc: clearanceNyc \}\) : null\)/.test(flow), 'the check is worked out for someone the gate refuses');
   check(o, /\{step === 'clearance' && clearanceOn && scan && clearance && \(\s*<ClearanceView/.test(flow), 'the screen is drawn without asking the gate');
-  check(o, /clearance=\{clearanceOn \? \{ label: ccopy\.openLabel, onPress: \(\) => setStep\('clearance'\) \} : undefined\}/.test(flow), 'the door on the plan is handed over without asking the gate');
+  check(o, /clearance=\{clearanceOn \? \{ label: ccopy\.openLabel, onPress: \(\) => afterScanAck\(\(\) => setStep\('clearance'\)\) \} : undefined\}/.test(flow), 'the door on the plan is handed over without asking the gate');
   check(o, (flow.match(/setStep\('clearance'\)/g) ?? []).length === 1, 'there is a second way into the step');
   check(o, !/SCAN_ROOM_ENABLED|CLEARANCE_CHECK_ENABLED|CLEARANCE_REFS_REVIEW|isOwner\b|OWNER_EMAILS/.test(flow) && !/SCAN_ROOM_ENABLED|CLEARANCE_CHECK_ENABLED|isOwner\b|scanRoomAllowed|clearanceCheckAllowed/.test(stripComments(w.F[VIEW])), 'the flow or the screen reads a switch or the owner list itself');
   // Nothing else reads the switch.
@@ -1532,7 +1532,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'N2', what: 'the gate stops reading the review record', plant: text(GATE, 'return flagOn === true && clearanceRefsProfessionallyRead(review);', 'return flagOn === true;') },
   { rule: 'N2', what: 'a professional read needs no name', plant: text('utils/roomScan/clearanceRefs.ts', "    && typeof review.reviewedBy === 'string' && review.reviewedBy.trim().length > 0;", ';') },
   { rule: 'N2', what: 'the flow asks the scanner\'s gate, as it used to', plant: text(FLOW, 'const clearanceOn = clearanceCheckAllowed(userEmail);', 'const clearanceOn = scanRoomAllowed(userEmail);') },
-  { rule: 'N2', what: 'the door on the plan is drawn for everyone', plant: text(FLOW, "clearance={clearanceOn ? { label: ccopy.openLabel, onPress: () => setStep('clearance') } : undefined}", "clearance={{ label: ccopy.openLabel, onPress: () => setStep('clearance') }}") },
+  { rule: 'N2', what: 'the door on the plan is drawn for everyone', plant: text(FLOW, "clearance={clearanceOn ? { label: ccopy.openLabel, onPress: () => afterScanAck(() => setStep('clearance')) } : undefined}", "clearance={{ label: ccopy.openLabel, onPress: () => afterScanAck(() => setStep('clearance')) }}") },
   { rule: 'N2', what: 'the screen is drawn without the gate', plant: text(FLOW, "{step === 'clearance' && clearanceOn && scan && clearance && (", "{step === 'clearance' && scan && clearance && (") },
   { rule: 'N2', what: 'the flow decides for itself who may see it', plant: text(FLOW, 'const clearanceOn = clearanceCheckAllowed(userEmail);', 'const clearanceOn = true;') },
   { rule: 'N2', what: 'the check is worked out for everyone', plant: text(FLOW, '(scan && clearanceOn ? buildClearanceCheck(scan, tapePairs, { nyc: clearanceNyc }) : null)', '(scan ? buildClearanceCheck(scan, tapePairs, { nyc: clearanceNyc }) : null)') },

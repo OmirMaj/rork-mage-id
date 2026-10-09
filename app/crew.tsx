@@ -230,7 +230,7 @@ function IdBadgeChip({
     return (
       <View style={styles.verifiedChip}>
         <ShieldCheck size={12} color={themeColors.accent} strokeWidth={2} />
-        <Text style={styles.verifiedChipText}>{t('field.crew.idVerified', 'ID Verified')}</Text>
+        <Text style={styles.verifiedChipText}>{t('field.crew.idVerified', 'ID on File')}</Text>
       </View>
     );
   }
@@ -720,8 +720,8 @@ function CrewScreenInner() {
                   <ShieldCheck size={16} color={themeColors.accent} strokeWidth={2} />
                   <Text style={styles.identityVerifiedText}>
                     {member.idExpiry
-                      ? sentenceParts(t('field.crew.identity.verifiedExp', 'ID Verified: {issuer} ····{last4}, exp {expiry}', { issuer: '{issuer}', last4: '{last4}', expiry: '{expiry}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '', expiry: member.idExpiry }, ['expiry'])
-                      : [...sentenceParts(t('field.crew.identity.verified', 'ID Verified: {issuer} ····{last4}', { issuer: '{issuer}', last4: '{last4}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '' }), '']}
+                      ? sentenceParts(t('field.crew.identity.verifiedExp', 'ID on file: {issuer} ····{last4}, exp {expiry}', { issuer: '{issuer}', last4: '{last4}', expiry: '{expiry}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '', expiry: member.idExpiry }, ['expiry'])
+                      : [...sentenceParts(t('field.crew.identity.verified', 'ID on file: {issuer} ····{last4}', { issuer: '{issuer}', last4: '{last4}' }), { issuer: member.idIssuer ?? 'ID', last4: member.idMaskedLast4 ?? '' }), '']}
                   </Text>
                 </View>
               );
@@ -736,7 +736,7 @@ function CrewScreenInner() {
                 </View>
               );
             }
-            return <Text style={styles.identityMutedText}>{t('field.crew.idNotVerified', 'ID Not Verified')}</Text>;
+            return <Text style={styles.identityMutedText}>{t('field.crew.idNotVerified', 'No ID on File')}</Text>;
           })()}
           <TouchableOpacity
             style={styles.scanBtn}
@@ -906,8 +906,8 @@ function CrewScreenInner() {
               title={t('field.crew.noCrewYet', 'No Crew Yet')}
               message={
                 certifications.length > 0
-                  ? tn('field.crew.empty.messageCerts', certifications.length, { one: 'Add your first crew member to build a verified roster. Looking for a certification? {count} is on file under Safety. Certifications are tracked separately from the roster.', other: 'Add your first crew member to build a verified roster. Looking for a certification? {count} are on file under Safety. Certifications are tracked separately from the roster.' })
-                  : t('field.crew.empty.message', 'Add your first crew member to build a verified roster.')
+                  ? tn('field.crew.empty.messageCerts', certifications.length, { one: 'Add your first crew member to start your roster. Looking for a certification? {count} is on file under Safety. Certifications are tracked separately from the roster.', other: 'Add your first crew member to start your roster. Looking for a certification? {count} are on file under Safety. Certifications are tracked separately from the roster.' })
+                  : t('field.crew.empty.message', 'Add your first crew member to start your roster.')
               }
               actionLabel={t('field.crew.addCrewMember', 'Add Crew Member')}
               onAction={() => setAddOpen(true)}

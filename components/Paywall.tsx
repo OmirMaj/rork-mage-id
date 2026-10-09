@@ -116,6 +116,27 @@ export function autoRenewText(os: string): string {
   return `Subscriptions auto-renew until canceled. Manage or cancel in your ${account} settings at least 24 hours before the renewal date. Payment is charged to your ${payer} on confirmation of purchase.`;
 }
 export const AUTO_RENEW_IOS = autoRenewText('ios');
+
+/**
+ * The facts a buyer reads BEFORE the buy button, on every purchase screen:
+ * what is charged, how often, that it renews, what a free trial turns into,
+ * and how to cancel. Plain words, one wording (PROTECT-TEXT, 2026-10-09). The
+ * auto-renew sentence above stays where Apple's review expects it; this one
+ * sits above the buttons so nobody has to scroll past them to learn it. On
+ * the web a plan is cancelled by email (the Terms say so, and Settings sends
+ * the same mailto), so the web sentence says that and not "in Settings".
+ */
+export function renewalFactsText(os: string, trialDays = 0): string {
+  const cancel = os === 'ios'
+    ? 'To cancel, open your App Store account settings at least 24 hours before the renewal date.'
+    : os === 'android'
+      ? 'To cancel, open your Google Play account settings at least 24 hours before the renewal date.'
+      : 'To cancel, email help@mageid.app before the renewal date.';
+  const trial = trialDays > 0
+    ? ` The ${trialDays}-day free trial becomes a paid plan at that price when it ends, unless you cancel before then.`
+    : '';
+  return `Each paid plan is billed at the price and period shown on it. It renews automatically at that price until you cancel.${trial} ${cancel}`;
+}
 // --- END storeOffer ---
 
 /**
@@ -887,6 +908,9 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
                 </View>
               ) : null}
 
+              {/* Renewal and how to cancel, above the price and the buy button. */}
+              <Text style={styles.renewalFacts} testID="paywall-modal-renewal-facts">{renewalFactsText(Platform.OS)}</Text>
+
               {/* Price display. App Review 3.1.2: the amount billed is the big
                   figure. On annual that is the yearly total; the per-month
                   equivalent (floored, constants/pricing) is the small line. */}
@@ -1151,6 +1175,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   legalLink: { fontSize: Type.footnote.fontSize, color: t.accentLabel, fontWeight: '600' as const },
   legalDot: { fontSize: Type.footnote.fontSize, color: t.textMuted },
+  renewalFacts: {
+    fontSize: Type.footnote.fontSize,
+    color: t.text,
+    textAlign: 'center' as const,
+    lineHeight: 19,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
   legalFinePrint: {
     fontSize: Type.caption2.fontSize,
     color: t.textMuted,

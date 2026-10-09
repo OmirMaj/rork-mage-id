@@ -17,7 +17,7 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (a record) 1`] = `
 {
   "lines": 1015,
-  "sha256": "48d835ec367ad86538b5c9dd060fbcb2a1dac697dac8fe24aaed90a2310a9c60",
+  "sha256": "747930f7031880542c64eda9f4152d2810fb74036f0df66a4c31176e3dfb5f87",
 }
 `;
 
@@ -87,6 +87,6 @@ exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) invoice (sent: reminder and pay link) 1`] = `
 {
   "lines": 1010,
-  "sha256": "c4bc24c8d938cd8c18bd81924155f8bbb82f1d16028110f539c125a4a48ce582",
+  "sha256": "5d40cca352bea28c8fb918ff468878a38901806079432e2a4d761af7caf79f5f",
 }
 `;

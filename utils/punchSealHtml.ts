@@ -119,6 +119,10 @@ export function buildPunchSealHtml(seal: PunchSeal, opts: PunchSealHtmlOptions):
   const footer = `<div style="margin-top:30px;padding-top:12px;border-top:1px solid ${PDF_PALETTE.hairline};text-align:center;font-size:9.5px;color:${PDF_PALETTE.textMuted}">Record ${mono(seal.id)} &middot; SHA-256 ${mono(seal.manifestHash)}</div>`;
 
   return pdfShell({
+    // The sealed record's template is frozen: its PDF bytes are hashed once at
+    // sealing and later copies are re-rendered from the same row, so it takes
+    // no Notice To Recipients and never names MAGE ID.
+    recipientNotice: false,
     title: punchSealFileTitle(projectName),
     branding: { companyName: opts.companyName, contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' },
     bodyHtml: `${header}${title}${statement}${meta}${webLine}${acceptance}${pdfSectionHeader(PUNCH_SEAL_HTML_COPY.itemsHeading)}${rows}${verify}${footer}`,

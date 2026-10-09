@@ -132,8 +132,8 @@ export function CrewRegister({
       title="No Crew Yet"
       message={
         certifications.length > 0
-          ? `Add your first crew member to build a verified roster. Looking for a certification? ${certifications.length} ${certifications.length === 1 ? 'is' : 'are'} on file under Safety. Certifications are tracked separately from the roster.`
-          : 'Add your first crew member to build a verified roster.'
+          ? `Add your first crew member to start your roster. Looking for a certification? ${certifications.length} ${certifications.length === 1 ? 'is' : 'are'} on file under Safety. Certifications are tracked separately from the roster.`
+          : 'Add your first crew member to start your roster.'
       }
       actionLabel="Add Crew Member"
       onAction={onNew}

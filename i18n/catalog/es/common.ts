@@ -91,7 +91,7 @@ export const ES_COMMON: EsCatalog = {
   "common.moment.chipEmailNotSent": { s: "Firmado · correo no enviado", src: "30b4df05" },
   "common.moment.chipSentAwaiting": { s: "Enviado · falta la firma de {to}", src: "8f61ce83" },
   "common.moment.clear": { s: "Borrar", src: "04a57fc2" },
-  "common.moment.counterSignNote": { s: "La otra parte firma desde su enlace del portal. El contrato es vinculante cuando firma.", src: "2d0095f0" },
+  "common.moment.counterSignNote": { s: "La otra parte firma desde su enlace del portal. El contrato queda firmado por ambas partes cuando lo hace.", src: "2bab2a55" },
   "common.moment.locked": { s: "Bloqueado", src: "406a5eb3" },
   "common.moment.rowSent": { s: "Enviado", src: "e28dfb9f" },
   "common.moment.rowSigned": { s: "Firmado", src: "27c3ab35" },

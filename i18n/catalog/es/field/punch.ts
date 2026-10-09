@@ -26,7 +26,7 @@ export const ES_FIELD_PUNCH: EsCatalog = {
   "field.punch.addedPhotosStillNeed": { s: "Se agregaron {filed}. A {length} fotos todavía les falta una línea", src: "a071ea85" },
   "field.punch.advancesStatusOneStep": { s: "Avanza el estado un paso", src: "38cf291e" },
   "field.punch.ai.addADescription": { s: "Agrega una descripción", src: "1642e469" },
-  "field.punch.ai.aiConfidence": { s: "Confianza de la IA: {confidence}%", src: "8c2da7ae" },
+  "field.punch.ai.aiConfidence": { s: "Autoevaluación de la IA: {confidence}%", src: "4bcd0ac8" },
   "field.punch.ai.camera": { s: "Cámara", src: "e74c7b6e" },
   "field.punch.ai.cameraAccessNeeded": { s: "Se necesita acceso a la cámara", src: "9fd236f9" },
   "field.punch.ai.cantAddItems": { s: "No se pueden agregar pendientes", src: "0a75d31d" },

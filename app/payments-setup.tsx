@@ -48,7 +48,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import { platformFeeLabel, stripeProcessingCopy, PAYOUT_TIMING_COPY, PAYOUT_TIMING_SHORT } from '@/utils/platformFees';
 import { useFinancingReferrals } from '@/hooks/useFinancingReferrals';
 import ProfileLoadNotice from '@/components/ProfileLoadNotice';
-import { financingDisclosure } from '@/utils/financing';
+import { financingDisclosure, FINANCING_FIGURES_ENABLED } from '@/utils/financing';
 import {
   FINANCING_EXPLAINER, FINANCING_TOGGLE_LABEL, FINANCING_TRACKING_LIMIT, financingReferralSummary,
 } from '@/utils/financingCore';
@@ -358,12 +358,16 @@ export default function PaymentsSetupScreen() {
             placeholder="Lender's prequalification link (https://…)" autoCapitalize="none" keyboardType="url" placeholderTextColor={themeColors.textMuted} />
           <TextInput style={styles.finInput} value={finRefCode} onChangeText={setFinRefCode}
             placeholder="Your referral code with the lender (optional)" autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
-          <View style={styles.finAprRow}>
+{/* No monthly figure or rate is shown to a client (FINANCING_FIGURES_ENABLED,
+              utils/financing.ts), so the example rate and term are not asked for. */}
+          {FINANCING_FIGURES_ENABLED ? (
+                    <View style={styles.finAprRow}>
             <TextInput style={[styles.finInput, { flex: 1 }]} value={finApr} onChangeText={setFinApr}
               placeholder="Example APR % (optional)" keyboardType="decimal-pad" placeholderTextColor={themeColors.textMuted} />
             <TextInput style={[styles.finInput, { flex: 1 }]} value={finTerm} onChangeText={setFinTerm}
               placeholder="Example term (months)" keyboardType="number-pad" placeholderTextColor={themeColors.textMuted} />
           </View>
+          ) : null}
 
           <TouchableOpacity style={styles.cta} onPress={() => saveFinancing(finEnabled)} testID="financing-save">
             <Text style={styles.ctaText}>Save Financing Settings</Text>
@@ -408,7 +412,7 @@ function NotConnectedCard({
       <View style={[styles.heroIcon, { backgroundColor: themeColors.accent + '15' }]}>
         <Wallet size={28} color={themeColors.accent} strokeWidth={1.75} />
       </View>
-      <Text style={styles.heroTitle}>Get Paid Faster</Text>
+      <Text style={styles.heroTitle}>Get Paid Online</Text>
       <Text style={styles.heroSub}>
         Connect your bank through Stripe's own sign-up form. Clients tap "Pay" in your invoice
         email and the money goes to your Stripe account.

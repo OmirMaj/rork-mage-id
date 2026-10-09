@@ -719,7 +719,7 @@ const decode = (s: string) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').r
   ok('no sign-off with crew', !html.includes('Sign-off'));
   const clean = buildPunchExportHtml(model({ includeCrew: false }), assetsFor(M), { includePhotos: true, branding: BRANDING, target: 'web', allowedOrigins: ORIGINS });
   ok('crew off: no INTERNAL marks, sign-off present', !clean.includes(PUNCH_EXPORT_INTERNAL_STAMP) && !clean.includes('INTERNAL: includes') && clean.includes('Sign-off') && clean.includes('Owner / owner&#39;s representative'));
-  ok('sign-off makes no payment claim', !/retainage|payment/i.test(between(clean, 'Sign-off', 'Built with')));
+  ok('sign-off makes no payment claim', !/retainage|payment/i.test(between(clean, 'Sign-off', 'Prepared by')));
 
   eq('a plan page per pinned sheet', count(html, '<section class="pe-plan'), 2);
   eq('one marker head reading 14–21', count(html, '<div class="pe-pin-head">14–21</div>'), 1);

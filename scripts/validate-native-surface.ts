@@ -72,6 +72,14 @@ try {
     if (hasPodspec && !declared.has(n) && text.includes(`node_modules/${n}/`)) undeclaredNative.push(n);
   }
   ok('no undeclared native module (podspec) is referenced by the bundle', undeclaredNative.length === 0, undeclaredNative.join(', '));
+
+  // The Living Model's 3D view is on the web only (components/livingModel/JobReplay3D.web.tsx loads `three`
+  // with a dynamic import behind Platform.OS === 'web'). The phone bundle must carry neither the library nor
+  // the web view nor the scene builder: an OTA that grew by a megabyte of WebGL code the phone cannot run is
+  // the failure this catches. The markers are names only that code has.
+  const WEB_ONLY_3D = ['WebGLRenderer', 'MeshLambertMaterial', 'createJobScene', 'PCFSoftShadowMap'];
+  const hits3d = WEB_ONLY_3D.filter(m => text.includes(m));
+  ok('the phone bundle carries no three.js and no 3D view (web only)', hits3d.length === 0, `found: ${hits3d.join(', ')}`);
 } finally {
   rmSync(out, { recursive: true, force: true });
 }

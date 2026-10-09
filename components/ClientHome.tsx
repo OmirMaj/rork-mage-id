@@ -16,6 +16,7 @@
 // dependency) running on the native driver where possible.
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useRfpAttachmentUrls } from '@/utils/rfpAttachmentUrls';
 import {
   View,
   Text,
@@ -489,7 +490,12 @@ function RfpCard({
   // Image silently renders nothing and the hero looks like a blank cream
   // strip instead of the branded placeholder.
   const [photoFailed, setPhotoFailed] = React.useState(false);
-  const showPhoto = !!heroPhoto && !photoFailed;
+  // The stored value (a legacy public URL or a bare path) is never handed to
+  // the <Image>: it is signed first, and shows the placeholder until it is.
+  const heroRefs = useMemo(() => (heroPhoto ? [heroPhoto] : []), [heroPhoto]);
+  const attachmentUrl = useRfpAttachmentUrls(heroRefs);
+  const heroUri = attachmentUrl(heroPhoto);
+  const showPhoto = !!heroUri && !photoFailed;
 
   return (
     <TouchableOpacity
@@ -505,7 +511,7 @@ function RfpCard({
       <View style={styles.rfpHeroWrap}>
         {showPhoto ? (
           <Image
-            source={{ uri: heroPhoto as string }}
+            source={{ uri: heroUri }}
             style={styles.rfpHero}
             resizeMode="cover"
             onError={() => setPhotoFailed(true)}

@@ -107,7 +107,13 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<a class="mg-skip" href="#mg-main">Skip to Main Content</a>
+<aside class="mg-notice" data-recipient-notice="1" aria-label="About This Page" style="box-sizing:border-box;padding:12px 16px;background:#F4F5F2;color:#0B0D10;font-size:14px;line-height:1.5;border-bottom:1px solid #C9CDC6;text-align:left">
+  <p style="margin:0 auto;max-width:960px;color:#0B0D10">Prepared by <span data-notice-company>your contractor</span> using MAGE ID software. MAGE ID did not prepare, review or check this document and makes no statement to the reader about its contents.</p>
+  <p style="margin:4px auto 0;max-width:960px;color:#0B0D10">This page is run by MAGE ID for <span data-notice-company>your contractor</span>. <a href="https://mageid.app/terms" style="color:#1F4D29;font-weight:600">Terms of Service</a> · <a href="https://mageid.app/privacy" style="color:#1F4D29;font-weight:600">Privacy Policy</a></p>
+</aside>
+<script src="/protect-notice.js?v=2026-10-09"></script>
+<div class="wrap" id="mg-main">
   <div class="brandbar"><span class="brandmark">M</span><span>MAGE ID</span></div>
 
   <!-- Loading / failure states. A link with no token, a revoked token and a
@@ -133,7 +139,7 @@
       <div class="facts" id="facts"></div>
       <div class="callout warn">
         <strong>Read this before you sign.</strong> A lien waiver gives up rights. An
-        <em>unconditional</em> waiver is enforceable against you even if the money never arrives. If you have not
+        <em>unconditional</em> waiver says you give up those rights whether or not the money has arrived. If you have not
         been paid the amount shown, do not sign — reply to the email that sent you here.
       </div>
     </div>
@@ -153,9 +159,9 @@
       <label class="field" for="signer-title">Your Title</label>
       <input type="text" id="signer-title" autocomplete="organization-title" placeholder="Owner / Foreman" />
 
-      <label class="field">Draw Your Signature</label>
+      <label class="field" id="pad-label">Draw Your Signature</label>
       <div class="pad-wrap">
-        <canvas id="pad"></canvas>
+        <canvas id="pad" role="img" aria-label="Signature pad. Draw your signature with a finger or a mouse."></canvas>
         <div class="pad-hint" id="pad-hint">Sign here with your finger or mouse</div>
         <div class="pad-tools"><button type="button" class="linkish" id="pad-clear">Clear</button></div>
       </div>
@@ -235,7 +241,7 @@
       + (signedRecord.title ? ', ' + esc(signedRecord.title) : '')
       + ' — ' + esc(new Date(signedRecord.at).toLocaleString())
       + '.<br/>Consent record ' + esc(signedRecord.consentVersion)
-      + '. This copy was produced for the signer by MAGE ID; the contractor holds the same waiver with this '
+      + '. This copy was made for the signer on the signing page. The contractor holds the same waiver with this '
       + 'signature on it.</div>';
   }
 
@@ -517,6 +523,7 @@
       ? [w.state_name ? w.state_name + ' statutory form' : 'Statutory form', w.statute_citation].join(' · ')
       : 'General-form lien waiver';
     $('doc-title').textContent = w.waiver_title || 'Lien Waiver';
+    if (window.mageNotice) window.mageNotice.setCompany(w.company_name);
     $('doc-sub').textContent = (w.company_name || 'The contractor') + ' is asking you to sign this for '
       + (w.project_name || 'the project') + '.';
 

@@ -45333,7 +45333,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Get Verified",
+                                                                                            "Add Your License",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -66846,7 +66846,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Get Verified",
+                                                                                            "Add Your License",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {

@@ -428,6 +428,7 @@
 
   .form-field { margin-bottom: 14px; }
   .form-label {
+    display: block;
     font-size: 11px; font-weight: 700; color: var(--text-2);
     text-transform: uppercase; letter-spacing: 0.8px;
     margin-bottom: 6px;
@@ -670,15 +671,21 @@
 </style>
 </head>
 <body>
+<a class="mg-skip" href="#mg-main">Skip to Main Content</a>
+<aside class="mg-notice" data-recipient-notice="1" aria-label="About This Page" style="box-sizing:border-box;padding:12px 16px;background:#F4F5F2;color:#0B0D10;font-size:14px;line-height:1.5;border-bottom:1px solid #C9CDC6;text-align:left">
+  <p style="margin:0 auto;max-width:960px;color:#0B0D10">Prepared by <span data-notice-company>your contractor</span> using MAGE ID software. MAGE ID did not prepare, review or check this document and makes no statement to the reader about its contents.</p>
+  <p style="margin:4px auto 0;max-width:960px;color:#0B0D10">This page is run by MAGE ID for <span data-notice-company>your contractor</span>. <a href="https://mageid.app/terms" style="color:#1F4D29;font-weight:600">Terms of Service</a> · <a href="https://mageid.app/privacy" style="color:#1F4D29;font-weight:600">Privacy Policy</a></p>
+</aside>
+<script src="/protect-notice.js?v=2026-10-09"></script>
 
   <div id="gate" class="gate-wrap" style="display:none">
     <div class="gate">
       <div class="gate-logo">M</div>
       <h1>Enter Passcode</h1>
       <p>This sub portal is protected. Enter the 4-digit code your contractor shared with you.</p>
-      <input id="gate-input" type="tel" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" />
+      <input id="gate-input" aria-label="Four-Digit Passcode" type="tel" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" />
       <button id="gate-submit">Unlock Portal</button>
-      <div class="err" id="gate-err"></div>
+      <div class="err" id="gate-err" role="alert"></div>
     </div>
   </div>
 
@@ -712,7 +719,7 @@
       <div class="stats-grid" id="stats-grid"></div>
     </div>
 
-    <main class="container">
+    <main class="container" id="mg-main">
       <div id="welcome" class="welcome" style="display:none"></div>
 
       <div id="submit-bar" class="submit-bar">
@@ -752,27 +759,27 @@
     </header>
     <div class="drawer-body">
       <div class="form-field">
-        <div class="form-label">Invoice Number</div>
+        <label class="form-label" for="f-num">Invoice Number</label>
         <input id="f-num" class="form-input" type="text" placeholder="2026-04-001" />
       </div>
       <div class="form-field">
-        <div class="form-label">Against Commitment</div>
+        <label class="form-label" for="f-commitment">Against Commitment</label>
         <select id="f-commitment" class="form-select"></select>
       </div>
       <div class="form-field">
-        <div class="form-label">Total Amount</div>
+        <label class="form-label" for="f-amount">Total Amount</label>
         <div class="amount-prefix">
           <input id="f-amount" class="form-input amount num" type="text" inputmode="decimal" placeholder="0" />
         </div>
       </div>
       <div class="form-field">
-        <div class="form-label">Retainage Held (Optional)</div>
+        <label class="form-label" for="f-retention">Retainage Held (Optional)</label>
         <div class="amount-prefix">
           <input id="f-retention" class="form-input num" type="text" inputmode="decimal" placeholder="0" />
         </div>
       </div>
       <div class="form-field">
-        <div class="form-label">Description or Scope Billed</div>
+        <label class="form-label" for="f-desc">Description or Scope Billed</label>
         <textarea id="f-desc" class="form-textarea" placeholder="What's included in this invoice?"></textarea>
       </div>
       <div class="form-field">
@@ -782,10 +789,10 @@
       </div>
       <div class="form-field">
         <div class="form-label">Your Name and Email</div>
-        <input id="f-name" class="form-input" type="text" placeholder="Name (so they know who sent it)" />
-        <input id="f-email" class="form-input" type="email" placeholder="Email (optional, for replies)" style="margin-top:8px" />
+        <input id="f-name" class="form-input" type="text" aria-label="Your Name" autocomplete="name" placeholder="Name (so they know who sent it)" />
+        <input id="f-email" class="form-input" type="email" aria-label="Your Email (Optional)" autocomplete="email" placeholder="Email (optional, for replies)" style="margin-top:8px" />
       </div>
-      <div class="form-status" id="form-status"></div>
+      <div class="form-status" id="form-status" role="status" aria-live="polite"></div>
     </div>
     <footer class="drawer-footer">
       <button class="drawer-btn drawer-btn-ghost" id="drawer-cancel">Cancel</button>
@@ -936,8 +943,8 @@
     var row = document.createElement('div');
     row.className = 'line-row';
     row.innerHTML =
-      '<input class="form-input line-desc" type="text" placeholder="Description" />' +
-      '<input class="form-input line-amt num" type="text" inputmode="decimal" placeholder="0" style="width:120px;text-align:right" />' +
+      '<input class="form-input line-desc" type="text" aria-label="Line item description" placeholder="Description" />' +
+      '<input class="form-input line-amt num" type="text" aria-label="Line item amount" inputmode="decimal" placeholder="0" style="width:120px;text-align:right" />' +
       '<button type="button" class="line-remove">' +
         '<svg class="icn" width="16" height="16" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
       '</button>';
@@ -1444,6 +1451,7 @@
 
     document.getElementById('brand-mark').textContent = (company.name || 'M').charAt(0).toUpperCase();
     document.getElementById('brand-name').textContent = company.name || 'MAGE ID';
+    if (window.mageNotice) window.mageNotice.setCompany(company.name);
     document.getElementById('hero-eyebrow').textContent = sub.companyName ? sub.companyName : 'Sub Portal';
 
     var titleEl = document.getElementById('sub-title');

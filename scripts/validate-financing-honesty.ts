@@ -380,12 +380,18 @@ const html = read('marketing/portal/index.html');
   ok('…and never a bare "As low as $"', !/As low as \$/.test(code(ib)));
   // Executed: lifted with the real illustrativeMonthly (lifted from utils/financing.ts).
   const im = liftFunction(read('utils/financing.ts'), 'illustrativeMonthly');
-  let line: string | null = null, off: string | null = 'unset', noTerms: string | null = 'unset';
+  let line: string | null = null, off: string | null = 'unset', noTerms: string | null = 'unset', shippedOff: string | null = 'unset';
   try {
     const js = new (globalThis as unknown as { Bun: { Transpiler: new (o: { loader: 'ts' }) => { transformSync: (c: string) => string } } }).Bun
       .Transpiler({ loader: 'ts' }).transformSync(`${im}\n${tfl}`);
-    const run = new Function('financingDisclosureText', `${js}\nreturn tierFinancingLine;`)(core.financingDisclosureText) as
+    // PROTECT-TEXT (2026-10-09): figures are OFF in the shipped build
+    // (FINANCING_FIGURES_ENABLED = false). The lifted function is run with
+    // the flag on, to keep the rule that a figure, if it ever returns, carries
+    // its rate, its term and the lender; and with the flag as shipped.
+    const make = (flag: boolean) => new Function('financingDisclosureText', 'FINANCING_FIGURES_ENABLED', `${js}\nreturn tierFinancingLine;`)(core.financingDisclosureText, flag) as
       (a: number, c?: Record<string, unknown>) => string | null;
+    const run = make(true);
+    shippedOff = make(false)(25000, { enabled: true, partnerName: 'Acme Home Loans', prequalBaseUrl: 'https://acme.example/p', exampleApr: 9.99, exampleTermMonths: 60, updatedAt: '' });
     const cfg = { enabled: true, partnerName: 'Acme Home Loans', prequalBaseUrl: 'https://acme.example/p', exampleApr: 9.99, exampleTermMonths: 60, updatedAt: '' };
     line = run(25000, cfg);
     off = run(25000, { ...cfg, enabled: false });
@@ -394,6 +400,8 @@ const html = read('marketing/portal/index.html');
   ok('…executed: "Est. $531/mo at 9.99% APR for 60 months (example)." + the lender disclosure',
     line === `Est. $531/mo at 9.99% APR for 60 months (example). ${core.financingDisclosureText('Acme Home Loans')}`, String(line));
   ok('…executed: no line when financing is off or has no example terms', off === null && noTerms === null, `${off} / ${noTerms}`);
+  ok('…and as shipped the figures are off: no monthly amount and no APR reach a homeowner',
+    shippedOff === null && /export const FINANCING_FIGURES_ENABLED: boolean = false;/.test(read('utils/financing.ts')), String(shippedOff));
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-financing-honesty: ${pass} passed, ${fail} failed\n`);

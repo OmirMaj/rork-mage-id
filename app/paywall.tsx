@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useSubscription, restoreOutcome, PLAN_UNAVAILABLE_MESSAGE } from '@/contexts/SubscriptionContext';
 import {
-  autoRenewText, plansLoadFailedText, storeSafeLabel, StorePlansUnavailable, useRetryStorePlans,
+  autoRenewText, renewalFactsText, plansLoadFailedText, storeSafeLabel, StorePlansUnavailable, useRetryStorePlans,
 } from '@/components/Paywall';
 import { listPriceLabel } from '@/constants/pricing';
 import type { PaidTier } from '@/constants/pricing';
@@ -27,7 +27,7 @@ import { TileGrid } from '@/components/ui/TileGrid';
 import { useIsDesktop } from '@/components/ui/desktop';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { FORM_GRID_TWO_COL_MIN } from '@/utils/splitViewLayout';
-import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
+import { readSignupIntent, clearSignupIntent, SIGNUP_TRIAL_BADGE_ENABLED } from '@/utils/signupIntent';
 import type { SignupPlan } from '@/utils/signupIntent';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
@@ -230,7 +230,7 @@ export default function PaywallScreen() {
       // 'free' plan means no purchase needed — don't highlight a paid tier.
       if (intent.plan !== 'free') {
         setHighlightedPlan(intent.plan);
-        setIntentTrialDays(intent.trialDays);
+        if (SIGNUP_TRIAL_BADGE_ENABLED) setIntentTrialDays(intent.trialDays);
       }
       await clearSignupIntent();
     })();
@@ -426,6 +426,11 @@ export default function PaywallScreen() {
             wider screen pulls all four onto one row via flexWrap. Earlier
             iterations used a horizontal flex:1 row of 3 cards which would
             squeeze each card to ~78px when a 4th joined. */}
+        {/* Price, period, renewal and how to cancel, ABOVE the buy buttons
+            (components/Paywall renewalFactsText). Each card below prints its
+            own price and period. */}
+        <Text style={styles.renewalFacts} testID="paywall-renewal-facts">{renewalFactsText(Platform.OS, intentTrialDays)}</Text>
+
         <View style={styles.plansGrid}>
           <View style={[styles.planCard, isDesktop && styles.planCardDesktop, tier === 'free' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
@@ -819,7 +824,7 @@ function WebPaywallView({
           </Text>
           <Text style={[Type.body, { color: themeColors.textSecondary, marginTop: 8, textAlign: 'center', maxWidth: 520 }]}>
             {wp.available
-              ? 'Your plan is active right away on web and mobile. Cancel anytime.'
+              ? `Your plan is active right away on web and mobile. ${renewalFactsText('web')}`
               : 'The App Store and Google Play handle subscriptions. Open MAGE ID on your phone to choose a plan. It links to this account when you sign in.'}
           </Text>
         </View>
@@ -939,8 +944,8 @@ function WebPaywallView({
         <View style={{ alignItems: 'center', marginTop: 8, gap: 6 }}>
           <Text style={{ color: themeColors.textMuted, fontSize: 12, textAlign: 'center' }}>
             {wp.available
-              ? 'Secure checkout by Stripe. Cancel anytime.'
-              : 'Secure payment through the App Store or Google Play. Cancel anytime.'}
+              ? 'Secure checkout by Stripe.'
+              : 'Secure payment through the App Store or Google Play.'}
           </Text>
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <TouchableOpacity onPress={() => onOpenLegal('privacy')} accessibilityRole="link">
@@ -1217,6 +1222,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   legalDot: {
     fontSize: Type.footnote.fontSize,
     color: t.textMuted,
+  },
+  renewalFacts: {
+    fontSize: Type.footnote.fontSize,
+    color: t.text,
+    textAlign: 'center' as const,
+    lineHeight: 19,
+    paddingHorizontal: 20,
+    marginBottom: 14,
   },
   legalFinePrint: {
     fontSize: Type.caption2.fontSize,

@@ -52,6 +52,21 @@
 //   nothing) and it ran storage removal BEFORE the row-delete abort, so a
 //   kept login came with its files already destroyed.
 //
+// What is KEPT ABOUT what is deleted (lane PROTECT-SERVER, 2026-10-09):
+//   - public.signed_record_tombstones: one row per signed record this run is
+//     about to delete (step 1b). Kind, id, times, a one-way hash of the signed
+//     row and a hash of the account id. No name, email, signature or amount.
+//     These are pseudonymous, not anonymous: someone who already holds the
+//     account id or a copy of the signed row can recompute the hash and match
+//     it. The Privacy Policy has to say they are kept.
+//   - public.legal_acceptances: the account's own acceptances of the Terms of
+//     Service and the Privacy Policy and its acknowledgements. NOT in any list
+//     below, on purpose: its foreign key is ON DELETE SET NULL, so step 4
+//     leaves each row with user_id NULL, a server-stamped account_deleted_at
+//     and a non-reversible marker (subject_hash). The record that an agreement
+//     happened survives; the link to the person does not. Do not add the table
+//     to USER_SCOPED_TABLES (its trigger refuses the delete anyway).
+//
 // What we do NOT delete:
 //   - RevenueCat subscriptions. The user must cancel through Apple/
 //     Play before deleting the account; we surface a hard warning in
@@ -812,6 +827,70 @@ serve(async (req) => {
     }
     writesStarted = true;
 
+    // ── 1b. Tombstones for signed records, before a single row is deleted
+    //    (lane PROTECT-SERVER, build list item 6a).
+    //
+    //    Step 2 deletes records that someone ELSE signed: the client's change
+    //    order approvals by name (TENANT_SCOPED_DELETES), and through foreign
+    //    keys the subcontractor's lien waivers, signed contracts, authorized
+    //    field tickets, certified pay applications and sealed punch records.
+    //    What to KEEP of those is a legal policy choice that has not been made
+    //    (docs/legal/account-deletion-and-signed-records.md); this step changes
+    //    nothing about what is deleted. It writes one small row per signed
+    //    record (kind, id, the client portal's id, the signed time, hashes: no
+    //    name, no signature, no amount) into public.signed_record_tombstones,
+    //    so "a signed record existed and was deleted with the account on this
+    //    date" stays provable.
+    //
+    //    One call to a SECURITY DEFINER function, with the id lists as BOUND
+    //    array arguments (never spliced into a filter; see SAFE_DELETE_KEY).
+    //    The function re-checks that every project is this account's and that
+    //    every portal id sits only on this account's projects.
+    //
+    //    It runs BEFORE every delete and before the handover, on purpose: after
+    //    them there is nothing left to describe. It is written at the START of
+    //    the run; if the run stops later, the records still exist and a retry
+    //    writes nothing twice (one row per record).
+    //
+    //    BEST EFFORT, and it never stops the deletion. A person's right to
+    //    delete his account does not wait on a bookkeeping row: a missing
+    //    function (the migration is not applied yet) is the normal case on an
+    //    older database, and any other failure is tried once more, then logged
+    //    and counted in the response. Counts only in the log; never an id.
+    let tombstones: { written: number; skipped: string[] } | 'not_installed' | 'failed' = 'failed';
+    for (let attempt = 0; attempt < 2 && tombstones === 'failed'; attempt++) {
+      try {
+        const { data: tombData, error: tombErr } = await sb.rpc('tombstone_signed_records', {
+          p_user_id: userId,
+          p_project_ids: projectIds,
+          p_portal_ids: portalIds,
+        });
+        if (tombErr) {
+          const missing = tombErr.code === 'PGRST202' || tombErr.code === '42883'
+            || /could not find the function/i.test(tombErr.message ?? '');
+          if (missing) { tombstones = 'not_installed'; break; }
+          console.error('[delete-account] signed-record tombstones could not be written (attempt ' + (attempt + 1) + '):', tombErr.message);
+          continue;
+        }
+        const t = (tombData ?? {}) as { ok?: unknown; written?: unknown; skipped?: unknown };
+        if (t.ok === true) {
+          tombstones = {
+            written: typeof t.written === 'number' ? t.written : 0,
+            skipped: Array.isArray(t.skipped) ? t.skipped.filter((x): x is string => typeof x === 'string') : [],
+          };
+        }
+      } catch (e) {
+        console.error('[delete-account] signed-record tombstones threw (attempt ' + (attempt + 1) + '):', String(e));
+      }
+    }
+    if (tombstones === 'not_installed') {
+      console.warn('[delete-account] tombstone_signed_records is not on this database yet; deleting without tombstones');
+    } else if (tombstones === 'failed') {
+      console.error('[delete-account] signed-record tombstones were NOT written; the deletion continues');
+    } else if (tombstones.skipped.length > 0) {
+      console.warn(`[delete-account] signed-record tombstones: ${tombstones.written} written, ${tombstones.skipped.length} kind(s) skipped: ${tombstones.skipped.join('; ')}`);
+    }
+
     // ── 2-00. AI off for this account before a single row is deleted (lane AICONSENT).
     //    If this run stops partway the login and some jobs remain; the Friday recap and
     //    Ask Your Home must not keep using AI for someone who asked to be erased. Service
@@ -1217,6 +1296,10 @@ serve(async (req) => {
       // (step 2-0), and how many such jobs there were. Counts only.
       rowsHandedOver,
       projectsHandedOver: handedOver.length,
+      // Tombstones written for signed records before they were deleted (step
+      // 1b): a count, 'not_installed' (the migration is not applied) or
+      // 'failed'. Never an id.
+      signedRecordTombstones: typeof tombstones === 'string' ? tombstones : tombstones.written,
       storageObjectsRemoved,
       // Prefixes whose list() failed (their objects may remain; support can
       // re-sweep by uid). Counts only — no path, no id, ever.

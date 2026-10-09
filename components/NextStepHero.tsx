@@ -146,7 +146,7 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       icon: Receipt,
       tone: 'danger',
       title: `${usd} past due across ${overdueInvoices.length} invoice${overdueInvoices.length === 1 ? '' : 's'}`,
-      body: 'Send a friendly reminder. Most owners pay within 48 hours of a nudge.',
+      body: 'Send a friendly reminder with the amount and the due date.',
       cta: 'Open the Invoice',
       // invoice.tsx resolves the project via projectId (getProject), so
       // both params are required — invoiceId alone left the screen blank.
@@ -352,7 +352,7 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       icon: PartyPopper,
       tone: 'success',
       title: `${closeReadyProject.name} looks done`,
-      body: 'Close it out to feed your cost book and pace history, so every next bid gets sharper.',
+      body: 'Close it out to add its actual costs and pace to your cost book for the next bid.',
       cta: 'Close the Project',
       href: { pathname: '/closeout-binder', params: { projectId: closeReadyProject.id } },
     };

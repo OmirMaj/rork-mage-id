@@ -261,7 +261,7 @@ describe('SigningCeremony', () => {
       await flush(2200);
       expect(r.getByText('Sent to Jane Smith')).toBeTruthy();
       // The approved preview's copy, without guessing the signer's pronoun.
-      expect(r.getByText('They counter-sign from their portal link. The contract is binding when they sign.')).toBeTruthy();
+      expect(r.getByText('They counter-sign from their portal link. The contract is signed by both parties when they do.')).toBeTruthy();
       expect(r.queryByTestId(`${ID}-name`)).toBeNull();
       const card = StyleSheet.flatten(r.getByTestId(`${ID}-card`).props.style) as Record<string, unknown>;
       expect(card.height).toBe(208);

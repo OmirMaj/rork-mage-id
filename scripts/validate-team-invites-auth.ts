@@ -101,6 +101,8 @@ console.log('\n#72 signup() never touches local data for an existing address:');
         queryClient: { clear: () => { calls.push('queryClient.clear'); } },
         mapSupabaseUser: (u: unknown) => u,
         track: () => { calls.push('track'); },
+        // Lane PROTECT-SERVER: the saved acceptance record. Called, never awaited.
+        recordSignInAcceptance: (u: { id?: string } | null, method: string) => { calls.push(`recordSignInAcceptance:${u?.id ?? 'none'}:${method}`); },
         AnalyticsEvents: { USER_SIGNED_UP: 'user_signed_up' },
         __importStub: async () => { throw new Error('no email in the harness'); },
       };
@@ -127,6 +129,7 @@ console.log('\n#72 signup() never touches local data for an existing address:');
     const QUEUE = ['clearOfflineQueue', 'clearPhotoUploadQueue', 'clearAudioTranscribeQueue', 'clearSyncFailures'];
     ok('…and NO queue-clear runs', !dup.calls.some((c) => QUEUE.includes(c)), dup.calls.join(','));
     ok('…and no local wipe of any kind runs', !dup.calls.some((c) => c.startsWith('wipe')), dup.calls.join(','));
+    ok('…and no acceptance is noted under the made-up id', !dup.calls.some((c) => c.startsWith('recordSignInAcceptance')), dup.calls.join(','));
     ok('…and the last-user marker is unchanged (the random id is never written)', dup.marker?.id === MARK.id && !dup.calls.includes('writeLastUser'), JSON.stringify(dup.marker));
 
     const errored = await run({ data: { user: null, session: null }, error: { message: 'rate limited' } }, { id: 'prev', email: 'prev@x.com' });
@@ -134,11 +137,15 @@ console.log('\n#72 signup() never touches local data for an existing address:');
 
     const unconfirmed = await run({ data: { user: { id: 'new-id', identities: [{}] }, session: null }, error: null }, { id: 'prev', email: 'prev@x.com' });
     ok('a real sign-up awaiting confirmation (no session) succeeds', unconfirmed.thrown === null, `thrown: ${unconfirmed.thrown}`);
+    ok('…and the acceptance is noted at the tap, under the NEW account\'s id, as an email sign-up (the link may be opened hours later)',
+      unconfirmed.calls.filter((c) => c.startsWith('recordSignInAcceptance')).join() === 'recordSignInAcceptance:new-id:signup_email', unconfirmed.calls.join(','));
     ok('…without a hand-off: no wipe, no queue-clear, marker unchanged', !unconfirmed.calls.some((c) => c.startsWith('wipe') || QUEUE.includes(c)) && unconfirmed.marker?.id === 'prev', unconfirmed.calls.join(','));
 
     const live = await run({ data: { user: { id: 'new-id', email: 'mike@example.com', identities: [{}] }, session: { access_token: 'x' } }, error: null }, { id: 'prev', email: 'prev@x.com' });
     ok('a sign-up WITH a session still hands the device over (pre-wipe, queues dropped, marker = new user)',
-      live.calls.includes('wipe:pre') && live.calls.includes('clearOfflineQueue') && live.marker?.id === 'new-id', live.calls.join(','));
+      live.thrown === null && live.calls.includes('wipe:pre') && live.calls.includes('clearOfflineQueue') && live.marker?.id === 'new-id', `${live.thrown} ${live.calls.join(',')}`);
+    ok('…and notes the acceptance once, after the hand-off, as an email sign-up',
+      live.calls.filter((c) => c.startsWith('recordSignInAcceptance')).join() === 'recordSignInAcceptance:new-id:signup_email' && live.calls.indexOf('recordSignInAcceptance:new-id:signup_email') > live.calls.lastIndexOf('writeLastUser'), live.calls.join(','));
     // data-session critic: the SIGNED_IN fired inside signUp reaches the app
     // only AFTER the hand-off (wipe, queue drop, marker) — never before it.
     const applyAt = live.calls.indexOf('applySession');
@@ -156,7 +163,7 @@ for (const name of ['signInWithGoogle', 'signInWithApple']) {
   const src = extractCallback(AUTH, name);
   ok(`${name} located`, !!src);
   if (!src) continue;
-  ok(`${name} is typed Promise<boolean>`, /^async \(\): Promise<boolean> =>/.test(src.trim()));
+  ok(`${name} is typed Promise<boolean>`, /^async \((startedFrom: SignInScreen = 'login')?\): Promise<boolean> =>/.test(src.trim()));
   ok(`${name} has no bare \`return;\` (every quiet exit says false)`, !/\breturn;/.test(src));
   const trues = [...src.matchAll(/return true;/g)].length;
   const completes = [...src.matchAll(/await completeSignIn\(/g)].length;
@@ -171,7 +178,7 @@ for (const name of ['signInWithGoogle', 'signInWithApple']) {
 for (const [file, provs] of [['app/login.tsx', ['Google', 'Apple']], ['app/signup.tsx', ['Google', 'Apple']]] as const) {
   const src = read(file);
   for (const p of provs) {
-    const re = new RegExp(`const signedIn = await signInWith${p}\\(\\);\\s*if \\(!signedIn\\) return;\\s*if \\(Platform\\.OS !== 'web'\\) \\{\\s*void Haptics\\.notificationAsync\\(Haptics\\.NotificationFeedbackType\\.Success\\)`);
+    const re = new RegExp(`const signedIn = await signInWith${p}\\(${file === 'app/signup.tsx' ? "'signup'" : ''}\\);\\s*if \\(!signedIn\\) return;\\s*if \\(Platform\\.OS !== 'web'\\) \\{\\s*void Haptics\\.notificationAsync\\(Haptics\\.NotificationFeedbackType\\.Success\\)`);
     ok(`${file}: ${p} — haptic/track/navigation only after a true result`, re.test(src));
     ok(`${file}: no un-checked \`await signInWith${p}();\``, !new RegExp(`\\n\\s*await signInWith${p}\\(\\);`).test(src));
   }

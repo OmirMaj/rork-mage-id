@@ -3,6 +3,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export type SignupPlan = 'free' | 'pro' | 'business' | 'enterprise';
 export interface SignupIntent { plan: SignupPlan; trialDays: number; }
 
+/**
+ * OFF (PROTECT-TEXT, 2026-10-09). The "N-day free trial" badge on the two
+ * purchase screens was drawn from `trialDays`, which is whatever a marketing
+ * link put in its URL. Nothing reads a trial from the store product, and the
+ * purchase does not start one, so the badge sat above a Subscribe button that
+ * charges at once unless the store product happens to carry an intro offer.
+ * A trial is shown again only when the store package itself reports one and
+ * the screen prints what is charged when it ends. The plan highlight stays.
+ */
+export const SIGNUP_TRIAL_BADGE_ENABLED: boolean = false;
+
 const VALID_PLANS: readonly SignupPlan[] = ['free', 'pro', 'business', 'enterprise'];
 export const SIGNUP_INTENT_KEY = 'mageid_signup_intent';
 

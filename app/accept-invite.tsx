@@ -53,6 +53,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink';
 import { settleWithin } from '@/utils/projectRole';
 import { describeError } from '@/utils/errorCopy';
+import { AgreementNotice } from '@/components/ProtectNotices';
 
 const PENDING_KEY = 'mageid_pending_invite';
 type Status = 'idle' | 'accepting' | 'done' | 'error' | 'signin';
@@ -255,6 +256,7 @@ export default function AcceptInvite() {
           <>
             <Text style={[styles.title, { color: t.text }]}>You're invited to a project</Text>
             <Text style={[styles.sub, { color: t.textSecondary }]}>Sign in or create a free account with the address this invite was sent to. You'll come straight back here to accept. If you lose this page, the invite also waits on your Home screen.</Text>
+            <AgreementNotice testID="accept-invite-agreement" style={{ marginBottom: 12 }} />
             <TouchableOpacity style={[styles.btn, { backgroundColor: t.accentFill }]} onPress={() => router.push(loginHrefForInvite(params.token) as never)} accessibilityRole="button">
               <Text style={styles.btnText}>Sign In to Accept</Text>
             </TouchableOpacity>
