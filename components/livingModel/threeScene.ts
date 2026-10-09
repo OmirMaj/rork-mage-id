@@ -28,7 +28,7 @@
 import { modelBounds, roomBounds } from '@/utils/livingModel/modelCore';
 import { hexToRgb, type LivingModelPalette } from '@/utils/livingModel/palette';
 import type { RoomLayers } from '@/utils/livingModel/replayCore';
-import { buildRoomGeometry, fitSpan, fitZoom, revealRange, viewExtent, type BoxBuf, type RoomGeometry } from '@/utils/livingModel/sceneCore';
+import { buildRoomGeometry, fitSpan, fitZoom, labelRoomPx, revealRange, viewExtent, type BoxBuf, type RoomGeometry } from '@/utils/livingModel/sceneCore';
 import type { RoomStage } from '@/utils/livingModel/stageCore';
 import type { Bounds } from '@/utils/livingModel/types';
 import type { PlacedRoom } from '@/utils/livingModel/types';
@@ -63,7 +63,7 @@ export interface JobSceneHandle {
   pick: (xPx: number, yPx: number) => string | null;
   /** Where a room's label goes, in canvas pixels. */
   project: (roomId: string) => { x: number; y: number } | null;
-  /** How wide a room is drawn on the canvas right now, in pixels. null for a room that is not in the scene. */
+  /** How much room a label has across a room as it is drawn right now, in pixels (sceneCore.labelRoomPx). null for a room that is not in the scene. */
   roomWidthPx: (roomId: string) => number | null;
   /** The colour a room's floor is drawn in right now, as '#rrggbb'. null for a room that is not in the scene. */
   floorHex: (roomId: string) => string | null;
@@ -360,15 +360,16 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
     roomWidthPx(roomId) {
       const rm = rooms.get(roomId);
       if (!rm || !rm.box) return null;
-      let lo = Infinity;
-      let hi = -Infinity;
-      for (const [x, z] of [[rm.box.minX, rm.box.minY], [rm.box.maxX, rm.box.minY], [rm.box.maxX, rm.box.maxY], [rm.box.minX, rm.box.maxY]] as const) {
+      const cx = (rm.box.minX + rm.box.maxX) / 2;
+      const cz = (rm.box.minY + rm.box.maxY) / 2;
+      const px = (x: number, z: number): { x: number; y: number } => {
         tmp.set(x, 0.1, z).project(camera);
-        const px = ((tmp.x + 1) / 2) * V.w;
-        lo = Math.min(lo, px);
-        hi = Math.max(hi, px);
-      }
-      return hi - lo;
+        return { x: ((tmp.x + 1) / 2) * V.w, y: ((1 - tmp.y) / 2) * V.h };
+      };
+      const c = px(cx, cz);
+      const a = px(rm.box.maxX, cz);
+      const b = px(cx, rm.box.maxY);
+      return labelRoomPx({ x: a.x - c.x, y: a.y - c.y }, { x: b.x - c.x, y: b.y - c.y });
     },
     floorHex(roomId) {
       const rm = rooms.get(roomId);

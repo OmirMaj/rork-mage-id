@@ -234,7 +234,8 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
             // A label no wider than its room: the stage line, then the name, give way in a small room.
             const sized = pinSize(handle?.roomWidthPx(roomId) ?? Number.NaN, roomId === selectedRef.current || roomId === hoverRef.current);
             const size = compactRef.current && sized === 'full' && roomId !== selectedRef.current ? 'name' : sized;
-            const [name, sub] = [el.children[1], el.children[2]] as (HTMLElement | undefined)[];
+            const name = el.children[0]?.children[1] as HTMLElement | undefined;
+            const sub = el.children[1] as HTMLElement | undefined;
             if (name) name.style.display = size === 'dot' ? 'none' : '';
             if (sub) sub.style.display = size === 'full' ? '' : 'none';
             el.style.padding = size === 'dot' ? '3px' : '';
@@ -313,8 +314,10 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
             accessibilityLabel={copy.roomA11yLabel(r.name, stageLine(m, copy))}
             testID={`lm-pin-${r.id}`}
           >
-            <View style={[styles.swatch, { backgroundColor: palette.stage[m?.stage ?? 'no_tasks'] }]} />
-            <Text style={styles.pinName} numberOfLines={1}>{r.name}</Text>
+            <View style={styles.pinHead}>
+              <View style={[styles.swatch, styles.pinDot, { backgroundColor: palette.stage[m?.stage ?? 'no_tasks'] }]} />
+              <Text style={styles.pinName} numberOfLines={1}>{r.name}</Text>
+            </View>
             <Text style={styles.pinSub} numberOfLines={1}>{stageLine(m, copy)}</Text>
           </Pressable>
         );

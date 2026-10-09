@@ -365,20 +365,39 @@ export function screenPoint(p: { x: number; y: number; z: number }, target: { x:
 }
 
 /**
- * How big a room's label may be, from how wide the room is drawn on the canvas.
+ * How much room a label has across a room as it is drawn: the length, in
+ * pixels, of the level line through the middle of the room's floor on the
+ * canvas. `u` and `v` are the floor's two half-sides as drawn (from the middle
+ * of the room to the middle of a side, in canvas pixels). A room seen at an
+ * angle is a slanted box, and its box on the canvas is far wider than the
+ * strip a label can sit on; this is the strip.
+ */
+export function labelRoomPx(u: { x: number; y: number }, v: { x: number; y: number }): number {
+  let best = 0;
+  const tryPoint = (a: number, b: number): void => { if (Math.abs(a) <= 1 + 1e-9 && Math.abs(b) <= 1 + 1e-9) best = Math.max(best, Math.abs(a * u.x + b * v.x)); };
+  // Where the level line through the middle leaves the box: on a side where a = 1 or where b = 1 (the other two are its mirror).
+  if (Math.abs(v.y) > 1e-9) tryPoint(1, -u.y / v.y); else tryPoint(1, 1);
+  if (Math.abs(u.y) > 1e-9) tryPoint(-v.y / u.y, 1); else tryPoint(1, 1);
+  if (Math.abs(u.y) <= 1e-9 && Math.abs(v.y) <= 1e-9) best = Math.abs(u.x) + Math.abs(v.x);
+  const out = best * 2;
+  return Number.isFinite(out) ? out : 0;
+}
+
+/**
+ * How big a room's label may be, from how much room it has (`labelRoomPx`).
  *   'full'  the name and the stage line;
  *   'name'  the name alone (the stage line would spill over the next room);
  *   'dot'   a small dot in the stage colour (even the name would not fit).
  * The selected room and the room under the pointer always show 'full'.
  */
 export type PinSize = 'full' | 'name' | 'dot';
-export const PIN_FULL_PX = 132;
-export const PIN_NAME_PX = 64;
-export function pinSize(roomWidthPx: number, emphasised: boolean): PinSize {
+export const PIN_FULL_PX = 150;
+export const PIN_NAME_PX = 84;
+export function pinSize(roomPx: number, emphasised: boolean): PinSize {
   if (emphasised) return 'full';
-  if (!Number.isFinite(roomWidthPx)) return 'name';
-  if (roomWidthPx >= PIN_FULL_PX) return 'full';
-  return roomWidthPx >= PIN_NAME_PX ? 'name' : 'dot';
+  if (!Number.isFinite(roomPx)) return 'name';
+  if (roomPx >= PIN_FULL_PX) return 'full';
+  return roomPx >= PIN_NAME_PX ? 'name' : 'dot';
 }
 
 /**

@@ -89,7 +89,7 @@ import {
 } from '../utils/livingModel/replayCore';
 import { buildReplayInput, dateOfOffset } from '../utils/livingModel/replayInput';
 import {
-  PIN_FULL_PX, PIN_NAME_PX, VERTS_PER_BOX, VIEW_FILL, buildRoomGeometry, canvasTouchAction, fitZoom, oneFingerTurnsModel, pinSize, revealRange, roomHasPipes,
+  PIN_FULL_PX, PIN_NAME_PX, VERTS_PER_BOX, VIEW_FILL, buildRoomGeometry, canvasTouchAction, fitZoom, labelRoomPx, oneFingerTurnsModel, pinSize, revealRange, roomHasPipes,
   screenPoint, triangulate, viewExtent, wallSpans, wheelShouldZoom,
 } from '../utils/livingModel/sceneCore';
 import { BUILD_STAGES, STAGE_BY_TRADE, TASK_STAGES, resolveStage, stageForTask } from '../utils/livingModel/stageCore';
@@ -129,7 +129,7 @@ const impl = {
   livingModelAllowedWith, livingModelSeat, livingModelKey, revealRange, buildRoomGeometry, wallSpans, roomHasPipes,
   // added after the review
   roomCard, buildReplayInput, readSavedModel, mayWriteModel, livingModelBackupKey, suggestionBox, resolveStage, setTaskStage, setRoomKind,
-  viewExtent, pinSize, wheelShouldZoom, oneFingerTurnsModel, canvasTouchAction, createJobScene,
+  viewExtent, pinSize, labelRoomPx, wheelShouldZoom, oneFingerTurnsModel, canvasTouchAction, createJobScene,
   MATERIALS: MATERIALS as Record<'light' | 'dark', Record<string, string | number>>,
 };
 type Impl = typeof impl;
@@ -1499,6 +1499,14 @@ rule('J5', 'the home view fits full-height walls; a small room\'s label gives wa
   if (P(PIN_FULL_PX, false) !== 'full' || P(PIN_FULL_PX - 1, false) !== 'name' || P(PIN_NAME_PX, false) !== 'name' || P(PIN_NAME_PX - 1, false) !== 'dot') out.push('a label does not give way as its room gets smaller');
   if (P(10, true) !== 'full') out.push('the selected room\'s label is not shown in full');
   if (P(Number.NaN, false) === 'full') out.push('a room whose size is not known gets a full label');
+  // The room a label has is the level strip through the middle of the room as drawn, not the room's whole box on the canvas.
+  const R = w.impl.labelRoomPx;
+  if (!near(R({ x: 50, y: 0 }, { x: 0, y: 30 }), 100, 1e-9)) out.push(`a room drawn square-on, 100 px wide, has ${R({ x: 50, y: 0 }, { x: 0, y: 30 })} px for its label`);
+  // A long thin room seen at an angle: its box on the canvas is 220 px wide, the strip through its middle 40.
+  if (!near(R({ x: 100, y: 60 }, { x: -10, y: 6 }), 40, 1e-9)) out.push(`a long thin slanted room has ${R({ x: 100, y: 60 }, { x: -10, y: 6 }).toFixed(1)} px for its label; the strip through its middle is 40 (its box is 220)`);
+  // A square room seen corner-on is a diamond 240 px from side point to side point, and the strip through its middle is that whole width.
+  if (!near(R({ x: 60, y: 30 }, { x: -60, y: 30 }), 240, 1e-9)) out.push('a square room seen corner-on does not have its full width, point to point, for a label');
+  if (R({ x: 0, y: 0 }, { x: 0, y: 0 }) !== 0 || !Number.isFinite(R({ x: Number.NaN, y: 1 }, { x: 1, y: 1 }))) out.push('a room with no size, or a bad number, does not give a plain number');
   const web = code(w.files['components/livingModel/JobReplay3D.web.tsx'] ?? '');
   if (!/pinSize\(handle\?\.roomWidthPx\(roomId\) \?\? Number\.NaN, roomId === selectedRef\.current \|\| roomId === hoverRef\.current\)/.test(web)) out.push('the 3D view does not size each label from how wide its room is drawn');
   if (!/if \(sub\) sub\.style\.display = size === 'full' \? '' : 'none';/.test(web) || !/if \(name\) name\.style\.display = size === 'dot' \? 'none' : '';/.test(web)) out.push('the stage line and the name are not hidden in a small room');
@@ -1524,9 +1532,13 @@ rule('J5', 'the home view fits full-height walls; a small room\'s label gives wa
       else if (plain && !(hexDist(hex, pal.stage[stage]) < hexDist(plain, pal.stage[stage]) * 0.6)) out.push(`${pal.mode}: the floor of a room in ${stage} (${hex}) is not clearly the stage colour ${pal.stage[stage]}`);
     }
     if (seenFloors.size !== 5) out.push(`${pal.mode}: five rooms in five stages are drawn on ${seenFloors.size} floor colours`);
-    const wide = h.roomWidthPx('hall');
+    const wide = h.roomWidthPx('living');
     const small = h.roomWidthPx('closet');
-    if (wide == null || small == null || !(wide > small * 2)) out.push(`${pal.mode}: the 28 ft hall is drawn ${wide?.toFixed(0)} px wide and the 4 ft closet ${small?.toFixed(0)} px: the label sizes have nothing to go on`);
+    const thin = h.roomWidthPx('hall');
+    if (wide == null || small == null || !(wide > small * 2)) out.push(`${pal.mode}: the 16 by 14 ft living room has ${wide?.toFixed(0)} px for its label and the 4 ft closet ${small?.toFixed(0)} px: the label sizes have nothing to go on`);
+    if (wide == null || thin == null || !(thin < wide / 2)) out.push(`${pal.mode}: the hall is 28 ft long but only 4 ft deep, and is given ${thin?.toFixed(0)} px for its label: a label that wide would cover the rooms beside it`);
+    if (wide != null && w.impl.pinSize(wide, false) !== 'full') out.push(`${pal.mode}: on an 1100 px canvas the living room's label is not shown in full`);
+    if (small != null && w.impl.pinSize(small, false) === 'full') out.push(`${pal.mode}: on an 1100 px canvas the closet's label is shown in full, over its neighbours`);
     if (h.roomWidthPx('no-such-room') !== null) out.push('a room that is not in the scene has a width');
     h.dispose();
   }
@@ -1800,6 +1812,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'I1', name: 'the dark table loses a material', plant: swap({ MATERIALS: { light: MATERIALS.light, dark: Object.fromEntries(Object.entries(MATERIALS.dark).filter(([k]) => k !== 'trim')) } as never }) },
   { rule: 'J5', name: 'the fit ignores the wall height', plant: swap({ viewExtent: (b, _h, az, el) => viewExtent(b, 0, az, el) }) },
   { rule: 'J5', name: 'the fit is the old one, from the floor box alone', plant: swap({ viewExtent: (b) => { const span = b ? Math.max(4, Math.hypot(b.maxX - b.minX, b.maxY - b.minY)) : 8; return { halfW: (span * 1.3 * 0.84) / 2, halfH: (span * 1.3 * 0.84) / 2 / 1.4 }; } }) },
+  { rule: 'J5', name: 'a label is sized from the room\'s whole box on the canvas', plant: swap({ labelRoomPx: (u, v) => 2 * (Math.abs(u.x) + Math.abs(v.x)) }) },
   { rule: 'J5', name: 'every label is shown in full', plant: swap({ pinSize: () => 'full' }) },
   { rule: 'J5', name: 'the selected room\'s label is cut down too', plant: swap({ pinSize: (px) => pinSize(px, false) }) },
   { rule: 'J5', name: 'the floors do not take the stage colour', plant: swap({ createJobScene: (T, c, p, o) => { const h = createJobScene(T, c, p, o); return { ...h, apply: (looks) => h.apply(new Map(Array.from(looks.entries()).map(([id, l]) => [id, { ...l, stage: 'no_tasks' as const }]))) }; } }) },
