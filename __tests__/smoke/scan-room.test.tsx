@@ -106,6 +106,19 @@ jest.mock('@/utils/roomScan/store', () => ({
   deleteScan: (projectId: string, scanId: string) => mockDeleteScan(projectId, scanId),
 }));
 
+// The order list (lane SCANORDER) reads who is signed in for his tape list, and
+// can copy or share. None of that is this file's subject (its own suite is
+// __tests__/smoke/scan-order.test.tsx): stand them in so nothing here touches
+// the device.
+jest.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
+jest.mock('@/utils/roomScan/learnStore', () => ({
+  loadTapePairs: async () => [],
+  recordTapePairs: async (_userId: unknown, pairs: unknown[]) => pairs,
+  forgetScanTapePairs: async () => {},
+}));
+jest.mock('@/utils/clipboard', () => ({ copyToClipboard: jest.fn(async () => true) }));
+jest.mock('@/utils/shareText', () => ({ shareText: jest.fn(async () => 'shared'), canShare: () => true }));
+
 let mockCaps: Record<string, unknown> | null = null;
 const mockGetCapabilities = jest.fn(() => mockCaps);
 jest.mock('@/utils/roomScan/native', () => ({
