@@ -9,7 +9,7 @@ import { Text, View } from 'react-native';
 import Svg, { Line, Polygon, Rect } from 'react-native-svg';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { roomCentre, worldFloor, worldWalls } from '@/utils/livingModel/modelCore';
+import { roomBounds, roomCentre, worldFloor, worldWalls } from '@/utils/livingModel/modelCore';
 import { gridLines, toPx, type PlanView } from '@/utils/livingModel/planView';
 import type { JobModel } from '@/utils/livingModel/types';
 import { makeLivingModelStyles } from './styles';
@@ -68,22 +68,44 @@ export function ModelPlan({ model, level, view, fillFor, ghostFor, subFor, selec
           let cur = 0;
           w.openings.forEach((o, i) => {
             if (o.s0 > cur) { const p = at(cur); const q = at(o.s0); parts.push(<Line key={`s${i}`} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={stroke} strokeWidth={width} strokeLinecap="square" />); }
-            const p = at(o.s0);
-            const q = at(o.s1);
-            // A window is a thin line across the gap. A door is the gap alone, with its two jambs.
-            if (o.kind === 'window') parts.push(<Line key={`o${i}`} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={colors.info} strokeWidth={2} />);
             cur = Math.max(cur, o.s1);
           });
           if (cur < len) { const p = at(cur); parts.push(<Line key="end" x1={p.x} y1={p.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={width} strokeLinecap="square" />); }
           return <React.Fragment key={`w${w.id}`}>{parts}</React.Fragment>;
         }))}
+        {/* Doors and windows go on last, over every wall: two rooms that touch each draw the wall between them, and one room's wall would cover the other's doorway. A door is a clear gap with two jambs; a window is a thin line. */}
+        {drawn.map(({ walls }) => walls.map(({ w, a, b }) => w.openings.map((o) => {
+          const len = w.lengthM || 1;
+          const at = (s: number) => ({ x: a.x + ((b.x - a.x) * s) / len, y: a.y + ((b.y - a.y) * s) / len });
+          const p = at(o.s0);
+          const q = at(o.s1);
+          const nx = w.inward.x * 5;
+          const ny = w.inward.y * 5;
+          return (
+            <React.Fragment key={`o${o.id}`}>
+              <Line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={colors.surface} strokeWidth={7} />
+              {o.kind === 'window'
+                ? <Line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={colors.info} strokeWidth={2} />
+                : (
+                  <>
+                    <Line x1={p.x - nx} y1={p.y - ny} x2={p.x + nx} y2={p.y + ny} stroke={colors.text} strokeWidth={2} />
+                    <Line x1={q.x - nx} y1={q.y - ny} x2={q.x + nx} y2={q.y + ny} stroke={colors.text} strokeWidth={2} />
+                  </>
+                )}
+            </React.Fragment>
+          );
+        })))}
       </Svg>
       {drawn.map(({ room, centre }) => {
         if (!centre) return null;
         const p = toPx(view, centre);
-        const sub = subFor?.(room.id);
+        const box = roomBounds(room);
+        const wide = box ? (box.maxX - box.minX) * view.scale : 0;
+        // A narrow room shows its name alone: a second line would run into the room beside it.
+        const sub = wide >= 132 ? subFor?.(room.id) : null;
+        const width = Math.max(44, wide - 6);
         return (
-          <View key={`l${room.id}`} pointerEvents="none" style={[styles.planLabel, { left: p.x - 70, top: p.y - (sub ? 16 : 9), width: 140 }]}>
+          <View key={`l${room.id}`} pointerEvents="none" style={[styles.planLabel, { left: p.x - width / 2, top: p.y - (sub ? 16 : 9), width }]}>
             <Text style={styles.planLabelName} numberOfLines={1}>{room.name}</Text>
             {sub ? <Text style={styles.planLabelSub} numberOfLines={1}>{sub}</Text> : null}
           </View>

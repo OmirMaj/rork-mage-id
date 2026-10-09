@@ -641,6 +641,7 @@ rule('F3', 'both honesty lines are on the 3D view, the flat view and the editor,
   const viewBlock = replay.slice(replay.indexOf('const view = ('), replay.indexOf('const side = ('));
   if (!/<HonestyLines/.test(viewBlock) || /\{[^{}\n]*(&&|\?)[^{}\n]*<HonestyLines/.test(viewBlock)) out.push('the honesty lines in the replay sit behind a condition');
   if (!/<HonestyLines testID="lm-honesty-rooms" \/>/.test(s)) out.push('the Room Editor view has no honesty lines');
+  if (!/\{footer\}/.test(w.files['components/livingModel/RoomEditor.tsx'] ?? '')) out.push('the Room Editor does not draw the lines it is handed');
   if (!/<HonestyLines \/>/.test(replay.slice(0, replay.indexOf('const view = (')))) out.push('the empty replay has no honesty lines');
   return out;
 });
@@ -1021,7 +1022,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'F3', name: 'the lines are only under the flat view', plant: edit('components/livingModel/LivingModelScreen.tsx', "      <HonestyLines ghost={past} testID={threeD ? 'lm-honesty-3d' : 'lm-honesty-flat'} />", "      {!threeD ? <HonestyLines ghost={past} testID=\"lm-honesty-flat\" /> : null}") },
   { rule: 'F3', name: 'the lines are removed from the replay', plant: edit('components/livingModel/LivingModelScreen.tsx', "      <HonestyLines ghost={past} testID={threeD ? 'lm-honesty-3d' : 'lm-honesty-flat'} />\n", '') },
   { rule: 'F3', name: 'the component prints one line', plant: edit('components/livingModel/HonestyLines.tsx', '      <Text style={styles.noteStrong}>{copy.schematicBody}</Text>\n', '') },
-  { rule: 'F3', name: 'the editor loses the lines', plant: edit('components/livingModel/LivingModelScreen.tsx', '            <HonestyLines testID="lm-honesty-rooms" />\n', '') },
+  { rule: 'F3', name: 'the editor loses the lines', plant: edit('components/livingModel/LivingModelScreen.tsx', '              footer={<HonestyLines testID="lm-honesty-rooms" />}\n', '') },
+  { rule: 'F3', name: 'the editor is handed the lines and does not draw them', plant: edit('components/livingModel/RoomEditor.tsx', '        {footer}\n', '') },
   { rule: 'F4', name: 'the scan line loses the inch', plant: en('honesty.scanCaveatBody', 'This room came from a phone scan.') },
   { rule: 'F4', name: 'the room card drops the scan line', plant: edit('components/livingModel/replayShared.tsx', "      {room.source === 'scan' ? <Text style={styles.warn}>{copy.scanCaveatBody}</Text> : null}\n", '') },
   { rule: 'F4', name: 'the device-only line is not shown', plant: edit('components/livingModel/RoomEditor.tsx', '        <Text style={styles.note} testID="lm-saved-local">{copy.savedLocalBody}</Text>\n', '') },

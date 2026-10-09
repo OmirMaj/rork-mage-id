@@ -46,7 +46,7 @@ export function TaskLinks({ model, input, roomId, onRoom, onChange }: {
   if (!room) return null;
 
   return (
-    <View style={styles.colMain} testID="living-model-links">
+    <View style={styles.narrow} testID="living-model-links">
       <Text style={styles.para}>{copy.tasksIntroBody}</Text>
       <View style={styles.chips} accessibilityRole="tablist">
         {model.rooms.map((r, i) => {

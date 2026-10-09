@@ -40,7 +40,7 @@ function loadThree(): Promise<typeof import('three')> {
   return import('three');
 }
 
-export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUnavailable, weekLine, atToday, height }: JobReplay3DProps) {
+export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUnavailable, weekLine, atToday, height, compact }: JobReplay3DProps) {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const palette = usePalette();
@@ -236,10 +236,12 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
             testID={`lm-pin-${r.id}`}
           >
             <Text style={styles.pinName} numberOfLines={1}>{r.name}</Text>
-            <View style={styles.legendItem}>
-              <View style={[styles.swatch, { backgroundColor: palette.stage[m?.stage ?? 'no_tasks'], width: 8, height: 8 }]} />
-              <Text style={styles.pinSub} numberOfLines={1}>{stageLine(m, copy)}</Text>
-            </View>
+            {compact ? null : (
+              <View style={styles.legendItem}>
+                <View style={[styles.swatch, { backgroundColor: palette.stage[m?.stage ?? 'no_tasks'], width: 8, height: 8 }]} />
+                <Text style={styles.pinSub} numberOfLines={1}>{stageLine(m, copy)}</Text>
+              </View>
+            )}
           </Pressable>
         );
       }) : null}
@@ -248,7 +250,7 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
           <Text style={styles.hudWeek}>{weekLine}</Text>
           {atToday ? <View style={styles.todayTag}><Text style={styles.todayTagText}>{copy.todayLabel}</Text></View> : null}
         </View>
-        <StageLegend />
+        {compact ? null : <StageLegend />}
       </View>
       <View style={styles.viewBtns}>
         <ToolButton label={cut ? copy.fullWallsLabel : copy.cutWallsLabel} onPress={() => setCut((c) => !c)} testID="lm-cut" />

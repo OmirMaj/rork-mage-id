@@ -127,8 +127,8 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
               level={level}
               onLevel={setLevel}
               wide={wide}
+              footer={<HonestyLines testID="lm-honesty-rooms" />}
             />
-            <HonestyLines testID="lm-honesty-rooms" />
           </>
         ) : null}
         {model && tab === 'tasks' ? (
@@ -175,7 +175,7 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide }:
   }
 
   const view = (
-    <View style={styles.colMain}>
+    <View style={wide ? styles.colMain : styles.stack}>
       {levels.length > 1 ? (
         <View style={styles.chips} accessibilityRole="tablist">
           {levels.map((l) => (
@@ -187,7 +187,8 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide }:
       ) : null}
       {threeD ? (
         <>
-          <JobReplay3D model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} onUnavailable={() => setNo3d(true)} weekLine={weekLine} atToday={atToday} height={wide ? 560 : 420} />
+          <JobReplay3D model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} onUnavailable={() => setNo3d(true)} weekLine={weekLine} atToday={atToday} height={wide ? 560 : 380} compact={!wide} />
+          {wide ? null : <StageLegend />}
           <Text style={styles.note}>{copy.orbitHelpSub}</Text>
         </>
       ) : (
@@ -210,10 +211,10 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide }:
     </View>
   );
   const side = (
-    <View style={wide ? styles.colSide : styles.colMain}>
+    <View style={wide ? styles.colSide : styles.stack}>
       {selected ? <RoomCardPanel room={selected} tasks={roomTasks.get(selected.id) ?? []} input={input} mode={state.mode} onClose={() => onSelect(null)} /> : null}
       <ReplayRoomList model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} />
     </View>
   );
-  return <View style={wide ? styles.bodyWide : styles.colMain} testID="living-model-replay">{view}{side}</View>;
+  return <View style={wide ? styles.bodyWide : styles.stack} testID="living-model-replay">{view}{side}</View>;
 }

@@ -120,7 +120,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
   let rooms = new Map<string, RoomMeshes>();
   let owned: Material[] = [];
   let pickable: Mesh[] = [];
-  const V = { az: DEFAULT_VIEW.azimuth as number, el: DEFAULT_VIEW.elevation as number, zoom: 1, tx: 0, tz: 0, w: 1, h: 1, span: 8, homeX: 0, homeZ: 0 };
+  const V = { az: DEFAULT_VIEW.azimuth as number, el: DEFAULT_VIEW.elevation as number, zoom: 1, tx: 0, tz: 0, w: 1, h: 1, span: 8, homeX: 0, homeZ: 0, midY: 0.6 };
 
   function layerMesh(buf: BoxBuf, solid: Material, ghost: Material | null, shadow: boolean): Mesh | null {
     if (!buf.p.length) return null;
@@ -222,6 +222,8 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
     sc.left = -reach; sc.right = reach; sc.top = reach; sc.bottom = -reach; sc.near = 1; sc.far = fit.span * 4 + 40;
     sc.updateProjectionMatrix();
 
+    // Look at the middle of the walls, so cut walls and full walls both sit in the frame.
+    V.midY = list.length ? Math.max(...Array.from(rooms.values()).map((r) => r.geo.heightM)) / 2 : 0.6;
     V.span = fit.span;
     V.homeX = fit.cx;
     V.homeZ = fit.cz;
@@ -251,7 +253,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
   }
 
   function updateCamera(): void {
-    const zoom = (Math.min(V.w, V.h * 1.25) / (V.span * 1.3)) * V.zoom;
+    const zoom = (Math.min(V.w, V.h * 1.4) / (V.span * 1.3)) * V.zoom;
     const ce = Math.cos(V.el);
     const se = Math.sin(V.el);
     camera.left = -V.w / 2 / zoom;
@@ -259,8 +261,8 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
     camera.top = V.h / 2 / zoom;
     camera.bottom = -V.h / 2 / zoom;
     const far = 200;
-    camera.position.set(V.tx + ce * Math.sin(V.az) * far, 1 + se * far, V.tz + ce * Math.cos(V.az) * far);
-    camera.lookAt(V.tx, 0.6, V.tz);
+    camera.position.set(V.tx + ce * Math.sin(V.az) * far, V.midY + se * far, V.tz + ce * Math.cos(V.az) * far);
+    camera.lookAt(V.tx, V.midY, V.tz);
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
   }
@@ -282,7 +284,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
       updateCamera();
     },
     pan(dx, dy) {
-      const zoom = (Math.min(V.w, V.h * 1.25) / (V.span * 1.3)) * V.zoom;
+      const zoom = (Math.min(V.w, V.h * 1.4) / (V.span * 1.3)) * V.zoom;
       const ca = Math.cos(V.az);
       const sa = Math.sin(V.az);
       const k = 1 / Math.max(0.3, Math.sin(V.el));

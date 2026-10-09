@@ -311,7 +311,7 @@ describe('Job Replay on the phone', () => {
 
   it('12 the phone file for the 3D view draws nothing, and the 3D library was never loaded', () => {
     expect(JOB_REPLAY_3D_ON_THIS_PLATFORM).toBe(false);
-    const { toJSON } = render(<JobReplay3D model={{ version: 1, projectId: 'p1', rooms: [], links: {}, updatedAt: '' }} level={0} moments={new Map()} selectedId={null} onSelect={() => {}} onUnavailable={() => {}} weekLine="" atToday={false} height={10} />);
+    const { toJSON } = render(<JobReplay3D model={{ version: 1, projectId: 'p1', rooms: [], links: {}, updatedAt: '' }} level={0} moments={new Map()} selectedId={null} onSelect={() => {}} onUnavailable={() => {}} weekLine="" atToday={false} height={10} compact />);
     expect(toJSON()).toBeNull();
     expect(mockThreeLoaded).toBe(false);
   });

@@ -2,7 +2,7 @@
 // Theme tokens only: no colour is written here. Flat: no gradient, no blur.
 import { StyleSheet } from 'react-native';
 import type { ThemeColors } from '@/constants/colors';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { cardSurface } from '@/components/ui/Card';
 import { labelOn } from '@/components/ui/ink';
@@ -11,12 +11,15 @@ export const makeLivingModelStyles = (t: ThemeColors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
   backBtn: { width: 40, height: 40, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerName: { ...Type.title3, color: t.text, flex: 1 },
+  headerName: { ...Type.serifHeadline, color: t.text },
   headerSub: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   tabs: { paddingHorizontal: 16, paddingBottom: 10 },
   body: { paddingHorizontal: 16, paddingBottom: 32, gap: 12 },
   bodyWide: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 16 },
+  // `stack` is a column inside the scrolling page (no flex: a flex: 1 child of a scroll view has no height). `colMain` is the wide layout's main column, in a row.
+  stack: { gap: 12 },
   colMain: { flex: 1, gap: 12, minWidth: 0 },
+  narrow: { width: '100%' as const, maxWidth: Layout.page.form, gap: 12 },
   colSide: { width: 340, gap: 12 },
   panel: { ...cardSurface(t, { pad: 14 }), gap: 10 },
   panelHeading: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
@@ -65,7 +68,7 @@ export const makeLivingModelStyles = (t: ThemeColors) => StyleSheet.create({
   // replay
   stage3d: { borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line, backgroundColor: t.bg, overflow: 'hidden' as const },
   hud: { position: 'absolute' as const, left: 12, top: 12, ...cardSurface(t, { pad: 12 }), gap: 6, maxWidth: 300 },
-  hudWeek: { ...Type.title3, color: t.text },
+  hudWeek: { ...Type.serifHeadline, color: t.text },
   todayTag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Tokens.radius.sm, backgroundColor: t.accentFill },
   todayTagText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: labelOn(t.accentFill), letterSpacing: 0.6, textTransform: 'uppercase' as const },
   hudRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, flexWrap: 'wrap' as const },
@@ -82,6 +85,7 @@ export const makeLivingModelStyles = (t: ThemeColors) => StyleSheet.create({
   playBtn: { width: 44, height: 44, borderRadius: Tokens.radius.full, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: t.accentFill },
   weekText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   spacer: { flex: 1 },
+  modeSeg: { minWidth: 232 },
   track: { height: 34, justifyContent: 'center' as const },
   trackRail: { height: 12, borderRadius: Tokens.radius.full, backgroundColor: t.surfaceAlt, overflow: 'hidden' as const, flexDirection: 'row' as const },
   trackPast: { position: 'absolute' as const, left: 0, top: 11, height: 12, borderRadius: Tokens.radius.full, backgroundColor: t.accent },

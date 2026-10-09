@@ -15,4 +15,6 @@ export interface JobReplay3DProps {
   weekLine: string;
   atToday: boolean;
   height: number;
+  /** A narrow screen: the corner card shows the week alone and each room label its name alone. */
+  compact: boolean;
 }

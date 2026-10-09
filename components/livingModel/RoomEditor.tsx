@@ -55,11 +55,13 @@ export interface RoomEditorProps {
   level: number;
   onLevel: (level: number) => void;
   wide: boolean;
+  /** Drawn under the plan: the lines every view of the model carries. */
+  footer?: React.ReactNode;
 }
 
 type OpeningDraft = { roomId: string; wallId: string; kind: 'door' | 'window'; centreAlongM?: number };
 
-export function RoomEditor({ projectId, model, onChange, onUndo, onRedo, canUndo, canRedo, selectedId, onSelect, level, onLevel, wide }: RoomEditorProps) {
+export function RoomEditor({ projectId, model, onChange, onUndo, onRedo, canUndo, canRedo, selectedId, onSelect, level, onLevel, wide, footer }: RoomEditorProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
@@ -151,8 +153,8 @@ export function RoomEditor({ projectId, model, onChange, onUndo, onRedo, canUndo
   const roomName = (id: string) => shown.rooms.find((r) => r.id === id)?.name ?? '';
 
   return (
-    <View style={wide ? styles.bodyWide : styles.colMain} testID="living-model-editor">
-      <View style={styles.colMain}>
+    <View style={wide ? styles.bodyWide : styles.stack} testID="living-model-editor">
+      <View style={wide ? styles.colMain : styles.stack}>
         <View style={styles.toolbar}>
           <ToolButton label={copy.addRoomLabel} icon={<Plus size={16} color={colors.text} />} onPress={() => setAddOpen(true)} disabled={atLimit} testID="lm-add-room" />
           <ToolButton label={copy.addFromScanLabel} icon={<ScanLine size={16} color={colors.text} />} onPress={() => setScanOpen(true)} disabled={atLimit} testID="lm-add-scan" />
@@ -190,9 +192,10 @@ export function RoomEditor({ projectId, model, onChange, onUndo, onRedo, canUndo
         ))}
         {atLimit ? <Text style={styles.note}>{copy.roomLimitBody}</Text> : null}
         <Text style={styles.note} testID="lm-saved-local">{copy.savedLocalBody}</Text>
+        {footer}
       </View>
 
-      <View style={wide ? styles.colSide : styles.colMain}>
+      <View style={wide ? styles.colSide : styles.stack}>
         {selected ? (
           <SelectedRoomPanel
             room={selected}
@@ -343,26 +346,28 @@ function SelectedRoomPanel(p: {
         const on = w.id === p.wallId;
         const holes = room.room.openings.filter((o) => o.wallId === w.id);
         return (
-          <View key={w.id} style={[styles.row, i === 0 && styles.rowFirst, { alignItems: 'flex-start' }]}>
-            <Pressable style={styles.rowMain} onPress={() => p.onWall(on ? null : w.id)} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={copy.wallName(i + 1)} testID={`lm-wall-${i}`}>
-              <Text style={[styles.rowLabel, on && { color: colors.accentLabel }]}>{copy.wallName(i + 1)}</Text>
-              <Text style={styles.rowSub}>{formatFeetInches(w.lengthM)}</Text>
-              {holes.map((o) => {
-                const what = o.kind === 'window' ? copy.windowSub(formatFeetInches(o.widthM)) : copy.doorSub(formatFeetInches(o.widthM));
-                return (
-                  <View key={o.id} style={styles.legendItem}>
-                    <Text style={styles.rowSub}>{what}</Text>
-                    {room.source === 'typed' ? (
-                      <Pressable onPress={() => p.onRemoveOpening(o.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={copy.removeOpeningA11yLabel(what)} testID={`lm-remove-opening-${o.id}`}>
-                        <X size={14} color={colors.textMuted} />
-                      </Pressable>
-                    ) : null}
-                  </View>
-                );
-              })}
-            </Pressable>
-            <ToolButton label={copy.addDoorLabel} icon={<DoorOpen size={14} color={colors.text} />} onPress={() => { p.onWall(w.id); p.onAddOpening(w.id, 'door'); }} testID={`lm-add-door-${i}`} />
-            <ToolButton label={copy.addWindowLabel} onPress={() => { p.onWall(w.id); p.onAddOpening(w.id, 'window'); }} testID={`lm-add-window-${i}`} />
+          <View key={w.id} style={[styles.row, i === 0 && styles.rowFirst, { flexDirection: 'column', alignItems: 'stretch', gap: 6 }]}>
+            <View style={styles.hudRow}>
+              <Pressable style={styles.rowMain} onPress={() => p.onWall(on ? null : w.id)} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={copy.wallName(i + 1)} testID={`lm-wall-${i}`}>
+                <Text style={[styles.rowLabel, on && { color: colors.accentLabel }]}>{copy.wallName(i + 1)}</Text>
+                <Text style={styles.rowSub}>{formatFeetInches(w.lengthM)}</Text>
+              </Pressable>
+              <ToolButton label={copy.addDoorLabel} icon={<DoorOpen size={14} color={colors.text} />} onPress={() => { p.onWall(w.id); p.onAddOpening(w.id, 'door'); }} testID={`lm-add-door-${i}`} />
+              <ToolButton label={copy.addWindowLabel} onPress={() => { p.onWall(w.id); p.onAddOpening(w.id, 'window'); }} testID={`lm-add-window-${i}`} />
+            </View>
+            {holes.map((o) => {
+              const what = o.kind === 'window' ? copy.windowSub(formatFeetInches(o.widthM)) : copy.doorSub(formatFeetInches(o.widthM));
+              return (
+                <View key={o.id} style={styles.legendItem}>
+                  <Text style={styles.rowSub}>{what}</Text>
+                  {room.source === 'typed' ? (
+                    <Pressable onPress={() => p.onRemoveOpening(o.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={copy.removeOpeningA11yLabel(what)} testID={`lm-remove-opening-${o.id}`}>
+                      <X size={14} color={colors.textMuted} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              );
+            })}
           </View>
         );
       })}

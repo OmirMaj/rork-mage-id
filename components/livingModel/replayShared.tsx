@@ -15,6 +15,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy, type LivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { Tokens } from '@/constants/designTokens';
 import { SegmentedControl, useReducedMotion } from '@/components/ui';
+import { useIsDesktop } from '@/components/ui/desktop';
 import { labelOn } from '@/components/ui/ink';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { liveLinks } from '@/utils/livingModel/linkCore';
@@ -145,6 +146,7 @@ export function ReplayControls({ input, state }: { input: ReplayInput; state: Re
   const { colors } = useTheme();
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
+  const isDesktop = useIsDesktop();
   const { clock } = input;
   const { offset, setOffset, playing, togglePlay, mode, setMode } = state;
   const weeks = weekCount(clock);
@@ -197,6 +199,7 @@ export function ReplayControls({ input, state }: { input: ReplayInput; state: Re
           value={mode}
           onChange={setMode}
           size="sm"
+          style={isDesktop ? undefined : styles.modeSeg}
           accessibilityLabel={copy.modeA11yLabel}
           testID="lm-mode"
         />
