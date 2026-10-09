@@ -30,8 +30,8 @@ window.MAGE_DATA = (function () {
     { id: 'sch', at: [10.5, 2.2, 0.2], show: [1.6, 2.5], side: 'r', tag: 'Schedule', big: '20 Tasks', sub: '30 working days', bars: 1 },
     { id: 'frm', at: [1.6, 2.4, 0.6], show: [2.5, 3.35], side: 'l', tag: 'Framing This Week', big: '9 On Site', sub: 'Daily report sent', ok: 1 },
     { id: 'co', at: [10.4, 2.2, 1.6], show: [3.3, 4.05], side: 'r', hero: 1, tag: 'Change Order Signed', big: '+$1,850', sub: 'Kitchen island outlet', ok: 1 },
-    { id: 'pay', at: [1.4, 2.2, 7.6], show: [3.8, 4.6], side: 'l', hero: 1, tag: 'Pay Application 3', big: '$18,400', sub: 'Billed for work in place', meter: 60 },
-    { id: 'walk', at: [11.6, 2.3, 7.4], show: [4.6, 5.01], side: 'r', tag: 'Walkthrough', big: '9 Of 9', sub: 'Keys handed over', ok: 1 }
+    { id: 'pay', at: [1.4, 2.2, 7.6], heroAt: [13.2, 0.4, 9.7], heroSide: 'r', show: [3.8, 4.6], side: 'l', hero: 1, tag: 'Pay Application 3', big: '$18,400', sub: 'Billed for work in place', meter: 60 },
+    { id: 'walk', at: [1.2, 2.3, 6.8], show: [4.6, 5.01], side: 'l', tag: 'Walkthrough', big: '9 Of 9', sub: 'Keys handed over', ok: 1 }
   ];
 
   /* Dots on the job. Each opens a small panel about what the app does there. */

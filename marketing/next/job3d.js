@@ -36,8 +36,8 @@
 
     var scene = new THREE.Scene();
     var cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 300);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x8E968F, 0.78));
-    var sun = new THREE.DirectionalLight(0xffffff, 0.5);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8E968F, 0.72));
+    var sun = new THREE.DirectionalLight(0xffffff, 0.44);
     sun.position.set(-9, 30, 20); sun.target.position.set(6.5, 0, 5.5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
@@ -116,7 +116,7 @@
     /* ---------- palette ---------- */
     var K = {
       ground: 0x262D2F, groundEdge: 0x1D2325, street: 0x33393C, dash: 0xD8DAD3, walk: 0x8D948D, walkB: 0x9AA19A,
-      lawn: 0x2B5233, lawnB: 0x315C39, slab: 0xD6D8D1, slabSide: 0xB7BBB2,
+      lawn: 0x2B5233, lawnB: 0x315C39, slab: 0xC4C8C0, slabSide: 0xA9AEA6,
       green: 0x2F6B3A, greenL: 0x4C8A57, greenD: 0x24542D, teal: 0x12806E, tealL: 0x8FC7BC,
       wood: 0xDDB877, woodB: 0xCFA763, woodD: 0xB48A4B, pipe: 0x2E7FC1, hot: 0xC8503C, wire: 0xEDB52A, pink: 0xE2A79E,
       wall: 0xFFFFFF, cap: 0xB9BEB6, floorA: 0xCFA873, floorB: 0xC59C66, floorC: 0xD8B482,
@@ -136,7 +136,7 @@
     base.box(-2.2, 0, 3.6, 3.2, 0.05, 12, K.lawn);
     base.box(6, 0, -1.9, 13, 0.05, 1.6, K.lawn);
     base.box(15.2, 0, -1.2, 3, 0.05, 2.4, K.lawnB);
-    base.box(6, 0, 4.5, 12.7, Y, 9.7, K.slab);
+    base.box(6, 0, 4.5, 14.2, Y, 10.6, K.slab);
     base.box(12.9, 0, 6.8, 0.9, 0.12, 1.4, K.slabSide);
     function tree(l, x, z, s, key) {
       l.box(x, 0.05, z, 0.14 * s, 0.9 * s, 0.14 * s, K.rust, key);
@@ -223,6 +223,11 @@
       plan.box(c[0], 0.05, c[1], 0.08, 0.6, 0.08, K.wood, -3 + i * 0.2);
       plan.box(c[0] + 0.12, 0.5, c[1], 0.26, 0.14, 0.03, K.vis, -2.9 + i * 0.2);
     });
+    /* a dimension line with ticks along the front, like a drawing */
+    plan.box(6, Y + 0.004, 9.75, 12, 0.02, 0.04, K.greenL, 30);
+    for (var tk = 0; tk <= 12; tk++) plan.box(tk, Y + 0.004, 9.75, 0.04, 0.02, tk % 4 ? 0.16 : 0.34, K.greenL, 30 + tk * 0.1);
+    plan.box(-0.75, Y + 0.004, 4.5, 0.04, 0.02, 9, K.greenL, 32);
+    for (tk = 0; tk <= 9; tk++) plan.box(-0.75, Y + 0.004, tk, tk % 3 ? 0.16 : 0.34, 0.02, 0.04, K.greenL, 32 + tk * 0.1);
     /* pipes and wires */
     function run(x0, z0, x1, z1, y, col, t) { mep.box((x0 + x1) / 2, y, (z0 + z1) / 2, Math.abs(x1 - x0) + t, t, Math.abs(z1 - z0) + t, col); }
     function riser(x, z, y0, y1, col, t) { mep.box(x, y0, z, t, y1 - y0, t, col); }
@@ -241,7 +246,7 @@
     });
 
     /* ---------- floors ---------- */
-    var floor = new Layer(3.62, 4.2, { w: 0.3, lift: 0.5, flat: 1 });
+    var floor = new Layer(3.5, 3.97, { w: 0.3, lift: 0.5, flat: 1 });
     function planks(x0, z0, x1, z1) {
       var i = 0;
       for (var z = z0; z < z1 - 0.02; z += 0.42) {
@@ -263,7 +268,7 @@
     tiles(5.1, 5.6, 7.9, 8.9, K.tileA, K.tileB, 0.47); tiles(8.1, 0.1, 11.9, 3.9, K.tileA, K.tileK, 0.63);
 
     /* ---------- finishes ---------- */
-    var fin = new Layer(4.22, 4.95, { w: 0.16, lift: 1.6 });
+    var fin = new Layer(3.78, 4.95, { w: 0.16, lift: 1.6 });
     var FY = Y + 0.05, kk = 0;
     function f(cx, y, cz, sx, sy, sz, col) { fin.box(cx, FY + y, cz, sx, sy, sz, col, kk); kk += 0.001; }
     function next() { kk += 1; }
@@ -397,9 +402,9 @@
         if (l.c != null) r *= 1 - smooth((s - l.c) / (l.d - l.c));
         if (r !== l.last) { l.last = r; l.u.uR.value = r; l.mesh.visible = r > 0.0005; changed = true; }
       }
-      dry.mat.color.copy(wallA).lerp(wallB, smooth((s - 3.85) / 0.5));
+      dry.mat.color.copy(wallA).lerp(wallB, smooth((s - 3.55) / 0.4));
       truck.mesh.position.x = lerp(-1.5, 3.2, smooth((s - 2.15) / 0.5)) + lerp(0, 9, smooth((s - 4.4) / 0.4));
-      car.mesh.position.x = lerp(9, 14.6, smooth((s - 4.7) / 0.3));
+      car.mesh.position.x = lerp(0, 4.5, smooth((s - 4.7) / 0.3));
       for (i = 0; i < people.length; i++) walk(people[i], s);
       return changed;
     }

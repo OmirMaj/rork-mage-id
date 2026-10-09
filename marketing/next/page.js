@@ -12,9 +12,12 @@
   function param(k) { var m = new RegExp('[?&]' + k + '=([^&]*)').exec(location.search); return m ? decodeURIComponent(m[1]) : null; }
 
   var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  var P = { stage: param('stage'), t: param('t'), full: param('full') === '1', shot: param('shot') };
+  var P = { stage: param('stage'), t: param('t'), full: param('full') === '1', shot: param('shot'), at: param('at') };
   if (P.shot !== null) root.classList.add('shotmode');
-  var frozen = P.stage !== null || P.t !== null || P.full || P.shot !== null;
+  var frozen = P.stage !== null || P.t !== null || P.full || P.shot !== null || P.at !== null;
+  /* ?at=id starts the page at that section, for screenshots of the lower page */
+  if (P.at !== null) { root.classList.add('atmode'); var atEl = $(P.at), sib = atEl && atEl.previousElementSibling; while (sib) { sib.style.display = 'none'; sib = sib.previousElementSibling; } }
+  var virt = -1;
   var still = reduce || frozen;
   var THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
   var THREE_SRI = 'sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==';
@@ -162,6 +165,7 @@
     marks[0] = Math.min(marks[0], 0);
   }
   function readScroll() {
+    if (virt >= 0) { scrollS = virt; atTop = virt === 0; return; }
     var y = window.pageYOffset, i = 0;
     if (y <= marks[0]) scrollS = 0;
     else if (y >= marks[5]) scrollS = 5;
@@ -208,7 +212,7 @@
       job.setS(target, still);
       var hk = clamp(1 - scrollS / 0.7, 0, 1); hk = hk * hk * (3 - 2 * hk);
       if (P.shot !== null) job.setLayout(0.5, 0.5, 0.94, true);
-      else if (wide()) job.setLayout(0.56 + 0.135 * hk, 0.47 + 0.03 * hk, 0.44 + 0.12 * hk, still);
+      else if (wide()) job.setLayout(0.56 + 0.11 * hk, 0.47 + 0.03 * hk, 0.44 + 0.08 * hk, still);
       else job.setLayout(0.5, 0.44, 0.98, still);
     }
     if (st !== uiStage) {
@@ -231,9 +235,14 @@
       on = settled && ((s >= c.c.show[0] && s < c.c.show[1] && !heroRest) || (heroRest && c.c.hero));
       if (on && narrow) { if (shown) on = false; shown++; }
       if (on) {
-        job.project(c.c.at[0], c.c.at[1], c.c.at[2], pt);
+        var at = heroRest && c.c.heroAt ? c.c.heroAt : c.c.at;
+        if (c.c.heroSide) { c.el.classList.toggle('r', heroRest); c.el.classList.toggle('l', !heroRest); }
+        job.project(at[0], at[1], at[2], pt);
         var x = pt[0], y = pt[1];
-        if (narrow) { x = c.c.side === 'l' ? Math.max(x, 150) : Math.min(x, window.innerWidth - 150); y = Math.max(y, 132); }
+        if (!c.w) { c.w = c.el.lastChild.offsetWidth; c.h = c.el.lastChild.offsetHeight; }
+        var vw = scene.clientWidth, left = c.el.classList.contains('l');
+        x = left ? clamp(x, c.w - 14, vw + 14) : clamp(x, 30, vw - c.w + 14);
+        y = Math.max(y, c.h + (narrow ? 30 : 100));
         c.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
       }
       if (on !== c.on) { c.on = on; c.el.classList.toggle('on', on); if (on) countText(c.big, c.c.big, 900); }
@@ -246,6 +255,15 @@
     }
   }
 
+  /* a screenshot of stage N: every other step is taken out, so stage N sits where it would after scrolling
+     and the picture is the same every time, whatever the window does */
+  function placeVirt() {
+    var n = clamp(parseInt(P.stage, 10) || 0, 0, 5);
+    virt = n; root.classList.add('virt');
+    steps.forEach(function (st, i) { st.classList.add('in'); if (i !== n) st.style.display = 'none'; });
+    if (n > 0) doc.querySelector('.top').style.display = 'none';
+    readScroll();
+  }
   /* ---------- load the 3D only when it is wanted ---------- */
   function fallBack() { root.classList.remove('is3d'); job = null; }
   function boot() {
@@ -255,12 +273,13 @@
     } catch (err) { fallBack(); return; }
     job.onFrame(overlay);
     measure(); readScroll();
-    if (P.stage !== null) { goStage(clamp(parseInt(P.stage, 10) || 0, 0, 5), true); readScroll(); }
+    if (P.stage !== null) placeVirt();
     drive();
     job.resize(); job.drawNow();
     scene.classList.add('live');
     watch();
     if (!still && atTop) play();
+    var pp = param('pin'); if (pp) pins.forEach(function (x) { if (x.p.id === pp) openPanel(x.p, x.el); });
   }
   function loadThree() {
     if (window.THREE) { boot(); return; }
@@ -288,16 +307,15 @@
   function onScroll() { if (ticking) return; ticking = true; requestAnimationFrame(function () { ticking = false; readScroll(); drive(); }); }
   window.addEventListener('scroll', onScroll, { passive: true });
   var rz = 0;
-  window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(function () { measure(); readScroll(); if (job) job.resize(); drive(); }, 120); });
-  window.addEventListener('load', function () { measure(); readScroll(); drive(); });
-  if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(function () { measure(); readScroll(); drive(); });
+  window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(function () { if (virt < 0) measure(); readScroll(); if (job) job.resize(); drive(); }, frozen ? 0 : 120); });
+  window.addEventListener('load', function () { if (virt < 0) measure(); readScroll(); drive(); });
+  if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(function () { if (virt < 0) measure(); readScroll(); drive(); });
   measure(); readScroll();
-  if (P.stage !== null && !is3d()) { var tgt = steps[clamp(parseInt(P.stage, 10) || 0, 0, 5)]; if (tgt) tgt.scrollIntoView(); }
 
   /* ---------- things that arrive as you reach them ---------- */
   var riseSel = '.facts div, .how li, .book, .plan, .straight, .testing-copy, .end > *';
   all(riseSel).forEach(function (el, i) { el.classList.add('rise'); el.style.transitionDelay = (i % 4) * 70 + 'ms'; });
-  if (window.IntersectionObserver && !P.full) {
+  if (window.IntersectionObserver && !P.full && P.at === null) {
     var io = new IntersectionObserver(function (es) {
       es.forEach(function (e) {
         if (!e.isIntersecting) return;
