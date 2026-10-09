@@ -174,7 +174,7 @@ const SUBMITTALS: readonly SubmittalSpec[] = [
   { title: 'Unit Heat Pumps', spec: '23 81 26', by: 'hvac', day: 118, back: 130, status: 'approved', task: 'l2-hvac', type: 'Product Data' },
   { title: 'Switchgear and Panelboards', spec: '26 24 13', by: 'electrical', day: 112, back: 128, status: 'approved', task: 'underslab', type: 'Product Data' },
   { title: 'Elevator Shop Drawings', spec: '14 21 00', by: 'elevator', day: 130, back: 150, status: 'approved_as_noted', note: 'Confirm pit ladder location.', task: 'elev', type: 'Shop Drawings' },
-  { title: 'Kitchen Cabinets and Quartz Tops', spec: '06 41 00', by: 'millwork', day: 166, back: 180, status: 'revise_resubmit', note: 'Top edge profile does not match the approved sample. Resubmit.', resubmit: { day: 214, status: 'in_review' }, task: 'l2-cab', type: 'Samples' },
+  { title: 'Kitchen Cabinets and Quartz Tops', spec: '06 41 00', by: 'millwork', day: 166, back: 180, status: 'revise_resubmit', note: 'Top edge profile does not match the approved sample. Resubmit.', task: 'l2-cab', type: 'Samples' },
   { title: 'Brick Veneer Mockup', spec: '04 20 00', by: 'masonry', day: 190, back: 202, status: 'approved', task: 'cladding', type: 'Mockup' },
   { title: 'Corridor Plank Flooring', spec: '09 65 19', by: 'drywall', day: 216, status: 'pending', task: 'common', type: 'Samples' },
   { title: 'Lobby Light Fixtures', spec: '26 51 00', by: 'electrical', day: 220, status: 'in_review', task: 'l1-fin', type: 'Product Data' },
