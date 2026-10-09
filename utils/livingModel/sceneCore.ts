@@ -1,0 +1,304 @@
+// utils/livingModel/sceneCore.ts — the 3D shapes of a job model, as plain numbers (pure).
+//
+// The Living Model, Phase 1. This file turns a placed room into flat arrays of
+// triangle corners and normals. It imports NO 3D library: the web-only view
+// (components/livingModel/JobReplay3D.web.tsx) hands these arrays to three.js,
+// and jest and the validator test them as numbers. That is how the 3D view is
+// tested without drawing anything.
+//
+// AXES. X is plan x, Z is plan y, Y is up. Metres.
+//
+// A SCHEMATIC, NOT A DRAWING OF THE BUILDING. Stud spacing, pipe and wire runs
+// and the batts are drawn the same way in every room so a stage reads at a
+// glance. They are not where the real ones are and no view says they are.
+
+import { roomCentre, roomHeightM, worldFloor, worldWalls } from './modelCore';
+import type { PlacedRoom, RoomKind, WorldOpening, WorldWall } from './types';
+
+/** Every wall is drawn this thick, inside the room's own outline. */
+export const WALL_T = 0.11;
+export const STUD_GAP = 0.406;
+export const DEFAULT_CUT_M = 1.25;
+/** Each box is 12 triangles: 36 corners. */
+export const VERTS_PER_BOX = 36;
+
+export interface BoxBuf {
+  /** x, y, z per corner. */
+  p: number[];
+  /** Normal per corner. */
+  n: number[];
+  /** r, g, b per corner (0 to 1). Empty when the layer has one colour. */
+  c: number[];
+  boxes: number;
+}
+
+export interface TriBuf { p: number[]; n: number[] }
+
+export interface RoomGeometry {
+  roomId: string;
+  /** The wall height drawn, after the cut. */
+  heightM: number;
+  centre: { x: number; z: number };
+  floor: TriBuf;
+  /** The wall surface. Drawn once as the wall that was there and once as new drywall. */
+  skin: BoxBuf;
+  studs: BoxBuf;
+  pipes: BoxBuf;
+  wires: BoxBuf;
+  insulation: BoxBuf;
+  /** Baseboard and door leaves. */
+  trim: BoxBuf;
+  glass: BoxBuf;
+}
+
+export type Rgb = readonly [number, number, number];
+
+export interface SceneOptions {
+  /** Walls are drawn no taller than this. null draws them full height. */
+  cutHeightM: number | null;
+  pipeCold: Rgb;
+  pipeHot: Rgb;
+  pipeDrain: Rgb;
+}
+
+const newBuf = (): BoxBuf => ({ p: [], n: [], c: [], boxes: 0 });
+
+const CORN: readonly (readonly [number, number, number])[] = [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]];
+const FACE: readonly (readonly number[])[] = [[1, 2, 6, 5, 1, 0, 0], [0, 4, 7, 3, -1, 0, 0], [3, 7, 6, 2, 0, 1, 0], [0, 1, 5, 4, 0, -1, 0], [4, 5, 6, 7, 0, 0, 1], [0, 3, 2, 1, 0, 0, -1]];
+
+/**
+ * One box, turned about the up axis. (ux, uz) is the unit direction of its
+ * long side on the floor; hu, hy and hn are half its length, height and depth.
+ */
+export function pushBox(B: BoxBuf, cx: number, cy: number, cz: number, ux: number, uz: number, hu: number, hy: number, hn: number, col?: Rgb): void {
+  const nx = -uz;
+  const nz = ux;
+  const c: number[][] = [];
+  for (let i = 0; i < 8; i++) {
+    const q = CORN[i];
+    c.push([cx + q[0] * hu * ux + q[2] * hn * nx, cy + q[1] * hy, cz + q[0] * hu * uz + q[2] * hn * nz]);
+  }
+  for (let i = 0; i < 6; i++) {
+    const f = FACE[i];
+    const wx = f[4] * ux + f[6] * nx;
+    const wy = f[5];
+    const wz = f[4] * uz + f[6] * nz;
+    const a = c[f[0]];
+    const b = c[f[1]];
+    const d = c[f[2]];
+    const e = c[f[3]];
+    const crx = (b[1] - a[1]) * (d[2] - a[2]) - (b[2] - a[2]) * (d[1] - a[1]);
+    const cry = (b[2] - a[2]) * (d[0] - a[0]) - (b[0] - a[0]) * (d[2] - a[2]);
+    const crz = (b[0] - a[0]) * (d[1] - a[1]) - (b[1] - a[1]) * (d[0] - a[0]);
+    const tri = crx * wx + cry * wy + crz * wz >= 0 ? [a, b, d, a, d, e] : [a, d, b, a, e, d];
+    for (let j = 0; j < 6; j++) {
+      B.p.push(tri[j][0], tri[j][1], tri[j][2]);
+      B.n.push(wx, wy, wz);
+      if (col) B.c.push(col[0], col[1], col[2]);
+    }
+  }
+  B.boxes += 1;
+}
+
+/** A box on a wall: from s0 to s1 along it, y0 to y1 up it, its middle `inset` into the room, `hn` half deep. */
+function wallBox(B: BoxBuf, w: WorldWall, s0: number, s1: number, y0: number, y1: number, inset: number, hn: number, col?: Rgb): void {
+  if (s1 - s0 < 0.006 || y1 - y0 < 0.006 || w.lengthM <= 0) return;
+  const ux = (w.b.x - w.a.x) / w.lengthM;
+  const uz = (w.b.y - w.a.y) / w.lengthM;
+  const sm = (s0 + s1) / 2;
+  pushBox(B, w.a.x + ux * sm + w.inward.x * inset, (y0 + y1) / 2, w.a.y + uz * sm + w.inward.y * inset, ux, uz, (s1 - s0) / 2, (y1 - y0) / 2, hn, col);
+}
+
+/** Walk a wall and call back for every solid piece, skipping the doors and windows. Pieces are at most `step` long. */
+export function wallSpans(openings: readonly WorldOpening[], lengthM: number, H: number, step: number, fn: (s0: number, s1: number, y0: number, y1: number) => void): void {
+  let cur = 0;
+  const solid = (a: number, b: number) => { for (let s = a; s < b - 0.005; s += step) fn(s, Math.min(b, s + step), 0, H); };
+  for (const o of openings) {
+    if (o.s0 > cur) solid(cur, o.s0);
+    if (o.y0 > 0) fn(o.s0, o.s1, 0, Math.min(o.y0, H));
+    if (o.y1 < H) fn(o.s0, o.s1, o.y1, H);
+    cur = Math.max(cur, o.s1);
+  }
+  if (cur < lengthM) solid(cur, lengthM);
+}
+
+const holeAt = (openings: readonly WorldOpening[], s: number): WorldOpening | null => openings.find((o) => s > o.s0 - 0.02 && s < o.s1 + 0.02) ?? null;
+
+/** Ear clipping. Returns corner indices, three per triangle. An outline that cannot be cut comes back as far as it got. */
+export function triangulate(poly: readonly { x: number; y: number }[]): number[] {
+  const n = poly.length;
+  if (n < 3) return [];
+  let area = 0;
+  for (let i = 0; i < n; i++) { const q = poly[(i + 1) % n]; area += poly[i].x * q.y - q.x * poly[i].y; }
+  const idx = poly.map((_, i) => i);
+  if (area < 0) idx.reverse();
+  const cross = (a: number, b: number, c: number) => (poly[b].x - poly[a].x) * (poly[c].y - poly[a].y) - (poly[b].y - poly[a].y) * (poly[c].x - poly[a].x);
+  const inside = (a: number, b: number, c: number, p: number) => cross(a, b, p) >= 0 && cross(b, c, p) >= 0 && cross(c, a, p) >= 0;
+  const out: number[] = [];
+  let guard = n * n + 8;
+  while (idx.length > 3 && guard-- > 0) {
+    let cut = false;
+    for (let i = 0; i < idx.length; i++) {
+      const a = idx[(i + idx.length - 1) % idx.length];
+      const b = idx[i];
+      const c = idx[(i + 1) % idx.length];
+      if (cross(a, b, c) <= 1e-12) continue;
+      if (idx.some((p) => p !== a && p !== b && p !== c && inside(a, b, c, p))) continue;
+      out.push(a, b, c);
+      idx.splice(i, 1);
+      cut = true;
+      break;
+    }
+    if (!cut) break;
+  }
+  if (idx.length === 3) out.push(idx[0], idx[1], idx[2]);
+  return out;
+}
+
+const WET: readonly RoomKind[] = ['kitchen', 'bathroom', 'laundry'];
+
+/** Pipes are drawn only in a kitchen, a bathroom or a laundry, on the longest wall. */
+export const roomHasPipes = (kind: RoomKind): boolean => WET.includes(kind);
+
+export const DEFAULT_SCENE_OPTIONS: SceneOptions = {
+  cutHeightM: DEFAULT_CUT_M,
+  pipeCold: [0.18, 0.5, 0.72],
+  pipeHot: [0.77, 0.33, 0.23],
+  pipeDrain: [0.36, 0.42, 0.45],
+};
+
+/** The shapes for one room. */
+export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOptions> = {}): RoomGeometry {
+  const o: SceneOptions = { ...DEFAULT_SCENE_OPTIONS, ...options };
+  const full = roomHeightM(room) || 2.44;
+  const H = o.cutHeightM != null ? Math.min(full, o.cutHeightM) : full;
+  const walls = worldWalls(room);
+  const T = WALL_T;
+
+  // floor
+  const floorPts = worldFloor(room);
+  const floor: TriBuf = { p: [], n: [] };
+  const tri = triangulate(floorPts);
+  for (let i = 0; i + 2 < tri.length; i += 3) {
+    const a = floorPts[tri[i]];
+    const b = floorPts[tri[i + 1]];
+    const c = floorPts[tri[i + 2]];
+    // Wound so the face looks up (+Y) with x to X and plan y to Z.
+    const up = (b.y - a.y) * (c.x - a.x) - (b.x - a.x) * (c.y - a.y);
+    for (const q of up >= 0 ? [a, b, c] : [a, c, b]) { floor.p.push(q.x, 0, q.y); floor.n.push(0, 1, 0); }
+  }
+
+  const skin = newBuf();
+  const studs = newBuf();
+  const pipes = newBuf();
+  const wires = newBuf();
+  const insulation = newBuf();
+  const trim = newBuf();
+  const glass = newBuf();
+
+  const pipeWall = roomHasPipes(room.kind) && walls.length ? walls.reduce((a, b) => (b.lengthM > a.lengthM ? b : a)) : null;
+
+  for (const w of walls) {
+    const L = w.lengthM;
+    const wallH = Math.min(H, w.heightM > 0 ? w.heightM : H);
+    if (L <= 0 || wallH <= 0) continue;
+    const op = w.openings;
+
+    // The wall surface, in pieces, with holes for the doors and windows.
+    wallSpans(op, L, wallH, 1.2, (s0, s1, y0, y1) => wallBox(skin, w, s0, s1, y0, y1, T / 2, T / 2 + 0.002));
+
+    // The frame: a bottom plate, studs, and the framing round each opening.
+    wallSpans(op, L, 0.04, 2.4, (s0, s1, y0) => { if (y0 === 0) wallBox(studs, w, s0, s1, 0, 0.04, T / 2, T / 2 - 0.012); });
+    for (let s = 0.02; s < L; s += STUD_GAP) {
+      const hole = holeAt(op, s);
+      let top = wallH;
+      if (hole) { if (hole.y0 <= 0) continue; top = Math.min(hole.y0, wallH); }
+      wallBox(studs, w, s - 0.019, s + 0.019, 0.04, top - 0.01, T / 2, T / 2 - 0.012);
+    }
+    for (const h of op) {
+      wallBox(studs, w, h.s0 - 0.045, h.s0 - 0.005, 0.04, wallH - 0.01, T / 2, T / 2 - 0.012);
+      wallBox(studs, w, h.s1 + 0.005, h.s1 + 0.045, 0.04, wallH - 0.01, T / 2, T / 2 - 0.012);
+      if (h.y1 < wallH - 0.02) wallBox(studs, w, h.s0, h.s1, h.y1, Math.min(wallH - 0.01, h.y1 + 0.14), T / 2, T / 2 - 0.012);
+      if (h.y0 > 0) wallBox(studs, w, h.s0, h.s1, Math.max(0, h.y0 - 0.045), h.y0, T / 2, T / 2 - 0.012);
+    }
+
+    // Wires: one run along the wall with drops to boxes.
+    const runY = Math.min(0.95, wallH - 0.08);
+    if (runY > 0.3) {
+      wallSpans(op, L, 1, 0.6, (s0, s1, y0) => { if (y0 === 0 && !holeAt(op, (s0 + s1) / 2)) wallBox(wires, w, s0, s1, runY, runY + 0.035, T * 0.78, 0.016); });
+      for (let s = 0.7; s < L - 0.3; s += 1.6) {
+        if (holeAt(op, s)) continue;
+        wallBox(wires, w, s - 0.015, s + 0.015, 0.4, runY, T * 0.78, 0.016);
+        wallBox(wires, w, s - 0.06, s + 0.06, 0.3, 0.46, T * 0.78, 0.022);
+      }
+    }
+
+    // Pipes: a drain, a cold line and a hot line on one wall of a wet room.
+    if (pipeWall && w.id === pipeWall.id) {
+      for (let s = 0.15; s < L - 0.15; s += 0.6) {
+        const e = Math.min(L - 0.15, s + 0.6);
+        if (holeAt(op, (s + e) / 2)) continue;
+        wallBox(pipes, w, s, e, 0.15, 0.22, T * 0.7, 0.03, o.pipeDrain);
+        if (wallH > 0.62) wallBox(pipes, w, s, e, 0.52, 0.57, T * 0.75, 0.021, o.pipeCold);
+        if (wallH > 0.78) wallBox(pipes, w, s, e, 0.67, 0.72, T * 0.75, 0.021, o.pipeHot);
+      }
+      for (let s = 0.45; s < L - 0.3; s += 1.2) {
+        if (holeAt(op, s)) continue;
+        if (wallH > 0.62) wallBox(pipes, w, s, s + 0.05, 0.52, Math.min(wallH - 0.02, 1.0), T * 0.75, 0.021, o.pipeCold);
+        if (wallH > 0.78) wallBox(pipes, w, s + 0.12, s + 0.17, 0.67, Math.min(wallH - 0.02, 1.0), T * 0.75, 0.021, o.pipeHot);
+      }
+    }
+
+    // Batts between the studs.
+    for (let s = 0.045; s < L - 0.06; s += STUD_GAP) {
+      const e = Math.min(L - 0.02, s + STUD_GAP - 0.05);
+      const hole = holeAt(op, (s + e) / 2);
+      let top = wallH;
+      if (hole) { if (hole.y0 <= 0) continue; top = Math.min(hole.y0, wallH); }
+      wallBox(insulation, w, s, e, 0.04, top, T * 0.36, T * 0.26);
+    }
+
+    // Baseboard, skipping doors. A door leaf standing a little open.
+    wallSpans(op, L, 0.1, 1.2, (s0, s1, y0) => { if (y0 === 0 && !holeAt(op, (s0 + s1) / 2)) wallBox(trim, w, s0, s1, 0, 0.1, T + 0.011, 0.011); });
+    for (const h of op) {
+      if (h.kind === 'window') {
+        if (h.y0 < wallH) wallBox(glass, w, h.s0, h.s1, h.y0, Math.min(wallH, h.y1), T / 2, 0.01);
+        continue;
+      }
+      if (h.kind !== 'door') continue;
+      const ux = (w.b.x - w.a.x) / L;
+      const uz = (w.b.y - w.a.y) / L;
+      const ang = 1.05;
+      const rx = ux * Math.cos(ang) + w.inward.x * Math.sin(ang);
+      const rz = uz * Math.cos(ang) + w.inward.y * Math.sin(ang);
+      const hx = w.a.x + ux * h.s0 + w.inward.x * T;
+      const hz = w.a.y + uz * h.s0 + w.inward.y * T;
+      const width = h.s1 - h.s0;
+      const leafH = Math.min(h.y1, wallH);
+      pushBox(trim, hx + (rx * width) / 2, leafH / 2, hz + (rz * width) / 2, rx, rz, width / 2, leafH / 2, 0.02);
+    }
+  }
+
+  const c = roomCentre(room) ?? { x: 0, y: 0 };
+  return { roomId: room.id, heightM: H, centre: { x: c.x, z: c.y }, floor, skin, studs, pipes, wires, insulation, trim, glass };
+}
+
+/**
+ * Which corners of a layer to draw solid and which faint, for a layer that is
+ * `solid` done and planned to be `ghost` done (both 0 to 1). The faint part
+ * always starts where the solid part ends, so the two never cover each other.
+ */
+export function revealRange(boxes: number, solid: number, ghost: number): { solidCount: number; ghostStart: number; ghostCount: number } {
+  const clamp = (v: number) => (Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0);
+  const a = Math.round(clamp(solid) * boxes) * VERTS_PER_BOX;
+  const b = Math.round(Math.max(clamp(solid), clamp(ghost)) * boxes) * VERTS_PER_BOX;
+  return { solidCount: a, ghostStart: a, ghostCount: b - a };
+}
+
+/** The camera's box: how wide the scene is, so the default view fits it. */
+export function fitSpan(bounds: { minX: number; minY: number; maxX: number; maxY: number } | null): { cx: number; cz: number; span: number } {
+  if (!bounds) return { cx: 0, cz: 0, span: 8 };
+  const w = bounds.maxX - bounds.minX;
+  const d = bounds.maxY - bounds.minY;
+  return { cx: (bounds.minX + bounds.maxX) / 2, cz: (bounds.minY + bounds.maxY) / 2, span: Math.max(4, Math.hypot(w, d)) };
+}

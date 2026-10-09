@@ -267,3 +267,24 @@ export const CODE_FLAGS_ENABLED = false;
 // Flip it to true only when the migration is applied, the lawyer's answers are
 // in the repo and the review is done.
 export const PROOF_PACK_ENABLED = false;
+
+// The Living Model, Phase 1 (lane LIVINGMODEL). One schematic 3D model of the
+// job, made of rooms, with the schedule hung on it so the job can be played
+// from start to finish, planned against reported. The Room Editor and the flat
+// replay run everywhere; the 3D view is on the web only in this phase.
+//
+// When false the feature is dark for everyone EXCEPT the owner account
+// (utils/owner.ts OWNER_EMAILS): /living-model redirects to Home and the row on
+// the project page is not drawn. The flag is read in ONE file,
+// utils/livingModel/allowed.ts; everything else asks livingModelAllowed(email).
+//
+// Why it is off: the job model is saved on the device only (no table yet, so a
+// model made on the phone does not reach the web); the stage table and the
+// wording have not been read by a lawyer ("Schematic made from typed and
+// scanned sizes. Not to scale for building."); the Spanish is a draft no
+// bilingual construction person has read; nobody has yet used it on a real job;
+// and the lane has not had its independent review.
+//
+// Flip it to true only when the model syncs, the wording is approved and the
+// review is done.
+export const LIVING_MODEL_ENABLED = false;
