@@ -887,7 +887,7 @@ rule('J1', 'the yes to the scan question is recorded: the kind, the version, a h
   if (!esTitle || !esBody || sha256(legalNoticeText(esTitle, esBody)) !== SCAN_UPLOAD_TEXT_SHA256_ES) out.push('SCAN_UPLOAD_TEXT_SHA256_ES is not the hash of the Spanish question');
   const en = scanRoomUploadItem('en');
   const es = scanRoomUploadItem('es');
-  if (en.kind !== 'scan_room_upload' || en.version !== SCAN_UPLOAD_VERSION || en.sha !== SCAN_UPLOAD_TEXT_SHA256 || es.sha !== SCAN_UPLOAD_TEXT_SHA256_ES || es.sha === en.sha) out.push('a Spanish phone does not record the Spanish hash and an English phone the English');
+  if (en.kind !== 'scan_room_upload' || en.version !== SCAN_UPLOAD_VERSION || en.sha !== SCAN_UPLOAD_TEXT_SHA256 || es.sha !== SCAN_UPLOAD_TEXT_SHA256_ES || String(es.sha) === String(en.sha)) out.push('a Spanish phone does not record the Spanish hash and an English phone the English');
   if (w.files[ARCHIVE_EN] !== legalNoticeText(enTitle, enBody)) out.push(`${ARCHIVE_EN} is missing or is not the English question word for word`);
   if (w.files[ARCHIVE_ES] !== legalNoticeText(esTitle, esBody)) out.push(`${ARCHIVE_ES} is missing or is not the Spanish question word for word`);
   if (!/export const NOTICES = \[[\s\S]*scan_room_upload-en[\s\S]*scan_room_upload-es/.test(w.files[ARCHIVE])) out.push('the archive script does not file the question');
