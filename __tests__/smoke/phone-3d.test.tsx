@@ -30,6 +30,7 @@
  *  11  a finger on the model holds the page; lifting, or leaving with the finger down, gives it back
  *  12  the screen is told which is on the glass: 3D, or the flat replay
  *  13  a drawing surface that never starts ends on the flat replay
+ *  14  expo-gl's view throws as it leaves (it calls a reanimated this app does not have); wrapped, leaving is quiet
  */
 import React from 'react';
 import { AppState, PixelRatio, type AppStateStatus } from 'react-native';
@@ -96,7 +97,7 @@ jest.mock('@/components/livingModel/threeScene', () => ({
 }));
 
 import { JOB_REPLAY_3D_ON_THIS_PLATFORM, JobReplay3D } from '@/components/livingModel/JobReplay3D';
-import type { Phone3DEngine } from '@/components/livingModel/phone3d/engine';
+import { quietSurface, type Phone3DEngine } from '@/components/livingModel/phone3d/engine';
 import { GLView as MockGLView } from 'expo-gl';
 import { createJobScene as mockCreateJobScene } from '@/components/livingModel/threeScene';
 import { threeRoomJob } from '@/__tests__/fixtures/livingModelJobs';
@@ -368,5 +369,27 @@ describe('the phone 3D view on a build with the engine', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('14 a drawing surface whose own leaving throws is quiet once wrapped', async () => {
+    const { View } = jest.requireActual('react-native');
+    // The shape of expo-gl's GLView here: its unmount calls runOnUI, which the reanimated stub does not have.
+    class ThrowingSurface extends React.Component<{ onContextCreate: (gl: unknown) => void }> {
+      componentDidMount(): void { this.props.onContextCreate(mockGl); }
+      componentWillUnmount(): void { (undefined as unknown as () => void)(); }
+      render(): React.ReactNode { return <View testID="mock-gl-view" />; }
+    }
+    const Quiet = quietSurface(ThrowingSurface as unknown as Phone3DEngine['GLView']);
+    const engine = async (): Promise<Phone3DEngine | null> => ({ GLView: Quiet, createScene: (canvas, palette, opts) => mockCreateJobScene(null as never, canvas as never, palette, opts) });
+    const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const { view } = await mount({ loadEngine: engine });
+    await refresh();
+    expect(mockScenes).toHaveLength(1);
+    expect(() => view.unmount()).not.toThrow();
+    expect(errors).not.toHaveBeenCalled();
+    expect(mockScenes[0].disposed).toBe(true);
+    // Not a class with an unmount: handed back as it is.
+    const Fn = (() => null) as unknown as Phone3DEngine['GLView'];
+    expect(quietSurface(Fn)).toBe(Fn);
   });
 });

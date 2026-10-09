@@ -458,6 +458,18 @@ rule('D5', 'the page behind does not scroll while a finger is on the model, and 
   return out;
 });
 
+rule('D7', 'leaving the 3D view cannot throw: expo-gl\'s own unmount, which calls a reanimated this app does not have, is caught', (w) => {
+  const out: string[] = [];
+  const src = code(w.files[ENGINE] ?? '');
+  if (!/GLView: quietSurface\(GLView\),/.test(src)) out.push('the engine hands the view expo-gl\'s surface as it is: its unmount throws here, and leaving Job Replay would end on the error screen');
+  if (!/componentWillUnmount\(\): void \{\s*try \{ super\.componentWillUnmount\?\.\(\); \} catch \{/.test(src)) out.push('the wrapped surface does not catch its own leaving');
+  // Why it is needed, held as facts: the stub is an empty object, and expo-gl calls runOnUI from its unmount when the require did not throw.
+  const stub = code(w.files['stubs/react-native-reanimated-absent.js'] ?? '');
+  if (!/module\.exports = \{\};/.test(stub)) out.push('the reanimated stub is no longer an empty object: read components/livingModel/phone3d/engine.ts (LEAVING) again, the wrapper may no longer be what is needed');
+  if (!/react-native-reanimated/.test(w.files['metro.config.js'] ?? '')) out.push('metro.config.js no longer resolves reanimated to the stub: read engine.ts (LEAVING) again');
+  return out;
+});
+
 rule('D6', 'a drawing surface that never starts ends on the flat replay instead of "Loading" for good', (w) => {
   const out: string[] = [];
   const view = code(w.files[VIEW] ?? '');
@@ -653,6 +665,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'D5', name: 'the screen ignores the hold', plant: edit(SCREEN, " scrollEnabled={!(modelHeld && tab === 'replay')}", '') },
   { rule: 'D5', name: 'the page stays held on another tab', plant: edit(SCREEN, "scrollEnabled={!(modelHeld && tab === 'replay')}", 'scrollEnabled={!modelHeld}') },
   { rule: 'D5', name: 'the model hands its touch to the page', plant: edit(VIEW, 'onPanResponderTerminationRequest: () => false,', 'onPanResponderTerminationRequest: () => true,') },
+  { rule: 'D7', name: 'the surface is handed over as expo-gl made it', plant: edit(ENGINE, 'GLView: quietSurface(GLView),', 'GLView,') },
+  { rule: 'D7', name: 'the wrapper does not catch', plant: edit(ENGINE, "try { super.componentWillUnmount?.(); } catch { /* the context is already forgotten; the native surface ends with its view */ }", 'super.componentWillUnmount?.();') },
   { rule: 'D6', name: 'nothing waits for the drawing surface', plant: edit(VIEW, "      if (!sceneRef.current && appActive.current) fail(new Error('The drawing surface did not start.'));\n", '') },
   { rule: 'D4', name: 'the fade ignores Reduce Motion', plant: edit(VIEW, '    if (reduceRef.current) { fade.setValue(1); return; }\n', '') },
   { rule: 'D4', name: 'the model spins on its own', plant: edit(VIEW, 'const touchesOf = ', 'export const spin = (v: Animated.Value) => Animated.loop(Animated.timing(v, { toValue: 1, duration: 4000, useNativeDriver: true }));\nconst touchesOf = ') },

@@ -26,6 +26,19 @@
 // start-up: a dynamic import's module is evaluated the first time it is
 // asked for, and the only caller is the 3D view, when Job Replay opens.
 //
+// ── LEAVING ────────────────────────────────────────────────────────────────
+// expo-gl's own view throws as it leaves the screen in THIS app. Its unmount
+// asks the reanimated library to forget the context on the UI thread
+// (GLWorkletContextManager: `runOnUI(...)`), guarded only by "did the require
+// throw". Here the require does not throw: metro.config.js resolves that
+// library to an empty object (the reanimated stub in stubs/), so `runOnUI`
+// is undefined and the call is a TypeError, on every unmount of a view whose
+// drawing surface had started. Unhandled, that reaches the route's error
+// screen when the person leaves Job Replay. `quietSurface` wraps the view so
+// that throw stops there. expo-gl forgets the context BEFORE the line that
+// throws, and the native surface ends with its native view, so nothing is
+// left behind.
+//
 // From 'expo', not 'expo-modules-core': `expo` is the declared dependency and
 // re-exports the same function (the pattern of utils/roomScan/native.ts).
 import type { ComponentType } from 'react';
@@ -76,6 +89,23 @@ export function phone3DEngineInBuild(): boolean {
   return inBuild;
 }
 
+type SurfaceClass = new (props: PhoneGlViewProps) => { componentWillUnmount?: () => void };
+
+/**
+ * expo-gl's view, with a leaving that cannot throw (see LEAVING above). Handed anything that is not a class
+ * component it answers it unchanged.
+ */
+export function quietSurface(GLView: Phone3DEngine['GLView']): Phone3DEngine['GLView'] {
+  const Base = GLView as unknown as SurfaceClass;
+  if (typeof Base !== 'function' || typeof Base.prototype?.componentWillUnmount !== 'function') return GLView;
+  class QuietSurface extends Base {
+    componentWillUnmount(): void {
+      try { super.componentWillUnmount?.(); } catch { /* the context is already forgotten; the native surface ends with its view */ }
+    }
+  }
+  return QuietSurface as unknown as Phone3DEngine['GLView'];
+}
+
 let loading: Promise<Phone3DEngine | null> | null = null;
 let lastError: string | null = null;
 
@@ -100,7 +130,7 @@ export function loadPhone3DEngine(): Promise<Phone3DEngine | null> {
         return null;
       }
       return {
-        GLView,
+        GLView: quietSurface(GLView),
         createScene: (canvas, palette, opts) => scene.createJobScene(THREE, canvas as HTMLCanvasElement, palette, opts),
       };
     } catch (e) {
