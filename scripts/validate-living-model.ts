@@ -539,7 +539,8 @@ rule('B4', 'a person may pick a task\'s stage himself; his choice wins over the 
   if (!/input\.stageBy\[t\.id\] === 'person'/.test(tl) || !/copy\.stagePickedSub\(/.test(tl)) out.push('a stage the person picked is not marked as his');
   const scr = code(w.files['components/livingModel/LivingModelScreen.tsx'] ?? '');
   if (!/buildReplayInput\(project\?\.schedule \?\? null, reports, now, chosenStages\)/.test(scr) || !/const chosenStages = model\?\.stages;/.test(scr)) out.push('the screen does not hand the picked stages to the replay');
-  const callers = Object.keys(w.files).filter((f) => f !== 'utils/livingModel/modelCore.ts' && /\bsetTaskStage\s*\(/.test(code(w.files[f])));
+  // The owner's Demo Job builder (utils/demoJob/model.ts, lane DEMOJOB) makes its made-up floor through the same core, from his tap on Create.
+  const callers = Object.keys(w.files).filter((f) => f !== 'utils/livingModel/modelCore.ts' && f !== DEMO_JOB_MODEL && /\bsetTaskStage\s*\(/.test(code(w.files[f])));
   if (callers.join() !== 'components/livingModel/TaskLinks.tsx') out.push(`setTaskStage is called from ${callers.join(', ') || 'nowhere'}; want only the Tasks tab`);
   if (w.EN[`${K}tasks.stageFromTitleLabel`] !== 'Read from the Title') out.push('the way back is not called Read from the Title');
   return out;
@@ -898,6 +899,9 @@ const THREE_SPEC = /['"]three(?:\/[^'"]*)?['"]/;
 const PHONE_ENGINE = 'components/livingModel/phone3d/engine.ts';
 /** The simulator check: the one file outside the feature that may draw the model, and only in a Mac-made build (see rule G5). */
 const PHONE_SPIKE = 'app/dev-phone-3d.tsx';
+/** The owner's Demo Job builder (lane DEMOJOB; scripts/validate-demo-job.ts holds its rules): the one file that builds its model with the core, and the one that saves it with the store. */
+const DEMO_JOB_MODEL = 'utils/demoJob/model.ts';
+const DEMO_JOB_FILES = [DEMO_JOB_MODEL, 'hooks/useDemoJobPorts.ts'];
 rule('E1', 'no file imports the 3D library with a static import or a require', (w) => {
   const out: string[] = [];
   for (const [f, src] of Object.entries(w.files)) {
@@ -1364,7 +1368,7 @@ rule('G5', 'one row leads here, on the project page, and it draws nothing for an
   if (users.join() !== 'app/project-detail.tsx') out.push(`the row is drawn by ${users.join(', ') || 'nobody'}; want only the project page`);
   for (const f of ['app/(tabs)/_layout.tsx', 'components/DesktopSidebar.tsx']) if (/living-model|LivingModel/.test(w.files[f] ?? '')) out.push(`${f} mentions the Living Model: it must not be in the tabs or the sidebar`);
   const outside = Object.keys(w.files).filter((f) => !f.startsWith('components/livingModel/') && !f.startsWith('utils/livingModel/') && f !== 'app/living-model.tsx' && f !== 'app/project-detail.tsx' && f !== 'hooks/useLivingModelCopy.ts'
-    && f !== PHONE_SPIKE && /from ['"]@\/(components|utils)\/livingModel\//.test(w.files[f]));
+    && f !== PHONE_SPIKE && !DEMO_JOB_FILES.includes(f) && /from ['"]@\/(components|utils)\/livingModel\//.test(w.files[f]));
   if (outside.length) out.push(`files outside the feature import it: ${outside.join(', ')}`);
   // The one other importer is the simulator check (lane PHONE3D). It may draw the model only in a bundle made with
   // the variable set in the builder's own shell; in every other bundle it sends everyone Home before any hook.

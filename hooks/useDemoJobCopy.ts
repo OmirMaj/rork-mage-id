@@ -29,7 +29,6 @@ export interface DemoJobCopy {
   finishLabel: string;
   removeLabel: string;
   openJobLabel: string;
-  openModelLabel: string;
   confirmRemoveBody: string;
   confirmRemoveLabel: string;
   keepLabel: string;
@@ -93,7 +92,7 @@ export function useDemoJobCopy(): DemoJobCopy {
       backLabel: t('office.demoJob.backLabel', 'Back'),
       introBody: t('office.demoJob.introBody', 'This creates a made-up job in your account so you can try every screen. Nothing is sent to anyone. Remove it any time.'),
       whatBody: t('office.demoJob.whatBody', 'The job is a seven-storey mixed-use building in Baltimore: ground-floor retail, 48 apartments, a $22,400,000 contract with $640,000 of approved change orders, in month 11 of an 18-month schedule. Every company and person on it is invented.'),
-      modelBody: t('office.demoJob.modelBody', 'The Living Model is saved on this device only. Open the job on the phone or computer where you tapped Create to see it.'),
+      modelBody: t('office.demoJob.modelBody', 'The job has a Living Model: one typical floor of eight apartments that Job Replay builds month by month. It is saved on this device only. Open the job here, on the phone or computer where you tapped Create, and tap Living Model.'),
       limitsBody: t('office.demoJob.limitsBody', 'The job is a sample job. It cannot email a client, make a pay link, send a reminder, open a client portal or push to QuickBooks, and your cost book never learns from it.'),
       briefBody: t('office.demoJob.briefBody', 'If your morning brief email is turned on, it will mention this job until you remove it.'),
       offlineBody: t('office.demoJob.offlineBody', 'You are offline. The job is saved on this device and syncs when you are back online. Lien waivers, the draft contract, selections and the plan sheet need a connection.'),
@@ -102,7 +101,6 @@ export function useDemoJobCopy(): DemoJobCopy {
       finishLabel: t('office.demoJob.finishLabel', 'Finish Creating'),
       removeLabel: t('office.demoJob.removeLabel', 'Remove Demo Job'),
       openJobLabel: t('office.demoJob.openJobLabel', 'Open the Job'),
-      openModelLabel: t('office.demoJob.openModelLabel', 'Open the Living Model'),
       confirmRemoveBody: t('office.demoJob.confirmRemoveBody', 'Remove the demo job and everything created with it? This cannot be undone.'),
       confirmRemoveLabel: t('office.demoJob.confirmRemoveLabel', 'Remove Everything'),
       keepLabel: t('office.demoJob.keepLabel', 'Keep It'),

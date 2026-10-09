@@ -51,7 +51,6 @@ function DemoJobBuilder({ userId }: { userId: string }) {
         topInset={insets.top}
         onBack={() => router.back()}
         onOpenJob={(projectId) => router.push({ pathname: '/project-detail', params: { id: projectId } })}
-        onOpenModel={(projectId) => router.push({ pathname: '/living-model', params: { projectId } })}
         startDateOf={startDateOf}
       />
     </>

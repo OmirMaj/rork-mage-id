@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 import { Button } from '@/components/ui';
-import { makeLivingModelStyles } from '@/components/livingModel/styles';
+import { makeDemoJobStyles } from '@/components/demoJob/styles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { DemoJobCopy } from '@/hooks/useDemoJobCopy';
@@ -36,7 +36,6 @@ export interface DemoJobScreenProps {
   topInset: number;
   onBack: () => void;
   onOpenJob: (projectId: string) => void;
-  onOpenModel: (projectId: string) => void;
   /** The schedule start date of a demo project that already exists, to rebuild the same calendar. */
   startDateOf: (projectId: string) => string | null;
 }
@@ -44,8 +43,8 @@ export interface DemoJobScreenProps {
 type Phase = 'checking' | 'idle' | 'working' | 'removing';
 
 export function DemoJobScreen(props: DemoJobScreenProps) {
-  const { ports, copy, userId, contractorName, today, newProjectId, offline, topInset, onBack, onOpenJob, onOpenModel, startDateOf } = props;
-  const styles = useThemedStyles(makeLivingModelStyles);
+  const { ports, copy, userId, contractorName, today, newProjectId, offline, topInset, onBack, onOpenJob, startDateOf } = props;
+  const styles = useThemedStyles(makeDemoJobStyles);
   const { colors } = useTheme();
   const [phase, setPhase] = useState<Phase>('checking');
   const [state, setState] = useState<DemoState>('none');
@@ -149,7 +148,7 @@ export function DemoJobScreen(props: DemoJobScreenProps) {
         <TouchableOpacity style={styles.backBtn} onPress={onBack} accessibilityRole="button" accessibilityLabel={copy.backLabel} testID="demo-job-back">
           <ChevronLeft size={22} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <View style={{ flex: 1 }}>
+        <View style={styles.headerMain}>
           <Text style={styles.headerName}>{copy.titleLabel}</Text>
           <Text style={styles.headerSub}>{copy.ownerPreviewSub}</Text>
         </View>
@@ -185,10 +184,7 @@ export function DemoJobScreen(props: DemoJobScreenProps) {
                   <Button label={copy.finishLabel} variant="primary" onPress={() => { void create(); }} disabled={busy} loading={phase === 'working'} testID="demo-job-finish" />
                 ) : null}
                 {state === 'complete' && projectId && !tooMany ? (
-                  <>
-                    <Button label={copy.openJobLabel} variant="primary" onPress={() => onOpenJob(projectId)} disabled={busy} testID="demo-job-open" />
-                    <Button label={copy.openModelLabel} variant="secondary" onPress={() => onOpenModel(projectId)} disabled={busy} testID="demo-job-open-model" />
-                  </>
+                  <Button label={copy.openJobLabel} variant="primary" onPress={() => onOpenJob(projectId)} disabled={busy} testID="demo-job-open" />
                 ) : null}
                 {state !== 'none' || tooMany ? (
                   <Button label={copy.removeLabel} variant="secondary" onPress={() => setConfirming(true)} disabled={busy} loading={phase === 'removing'} testID="demo-job-remove" />

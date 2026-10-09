@@ -20,8 +20,8 @@
 //
 // A FAILED AREA DOES NOT STOP THE REST. It is reported in plain words and the
 // next area runs.
-import type { JobModel } from '@/utils/livingModel/types';
 import type { DemoJob } from './build';
+import type { JobModel } from './model';
 import { equipmentSerialPrefix } from './fieldRecords';
 import { isDemoProject } from './marker';
 import { SUBS, CREW, PEOPLE } from './world';

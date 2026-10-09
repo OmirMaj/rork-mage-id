@@ -9,7 +9,6 @@ import type {
 } from '@/types';
 import type { AccessReservation, BuildingAccessRules } from '@/utils/buildingAccess';
 import type { Delivery } from '@/utils/deliverySchedule';
-import type { JobModel } from '@/utils/livingModel/types';
 import { buildBilling } from './billing';
 import { makeDemoClock, type DemoClock } from './clock';
 import {
@@ -19,7 +18,7 @@ import {
   type DemoSelection, type DemoTimeEntry,
 } from './fieldRecords';
 import { childIds } from './ids';
-import { buildDemoModel } from './model';
+import { buildDemoModel, type JobModel } from './model';
 import { COMMITMENTS } from './money';
 import { buildChangeOrders, buildCois, buildCommitments, buildContacts, buildProject, buildSubcontractors } from './records';
 

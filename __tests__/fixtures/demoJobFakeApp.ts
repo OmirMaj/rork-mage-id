@@ -11,7 +11,7 @@
 //   - deleting a project forgets every project-scoped list on the device and
 //     is refused when the job has a safety incident.
 // Every call is written to `log`, so a test can prove what was and was not called.
-import type { JobModel } from '@/utils/livingModel/types';
+import type { JobModel } from '@/utils/demoJob/model';
 import type { DemoActions, DemoPorts, DemoWorld, DemoDeleteTable } from '@/utils/demoJob/writer';
 
 type Lists = { [K in keyof DemoWorld]: DemoWorld[K][number][] };

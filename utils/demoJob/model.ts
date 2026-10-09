@@ -80,3 +80,5 @@ export function buildDemoModel(id: (key: string) => string): JobModel {
   // Common area finishes reads as finishes already; the elevator is Other Work, which is right.
   return model;
 }
+
+export type { JobModel };
