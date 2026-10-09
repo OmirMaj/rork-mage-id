@@ -23,7 +23,7 @@ const ROOT = join(HERE, '..', '..');
 const PORT = 8797; // baked into the export by build.sh
 const CDP_PORT = Number(process.env.CDP_PORT ?? 9347);
 const VIEW = { width: 393, height: 852, scale: 3 };
-const INSETS = { top: 59, bottom: 34, left: 0, right: 0 }; // iPhone 15 / 16
+const INSETS = { top: 59, bottom: Number(process.env.INSET_BOTTOM ?? 34), left: 0, right: 0 }; // iPhone 15 / 16
 const OUT = process.env.OUT ?? join(ROOT, '.marketing-screens-out');
 const DIST = (set: 'shipped' | 'in-testing') => process.env[set === 'shipped' ? 'DIST' : 'DIST_TESTING']
   ?? join(ROOT, set === 'shipped' ? '.marketing-screens-dist' : '.marketing-screens-dist-testing');
@@ -137,6 +137,7 @@ async function shoot(browser: Browser, screen: Screen, shot: Shot, file: string)
     await wait(120);
     const { data } = await page.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     writeFileSync(file, Buffer.from(data, 'base64'));
+    if (process.env.EVAL) console.log(JSON.stringify(await page.eval(process.env.EVAL), null, 1));
     const texts = await page.eval<string>('document.body.innerText');
     const pageErrors = await page.eval<string[]>('globalThis.__shotErrors || []');
     return { errors: [...consoleErrors, ...pageErrors], texts };
