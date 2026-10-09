@@ -6,13 +6,17 @@
 //    acknowledgement made with no signal, or before the migration was applied):
 //    at app start, when the signed-in account changes, and when the app comes
 //    to the foreground. Renders nothing for this job. It never records an
-//    acceptance by itself: only a sign-in or a tap does (contexts/AuthContext,
-//    components/CodeAckHost, hooks/useScanAck).
+//    acceptance by itself: only a sign-in from a screen that shows the Terms
+//    sentence, or a tap, does (contexts/AuthContext, components/CodeAckHost,
+//    hooks/useScanAck). A confirmation link, a password reset and a restored
+//    session record nothing; they only let an owed record be sent.
 //
 // 2. ONLY WHEN TERMS_REACCEPT_ENABLED IS TRUE (it is false): a full-screen
 //    sheet for a signed-in account that has no saved acceptance of the current
 //    Terms of Service and Privacy Policy. What changed, a link to each, "I
 //    Agree", and "Sign Out". There is no dismiss.
+//    With the flag on, an existing account's sign-in records nothing, so
+//    signing out and back in cannot skip the sheet: only "I Agree" records.
 //    It is shown only when the account's rows were READ and one is missing.
 //    Offline, or with the table not on the server yet, the answer is unknown
 //    and nothing is shown: nobody is locked out by a failed read.
@@ -42,6 +46,21 @@ import { shouldShowReaccept } from '@/utils/legalAcceptanceCore';
 
 function appVersion(): string | null {
   try { return Constants.expoConfig?.version ?? Constants.nativeApplicationVersion ?? null; } catch { return null; }
+}
+
+// The over-the-air update this phone is running (expo-updates' update id), or
+// null for the bundle built into the binary, for web and for a dev build.
+// Lazy require inside a try, the way app/(tabs)/settings reads it: the module
+// binds a native object that is absent on web and in tests.
+function otaUpdateId(): string | null {
+  if (Platform.OS === 'web') return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Updates = require('expo-updates') as { updateId?: string | null };
+    return typeof Updates.updateId === 'string' && Updates.updateId.length > 0 ? Updates.updateId : null;
+  } catch {
+    return null;
+  }
 }
 
 function ReacceptGate({ userId }: { userId: string }) {
@@ -118,7 +137,7 @@ export default function LegalGateHost() {
   userIdRef.current = userId;
 
   useEffect(() => {
-    setLegalBuildInfo({ appVersion: appVersion(), platform: Platform.OS });
+    setLegalBuildInfo({ appVersion: appVersion(), updateId: otaUpdateId(), platform: Platform.OS });
   }, []);
 
   // What this account still owes: at start, at a change of account, at foreground.

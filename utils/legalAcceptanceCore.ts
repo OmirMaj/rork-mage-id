@@ -6,11 +6,21 @@
 // runs everything here under bun.
 //
 // WHAT IS RECORDED. One row in public.legal_acceptances per (person, kind,
-// version, words): the Terms of Service and the Privacy Policy at sign-up and
-// at sign-in, the code-answer notice, the scan notice. The server stamps who
-// (auth.uid()) and when (its own clock); this module only says WHAT (kind,
-// version, a SHA-256 of the words shown) and WHERE (surface, build, platform).
+// version, words): the Terms of Service and the Privacy Policy, the code-answer
+// notice, the scan notice. The server stamps who (auth.uid()) and when (its own
+// clock); this module only says WHAT (kind, version, a SHA-256 of the words
+// shown) and WHERE (surface, build, over-the-air update, platform).
 // Migration: supabase/migrations/20261010100000_legal_acceptances.sql.
+//
+// WHAT A TERMS OR PRIVACY ROW MEANS: this account signed in, or created itself,
+// on a screen that DISPLAYED the sentence naming both documents, at these
+// versions; or tapped "I Agree" on the re-acceptance sheet. Nothing else writes
+// one. So a sign-in is recorded only from a screen whose constant below says it
+// shows the sentence in this build (TERMS_SENTENCE_ON_SIGNUP_SCREEN,
+// TERMS_SENTENCE_ON_LOGIN_SCREEN), NEVER from an email link (a confirmation, a
+// sign-in link, a password reset) and NEVER from a restored session. With the
+// re-acceptance gate on, an existing account's sign-in records nothing: only
+// the sheet's "I Agree" does (signInAcceptanceSurface).
 //
 // THE VERSION CONSTANTS BELOW ARE PINNED TO THE PUBLISHED PAGES. The hashes are
 // of the text of marketing/terms.html and marketing/privacy.html (the words
@@ -21,12 +31,23 @@
 // hash in the same change, and every account is then asked again (once the
 // re-acceptance gate is switched on).
 //
+// THE VERSION TEXT IS ARCHIVED. docs/legal/versions/<kind>-<version>-<hash8>.txt
+// holds the exact normalised words each hash below was taken over, written by
+// scripts/archive-legal-text.ts (the same normalizeLegalHtml and the same
+// SHA-256). The validator requires the archive file for the current constants
+// and re-hashes it, so "which words did version X say" has an answer in the
+// repo after the page has moved on.
+//
 // THE PHONE KEEPS WHAT IT OWES. A record that could not be sent (no signal, or
 // the migration is not applied yet) stays in one small owner-stamped store and
-// is sent again at the next sign-in, app start and foreground. It is never put
-// on the offline queue: a refusal there is toasted and written to the Not-saved
-// ledger, and "the server has no such function yet" must be silent. Nothing
-// here ever blocks or fails a sign-in.
+// is sent again at the next sign-in, app start and foreground. The store
+// survives sign-out and a change of account on the phone (utils/localCacheKeys
+// DEVICE_SCOPED_KEYS): every entry is keyed by its owner's id and is read and
+// sent only on that owner's own session, and it holds ids, versions, hashes,
+// surfaces and times, nothing else. It is never put on the offline queue: a
+// refusal there is toasted and written to the Not-saved ledger, and "the
+// server has no such function yet" must be silent. Nothing here ever blocks or
+// fails a sign-in.
 
 // ── the documents and their versions ────────────────────────────────────────
 
@@ -120,6 +141,41 @@ export function codeAckItem(version: number): LegalItem {
   return { kind: 'code_answer_ack', version: String(version), sha: CODE_ACK_TEXT_SHA256 };
 }
 
+// ── which screens show the sentence ─────────────────────────────────────────
+
+/** The two screens a person signs in from. An email link and a restored session are neither. */
+export type SignInScreen = 'signup' | 'login';
+
+/**
+ * Does app/signup.tsx display "By creating an account you agree to our Terms
+ * of Service and Privacy Policy" in THIS build? It does. The validator reads
+ * the screen and fails if this says true and the sentence is gone.
+ */
+export const TERMS_SENTENCE_ON_SIGNUP_SCREEN = true;
+
+/**
+ * Does app/login.tsx display the Terms sentence in THIS build? Not yet: the
+ * sentence is being added by another change. While this is false, a password
+ * sign-in, a Face ID sign-in and Apple / Google started from the login screen
+ * record NOTHING. Change it to true in the same commit that lands the sentence
+ * on the login screen; the validator fails if it is true without the sentence.
+ */
+export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;
+
+export function screenShowsTerms(screen: SignInScreen | null | undefined): boolean {
+  if (screen === 'signup') return TERMS_SENTENCE_ON_SIGNUP_SCREEN === true;
+  if (screen === 'login') return TERMS_SENTENCE_ON_LOGIN_SCREEN === true;
+  return false;
+}
+
+/** The screen a sign-in method was started from. Email sign-up is the sign-up screen and a password is the login screen; Apple and Google say which; an email link is neither. */
+export function screenForSignIn(method: SignInMethod, startedFrom?: SignInScreen | null): SignInScreen | null {
+  if (method === 'signup_email') return 'signup';
+  if (method === 'password') return 'login';
+  if (method === 'apple' || method === 'google') return startedFrom === 'signup' || startedFrom === 'login' ? startedFrom : null;
+  return null;
+}
+
 /** An account whose first sign-in is the one that just happened. */
 const NEW_ACCOUNT_WINDOW_MS = 2 * 60 * 1000;
 
@@ -136,21 +192,49 @@ export function isNewAccount(createdAt: string | null | undefined, lastSignInAt:
   return Math.abs(l - c) <= NEW_ACCOUNT_WINDOW_MS;
 }
 
-/** The surface a sign-in is recorded under. */
-export function surfaceForSignIn(method: SignInMethod, user?: { created_at?: string | null; last_sign_in_at?: string | null } | null): LegalSurface {
+/**
+ * THE ONE DECISION: does this sign-in write an acceptance, and under which
+ * surface? Null means record nothing.
+ *
+ *   an email link (confirmation, sign-in link, password reset)   never
+ *   a screen whose constant says it does not show the sentence    never
+ *   Apple / Google with no screen named                           never
+ *   the re-acceptance gate is on and the account already existed  never: that
+ *       account is asked by the sheet, and only its "I Agree" records. Signing
+ *       out and back in must not agree on its behalf.
+ *   otherwise: signup_email / signup_apple / signup_google for an account this
+ *       sign-in created, login_first for one that already existed.
+ */
+export function signInAcceptanceSurface(input: {
+  method: SignInMethod;
+  /** Where Apple / Google was started. Ignored for the other methods. */
+  startedFrom?: SignInScreen | null;
+  user?: { created_at?: string | null; last_sign_in_at?: string | null } | null;
+  /** TERMS_REACCEPT_ENABLED. */
+  reacceptOn: boolean;
+}): LegalSurface | null {
+  const { method, user } = input;
+  if (method === 'email_link') return null;
+  const screen = screenForSignIn(method, input.startedFrom);
+  if (!screenShowsTerms(screen)) return null;
+  const fresh = method === 'signup_email' || isNewAccount(user?.created_at, user?.last_sign_in_at);
+  if (input.reacceptOn === true && !fresh) return null;
   if (method === 'signup_email') return 'signup_email';
-  const fresh = isNewAccount(user?.created_at, user?.last_sign_in_at);
   if (method === 'apple') return fresh ? 'signup_apple' : 'login_first';
   if (method === 'google') return fresh ? 'signup_google' : 'login_first';
-  // An email link both confirms a new sign-up and signs a returning person in.
-  if (method === 'email_link') return fresh ? 'signup_email' : 'login_first';
   return 'login_first';
 }
 
 // ── the store of what the phone owes and what it knows landed ───────────────
 
-/** Under an existing app prefix (utils/localCacheKeys APP_STORAGE_PREFIXES). */
+/**
+ * Under an existing app prefix, and listed in utils/localCacheKeys
+ * DEVICE_SCOPED_KEYS: it survives sign-out and a change of account, so a record
+ * owed by one person is still there when that person signs in again.
+ */
 export const LEGAL_STORE_KEY = 'mageid_legal_acceptance_v1';
+/** How many accounts' entries one phone keeps. Past this, accounts with nothing owed go first, oldest first. */
+export const LEGAL_STORE_MAX_USERS = 12;
 
 export interface LegalEntry {
   version: string;
@@ -216,7 +300,27 @@ export function noteLegalItem(store: LegalStore, userId: string, item: LegalItem
     v: 1,
     byUser: { ...store.byUser, [userId]: { ...mine, [item.kind]: { version: item.version, sha: item.sha, surface, at, sent: false } } },
   };
-  return { store: next, changed: true };
+  return { store: pruneLegalStore(next, userId), changed: true };
+}
+
+/**
+ * Keep the store small: at most LEGAL_STORE_MAX_USERS accounts. `keep` (the
+ * account being written) always stays. Accounts that owe nothing are dropped
+ * first, oldest entry first; an account that still owes a record is dropped
+ * only when every other account also owes one.
+ */
+export function pruneLegalStore(store: LegalStore, keep: string): LegalStore {
+  const ids = Object.keys(store.byUser);
+  if (ids.length <= LEGAL_STORE_MAX_USERS) return store;
+  const info = ids.filter((id) => id !== keep).map((id) => {
+    const entries = Object.values(store.byUser[id] ?? {}) as LegalEntry[];
+    return { id, owes: entries.some((e) => !e.sent), newest: Math.max(0, ...entries.map((e) => e.at)) };
+  });
+  info.sort((a, b) => (a.owes === b.owes ? a.newest - b.newest : a.owes ? 1 : -1));
+  const drop = new Set(info.slice(0, ids.length - LEGAL_STORE_MAX_USERS).map((x) => x.id));
+  const byUser: LegalStore['byUser'] = {};
+  for (const id of ids) if (!drop.has(id)) byUser[id] = store.byUser[id];
+  return { v: 1, byUser };
 }
 
 /** What this account still owes the server. Never another account's. */
@@ -251,7 +355,7 @@ export function hasLegalItem(store: LegalStore, userId: string | null | undefine
 
 export const LEGAL_RPC = 'record_my_legal_acceptance';
 
-export function legalRpcArgs(kind: LegalKind, entry: LegalEntry, ctx: { appVersion: string | null; platform: string | null; now: number }): Record<string, unknown> {
+export function legalRpcArgs(kind: LegalKind, entry: LegalEntry, ctx: { appVersion: string | null; updateId?: string | null; platform: string | null; now: number }): Record<string, unknown> {
   const delay = ctx.now - entry.at;
   return {
     p_kind: kind,
@@ -260,6 +364,12 @@ export function legalRpcArgs(kind: LegalKind, entry: LegalEntry, ctx: { appVersi
     p_surface: entry.surface,
     p_app_version: ctx.appVersion && /^[A-Za-z0-9._+() -]{1,40}$/.test(ctx.appVersion) ? ctx.appVersion : null,
     p_platform: ctx.platform === 'ios' || ctx.platform === 'android' || ctx.platform === 'web' ? ctx.platform : null,
+    // The over-the-air update the phone is running RIGHT NOW (expo-updates'
+    // update id), or null for the bundle built into the binary and for web.
+    // With app_version it says which bundle sent the record. An entry noted
+    // offline and sent after an update carries the sender's id, not the one it
+    // was noted under; reported_delay_ms shows that gap.
+    p_update_id: ctx.updateId && /^[A-Za-z0-9-]{1,64}$/.test(ctx.updateId) ? ctx.updateId : null,
     // The phone's own account of how long ago, never a time: the server stamps the time.
     p_delay_ms: Number.isFinite(delay) && delay >= 0 ? Math.round(delay) : null,
   };
@@ -293,8 +403,14 @@ export interface LegalRecorderDeps {
   sessionUserId: () => Promise<string | null>;
   now?: () => number;
   appVersion?: () => string | null;
+  updateId?: () => string | null;
   platform?: () => string | null;
 }
+
+/** How many times one record may be REFUSED (the server answered, and said no) before this app start stops sending it. */
+export const LEGAL_REFUSAL_MAX_TRIES = 3;
+/** The wait after the first refusal; each later one waits four times longer (1 minute, then 4). */
+export const LEGAL_REFUSAL_BACKOFF_MS = 60 * 1000;
 
 export interface LegalRecorder {
   /** Note an acceptance and try to send it. Never throws, never rejects. */
@@ -312,6 +428,14 @@ export function createLegalRecorder(deps: LegalRecorderDeps): LegalRecorder {
   let chain: Promise<void> = Promise.resolve();
   // The function is not on the server (this session): stop asking until restart.
   let functionMissing = false;
+  // A record the server REFUSED (ok:false: the per-person limit, an unknown
+  // kind). It will be refused again, so it is retried a few times, further
+  // apart each time, and then left alone until the app starts again. It stays
+  // in the store. Keyed by owner, kind, version and words.
+  const refused = new Map<string, { tries: number; nextAt: number }>();
+  const refusalKey = (userId: string, kind: LegalKind, entry: LegalEntry): string => `${userId}|${kind}|${entry.version}|${entry.sha}`;
+  // Resolves when every note() made so far has written its entry to the store.
+  let notesWritten: Promise<void> = Promise.resolve();
 
   const read = async (): Promise<LegalStore> => {
     try { return parseLegalStore(await deps.storage.getItem(LEGAL_STORE_KEY)); } catch { return emptyLegalStore(); }
@@ -330,10 +454,14 @@ export function createLegalRecorder(deps: LegalRecorderDeps): LegalRecorder {
     // Never on someone else's session: the server would stamp THEIR id.
     if (who !== userId) return;
     for (const { kind, entry } of owed) {
+      const rk = refusalKey(userId, kind, entry);
+      const was = refused.get(rk);
+      if (was && (was.tries >= LEGAL_REFUSAL_MAX_TRIES || now() < was.nextAt)) continue;
       let res: { status: string; error?: string; data?: unknown };
       try {
         res = await deps.send(LEGAL_RPC, legalRpcArgs(kind, entry, {
           appVersion: deps.appVersion ? deps.appVersion() : null,
+          updateId: deps.updateId ? deps.updateId() : null,
           platform: deps.platform ? deps.platform() : null,
           now: now(),
         }));
@@ -344,7 +472,12 @@ export function createLegalRecorder(deps: LegalRecorderDeps): LegalRecorder {
         if (isMissingLegalFunction(res.error)) functionMissing = true;
         return;
       }
-      if (!legalRpcLanded(res.data)) continue;
+      if (!legalRpcLanded(res.data)) {
+        const tries = (was?.tries ?? 0) + 1;
+        refused.set(rk, { tries, nextAt: now() + LEGAL_REFUSAL_BACKOFF_MS * Math.pow(4, tries - 1) });
+        continue;
+      }
+      refused.delete(rk);
       store = markLegalSent(await read(), userId, kind, entry);
       await write(store);
     }
@@ -361,15 +494,22 @@ export function createLegalRecorder(deps: LegalRecorderDeps): LegalRecorder {
       try {
         if (!userId || !UUID_RE.test(userId)) return Promise.resolve();
         const when = typeof at === 'number' && Number.isFinite(at) ? at : now();
+        let wrote: () => void = () => { /* replaced below */ };
+        const before = notesWritten;
+        notesWritten = Promise.all([before, new Promise<void>((resolve) => { wrote = resolve; })]).then(() => { /* void */ });
         return enqueue(async () => {
-          let store = await read();
-          let changed = false;
-          for (const item of items) {
-            const r = noteLegalItem(store, userId, item, surface, when);
-            store = r.store;
-            changed = changed || r.changed;
+          try {
+            let store = await read();
+            let changed = false;
+            for (const item of items) {
+              const r = noteLegalItem(store, userId, item, surface, when);
+              store = r.store;
+              changed = changed || r.changed;
+            }
+            if (changed) await write(store);
+          } finally {
+            wrote();
           }
-          if (changed) await write(store);
           await doFlush(userId);
         });
       } catch {
@@ -385,7 +525,9 @@ export function createLegalRecorder(deps: LegalRecorderDeps): LegalRecorder {
       }
     },
     async has(userId, item) {
-      try { return hasLegalItem(await read(), userId, item); } catch { return false; }
+      // After every note already made has reached the store (not after its
+      // send): a sign-up noted a moment ago is seen.
+      try { await notesWritten; return hasLegalItem(await read(), userId, item); } catch { return false; }
     },
   };
 }
@@ -410,6 +552,19 @@ export function reacceptStateFromRows(rows: AcceptanceRow[] | null | undefined, 
     if (!hit) return 'needed';
   }
   return 'accepted';
+}
+
+/**
+ * What the gate concludes from the server's rows and this phone's own store.
+ * 'needed' becomes 'accepted' when this phone has noted BOTH current documents
+ * for this account: a note is written only by a screen that showed the
+ * sentence or by "I Agree", and it is sent as soon as it can be. Without this
+ * a person who created an account a second ago would be asked again before the
+ * record of the sign-up had landed.
+ */
+export function reacceptStateWithLocal(state: ReacceptState, store: LegalStore, userId: string | null | undefined, items: LegalItem[] = currentAgreementItems()): ReacceptState {
+  if (state !== 'needed') return state;
+  return items.every((item) => hasLegalItem(store, userId, item)) ? 'accepted' : 'needed';
 }
 
 /** The whole decision: the sheet shows only when the flag is on AND a row is known to be missing. */

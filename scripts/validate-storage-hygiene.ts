@@ -26,6 +26,7 @@
 // module. No react-native import (that crashes bun).
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { LEGAL_STORE_KEY, parseLegalStore, pendingLegalEntries } from '../utils/legalAcceptanceCore';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import {
@@ -287,7 +288,12 @@ ok(`all ${discovered.size - survivors.size} written keys are removed on tenant s
 // behind for the next tenant, so it has to be made in two places at once.
 // mageid_language (i18n handoff 06): the app-language choice, a display preference
 // like mageid_theme — keeps the sign-in screen in Spanish on a shared crew phone.
-const EXPECTED_DEVICE_SCOPED = ['mageid_theme', 'mage_analytics_distinct_id', 'mageid_language'];
+// mageid_legal_acceptance_v1 (lane PROTECT-SERVER, review finding 7): acceptance
+// records still owed to the server. Keyed by account, not by device; it is a
+// survivor because a record owed by one person must outlive another person's
+// sign-in and a sign-out. It holds ids, versions, hashes, a surface and a time
+// (asserted below against the store's own parser), and nothing else.
+const EXPECTED_DEVICE_SCOPED = ['mageid_theme', 'mage_analytics_distinct_id', 'mageid_language', 'mageid_legal_acceptance_v1'];
 const added = DEVICE_SCOPED_KEYS.filter((k) => !EXPECTED_DEVICE_SCOPED.includes(k));
 const removed = EXPECTED_DEVICE_SCOPED.filter((k) => !DEVICE_SCOPED_KEYS.includes(k));
 ok('DEVICE_SCOPED_KEYS is exactly the reviewed survivor set',
@@ -306,6 +312,25 @@ for (const k of DEVICE_SCOPED_KEYS) {
   ok(`device-scoped survivor ${k} is actually written by the app`, discovered.has(k),
     'stale exemption — remove it from DEVICE_SCOPED_KEYS');
   ok(`device-scoped survivor ${k} survives the sweep`, selectTenantKeysToWipe([k]).length === 0);
+}
+
+// The one survivor that is keyed by ACCOUNT, not by device: owed acceptance
+// records. Left behind on purpose, so what it can hold is pinned here by
+// running its own parser: ids, versions, hashes, a surface, a time. Anything
+// else written into it is dropped on read, another account's entries are never
+// handed out, and it survives BOTH kinds of sweep.
+{
+  const A = '0a1b2c3d-1111-4222-8333-444455556666';
+  const B = '9f8e7d6c-aaaa-4bbb-8ccc-ddddeeeeffff';
+  const entry = { version: '2026-05-12', sha: 'a'.repeat(64), surface: 'signup_email', at: 1, sent: false, name: 'Jane Doe', email: 'jane@x.test', text: 'scope of work' };
+  const parsed = parseLegalStore(JSON.stringify({ v: 1, note: 'free text', byUser: { [A]: { terms: entry, diary: entry }, 'not-a-uuid': { terms: entry } } }));
+  const dump = JSON.stringify(parsed);
+  ok('the owed-acceptance survivor is the store the recorder writes', LEGAL_STORE_KEY === 'mageid_legal_acceptance_v1' && DEVICE_SCOPED_KEYS.includes(LEGAL_STORE_KEY));
+  ok('…it keeps ids, versions, hashes, a surface and a time, and drops everything else on read',
+    dump === JSON.stringify({ v: 1, byUser: { [A]: { terms: { version: '2026-05-12', sha: 'a'.repeat(64), surface: 'signup_email', at: 1, sent: false } } } }), dump);
+  ok('…one account\'s owed records are never handed to another', pendingLegalEntries(parsed, A).length === 1 && pendingLegalEntries(parsed, B).length === 0 && pendingLegalEntries(parsed, null).length === 0);
+  ok('…and it survives a tenant switch and a deliberate sign-out alike',
+    selectTenantKeysToWipe([LEGAL_STORE_KEY], { dropOfflineQueue: true }).length === 0 && selectTenantKeysToWipe([LEGAL_STORE_KEY], { dropOfflineQueue: false }).length === 0);
 }
 
 // Offline write queue: dropped on sign-out, kept on same-user re-auth.
