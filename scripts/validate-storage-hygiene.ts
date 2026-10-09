@@ -456,6 +456,8 @@ ok('offline write queues survive a same-user re-auth',
       wipeLocalUserCache: async () => { calls.push('wipe:full'); },
       writeLastUser: async () => { calls.push('writeLastUser'); },
       queryClient: { clear: () => { calls.push('queryClient.clear'); } },
+      // The saved acceptance record (lane PROTECT-SERVER): noted after the wipe, never awaited.
+      recordSignInAcceptance: () => { calls.push('recordSignInAcceptance'); },
     };
     const names = Object.keys(deps);
     type CompleteSignIn = (u: unknown, h: unknown) => Promise<void>;
