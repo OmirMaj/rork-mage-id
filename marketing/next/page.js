@@ -233,7 +233,7 @@
     for (i = cards.length - 1; i >= 0; i--) {
       c = cards[i];
       on = settled && ((s >= c.c.show[0] && s < c.c.show[1] && !heroRest) || (heroRest && c.c.hero));
-      if (on && narrow) { if (shown) on = false; shown++; }
+      if (on && !w) { if (shown) on = false; shown++; }
       if (on) {
         var at = heroRest && c.c.heroAt ? c.c.heroAt : c.c.at;
         if (c.c.heroSide) { c.el.classList.toggle('r', heroRest); c.el.classList.toggle('l', !heroRest); }
