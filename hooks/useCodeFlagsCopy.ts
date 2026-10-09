@@ -144,7 +144,7 @@ export function useCodeFlagsCopy(): CodeFlagsCopy {
       introBody: t('office.codeFlags.sheet.introBody', 'This kind of work is commonly looked at on a permit or by an inspector. MAGE ID flags it so you can check. You decide what to do.'),
       noFlagBody: t('office.codeFlags.sheet.noFlagBody', 'A line with no flag can still need a permit or an inspection. No flag means nothing.'),
       neverBlocksBody: t('office.codeFlags.sheet.neverBlocksBody', 'A flag never stops you from saving, sending, signing or billing.'),
-      privateBody: t('office.codeFlags.sheet.privateBody', 'Only you see this flag. It is not on anything you send.'),
+      privateBody: t('office.codeFlags.sheet.privateBody', 'This flag is not on anything you send.'),
       starterBody: t('office.codeFlags.sheet.starterBody', 'This is a starter list of work types. An architect or an expediter has not checked it yet.'),
       whyHeadingLabel: t('office.codeFlags.sheet.whyHeadingLabel', 'Why It Is Flagged'),
       triggerHeadingLabel: t('office.codeFlags.sheet.triggerHeadingLabel', 'What Triggered It'),

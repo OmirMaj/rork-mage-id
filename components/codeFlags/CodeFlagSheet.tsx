@@ -6,7 +6,7 @@
 // official pages the app already keeps for New York City, Baltimore City and
 // Baltimore County, and (outside those three) that the app has no local rules
 // for the place. It always says that a line with no flag means nothing, that
-// a flag never stops an action, and that only the contractor's side sees it.
+// a flag never stops an action, and that it is not on anything the contractor sends.
 //
 // The same sheet is behind the one building-age row of a change order or an
 // estimate (`variant="age"`): the lead and asbestos rules, once for the page.

@@ -61,7 +61,7 @@
 // D. THE WORDS (the English shard and the Spanish file)
 //    D1 the banned words are in neither language;
 //    D2 the sheet says that no flag means nothing, that a flag never stops an
-//       action, and that only the contractor's side sees it;
+//       action, and that it is not on anything the contractor sends;
 //    D3 every sentence passes the app's own-words gate
 //       (utils/codeCard/echoCheck) and is short;
 //    D4 English and Spanish key sets, placeholders and source hashes agree;
@@ -814,7 +814,7 @@ const RULES: Record<string, (w: World) => string[]> = {
     const need: [string, RegExp, RegExp][] = [
       ['office.codeFlags.sheet.noFlagBody', /no flag can still need a permit or an inspection\. No flag means nothing\./i, /sin aviso todavía puede necesitar un permiso o una inspección\. Que no haya aviso no significa nada\./i],
       ['office.codeFlags.sheet.neverBlocksBody', /never stops you from saving, sending, signing or billing/i, /nunca te impide guardar, enviar, firmar ni facturar/i],
-      ['office.codeFlags.sheet.privateBody', /^Only you see this flag\. It is not on anything you send\.$/, /^Solo tú ves este aviso\. No aparece en nada de lo que envías\.$/],
+      ['office.codeFlags.sheet.privateBody', /^This flag is not on anything you send\.$/, /^Este aviso no aparece en nada de lo que envías\.$/],
       ['office.codeFlags.place.otherBody', /no local rules for this place.*no section number and no local link/i, /no tiene reglas locales para este lugar.*sin número de sección y sin enlace local/i],
       ['office.codeFlags.sheet.introBody', /You decide what to do\./, /Tú decides qué hacer\./],
     ];
@@ -1168,6 +1168,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'D2', what: 'the Spanish drops "never stops you"', plant: esText('office.codeFlags.sheet.neverBlocksBody', () => 'Un aviso es solo una nota.') },
   { rule: 'D2', what: 'the other-place sentence stops saying there is no local link', plant: en('office.codeFlags.place.otherBody', 'Ask your building department.') },
   { rule: 'D2', what: 'the private sentence says "you and your team" again', plant: en('office.codeFlags.sheet.privateBody', 'Only you and your team see this flag. It is not on anything your client, your subs or your architect see.') },
+  { rule: 'D2', what: 'the private sentence says "only you see" again (a teammate on the same change order sees the chip too)', plant: en('office.codeFlags.sheet.privateBody', 'Only you see this flag. It is not on anything you send.') },
+  { rule: 'D2', what: 'the Spanish private sentence says "solo tú ves" again', plant: esText('office.codeFlags.sheet.privateBody', () => 'Solo tú ves este aviso. No aparece en nada de lo que envías.') },
   { rule: 'D3', what: 'a why line quotes the code', plant: en('office.codeFlags.family.egress.why', 'The code says "exits shall be maintained". Check it.') },
   { rule: 'D3', what: 'a why line reads like code text', plant: en('office.codeFlags.family.fireRating.why', 'Penetrations shall be protected in accordance with Section 714.') },
   { rule: 'D3', what: 'a section number is typed into the words', plant: en('office.codeFlags.family.structural.why', 'See § 105.1.3 for this work.') },
