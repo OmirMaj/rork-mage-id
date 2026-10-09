@@ -7,7 +7,9 @@ the first test on a real phone. Lane PHONE3D, 2026-10-09.
 ## The Landing Pass (2026-10-09), Read This First
 
 The lane was reviewed before it went to main, and these things changed. The
-simulator proof further down was made BEFORE them and was not run again.
+app was then built a third time for the simulator, on the changed code (see
+"The Third Simulator Build" below). The pictures and timings further down are
+from the first two builds.
 
 | What | Before | Now |
 |---|---|---|
@@ -62,9 +64,10 @@ are separate views over it and are not scaled. The scene reads the buffer the
 phone really made (`viewSize`), so the picture fills the buffer whatever size it
 came out.
 
-**This scaling has not been seen on any screen.** If Standard looks wrong on the
-phone (the picture in one corner, or soft in a way High is not), switch to High,
-which is the path the simulator proved, and say so.
+The scaling was seen in the simulator (below): the picture fills the box and the
+labels sit on their rooms. It has not been seen on a real phone. If Standard
+looks wrong there (the picture in one corner, or soft in a way High is not),
+switch to High and say so.
 
 The owner alone gets a "3D Quality" switch under the model, Standard or High.
 It is remembered until the app is closed. Changing it builds the view again.
@@ -82,6 +85,23 @@ scroll from.
 
 One thing to expect: a very fast flick that starts on the model can be taken by
 the page before the hold arrives. Then neither moves; do it again.
+
+### The Third Simulator Build
+
+Same commands as below, iPhone 15 Pro Max simulator, on the landing-pass code.
+
+- Standard, week 6: the model fills its box, labels on their rooms. So the
+  smaller surface grown back, the points-only units and the 1024 shadow map
+  all draw.
+- High (`quality=high`), week 6: the same picture.
+- With the High model on screen the simulator was switched to dark
+  (`xcrun simctl ui booted appearance dark`). The view was built again and
+  drew in 3D in the dark colours. That is an unmount of a view whose surface
+  had started, the case that threw before the fix: with the old code it would
+  have ended on the flat replay and "could not start".
+
+Still not shown by any simulator: fingers, the page holding still, changing
+tab, speed, heat.
 
 ### Not Changed
 
