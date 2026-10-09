@@ -98,10 +98,11 @@ lane was editing those files.
 5. **`threeScene.ts`, `createJobScene`.** Accept `antialias` in `opts`. On the
    phone the smoothing comes from the GLView's `msaaSamples`; the renderer's
    own `antialias: true` does nothing there.
-6. **`threeScene.ts`, `dispose`.** It calls `renderer.forceContextLoss()`,
-   which on the phone throws inside three (expo-gl has no
-   `WEBGL_lose_context`) and is caught by the `try` already around it. It
-   works. A check for the extension first would be tidier than a caught throw.
+6. **`threeScene.ts`, `dispose`.** It calls `renderer.forceContextLoss()`.
+   expo-gl has no `WEBGL_lose_context`, so on the phone that call does nothing
+   but print one warning ("extension not supported") the first time. The
+   context is ended by the GLView when it leaves the screen. Harmless; a check
+   for the extension first would keep the log quiet.
 
 ## What Differs From the Web Render, and Why
 
