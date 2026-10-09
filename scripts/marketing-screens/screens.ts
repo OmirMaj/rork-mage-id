@@ -83,7 +83,7 @@ export const SCREENS: Screen[] = [
     sequence: [
       { world: withLines(3), caption: 'Three lines in.' },
       { world: withLines(6), caption: 'Six lines in.' },
-      { caption: 'All ten lines, with the estimate total.' },
+      { steps: [{ scroll: 752, to: { text: 'Base' } }, { wait: 1200 }], caption: 'All ten lines, with base, markup and total.' },
     ] },
   { id: 'estimate-wizard', set: 'shipped', title: 'Quick Estimate', plan: 'Pro', source: 'app/estimate-wizard.tsx', route: `/estimate-wizard?projectId=${P.birch}`,
     about: 'The first of the Quick Estimate wizard\'s eight questions, which feed an AI draft of the estimate.' },
@@ -139,7 +139,7 @@ export const SCREENS: Screen[] = [
     ] },
 
   // ── In testing (switched off today) ───────────────────────────────────────
-  { id: 'living-model-rooms', set: 'in-testing', title: 'Living Model: Room Editor', plan: 'Pro', source: 'components/livingModel/LivingModelScreen.tsx', route: alder('living-model'),
+  { id: 'living-model-rooms', set: 'in-testing', title: 'Living Model: Room Editor', plan: 'Pro', source: 'components/livingModel/LivingModelScreen.tsx', route: alder('living-model'), steps: [{ scroll: 64 }, { wait: 1500 }],
     about: 'The job drawn as rooms from typed sizes. A schematic, not to scale for building.' },
   { id: 'living-model-replay', set: 'in-testing', title: 'Living Model: Job Replay', plan: 'Pro', source: 'components/livingModel/LivingModelScreen.tsx', route: alder('living-model'),
     about: 'The schedule played over the rooms, week by week, planned against what daily reports said. The 3D view is drawn by the web build.',
@@ -152,15 +152,15 @@ export const SCREENS: Screen[] = [
     ] },
   { id: 'scan-floor-plan', set: 'in-testing', title: 'Scan The Room: Floor Plan', plan: 'Pro', source: 'components/roomScan/RoomScanFlow.tsx', route: alder('scan-room'),
     about: 'A room\'s floor plan with wall lengths. This room is a hand-built test fixture, not a scan from a phone.',
-    steps: scanOpen },
+    steps: [...scanOpen, { scroll: 40 }, { wait: 1500 }] },
   { id: 'scan-quantities', set: 'in-testing', title: 'Scan The Room: Quantities', plan: 'Pro', source: 'components/roomScan/RoomScanFlow.tsx', route: alder('scan-room'),
     about: 'Floor, wall, ceiling and trim quantities worked out from the room\'s outline.',
-    steps: [...scanOpen, { click: { testID: 'scan-see-quantities' }, then: 1500 }, ...toTop] },
+    steps: [...scanOpen, { click: { testID: 'scan-see-quantities' }, then: 1500 }, { scroll: 40 }, { wait: 1500 }] },
   { id: 'scan-order-list', set: 'in-testing', title: 'Scan The Room: Order List', plan: 'Pro', source: 'components/roomScan/RoomScanFlow.tsx', route: alder('scan-room'),
     about: 'The order list made from the room\'s quantities.',
     steps: [...scanOpen, { click: { testID: 'scan-see-quantities' }, then: 1500 }, { click: { testID: 'scan-order-open' }, then: 1500 }, { click: { text: 'I Understand' }, then: 2000 }, ...toTop],
     sequence: [{ steps: [{ scroll: 150, to: { text: 'Drywall Sheets 4x8, Walls' } }, { wait: 1200 }], caption: 'The drywall lines of the order list.' },
-      { steps: [{ scroll: 150, to: { testID: 'scan-order-layout' } }, { wait: 1200 }], caption: 'The drywall cut layout, wall by wall.' }] },
+      { steps: [{ scroll: 104, to: { testID: 'scan-order-layout' } }, { wait: 1200 }], caption: 'The drywall cut layout, wall by wall.' }] },
   { id: 'pay-period-record', set: 'in-testing', title: 'Pay Period Record', plan: 'Pro', source: 'components/proofPack/ProofPackReview.tsx', route: alder('proof-pack', `&kind=invoice&payId=${INVOICE1}`),
     about: 'The first page of a Pay Period Record: what was billed in the period and how each record MAGE ID holds for it is kept.' },
 ];

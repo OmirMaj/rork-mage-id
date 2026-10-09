@@ -155,7 +155,7 @@ async function shoot(browser: Browser, screen: Screen, shot: Shot, file: string)
     writeFileSync(file, Buffer.from(data, 'base64'));
     if (process.env.EVAL) console.log(JSON.stringify(await page.eval(process.env.EVAL), null, 1));
     // The words on the page that are inside the picture (for the honesty check; not published).
-    const texts = await page.eval<string>(`(() => { const out = []; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) { const t = n.nodeValue.trim(); if (!t) continue; const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect(); if (b.width > 0 && b.bottom > 0 && b.top < innerHeight && b.right > 0 && b.left < innerWidth) out.push(t); } return out.join('\\n'); })()`);
+    const texts = await page.eval<string>(`(() => { const out = []; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) { const t = n.nodeValue.trim(); if (!t) continue; const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect(); if (!(b.width > 0 && b.bottom > 0 && b.top < innerHeight && b.right > 0 && b.left < innerWidth)) continue; const top = document.elementFromPoint(Math.min(innerWidth - 1, Math.max(0, b.left + Math.min(b.width / 2, 20))), Math.min(innerHeight - 1, Math.max(0, b.top + b.height / 2))); if (top && (top === n.parentElement || top.contains(n) || n.parentElement.contains(top))) out.push(t); } return out.join('\\n'); })()`);
     writeFileSync(file.replace(/\.png$/, '.txt'), texts);
     const pageErrors = await page.eval<string[]>('globalThis.__shotErrors || []');
     return { errors: [...consoleErrors, ...pageErrors], texts };
