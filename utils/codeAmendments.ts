@@ -565,9 +565,9 @@ export function citationEvidenceFor(
     badge: 'MODEL RECALL · EDITION KNOWN',
     detail:
       // Not "MAGE verified": what MAGE holds is a record of the adopted edition,
-      // read off the authority on a date. It says that, and no more.
-      `MAGE’s record of the code in force here is ${codesSummary(entry.codes)}, ` +
-      `read off ${entry.authorityName} on ${entry.checkedOn}. MAGE has no government record naming this section. ${RECALL_TAIL}`,
+      // checked against the authority on a date. It says that, and no more.
+      `MAGE’s record of the code in force here is ${codesSummary(entry.codes)} ` +
+      `(checked ${entry.checkedOn} against ${entry.authorityName}). MAGE has no government record naming this section. ${RECALL_TAIL}`,
   };
 }
 
