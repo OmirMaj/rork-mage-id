@@ -196,8 +196,6 @@ export interface LivingModelCopy {
   nothingTickedBody: string;
   loading3dBody: string;
   noWebglBody: string;
-  phoneNoteTitleBody: string;
-  phoneNoteBody: string;
   planStageSub: (stage: string) => string;
   // ── the room card ──
   roomReportedLabel: string;
@@ -452,8 +450,6 @@ export function useLivingModelCopy(): LivingModelCopy {
       nothingTickedBody: t('office.livingModel.replay.nothingTickedBody', 'No tasks are ticked for any room yet. Open Tasks and tick them, and the replay will have something to play.'),
       loading3dBody: t('office.livingModel.replay.loading3dBody', 'Loading the 3D view.'),
       noWebglBody: t('office.livingModel.replay.noWebglBody', 'This browser could not start the 3D view. The same replay is drawn flat below.'),
-      phoneNoteTitleBody: t('office.livingModel.replay.phoneNoteTitleBody', 'The 3D view is on the web for now.'),
-      phoneNoteBody: t('office.livingModel.replay.phoneNoteBody', 'Open this job in the web app to turn the model and play it in 3D. Here is the same replay, drawn flat.'),
       planStageSub: (stage) => t('office.livingModel.replay.planStageSub', 'Plan: {stage}', { stage }),
       roomReportedLabel: t('office.livingModel.card.reportedLabel', 'Reported in This Room'),
       roomPlannedLabel: t('office.livingModel.card.plannedLabel', 'Planned in This Room'),

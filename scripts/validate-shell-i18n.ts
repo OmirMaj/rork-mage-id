@@ -105,7 +105,7 @@ const TITLES_BEFORE: Record<string, string> = {
   'integrations': 'Integrations', 'time-tracking': 'Time Tracking', 'documents': 'Documents', 'permits': 'Permits',
   'weekly-snapshot': 'This Week', 'payments-setup': 'Payments', 'qbo-setup': 'QuickBooks', 'qbo-review': 'QuickBooks Costs',
   'integrations/qbo/callback': 'QuickBooks Connection', 'dev-seeder': 'Demo Seeder', 'dev-flagship-seeder': 'Flagship Seeder',
-  'dev-ar-measure': 'AR Measure (Dev)', 'report-inbox': 'Report Inbox', 'profit-leak-history': 'Profit Leak History',
+  'dev-ar-measure': 'AR Measure (Dev)', 'dev-phone-3d': 'Phone 3D Check', 'report-inbox': 'Report Inbox', 'profit-leak-history': 'Profit Leak History',
   'payments': 'Payments', 'aia-pay-app': 'Pay App', 'data-export': 'Export My Data', 'scope-sheet': 'Scope Sheet',
   'connect-claude': 'Connect Claude', 'data-import': 'Import Data', 'client-update': 'Weekly Client Update',
   'client-messages': 'Messages', 'estimate-wizard': 'Quick Estimate', 'client-view': 'Client Portal',

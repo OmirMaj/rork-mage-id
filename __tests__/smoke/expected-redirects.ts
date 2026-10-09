@@ -35,6 +35,15 @@ export const EXPECTED_REDIRECTS: ExpectedRedirect[] = [
     states: ['empty', 'populated'],
   },
   {
+    from: '/dev-phone-3d',
+    to: '/',
+    why:
+      'The phone 3D check for a Mac-made simulator build: app/dev-phone-3d.tsx redirects '
+      + 'everyone Home unless the bundle was made with EXPO_PUBLIC_PHONE3D_SPIKE=1, which '
+      + 'is set in no build profile and not under jest.',
+    states: ['empty', 'populated'],
+  },
+  {
     from: '/login',
     to: '/',
     why:

@@ -72,6 +72,7 @@ import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink
 import { pathToDocumentTitle } from '@/utils/routeTitle';
 import { AutonomyProvider } from '@/hooks/useAutonomy';
 import { PUBLIC_PATHS } from '@/utils/deepLinkScheme';
+import { phone3dSpikeLaunchArgs } from '@/utils/phone3dSpikeLaunch';
 import {
   INVITE_PARAM, sanitizeInviteToken, markInviteTokenHandled, metadataInviteRedirect,
   rootNavPresentation, ROOT_NAV_INITIAL, type RootNavState,
@@ -642,6 +643,7 @@ function RootLayoutNav() {
   // opening a link: the screen he was on is his, possibly the previous
   // tenant's, and must not be stashed for whoever signs in next.
   const lastSettledAuthRef = useRef<boolean | null>(null);
+  const phone3dSpikeOpened = useRef(false);
 
   // Home-screen quick actions (long-press the app icon) route via the `href`
   // param declared on each action in app.json. Requires a native build —
@@ -696,7 +698,21 @@ function RootLayoutNav() {
     // when the user is unauthenticated. The prequal-form route is opened by
     // subcontractors via a tokenized email link; if we redirect to /login
     // before the token is consumed, the link is dead on arrival.
-    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew || inSharedView || inAcceptInvite) return;
+    // The phone 3D check (app/dev-phone-3d.tsx) is opened in the iOS Simulator
+    // by a Mac-made build where nobody can sign in. It is let through ONLY in
+    // a bundle made with EXPO_PUBLIC_PHONE3D_SPIKE=1 in the builder's own
+    // shell. In every cloud build and every over-the-air update the variable
+    // is not set, this is false, and the route is auth-walled like any other
+    // (and then redirects Home by itself). scripts/validate-phone-3d.ts pins it.
+    const inPhone3dSpike = process.env.EXPO_PUBLIC_PHONE3D_SPIKE === '1' && (segments[0] as string) === 'dev-phone-3d';
+    // A simulator build started with `-phone3d "week=3"` opens the check by itself, once: a link would make iOS ask
+    // "Open in MAGE ID?", which nothing on a command line can answer (utils/phone3dSpikeLaunch.ts). Null in every other build.
+    if (!inPhone3dSpike && !phone3dSpikeOpened.current && phone3dSpikeLaunchArgs()) {
+      phone3dSpikeOpened.current = true;
+      router.replace('/dev-phone-3d');
+      return;
+    }
+    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew || inSharedView || inAcceptInvite || inPhone3dSpike) return;
 
     if (!isAuthenticated && !inAuth) {
       console.log('[Layout] Not authenticated — redirecting to login');
@@ -1642,6 +1658,13 @@ function RootLayoutNav() {
         name="dev-ar-measure"
         options={{
           title: "AR Measure (Dev)",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="dev-phone-3d"
+        options={{
+          title: "Phone 3D Check",
           headerShown: false,
         }}
       />

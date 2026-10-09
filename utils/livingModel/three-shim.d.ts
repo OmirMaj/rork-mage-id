@@ -100,6 +100,7 @@ declare module 'three' {
     constructor(p?: { canvas?: HTMLCanvasElement; antialias?: boolean; alpha?: boolean; preserveDrawingBuffer?: boolean });
     shadowMap: { enabled: boolean; type: number };
     domElement: HTMLCanvasElement;
+    extensions?: { has?: (name: string) => boolean };
     setClearColor(c: string | number, alpha?: number): void;
     setPixelRatio(n: number): void;
     setSize(w: number, h: number, updateStyle?: boolean): void;

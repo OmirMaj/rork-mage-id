@@ -137,8 +137,6 @@ export const ES_OFFICE_LIVING_MODEL: EsCatalog = {
   "office.livingModel.replay.nothingTickedBody": { s: "Todavía no hay tareas marcadas para ningún cuarto. Abre Tareas y márcalas, y la repetición tendrá algo que mostrar.", src: "e6e4b168" },
   "office.livingModel.replay.orbitHelpSub": { s: "Arrastra para girar. Mantén Shift y arrastra para mover. Para acercar con la rueda, primero haz clic en el modelo o mantén Ctrl o Cmd", src: "984c3b73" },
   "office.livingModel.replay.pauseLabel": { s: "Pausar", src: "44f9bf2d" },
-  "office.livingModel.replay.phoneNoteBody": { s: "Abre este trabajo en la app web para girar el modelo y reproducirlo en 3D. Aquí está la misma repetición, dibujada plana.", src: "7cb4affe" },
-  "office.livingModel.replay.phoneNoteTitleBody": { s: "Por ahora la vista 3D está en la web.", src: "6b99af3b" },
   "office.livingModel.replay.planStageSub": { s: "Plan: {stage}", src: "a9fa9c24" },
   "office.livingModel.replay.plannedLabel": { s: "Planeado", src: "cf807545" },
   "office.livingModel.replay.playLabel": { s: "Reproducir", src: "29ab6f83" },

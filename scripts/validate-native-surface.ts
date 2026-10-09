@@ -27,6 +27,9 @@ const declared = new Set(Object.keys(pkg.dependencies));
 const NATIVE_FINGERPRINTS: Array<{ pkg: string; markers: string[] }> = [
   { pkg: 'react-native-reanimated', markers: ['Native part of Reanimated', 'initializeReanimatedModule', '__reanimatedModuleProxy'] },
   { pkg: 'react-native-maps', markers: ['AIRMap', 'RNMapsAirModule'] },
+  // The phone's 3D drawing surface (lane PHONE3D). Declared since the build after 22. If it is ever taken out of
+  // package.json while its JS still resolves, the bundle would name a native view the next binary does not have.
+  { pkg: 'expo-gl', markers: ['ExponentGLObjectManager', 'ExponentGLView'] },
 ];
 
 let failed = 0;
@@ -73,13 +76,32 @@ try {
   }
   ok('no undeclared native module (podspec) is referenced by the bundle', undeclaredNative.length === 0, undeclaredNative.join(', '));
 
-  // The Living Model's 3D view is on the web only (components/livingModel/JobReplay3D.web.tsx loads `three`
-  // with a dynamic import behind Platform.OS === 'web'). The phone bundle must carry neither the library nor
-  // the web view nor the scene builder: an OTA that grew by a megabyte of WebGL code the phone cannot run is
-  // the failure this catches. The markers are names only that code has.
-  const WEB_ONLY_3D = ['WebGLRenderer', 'MeshLambertMaterial', 'createJobScene', 'PCFSoftShadowMap'];
-  const hits3d = WEB_ONLY_3D.filter(m => text.includes(m));
-  ok('the phone bundle carries no three.js and no 3D view (web only)', hits3d.length === 0, `found: ${hits3d.join(', ')}`);
+  // The Living Model's 3D view is drawn on the phone too (lane PHONE3D): the SAME scene the web draws
+  // (components/livingModel/threeScene.ts, with `three`), on expo-gl's drawing surface. A phone bundle is one
+  // file, so the library's code is now IN the phone bundle. That is allowed on ONE condition, checked here on the
+  // real export: expo-gl, the native half that code draws on, is a declared dependency, and its optional lookup
+  // (components/livingModel/phone3d/engine.ts) is in the same bundle. The library with no surface to draw on is
+  // the old failure: megabytes of code the phone cannot run. What a built bundle cannot show is WHEN the library
+  // runs. That it is read lazily, behind the lookup, and never at start-up, is held by static read in
+  // scripts/validate-living-model.ts (E1 to E3) and scripts/validate-phone-3d.ts (B1, B2).
+  const PHONE_3D_ENGINE = 'expo-gl';
+  const LIB_3D = ['WebGLRenderer', 'MeshLambertMaterial', 'createJobScene', 'PCFSoftShadowMap'];
+  const hits3d = LIB_3D.filter(m => text.includes(m));
+  if (declared.has(PHONE_3D_ENGINE)) {
+    ok('the phone bundle carries the 3D library and the scene builder, with expo-gl declared and its lookup beside them',
+      hits3d.length === LIB_3D.length && text.includes('ExponentGLObjectManager') && text.includes('requireOptionalNativeModule'),
+      `3D markers found: ${hits3d.join(', ') || '(none)'}; lookup name present: ${text.includes('ExponentGLObjectManager')}`);
+  } else {
+    ok('the phone bundle carries no three.js and no 3D view, because expo-gl is not declared', hits3d.length === 0, `found: ${hits3d.join(', ')}`);
+  }
+  // One engine only. A second way to draw 3D (a React wrapper, a webview, Skia) is a second native surface nobody approved.
+  const OTHER_3D = ['@react-three/fiber', 'expo-three', 'RNSkiaModule', 'RNCWebView'];
+  const others = OTHER_3D.filter(m => text.includes(m));
+  ok('the phone bundle carries no second 3D engine', others.length === 0, `found: ${others.join(', ')}`);
+  // The simulator check (app/dev-phone-3d.tsx) is switched by a variable set only in a builder's own shell. A
+  // release export must not have it written in: the bundle would then draw the check for everyone.
+  ok('the export was not made with the simulator check switched on', process.env.EXPO_PUBLIC_PHONE3D_SPIKE !== '1',
+    'EXPO_PUBLIC_PHONE3D_SPIKE=1 is set in this shell: unset it before any export or update');
 } finally {
   rmSync(out, { recursive: true, force: true });
 }

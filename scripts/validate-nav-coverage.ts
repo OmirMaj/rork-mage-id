@@ -166,6 +166,7 @@ const NO_ENTRY_POINT_EXEMPT: Record<string, string> = {
   'accept-invite': 'entered by a collaborator from a tokenized invite email, possibly before they have an account',
   integrations: 'OAuth callback page — Intuit and friends redirect an in-app browser here; it authenticates on a signed state HMAC, not a session',
   'dev-ar-measure': 'owner-only AR measurement dev harness; it redirects everyone else, and validate-ar-spike asserts it is deliberately doorless (no tab, no sidebar)',
+  'dev-phone-3d': 'the phone 3D check for a Mac-made simulator build; it redirects everyone unless the bundle was made with a variable set only in the builder\'s own shell, and validate-phone-3d asserts it is doorless and that the variable is in no build profile',
   'integrations/qbo/callback': 'the QuickBooks half of the same OAuth callback: Intuit redirects to this URL directly, so nothing in the app links it',
 };
 
