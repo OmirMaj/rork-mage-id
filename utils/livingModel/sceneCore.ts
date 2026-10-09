@@ -18,6 +18,9 @@ import type { PlacedRoom, RoomKind, WorldOpening, WorldWall } from './types';
 /** Every wall is drawn this thick, inside the room's own outline. */
 export const WALL_T = 0.11;
 export const STUD_GAP = 0.406;
+/** The plate on the far face of a wall, and the board on the room side. */
+export const SHELL_T = 0.014;
+export const SKIN_T = 0.016;
 export const DEFAULT_CUT_M = 1.25;
 /** Each box is 12 triangles: 36 corners. */
 export const VERTS_PER_BOX = 36;
@@ -40,7 +43,9 @@ export interface RoomGeometry {
   heightM: number;
   centre: { x: number; z: number };
   floor: TriBuf;
-  /** The wall surface. Drawn once as the wall that was there and once as new drywall. */
+  /** The far face of every wall: a thin plate that is always there, so a room keeps its shape while its walls are open. */
+  shell: BoxBuf;
+  /** The wall surface on the room side. Drawn once as the wall that was there and once as new drywall. */
   skin: BoxBuf;
   studs: BoxBuf;
   pipes: BoxBuf;
@@ -188,6 +193,7 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
     for (const q of up >= 0 ? [a, b, c] : [a, c, b]) { floor.p.push(q.x, 0, q.y); floor.n.push(0, 1, 0); }
   }
 
+  const shell = newBuf();
   const skin = newBuf();
   const studs = newBuf();
   const pipes = newBuf();
@@ -196,7 +202,11 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
   const trim = newBuf();
   const glass = newBuf();
 
-  const pipeWall = roomHasPipes(room.kind) && walls.length ? walls.reduce((a, b) => (b.lengthM > a.lengthM ? b : a)) : null;
+  // The longest wall; of two the same length, the one nearest the top left of the plan (the far side in the default view).
+  const corner = (w: WorldWall): number => w.a.x + w.b.x + w.a.y + w.b.y;
+  const pipeWall = roomHasPipes(room.kind) && walls.length
+    ? walls.reduce((a, b) => (b.lengthM > a.lengthM + 0.01 || (Math.abs(b.lengthM - a.lengthM) <= 0.01 && corner(b) < corner(a)) ? b : a))
+    : null;
 
   for (const w of walls) {
     const L = w.lengthM;
@@ -204,22 +214,23 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
     if (L <= 0 || wallH <= 0) continue;
     const op = w.openings;
 
-    // The wall surface, in pieces, with holes for the doors and windows.
-    wallSpans(op, L, wallH, 1.2, (s0, s1, y0, y1) => wallBox(skin, w, s0, s1, y0, y1, T / 2, T / 2 + 0.002));
+    // The far face, always there, and the room-side surface, in pieces, each with holes for the doors and windows.
+    wallSpans(op, L, wallH, 2.4, (s0, s1, y0, y1) => wallBox(shell, w, s0, s1, y0, y1, SHELL_T / 2, SHELL_T / 2));
+    wallSpans(op, L, wallH, 1.2, (s0, s1, y0, y1) => wallBox(skin, w, s0, s1, y0, y1, T - SKIN_T / 2, SKIN_T / 2));
 
     // The frame: a bottom plate, studs, and the framing round each opening.
-    wallSpans(op, L, 0.04, 2.4, (s0, s1, y0) => { if (y0 === 0) wallBox(studs, w, s0, s1, 0, 0.04, T / 2, T / 2 - 0.012); });
+    wallSpans(op, L, 0.04, 2.4, (s0, s1, y0) => { if (y0 === 0) wallBox(studs, w, s0, s1, 0, 0.04, T / 2, T / 2 - 0.018); });
     for (let s = 0.02; s < L; s += STUD_GAP) {
       const hole = holeAt(op, s);
       let top = wallH;
       if (hole) { if (hole.y0 <= 0) continue; top = Math.min(hole.y0, wallH); }
-      wallBox(studs, w, s - 0.019, s + 0.019, 0.04, top - 0.01, T / 2, T / 2 - 0.012);
+      wallBox(studs, w, s - 0.019, s + 0.019, 0.04, top - 0.01, T / 2, T / 2 - 0.018);
     }
     for (const h of op) {
-      wallBox(studs, w, h.s0 - 0.045, h.s0 - 0.005, 0.04, wallH - 0.01, T / 2, T / 2 - 0.012);
-      wallBox(studs, w, h.s1 + 0.005, h.s1 + 0.045, 0.04, wallH - 0.01, T / 2, T / 2 - 0.012);
-      if (h.y1 < wallH - 0.02) wallBox(studs, w, h.s0, h.s1, h.y1, Math.min(wallH - 0.01, h.y1 + 0.14), T / 2, T / 2 - 0.012);
-      if (h.y0 > 0) wallBox(studs, w, h.s0, h.s1, Math.max(0, h.y0 - 0.045), h.y0, T / 2, T / 2 - 0.012);
+      wallBox(studs, w, h.s0 - 0.045, h.s0 - 0.005, 0.04, wallH - 0.01, T / 2, T / 2 - 0.018);
+      wallBox(studs, w, h.s1 + 0.005, h.s1 + 0.045, 0.04, wallH - 0.01, T / 2, T / 2 - 0.018);
+      if (h.y1 < wallH - 0.02) wallBox(studs, w, h.s0, h.s1, h.y1, Math.min(wallH - 0.01, h.y1 + 0.14), T / 2, T / 2 - 0.018);
+      if (h.y0 > 0) wallBox(studs, w, h.s0, h.s1, Math.max(0, h.y0 - 0.045), h.y0, T / 2, T / 2 - 0.018);
     }
 
     // Wires: one run along the wall with drops to boxes.
@@ -255,7 +266,7 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
       const hole = holeAt(op, (s + e) / 2);
       let top = wallH;
       if (hole) { if (hole.y0 <= 0) continue; top = Math.min(hole.y0, wallH); }
-      wallBox(insulation, w, s, e, 0.04, top, T * 0.36, T * 0.26);
+      wallBox(insulation, w, s, e, 0.04, top, T * 0.42, T * 0.24);
     }
 
     // Baseboard, skipping doors. A door leaf standing a little open.
@@ -280,7 +291,7 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
   }
 
   const c = roomCentre(room) ?? { x: 0, y: 0 };
-  return { roomId: room.id, heightM: H, centre: { x: c.x, z: c.y }, floor, skin, studs, pipes, wires, insulation, trim, glass };
+  return { roomId: room.id, heightM: H, centre: { x: c.x, z: c.y }, floor, shell, skin, studs, pipes, wires, insulation, trim, glass };
 }
 
 /**

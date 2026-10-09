@@ -11,6 +11,8 @@ import type { RoomStage } from './stageCore';
 export interface LivingModelPalette {
   ground: string;
   plinth: string;
+  /** The far face of a wall. */
+  shell: string;
   ink: string;
   accent: string;
   done: string;
@@ -37,6 +39,7 @@ export interface LivingModelPalette {
 
 const MATERIALS = {
   plinth: '#C2C5BE',
+  shell: '#D3D0C7',
   wallOld: '#CDC5B4',
   wallBoard: '#E9E7E0',
   wallFinished: '#F6F4EE',
@@ -63,6 +66,7 @@ export function livingModelPalette(t: ThemeColors): LivingModelPalette {
   return {
     ground: t.bg,
     plinth: MATERIALS.plinth,
+    shell: MATERIALS.shell,
     ink: t.text,
     accent: t.accent,
     done: t.success,

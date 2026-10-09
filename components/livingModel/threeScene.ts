@@ -56,6 +56,7 @@ interface RoomMeshes {
   floor: Mesh;
   floorMat: LambertMaterial;
   boardMat: LambertMaterial;
+  shell: Mesh | null;
   skin: Mesh | null;
   board: Mesh | null;
   studs: Mesh | null;
@@ -74,8 +75,8 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 600);
-  scene.add(new THREE.HemisphereLight('#ffffff', palette.plinth, 2.35));
-  const sun = new THREE.DirectionalLight('#ffffff', 1.25);
+  scene.add(new THREE.HemisphereLight('#ffffff', palette.plinth, 2.2));
+  const sun = new THREE.DirectionalLight('#ffffff', 1.0);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0006;
@@ -86,6 +87,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
   const lambert = (color: string, extra: Record<string, unknown> = {}): LambertMaterial => new THREE.MeshLambertMaterial({ color, ...extra });
   const faint = (color: string, opacity = 0.3, extra: Record<string, unknown> = {}): LambertMaterial => new THREE.MeshLambertMaterial({ color, transparent: true, opacity, depthWrite: false, ...extra });
   const M = {
+    shell: lambert(palette.shell),
     old: lambert(palette.wallOld),
     stud: lambert(palette.stud),
     gStud: faint(palette.stud),
@@ -177,6 +179,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
       pickable.push(floor);
       const rm: RoomMeshes = {
         geo, floor, floorMat, boardMat,
+        shell: layerMesh(geo.shell, M.shell, null, true),
         skin: layerMesh(geo.skin, M.old, null, true),
         board: layerMesh(geo.skin, boardMat, M.gBoard, true),
         studs: layerMesh(geo.studs, M.stud, M.gStud, false),
@@ -185,7 +188,8 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
         insulation: layerMesh(geo.insulation, M.insulation, M.gInsulation, false),
         trim: layerMesh(geo.trim, M.trim, M.gTrim, false),
       };
-      for (const m of [rm.skin, rm.board, rm.studs, rm.pipes, rm.wires, rm.insulation, rm.trim]) if (m) world.add(m);
+      reveal(rm.shell, 1, 1);
+      for (const m of [rm.shell, rm.skin, rm.board, rm.studs, rm.pipes, rm.wires, rm.insulation, rm.trim]) if (m) world.add(m);
       for (let i = 0; i < geo.glass.p.length; i++) { glassBuf.p.push(geo.glass.p[i]); glassBuf.n.push(geo.glass.n[i]); }
       glassBuf.boxes += geo.glass.boxes;
       rooms.set(room.id, rm);
@@ -247,7 +251,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
   }
 
   function updateCamera(): void {
-    const zoom = (Math.min(V.w, V.h * 1.25) / (V.span * 1.5)) * V.zoom;
+    const zoom = (Math.min(V.w, V.h * 1.25) / (V.span * 1.3)) * V.zoom;
     const ce = Math.cos(V.el);
     const se = Math.sin(V.el);
     camera.left = -V.w / 2 / zoom;
@@ -278,7 +282,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
       updateCamera();
     },
     pan(dx, dy) {
-      const zoom = (Math.min(V.w, V.h * 1.25) / (V.span * 1.5)) * V.zoom;
+      const zoom = (Math.min(V.w, V.h * 1.25) / (V.span * 1.3)) * V.zoom;
       const ca = Math.cos(V.az);
       const sa = Math.sin(V.az);
       const k = 1 / Math.max(0.3, Math.sin(V.el));
