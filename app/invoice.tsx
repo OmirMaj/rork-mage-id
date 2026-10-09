@@ -2894,7 +2894,9 @@ function InvoiceInner() {
               </View>
             )}
             {existingInvoice && (
-              <PortalStatusPill portalState={existingInvoice.portalState} itemUpdatedAt={existingInvoice.updatedAt} />
+              <View style={styles.heroPillGround}>
+                <PortalStatusPill portalState={existingInvoice.portalState} itemUpdatedAt={existingInvoice.updatedAt} />
+              </View>
             )}
           </View>
 
@@ -4306,7 +4308,7 @@ function getInvoiceStatusColors(t: ThemeColors, status: string): { bg: string; t
     case 'draft': return { bg: t.surface, text: t.text };
     case 'sent': return { bg: t.surface, text: t.info };
     case 'partially_paid': return { bg: t.surface, text: t.accentLabel };
-    case 'paid': return { bg: t.surface, text: t.success };
+    case 'paid': return { bg: t.surface, text: t.successLabel };
     case 'overdue': return { bg: t.surface, text: t.dangerLabel };
     default: return { bg: t.surface, text: t.text };
   }
@@ -4333,6 +4335,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6, borderWidth: 1 },
+  // The portal pill is a wash over a ground; on the hero's fill it gets the surface as its ground.
+  heroPillGround: { alignSelf: 'flex-start', backgroundColor: themeColors.surface, borderRadius: Tokens.radius.full, marginTop: 4 },
   statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   progressSection: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: themeColors.line },
   progressLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginBottom: 8 },
