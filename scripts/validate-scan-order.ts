@@ -70,7 +70,8 @@
 //
 // PLANTED MUTATIONS. Every rule is run a second time against a planted break
 // (a wrapped copy of a module, or edited text, in memory only) and the run
-// fails unless that break turns the named rule red. `LIST=1` prints them.
+// fails unless that break turns the named rule red. `LIST=1` prints them, and
+// `WHY=1` prints the first sentence each one was caught by.
 //
 // Run: bun run scripts/validate-scan-order.ts
 // Pure node:fs + pure modules; no react-native import (those crash bun).
@@ -1934,6 +1935,72 @@ const MUTATIONS: Mutation[] = [
   { rule: 'W1', what: 'a key has no Spanish', plant: es('office.roomScan.order.noticeBody', undefined) },
   { rule: 'W1', what: 'the notice moves below the list', plant: text(V, '<Text style={[styles.factText, styles.factCheck]}>{ocopy.noticeBody}</Text>', '<Text style={[styles.factText, styles.factCheck]}>{ocopy.titleLabel}</Text>') },
   { rule: 'W1', what: 'the estimate confirm drops the double-count warning', plant: en('office.roomScan.order.send.doubleCountBody', 'These lines go into the estimate with the rest.') },
+  // ── the review round: every new rule, broken on purpose ──
+  { rule: 'O1', what: 'the 98 in wall goes back to a full sheet and a 2 in strip', plant: wallPlan((p) => ({ ...p, surfaces: p.surfaces.map((s) => ({ ...s, pieces: s.pieces.map((x) => (x.w === 82 ? { ...x, w: 96, x: x.x === 0 ? 0 : 2 } : x.w === 16 ? { ...x, w: 2, x: x.x === 0 ? 0 : 96 } : x)) })) })) },
+  { rule: 'O1', what: 'casing is cut to the bare opening again', plant: mod((m) => ({ list: (scan, o) => { const l = m.list(scan, o); const c = l.trimPlans.casing; return c ? { ...l, trimPlans: { ...l.trimPlans, casing: { ...c, sticks: c.sticks.map((st) => ({ ...st, cuts: st.cuts.map((x) => ({ ...x, lengthIn: x.lengthIn - 2.25 })) })) } } } : l; } })) },
+  { rule: 'O2', what: 'a strip under the minimum is left at the end of a course', plant: wallPlan((p) => ({ ...p, surfaces: p.surfaces.map((s) => ({ ...s, pieces: s.pieces.map((x) => (x.w === 16 && x.x > 0 ? { ...x, x: x.x + 12, w: 4 } : x.w === 82 && x.x === 0 ? { ...x, w: 94 } : x)) })) })) },
+  { rule: 'O2', what: 'the butt joints of two courses are stacked', plant: wallPlan((p) => ({ ...p, surfaces: p.surfaces.map((s) => ({ ...s, pieces: s.pieces.map((x) => (x.y === 0 && x.w === 16 && x.x === 0 ? { ...x, x: 82 } : x.y === 0 && x.w === 82 && x.x === 16 ? { ...x, x: 0 } : x)) })) })) },
+  { rule: 'O2', what: 'a piece of a course is not hung', plant: wallPlan((p) => ({ ...p, surfaces: p.surfaces.map((s, i) => (i === 1 ? { ...s, pieces: s.pieces.slice(1) } : s)) })) },
+  { rule: 'O2', what: 'more sheets than one for every sheet-length of every course', plant: wallPlan((p) => ({ ...p, sheets: p.sheets + 40, boardSF: (p.sheets + 40) * p.sheetAreaSF })) },
+  { rule: 'O2', what: 'the layout hides a stacked joint it reports', plant: wallPlan((p) => ({ ...p, surfaces: p.surfaces.map((s, i) => (i === 0 ? { ...s, stackedJoints: 1 } : s)) })) },
+  { rule: 'O8', what: 'wall tile takes the floor layout\'s allowance', plant: lines((l, list) => (l.key === 'wall_tile' && l.basis.kind === 'area' && list.options.floorLayout === 'herringbone' ? { ...l, quantity: Math.ceil(l.basis.netSF * 1.2), basis: { ...l.basis, wastePct: 20 } } : l)) },
+  { rule: 'O8', what: 'one tap sets the floor and the wall allowance together', plant: text(V, 'onPress={() => p.onOptions({ floorWastePct: w })}', 'onPress={() => p.onOptions({ floorWastePct: w, wallTileWastePct: w })}') },
+  { rule: 'O10', what: 'the plan under-reports what one stick per piece buys', plant: mod((m) => ({ pack: (r, st, a) => { const p = m.pack(r, st, a); return { ...p, onePerPiece: { ...p.onePerPiece, boughtFt: p.onePerPiece.boughtFt + 8 } }; } })) },
+  { rule: 'O10', what: 'the allowance is dropped from the pieces', plant: mod((m) => ({ pack: (r, st) => m.pack(r, st, 0) })) },
+  { rule: 'O10', what: 'a short list is called searched but is not the least', plant: mod((m) => ({ pack: (r, st, a) => { const p = m.pack(r, st, a); const big = Math.max(...p.stockFt); return p.method === 'searched' && p.sticks.length > 1 ? { ...p, sticks: p.sticks.map((x) => ({ ...x, stockFt: big })), boughtFt: big * p.sticks.length } : p; } })) },
+  { rule: 'O10', what: 'the trim sentence says "the fewest feet" again', plant: en('office.roomScan.order.basis.trimNote', { one: '{run} ft to cover in 1 piece. {bought} ft of stick bought in all.', other: '{run} ft to cover in {count} pieces, packed into the fewest feet of stick. {bought} ft of stick bought in all.' }) },
+  { rule: 'O10', what: 'a run under an inch is cut as a piece of baseboard', plant: mod((m) => ({ list: (scan, o) => { const l = m.list(scan, o); const b = l.trimPlans.baseboard; return b && scan.openings.some((x) => Math.abs(x.offsetM - 30.5 * IN) < 1e-9) ? { ...l, trimPlans: { ...l.trimPlans, baseboard: { ...b, sticks: b.sticks.map((st, i) => (i === 0 ? { ...st, cuts: [...st.cuts, { ...st.cuts[0], runId: 'sliver', lengthIn: 0.5 }] } : st)) } } } : l; } })) },
+  { rule: 'O11', what: 'the trim line\'s key carries the stick length again', plant: lines((l, list) => (l.key === 'baseboard' ? { ...l, key: `baseboard:${list.options.stockFt.join('-')}`, typed: false, quantity: l.computed } : l)) },
+  { rule: 'O12', what: 'changing the stick lengths changes which lines there are', plant: lines((l, list) => (l.group === 'trim' ? { ...l, key: `${l.key}:${Math.max(...list.options.stockFt)}` } : l)) },
+  { rule: 'O14', what: 'a catalog material price is stamped as his measured cost', plant: mod((m) => ({ patch: (a) => { const r = m.patch(a); return r && a.sources ? { ...r, next: { ...r.next, items: r.next.items.map((it) => (it.priceSource === 'regional' ? { ...it, priceSource: 'learned' as const } : it)) } } : r; } })) },
+  { rule: 'O14', what: 'the pushed lines carry no price source', plant: mod((m) => ({ patch: (a) => m.patch({ ...a, sources: undefined }) })) },
+  { rule: 'O14', what: 'the material label says "No Past Jobs Yet" again', plant: en('office.roomScan.order.source.catalogLabel', 'No Past Jobs Yet, Catalog Price') },
+  { rule: 'O16', what: 'the patch does not remove the stale lines', plant: mod((m) => ({ patch: (a) => m.patch({ ...a, remove: [] }) })) },
+  { rule: 'O16', what: 'the plan removes a line he changed by hand', plant: mod((m) => ({ resend: (a) => { const p = m.resend(a); return { remove: [...p.remove, ...p.leftAlone.filter((x) => !a.lines.some((y) => y.conditionId === x.conditionId))], leftAlone: [], skip: [] }; } })) },
+  { rule: 'O16', what: 'a line he changed by hand is overwritten', plant: mod((m) => ({ resend: (a) => ({ ...m.resend(a), skip: [] }) })) },
+  { rule: 'O16', what: 'the plan reaches a line from another scan', plant: mod((m) => ({ resend: (a) => { const p = m.resend(a); return a.scanId === 'scan-1' ? { ...p, remove: [...p.remove, { conditionId: 'scanorder:another-scan:paint_walls', materialId: 'x-other', name: 'x' }] } : p; } })) },
+  { rule: 'O16', what: 'the plan removes the room draft\'s installed line', plant: mod((m) => ({ resend: (a) => { const p = m.resend(a); return a.scanId === 'scan-1' ? { ...p, remove: [...p.remove, { conditionId: 'scan:scan-1:drywall_walls', materialId: 'x-installed', name: 'x' }] } : p; } })) },
+  { rule: 'O16', what: 'with no record of the send, the stale lines are removed anyway', plant: mod((m) => ({ resend: (a) => (a.wrote ? m.resend(a) : m.resend({ ...a, wrote: Object.fromEntries((a.estimate?.items ?? []).filter((it) => it.sourceTakeoffConditionId).map((it) => [it.sourceTakeoffConditionId as string, { materialId: it.materialId, name: it.name, unit: it.unit, quantity: it.quantity, unitPrice: it.unitPrice }])) })) })) },
+  { rule: 'O16', what: 'the sheet does not name the lines to be removed', plant: text(V, '{ocopy.resendRemoveBody(p.resend.remove)}', '{null}') },
+  { rule: 'O16', what: 'the sheet shows one plan and the patch uses another', plant: text(FL, 'remove: resend.remove, sources', 'remove: [], sources') },
+  { rule: 'O16', what: 'the removal sentence loses the names', plant: en('office.roomScan.order.send.resendRemoveBody', { one: '1 line will be removed.', other: '{count} lines will be removed.' }) },
+  { rule: 'O16', what: 'the trim key changes with the stick length, so the old line is stale', plant: lines((l, list) => (l.key === 'baseboard' ? { ...l, key: `baseboard:${Math.min(...list.options.stockFt)}` } : l)) },
+  { rule: 'O17', what: 'no mitre is added to the casing', plant: mod((m) => ({ list: (scan, o) => m.list(scan, { ...o, casingWidthIn: 1 }) })) },
+  { rule: 'O17', what: 'both sides is ignored', plant: mod((m) => ({ list: (scan, o) => m.list(scan, { ...o, casingBothSides: false }) })) },
+  { rule: 'O17', what: 'stool and apron is ignored', plant: mod((m) => ({ list: (scan, o) => m.list(scan, { ...o, windowTrim: 'picture' }) })) },
+  { rule: 'O17', what: 'the casing line stops saying doors are cased one side', plant: en('office.roomScan.order.basis.casingDoorsOneNote', { one: '1 door.', other: '{count} doors.' }) },
+  { rule: 'O17', what: 'the order list and the Quantities screen count different doors', plant: lines((l) => (l.key === 'casing' && l.basis.kind === 'trim' && l.basis.casing ? { ...l, basis: { ...l.basis, casing: { ...l.basis.casing, doorOpeningFt: l.basis.casing.doorOpeningFt + 3 } } } : l)) },
+  { rule: 'O17', what: 'the screen loses the casing width control', plant: text(V, 'onPress={() => p.onOptions({ casingWidthIn: w })}', 'onPress={() => undefined}') },
+  { rule: 'O18', what: 'a run ends in a strip', plant: mod((m) => ({ sheets: (su, op) => { const p = m.sheets(su, op); return { ...p, surfaces: p.surfaces.map((s) => { const i = s.pieces.findIndex((x, k) => k > 0 && x.y === s.pieces[k - 1].y && Math.abs(s.pieces[k - 1].x + s.pieces[k - 1].w - x.x) < 1e-6 && x.w > 6 && op.hang === 'across'); if (i < 0) return s; const cut = s.pieces[i].w - 3; return { ...s, pieces: s.pieces.map((x, k) => (k === i - 1 ? { ...x, w: x.w + cut } : k === i ? { ...x, x: x.x + cut, w: 3 } : x)) }; }) }; } })) },
+  { rule: 'O18', what: 'every course is cut the same way, so the joints stack', plant: mod((m) => ({ sheets: (su, op) => { const p = m.sheets(su, op); if (op.hang !== 'across') return p; return { ...p, surfaces: p.surfaces.map((s) => { const top = s.pieces.filter((x) => x.y === s.pieces[0].y); const rows = [...new Set(s.pieces.map((x) => x.y))]; if (s.openings.length || rows.length < 2 || top.length < 2) return s; return { ...s, pieces: rows.flatMap((y) => top.map((x) => ({ ...x, y, h: s.pieces.find((q) => q.y === y)?.h ?? x.h }))) }; }) }; } })) },
+  { rule: 'O18', what: 'a 1 1/8 in strip is boarded at the floor', plant: mod((m) => ({ sheets: (su, op) => { const p = m.sheets(su, op); return p.surfaces.some((s) => s.floorGapIn > 0) ? { ...p, sheets: p.sheets + 1, surfaces: p.surfaces.map((s) => ({ ...s, floorGapIn: 0 })) } : p; } })) },
+  { rule: 'O18', what: 'the longer sheet is used without asking', plant: mod((m) => ({ sheets: (su, op) => m.sheets(su, { ...op, sheet: op.sheet === '4x8' ? '4x10' : op.sheet }) })) },
+  { rule: 'O18', what: 'a ceiling piece overlaps another', plant: mod((m) => ({ sheets: (su, op) => { const p = m.sheets(su, op); return su[0]?.kind === 'ceiling' ? { ...p, surfaces: p.surfaces.map((s) => ({ ...s, pieces: [...s.pieces, { ...s.pieces[0] }] })) } : p; } })) },
+  { rule: 'O18', what: 'part of an L-shaped ceiling is not boarded', plant: mod((m) => ({ sheets: (su, op) => { const p = m.sheets(su, op); return su[0]?.kind === 'ceiling' ? { ...p, surfaces: p.surfaces.map((s) => ({ ...s, pieces: s.pieces.map((x, i) => (i === 0 ? { ...x, netAreaIn2: x.netAreaIn2 * 0.4 } : x)) })) } : p; } })) },
+  { rule: 'O18', what: 'a spare sheet is hidden inside the wall count', plant: lines((l) => (l.key === 'drywall_walls' ? { ...l, computed: l.computed + 1, quantity: l.quantity + 1 } : l)) },
+  { rule: 'O18', what: 'the screen drops "No spare sheet included."', plant: text(V, ': ocopy.noSpareNote}', ": ''}") },
+  { rule: 'O18', what: 'the gap at the floor is not shown', plant: text(V, '{shown.floorGapIn > 0 && ', '{false && ') },
+  { rule: 'O19', what: 'the options are not guarded in the core', plant: text('utils/roomScan/orderListCore.ts', 'const o = cleanOrderOptions(options);', 'const o = options;') },
+  { rule: 'O19', what: 'a quantity that is not a number reaches a line', plant: lines((l, list) => (l.key === 'paint_walls' && list.options.coats === 2 && list.options.spreadSFPerGal === 350 && list.options.floorWastePct === 0 ? { ...l, quantity: Number.NaN, computed: Number.NaN } : l)) },
+  { rule: 'O19', what: 'a wild spread rate is used as it comes', plant: mod((m) => ({ list: (scan, o) => { const l = m.list(scan, o); return o.spreadSFPerGal === 5 ? { ...l, options: { ...l.options, spreadSFPerGal: 5 } } : l; } })) },
+  { rule: 'O20', what: 'the drawing\'s accessibility label is only its title', plant: text('components/roomScan/CutLayoutView.tsx', "accessibilityLabel={[a11yLabel, ...pieceLines].join('. ')}", 'accessibilityLabel={a11yLabel}') },
+  { rule: 'O20', what: 'an offcut is shown by colour alone', plant: text('components/roomScan/CutLayoutView.tsx', 'if (p.fromOffcut) for (let x = x0 + STRIPE; x < x0 + w - 1; x += STRIPE) stripes.push(x);', '') },
+  { rule: 'O20', what: 'the cut layout is not memoised', plant: text('components/roomScan/CutLayoutView.tsx', 'export const CutLayoutView = React.memo(CutLayout, (a, b) =>', 'export const CutLayoutView = pass(CutLayout, (a, b) =>') },
+  { rule: 'O20', what: 'the piece list is dropped from under the drawing', plant: text(V, 'pieceLines={pieceLines}', 'pieceLines={[]}') },
+  { rule: 'O20', what: 'a cutout no longer says what it was cut for', plant: wallPlan((p) => ({ ...p, surfaces: p.surfaces.map((s) => ({ ...s, pieces: s.pieces.map((x) => ({ ...x, cutouts: x.cutouts.map((c) => ({ x0: c.x0, x1: c.x1, y0: c.y0, y1: c.y1 })) })) })) })) },
+  { rule: 'O20', what: 'the piece line drops its size', plant: en('office.roomScan.order.layout.pieceSub', 'Sheet {sheet}, {parts}') },
+  { rule: 'O21', what: 'the warning is missing when the send starts an estimate', plant: text(V, '{ocopy.doubleCountBody(p.installedAlreadyIn)}</Text>', '{p.starting ? null : ocopy.doubleCountBody(p.installedAlreadyIn)}</Text>') },
+  { rule: 'O21', what: 'the warning is never the specific one', plant: text(FL, 'installedAlreadyIn={pushedLinesInEstimate(project, saved.pushed) > 0}', 'installedAlreadyIn={false}') },
+  { rule: 'O21', what: 'Price It\'s confirm has no mirror sentence', plant: text('components/roomScan/PricedDraftView.tsx', '{p.materialsAlreadyIn === true && <Text style={styles.para} testID="scan-confirm-materials-in">{copy.confirmMaterialsInBody}</Text>}', '') },
+  { rule: 'O21', what: 'the specific sentence stops saying the material is in twice', plant: en('office.roomScan.order.send.doubleCountInBody', 'The installed lines for this room are already in this estimate.') },
+  { rule: 'L5', what: 'another phone\'s walls are mixed in without saying so', plant: mod((m) => ({ suggest: (p, dm) => { const sg = m.suggest(p, dm); return sg ? { ...sg, pooled: false } : sg; } })) },
+  { rule: 'L5', what: 'the phone model is ignored', plant: mod((m) => ({ suggest: (p) => m.suggest(p, '') })) },
+  { rule: 'L5', what: 'the flow does not say which phone the scan came from', plant: text(FL, "longWallSuggestion(tapePairs, scan?.device?.model ?? '')", 'longWallSuggestion(tapePairs)') },
+  { rule: 'L6', what: 'inches are added to a wall the app adjusted', plant: mod((m) => ({ list: (scan, o) => m.list({ ...scan, walls: scan.walls.map((x) => (x.lengthSource === 'adjusted' ? { ...x, lengthSource: 'scan' as const } : x)) }, o) })) },
+  { rule: 'L6', what: 'the added length reaches the wall tile', plant: lines((l, list) => (l.key === 'wall_tile' && list.options.longWallAddIn > 0 && l.net ? { ...l, net: { ...l.net, quantity: l.net.quantity + 1 } } : l)) },
+  { rule: 'L6', what: 'the note stops saying what the added length does not change', plant: en('office.roomScan.order.addedNote', { one: 'This list adds {inches} to 1 long wall.', other: 'This list adds {inches} to each of {count} long walls.' }) },
+  { rule: 'L7', what: 'a scan pushed off the saved list keeps its taped walls', plant: text('utils/roomScan/store.ts', 'try { await onDropped(dropped); }', 'try { /* nothing */ }') },
+  { rule: 'L7', what: 'a save does not hand over the dropped scans', plant: text(FL, 'saveScan(next, rawJson, dropTape)', 'saveScan(next, rawJson)') },
   { rule: 'D1', what: 'the checklist loses what is missing', plant: text('docs/scan-the-room-native-checklist.md', /qbo_cost_lines/g, 'the accounting import') },
 ];
 
@@ -1963,6 +2030,7 @@ for (const m of MUTATIONS) {
     let problems: string[];
     try { problems = RULES[id](w); } catch (e) { problems = [`threw ${e instanceof Error ? e.message : String(e)}`]; }
     caught = problems.length > 0;
+    if (caught && process.env.WHY === '1') console.log(`  ${m.rule}: ${m.what}\n      caught by: ${problems[0].slice(0, 200)}`);
     if (!caught) how = 'the rule stayed green';
   } catch (e) {
     how = `mutation could not be planted: ${e instanceof Error ? e.message : String(e)}`;
