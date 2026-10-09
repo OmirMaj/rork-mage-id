@@ -92,9 +92,17 @@ export function recipientNoticePageCss(company: string | null | undefined, lang:
   return `<style ${RECIPIENT_NOTICE_MARK}-page="1">@page { @bottom-center { content: "${cssString(recipientNoticeText(company, lang))}"; font-family: Helvetica, Arial, sans-serif; font-size: 8pt; line-height: 1.3; color: #0B0D10; } }</style>`;
 }
 
-/** True when this HTML already carries the notice block. */
+/**
+ * The mark of a document that prints its OWN Notice To Recipients on page one
+ * and in a footer that repeats on every page (the Pay Period Record,
+ * utils/proofPack/html.ts, whose longer notice is pinned word for word by
+ * scripts/validate-proof-pack.ts). Such a document is left exactly as built.
+ */
+export const OWN_NOTICE_MARK = 'data-notice="page-footer"';
+
+/** True when this HTML already carries the notice block, or its own repeating notice. */
 export function hasRecipientNotice(html: string): boolean {
-  return html.includes(`${RECIPIENT_NOTICE_MARK}="1"`);
+  return html.includes(`${RECIPIENT_NOTICE_MARK}="1"`) || html.includes(OWN_NOTICE_MARK);
 }
 
 /**
