@@ -350,6 +350,15 @@ describe('Job Replay on the phone', () => {
     expect(screen.getByTestId('lm-phone-no-engine')).toBeTruthy();
     expect(screen.getByText('3D needs the newest version of the app.')).toBeTruthy();
     expect(screen.queryByTestId('lm-phone-3d-failed')).toBeNull();
+    // One message, once; nothing that belongs to a 3D picture; the honesty lines once, as the flat view's.
+    expect(screen.getAllByText('3D needs the newest version of the app.')).toHaveLength(1);
+    expect(screen.queryByTestId('lm-3d-hint')).toBeNull();
+    expect(screen.queryByTestId('lm-3d-quality')).toBeNull();
+    expect(screen.queryByTestId('lm-no-webgl')).toBeNull();
+    expect(screen.queryByTestId('lm-phone-note')).toBeNull();
+    expect(screen.getByTestId('lm-honesty-flat')).toBeTruthy();
+    expect(screen.queryByTestId('lm-honesty-3d')).toBeNull();
+    expect(screen.getAllByText(SCHEMATIC)).toHaveLength(1);
     expect(screen.getByTestId('lm-flat-plan')).toBeTruthy();
     expect(screen.queryByTestId('lm-replay-3d')).toBeNull();
     expect(screen.getByText(SCHEMATIC)).toBeTruthy();

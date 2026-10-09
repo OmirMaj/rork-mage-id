@@ -1076,14 +1076,14 @@ rule('E6', 'the phone reaches the 3D library and the scene builder through ONE f
 });
 
 /** The real three.js with a renderer that draws nothing, so the scene builder runs here with no WebGL. */
-function fakeThree(): { lib: typeof import('three'); log: { made: number; clear: string[]; released: number; disposed: number } } {
-  const log = { made: 0, clear: [] as string[], released: 0, disposed: 0 };
+function fakeThree(): { lib: typeof import('three'); log: { made: number; clear: string[]; released: number; disposed: number; antialias: unknown[]; ratios: number[] } } {
+  const log = { made: 0, clear: [] as string[], released: 0, disposed: 0, antialias: [] as unknown[], ratios: [] as number[] };
   class Renderer {
     shadowMap = { enabled: false, type: 0 };
     domElement = {};
-    constructor() { log.made += 1; }
+    constructor(p?: { antialias?: unknown }) { log.made += 1; log.antialias.push(p?.antialias); }
     setClearColor(c: string): void { log.clear.push(String(c)); }
-    setPixelRatio(): void { /* nothing to draw on */ }
+    setPixelRatio(n: number): void { log.ratios.push(n); }
     setSize(): void { /* nothing to draw on */ }
     render(): void { /* nothing to draw on */ }
     dispose(): void { log.disposed += 1; }
@@ -1123,6 +1123,29 @@ rule('E7', 'a theme change makes a new scene and the rooms are drawn into it aga
   b.setRooms(rooms, 1.25);
   if (b.roomCount() !== 7) out.push('the rooms could not be drawn into the new scene');
   b.dispose();
+  // The web's own settings, unchanged: the renderer smooths its edges, and a screen past 2 pixels a point is drawn at 2.
+  const third = fakeThree();
+  const c = w.impl.createJobScene(third.lib, {} as HTMLCanvasElement, LIGHT);
+  c.resize(1100, 560, 3);
+  c.resize(1100, 560, 1.5);
+  c.dispose();
+  if (third.log.antialias.join() !== 'true') out.push(`with no options the renderer was made with antialias ${String(third.log.antialias[0])}; the web's is true`);
+  if (third.log.ratios.join() !== '2,1.5') out.push(`with no options a 3x and a 1.5x screen were drawn at ${third.log.ratios.join(', ')}; the web's cap is 2`);
+  // A caller may set them (the phone does): no renderer smoothing, and its own cap.
+  const fourth = fakeThree();
+  const d = w.impl.createJobScene(fourth.lib, {} as HTMLCanvasElement, LIGHT, { antialias: false, maxPixelRatio: 4, shadowMapSize: 1024 });
+  d.resize(390, 380, 3);
+  d.dispose();
+  if (fourth.log.antialias.join() !== 'false' || fourth.log.ratios.join() !== '3') out.push(`a caller's own settings were not used: antialias ${String(fourth.log.antialias[0])}, ratio ${fourth.log.ratios.join(', ')}`);
+  // The context is given back where it can be, and not asked for where it cannot (a phone's drawing surface): asking prints a warning there.
+  for (const [can, want] of [[true, 1], [false, 0]] as const) {
+    const t = fakeThree();
+    const Base = (t.lib as unknown as { WebGLRenderer: new (p?: unknown) => object }).WebGLRenderer;
+    class WithExtensions extends Base { extensions = { has: (name: string): boolean => name === 'WEBGL_lose_context' && can }; }
+    const h = w.impl.createJobScene({ ...(t.lib as object), WebGLRenderer: WithExtensions } as unknown as typeof import('three'), {} as HTMLCanvasElement, LIGHT);
+    h.dispose();
+    if (t.log.released !== want) out.push(`a renderer whose context ${can ? 'can' : 'cannot'} be given back had it given back ${t.log.released} times; want ${want}`);
+  }
   // The view: when the scene goes, `ready` goes with it, so the two effects that draw rooms and stages run again for the next scene.
   const web = code(w.files['components/livingModel/JobReplay3D.web.tsx'] ?? '');
   const start = web.slice(web.indexOf('void loadLibrary().then('), web.indexOf('// The rooms, or the wall height, changed'));
@@ -1166,7 +1189,7 @@ rule('E8', 'the page still scrolls: the wheel zooms the model only after a click
   if (!/const onTouch = \(e: TouchEvent\) => \{ if \(e\.touches\.length >= 2 && e\.cancelable\) e\.preventDefault\(\); \};/.test(web)) out.push('two fingers on the model are not kept from scrolling the page');
   if (!/canvas\.addEventListener\('pointercancel', onCancel\);/.test(web)) out.push('a touch the browser took for scrolling is treated as a tap on a room');
   const scr = code(w.files['components/livingModel/LivingModelScreen.tsx'] ?? '');
-  if (!/<Text[^>]*testID="lm-3d-hint">\{wide \? copy\.orbitHelpSub : copy\.touchHelpSub\}<\/Text>/.test(scr)) out.push('the one-line hint under the 3D view is missing');
+  if (!/<Text[^>]*testID="lm-3d-hint">\{onPhone \? phoneCopy\.touchHelpSub : wide \? copy\.orbitHelpSub : copy\.touchHelpSub\}<\/Text>/.test(scr)) out.push('the one-line hint under the 3D view is missing, or a browser no longer gets its own two sentences (the wheel on a wide screen, one finger scrolls on a narrow one)');
   const hint = String(w.EN[`${K}replay.orbitHelpSub`] ?? '');
   if (!/Ctrl or Cmd/.test(hint) || !/click the model first/.test(hint) || /Scroll or pinch to zoom/.test(hint)) out.push(`the hint does not say how the wheel zooms: "${hint}"`);
   const touch = String(w.EN[`${K}replay.touchHelpSub`] ?? '');
@@ -1848,7 +1871,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E1', name: '`import \'three\'` in the phone file', plant: edit('components/livingModel/JobReplay3D.tsx', "import type { JobReplay3DProps } from './jobReplay3DProps';", "import 'three';\nimport type { JobReplay3DProps } from './jobReplay3DProps';") },
   { rule: 'E6', name: '`import \'three\'` in the phone file', plant: edit('components/livingModel/JobReplay3D.tsx', "import type { JobReplay3DProps } from './jobReplay3DProps';", "import 'three';\nimport type { JobReplay3DProps } from './jobReplay3DProps';") },
   { rule: 'E6', name: 'the phone file loads the library with a dynamic import', plant: edit('components/livingModel/JobReplay3D.tsx', 'export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;', "export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;\nexport const warm = () => import('three');") },
-  { rule: 'E6', name: 'the engine file imports the scene builder when the bundle loads', plant: edit(PHONE_ENGINE, "import type { JobSceneHandle } from '../threeScene';", "import { createJobScene, type JobSceneHandle } from '../threeScene';\nexport const make = createJobScene;") },
+  { rule: 'E6', name: 'the engine file imports the scene builder when the bundle loads', plant: edit(PHONE_ENGINE, "import type { JobSceneHandle, JobSceneOptions } from '../threeScene';", "import { createJobScene, type JobSceneHandle } from '../threeScene';\nexport const make = createJobScene;") },
   { rule: 'E6', name: 'the engine file imports the drawing surface when the bundle loads', plant: edit(PHONE_ENGINE, "import { requireOptionalNativeModule } from 'expo';", "import { requireOptionalNativeModule } from 'expo';\nimport * as Surface from 'expo-gl';\nexport { Surface };") },
   { rule: 'E6', name: 'the flat view builds the scene', plant: edit('components/livingModel/FlatReplay.tsx', "import { ModelPlan } from './ModelPlan';", "import { ModelPlan } from './ModelPlan';\nimport { createJobScene } from './threeScene';\nexport const make = createJobScene;") },
   { rule: 'E6', name: 'the screen names the web file', plant: edit('components/livingModel/LivingModelScreen.tsx', "from './JobReplay3D';", "from './JobReplay3D.web';") },
@@ -1860,7 +1883,10 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E7', name: 'the rooms effect does not wait for a ready scene', plant: edit('components/livingModel/JobReplay3D.web.tsx', '  }, [ready, rooms, cut]);', '  }, [rooms, cut]);') },
   { rule: 'E7', name: 'the WebGL context is not given back', plant: swap({ createJobScene: (T, c, p, o) => { const h = createJobScene(T, c, p, o); return { ...h, dispose: () => { h.setRooms([], null); } }; } }) },
   { rule: 'E7', name: 'the scene keeps the old theme\'s ground', plant: swap({ createJobScene: (T, c, _p, o) => createJobScene(T, c, LIGHT, o) }) },
-  { rule: 'E7', name: 'the scene does not release its context in dispose', plant: edit('components/livingModel/threeScene.ts', '      try { renderer.forceContextLoss(); } catch { /* the context is already gone */ }\n', '') },
+  { rule: 'E7', name: 'the scene does not release its context in dispose', plant: edit('components/livingModel/threeScene.ts', '      try { if (canLoseContext(renderer)) renderer.forceContextLoss(); } catch { /* the context is already gone */ }\n', '') },
+  { rule: 'E7', name: 'the scene gives back a context that cannot be given back', plant: swap({ createJobScene: (lib, canvas, palette, opts) => { const R = (lib as unknown as { WebGLRenderer: new (p?: unknown) => object }).WebGLRenderer; class Blind extends R { constructor(p?: unknown) { super(p); (this as { extensions?: unknown }).extensions = undefined; } } return createJobScene({ ...(lib as object), WebGLRenderer: Blind } as unknown as typeof import('three'), canvas, palette, opts); } }) },
+  { rule: 'E7', name: 'the web\'s renderer loses its smoothing', plant: swap({ createJobScene: (lib, canvas, palette, opts) => createJobScene(lib, canvas, palette, { antialias: false, ...opts }) }) },
+  { rule: 'E7', name: 'the web\'s pixel-ratio cap moves', plant: swap({ createJobScene: (lib, canvas, palette, opts) => createJobScene(lib, canvas, palette, { maxPixelRatio: 3, ...opts }) }) },
   { rule: 'E7', name: 'a lost context is not listened for', plant: edit('components/livingModel/JobReplay3D.web.tsx', "      canvas.addEventListener('webglcontextlost', onLost);\n", '') },
   { rule: 'E7', name: 'Reload View does not make a new scene', plant: edit('components/livingModel/JobReplay3D.web.tsx', 'onPress={() => { setLost(false); setReloads((n) => n + 1); }}', 'onPress={() => { setLost(false); }}') },
   { rule: 'E8', name: 'the wheel always zooms', plant: swap({ wheelShouldZoom: () => true }) },
@@ -1870,7 +1896,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E8', name: 'the wheel handler stops the page first', plant: edit('components/livingModel/JobReplay3D.web.tsx', /        if \(!wheelShouldZoom\(e, [^\n]*\n        e\.preventDefault\(\);/, '        e.preventDefault();') },
   { rule: 'E8', name: 'touch-action is none on every screen', plant: edit('components/livingModel/JobReplay3D.web.tsx', 'touchAction: canvasTouchAction(compact),', "touchAction: 'none',") },
   { rule: 'E8', name: 'one finger turns the model on a narrow screen', plant: edit('components/livingModel/JobReplay3D.web.tsx', '          if (!oneFingerTurnsModel(e.pointerType, compactRef.current)) return;\n', '') },
-  { rule: 'E8', name: 'the hint is removed', plant: edit('components/livingModel/LivingModelScreen.tsx', /\n {10}<Text style=\{styles\.note\} testID="lm-3d-hint">[^\n]*\n/, '\n') },
+  { rule: 'E8', name: 'the hint is removed', plant: edit('components/livingModel/LivingModelScreen.tsx', /\n {10}\{threeD \? <Text style=\{styles\.note\} testID="lm-3d-hint">[^\n]*\n/, '\n') },
   { rule: 'E8', name: 'the hint still says scroll to zoom', plant: en('replay.orbitHelpSub', 'Drag to turn. Hold Shift and drag, or use two fingers, to move. Scroll or pinch to zoom') },
   { rule: 'I1', name: 'a white light written in the scene', plant: edit('components/livingModel/threeScene.ts', 'new THREE.DirectionalLight(palette.sun, palette.sunStrength)', "new THREE.DirectionalLight('#ffffff', 1.0)") },
   { rule: 'I1', name: 'a stray #ffffff in the scene', plant: edit('components/livingModel/threeScene.ts', 'none: faint(palette.vertexBase, 0),', "none: faint('#ffffff', 0),") },

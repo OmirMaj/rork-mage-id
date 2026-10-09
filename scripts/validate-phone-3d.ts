@@ -7,8 +7,9 @@
 //
 // A. FINGERS AND SIZES, AS NUMBERS (utils/livingModel/phoneViewCore, run
 //    directly): one finger turns, two move and zoom, a still short touch is a
-//    tap; the scene is handed a size that fills the drawing buffer on a 2x and
-//    a 3x phone; a small room shows its name alone.
+//    tap; the scene is handed the view in points with the buffer's pixels a
+//    point, so nothing is converted; a small room shows its name alone; the
+//    cost of the view (buffer, smoothing, shadow map) comes from one table.
 // B. THE ENGINE IS OPTIONAL: one nullable lookup, from inside a function;
 //    expo-gl is named in ONE file and read lazily inside a try; nothing else
 //    in the app names it. (scripts/validate-living-model.ts rules E1 to E4 hold
@@ -18,7 +19,9 @@
 //    and a throw while drawing is caught.
 // D. FRAMES: a frame is drawn only when something changed; nothing is drawn
 //    when the screen is not in front or the app is not active; every drawn
-//    frame is shown (endFrameEXP); everything is given back on leaving.
+//    frame is shown (endFrameEXP); everything is given back on leaving; the
+//    page behind does not scroll while a finger is on the model; a drawing
+//    surface that never starts ends on the flat replay.
 // E. THE SIMULATOR CHECK IS OFF IN EVERY BUILD ANYONE INSTALLS: its switch is
 //    in no build profile, no app config and no committed env file; the auth
 //    wall opens for it only under the same switch.
@@ -42,7 +45,7 @@ import { ES_OFFICE_LIVING_MODEL_PHONE } from '../i18n/catalog/es/office/livingMo
 import { spikeFortyRoomJob, spikeSevenRoomJob, spikeTenWeekSchedule } from '../utils/livingModel/phoneSpikeSample';
 import {
   MAX_TWIST_STEP, MAX_ZOOM_STEP, TAP_MAX_MS, TAP_SLOP_PT,
-  frameStats, gestureBegin, gestureEnd, gestureMove, labelsToHide, viewSize,
+  PHONE_3D_QUALITY, frameStats, gestureBegin, gestureEnd, gestureMove, labelsToHide, phone3DSettings, surfaceBox, viewSize,
 } from '../utils/livingModel/phoneViewCore';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,7 +72,7 @@ try { tracked = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' 
 const ENV_FILES = tracked.filter((f) => /(^|\/)\.env(\.|$)/.test(f));
 const WORKFLOWS = tracked.filter((f) => f.startsWith('.github/workflows/'));
 
-const impl = { spikeSevenRoomJob, spikeTenWeekSchedule, spikeFortyRoomJob, gestureBegin, gestureMove, gestureEnd, viewSize, labelsToHide, frameStats, canvasStandIn, makePhoneScene };
+const impl = { spikeSevenRoomJob, spikeTenWeekSchedule, spikeFortyRoomJob, gestureBegin, gestureMove, gestureEnd, viewSize, labelsToHide, frameStats, canvasStandIn, makePhoneScene, phone3DSettings, surfaceBox };
 type Impl = typeof impl;
 type Catalog = Record<string, unknown>;
 interface World { files: Record<string, string>; EN: Catalog; ES: Catalog; impl: Impl; pkg: { scripts: Record<string, string>; dependencies: Record<string, string> } }
@@ -91,6 +94,8 @@ const SCENE = 'components/livingModel/phone3d/phoneScene.ts';
 const SPIKE = 'app/dev-phone-3d.tsx';
 const LAYOUT = 'app/_layout.tsx';
 const LAUNCH = 'utils/phone3dSpikeLaunch.ts';
+const SCREEN = 'components/livingModel/LivingModelScreen.tsx';
+const THREE_SCENE = 'components/livingModel/threeScene.ts';
 const SWITCH = 'EXPO_PUBLIC_PHONE3D_SPIKE';
 const K = 'office.livingModelPhone.';
 
@@ -164,20 +169,25 @@ rule('A2', 'two fingers move the model by their middle, zoom it by their spread 
   return out;
 });
 
-rule('A3', 'the scene is handed a size that fills the drawing buffer on a 3x and a 2x phone, and points convert by one factor', (w) => {
+rule('A3', 'the scene is handed the view in points and the buffer\'s pixels a point, whatever the buffer is, so the picture fills it and nothing is converted', (w) => {
   const out: string[] = [];
   const V = w.impl.viewSize;
-  // A 390 by 380 point view on a 3x phone: a 1170 by 1140 pixel buffer. The scene takes a ratio of at most 2,
-  // so it is handed 585 by 570, which it multiplies back to 1170 by 1140. 585 / 390 = 1.5 scene units a point.
+  // A 390 by 380 point view on a 3x phone drawn in full: a 1170 by 1140 pixel buffer. 390 by 380 at 3 pixels a point.
   const a = V(390, 380, 1170, 1140);
-  if (!a || a.pixelRatio !== 2 || !near(a.width, 585) || !near(a.height, 570) || !near(a.unitsPerPoint, 1.5)) out.push(`3x: ${JSON.stringify(a)}; want ratio 2, 585 by 570, 1.5 units a point`);
-  // The same view on a 2x phone: 780 by 760 pixels. Handed 390 by 380 at ratio 2: one unit a point.
+  if (!a || !near(a.pixelRatio, 3) || a.width !== 390 || a.height !== 380) out.push(`3x in full: ${JSON.stringify(a)}; want 390 by 380 at 3`);
+  // The same view held to 2 pixels a point (Standard on a 3x phone), and on a 2x phone: a 780 by 760 buffer. 390 by 380 at 2.
   const b = V(390, 380, 780, 760);
-  if (!b || b.pixelRatio !== 2 || !near(b.width, 390) || !near(b.height, 380) || !near(b.unitsPerPoint, 1)) out.push(`2x: ${JSON.stringify(b)}; want ratio 2, 390 by 380, 1 unit a point`);
+  if (!b || !near(b.pixelRatio, 2) || b.width !== 390 || b.height !== 380) out.push(`2 pixels a point: ${JSON.stringify(b)}; want 390 by 380 at 2`);
   const c = V(400, 300, 400, 300);
-  if (!c || c.pixelRatio !== 1 || !near(c.width, 400) || !near(c.unitsPerPoint, 1)) out.push(`1x: ${JSON.stringify(c)}; want ratio 1, 400 wide`);
-  for (const s of [a, b, c]) if (s && !near(s.width * s.pixelRatio, s === a ? 1170 : s === b ? 780 : 400)) out.push('width times ratio is not the buffer width: part of the buffer would be left undrawn');
+  if (!c || c.pixelRatio !== 1 || c.width !== 400) out.push(`1x: ${JSON.stringify(c)}; want 400 wide at 1`);
+  for (const [sz, buf] of [[a, 1170], [b, 780], [c, 400]] as const) if (sz && !near(sz.width * sz.pixelRatio, buf, 1e-6)) out.push('width times ratio is not the buffer width: part of the buffer would be left undrawn');
   if (V(0, 380, 1170, 1140) !== null || V(390, 380, 0, 0) !== null || V(Number.NaN, 1, 1, 1) !== null) out.push('a size that cannot be used is not refused');
+  // The scene must accept that ratio: its own cap is the web's 2 unless the caller raises it.
+  const view = code(w.files[VIEW] ?? '');
+  if (!/maxPixelRatio: PHONE_MAX_PIXEL_RATIO/.test(view)) out.push('the phone does not raise the scene\'s pixel-ratio cap: a 3x buffer would be two thirds filled');
+  const three = code(w.files[THREE_SCENE] ?? '');
+  if (!/renderer\.setPixelRatio\(Math\.min\(maxPixelRatio, Math\.max\(1, pixelRatio\)\)\);/.test(three)) out.push('the scene does not take its pixel-ratio cap from its caller');
+  if (!/export const WEB_SCENE_DEFAULTS = \{ antialias: true, maxPixelRatio: 2, shadowMapSize: 2048 \} as const;/.test(three)) out.push('the scene\'s defaults are no longer the web\'s (smoothing on, 2 pixels a point, a 2048 shadow map)');
   return out;
 });
 
@@ -196,7 +206,7 @@ rule('A4', 'two labels never sit on one another: the larger room keeps its label
   return out;
 });
 
-rule('A5', 'the stand-in for a canvas answers only a WebGL2 context, and the wrapper converts points, shows every frame and gives the scene back', (w) => {
+rule('A5', 'the stand-in for a canvas answers only a WebGL2 context, and the wrapper hands points straight through, shows every frame and gives the scene back', (w) => {
   const out: string[] = [];
   const log: string[] = [];
   const gl = { drawingBufferWidth: 1170, drawingBufferHeight: 1140, endFrameEXP: () => { log.push('end'); }, getError: () => { log.push('wait'); return 0; } };
@@ -224,7 +234,7 @@ rule('A5', 'the stand-in for a canvas answers only a WebGL2 context, and the wra
   };
   const scene = w.impl.makePhoneScene(handle, gl);
   if (scene.layout(0, 0) !== false) out.push('a view with no size was laid out');
-  if (scene.layout(390, 380) !== true || !log.includes('resize 585 570 2')) out.push(`a 390 by 380 view on a 3x phone was handed to the scene as ${log.filter((l) => l.startsWith('resize')).join('; ') || 'nothing'}; want 585 570 2`);
+  if (scene.layout(390, 380) !== true || !log.includes('resize 390 380 3')) out.push(`a 390 by 380 view on a 3x phone was handed to the scene as ${log.filter((l) => l.startsWith('resize')).join('; ') || 'nothing'}; want 390 380 3`);
   log.length = 0;
   scene.draw();
   if (log.join() !== 'render,end') out.push(`a frame did ${log.join(', ') || 'nothing'}; want the scene drawn and then shown`);
@@ -234,18 +244,54 @@ rule('A5', 'the stand-in for a canvas answers only a WebGL2 context, and the wra
   log.length = 0;
   scene.orbit(10, 4);
   scene.pan(10, 4);
-  if (log.join() !== 'orbit 10 4,pan 15 6') out.push(`a turn and a move of 10, 4 points reached the scene as ${log.join(', ')}; want the turn in points and the move in scene units (15, 6)`);
+  if (log.join() !== 'orbit 10 4,pan 10 4') out.push(`a turn and a move of 10, 4 points reached the scene as ${log.join(', ')}; want both in points, as they came`);
   log.length = 0;
-  if (scene.pickAt(100, 200) !== 'kitchen' || log.join() !== 'pick 150 300') out.push(`a tap at 100, 200 points asked the scene about ${log.join(', ')}; want 150, 300`);
+  if (scene.pickAt(100, 200) !== 'kitchen' || log.join() !== 'pick 100 200') out.push(`a tap at 100, 200 points asked the scene about ${log.join(', ')}; want 100, 200`);
   const p = scene.labelAt('kitchen');
-  if (!p || !near(p.x, 200) || !near(p.y, 100)) out.push(`a label the scene puts at 300, 150 units is drawn at ${JSON.stringify(p)}; want 200, 100 points`);
-  if (scene.roomWidthPt('kitchen') !== 200) out.push(`a room 300 scene units wide is ${scene.roomWidthPt('kitchen')} points wide; want 200`);
+  if (!p || !near(p.x, 300) || !near(p.y, 150)) out.push(`a label the scene puts at 300, 150 points is drawn at ${JSON.stringify(p)}; want 300, 150`);
+  if (scene.roomWidthPt('kitchen') !== 300) out.push(`a room 300 points wide is ${scene.roomWidthPt('kitchen')} points wide; want 300`);
   log.length = 0;
   scene.turnBy(0.25);
   if (log.join() !== 'turn 0.25') out.push('a twist does not reach the scene');
   log.length = 0;
   scene.dispose();
   if (log.join() !== 'dispose') out.push('leaving does not give the scene back');
+  return out;
+});
+
+rule('A6', 'what the view costs a phone comes from one table: Standard holds a 3x screen to 2 pixels a point with a 1024 shadow map, High is the full screen', (w) => {
+  const out: string[] = [];
+  const S = w.impl.phone3DSettings;
+  const std3 = S('standard', 3);
+  if (!near(std3.surfaceScale, 2 / 3) || std3.msaaSamples !== 4 || std3.shadowMapSize !== 1024) out.push(`Standard on a 3x phone: ${JSON.stringify(std3)}; want the surface at two thirds, 4 samples, a 1024 shadow map`);
+  const std2 = S('standard', 2);
+  if (std2.surfaceScale !== 1 || std2.msaaSamples !== 2 || std2.shadowMapSize !== 1024) out.push(`Standard on a 2x phone: ${JSON.stringify(std2)}; want the whole surface, 2 samples, a 1024 shadow map`);
+  const high3 = S('high', 3);
+  if (high3.surfaceScale !== 1 || high3.msaaSamples !== 4 || high3.shadowMapSize !== 2048) out.push(`High on a 3x phone: ${JSON.stringify(high3)}; want the whole surface, 4 samples, a 2048 shadow map`);
+  if (S('standard', Number.NaN).surfaceScale !== 1 || S('standard', 0).msaaSamples !== 2) out.push('a screen scale that cannot be read is not taken as 2');
+  if (S('nonsense' as 'high', 3).shadowMapSize !== 1024) out.push('a quality that is not one of the two is not Standard');
+  if (PHONE_3D_QUALITY.standard.maxBufferScale > 2 || PHONE_3D_QUALITY.standard.shadowMapSize > 1024) out.push('Standard is no longer the conservative one');
+  // A 390 by 380 view with its surface at two thirds: 260 by 253.33, moved 65 across and 63.33 down, grown 1.5 times. It covers the view.
+  const B = w.impl.surfaceBox(390, 380, 2 / 3);
+  if (!near(B.width, 260, 1e-6) || !near(B.height, 380 * 2 / 3, 1e-6) || !near(B.translateX, 65, 1e-6) || !near(B.translateY, 380 / 6, 1e-6) || !near(B.scale, 1.5, 1e-9)) out.push(`the surface for a 390 by 380 view at two thirds is ${JSON.stringify(B)}`);
+  // After the grow about its middle and the move, its left edge is at 0 and its right edge at the view's width.
+  const left = B.translateX + B.width / 2 - (B.width * B.scale) / 2;
+  if (!near(left, 0, 1e-6) || !near(left + B.width * B.scale, 390, 1e-6)) out.push(`the grown surface spans ${left} to ${left + B.width * B.scale}; want 0 to 390`);
+  const whole = w.impl.surfaceBox(390, 380, 1);
+  if (whole.width !== 390 || whole.height !== 380 || whole.translateX !== 0 || whole.translateY !== 0 || whole.scale !== 1) out.push('a whole surface is moved or scaled');
+  if (w.impl.surfaceBox(390, 380, 0).scale !== 1 || w.impl.surfaceBox(390, 380, 2).scale !== 1) out.push('a surface scale that cannot be used is not taken as the whole view');
+  const view = code(w.files[VIEW] ?? '');
+  if (!/const settings = useMemo\(\(\) => phone3DSettings\(quality, PixelRatio\.get\(\)\), \[quality\]\);/.test(view)) out.push('the view does not take its cost from the table');
+  if (!/shadowMapSize: settings\.shadowMapSize/.test(view) || !/antialias: false/.test(view)) out.push('the scene is not built with the table\'s shadow map, or asks the renderer for smoothing the surface already does');
+  if (!/const surface = box \? surfaceBox\(box\.w, box\.h, settings\.surfaceScale\) : null;/.test(view)) out.push('the drawing surface is not laid out at the table\'s size');
+  if (!/transform: \[\{ translateX: surface\.translateX \}, \{ translateY: surface\.translateY \}, \{ scale: surface\.scale \}\]/.test(view)) out.push('the smaller surface is not moved and then grown back over the view');
+  const entry = code(w.files[ENTRY] ?? '');
+  if (!/quality = 'standard'/.test(entry)) out.push('a view that is told no quality does not draw at Standard');
+  const screen = code(w.files[SCREEN] ?? '');
+  if (!/let chosenQuality: Phone3DQuality = 'standard';/.test(screen)) out.push('the screen does not start at Standard');
+  if (!/\{threeD && onPhone && ownerTools \? \(/.test(screen)) out.push('the 3D Quality switch is not for the owner alone, on the phone, over a 3D picture');
+  if (!/return isOwner\(userEmail\);/.test(/export function livingModelOwnerTools\([\s\S]*?\n\}/.exec(code(w.files['utils/livingModel/allowed.ts'] ?? ''))?.[0] ?? '')) out.push('the owner\'s switches are not gated on the owner account');
+  if (!/ownerTools=\{livingModelOwnerTools\(user\?\.email\)\}/.test(code(w.files['app/living-model.tsx'] ?? ''))) out.push('the route does not ask the gate who gets the owner\'s switches');
   return out;
 });
 
@@ -321,10 +367,27 @@ rule('C2', 'a throw while the 3D view is drawn is caught, and every call into th
     const back = lines.slice(Math.max(0, i - 6), i + 1).join('\n');
     if (!/try \{/.test(back)) out.push(`${VIEW}:${i + 1} calls the scene outside a try`);
   });
-  if (!/const scene = makePhoneScene\(engine\.createScene\(canvasStandIn\(gl\), palette\), gl\);/.test(view)) out.push('the scene is not built on the phone\'s drawing context');
+  if (!/const scene = makePhoneScene\(engine\.createScene\(canvasStandIn\(gl\), palette, \{[^\n]*\}\), gl\);/.test(view)) out.push('the scene is not built on the phone\'s drawing context');
   const made = view.indexOf('makePhoneScene(engine.createScene(');
   if (made < 0 || view.lastIndexOf('try {', made) < 0 || view.indexOf('} catch (e) {\n      fail(e);', made) < 0) out.push('a start that throws is not reported');
   if (!/if \(failed\.current\) return;\s*failed\.current = true;/.test(view)) out.push('a failure can be reported more than once');
+  return out;
+});
+
+rule('C3', 'the screen says the phone\'s own sentence under a 3D picture and nothing 3D under a flat one', (w) => {
+  const out: string[] = [];
+  const entry = code(w.files[ENTRY] ?? '');
+  if (!/const flat = mode === 'no_engine' \|\| mode === 'failed';/.test(entry) || !/useLayoutEffect\(\(\) => \{ onFlatRef\.current\?\.\(flat\); \}, \[flat\]\);/.test(entry)) out.push('the phone view does not tell the screen, before the frame is shown, that it is drawing the flat replay');
+  const screen = code(w.files[SCREEN] ?? '');
+  if (!/onFlat=\{setPhoneFlat\}/.test(screen)) out.push('the screen does not listen for the flat replay');
+  if (!/const try3d = JOB_REPLAY_3D_ON_THIS_PLATFORM && !no3d;\s*const threeD = try3d && !phoneFlat;/.test(screen)) out.push('the screen still counts a flat picture drawn by the phone view as a 3D one');
+  if (!/\{threeD \? <Text style=\{styles\.note\} testID="lm-3d-hint">\{onPhone \? phoneCopy\.touchHelpSub : wide \? copy\.orbitHelpSub : copy\.touchHelpSub\}<\/Text> : null\}/.test(screen)) out.push('the line under the 3D view is not the phone\'s own on the phone, or is printed under a flat picture');
+  if (!/const onPhone = Platform\.OS !== 'web';/.test(screen)) out.push('the screen does not know the phone from a narrow browser');
+  const touch = String(w.EN[`${K}touchHelpSub`] ?? '');
+  if (!/^Drag to turn\./.test(touch) || /scrolls the page/i.test(touch)) out.push(`the phone's line does not say one finger turns the model: "${touch}"`);
+  if (/phoneNoteTitleBody|phoneNoteBody|lm-phone-note/.test(screen) || /phoneNoteTitleBody|phoneNoteBody/.test(w.files['hooks/useLivingModelCopy.ts'] ?? '')) out.push('the old "3D is on the web for now" note is back: the phone has a 3D view');
+  if (!/<View style=\{styles\.panel\}>\s*<Text style=\{styles\.para\} testID="lm-phone-3d-note">/.test(entry)) out.push('the one line above the flat replay is not drawn as a plain panel');
+  if ((entry.match(/<HonestyLines/g) ?? []).length !== 0) out.push('the phone view draws honesty lines of its own: the screen draws them once, under every view');
   return out;
 });
 
@@ -362,9 +425,9 @@ rule('D3', 'every drawn frame is shown, and leaving stops the frames and gives t
   if (!/dispose: \(\) => handle\.dispose\(\),/.test(scene)) out.push('the wrapper does not give the scene back');
   const view = code(w.files[VIEW] ?? '');
   if (!/alive\.current = false;\s*cancelAnimationFrame\(raf\.current\);\s*raf\.current = 0;\s*const s = sceneRef\.current;\s*sceneRef\.current = null;\s*try \{ s\?\.dispose\(\); \}/.test(view)) out.push('leaving the view does not stop the frames and give the scene back');
-  if (!/<GLView style=\{\{ flex: 1 \}\} msaaSamples=\{debug\?\.msaaSamples \?\? 4\} onContextCreate=\{onContextCreate\} \/>/.test(view)) out.push('the drawing surface is not the engine\'s own view, so its context would not end with it');
+  if (!/<GLView style=\{\{ flex: 1 \}\} msaaSamples=\{debug\?\.msaaSamples \?\? settings\.msaaSamples\} onContextCreate=\{onContextCreate\} \/>/.test(view)) out.push('the drawing surface is not the engine\'s own view, so its context would not end with it');
   const entry = code(w.files[ENTRY] ?? '');
-  if (!/<Phone3DView key=\{paletteKey\.current\.n\}/.test(entry)) out.push('a new theme does not build the scene again');
+  if (!/<Phone3DView key=\{`\$\{paletteKey\.current\.n\}-\$\{quality\}`\}/.test(entry)) out.push('a new theme, or a new quality, does not build the scene again');
   return out;
 });
 
@@ -374,6 +437,32 @@ rule('D4', 'nothing moves on its own, and the one fade is skipped under Reduce M
   if (!/const reduceMotion = useReducedMotion\(\);/.test(view)) out.push('the view does not read Reduce Motion');
   if (!/if \(reduceRef\.current\) \{ fade\.setValue\(1\); return; \}/.test(view)) out.push('the fade runs under Reduce Motion');
   if ((view.match(/Animated\.(timing|spring|decay)\(/g) ?? []).length !== 1 || /Animated\.loop\(/.test(view)) out.push('the view animates more than its one fade');
+  return out;
+});
+
+rule('D5', 'the page behind does not scroll while a finger is on the model, and gets its scrolling back when the last finger lifts, the touch is taken away, the view fails or leaves', (w) => {
+  const out: string[] = [];
+  const view = code(w.files[VIEW] ?? '');
+  if (!/onPanResponderGrant: \(e\) => \{\s*hold\(true\);/.test(view)) out.push('a finger landing on the model does not hold the page');
+  if (!/onPanResponderRelease: \(\) => \{\s*hold\(false\);/.test(view)) out.push('the last finger lifting does not give the page back');
+  if (!/onPanResponderTerminate: \(\) => \{ hold\(false\); gesture\.current = null; \},/.test(view)) out.push('a touch that is taken away leaves the page held');
+  if (!/try \{ s\?\.dispose\(\); \} catch \{[^}]*\}\s*hold\(false\);\s*\};\s*\}, \[hold\]\);/.test(view)) out.push('a view that leaves with a finger down leaves the page held');
+  if (!/try \{ s\?\.dispose\(\); \} catch \{[^}]*\}\s*hold\(false\);\s*if \(alive\.current\) onFailedRef\.current\(\);/.test(view)) out.push('a view that fails with a finger down leaves the page held');
+  if (!/if \(held\.current === on\) return;\s*held\.current = on;\s*onHoldRef\.current\?\.\(on\);/.test(view)) out.push('the page is told more than once each way, or not at all');
+  if (!/onStartShouldSetPanResponder: \(\) => true,\s*onMoveShouldSetPanResponder: \(\) => true,\s*onPanResponderTerminationRequest: \(\) => false,/.test(view)) out.push('the model does not take the touch as it lands and keep it');
+  const screen = code(w.files[SCREEN] ?? '');
+  if (!/scrollEnabled=\{!\(modelHeld && tab === 'replay'\)\}/.test(screen)) out.push('the screen\'s page scrolls while the model is held, or stays held on another tab');
+  if (!/onHold=\{onHoldModel\}/.test(screen) || !/onHoldModel=\{setModelHeld\}/.test(screen)) out.push('the screen does not hear that a finger is on the model');
+  // The page must still scroll from outside the model: the model's box is a fixed height, never the whole page.
+  if (!/height=\{wide \? 560 : 380\}/.test(screen)) out.push('the model\'s box is no longer a fixed height: on a small phone it could fill the page and leave nowhere to scroll from');
+  return out;
+});
+
+rule('D6', 'a drawing surface that never starts ends on the flat replay instead of "Loading" for good', (w) => {
+  const out: string[] = [];
+  const view = code(w.files[VIEW] ?? '');
+  if (!/if \(ready\) return;\s*const id = setTimeout\(\(\) => \{\s*if \(!sceneRef\.current && appActive\.current\) fail\(new Error\('The drawing surface did not start\.'\)\);\s*\}, SURFACE_START_WAIT_MS\);\s*return \(\) => clearTimeout\(id\);/.test(view)) out.push('nothing waits for the drawing surface to start');
+  if (!/\{surface \? \(/.test(view) || !/setBox\(\(prev\) =>/.test(view)) out.push('the drawing surface is mounted before its box has a size');
   return out;
 });
 
@@ -456,7 +545,7 @@ rule('G1', 'every string is in English and Spanish, in the house voice, and says
   const en = Object.keys(w.EN).sort();
   const es = Object.keys(w.ES).sort();
   if (en.join() !== es.join()) out.push(`English has ${en.length} keys and Spanish ${es.length}, or they differ`);
-  if (en.length !== 4) out.push(`the surface has ${en.length} keys; this gate knows 4`);
+  if (en.length !== 8) out.push(`the surface has ${en.length} keys; this gate knows 8`);
   for (const k of en) {
     const e = String(w.EN[k] ?? '');
     const s = String(w.ES[k] ?? '');
@@ -499,19 +588,30 @@ const MUTATIONS: Mutation[] = [
   { rule: 'A2', name: 'the zoom is the inverse of the spread', plant: swap({ gestureMove: (p, f) => { const r = gestureMove(p, f); return { state: r.state, acts: r.acts.map((a) => (a.kind === 'zoom' ? { kind: 'zoom' as const, factor: 1 / a.factor } : a)) }; } }) },
   { rule: 'A2', name: 'a touch that had two fingers can end as a tap', plant: swap({ gestureEnd: (p, now) => gestureEnd({ ...p, multi: false, moved: false }, now) }) },
   { rule: 'A2', name: 'a jump in the spread is not held back', plant: swap({ gestureMove: (p, f) => { const r = gestureMove(p, f); return { state: r.state, acts: r.acts.map((a) => (a.kind === 'zoom' && f.length === 2 && f[1].x === 400 ? { kind: 'zoom' as const, factor: 40 } : a)) }; } }) },
-  { rule: 'A3', name: 'the scene is handed the size in points', plant: swap({ viewSize: (lw, lh, bw, bh) => { const s = viewSize(lw, lh, bw, bh); return s ? { ...s, width: lw, height: lh, unitsPerPoint: 1 } : s; } }) },
-  { rule: 'A3', name: 'the ratio is not held to the scene\'s limit', plant: swap({ viewSize: (lw, lh, bw, bh) => { const s = viewSize(lw, lh, bw, bh); return s ? { ...s, pixelRatio: bw / lw, width: lw, height: lh, unitsPerPoint: 1 } : s; } }) },
+  { rule: 'A3', name: 'the scene is handed the size in pixels', plant: swap({ viewSize: (lw, lh, bw, bh) => { const s = viewSize(lw, lh, bw, bh); return s ? { ...s, width: bw, height: bh } : s; } }) },
+  { rule: 'A3', name: 'the ratio is held to the web\'s 2', plant: swap({ viewSize: (lw, lh, bw, bh) => { const s = viewSize(lw, lh, bw, bh); return s ? { ...s, pixelRatio: Math.min(2, s.pixelRatio) } : s; } }) },
+  { rule: 'A3', name: 'the phone leaves the scene\'s cap at the web\'s', plant: edit(VIEW, 'maxPixelRatio: PHONE_MAX_PIXEL_RATIO, ', '') },
+  { rule: 'A3', name: 'the scene ignores its caller\'s cap', plant: edit(THREE_SCENE, 'renderer.setPixelRatio(Math.min(maxPixelRatio, Math.max(1, pixelRatio)));', 'renderer.setPixelRatio(Math.min(2, Math.max(1, pixelRatio)));') },
+  { rule: 'A3', name: 'the web\'s defaults are changed', plant: edit(THREE_SCENE, 'maxPixelRatio: 2, shadowMapSize: 2048 }', 'maxPixelRatio: 3, shadowMapSize: 1024 }') },
+  { rule: 'A6', name: 'Standard draws the full 3x screen', plant: swap({ phone3DSettings: (q, sc) => ({ ...phone3DSettings(q, sc), surfaceScale: 1 }) }) },
+  { rule: 'A6', name: 'Standard keeps the 2048 shadow map', plant: swap({ phone3DSettings: (q, sc) => ({ ...phone3DSettings(q, sc), shadowMapSize: 2048 }) }) },
+  { rule: 'A6', name: 'High is the same as Standard', plant: swap({ phone3DSettings: (_q, sc) => phone3DSettings('standard', sc) }) },
+  { rule: 'A6', name: 'the smaller surface grows from its corner', plant: swap({ surfaceBox: (wd, h, k) => ({ ...surfaceBox(wd, h, k), translateX: 0, translateY: 0 }) }) },
+  { rule: 'A6', name: 'the view ignores the table\'s smoothing', plant: edit(VIEW, 'const settings = useMemo(() => phone3DSettings(quality, PixelRatio.get()), [quality]);', "const settings = useMemo(() => phone3DSettings('high', 3), []);") },
+  { rule: 'A6', name: 'the view opens at High', plant: edit(ENTRY, "quality = 'standard'", "quality = 'high'") },
+  { rule: 'A6', name: 'everyone gets the switch', plant: edit(SCREEN, '{threeD && onPhone && ownerTools ? (', '{threeD && onPhone ? (') },
+  { rule: 'A6', name: 'the owner\'s switches are for everyone', plant: edit('utils/livingModel/allowed.ts', '  return isOwner(userEmail);\n}\n\nexport type LivingModelSeat', '  return true;\n}\n\nexport type LivingModelSeat') },
   { rule: 'A3', name: 'a view with no size is laid out', plant: swap({ viewSize: (lw, lh, bw, bh) => viewSize(Math.max(1, lw || 1), Math.max(1, lh || 1), Math.max(1, bw || 1), Math.max(1, bh || 1)) }) },
   { rule: 'A2', name: 'a twist is ignored', plant: swap({ gestureMove: (p, f) => { const r = gestureMove(p, f); return { state: r.state, acts: r.acts.filter((a) => a.kind !== 'twist') }; } }) },
   { rule: 'A2', name: 'a twist turns the model the wrong way', plant: swap({ gestureMove: (p, f) => { const r = gestureMove(p, f); return { state: r.state, acts: r.acts.map((a) => (a.kind === 'twist' ? { kind: 'twist' as const, radians: -a.radians } : a)) }; } }) },
   { rule: 'A4', name: 'the phone has a label rule of its own', plant: edit(VIEW, "next[r.id] = pinSize(scene.roomWidthPt(r.id) ?? Number.NaN, r.id === selectedRef.current);", "next[r.id] = 'full';") },
-  { rule: 'A5', name: 'a room\'s width is read in scene units', plant: swap({ makePhoneScene: (h, gl) => { const s = makePhoneScene(h, gl); return { ...s, roomWidthPt: (id) => h.roomWidthPx(id) }; } }) },
+  { rule: 'A5', name: 'a room\'s width is scaled by the screen', plant: swap({ makePhoneScene: (h, gl) => { const s = makePhoneScene(h, gl); return { ...s, roomWidthPt: (id) => (h.roomWidthPx(id) ?? 0) / 1.5 }; } }) },
   { rule: 'A4', name: 'labels may sit on one another', plant: swap({ labelsToHide: () => new Set<string>() }) },
   { rule: 'A4', name: 'the large room loses its label to the small one', plant: swap({ labelsToHide: (boxes) => labelsToHide(boxes.map((x) => ({ ...x, weight: -x.weight }))) }) },
   { rule: 'A5', name: 'a frame is drawn and never shown', plant: swap({ makePhoneScene: (h, gl) => makePhoneScene(h, { ...gl, endFrameEXP: () => {} }) }) },
-  { rule: 'A5', name: 'a tap is asked in points on a 3x phone', plant: swap({ makePhoneScene: (h, gl) => { const s = makePhoneScene(h, gl); return { ...s, pickAt: (x, y) => h.pick(x, y) }; } }) },
+  { rule: 'A5', name: 'a tap is scaled by the screen', plant: swap({ makePhoneScene: (h, gl) => { const s = makePhoneScene(h, gl); return { ...s, pickAt: (x, y) => h.pick(x * 1.5, y * 1.5) }; } }) },
   { rule: 'A5', name: 'the stand-in answers any context', plant: swap({ canvasStandIn: (gl) => ({ ...canvasStandIn(gl), getContext: () => gl }) }) },
-  { rule: 'A5', name: 'labels are placed in scene units', plant: swap({ makePhoneScene: (h, gl) => { const s = makePhoneScene(h, gl); return { ...s, labelAt: (id) => h.project(id) }; } }) },
+  { rule: 'A5', name: 'labels are scaled by the screen', plant: swap({ makePhoneScene: (h, gl) => { const s = makePhoneScene(h, gl); return { ...s, labelAt: (id) => { const q = h.project(id); return q ? { x: q.x / 1.5, y: q.y / 1.5 } : null; } }; } }) },
   { rule: 'B1', name: 'the lookup that throws', plant: edit(ENGINE, "import { requireOptionalNativeModule } from 'expo';", "import { requireOptionalNativeModule, requireNativeModule } from 'expo';\nexport const GL = requireNativeModule('ExponentGLObjectManager');") },
   { rule: 'B1', name: 'the lookup at module scope', plant: edit(ENTRY, 'type Mode = ', 'export const HAS = phone3DEngineInBuild();\ntype Mode = ') },
   { rule: 'B1', name: 'the lookup outside its try', plant: edit(ENGINE, '  try {\n    inBuild = requireOptionalNativeModule(EXPO_GL_NATIVE_MODULE) != null;', '  inBuild = requireOptionalNativeModule(EXPO_GL_NATIVE_MODULE) != null;\n  try {') },
@@ -525,6 +625,12 @@ const MUTATIONS: Mutation[] = [
   { rule: 'C1', name: 'a failed frame is not reported to the entry file', plant: edit(ENTRY, "onFailed={() => setMode('failed')}", 'onFailed={() => {}}') },
   { rule: 'C1', name: 'the line for a build with no engine is reworded', plant: en('needsNewVersionBody', 'Update the app to see this in 3D.') },
   { rule: 'C1', name: 'the phone hands the failure to the screen\'s browser sentence', plant: edit(ENTRY, "  if (mode === 'loading') {", "  if (mode === 'failed') props.onUnavailable();\n  if (mode === 'loading') {") },
+  { rule: 'C3', name: 'the phone prints the browser\'s sentence', plant: edit(SCREEN, '{onPhone ? phoneCopy.touchHelpSub : wide ? copy.orbitHelpSub : copy.touchHelpSub}', '{wide ? copy.orbitHelpSub : copy.touchHelpSub}') },
+  { rule: 'C3', name: 'the 3D line stays under a flat picture', plant: edit(SCREEN, '  const threeD = try3d && !phoneFlat;', '  const threeD = try3d;') },
+  { rule: 'C3', name: 'the phone view never tells the screen', plant: edit(ENTRY, '  useLayoutEffect(() => { onFlatRef.current?.(flat); }, [flat]);\n', '') },
+  { rule: 'C3', name: 'the screen does not listen', plant: edit(SCREEN, ' onFlat={setPhoneFlat}', '') },
+  { rule: 'C3', name: 'the old phone note comes back', plant: edit(SCREEN, '<Text style={styles.para}>{copy.noWebglBody}</Text>', '<Text style={styles.para}>{copy.phoneNoteBody}</Text>') },
+  { rule: 'C3', name: 'the phone view draws honesty lines of its own', plant: edit(ENTRY, '      <FlatReplay model={model}', '      <HonestyLines />\n      <FlatReplay model={model}') },
   { rule: 'C2', name: 'the boundary is removed', plant: edit(ENTRY, "<Phone3DBoundary onError={() => setMode('failed')}>", '<React.Fragment>') },
   { rule: 'C2', name: 'a frame is drawn outside a try', plant: edit(VIEW, 'try { scene.draw(); } catch (e) { fail(e); return; }', 'scene.draw();') },
   { rule: 'C2', name: 'a failure is reported every frame', plant: edit(VIEW, '    if (failed.current) return;\n    failed.current = true;', '    failed.current = true;') },
@@ -537,8 +643,17 @@ const MUTATIONS: Mutation[] = [
   { rule: 'D2', name: 'a pending frame is drawn in the background', plant: edit(VIEW, 'if (!scene || failed.current || !focused.current || !appActive.current) return;', 'if (!scene || failed.current) return;') },
   { rule: 'D2', name: 'another screen in front keeps drawing', plant: edit(VIEW, '      focused.current = false;\n      cancelAnimationFrame(raf.current);', '      cancelAnimationFrame(raf.current);') },
   { rule: 'D3', name: 'the frame is never shown', plant: edit(SCENE, '      gl.endFrameEXP();\n', '') },
-  { rule: 'D3', name: 'leaving does not give the scene back', plant: edit(VIEW, '      const s = sceneRef.current;\n      sceneRef.current = null;\n      try { s?.dispose(); } catch { /* the drawing surface is already gone */ }\n    };\n  }, []);', '    };\n  }, []);') },
-  { rule: 'D3', name: 'a new theme keeps the old colours', plant: edit(ENTRY, '<Phone3DView key={paletteKey.current.n} ', '<Phone3DView ') },
+  { rule: 'D3', name: 'leaving does not give the scene back', plant: edit(VIEW, '      const s = sceneRef.current;\n      sceneRef.current = null;\n      try { s?.dispose(); } catch { /* the drawing surface is already gone */ }\n      // The page gets', '      // The page gets') },
+  { rule: 'D3', name: 'a new theme keeps the old colours', plant: edit(ENTRY, '<Phone3DView key={`${paletteKey.current.n}-${quality}`} ', '<Phone3DView key={quality} ') },
+  { rule: 'D3', name: 'a new quality keeps the old drawing surface', plant: edit(ENTRY, '<Phone3DView key={`${paletteKey.current.n}-${quality}`} ', '<Phone3DView key={paletteKey.current.n} ') },
+  { rule: 'D5', name: 'a finger on the model does not hold the page', plant: edit(VIEW, '    onPanResponderGrant: (e) => {\n      hold(true);', '    onPanResponderGrant: (e) => {') },
+  { rule: 'D5', name: 'lifting leaves the page held', plant: edit(VIEW, '    onPanResponderRelease: () => {\n      hold(false);', '    onPanResponderRelease: () => {') },
+  { rule: 'D5', name: 'a touch taken away leaves the page held', plant: edit(VIEW, 'onPanResponderTerminate: () => { hold(false); gesture.current = null; },', 'onPanResponderTerminate: () => { gesture.current = null; },') },
+  { rule: 'D5', name: 'leaving with a finger down leaves the page held', plant: edit(VIEW, "      // The page gets its scrolling back even if the view left with a finger still down.\n      hold(false);\n", '') },
+  { rule: 'D5', name: 'the screen ignores the hold', plant: edit(SCREEN, " scrollEnabled={!(modelHeld && tab === 'replay')}", '') },
+  { rule: 'D5', name: 'the page stays held on another tab', plant: edit(SCREEN, "scrollEnabled={!(modelHeld && tab === 'replay')}", 'scrollEnabled={!modelHeld}') },
+  { rule: 'D5', name: 'the model hands its touch to the page', plant: edit(VIEW, 'onPanResponderTerminationRequest: () => false,', 'onPanResponderTerminationRequest: () => true,') },
+  { rule: 'D6', name: 'nothing waits for the drawing surface', plant: edit(VIEW, "      if (!sceneRef.current && appActive.current) fail(new Error('The drawing surface did not start.'));\n", '') },
   { rule: 'D4', name: 'the fade ignores Reduce Motion', plant: edit(VIEW, '    if (reduceRef.current) { fade.setValue(1); return; }\n', '') },
   { rule: 'D4', name: 'the model spins on its own', plant: edit(VIEW, 'const touchesOf = ', 'export const spin = (v: Animated.Value) => Animated.loop(Animated.timing(v, { toValue: 1, duration: 4000, useNativeDriver: true }));\nconst touchesOf = ') },
   { rule: 'E1', name: 'the switch is put in a build profile', plant: edit('eas.json', '{', `{ "env_note": "${SWITCH}=1",`) },

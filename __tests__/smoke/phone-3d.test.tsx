@@ -15,19 +15,24 @@
  * bun with planted breaks (scripts/validate-phone-3d.ts). This file proves
  * what the COMPONENTS do.
  *
- *   1  the engine is in the build: the 3D view mounts, builds the scene on the phone's own context at a size that
- *      fills a 3x buffer, draws a frame and shows it
+ *   1  the engine is in the build: the 3D view mounts, builds the scene on the phone's own context, in points at the
+ *      buffer's pixels a point, draws a frame and shows it
  *   2  nothing is drawn again until something changes; a new moment draws one more frame
  *   3  a room's label is ordinary text placed over the drawing, and takes no touch
- *   4  a tap picks the room under the finger, asked of the scene in its own units; a second tap lets it go
+ *   4  a tap picks the room under the finger, asked of the scene in points; a second tap lets it go
  *   5  Cut Away Walls builds the shapes again; Reset View draws one frame
  *   6  leaving gives the scene back
  *   7  a scene that will not start ends on the flat replay with the plain sentence, and the screen is still up
  *   8  a frame that throws ends on the flat replay, once
  *   9  the app leaving the front stops the frames; coming back draws one
+ *  10  Standard on a 3x phone lays the drawing surface out at two thirds and grows it back, with a 1024 shadow map;
+ *      High is the whole surface with a 2048 one, on a new drawing surface
+ *  11  a finger on the model holds the page; lifting, or leaving with the finger down, gives it back
+ *  12  the screen is told which is on the glass: 3D, or the flat replay
+ *  13  a drawing surface that never starts ends on the flat replay
  */
 import React from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, PixelRatio, type AppStateStatus } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 jest.mock('@/contexts/ThemeContext', () => {
@@ -50,13 +55,14 @@ jest.mock('expo', () => {
   return { ...actual, requireOptionalNativeModule: (name: string) => (name === 'ExponentGLObjectManager' ? {} : actual.requireOptionalNativeModule(name)) };
 });
 
+let mockSurfaceStarts = true;
 const mockGl = { drawingBufferWidth: 1170, drawingBufferHeight: 1140, shown: 0, endFrameEXP() { mockGl.shown += 1; }, getError: () => 0 };
 jest.mock('expo-gl', () => {
   const R = jest.requireActual('react');
   const { View } = jest.requireActual('react-native');
   return {
     GLView: ({ onContextCreate, style }: { onContextCreate: (gl: unknown) => void; style?: unknown }) => {
-      R.useEffect(() => { onContextCreate(mockGl); }, [onContextCreate]);
+      R.useEffect(() => { if (mockSurfaceStarts) onContextCreate(mockGl); }, [onContextCreate]);
       return R.createElement(View, { style, testID: 'mock-gl-view' });
     },
   };
@@ -64,15 +70,15 @@ jest.mock('expo-gl', () => {
 
 jest.mock('three', () => ({ WebGLRenderer: function WebGLRenderer() { /* never constructed: the scene builder is faked */ } }));
 
-interface MockScene { canvas: { getContext: (n: string) => unknown }; log: string[]; disposed: boolean }
+interface MockScene { canvas: { getContext: (n: string) => unknown }; log: string[]; disposed: boolean; opts: Record<string, unknown> | undefined }
 const mockScenes: MockScene[] = [];
 let mockStartThrows = false;
 let mockRenderThrows = false;
 jest.mock('@/components/livingModel/threeScene', () => ({
   DEFAULT_VIEW: { azimuth: 0.72, elevation: 0.9 },
-  createJobScene: (_three: unknown, canvas: MockScene['canvas']) => {
+  createJobScene: (_three: unknown, canvas: MockScene['canvas'], _palette: unknown, opts?: Record<string, unknown>) => {
     if (mockStartThrows) throw new Error('no context');
-    const rec: MockScene = { canvas, log: [], disposed: false };
+    const rec: MockScene = { canvas, log: [], disposed: false, opts };
     mockScenes.push(rec);
     return {
       setRooms: (list: unknown[], cut: number | null) => { rec.log.push(`rooms ${list.length} ${cut == null ? 'full' : 'cut'}`); },
@@ -133,7 +139,7 @@ const momentsAt = (offset: number): Map<string, RoomMoment> => new Map(model.roo
 // scripts/validate-phone-3d.ts and scripts/validate-living-model.ts.)
 const loadEngine = async (): Promise<Phone3DEngine | null> => ({
   GLView: MockGLView as unknown as Phone3DEngine['GLView'],
-  createScene: (canvas, palette) => mockCreateJobScene(null as never, canvas as never, palette),
+  createScene: (canvas, palette, opts) => mockCreateJobScene(null as never, canvas as never, palette, opts),
 });
 
 let appStateListener: ((s: AppStateStatus) => void) | null = null;
@@ -144,9 +150,9 @@ async function mount(over: Partial<React.ComponentProps<typeof JobReplay3D>> = {
   const props = { model, level: 0, moments: momentsAt(10), selectedId: null as string | null, onSelect, onUnavailable, weekLine: 'Week 3 of 10', atToday: false, height: 380, compact: true, loadEngine };
   const view = render(<JobReplay3D {...props} {...over} />);
   await settle();
-  const box = screen.queryByTestId('mock-gl-view');
-  // The measured box is the GLView's own wrapper: 390 by 380 points on a 3x phone.
-  if (box?.parent?.parent) fireEvent(box.parent.parent, 'layout', { nativeEvent: { layout: { width: 390, height: 380, x: 0, y: 0 } } });
+  // The measured box: 390 by 380 points. The drawing surface is mounted once the box has a size.
+  const box = screen.queryByTestId('lm-replay-3d-box');
+  if (box) fireEvent(box, 'layout', { nativeEvent: { layout: { width: 390, height: 380, x: 0, y: 0 } } });
   await settle();
   return { view, onSelect, onUnavailable, props };
 }
@@ -157,6 +163,7 @@ describe('the phone 3D view on a build with the engine', () => {
     mockGl.shown = 0;
     mockStartThrows = false;
     mockRenderThrows = false;
+    mockSurfaceStarts = true;
     frames.clear();
     appStateListener = null;
     // The app is in front when the view opens, as it is when a person opens Job Replay.
@@ -165,7 +172,7 @@ describe('the phone 3D view on a build with the engine', () => {
   });
   afterEach(() => { jest.restoreAllMocks(); });
 
-  it('1 mounts the 3D view, builds the scene on the phone context at a size that fills a 3x buffer, and shows a frame', async () => {
+  it('1 mounts the 3D view, builds the scene on the phone context in points at the buffer\'s pixels a point, and shows a frame', async () => {
     expect(JOB_REPLAY_3D_ON_THIS_PLATFORM).toBe(true);
     await mount();
     await refresh();
@@ -175,7 +182,10 @@ describe('the phone 3D view on a build with the engine', () => {
     const s = mockScenes[0];
     expect(s.canvas.getContext('webgl2')).toBe(mockGl);
     expect(s.canvas.getContext('webgl')).toBeNull();
-    expect(s.log).toContain('resize 585 570 2');
+    // A 1170 pixel buffer under a 390 point view: 390 by 380 at 3 pixels a point. Nothing is converted.
+    expect(s.log).toContain('resize 390 380 3');
+    // The renderer is not asked to smooth (the surface does), and is told it may go past the web's 2 pixels a point.
+    expect(s.opts).toMatchObject({ antialias: false, maxPixelRatio: 4 });
     expect(s.log).toContain('rooms 3 cut');
     expect(s.log).toContain('apply 3');
     expect(s.log.filter((l) => l === 'render').length).toBeGreaterThan(0);
@@ -207,7 +217,7 @@ describe('the phone 3D view on a build with the engine', () => {
     expect(screen.getByText('Kitchen', { includeHiddenElements: true })).toBeTruthy();
   });
 
-  it('4 a tap picks the room under the finger, asked of the scene in its own units', async () => {
+  it('4 a tap picks the room under the finger, asked of the scene in points', async () => {
     const { onSelect, view, props } = await mount();
     await refresh();
     const touch = screen.getByTestId('lm-replay-3d-touch');
@@ -219,8 +229,7 @@ describe('the phone 3D view on a build with the engine', () => {
       await settle();
     };
     await tap();
-    // 100, 200 points on a 3x phone is 150, 300 in the scene's units.
-    expect(mockScenes[0].log).toContain('pick 150 300');
+    expect(mockScenes[0].log).toContain('pick 100 200');
     expect(onSelect).toHaveBeenLastCalledWith('kitchen');
     view.rerender(<JobReplay3D {...props} selectedId="kitchen" />);
     await settle();
@@ -287,5 +296,77 @@ describe('the phone 3D view on a build with the engine', () => {
     await act(async () => { appStateListener?.('active'); });
     await refresh();
     expect(mockGl.shown).toBe(drawn + 1);
+  });
+
+  it('10 Standard on a 3x phone draws a two-thirds surface grown back over the view; High is the whole surface on a new one', async () => {
+    jest.spyOn(PixelRatio, 'get').mockReturnValue(3);
+    const { view, props } = await mount();
+    await refresh();
+    const flatten = (st: unknown): Record<string, unknown> => Object.assign({}, ...(Array.isArray(st) ? st : [st]));
+    let surface = flatten(screen.getByTestId('lm-replay-3d-surface').props.style);
+    expect(surface.width).toBeCloseTo(260, 6);
+    expect(surface.height).toBeCloseTo(380 * 2 / 3, 6);
+    expect(surface.transform).toEqual([{ translateX: expect.closeTo(65, 6) }, { translateY: expect.closeTo(380 / 6, 6) }, { scale: expect.closeTo(1.5, 9) }]);
+    expect(mockScenes[0].opts).toMatchObject({ shadowMapSize: 1024 });
+    view.rerender(<JobReplay3D {...props} quality="high" />);
+    await settle();
+    fireEvent(screen.getByTestId('lm-replay-3d-box'), 'layout', { nativeEvent: { layout: { width: 390, height: 380, x: 0, y: 0 } } });
+    await settle();
+    await refresh();
+    // A new quality is a new drawing surface: the old scene is given back and a second is built.
+    expect(mockScenes).toHaveLength(2);
+    expect(mockScenes[0].disposed).toBe(true);
+    expect(mockScenes[1].opts).toMatchObject({ shadowMapSize: 2048 });
+    surface = flatten(screen.getByTestId('lm-replay-3d-surface').props.style);
+    expect(surface.width).toBe(390);
+    expect(surface.transform).toEqual([{ translateX: 0 }, { translateY: 0 }, { scale: 1 }]);
+  });
+
+  it('11 a finger on the model holds the page; lifting, or leaving with the finger down, gives it back', async () => {
+    const onHold = jest.fn();
+    const { view } = await mount({ onHold });
+    await refresh();
+    const touch = screen.getByTestId('lm-replay-3d-touch');
+    const t = [{ identifier: '1', pageX: 120, pageY: 300, locationX: 100, locationY: 200 }];
+    const bank = (active: boolean) => [{ touchActive: active, startPageX: 120, startPageY: 300, startTimeStamp: 1, currentPageX: 120, currentPageY: 300, currentTimeStamp: 1, previousPageX: 120, previousPageY: 300, previousTimeStamp: 1 }];
+    const down = () => fireEvent(touch, 'responderGrant', { nativeEvent: { touches: t, changedTouches: t, identifier: '1', pageX: 120, pageY: 300, locationX: 100, locationY: 200, timestamp: 1 }, touchHistory: { touchBank: bank(true), numberActiveTouches: 1, indexOfSingleActiveTouch: 0, mostRecentTimeStamp: 1 } });
+    down();
+    expect(onHold.mock.calls).toEqual([[true]]);
+    fireEvent(touch, 'responderRelease', { nativeEvent: { touches: [], changedTouches: t, identifier: '1', pageX: 120, pageY: 300, locationX: 100, locationY: 200, timestamp: 2 }, touchHistory: { touchBank: bank(false), numberActiveTouches: 0, indexOfSingleActiveTouch: 0, mostRecentTimeStamp: 2 } });
+    expect(onHold.mock.calls).toEqual([[true], [false]]);
+    down();
+    expect(onHold).toHaveBeenLastCalledWith(true);
+    view.unmount();
+    expect(onHold).toHaveBeenLastCalledWith(false);
+  });
+
+  it('12 the screen is told which is on the glass: 3D, then the flat replay when a frame fails', async () => {
+    const onFlat = jest.fn();
+    await mount({ onFlat });
+    await refresh();
+    expect(onFlat).toHaveBeenLastCalledWith(false);
+    expect(onFlat).not.toHaveBeenCalledWith(true);
+    mockRenderThrows = true;
+    fireEvent.press(screen.getByTestId('lm-reset-view'));
+    await settle();
+    await refresh();
+    expect(screen.getByTestId('lm-phone-3d-failed')).toBeTruthy();
+    expect(onFlat).toHaveBeenLastCalledWith(true);
+  });
+
+  it('13 a drawing surface that never starts ends on the flat replay', async () => {
+    jest.useFakeTimers();
+    try {
+      mockSurfaceStarts = false;
+      await mount();
+      expect(screen.getByTestId('lm-replay-3d')).toBeTruthy();
+      expect(mockScenes).toHaveLength(0);
+      await act(async () => { jest.advanceTimersByTime(10001); });
+      await settle();
+      expect(screen.getByTestId('lm-phone-3d-failed')).toBeTruthy();
+      expect(screen.getByTestId('lm-flat-replay')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
