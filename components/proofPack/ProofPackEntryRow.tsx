@@ -1,5 +1,4 @@
-// components/proofPack/ProofPackEntryRow.tsx — the one door into the Proof of
-// Work Package: a row on a saved pay application and on a saved invoice.
+// components/proofPack/ProofPackEntryRow.tsx — the one door into the Pay Period Record: a row on a saved pay application and on a saved invoice.
 //
 // PROOF_PACK_ENABLED is false for everyone. This row renders NOTHING unless
 // utils/proofPack/allowed.proofPackEntryAllowed says yes: the gate (flag on, or

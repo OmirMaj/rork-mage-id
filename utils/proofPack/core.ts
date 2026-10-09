@@ -127,7 +127,7 @@ export type ProofReason =
   | 'invoice_pay_link' | 'invoice_saved'
   | 'daily_report' | 'photo_phone'
   | 'punch_item_open' | 'punch_item_differs_from_seal'
-  | 'co_signature_recorded' | 'co_signature_no_amount' | 'co_portal_no_signature'
+  | 'co_signature_recorded' | 'co_signature_by_account' | 'co_signature_no_amount' | 'co_portal_no_signature'
   | 'co_signed_not_confirmed' | 'co_server_declined'
   | 'waiver_link_signature'
   | 'field_ticket_differs' | 'field_ticket_not_checked'
@@ -151,6 +151,7 @@ export const PROOF_REASON_STRENGTH: Record<ProofReason, ProofStrength> = {
   punch_item_open: 'recorded',
   punch_item_differs_from_seal: 'recorded',
   co_signature_recorded: 'recorded',
+  co_signature_by_account: 'recorded',
   co_signature_no_amount: 'recorded',
   co_portal_no_signature: 'recorded',
   co_signed_not_confirmed: 'recorded',
@@ -305,7 +306,11 @@ export function changeOrderStrength(
   if (row) {
     if (row.decision === 'declined') return classed('co_server_declined');
     if (!row.hasSignature || !HEX64.test(row.documentHash ?? '')) return classed('co_portal_no_signature');
-    if (row.recordedVia !== CO_RECORDED_VIA_PORTAL) return classed('co_signature_recorded');
+    // No marker (the column is not there, or the row is older than it): where
+    // the row came from, and who set its date, is NOT KNOWN.
+    if (row.recordedVia === null || row.recordedVia === undefined || row.recordedVia === '') return classed('co_signature_recorded');
+    // Marked, and not by the portal function: a signed-in account wrote it.
+    if (row.recordedVia !== CO_RECORDED_VIA_PORTAL) return classed('co_signature_by_account');
     if (!row.signedTerms) return classed('co_signature_no_amount');
     return classed('co_client_signed');
   }
@@ -640,6 +645,8 @@ export interface ProofChangeOrderItem extends ProofItemBase {
   approvedDay: string | null;
   /** created_at on the newest row, when one was read. */
   signedAtServer: string | null;
+  /** True when the row carries a marker, which means the server set created_at itself. False = the date is as the row holds it, and a client could have sent it. */
+  serverSetTime: boolean;
   /** The first characters of the signed record's SHA-256, from the server row. */
   recordHashPrefix: string;
 }
@@ -1010,6 +1017,7 @@ function collectItems(input: ProofPackInput, period: ProofPeriod): { items: Proo
       approvedBy: row ? text(row.signerName) : (line.kind === 'client_signed' || line.kind === 'client_portal' ? text(line.who) : ''),
       approvedDay,
       signedAtServer: row ? row.serverCreatedAt : null,
+      serverSetTime: !!row && !!row.recordedVia,
       recordHashPrefix: row && HEX64.test(row.documentHash ?? '') ? row.documentHash.toLowerCase().slice(0, 16) : '',
     });
   }

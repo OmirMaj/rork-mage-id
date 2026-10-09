@@ -116,7 +116,7 @@ const TITLES_BEFORE: Record<string, string> = {
   'permit-path': 'Permit Path',
   'scan-room': 'Scan the Room',
   // Lane PROOFPACK: dark behind PROOF_PACK_ENABLED; headerShown false, the title names the web tab.
-  'proof-pack': 'Proof of Work Package',
+  'proof-pack': 'Pay Period Record',
 };
 
 /** S3 — the tab bar. Keys are the seed's (exact); English = what the UI shows. */

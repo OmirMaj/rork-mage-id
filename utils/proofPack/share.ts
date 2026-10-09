@@ -1,4 +1,4 @@
-// utils/proofPack/share.ts — the Proof of Work Package, made and handed over.
+// utils/proofPack/share.ts — the Pay Period Record, made and handed over.
 //
 // The I/O half. utils/proofPack/core.ts (pure) decides what the package says,
 // utils/proofPack/html.ts (pure) prints it; this file takes the fingerprint,

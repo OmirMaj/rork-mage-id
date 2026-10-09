@@ -1,5 +1,4 @@
-// components/proofPack/ProofPackReview.tsx — the review screen of the Proof of
-// Work Package: what will be in the document, each record's strength, a switch
+// components/proofPack/ProofPackReview.tsx — the review screen of the Pay Period Record: what will be in the document, each record's strength, a switch
 // to leave a record out, then Create and Share.
 //
 // This screen only READS the job's records (contexts/ProjectContext, the punch

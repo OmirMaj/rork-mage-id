@@ -1,4 +1,4 @@
-// components/proofPack/styles.ts — the look of the Proof of Work Package screens.
+// components/proofPack/styles.ts — the look of the Pay Period Record screens.
 // Theme tokens only: no colour is written here. Flat: no gradient, no shadow.
 import { StyleSheet } from 'react-native';
 import type { ThemeColors } from '@/constants/colors';

@@ -1,6 +1,6 @@
-// utils/proofPack/html.ts — the Proof of Work Package, printed.
+// utils/proofPack/html.ts — the Pay Period Record, printed.
 //
-// PURE: takes the package (utils/proofPack/core), the copy table for one
+// PURE: takes the record (utils/proofPack/core), the copy table for one
 // language (utils/proofPack/docCopy), the fingerprint as it stands, and the
 // photo image sources the I/O layer resolved. Returns the HTML the app's
 // ordinary PDF path prints (utils/pdfDesign pdfShell, expo-print). No storage,
@@ -8,11 +8,16 @@
 //
 // Rules this file holds (each pinned by scripts/validate-proof-pack.ts):
 //   - The first page carries the two "what this is and is not" sentences.
-//   - EVERY item prints its strength label. There is no code path that prints
+//   - EVERY item prints its class label. There is no code path that prints
 //     an item without one (`strengthPill` is in every row builder).
-//   - Money is printed from the package's integer cents, never recomputed.
+//   - Money is printed from the record's integer cents, never recomputed, and
+//     a figure that is not on file prints "Not on file", never $0.00.
 //   - A gap prints as a gap: an empty section says it is empty, a source that
-//     was not read says "not checked", left-out items are counted.
+//     was not read says "not checked", and what was left out is counted UNDER
+//     EACH CLASS in the same strip as what was included, and by kind.
+//   - A change order prints the amount in its signature record first, and says
+//     so in words when the change order now reads a different amount.
+//   - The full fingerprint prints legibly, in groups, with what it does not show.
 //   - User-entered text is escaped. Nothing is summarised or reworded.
 import type { CompanyBranding } from '@/types';
 import { formatCalendarDay } from '@/utils/calendarDate';
@@ -23,11 +28,12 @@ import {
   PROOF_STRENGTHS,
   type ProofChangeOrderItem, type ProofDailyReportItem, type ProofFieldTicketItem, type ProofInspectionItem,
   type ProofItem, type ProofLienWaiverItem, type ProofPack, type ProofPhotoItem, type ProofPunchItem,
-  type ProofPunchSealItem, type ProofReason, type ProofStrength,
+  type ProofItemKind, type ProofPunchSealItem, type ProofReason, type ProofStrength,
+  PROOF_ITEM_KINDS,
 } from '@/utils/proofPack/core';
 import { proofDocCopy, type ProofDocCopy, type ProofDocLang } from '@/utils/proofPack/docCopy';
 
-/** The most photos one package prints as images; the rest are listed. */
+/** The most photos one document prints as images; the rest are listed. */
 export const PROOF_PACK_MAX_PHOTOS = 12;
 
 export interface ProofPackPrintFingerprint {
@@ -54,6 +60,16 @@ export function proofMoney(cents: number): string {
   const whole = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const frac = String(abs % 100).padStart(2, '0');
   return `${neg ? '-' : ''}$${whole}.${frac}`;
+}
+
+/** Money, or the "Not on file" words when the saved document holds no such figure. */
+export function proofMoneyOrGap(cents: number | null | undefined, c: ProofDocCopy): string {
+  return typeof cents === 'number' ? proofMoney(cents) : c.notOnFile;
+}
+
+/** The 64 characters in eight groups of eight, so two people can compare them by eye. */
+export function fingerprintGroups(hash: string): string {
+  return (hash ?? '').replace(/(.{8})(?=.)/g, '$1 ');
 }
 
 function dayText(day: string | null | undefined, c: ProofDocCopy, lang: ProofDocLang): string {
@@ -129,6 +145,7 @@ function reportRow(i: ProofDailyReportItem, c: ProofDocCopy, lang: ProofDocLang)
 }
 
 function photoStamp(i: ProofPhotoItem, c: ProofDocCopy, lang: ProofDocLang): string {
+  // Coordinates print only when the record carries them (the contractor's switch).
   let place = c.photoPlace[i.placeSource];
   if (i.placeSource === 'phone_gps' && i.latitude !== null && i.longitude !== null) {
     place += `: ${i.latitude.toFixed(5)}, ${i.longitude.toFixed(5)}`;
@@ -152,12 +169,23 @@ function photoTile(i: ProofPhotoItem, src: string | null | undefined, c: ProofDo
 }
 
 function changeOrderRow(i: ProofChangeOrderItem, c: ProofDocCopy, lang: ProofDocLang): string {
+  // The amount that prints first is the one in the signature record, when the
+  // row carries one. The contractor's current copy is named as such.
+  const signed = i.signedAmountCents;
+  const headCents = signed !== null ? signed : i.changeAmountCents;
+  const when = i.signedAtServer ? proofInstant(i.signedAtServer, c, lang) : dayText(i.approvedDay ?? i.day, c, lang);
+  const amountLines = signed !== null
+    ? small((i.strength === 'signed' ? c.coSignedFor(proofMoney(signed), when) : c.coRecordStates(proofMoney(signed), when))
+      + (i.amountDiffers ? ` ${c.coNowReads(proofMoney(i.changeAmountCents))}` : ''))
+      + (i.descriptionDiffers ? small(c.coDescriptionDiffers) : '')
+    : small(c.coCurrentAmount(proofMoney(i.changeAmountCents)));
   return row(i.strength, i.reason, c,
-    `${escHtml(c.changeOrderName(i.number))} <span class="num" style="font-weight:700">${proofMoney(i.changeAmountCents)}</span>`,
+    `${escHtml(c.changeOrderName(i.number))} <span class="num" data-co-amount="${headCents}" style="font-weight:700">${proofMoney(headCents)}</span>`,
     (i.description ? `<div style="font-size:11px;color:${P.text}">${escHtml(i.description)}</div>` : '')
-      + small(dayText(i.approvedDay ?? i.day, c, lang))
+      + `<div data-co-terms${i.amountDiffers ? ' data-co-differs' : ''}>${amountLines}</div>`
+      + (i.signedAtServer ? '' : small(dayText(i.approvedDay ?? i.day, c, lang)))
       + (i.approvedBy ? small(c.signedBy(i.approvedBy)) : '')
-      + (i.signedAtServer ? small(c.signatureRecordTime(proofInstant(i.signedAtServer, c, lang))) : '')
+      + (i.signedAtServer ? small(i.serverSetTime ? c.signatureRecordTime(proofInstant(i.signedAtServer, c, lang)) : c.signatureRecordDate(proofInstant(i.signedAtServer, c, lang))) : '')
       + (i.recordHashPrefix ? small(c.recordFingerprintStarts(i.recordHashPrefix)) : ''));
 }
 
@@ -197,8 +225,8 @@ function waiverRow(i: ProofLienWaiverItem, c: ProofDocCopy, lang: ProofDocLang):
   return row(i.strength, i.reason, c,
     escHtml(i.subName || c.notOnFile),
     small(c.waiverThrough(dayText(i.throughDay, c, lang)) + ' ' + c.waiverAmount(proofMoney(i.paidAmountCents)))
-      + (i.strength === 'signed' && i.signerName ? small(c.signedBy(i.signerName)) : '')
-      + (i.strength === 'signed' && i.signedAt ? small(c.waiverSignedAt(proofInstant(i.signedAt, c, lang))) : ''));
+      + (i.signerName ? small(c.signedBy(i.signerName)) : '')
+      + (i.signedAt ? small(i.strength === 'signed' ? c.waiverSignedAtServer(proofInstant(i.signedAt, c, lang)) : c.waiverSignedAt(proofInstant(i.signedAt, c, lang))) : ''));
 }
 
 function itemLabel(i: ProofItem, c: ProofDocCopy, lang: ProofDocLang): string {
@@ -215,10 +243,10 @@ function itemLabel(i: ProofItem, c: ProofDocCopy, lang: ProofDocLang): string {
   }
 }
 
-function moneyTable(rows: { label: string; cents: number; strong?: boolean }[]): string {
+function moneyTable(rows: { label: string; cents: number | null; strong?: boolean; summed?: boolean }[], c: ProofDocCopy): string {
   return `<table style="margin-bottom:10px">${rows.map((r) => `<tr>
   <td style="padding:6px 8px;border-bottom:1px solid ${P.hairline2};font-size:11.5px;${r.strong ? 'font-weight:700;' : ''}">${escHtml(r.label)}</td>
-  <td class="num" data-money="${r.cents}" style="padding:6px 8px;border-bottom:1px solid ${P.hairline2};font-size:11.5px;text-align:right;${r.strong ? 'font-weight:700;' : ''}">${proofMoney(r.cents)}</td>
+  <td class="num" ${r.cents === null ? 'data-money-gap' : `data-money="${r.cents}"`}${r.summed ? ' data-summed' : ''} style="padding:6px 8px;border-bottom:1px solid ${P.hairline2};font-size:11.5px;text-align:right;${r.strong ? 'font-weight:700;' : ''}">${escHtml(proofMoneyOrGap(r.cents, c))}</td>
 </tr>`).join('')}</table>`;
 }
 
@@ -236,7 +264,9 @@ export function buildProofPackHtml(pack: ProofPack, opts: ProofPackHtmlOptions):
     : c.periodOpen(dayText(pack.period.to, c, lang));
 
   // ── Page 1: what this is, what was billed, the counts ──
-  let out = pdfHeader(opts.branding);
+  // The company name that prints is the one inside the fingerprint.
+  const branding: CompanyBranding = pack.company.name ? { ...opts.branding, companyName: pack.company.name } : opts.branding;
+  let out = pdfHeader(branding);
   out += pdfTitle({
     eyebrow: c.eyebrowLabel,
     title: c.titleLabel,
@@ -254,22 +284,26 @@ export function buildProofPackHtml(pack: ProofPack, opts: ProofPackHtmlOptions):
 
   out += pdfSectionHeader(c.billedHeadingLabel);
   out += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">${strengthPill(pay.strength, c)}<span style="font-size:12px;font-weight:700">${escHtml(payName)}</span></div>`;
-  out += muted(c.reason[pay.reason] + ' ' + c.billedSource);
+  out += `<div data-pay-reason="${pay.reason}">${muted(c.reason[pay.reason])}</div>`;
+  if (pay.kind === 'pay_app' && pay.strength === 'locked' && pay.lockedAt) {
+    out += `<div data-lock-time>${muted(`${c.lockTime(proofInstant(pay.lockedAt, c, lang))} ${pay.periodFromLocked ? c.periodInLock : c.periodNotInLock}`)}</div>`;
+  }
+  out += `<div data-billed-source>${muted(pay.kind === 'pay_app' ? c.billedSourcePayApp : c.billedSourceInvoice)}</div>`;
   if (pay.kind === 'pay_app') {
     const r = c.payAppRows;
     out += moneyTable([
       { label: r.originalContractSum, cents: pay.originalContractSumCents },
       { label: r.netChangeByCO, cents: pay.netChangeByCOCents },
       { label: r.contractSumToDate, cents: pay.contractSumToDateCents },
-      { label: r.workThisPeriod, cents: pay.workThisPeriodCents, strong: true },
-      { label: r.storedMaterial, cents: pay.storedMaterialCents },
+      { label: r.workThisPeriod, cents: pay.workThisPeriodCents, strong: true, summed: true },
+      { label: r.storedMaterial, cents: pay.storedMaterialCents, summed: true },
       { label: r.totalCompletedAndStored, cents: pay.totalCompletedAndStoredCents, strong: true },
       { label: r.retainage, cents: pay.totalRetainageCents },
       { label: r.totalEarnedLessRetainage, cents: pay.totalEarnedLessRetainageCents },
       { label: r.lessPreviousCertificates, cents: pay.lessPreviousCertificatesCents },
       { label: r.currentPaymentDue, cents: pay.currentPaymentDueCents, strong: true },
       { label: r.balanceToFinish, cents: pay.balanceToFinishCents },
-    ]);
+    ], c);
     out += muted(c.payAppStyleNote);
   } else {
     const r = c.invoiceRows;
@@ -278,18 +312,25 @@ export function buildProofPackHtml(pack: ProofPack, opts: ProofPackHtmlOptions):
       { label: r.tax, cents: pay.taxCents },
       { label: r.totalDue, cents: pay.totalDueCents, strong: true },
       { label: r.amountPaid, cents: pay.amountPaidCents },
-      ...(pay.retentionCents !== 0 ? [{ label: r.retention, cents: pay.retentionCents }] : []),
-    ]);
+      ...(pay.retentionCents !== 0 && pay.retentionCents !== null ? [{ label: r.retention, cents: pay.retentionCents }] : []),
+    ], c);
     if (pay.progressPercent !== null) out += muted(`${r.progress}: ${pay.progressPercent}%`);
   }
 
   out += pdfSectionHeader(c.countsHeadingLabel);
+  // Included and left out, side by side under each class: switching off every
+  // weak record cannot make the strip look stronger without the count saying so.
   out += `<div data-counts style="display:flex;gap:8px;margin-bottom:10px">${PROOF_STRENGTHS.map((s) => `<div style="flex:1;border:1px solid ${P.hairline};border-radius:8px;padding:10px 8px;text-align:center;background:${P.surface}">
   <div class="num" data-count="${s}" style="font-family:${PDF_FONT_DISPLAY};font-size:24px;font-weight:700;color:${P.text}">${pack.counts[s]}</div>
   <div style="margin-top:4px">${strengthPill(s, c)}</div>
+  <div class="num" data-left-out-class="${s}" data-n="${pack.leftOut.byStrength[s]}" style="margin-top:6px;font-size:10px;font-weight:700;color:${pack.leftOut.byStrength[s] > 0 ? P.warningInk : P.textMuted}">${escHtml(c.leftOutCellLabel(pack.leftOut.byStrength[s]))}</div>
 </div>`).join('')}</div>`;
+  out += `<p data-left-out="${pack.leftOut.total}" style="margin:0 0 4px;font-size:11.5px;font-weight:700;color:${P.text}">${escHtml(pack.leftOut.total > 0 ? c.leftOutLine(pack.leftOut.total) : c.nothingLeftOut)}</p>`;
+  if (pack.leftOut.total > 0) {
+    const kinds = PROOF_ITEM_KINDS.filter((k: ProofItemKind) => pack.leftOut.byKind[k] > 0).map((k) => `${c.kindLabel[k]} ${pack.leftOut.byKind[k]}`).join(', ');
+    out += `<p data-left-out-kinds style="margin:0 0 10px;font-size:10.5px;color:${P.text2}">${escHtml(c.leftOutByKind(kinds))}</p>`;
+  }
   out += `<table style="margin-bottom:8px">${PROOF_STRENGTHS.map((s) => `<tr><td style="width:96px;padding:5px 0;vertical-align:top">${strengthPill(s, c)}</td><td style="padding:5px 0;font-size:10.5px;color:${P.text2}">${escHtml(c.strengthRule[s])}</td></tr>`).join('')}</table>`;
-  out += `<p data-left-out="${pack.leftOut.total}" style="margin:0 0 10px;font-size:11.5px;font-weight:700;color:${P.text}">${escHtml(pack.leftOut.total > 0 ? c.leftOutLine(pack.leftOut.total) : c.nothingLeftOut)}</p>`;
 
   // ── Lines billed this period ──
   out += `<div style="page-break-before:always"></div>`;
@@ -297,23 +338,36 @@ export function buildProofPackHtml(pack: ProofPack, opts: ProofPackHtmlOptions):
   out += muted(pay.kind === 'pay_app' ? c.linesIntro : c.linesInvoiceIntro);
   const cols = c.lineColsLabel;
   const th = (label: string, right = false) => `<th style="text-align:${right ? 'right' : 'left'};font-size:9px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:${P.textMuted};padding:8px 6px;border-bottom:2px solid ${P.hairline}">${escHtml(label)}</th>`;
-  out += `<table style="margin-bottom:12px"><thead><tr>${th(cols.item)}${th(cols.description)}${th(cols.scheduled, true)}${th(cols.thisPeriod, true)}${th(cols.stored, true)}${th(cols.records)}</tr></thead><tbody>`;
-  for (const l of pay.lines) {
-    const attached = l.itemKeys.map((k) => byKey.get(k)).filter((i): i is ProofItem => !!i);
-    const list = attached.length
-      ? `<div style="font-size:10.5px;font-weight:700">${escHtml(c.attachedCount(attached.length))}</div>`
-        + attached.slice(0, 6).map((i) => `<div style="margin-top:3px">${strengthPill(i.strength, c)} <span style="font-size:10px;color:${P.text2}">${escHtml(itemLabel(i, c, lang))}</span></div>`).join('')
-      : '';
-    out += `<tr class="no-break" data-line="${escHtml(l.id)}">
-  <td style="padding:8px 6px;border-bottom:1px solid ${P.hairline2};font-size:11px">${escHtml(l.itemNo)}</td>
-  <td style="padding:8px 6px;border-bottom:1px solid ${P.hairline2};font-size:11px">${escHtml(l.description)}</td>
-  <td class="num" style="padding:8px 6px;border-bottom:1px solid ${P.hairline2};font-size:11px;text-align:right">${proofMoney(l.scheduledValueCents)}</td>
-  <td class="num" style="padding:8px 6px;border-bottom:1px solid ${P.hairline2};font-size:11px;text-align:right;font-weight:700">${proofMoney(l.thisPeriodCents)}</td>
-  <td class="num" style="padding:8px 6px;border-bottom:1px solid ${P.hairline2};font-size:11px;text-align:right">${proofMoney(l.storedCents)}</td>
+  const td = `padding:8px 6px;border-bottom:1px solid ${P.hairline2};font-size:11px`;
+  if (pay.kind === 'pay_app') {
+    out += `<table style="margin-bottom:12px"><thead><tr>${th(cols.item)}${th(cols.description)}${th(cols.scheduled, true)}${th(cols.thisPeriod, true)}${th(cols.stored, true)}${th(cols.records)}</tr></thead><tbody>`;
+    for (const l of pay.lines) {
+      const attached = l.itemKeys.map((k) => byKey.get(k)).filter((i): i is ProofItem => !!i);
+      const list = attached.length
+        ? `<div style="font-size:10.5px;font-weight:700">${escHtml(c.attachedCount(attached.length))}</div>`
+          + attached.slice(0, 6).map((i) => `<div style="margin-top:3px">${strengthPill(i.strength, c)} <span style="font-size:10px;color:${P.text2}">${escHtml(itemLabel(i, c, lang))}</span></div>`).join('')
+        : '';
+      out += `<tr class="no-break" data-line="${escHtml(l.id)}">
+  <td style="${td}">${escHtml(l.itemNo)}</td>
+  <td style="${td}">${escHtml(l.description)}</td>
+  <td class="num" style="${td};text-align:right">${proofMoney(l.scheduledValueCents)}</td>
+  <td class="num" style="${td};text-align:right;font-weight:700">${escHtml(proofMoneyOrGap(l.thisPeriodCents, c))}</td>
+  <td class="num" style="${td};text-align:right">${escHtml(proofMoneyOrGap(l.storedCents, c))}</td>
   <td style="padding:8px 6px;border-bottom:1px solid ${P.hairline2};width:30%">${list}<div style="font-size:9.5px;color:${P.textMuted};margin-top:3px">${escHtml(c.lineLink[l.link])}</div></td>
 </tr>`;
+    }
+    out += `</tbody></table>`;
+  } else {
+    // An invoice line prints its own total and nothing called "this period".
+    out += `<table data-invoice-lines style="margin-bottom:12px"><thead><tr>${th(cols.description)}${th(cols.lineTotal, true)}</tr></thead><tbody>`;
+    for (const l of pay.lines) {
+      out += `<tr class="no-break" data-line="${escHtml(l.id)}">
+  <td style="${td}">${escHtml(l.description)}<div style="font-size:9.5px;color:${P.textMuted};margin-top:3px">${escHtml(c.lineLink[l.link])}</div></td>
+  <td class="num" style="${td};text-align:right">${proofMoney(l.scheduledValueCents)}</td>
+</tr>`;
+    }
+    out += `</tbody></table>`;
   }
-  out += `</tbody></table>`;
 
   // ── Daily reports ──
   out += pdfSectionHeader(c.reportsHeadingLabel);
@@ -327,6 +381,7 @@ export function buildProofPackHtml(pack: ProofPack, opts: ProofPackHtmlOptions):
     out += gap(c.photosEmpty);
   } else {
     out += muted(`${c.photosIntro} ${c.reason.photo_phone}`);
+    if (pack.photoCoordinates === 'left_out' && photos.some((i) => i.placeSource === 'phone_gps')) out += `<div data-coords-left-out>${muted(c.photoCoordsLeftOut)}</div>`;
     const shown = photos.slice(0, PROOF_PACK_MAX_PHOTOS);
     const listed = photos.slice(PROOF_PACK_MAX_PHOTOS);
     out += `<div style="display:flex;flex-wrap:wrap;gap:0 2.75%">${shown.map((i) => photoTile(i, opts.photoSrc?.[i.key], c, lang)).join('')}</div>`;
@@ -355,6 +410,7 @@ export function buildProofPackHtml(pack: ProofPack, opts: ProofPackHtmlOptions):
   out += pdfSectionHeader(c.waiversHeadingLabel);
   const waiversNotRead = pack.openItems.some((o) => o.code === 'source_not_loaded' && o.source === 'lien_waivers');
   const waivers = of('lien_waiver');
+  if (waivers.length) out += muted(c.waiversNameSubs);
   if (waiversNotRead) out += gap(c.waiversNotChecked);
   else out += waivers.length ? waivers.map((i) => waiverRow(i, c, lang)).join('') : gap(c.waiversEmpty);
   if (pack.waiverGaps.length) {
@@ -372,26 +428,30 @@ export function buildProofPackHtml(pack: ProofPack, opts: ProofPackHtmlOptions):
   out += pdfSectionHeader(c.checkHeadingLabel);
   const fp = opts.fingerprint;
   out += `<div class="no-break" data-fingerprint style="border:1px solid ${P.hairline};border-radius:8px;padding:12px 14px;margin-bottom:10px">
-  <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${P.textMuted}">${escHtml(c.checkCodeLabel)}</div>
-  <div class="num" data-check-code style="font-family:${PDF_FONT_DISPLAY};font-size:22px;font-weight:700;letter-spacing:2px;color:${P.text}">${escHtml(fp.code)}</div>
-  <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${P.textMuted};margin-top:8px">${escHtml(c.fingerprintLabel)}</div>
-  <div class="num" data-hash style="font-size:10.5px;color:${P.text};word-break:break-all">${escHtml(fp.hash)}</div>
+  <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${P.textMuted}">${escHtml(c.fingerprintLabel)}</div>
+  <div class="num" data-hash="${escHtml(fp.hash)}" style="font-family:${PDF_FONT_DISPLAY};font-size:15px;font-weight:700;letter-spacing:1px;line-height:1.5;color:${P.text}">${escHtml(fingerprintGroups(fp.hash))}</div>
+  <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${P.textMuted};margin-top:8px">${escHtml(c.checkCodeLabel)}</div>
+  <div class="num" data-check-code style="font-size:12px;font-weight:700;letter-spacing:1px;color:${P.text2}">${escHtml(fp.code)}</div>
+  <div data-check-code-note style="font-size:10.5px;color:${P.text2};margin-top:2px">${escHtml(c.checkCodeNote)}</div>
 </div>`;
   out += muted(fp.serverCreatedAt ? c.fingerprintOnFile(proofInstant(fp.serverCreatedAt, c, lang)) : c.fingerprintNotOnFile);
+  out += `<div data-fingerprint-limits style="margin:0 0 10px;padding:10px 12px;border-left:4px solid ${P.brand};background:${P.brandTint};font-size:11.5px;font-weight:600;color:${P.text}">${escHtml(c.fingerprintLimits)}</div>`;
   out += muted(c.fingerprintCovers);
+  out += `<div data-fingerprint-outside>${muted(c.fingerprintOutside)}</div>`;
   if (fp.serverCreatedAt) {
     out += muted(c.howToCheck);
+    out += muted(c.checkWhere);
     out += muted(c.fileFingerprintNote);
   }
   out += muted(`${c.madeOnLabel}: ${proofInstant(pack.generatedAt, c, lang)}. ${c.madeOnPhoneClock}`);
 
-  out += pdfFooter(opts.branding, undefined, c.footer);
+  out += pdfFooter(branding, undefined, c.footer);
 
-  const html = pdfShell({ bodyHtml: out, branding: opts.branding, title: `${c.titleLabel} ${payName}` });
+  const html = pdfShell({ bodyHtml: out, branding, title: `${c.titleLabel} ${payName}` });
   return lang === 'es' ? html.replace('<html lang="en">', '<html lang="es">') : html;
 }
 
-/** The file title the share sheet shows. */
+/** The file title the share sheet shows: the document's name, the pay document's number, the project. */
 export function proofPackFileTitle(pack: Pick<ProofPack, 'pay' | 'project'>, lang: ProofDocLang): string {
   const c = proofDocCopy(lang);
   const n = pack.pay.kind === 'pay_app' ? pack.pay.applicationNumber : pack.pay.number;

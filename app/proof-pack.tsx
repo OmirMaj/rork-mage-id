@@ -1,4 +1,4 @@
-// app/proof-pack.tsx — the Proof of Work Package (Big Bets, Bet 3, Phase 1).
+// app/proof-pack.tsx — the Pay Period Record (Big Bets, Bet 3, Phase 1).
 // DARK, with an OWNER PREVIEW.
 //
 // PROOF_PACK_ENABLED is false. For everyone the gate refuses

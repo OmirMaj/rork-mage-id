@@ -1,4 +1,4 @@
-// utils/proofPack/allowed.ts — who may reach the Proof Of Work Package at all.
+// utils/proofPack/allowed.ts — who may reach the Pay Period Record at all.
 //
 // PROOF_PACK_ENABLED stays false for everyone. Until it is flipped the feature
 // is an OWNER PREVIEW: the founder's master account (utils/owner.ts

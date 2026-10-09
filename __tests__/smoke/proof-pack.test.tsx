@@ -1,5 +1,5 @@
 /**
- * Smoke — the Proof of Work Package (lane PROOFPACK): the entry row
+ * Smoke — the Pay Period Record (lane PROOFPACK): the entry row
  * (components/proofPack/ProofPackEntryRow), the route (app/proof-pack) and the
  * review screen (components/proofPack/ProofPackReview).
  *
@@ -168,7 +168,7 @@ describe('the gate, as shipped', () => {
   it('2  the owner on a project he owns: one row, and a tap goes to the route', () => {
     mockUser = { id: 'user-1', email: OWNER };
     render(<Wrap><ProofPackEntryRow projectId="p1" kind="invoice" payId="inv2" /></Wrap>);
-    expect(screen.getByText('Build Proof of Work Package')).toBeTruthy();
+    expect(screen.getByText('Build Pay Period Record')).toBeTruthy();
     expect(screen.getByText('Owner Preview')).toBeTruthy();
     fireEvent.press(screen.getByTestId('proof-pack-entry'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/proof-pack', params: { projectId: 'p1', kind: 'invoice', payId: 'inv2' } });
@@ -181,7 +181,7 @@ describe('the gate, as shipped', () => {
     await settle();
     expect(screen.queryByTestId('proof-pack-entry')).toBeNull();
     expect(screen.getByTestId('proof-pack-seat')).toBeTruthy();
-    expect(screen.getByText(/Only the project owner can make a Proof of Work Package/)).toBeTruthy();
+    expect(screen.getByText(/Only the project owner can make a Pay Period Record/)).toBeTruthy();
     expect(screen.queryByTestId('proof-pack-review')).toBeNull();
   });
 
