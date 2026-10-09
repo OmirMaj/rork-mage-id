@@ -173,6 +173,7 @@ async function main() {
       for (const screen of group) {
         const shots: { shot: Shot; name: string }[] = [{ shot: screen.shot ?? {}, name: `${screen.id}.png` }];
         (screen.sequence ?? []).forEach((shot, i) => shots.push({ shot, name: `${screen.id}-seq-${i + 1}.png` }));
+        if (screen.hero) shots.push({ shot: screen.hero, name: `${screen.id}-hero.png` });
         if (screen.dark) shots.push({ shot: { ...(screen.shot ?? {}), theme: 'dark' }, name: `${screen.id}-dark.png` });
         for (const { shot, name } of shots) {
           try {

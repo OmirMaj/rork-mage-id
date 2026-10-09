@@ -73,6 +73,7 @@ for (const set of ['shipped', 'in-testing'] as const) {
   for (const screen of SCREENS.filter((s) => s.set === set)) {
     const frames: { name: string; caption?: string; theme: string }[] = [{ name: screen.id, theme: 'light' }];
     (screen.sequence ?? []).forEach((s, i) => frames.push({ name: `${screen.id}-seq-${i + 1}`, caption: s.caption, theme: 'light' }));
+    if (screen.hero) frames.push({ name: `${screen.id}-hero`, caption: screen.hero.caption, theme: 'light' });
     if (screen.dark) frames.push({ name: `${screen.id}-dark`, theme: 'dark' });
     for (const frame of frames) {
       const png = join(dir, `${frame.name}.png`);

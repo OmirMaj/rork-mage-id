@@ -48,6 +48,8 @@ export interface Screen {
   steps?: Step[];
   shot?: Shot;
   sequence?: Shot[];
+  /** One more frame, <id>-hero: the most informative part of the screen filling the frame. Its caption says what it shows. */
+  hero?: Shot;
   /** Also shoot the dark theme as <id>-dark. */
   dark?: boolean;
 }
@@ -104,11 +106,8 @@ export const SCREENS: Screen[] = [
     ] },
   { id: 'punch-list', set: 'shipped', title: 'Punch List', plan: 'Business', source: 'app/punch-list.tsx', route: alder('punch-list'),
     about: 'The punch list by room, each item with its picture, who it is assigned to, its due date and its status. The pictures here are flat placeholder tiles, not site photos.',
-    steps: [
-      // On the phone the header title is cut short before the Export button; the web header lets it run underneath.
-      { js: `for (const h of document.querySelectorAll('h1')) if ((h.innerText || '').startsWith('Punch List')) h.parentElement.style.maxWidth = '286px';` },
-      { scroll: 150, to: { text: 'By Location' } }, { wait: 1200 },
-    ] },
+    via: `/project-detail?id=${P.alder}`,
+    steps: [{ scroll: 150, to: { text: 'By Location' } }, { wait: 1200 }] },
   { id: 'change-order', set: 'shipped', title: 'Change Order', plan: 'Pro', source: 'app/change-order.tsx', route: coRoute,
     about: 'An approved change order: its place in the approval steps, the contract sum before and after, and the client\'s approval.',
     // No draft frame: at phone width the draft footer's portal button collapses over its own hint text.
@@ -118,7 +117,7 @@ export const SCREENS: Screen[] = [
       { world: withCo2('approved'), caption: 'Approved by the client.' },
       { world: withCo2('approved'), steps: [{ scroll: 190, to: { text: 'Client Approval' } }, { wait: 1500 }], caption: 'The client\'s approval and the change order\'s lines.' },
     ] },
-  { id: 'invoice', set: 'shipped', title: 'Progress Invoice', plan: 'Pro', source: 'app/invoice.tsx', route: alder('invoice', `&invoiceId=${INVOICE1}`), steps: [{ scroll: 150, to: { text: 'Draft' } }, { wait: 1200 }],
+  { id: 'invoice', set: 'shipped', title: 'Progress Invoice', plan: 'Pro', source: 'app/invoice.tsx', route: alder('invoice', `&invoiceId=${INVOICE1}`), via: `/project-detail?id=${P.alder}`, steps: [{ scroll: 150, to: { text: 'Draft' } }, { wait: 1200 }],
     about: 'A progress invoice built from the estimate\'s lines, with payment terms, retainage and its sent status.' },
   { id: 'pay-app', set: 'shipped', title: 'Pay Application', plan: 'Pro', source: 'app/aia-pay-app.tsx', route: alder('aia-pay-app'),
     about: 'A draft AIA-style pay application made from the progress invoice: contract sum, percent complete and the amount due this period after retainage.',
