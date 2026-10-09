@@ -5232,6 +5232,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // here queue politely. A country on its own ('United States') is never
   // geocoded — it resolved to the Kansas centroid (2026-09-24).
   const geocodeIfNeeded = useCallback((project: Project) => {
+    // The owner's Demo Job has a made-up street and its coordinates are stamped
+    // at creation: it is never sent to the geocoder.
+    if (isDemoProject(project)) return;
     const hasCoords = project.locationLatitude != null && project.locationLongitude != null;
     if (!shouldGeocode(undefined, project.location, hasCoords, project.locationGeocodedAt)) return;
     const askedFor = project.location;
