@@ -154,7 +154,9 @@ async function shoot(browser: Browser, screen: Screen, shot: Shot, file: string)
     const { data } = await page.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     writeFileSync(file, Buffer.from(data, 'base64'));
     if (process.env.EVAL) console.log(JSON.stringify(await page.eval(process.env.EVAL), null, 1));
-    const texts = await page.eval<string>('document.body.innerText');
+    // The words on the page that are inside the picture (for the honesty check; not published).
+    const texts = await page.eval<string>(`(() => { const out = []; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) { const t = n.nodeValue.trim(); if (!t) continue; const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect(); if (b.width > 0 && b.bottom > 0 && b.top < innerHeight && b.right > 0 && b.left < innerWidth) out.push(t); } return out.join('\\n'); })()`);
+    writeFileSync(file.replace(/\.png$/, '.txt'), texts);
     const pageErrors = await page.eval<string[]>('globalThis.__shotErrors || []');
     return { errors: [...consoleErrors, ...pageErrors], texts };
   } finally { await page.close().catch(() => {}); }
@@ -182,7 +184,7 @@ async function main() {
         for (const { shot, name } of shots) {
           try {
             const r = await shoot(browser, screen, shot, join(OUT, set, name));
-            const bad = /undefined|NaN|Something went wrong|This screen hit an error|Unmatched Route/.exec(r.texts);
+            const bad = /undefined|NaN|Something went wrong|This screen hit an error|Unmatched Route|Not Available on Web|guarantee|\baccurate\b|\bverified\b|\bwins?\b|unlimited/i.exec(r.texts);
             console.log(`${bad ? '!' : '✓'} ${set}/${name}${bad ? `  (page text contains "${bad[0]}")` : ''}`);
             if (bad) failed++;
             if (debug) console.log(r.texts.replace(/\n+/g, ' | ').slice(0, Number(process.env.TEXT_MAX ?? 1500)));

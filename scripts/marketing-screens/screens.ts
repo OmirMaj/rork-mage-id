@@ -74,9 +74,9 @@ export const SCREENS: Screen[] = [
   { id: 'projects', set: 'shipped', title: 'Your Projects', plan: 'Free', source: 'app/(tabs)/(home)/index.tsx', route: '/',
     about: 'The job cards on the Home tab, each with its stage, size and estimate total.',
     steps: [{ scroll: 118, to: { text: 'Construction', exact: false } }, { wait: 1200 }] },
-  { id: 'summary', set: 'shipped', title: 'Summary', plan: 'Free', source: 'app/(tabs)/summary/index.tsx', route: '/summary', dark: true,
+  { id: 'summary', set: 'shipped', title: 'Summary', plan: 'Free', source: 'app/(tabs)/summary/index.tsx', route: '/summary', dark: true, steps: [{ scroll: 14 }, { wait: 1200 }],
     about: 'The Summary tab: who is on site today, the week ahead, contract and outstanding money, and what needs you.' },
-  { id: 'project', set: 'shipped', title: 'Project Page', plan: 'Free', source: 'app/project-detail.tsx', route: `/project-detail?id=${P.alder}`,
+  { id: 'project', set: 'shipped', title: 'Project Page', plan: 'Free', source: 'app/project-detail.tsx', route: `/project-detail?id=${P.alder}`, steps: [{ scroll: 28 }, { wait: 1200 }],
     about: 'One job\'s page: the quick actions, projected margin from the estimate, and the job\'s open items.' },
   { id: 'estimate', set: 'shipped', title: 'Estimate', plan: 'Free', source: 'app/project-detail.tsx', route: `/project-detail?id=${P.alder}&tile=linkedEstimate`,
     about: 'The job\'s estimate: each line with its quantity, markup and total, and the estimate total at the top.',
@@ -93,7 +93,7 @@ export const SCREENS: Screen[] = [
     about: 'The same schedule as a timeline, with the links between tasks and a line at today.',
     steps: [{ click: { text: 'Timeline' } }, { click: { text: 'Fit' } },
       // The timeline is its own small scrolling pane on the phone: bring the work that is under way into it.
-      { js: `const pane = [...document.querySelectorAll('div')].filter((d) => /auto|scroll/.test(getComputedStyle(d).overflowY) && d.scrollHeight > d.clientHeight + 200 && d.getBoundingClientRect().top > 400)[0]; if (pane) pane.scrollTop = 330;` }, { wait: 1500 }] },
+      { js: `const pane = [...document.querySelectorAll('div')].filter((d) => /auto|scroll/.test(getComputedStyle(d).overflowY) && d.scrollHeight > d.clientHeight + 200 && d.getBoundingClientRect().top > 400)[0]; if (pane) pane.scrollTop = 530;` }, { wait: 1500 }] },
   { id: 'daily-report', set: 'shipped', title: 'Daily Report', plan: 'Free', source: 'app/daily-report.tsx', route: alder('daily-report', `&reportId=${REPORT_YESTERDAY}`),
     about: 'A filed daily report: the weather reading with its source and time, work progress against the schedule, crew and hours.',
     steps: [{ scroll: 178, to: { text: 'Shared' } }, { wait: 1200 }],
@@ -118,7 +118,7 @@ export const SCREENS: Screen[] = [
       { world: withCo2('approved'), caption: 'Approved by the client.' },
       { world: withCo2('approved'), steps: [{ scroll: 190, to: { text: 'Client Approval' } }, { wait: 1500 }], caption: 'The client\'s approval and the change order\'s lines.' },
     ] },
-  { id: 'invoice', set: 'shipped', title: 'Progress Invoice', plan: 'Pro', source: 'app/invoice.tsx', route: alder('invoice', `&invoiceId=${INVOICE1}`),
+  { id: 'invoice', set: 'shipped', title: 'Progress Invoice', plan: 'Pro', source: 'app/invoice.tsx', route: alder('invoice', `&invoiceId=${INVOICE1}`), steps: [{ scroll: 150, to: { text: 'Draft' } }, { wait: 1200 }],
     about: 'A progress invoice built from the estimate\'s lines, with payment terms, retainage and its sent status.' },
   { id: 'pay-app', set: 'shipped', title: 'Pay Application', plan: 'Pro', source: 'app/aia-pay-app.tsx', route: alder('aia-pay-app'),
     about: 'A draft AIA-style pay application made from the progress invoice: contract sum, percent complete and the amount due this period after retainage.',
@@ -136,10 +136,6 @@ export const SCREENS: Screen[] = [
       { type: { testID: 'code-check-city' }, value: 'Sampleton' }, { type: { testID: 'code-check-state' }, value: 'NY' },
       { type: { testID: 'code-check-scenario' }, value: 'Sample: a raised deck 34 in. above grade with a stair.' },
       { click: { testID: 'code-check-run' }, then: 2500 },
-    ],
-    sequence: [
-      { caption: 'Where the answer comes from, and that section numbers are from model recall.' },
-      { steps: [{ scroll: 150, to: { text: 'Summary' } }, { wait: 1200 }], caption: 'The summary and the code cards.' },
     ] },
 
   // ── In testing (switched off today) ───────────────────────────────────────

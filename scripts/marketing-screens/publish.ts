@@ -7,10 +7,17 @@
 //   SITE (default: none)   shipped/<id>.png, <id>@1x.webp, <id>@2x.webp, the
 //                          same under in-testing/, manifest.json and a README
 //                          in in-testing/. For the site builder.
-//   marketing/screenshots/screens/   app-<id>-1x.webp and -2x.webp (the names
+//   marketing/screenshots/screens/   SHIPPED ONLY: app-<id>.png (393 x 852, the
+//                          <img src> fallback: scripts/validate-marketing-seo.ts
+//                          reads a screenshot's size from its PNG header),
+//                          app-<id>-1x.webp and -2x.webp (names
 //                          scripts/validate-marketing-screenshots.ts can read:
-//                          letters, digits, dot, dash), in-testing/ beside
-//                          them, and app-screens.json.
+//                          letters, digits, dot, dash) and app-screens.json.
+//
+// The in-testing set is NEVER written into marketing/. That folder is the
+// public site, and robots.txt lets crawlers into /screenshots/screens/, so a
+// file there is published whether or not a page shows it. In-testing images
+// go to SITE only.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,10 +65,11 @@ for (const set of ['shipped', 'in-testing'] as const) {
   const dir = join(OUT, set);
   if (!existsSync(dir)) continue;
   const siteDir = SITE ? join(SITE, set) : null;
-  const repoDir = set === 'shipped' ? REPO_DIR : join(REPO_DIR, 'in-testing');
+  const repoDir = set === 'shipped' ? REPO_DIR : null;
+  if (!siteDir && !repoDir) { console.log('! in-testing shots are not published without SITE (they never go into marketing/)'); continue; }
+  const tmp = join(OUT, '.webp'); mkdirSync(tmp, { recursive: true });
   if (siteDir) { rmSync(siteDir, { recursive: true, force: true }); mkdirSync(siteDir, { recursive: true }); }
-  mkdirSync(repoDir, { recursive: true });
-  for (const f of readdirSync(repoDir)) if (/^app-.*\.webp$/.test(f)) rmSync(join(repoDir, f));
+  if (repoDir) for (const f of readdirSync(repoDir)) if (/^app-.*\.(webp|png)$/.test(f)) rmSync(join(repoDir, f));
   for (const screen of SCREENS.filter((s) => s.set === set)) {
     const frames: { name: string; caption?: string; theme: string }[] = [{ name: screen.id, theme: 'light' }];
     (screen.sequence ?? []).forEach((s, i) => frames.push({ name: `${screen.id}-seq-${i + 1}`, caption: s.caption, theme: 'light' }));
@@ -69,8 +77,12 @@ for (const set of ['shipped', 'in-testing'] as const) {
     for (const frame of frames) {
       const png = join(dir, `${frame.name}.png`);
       if (!existsSync(png)) { console.log(`! missing ${set}/${frame.name}.png (not shot)`); continue; }
-      const repo1 = join(repoDir, `app-${frame.name}-1x.webp`), repo2 = join(repoDir, `app-${frame.name}-2x.webp`);
+      const repo1 = join(repoDir ?? tmp, `app-${frame.name}-1x.webp`), repo2 = join(repoDir ?? tmp, `app-${frame.name}-2x.webp`);
       const s1 = webp(png, repo1, 1, 82), s2 = webp2x(png, repo2);
+      if (repoDir) {
+        const r = spawnSync('sips', ['--resampleWidth', String(W), png, '--out', join(repoDir, `app-${frame.name}.png`)]);
+        if (r.status !== 0) throw new Error(`sips failed for ${png}`);
+      }
       if (siteDir) {
         copyFileSync(png, join(siteDir, `${frame.name}.png`));
         copyFileSync(repo1, join(siteDir, `${frame.name}@1x.webp`));
@@ -84,13 +96,14 @@ for (const set of ['shipped', 'in-testing'] as const) {
         plan: screen.plan, source: screen.source,
         pixels: { png: [W * 3, H * 3], '2x': [W * 2, H * 2], '1x': [W, H] },
         files: { png: `${set}/${frame.name}.png`, '2x': `${set}/${frame.name}@2x.webp`, '1x': `${set}/${frame.name}@1x.webp` },
-        repoFiles: { '2x': `marketing/screenshots/screens/${set === 'shipped' ? '' : 'in-testing/'}app-${frame.name}-2x.webp`, '1x': `marketing/screenshots/screens/${set === 'shipped' ? '' : 'in-testing/'}app-${frame.name}-1x.webp` },
+        ...(repoDir ? { site: { png: `/screenshots/screens/app-${frame.name}.png`, '2x': `/screenshots/screens/app-${frame.name}-2x.webp`, '1x': `/screenshots/screens/app-${frame.name}-1x.webp` } } : {}),
         bytes: { '2x': s2, '1x': s1 },
       });
       console.log(`${set}/${frame.name}  2x ${(s2 / 1024).toFixed(0)} KB  1x ${(s1 / 1024).toFixed(0)} KB`);
     }
   }
-  if (set === 'in-testing') { writeFileSync(join(repoDir, 'README.md'), IN_TESTING_README); if (siteDir) writeFileSync(join(siteDir, 'README.md'), IN_TESTING_README); }
+  if (set === 'in-testing' && siteDir) writeFileSync(join(siteDir, 'README.md'), IN_TESTING_README);
+  rmSync(tmp, { recursive: true, force: true });
 }
 const doc = {
   what: 'Screens of the MAGE ID app, shot by scripts/marketing-screens from the real web build of the app with one made-up job. Nothing is drawn by hand except the phone status bar.',
@@ -99,6 +112,6 @@ const doc = {
   rule: 'Images whose status is "in testing" show features that are switched off today. Show them only under an "In Testing" label.',
   screens: manifest,
 };
-writeFileSync(join(REPO_DIR, 'app-screens.json'), JSON.stringify(doc, null, 2) + '\n');
+writeFileSync(join(REPO_DIR, 'app-screens.json'), JSON.stringify({ ...doc, rule: 'Shipped screens only. The in-testing set is never published here.', screens: manifest.filter((m) => m.status === 'shipped') }, null, 2) + '\n');
 if (SITE) writeFileSync(join(SITE, 'manifest.json'), JSON.stringify(doc, null, 2) + '\n');
 console.log(`${manifest.length} images`);

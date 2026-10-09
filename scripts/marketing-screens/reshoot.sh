@@ -5,8 +5,9 @@
 #   bash scripts/marketing-screens/reshoot.sh --build    build again first (after the app's code changed)
 #   bash scripts/marketing-screens/reshoot.sh home co    shoot only these ids, then publish
 #
-# Publishes the web-ready files into marketing/screenshots/screens/ and, when
-# SITE is set, the full set (PNG + WebP + manifest.json) into that folder:
+# Publishes the SHIPPED screens' web-ready files into marketing/screenshots/screens/
+# and, when SITE is set, the full set (shipped and in-testing, PNG + WebP +
+# manifest.json) into that folder. In-testing images never go into marketing/:
 #   SITE="$HOME/Desktop/MAGE ID - CLAUDE/design-previews/marketing-site/screens" bash scripts/marketing-screens/reshoot.sh
 #
 # What each file is:
