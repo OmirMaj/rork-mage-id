@@ -34,8 +34,11 @@ jest.mock('@/contexts/ThemeContext', () => {
 
 let mockFlag = true;
 jest.mock('@/constants/featureFlags', () => {
-  const actual = jest.requireActual('@/constants/featureFlags');
-  return { ...actual, get TERMS_REACCEPT_ENABLED() { return mockFlag; } };
+  // defineProperty, not `{ ...actual, get X() {} }`: the object-spread helper
+  // would read the getter once, at factory time, and freeze its value.
+  const mod = { ...jest.requireActual('@/constants/featureFlags') };
+  Object.defineProperty(mod, 'TERMS_REACCEPT_ENABLED', { enumerable: true, get: () => mockFlag });
+  return mod;
 });
 
 let mockUser: { id: string } | null = { id: '00000000-0000-4000-8000-0000000000a1' };
