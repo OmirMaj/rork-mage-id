@@ -77,6 +77,11 @@ export function phone3DEngineInBuild(): boolean {
 }
 
 let loading: Promise<Phone3DEngine | null> | null = null;
+let lastError: string | null = null;
+
+/** Why the engine last failed to load, in the error's own words. For the simulator check only; never shown to a customer. */
+export const phone3DEngineError = (): string | null => lastError;
+const say = (e: unknown): string => (e instanceof Error ? `${e.name}: ${e.message}` : String(e));
 
 /**
  * Reads the engine the first time the 3D view opens. Answers null, and never
@@ -90,12 +95,16 @@ export function loadPhone3DEngine(): Promise<Phone3DEngine | null> {
     try {
       const [gl, THREE, scene] = await Promise.all([import('expo-gl'), import('three'), import('../threeScene')]);
       const GLView = (gl as { GLView?: unknown }).GLView as Phone3DEngine['GLView'] | undefined;
-      if (!GLView || typeof scene.createJobScene !== 'function' || typeof THREE.WebGLRenderer !== 'function') return null;
+      if (!GLView || typeof scene.createJobScene !== 'function' || typeof THREE.WebGLRenderer !== 'function') {
+        lastError = 'The engine loaded without its view, its renderer or the scene builder.';
+        return null;
+      }
       return {
         GLView,
         createScene: (canvas, palette) => scene.createJobScene(THREE, canvas as HTMLCanvasElement, palette),
       };
-    } catch {
+    } catch (e) {
+      lastError = say(e);
       return null;
     }
   })();

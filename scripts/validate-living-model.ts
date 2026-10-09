@@ -574,7 +574,7 @@ rule('E2', 'the 3D library is loaded by ONE dynamic import per platform: the web
     const tryAt = pf[1].indexOf('try {');
     const load = pf[1].search(/import\(\s*'three'\s*\)/);
     if (guard < 0 || tryAt < 0 || load < 0 || !(guard < tryAt && tryAt < load)) out.push('the phone reads the library without first asking whether the build has the engine, or outside a try');
-    if (!/\} catch \{\s*return null;\s*\}/.test(pf[1])) out.push('a failed read on the phone is not answered with null');
+    if (!/\} catch \(e\) \{\s*lastError = say\(e\);\s*return null;\s*\}/.test(pf[1])) out.push('a failed read on the phone is not answered with null');
   }
   for (const [f, src] of Object.entries(w.files)) {
     if (/^(?:export\s+)?(?:const|let|var)\s[^\n]*loadPhone3DEngine\(\)|^void loadPhone3DEngine\(\)|^loadPhone3DEngine\(\)/m.test(src)) out.push(`${f} reads the phone's engine at module scope`);

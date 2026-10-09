@@ -267,7 +267,10 @@ rule('B2', 'expo-gl is named in ONE source file and read there lazily; nothing i
   if (/from\s+['"]expo-gl|require\s*\(\s*['"]expo-gl|^\s*import\s+['"]expo-gl/m.test(src)) out.push('the engine file imports expo-gl statically: a build without it would throw as the bundle loads');
   if ((src.match(/import\(\s*'expo-gl'\s*\)/g) ?? []).length !== 1) out.push('expo-gl is not read by exactly one dynamic import');
   const users = Object.keys(w.files).filter((f) => /\.(ts|tsx)$/.test(f) && !f.startsWith('scripts/') && /phone3d\/(engine|Phone3DView|phoneScene)['"]/.test(code(w.files[f])) && !f.startsWith('components/livingModel/phone3d/'));
-  if (users.join() !== ENTRY) out.push(`the phone's 3D files are imported by ${users.join(', ') || 'nobody'}; want only ${ENTRY}`);
+  // The simulator check may ask the engine file two questions (is it in the build, why did it not load) and nothing else.
+  if (users.filter((f) => f !== SPIKE).join() !== ENTRY) out.push(`the phone's 3D files are imported by ${users.join(', ') || 'nobody'}; want only ${ENTRY}`);
+  const spikePhone = code(w.files[SPIKE] ?? '').split('\n').filter((l) => /phone3d\//.test(l));
+  if (spikePhone.some((l) => l.trim() !== "import { phone3DEngineError, phone3DEngineInBuild } from '@/components/livingModel/phone3d/engine';")) out.push(`${SPIKE} reaches into the phone's 3D files for more than the two questions it may ask`);
   const view = code(w.files[VIEW] ?? '');
   if (/import\s*\(|\brequire\s*\(|['"]three['"]/.test(view)) out.push('the phone view reads a library itself instead of being handed it');
   if (!/const \{ GLView \} = engine;/.test(view)) out.push('the phone view does not take its drawing surface from the engine it is handed');
@@ -304,7 +307,7 @@ rule('C2', 'a throw while the 3D view is drawn is caught, and every call into th
   });
   if (!/const scene = makePhoneScene\(engine\.createScene\(canvasStandIn\(gl\), palette\), gl\);/.test(view)) out.push('the scene is not built on the phone\'s drawing context');
   const made = view.indexOf('makePhoneScene(engine.createScene(');
-  if (made < 0 || view.lastIndexOf('try {', made) < 0 || view.indexOf('} catch {\n      fail();', made) < 0) out.push('a start that throws is not reported');
+  if (made < 0 || view.lastIndexOf('try {', made) < 0 || view.indexOf('} catch (e) {\n      fail(e);', made) < 0) out.push('a start that throws is not reported');
   if (!/if \(failed\.current\) return;\s*failed\.current = true;/.test(view)) out.push('a failure can be reported more than once');
   return out;
 });
@@ -482,13 +485,14 @@ const MUTATIONS: Mutation[] = [
   { rule: 'B2', name: 'a static import of expo-gl in the engine file', plant: edit(ENGINE, "import { requireOptionalNativeModule } from 'expo';", "import { requireOptionalNativeModule } from 'expo';\nimport { GLView as Surface } from 'expo-gl';\nexport { Surface };") },
   { rule: 'B2', name: 'the view imports expo-gl itself', plant: edit(VIEW, 'const touchesOf = ', "const loadSurface = () => import('expo-gl');\nvoid loadSurface;\nconst touchesOf = ") },
   { rule: 'B2', name: 'another screen imports the phone view', plant: addFile('app/somewhere.tsx', "import { Phone3DView } from '@/components/livingModel/phone3d/Phone3DView';\nexport default Phone3DView;\n") },
+  { rule: 'B2', name: 'the simulator check mounts the phone view itself', plant: edit(SPIKE, "import { phone3DEngineError, phone3DEngineInBuild } from '@/components/livingModel/phone3d/engine';", "import { phone3DEngineError, phone3DEngineInBuild } from '@/components/livingModel/phone3d/engine';\nimport { Phone3DView } from '@/components/livingModel/phone3d/Phone3DView';\nvoid Phone3DView;") },
   { rule: 'B2', name: 'a require of expo-gl in a util', plant: addFile('utils/glSnapshot.ts', "export const gl = () => require('expo-gl');\n") },
   { rule: 'C1', name: 'a failed read leaves the loading box up for good', plant: edit(ENTRY, "if (e) { setEngine(e); setMode('3d'); } else setMode('failed');", "if (e) { setEngine(e); setMode('3d'); }") },
   { rule: 'C1', name: 'a failed frame is not reported to the entry file', plant: edit(ENTRY, "onFailed={() => setMode('failed')}", 'onFailed={() => {}}') },
   { rule: 'C1', name: 'the line for a build with no engine is reworded', plant: en('needsNewVersionBody', 'Update the app to see this in 3D.') },
   { rule: 'C1', name: 'the phone hands the failure to the screen\'s browser sentence', plant: edit(ENTRY, "  if (mode === 'loading') {", "  if (mode === 'failed') props.onUnavailable();\n  if (mode === 'loading') {") },
   { rule: 'C2', name: 'the boundary is removed', plant: edit(ENTRY, "<Phone3DBoundary onError={() => setMode('failed')}>", '<React.Fragment>') },
-  { rule: 'C2', name: 'a frame is drawn outside a try', plant: edit(VIEW, 'try { scene.draw(); } catch { fail(); return; }', 'scene.draw();') },
+  { rule: 'C2', name: 'a frame is drawn outside a try', plant: edit(VIEW, 'try { scene.draw(); } catch (e) { fail(e); return; }', 'scene.draw();') },
   { rule: 'C2', name: 'a failure is reported every frame', plant: edit(VIEW, '    if (failed.current) return;\n    failed.current = true;', '    failed.current = true;') },
   { rule: 'D1', name: 'a frame is drawn every time round', plant: edit(VIEW, 'if (dirty.current) {\n      dirty.current = false;', 'if (scene) {\n      dirty.current = false;') },
   { rule: 'D1', name: 'the frames never stop', plant: edit(VIEW, 'if (dirty.current || labelsStale.current) raf.current = requestAnimationFrame(', 'raf.current = requestAnimationFrame(') },

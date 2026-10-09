@@ -30,6 +30,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { usePhone3DCopy } from '@/hooks/usePhone3DCopy';
 import { JobReplay3D } from '@/components/livingModel/JobReplay3D';
+import { phone3DEngineError, phone3DEngineInBuild } from '@/components/livingModel/phone3d/engine';
 import { HonestyLines } from '@/components/livingModel/HonestyLines';
 import { ReplayControls, StageLegend, useReplayState, useRoomMoments, useRoomTasks } from '@/components/livingModel/replayShared';
 import { makeLivingModelStyles } from '@/components/livingModel/styles';
@@ -92,6 +93,7 @@ function Spike() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [spin, setSpin] = useState<string | null>(null);
   const [spinToken, setSpinToken] = useState(0);
+  const [threw, setThrew] = useState<string | null>(null);
 
   const week = num(params.week);
   const planned = num(params.planned) === 1;
@@ -112,6 +114,7 @@ function Spike() {
     zoom: num(params.zoom),
     spinToken,
     spinFrames: spinFrames ?? 120,
+    onError: (what: string) => { console.log(`[phone3d] threw: ${what}`); setThrew(what); },
     onSpin: (r: { frames: number; medianMs: number; p95Ms: number; worstMs: number; medianGapMs: number; p95GapMs: number }) => {
       const line = `${model.rooms.length} rooms, ${r.frames} frames. Drawn in ${r.medianMs.toFixed(1)} ms (middle), ${r.p95Ms.toFixed(1)} ms (slow end), ${r.worstMs.toFixed(1)} ms (worst). Frame to frame ${r.medianGapMs.toFixed(1)} ms (middle), ${r.p95GapMs.toFixed(1)} ms (slow end).`;
       console.log(`[phone3d] ${line}`);
@@ -145,6 +148,7 @@ function Spike() {
           <StageLegend />
           <Text style={styles.note}>{phoneCopy.touchHelpSub}</Text>
           {spin ? <Text style={styles.para} testID="dev-phone-3d-timing">{spin}</Text> : null}
+          <Text style={styles.note} testID="dev-phone-3d-engine">{`Engine in this build: ${phone3DEngineInBuild() ? 'yes' : 'no'}.${threw ? ` Threw: ${threw}` : ''}${phone3DEngineError() ? ` Load: ${phone3DEngineError()}` : ''}`}</Text>
           <ReplayControls input={input} state={state} />
           <HonestyLines ghost={past} />
         </ScrollView>

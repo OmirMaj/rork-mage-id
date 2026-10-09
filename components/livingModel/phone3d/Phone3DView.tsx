@@ -59,6 +59,8 @@ export interface Phone3DDebug {
   spinToken?: number;
   spinFrames?: number;
   onSpin?: (r: { frames: number; medianMs: number; p95Ms: number; worstMs: number; medianGapMs: number; p95GapMs: number }) => void;
+  /** What threw, in the error's own words. The Living Model screen shows a plain sentence instead. */
+  onError?: (what: string) => void;
 }
 
 export type Phone3DViewProps = Omit<JobReplay3DProps, 'onUnavailable'> & {
@@ -109,9 +111,12 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
   reduceRef.current = reduceMotion;
   const frameRef = useRef<(ts: number) => void>(() => {});
 
-  const fail = useCallback(() => {
+  const debugRef = useRef(debug);
+  debugRef.current = debug;
+  const fail = useCallback((e?: unknown) => {
     if (failed.current) return;
     failed.current = true;
+    if (e !== undefined) debugRef.current?.onError?.(e instanceof Error ? `${e.name}: ${e.message}` : String(e));
     cancelAnimationFrame(raf.current);
     raf.current = 0;
     const s = sceneRef.current;
@@ -155,7 +160,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
     if (!scene || failed.current || !focused.current || !appActive.current) return;
     if (dirty.current) {
       dirty.current = false;
-      try { scene.draw(); } catch { fail(); return; }
+      try { scene.draw(); } catch (e) { fail(e); return; }
     }
     if (labelsStale.current && ts - labelsAt.current >= LABEL_THROTTLE_MS) {
       labelsStale.current = false;
@@ -174,8 +179,8 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       sceneRef.current = scene;
       if (sizeRef.current.w > 0) scene.layout(sizeRef.current.w, sizeRef.current.h);
       setReady(true);
-    } catch {
-      fail();
+    } catch (e) {
+      fail(e);
     }
     // The palette is read once per drawing surface: JobReplay3D.tsx mounts a new view when the theme changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,7 +200,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       scene.setRooms(rooms, cut ? DEFAULT_CUT_M : null);
       if (debug?.orbitDx || debug?.orbitDy) scene.orbit(debug.orbitDx ?? 0, debug.orbitDy ?? 0);
       if (debug?.zoom && debug.zoom > 0) scene.zoomBy(debug.zoom);
-    } catch { fail(); return; }
+    } catch (e) { fail(e); return; }
     labelsAt.current = 0;
     requestDraw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -216,7 +221,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
         opens: a.demolition != null || a.framing != null || a.rough_in != null || a.insulation != null || a.drywall != null,
       });
     }
-    try { scene.apply(looks); } catch { fail(); return; }
+    try { scene.apply(looks); } catch (e) { fail(e); return; }
     requestDraw();
   }, [ready, rooms, moments, cut, requestDraw, fail]);
 
@@ -280,7 +285,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       if (last) gaps.push(ts - last);
       last = ts;
       const t0 = performance.now();
-      try { live.orbit(3, 0); live.draw(true); } catch { fail(); return; }
+      try { live.orbit(3, 0); live.draw(true); } catch (e) { fail(e); return; }
       costs.push(performance.now() - t0);
       if (++n < total) { id = requestAnimationFrame(step); return; }
       const c = frameStats(costs);
@@ -317,7 +322,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
           else if (a.kind === 'pan') scene.pan(a.dx, a.dy);
           else if (a.kind === 'zoom') scene.zoomBy(a.factor);
         }
-      } catch { fail(); return; }
+      } catch (e) { fail(e); return; }
       requestDraw();
     },
     onPanResponderRelease: () => {
@@ -392,7 +397,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       </View>
       <View style={styles.viewBtns}>
         <ToolButton label={cut ? copy.fullWallsLabel : copy.cutWallsLabel} onPress={() => setCut((c) => !c)} testID="lm-cut" />
-        <ToolButton label={copy.resetViewLabel} onPress={() => { try { sceneRef.current?.resetView(); } catch { fail(); return; } labelsAt.current = 0; requestDraw(); }} testID="lm-reset-view" />
+        <ToolButton label={copy.resetViewLabel} onPress={() => { try { sceneRef.current?.resetView(); } catch (e) { fail(e); return; } labelsAt.current = 0; requestDraw(); }} testID="lm-reset-view" />
       </View>
     </View>
   );
