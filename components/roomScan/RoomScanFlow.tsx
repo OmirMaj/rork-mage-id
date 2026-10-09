@@ -74,7 +74,7 @@ import {
   buildOrderList, confirmOrderSend, defaultOrderOptions, orderListText,
   type OrderOptions, type OrderSendVia,
 } from '@/utils/roomScan/orderListCore';
-import { buildOrderDraft, makeMaterialRater, orderDraftWithout, orderPriceSources, orderWroteFrom, planOrderResend } from '@/utils/roomScan/orderPricingCore';
+import { buildOrderDraft, makeMaterialRater, orderAfterPush, orderDraftWithout, orderPriceSources, orderWroteFrom, planOrderResend } from '@/utils/roomScan/orderPricingCore';
 import { buildEstimatePatch, buildScanDraft, draftBlock, draftPushLines, estimateHoldsPush, pushedLinesInEstimate, startsEstimate } from '@/utils/roomScan/pricingCore';
 import { computeQuantities, scanFacts, scanPricingBlock } from '@/utils/roomScan/quantitiesCore';
 import { ROOM_RECIPES, type RecipeKey } from '@/utils/roomScan/recipesCore';
@@ -381,7 +381,8 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     // The lines the list no longer has come out in the same patch. A line he changed by hand is not in the draft and not in `remove`.
     const res = buildEstimatePatch({
       confirmed, mayEdit: mayEditEstimate, project, draft: orderSendDraft, pushed: saved.orderPushed ?? {},
-      newId: generateUUID, markupPct, now: snap.at, remove: resend.remove, sources: orderPriceSources(orderSendDraft),
+      newId: generateUUID, markupPct, now: snap.at,
+      after: orderAfterPush({ remove: resend.remove, sources: orderPriceSources(orderSendDraft) }),
     });
     if (!res || !project) { setOrderSend('failed'); return; }
     setOrderBusy(true);

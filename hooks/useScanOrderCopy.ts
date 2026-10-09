@@ -280,9 +280,9 @@ export function useScanOrderCopy(): ScanOrderCopy {
     };
     const cutoutWord = (k: OpeningKind | undefined): string => {
       switch (k) {
-        case 'door': return t('office.roomScan.order.layout.cutDoorSub', 'door cut out');
-        case 'window': return t('office.roomScan.order.layout.cutWindowSub', 'window cut out');
-        default: return t('office.roomScan.order.layout.cutOpeningSub', 'opening cut out');
+        case 'door': return t('office.roomScan.order.layout.cutDoorPart', 'door cut out');
+        case 'window': return t('office.roomScan.order.layout.cutWindowPart', 'window cut out');
+        default: return t('office.roomScan.order.layout.cutOpeningPart', 'opening cut out');
       }
     };
     const assumption: ScanOrderCopy['assumption'] = (l) => {
@@ -439,11 +439,11 @@ export function useScanOrderCopy(): ScanOrderCopy {
       pieceListLabel: t('office.roomScan.order.layout.pieceListLabel', 'Pieces'),
       pieceSub: (p) => {
         const parts: string[] = [p.fromOffcut
-          ? t('office.roomScan.order.layout.fromOffcutSub', 'from an offcut')
-          : t('office.roomScan.order.layout.fromNewSub', 'from a new sheet')];
+          ? t('office.roomScan.order.layout.fromOffcutPart', 'from an offcut')
+          : t('office.roomScan.order.layout.fromNewPart', 'from a new sheet')];
         for (const k of [...new Set(p.cutouts.map((c) => c.kind))]) parts.push(cutoutWord(k));
-        if (p.narrow) parts.push(t('office.roomScan.order.layout.narrowSub', 'the wall is this narrow here'));
-        if (p.cutToShape) parts.push(t('office.roomScan.order.layout.shapeSub', 'cut to the shape of the room'));
+        if (p.narrow) parts.push(t('office.roomScan.order.layout.narrowPart', 'the wall is this narrow here'));
+        if (p.cutToShape) parts.push(t('office.roomScan.order.layout.shapePart', 'cut to the shape of the room'));
         const long = Math.max(p.w, p.h);
         const wide = Math.min(p.w, p.h);
         return t('office.roomScan.order.layout.pieceSub', 'Sheet {sheet}: {long} by {wide} in, {parts}', { sheet: p.sheet, long: inchFraction(long), wide: inchFraction(wide), parts: parts.join(', ') });

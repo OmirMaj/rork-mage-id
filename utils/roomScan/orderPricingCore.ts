@@ -56,11 +56,11 @@
 import { getLivePrices, getMaterialCostBreakdown, getRegionMultiplier } from '@/constants/materials';
 import type { LinkedEstimate } from '@/types';
 import type { CostDatabase } from '@/utils/costDatabase';
-import type { PushLine } from '@/utils/takeoff/conditionPush';
+import { applyTakeoffPush, type PushLine } from '@/utils/takeoff/conditionPush';
 import { priceCondition, type ConditionKind, type ConditionTotals, type RollupRow, type TakeoffCondition } from '@/utils/takeoff/conditions';
 import type { SheetKey } from './cutPlanCore';
 import { orderLinesToBuy, type OrderLine, type OrderList } from './orderListCore';
-import type { EstimatePatchResult, PushRemoval, PushableDraft, PushedPriceSource, ScanPriceSource } from './pricingCore';
+import type { AfterPush, EstimatePatchResult, PushRemoval, PushableDraft, PushedPriceSource, ScanPriceSource } from './pricingCore';
 import type { RoomScan } from './types';
 
 export type OrderPriceSource = Extract<ScanPriceSource, 'manual' | 'engine'>;
@@ -246,6 +246,54 @@ export function planOrderResend(args: {
     } else if (!current.has(conditionId)) plan.remove.push(row);
   }
   return plan;
+}
+
+/**
+ * Take lines out of an estimate WITH THE TAKEOFF PUSH'S OWN ARITHMETIC. Each
+ * line is first re-pushed at a quantity of zero, which is the push's UPDATE:
+ * the three totals move by that line's own cost and line total, measured the
+ * way the push measures them (never a re-total, which would drop permits and
+ * contingency carried outside the lines). The emptied line is then taken out
+ * of the list. Nothing is added, subtracted or rounded in this file.
+ *
+ * A line is removed only when BOTH ids match: the order line it was pushed
+ * from, and the estimate line that push wrote. Anything else is left where it
+ * is.
+ */
+export function removeOrderLines(est: LinkedEstimate, removals: readonly PushRemoval[]): { next: LinkedEstimate; removedIds: string[] } {
+  const hits = removals.filter((r, i) => {
+    // The line the push itself would find for this id must be the one the send wrote.
+    const found = est.items.find((it) => it.sourceTakeoffConditionId === r.conditionId);
+    return !!found && found.materialId === r.materialId && removals.findIndex((x) => x.conditionId === r.conditionId) === i;
+  });
+  if (!hits.length) return { next: est, removedIds: [] };
+  const zeroed: PushLine[] = hits.map((r) => {
+    const it = est.items.find((x) => x.sourceTakeoffConditionId === r.conditionId) as LinkedEstimate['items'][number];
+    return { conditionId: r.conditionId, name: it.name, trade: it.category, unit: it.unit as PushLine['unit'], quantity: 0, rate: it.unitPrice, priceSource: undefined };
+  });
+  const res = applyTakeoffPush(est, zeroed, Object.fromEntries(hits.map((r) => [r.conditionId, r.materialId])), () => '');
+  const gone = new Set(hits.map((r) => r.conditionId));
+  return {
+    next: { ...res.next, items: res.next.items.filter((it) => !(it.sourceTakeoffConditionId && gone.has(it.sourceTakeoffConditionId))) },
+    removedIds: hits.map((r) => r.conditionId),
+  };
+}
+
+/** Write where each pushed line's price came from onto its estimate line. Lines not named are left as they are. */
+function stampSources(est: LinkedEstimate, sources: Record<string, PushedPriceSource>): LinkedEstimate {
+  let changed = false;
+  const items = est.items.map((it) => {
+    const src = it.sourceTakeoffConditionId ? sources[it.sourceTakeoffConditionId] : undefined;
+    if (!src || it.priceSource === src) return it;
+    changed = true;
+    return { ...it, priceSource: src };
+  });
+  return changed ? { ...est, items } : est;
+}
+
+/** The order list's step after its lines are pushed (pricingCore AfterPush): price sources stamped, stale lines out. */
+export function orderAfterPush(args: { remove?: readonly PushRemoval[]; sources?: Record<string, PushedPriceSource> }): AfterPush {
+  return (est) => removeOrderLines(args.sources ? stampSources(est, args.sources) : est, args.remove ?? []);
 }
 
 /** The draft with the lines a re-send must not write taken out of the push. */

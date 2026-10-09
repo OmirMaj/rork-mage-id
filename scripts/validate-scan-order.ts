@@ -1009,13 +1009,13 @@ rule('O14 material lines go through the takeoff path, each saying where its pric
   // WHERE THE PRICE CAME FROM, on the estimate line itself. With `sources`, a catalog price is 'regional' and a typed
   // one 'seeded' (the two values types/index.ts gives for those), never 'learned' and never left blank.
   idSeq = 0;
-  const stamped = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(EST), draft: d3, pushed: {}, newId, markupPct: 20, now: AT, sources: OPRICE.orderPriceSources(d3) });
+  const stamped = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(EST), draft: d3, pushed: {}, newId, markupPct: 20, now: AT, after: OPRICE.orderAfterPush({ sources: OPRICE.orderPriceSources(d3) }) });
   const mine = (stamped?.next.items ?? []).filter((it) => it.sourceTakeoffConditionId?.startsWith('scanorder:'));
   const src = (key: string) => mine.find((it) => it.sourceTakeoffConditionId === `scanorder:${scan.id}:${key}`)?.priceSource;
   check(o, mine.length === 9 && mine.every((it) => it.priceSource === 'regional' || it.priceSource === 'seeded') && src('drywall_walls') === 'seeded' && src('baseboard') === 'seeded' && src('paint_walls') === 'regional' && src('screws') === 'regional', `the estimate lines' price sources are ${mine.map((it) => String(it.priceSource)).join()}`);
   check(o, stamped?.next.items.find((it) => it.materialId === 'm1')?.priceSource === undefined, 'a line that is not the order list\'s was given a price source');
   const flowSrc = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
-  check(o, /remove: resend\.remove, sources: orderPriceSources\(orderSendDraft\),/.test(flowSrc), 'the flow does not hand the price sources to the patch');
+  check(o, /after: orderAfterPush\(\{ remove: resend\.remove, sources: orderPriceSources\(orderSendDraft\) \}\),/.test(flowSrc), 'the flow does not hand the price sources to the patch');
   // Sending twice updates in place.
   const again = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(res?.next ?? null), draft: d, pushed: res?.pushed ?? {}, newId, markupPct: 20, now: AT });
   check(o, !!again && again.added === 0 && again.next.items.length === (res?.next.items.length ?? -1), `a second send added ${again?.added} lines and left ${again?.next.items.length} on the estimate`);
@@ -1080,7 +1080,7 @@ rule('O16 sent to the estimate a second time, the lines the list no longer has a
   const l1 = w.M.list(scan, opts(scan));
   const d1 = w.M.draft(scan, l1, BOOK, RATER, { manualRates: RESEND_RATES, names: names(l1) });
   idSeq = 0;
-  const r1 = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(EST), draft: d1, pushed: {}, newId, markupPct: 20, now: AT, sources: OPRICE.orderPriceSources(d1) });
+  const r1 = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(EST), draft: d1, pushed: {}, newId, markupPct: 20, now: AT, after: OPRICE.orderAfterPush({ sources: OPRICE.orderPriceSources(d1) }) });
   if (!r1) return ['the first send built no patch'];
   check(o, r1.added === 12 && r1.removedIds.length === 0, `the first send added ${r1.added} lines (twelve with something to buy: corner bead is zero)`);
   const wrote1 = OPRICE.orderWroteFrom(r1, ids(d1));
@@ -1111,7 +1111,7 @@ rule('O16 sent to the estimate a second time, the lines the list no longer has a
 
   // THE SECOND SEND, with that plan.
   const send2 = OPRICE.orderDraftWithout(d2, plan.skip);
-  const r2 = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(est1), draft: send2, pushed: r1.pushed, newId, markupPct: 20, now: AT, remove: plan.remove, sources: OPRICE.orderPriceSources(send2) });
+  const r2 = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(est1), draft: send2, pushed: r1.pushed, newId, markupPct: 20, now: AT, after: OPRICE.orderAfterPush({ remove: plan.remove, sources: OPRICE.orderPriceSources(send2) }) });
   if (!r2) return [...o, 'the second send built no patch'];
   const item = (est: LinkedEstimate, id: string) => est.items.filter((it) => it.sourceTakeoffConditionId === id);
   for (const id of gone) check(o, item(r2.next, id).length === 0, `${id.split(':').pop()} is still in the estimate after the second send`);
@@ -1135,8 +1135,14 @@ rule('O16 sent to the estimate a second time, the lines the list no longer has a
   for (const id of r2.removedIds) delete wrote2[id];
   const plan3 = w.M.resend({ estimate: r2.next, scanId: scan.id, pushed: r2.pushed, wrote: wrote2, lines: PRICING.draftPushLines(d2) });
   check(o, plan3.remove.length === 0 && plan3.leftAlone.map((x) => x.conditionId).join() === cid('crown'), `a third send with nothing changed would remove ${plan3.remove.length} lines`);
+  // The removal is the takeoff push's own arithmetic: re-push the line at zero, then take the emptied line out.
+  const zero = applyTakeoffPush(est1, plan.remove.map((x) => { const it = item(est1, x.conditionId)[0]; return { conditionId: x.conditionId, name: it.name, trade: it.category, unit: it.unit as 'EA', quantity: 0, rate: it.unitPrice, priceSource: undefined }; }), r1.pushed, newId).next;
+  const cutOnly = OPRICE.removeOrderLines(est1, plan.remove).next;
+  check(o, cutOnly.grandTotal === zero.grandTotal && cutOnly.baseTotal === zero.baseTotal && cutOnly.markupTotal === zero.markupTotal && cutOnly.items.length === est1.items.length - 4, `removing four lines leaves totals ${cutOnly.baseTotal}/${cutOnly.markupTotal}/${cutOnly.grandTotal}, and the takeoff push at zero gives ${zero.baseTotal}/${zero.markupTotal}/${zero.grandTotal}`);
+  const pcore = stripComments(w.F['utils/roomScan/orderPricingCore.ts']);
+  check(o, !/roundCents|lineTotal\s*[:=]|markup\s*\/\s*100|Total\s*[-+]=|Total - |Total \+ /.test(pcore) && /const res = applyTakeoffPush\(est, zeroed,/.test(pcore), 'the order pricing core subtracts from the estimate by arithmetic of its own');
   // Never by one id alone, never without the record, never another scan's.
-  check(o, PRICING.removePushedLines(est1, [{ conditionId: cid('primer'), materialId: 'not-the-line' }, { conditionId: 'not-the-id', materialId: 'm1' }]).removedIds.length === 0, 'a line was removed on one matching id');
+  check(o, OPRICE.removeOrderLines(est1, [{ conditionId: cid('primer'), materialId: 'not-the-line' }, { conditionId: 'not-the-id', materialId: 'm1' }]).removedIds.length === 0, 'a line was removed on one matching id');
   const blind = w.M.resend({ estimate: est1, scanId: scan.id, pushed: r1.pushed, wrote: undefined, lines: PRICING.draftPushLines(d2) });
   check(o, blind.remove.length === 0 && blind.leftAlone.length === 12, `with no record of what the send wrote, ${blind.remove.length} lines would be removed`);
   const elsewhere = w.M.resend({ estimate: est1, scanId: 'another-scan', pushed: { 'scanorder:another-scan:paint_walls': 'x-other', ...r1.pushed }, wrote: { 'scanorder:another-scan:paint_walls': { materialId: 'x-other', name: 'paint_walls, Kitchen', unit: 'EA', quantity: 3, unitPrice: 30 } }, lines: [] });
@@ -1150,7 +1156,7 @@ rule('O16 sent to the estimate a second time, the lines the list no longer has a
   // THE WIRING: one plan, shown on the sheet by name and handed to the patch.
   const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
   check(o, /const resend = useMemo\(\(\) => planOrderResend\(\{\s*estimate: estimateNow, scanId: saved\?\.scan\.id \?\? '', pushed: saved\?\.orderPushed, wrote: saved\?\.orderWrote,\s*lines: orderDraft \? draftPushLines\(orderDraft\) : \[\],/.test(flow), 'the flow does not plan the second send from the estimate, the record and the list');
-  check(o, /const orderSendDraft = useMemo\(\(\) => \(orderDraft \? orderDraftWithout\(orderDraft, resend\.skip\) : null\), \[orderDraft, resend\]\);/.test(flow) && /draft: orderSendDraft, pushed: saved\.orderPushed \?\? \{\},\s*newId: generateUUID, markupPct, now: snap\.at, remove: resend\.remove,/.test(flow), 'the patch is not built from the same plan the sheet shows');
+  check(o, /const orderSendDraft = useMemo\(\(\) => \(orderDraft \? orderDraftWithout\(orderDraft, resend\.skip\) : null\), \[orderDraft, resend\]\);/.test(flow) && /draft: orderSendDraft, pushed: saved\.orderPushed \?\? \{\},\s*newId: generateUUID, markupPct, now: snap\.at,\s*after: orderAfterPush\(\{ remove: resend\.remove,/.test(flow), 'the patch is not built from the same plan the sheet shows');
   check(o, /resend=\{\{ again: Object\.keys\(saved\.orderPushed \?\? \{\}\)\.length > 0, remove: resend\.remove\.map\(\(r\) => r\.name\), leftAlone: resend\.leftAlone\.map\(\(r\) => r\.name\) \}\}/.test(flow), 'the sheet is not handed the names of the lines to remove and to leave');
   check(o, /const orderWrote = \{ \.\.\.\(saved\.orderWrote \?\? \{\}\), \.\.\.orderWroteFrom\(res, draftPushLines\(orderSendDraft\)\.map\(\(l\) => l\.conditionId\)\) \};\s*for \(const id of res\.removedIds\) delete orderWrote\[id\];/.test(flow) && /orderPushed: res\.pushed, orderWrote, savedAt: snap\.at/.test(flow), 'the flow does not keep the record of what the send wrote');
   const view = stripComments(w.F['components/roomScan/OrderListView.tsx']);
@@ -1333,10 +1339,10 @@ rule('O19 the core guards its own inputs: a wild option never makes a quantity t
 function pieceSentence(w: World, p: CUT.CutPiece): string {
   const frac = (n: number) => { const e = Math.round(n * 8); const whole = Math.floor(e / 8); let num = e % 8; let den = 8; while (num > 0 && num % 2 === 0) { num /= 2; den /= 2; } return num === 0 ? String(whole) : whole > 0 ? `${whole} ${num}/${den}` : `${num}/${den}`; };
   const L = (k: string) => String(w.EN[`office.roomScan.order.layout.${k}`]);
-  const parts = [p.fromOffcut ? L('fromOffcutSub') : L('fromNewSub')];
-  for (const k of [...new Set(p.cutouts.map((c) => c.kind))]) parts.push(k === 'door' ? L('cutDoorSub') : k === 'window' ? L('cutWindowSub') : L('cutOpeningSub'));
-  if (p.narrow) parts.push(L('narrowSub'));
-  if (p.cutToShape) parts.push(L('shapeSub'));
+  const parts = [p.fromOffcut ? L('fromOffcutPart') : L('fromNewPart')];
+  for (const k of [...new Set(p.cutouts.map((c) => c.kind))]) parts.push(k === 'door' ? L('cutDoorPart') : k === 'window' ? L('cutWindowPart') : L('cutOpeningPart'));
+  if (p.narrow) parts.push(L('narrowPart'));
+  if (p.cutToShape) parts.push(L('shapePart'));
   return L('pieceSub').replace('{sheet}', String(p.sheet)).replace('{long}', frac(Math.max(p.w, p.h))).replace('{wide}', frac(Math.min(p.w, p.h))).replace('{parts}', parts.join(', '));
 }
 
@@ -1366,7 +1372,7 @@ rule('O20 the cut layout is written out in words under the drawing, and an offcu
   const view = stripComments(w.F['components/roomScan/OrderListView.tsx']);
   check(o, /const pieceLines = React\.useMemo\(\(\) => \(shown \? shown\.pieces\.map\(\(x\) => ocopy\.pieceSub\(x\)\) : \[\]\), \[shown, ocopy\]\);/.test(view) && /<CutLayoutView surface=\{shown\} a11yLabel=\{ocopy\.layoutA11y\(surfaceName\(shown\)\)\} listLabel=\{ocopy\.pieceListLabel\} pieceLines=\{pieceLines\}/.test(view) && /legendBoxOffcut\]\}><View style=\{styles\.legendStripe\} \/>/.test(view), 'the screen does not hand the drawing its piece list, or its legend is a colour swatch');
   const hook = stripComments(w.F['hooks/useScanOrderCopy.ts']);
-  check(o, /return t\('office\.roomScan\.order\.layout\.pieceSub', 'Sheet \{sheet\}: \{long\} by \{wide\} in, \{parts\}', \{ sheet: p\.sheet, long: inchFraction\(long\), wide: inchFraction\(wide\), parts: parts\.join\(', '\) \}\);/.test(hook) && /const parts: string\[\] = \[p\.fromOffcut\s*\? t\('office\.roomScan\.order\.layout\.fromOffcutSub', 'from an offcut'\)/.test(hook), 'the copy hook does not build the piece line from the piece');
+  check(o, /return t\('office\.roomScan\.order\.layout\.pieceSub', 'Sheet \{sheet\}: \{long\} by \{wide\} in, \{parts\}', \{ sheet: p\.sheet, long: inchFraction\(long\), wide: inchFraction\(wide\), parts: parts\.join\(', '\) \}\);/.test(hook) && /const parts: string\[\] = \[p\.fromOffcut\s*\? t\('office\.roomScan\.order\.layout\.fromOffcutPart', 'from an offcut'\)/.test(hook), 'the copy hook does not build the piece line from the piece');
   return o;
 });
 
@@ -1952,10 +1958,10 @@ const MUTATIONS: Mutation[] = [
   { rule: 'O10', what: 'a run under an inch is cut as a piece of baseboard', plant: mod((m) => ({ list: (scan, o) => { const l = m.list(scan, o); const b = l.trimPlans.baseboard; return b && scan.openings.some((x) => Math.abs(x.offsetM - 30.5 * IN) < 1e-9) ? { ...l, trimPlans: { ...l.trimPlans, baseboard: { ...b, sticks: b.sticks.map((st, i) => (i === 0 ? { ...st, cuts: [...st.cuts, { ...st.cuts[0], runId: 'sliver', lengthIn: 0.5 }] } : st)) } } } : l; } })) },
   { rule: 'O11', what: 'the trim line\'s key carries the stick length again', plant: lines((l, list) => (l.key === 'baseboard' ? { ...l, key: `baseboard:${list.options.stockFt.join('-')}`, typed: false, quantity: l.computed } : l)) },
   { rule: 'O12', what: 'changing the stick lengths changes which lines there are', plant: lines((l, list) => (l.group === 'trim' ? { ...l, key: `${l.key}:${Math.max(...list.options.stockFt)}` } : l)) },
-  { rule: 'O14', what: 'a catalog material price is stamped as his measured cost', plant: mod((m) => ({ patch: (a) => { const r = m.patch(a); return r && a.sources ? { ...r, next: { ...r.next, items: r.next.items.map((it) => (it.priceSource === 'regional' ? { ...it, priceSource: 'learned' as const } : it)) } } : r; } })) },
-  { rule: 'O14', what: 'the pushed lines carry no price source', plant: mod((m) => ({ patch: (a) => m.patch({ ...a, sources: undefined }) })) },
+  { rule: 'O14', what: 'a catalog material price is stamped as his measured cost', plant: mod((m) => ({ patch: (a) => { const r = m.patch(a); return r && a.after ? { ...r, next: { ...r.next, items: r.next.items.map((it) => (it.priceSource === 'regional' ? { ...it, priceSource: 'learned' as const } : it)) } } : r; } })) },
+  { rule: 'O14', what: 'the pushed lines carry no price source', plant: mod((m) => ({ patch: (a) => m.patch({ ...a, after: undefined }) })) },
   { rule: 'O14', what: 'the material label says "No Past Jobs Yet" again', plant: en('office.roomScan.order.source.catalogLabel', 'No Past Jobs Yet, Catalog Price') },
-  { rule: 'O16', what: 'the patch does not remove the stale lines', plant: mod((m) => ({ patch: (a) => m.patch({ ...a, remove: [] }) })) },
+  { rule: 'O16', what: 'the patch does not remove the stale lines', plant: mod((m) => ({ patch: (a) => m.patch({ ...a, after: undefined }) })) },
   { rule: 'O16', what: 'the plan removes a line he changed by hand', plant: mod((m) => ({ resend: (a) => { const p = m.resend(a); return { remove: [...p.remove, ...p.leftAlone.filter((x) => !a.lines.some((y) => y.conditionId === x.conditionId))], leftAlone: [], skip: [] }; } })) },
   { rule: 'O16', what: 'a line he changed by hand is overwritten', plant: mod((m) => ({ resend: (a) => ({ ...m.resend(a), skip: [] }) })) },
   { rule: 'O16', what: 'the plan reaches a line from another scan', plant: mod((m) => ({ resend: (a) => { const p = m.resend(a); return a.scanId === 'scan-1' ? { ...p, remove: [...p.remove, { conditionId: 'scanorder:another-scan:paint_walls', materialId: 'x-other', name: 'x' }] } : p; } })) },
