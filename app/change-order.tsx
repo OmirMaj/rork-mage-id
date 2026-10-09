@@ -4,7 +4,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, useNavigation, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -2771,7 +2771,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
   const declineLine = useMemo(() => (existingCO ? coDeclineLine(existingCO) : null), [existingCO]);
 
-  useBrainFabLift(!isLocked || coBilling ? bottomBarH : 0);
+  // Named once: the lift and the scroll padding read the same height (validate-fab-clearance check 4).
+  const fabLift = !isLocked || coBilling ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
 
   // Desktop: the sheets centre in the content column (null on a phone, and
   // each keeps its own 'slide'); Cmd+S / Cmd+Enter saves the draft, and says
@@ -2840,7 +2842,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           {...fabScroll}
           // The approved-CO billing bar is taller than the edit bar it replaces
           // (it carries an explanatory line), so clear the measured height.
-          contentContainerStyle={[{ paddingBottom: Math.max(insets.bottom + 100, bottomBarH + (isLocked ? 0 : ccdRowH) + 24) }, isDesktop && styles.contentDesktop]}
+          contentContainerStyle={[{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE + (isLocked ? 0 : ccdRowH) }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

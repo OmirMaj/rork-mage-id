@@ -95,10 +95,9 @@ const CLEARS = /BRAIN_FAB_CLEARANCE|useHideBrainFab/;
  *     pinch-zoom draw canvas, where padding would push the sheet off-centre and
  *     the circle would still eat markup strokes.
  */
-const KNOWN_GAPS: ReadonlySet<string> = new Set([
-  'aia-pay-app', 'change-order', 'paywall', 'takeoff-estimate',
-  '(tabs)/estimate/review', '(tabs)/settings/appearance',
-]);
+// 6 → 0 on 2026-10-09 (the marketing captures showed the pay application and
+// the change order under it). A new entry here is a regression.
+const KNOWN_GAPS: ReadonlySet<string> = new Set([]);
 
 const offenders: string[] = [];
 const fixed: string[] = [];
@@ -180,9 +179,10 @@ const LIFT_ABOVE_SCROLL: ReadonlySet<string> = new Set([
  * 2026-09-07; four of them are already in KNOWN_GAPS above for the simpler
  * reason. May only SHRINK — the fix is the three-line `fabLift` shape above.
  */
+// 6 → 1 on 2026-10-09. estimate/full is the one left: its list padding is a
+// memo shared by four lists and the cart sheet, so it wants its own pass.
 const LIFT_GAPS: ReadonlySet<string> = new Set([
-  'aia-pay-app', 'bill-from-estimate', 'change-order', 'takeoff-estimate',
-  '(tabs)/estimate/review', '(tabs)/estimate/full',
+  '(tabs)/estimate/full',
 ]);
 
 const liftOffenders: string[] = [];

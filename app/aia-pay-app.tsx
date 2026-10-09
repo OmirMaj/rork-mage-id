@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Info, Printer, Check, Save,
@@ -1935,7 +1935,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         ref={aiaScrollRef}
         {...fabScroll}
         style={[styles.container, { backgroundColor: themeColors.bg }]}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + bottomBarH + BRAIN_FAB_CLEARANCE }}
         keyboardShouldPersistTaps="handled"
       >
         <MaybeScrollAnchor on={runOnThis} scrollRef={aiaScrollRef}>
