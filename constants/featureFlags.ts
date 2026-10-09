@@ -319,3 +319,34 @@ export const PROOF_PACK_ENABLED = false;
 // Flip it to true only when the model syncs, the wording is approved and the
 // review is done.
 export const LIVING_MODEL_ENABLED = false;
+
+// DELIVERIES THAT FOLLOW THE SCHEDULE (lane DELIVERIES-1, Phase 1): dark.
+//
+// What it gates: a delivery can belong to a schedule task. Needed On Site By
+// is worked out on every read from that task's start date less a buffer in
+// working days (never stored), so it moves when the task moves. Two flags as
+// plain facts (the schedule moved; the supplier's date is after the day it is
+// needed, with the schedule's own proposed-change preview of what that does to
+// the job). A typed lead time, Order By and What To Order This Week. Who said
+// each date and when. A draft message the person sends themselves.
+//
+// With this false and for everyone but the owner account (utils/owner.ts) the
+// Deliveries screen, the schedule's task sheet and Schedule Pro are exactly as
+// they were before the lane (the golden in
+// __tests__/smoke/deliveries-schedule-golden.test.tsx). The flag is read in ONE
+// file, utils/deliveries/allowed.ts; everything else asks
+// deliveriesFollowScheduleAllowed(email).
+//
+// What it never does, flag on or off: move a task, send a message, raise a
+// notification, or change a pay application or stored materials.
+//
+// Why it is off: the migration
+// supabase/migrations/20261012090000_deliveries_follow_schedule.sql is not
+// applied to production; the founder has not answered the ten decisions in
+// design-previews/deliveries/DELIVERIES-THAT-FOLLOW-THE-SCHEDULE.md; the Terms
+// have no line saying the flags are reminders; the wording has not been read
+// by a lawyer; the Spanish is a draft no bilingual construction person has
+// read; and the lane has not had its independent review.
+//
+// Flip it to true only when all of those hold.
+export const DELIVERIES_FOLLOW_SCHEDULE_ENABLED = false;
