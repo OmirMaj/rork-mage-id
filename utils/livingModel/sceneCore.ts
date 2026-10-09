@@ -380,3 +380,26 @@ export function pinSize(roomWidthPx: number, emphasised: boolean): PinSize {
   if (roomWidthPx >= PIN_FULL_PX) return 'full';
   return roomWidthPx >= PIN_NAME_PX ? 'name' : 'dot';
 }
+
+/**
+ * THE PAGE STILL SCROLLS. The wheel zooms the model only when the person has
+ * clicked it (the canvas has focus) or is holding Ctrl or Cmd; any other wheel
+ * belongs to the page.
+ */
+export function wheelShouldZoom(e: { ctrlKey?: boolean; metaKey?: boolean }, canvasHasFocus: boolean): boolean {
+  return e.ctrlKey === true || e.metaKey === true || canvasHasFocus === true;
+}
+
+/**
+ * On a narrow screen one finger belongs to the page (it scrolls) and the model
+ * moves only with two. A mouse or a pen always turns the model, and so does one
+ * finger on a wide screen, where the view does not sit in a scrolling column.
+ */
+export function oneFingerTurnsModel(pointerType: string, narrowScreen: boolean): boolean {
+  return !(pointerType === 'touch' && narrowScreen);
+}
+
+/** The CSS touch-action for the canvas: on a narrow screen the browser keeps the up and down swipe for the page. */
+export function canvasTouchAction(narrowScreen: boolean): 'pan-y' | 'none' {
+  return narrowScreen ? 'pan-y' : 'none';
+}

@@ -42,7 +42,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { Button } from '@/components/ui';
 import { roomLayers } from '@/utils/livingModel/replayCore';
-import { DEFAULT_CUT_M, pinSize } from '@/utils/livingModel/sceneCore';
+import { DEFAULT_CUT_M, canvasTouchAction, oneFingerTurnsModel, pinSize, wheelShouldZoom } from '@/utils/livingModel/sceneCore';
 import { ToolButton } from './RoomEditor';
 import type { JobReplay3DProps } from './jobReplay3DProps';
 import { StageLegend, stageLine, usePalette } from './replayShared';
@@ -55,11 +55,6 @@ export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;
 function loadThree(): Promise<typeof import('three')> {
   if (Platform.OS !== 'web') return Promise.reject(new Error('The 3D view is on the web only.'));
   return import('three');
-}
-
-/** True when the wheel should zoom the model: the person clicked it first, or is holding Ctrl or Cmd. Otherwise the page scrolls. */
-function wheelZooms(e: WheelEvent, canvas: HTMLCanvasElement): boolean {
-  return e.ctrlKey || e.metaKey || (typeof document !== 'undefined' && document.activeElement === canvas);
 }
 
 export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUnavailable, weekLine, atToday, height, compact }: JobReplay3DProps) {
@@ -147,7 +142,7 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
         p.y = e.clientY;
         if (ptr.size === 1) {
           // On a narrow screen one finger belongs to the page (it scrolls); the model moves with two.
-          if (e.pointerType === 'touch' && compactRef.current) return;
+          if (!oneFingerTurnsModel(e.pointerType, compactRef.current)) return;
           if (e.shiftKey || e.buttons === 2) handle.pan(dx, dy); else handle.orbit(dx, dy);
         } else if (ptr.size === 2) {
           const g = pair();
@@ -175,7 +170,7 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
       // The browser took the touch (the page is scrolling): nothing was tapped.
       const onCancel = (e: PointerEvent) => { ptr.delete(e.pointerId); down = null; };
       const onWheel = (e: WheelEvent) => {
-        if (!wheelZooms(e, canvas)) return;
+        if (!wheelShouldZoom(e, typeof document !== 'undefined' && document.activeElement === canvas)) return;
         e.preventDefault();
         handle?.zoomBy(Math.exp(-e.deltaY * 0.0012));
         dirty.current = true;
@@ -294,7 +289,7 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
         tabIndex: 0,
         role: 'img',
         'aria-label': copy.canvasA11yBody,
-        style: { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', display: 'block', touchAction: compact ? 'pan-y' : 'none', outlineOffset: -2 },
+        style: { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', display: 'block', touchAction: canvasTouchAction(compact), outlineOffset: -2 },
       })}
       {!ready && !lost ? <Text style={[styles.note, styles.stageNote]}>{copy.loading3dBody}</Text> : null}
       {ready && !lost ? rooms.map((r) => {

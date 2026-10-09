@@ -65,6 +65,8 @@ export interface JobSceneHandle {
   project: (roomId: string) => { x: number; y: number } | null;
   /** How wide a room is drawn on the canvas right now, in pixels. null for a room that is not in the scene. */
   roomWidthPx: (roomId: string) => number | null;
+  /** The colour a room's floor is drawn in right now, as '#rrggbb'. null for a room that is not in the scene. */
+  floorHex: (roomId: string) => string | null;
   /** How many rooms the scene holds. A scene that was just made holds none until `setRooms`. */
   roomCount: () => number;
   /** Let go of everything, the WebGL context included. The canvas cannot be used for another scene afterwards. */
@@ -367,6 +369,10 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
         hi = Math.max(hi, px);
       }
       return hi - lo;
+    },
+    floorHex(roomId) {
+      const rm = rooms.get(roomId);
+      return rm ? `#${rm.floorMat.color.getHexString()}` : null;
     },
     roomCount() { return rooms.size; },
     dispose() {

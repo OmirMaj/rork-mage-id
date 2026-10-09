@@ -40,6 +40,26 @@
 //    only in wet rooms; the faint part starts where the solid part ends.
 // K. REGISTRATION: the script, the gate chain, the route, the i18n surface.
 //
+// ADDED AFTER THE REVIEW (each with fixtures worked by hand and planted mutations):
+//    A7  a saved model that cannot be read (a null wall, an unknown version, a
+//        NaN) never throws, is never replaced silently and is never saved over.
+//    B2  the stage table against a list of plain task names with false friends
+//        ("Rough framing", "Pour concrete floor", "Floor protection").
+//    B4  a person's own choice of stage wins over the table.
+//    C6  the room card: a plain average with unreported tasks at 0, at the week
+//        the scrubber is on, and the plan only past today.
+//    C7  dates are local calendar days (9 pm in New York), a daily report dated
+//        after today does not count, and the card uses the schedule's closed days.
+//    C8  with no start date the notice says what Reported really shows.
+//    D3  what the Suggested box lists is what Confirm ticks.
+//    E6  the phone's import graph never reaches the 3D library (the same thing
+//        scripts/validate-native-surface.ts checks on the real phone bundle).
+//    E7  a theme change makes a new scene and the rooms are drawn into it; the
+//        WebGL context is given back; a lost context is said and can be reloaded.
+//    E8  the wheel and one finger still scroll the page.
+//    J5  the home view fits full-height walls; a room's label gives way in a
+//        small room; each room's floor carries its stage colour.
+//
 // NOT PROVED HERE: that WebGL draws what the numbers say (looked at through a
 // headless-Chrome harness, see the lane report), pointer and touch handling
 // in a real browser, and the web export's chunking of the library.
@@ -48,23 +68,32 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { SEVEN_ROOM_ANSWERS, THREE_ROOM_ANSWERS, sevenRoomJob, tenWeekSchedule, threeRoomJob } from '../__tests__/fixtures/livingModelJobs';
+import * as THREE_LIB from 'three';
+
+import { BATH_CARD_ANSWERS, SEVEN_ROOM_ANSWERS, STAGE_TITLE_CASES, THREE_ROOM_ANSWERS, cardFixture, sevenRoomJob, tenWeekSchedule, threeRoomJob } from '../__tests__/fixtures/livingModelJobs';
+import { createJobScene } from '../components/livingModel/threeScene';
+import { Theme } from '../constants/colors';
 import { EN as EN_SHARD } from '../i18n/catalog/en/office.living-model.generated';
 import { ES_OFFICE_LIVING_MODEL } from '../i18n/catalog/es/office/livingModel';
 import { livingModelAllowedWith, livingModelSeat } from '../utils/livingModel/allowed';
 import { canRedo, canUndo, historyOf, historyPush, historyRedo, historyUndo } from '../utils/livingModel/historyCore';
-import { confirmSuggestions, liveLinks, suggestLinks, type LinkTask } from '../utils/livingModel/linkCore';
+import { confirmSuggestions, liveLinks, suggestLinks, suggestionBox, type LinkTask } from '../utils/livingModel/linkCore';
 import {
   GRID_M, addOpening, addRoom, deleteRoom, duplicateRoom, emptyJobModel, linkedTaskIds, makeRectRoom, modelBounds, moveRoom, openingRefusal,
-  parseJobModel, polygonsOverlap, rectRoomRefusal, roomAreaM2, roomBounds, roomFromScan, rotateRoom, setRoomTaskLink, validateModel, worldFloor, worldWalls,
+  parseJobModel, polygonsOverlap, readSavedModel, rectRoomRefusal, renameRoom, roomAreaM2, roomBounds, roomFromScan, rotateRoom, setRoomKind, setRoomLevel, setRoomTaskLink, setTaskStage, validateModel, worldFloor, worldWalls,
 } from '../utils/livingModel/modelCore';
+import { MATERIALS, livingModelPalette, paletteModeOf } from '../utils/livingModel/palette';
 import {
-  hasAnyReport, plannedAt, reportedAt, roomCard, roomLayers, roomMoment, taskMoment, weekCount, weekOf,
+  cardWhen, hasAnyReport, plannedAt, reportedAt, roomCard, roomLayers, roomMoment, taskMoment, weekCount, weekOf,
   type ReplayClock, type ReplayTask,
 } from '../utils/livingModel/replayCore';
-import { VERTS_PER_BOX, buildRoomGeometry, revealRange, roomHasPipes, triangulate, wallSpans } from '../utils/livingModel/sceneCore';
-import { BUILD_STAGES, STAGE_BY_TRADE, stageForTask } from '../utils/livingModel/stageCore';
-import { LIVING_MODEL_KEY_PREFIX, livingModelKey } from '../utils/livingModel/storeCore';
+import { buildReplayInput, dateOfOffset } from '../utils/livingModel/replayInput';
+import {
+  PIN_FULL_PX, PIN_NAME_PX, VERTS_PER_BOX, VIEW_FILL, buildRoomGeometry, canvasTouchAction, fitZoom, oneFingerTurnsModel, pinSize, revealRange, roomHasPipes,
+  screenPoint, triangulate, viewExtent, wallSpans, wheelShouldZoom,
+} from '../utils/livingModel/sceneCore';
+import { BUILD_STAGES, STAGE_BY_TRADE, TASK_STAGES, resolveStage, stageForTask } from '../utils/livingModel/stageCore';
+import { LIVING_MODEL_BACKUP_PREFIX, LIVING_MODEL_KEY_PREFIX, livingModelBackupKey, livingModelKey, mayWriteModel } from '../utils/livingModel/storeCore';
 import type { JobModel } from '../utils/livingModel/types';
 import { isAppStorageKey } from '../utils/localCacheKeys';
 import { polygonArea } from '../utils/roomScan/geometryCore';
@@ -98,6 +127,10 @@ const impl = {
   tickedFor: (model: JobModel, roomId: string, tasks: readonly LinkTask[]): string[] => liveLinks(model, roomId, new Set(tasks.map((t) => t.id))).ids,
   modelBounds, roomAreaM2, validateModel, polygonsOverlap, roomFromScan, moveRoom, rotateRoom, duplicateRoom, parseJobModel,
   livingModelAllowedWith, livingModelSeat, livingModelKey, revealRange, buildRoomGeometry, wallSpans, roomHasPipes,
+  // added after the review
+  roomCard, buildReplayInput, readSavedModel, mayWriteModel, livingModelBackupKey, suggestionBox, resolveStage, setTaskStage, setRoomKind,
+  viewExtent, pinSize, wheelShouldZoom, oneFingerTurnsModel, canvasTouchAction, createJobScene,
+  MATERIALS: MATERIALS as Record<'light' | 'dark', Record<string, string | number>>,
 };
 type Impl = typeof impl;
 type Catalog = Record<string, unknown>;
@@ -122,7 +155,7 @@ const K = 'office.livingModel.';
 const SCHEMATIC = 'Schematic made from typed and scanned sizes. Not to scale for building.';
 const PROGRESS = 'Progress shown is what was reported in MAGE ID.';
 const LM_COMPONENTS = (w: World): string[] => Object.keys(w.files).filter((f) => f.startsWith('components/livingModel/'));
-const PURE_CORE = ['types', 'modelCore', 'historyCore', 'stageCore', 'replayCore', 'linkCore', 'sceneCore', 'planView', 'storeCore', 'allowed', 'palette'].map((n) => `utils/livingModel/${n}.ts`);
+const PURE_CORE = ['types', 'modelCore', 'historyCore', 'stageCore', 'replayCore', 'replayInput', 'linkCore', 'sceneCore', 'planView', 'storeCore', 'allowed', 'palette'].map((n) => `utils/livingModel/${n}.ts`);
 
 function task(id: string, title: string, stage: ReplayTask['stage'], startDay: number, durationDays: number, progress = 0, status: ReplayTask['status'] = 'not_started'): ReplayTask {
   return { id, title, stage, startDay, durationDays, progress, status, actualEndOffset: null, actualStartOffset: null };
@@ -312,6 +345,18 @@ rule('A5', 'a move snaps to six inches; four quarter turns return; a copy takes 
   if (u.present !== d1 || !canRedo(u) || !canUndo(u)) out.push('undo did not step back one change');
   if (historyRedo(u).present !== d2) out.push('redo did not step forward');
   if (canRedo(historyPush(u, one))) out.push('a new change kept the undone future');
+  // An edit that changes nothing hands the same model back, so Undo never has an empty step to take.
+  const k = base.rooms.find((r) => r.id === 'kitchen')!;
+  if (w.impl.moveRoom(base, 'kitchen', k.placement.xM, k.placement.yM) !== base) out.push('a move to where the room already is made a new model: Undo would appear to do nothing');
+  if (w.impl.moveRoom(base, 'kitchen', k.placement.xM + GRID_M * 0.2, k.placement.yM) !== base) out.push('a move that snaps back to the same spot made a new model');
+  if (w.impl.moveRoom(base, 'no-such-room', 1, 1) !== base || w.impl.rotateRoom(base, 'no-such-room') !== base) out.push('moving or turning a room that is not there made a new model');
+  if (w.impl.setRoomKind(base, 'kitchen', 'kitchen') !== base || w.impl.setRoomKind(base, 'no-such-room', 'hall') !== base) out.push('setting the kind a room already has made a new model');
+  if (w.impl.setRoomKind(base, 'kitchen', 'hall') === base) out.push('a real change of kind handed the same model back');
+  if (renameRoom(base, 'kitchen', ' Kitchen ') !== base || setRoomLevel(base, 'kitchen', 0) !== base) out.push('a rename or a floor change to what it already is made a new model');
+  let hh = historyOf(base);
+  hh = historyPush(hh, w.impl.moveRoom(base, 'kitchen', k.placement.xM, k.placement.yM));
+  hh = historyPush(hh, w.impl.setRoomKind(base, 'kitchen', 'kitchen'));
+  if (canUndo(hh)) out.push('edits that changed nothing were recorded for Undo');
   return out;
 });
 
@@ -324,6 +369,77 @@ rule('A6', 'a saved model reads back whole, and anything else reads back as noth
   if (w.impl.parseJobModel('{"version":1', 'p-seven') !== null || w.impl.parseJobModel(null, 'p-seven') !== null) out.push('broken JSON or nothing was read as a model');
   const bad = JSON.stringify({ ...m, rooms: m.rooms.map((r, i) => (i === 0 ? { ...r, placement: { ...r.placement, xM: null } } : r)) });
   if (w.impl.parseJobModel(bad, 'p-seven') !== null) out.push('a model with a missing number was read');
+  return out;
+});
+
+/** Saved text that is there and is not a sound model of the seven-room job. [what it is, the text] */
+function unreadableTexts(): [string, string][] {
+  const m = sevenRoomJob();
+  const withRoom0 = (fn: (r: JobModel['rooms'][number]) => unknown): string => JSON.stringify({ ...m, rooms: m.rooms.map((r, i) => (i === 0 ? fn(r) : r)) });
+  return [
+    ['a null wall', withRoom0((r) => ({ ...r, room: { ...r.room, walls: [null] } }))],
+    ['a null wall among sound ones', withRoom0((r) => ({ ...r, room: { ...r.room, walls: [...r.room.walls, null] } }))],
+    ['a wall with no end point', withRoom0((r) => ({ ...r, room: { ...r.room, walls: r.room.walls.map((x, j) => (j === 0 ? { ...x, a: null } : x)) } }))],
+    ['a null opening', withRoom0((r) => ({ ...r, room: { ...r.room, openings: [null] } }))],
+    ['a null floor corner', withRoom0((r) => ({ ...r, room: { ...r.room, floor: [null, ...r.room.floor] } }))],
+    ['a null room', JSON.stringify({ ...m, rooms: [null, ...m.rooms] })],
+    ['an unknown version', JSON.stringify({ ...m, version: 2 })],
+    ['no version', JSON.stringify({ ...m, version: undefined })],
+    // JSON has no NaN: JSON.stringify writes null for it, and a hand-edited file may hold the word.
+    ['a NaN placement (written as null)', withRoom0((r) => ({ ...r, placement: { ...r.placement, xM: Number.NaN } }))],
+    ['a NaN wall length (written as null)', withRoom0((r) => ({ ...r, room: { ...r.room, walls: r.room.walls.map((x, j) => (j === 0 ? { ...x, lengthM: Number.NaN } : x)) } }))],
+    ['the bare word NaN', 'NaN'],
+    ['a wall coordinate that is the text "NaN"', withRoom0((r) => ({ ...r, room: { ...r.room, walls: r.room.walls.map((x, j) => (j === 0 ? { ...x, a: { x: 'NaN', y: 0 } } : x)) } }))],
+    ['cut-off JSON', JSON.stringify(m).slice(0, 400)],
+    ['a list, not a model', '[1, 2, 3]'],
+    ['another job\'s model', JSON.stringify({ ...m, projectId: 'p-other' })],
+    ['rooms that is not a list', JSON.stringify({ ...m, rooms: { 0: m.rooms[0] } })],
+  ];
+}
+
+rule('A7', 'a saved model that cannot be read never throws, is said to be unreadable, and is never saved over until the person starts a new one', (w) => {
+  const out: string[] = [];
+  for (const [what, text] of unreadableTexts()) {
+    let got: { state: string } | null = null;
+    try { got = w.impl.readSavedModel(text, 'p-seven'); } catch (e) { out.push(`${what}: reading it THREW (${e instanceof Error ? e.message.slice(0, 60) : e}); the screen would hang on "Reading the model"`); continue; }
+    if (got.state !== 'unreadable') out.push(`${what}: read as "${got.state}", want "unreadable" (an empty model here is saved over the person's rooms on the first edit)`);
+    try { if (w.impl.parseJobModel(text, 'p-seven') !== null) out.push(`${what}: parseJobModel handed back a model`); } catch { out.push(`${what}: parseJobModel threw`); }
+  }
+  for (const nothing of [null, undefined, '']) if (w.impl.readSavedModel(nothing as never, 'p-seven').state !== 'empty') out.push(`${JSON.stringify(nothing)} (nothing saved) is not read as "empty"`);
+  const good = w.impl.readSavedModel(JSON.stringify(sevenRoomJob()), 'p-seven');
+  if (good.state !== 'ok' || good.model.rooms.length !== 7) out.push('a sound model is not read as "ok"');
+  // Nothing is written while unread text sits under the key.
+  if (w.impl.mayWriteModel('unreadable') !== false) out.push('a change may be saved over text that could not be read');
+  if (w.impl.mayWriteModel('ready') !== true || w.impl.mayWriteModel('started_new') !== true) out.push('a sound model, or a new one the person chose to start, cannot be saved');
+  const bk = w.impl.livingModelBackupKey('user-1', 'proj-9');
+  if (!bk || bk === w.impl.livingModelKey('user-1', 'proj-9') || !bk.startsWith('mageid_') || !isAppStorageKey(bk) || !bk.includes('user-1') || !bk.includes('proj-9')) out.push(`the backup key ${bk} is not an app-owned key of its own, per person and project`);
+  if (w.impl.livingModelBackupKey(null, 'p') !== null) out.push('a backup key is made with no person');
+  if (!LIVING_MODEL_BACKUP_PREFIX.startsWith(LIVING_MODEL_KEY_PREFIX.replace('::', '')) || LIVING_MODEL_BACKUP_PREFIX === LIVING_MODEL_KEY_PREFIX) out.push('the backup prefix is not beside the model prefix');
+  // The store: the unread text is copied as it is, and the model key is written only past the guard.
+  const store = code(w.files['utils/livingModel/store.ts'] ?? '');
+  const load = store.slice(store.indexOf('export async function loadJobModel'), store.indexOf('export async function keepUnreadText'));
+  if (!/readSavedModel\(raw, projectId\)/.test(load) || !/await keepUnreadText\(userId, projectId, raw as string\);\s*return \{ model: emptyJobModel\(projectId\), state: 'unreadable' \};/.test(load)) out.push('loadJobModel does not keep unread text and answer "unreadable"');
+  if (/setItem\(key|removeItem|\.clear\(/.test(load)) out.push('loadJobModel writes over or removes the stored model');
+  const keep = store.slice(store.indexOf('export async function keepUnreadText'), store.indexOf('export async function saveJobModel'));
+  if (!/AsyncStorage\.setItem\(backup, raw\)/.test(keep)) out.push('the unread text is not copied untouched under the backup key');
+  const save = store.slice(store.indexOf('export async function saveJobModel'));
+  const guardAt = save.indexOf('!mayWriteModel(state)');
+  const writeAt = save.indexOf('AsyncStorage.setItem(key, json)');
+  if (guardAt < 0 || writeAt < 0 || guardAt > writeAt || !/if \(!key \|\| !mayWriteModel\(state\)\) return false;/.test(save)) out.push('saveJobModel writes the model key without asking mayWriteModel first');
+  // The screen: a plain sentence, no editor until the person chooses, and the choice is a tap.
+  const scr = code(w.files['components/livingModel/LivingModelScreen.tsx'] ?? '');
+  if (!/\.catch\(\(\) => \{/.test(scr.slice(scr.indexOf('void loadJobModel('), scr.indexOf('const persist =')))) out.push('the screen has no catch on the load: a failed read would leave it on "Reading the model"');
+  if (!/const blocked = loadState === 'unreadable';/.test(scr)) out.push('the screen does not know when the saved model could not be read');
+  if (!/\{model && blocked \? \(\s*<View[^>]*testID="lm-unreadable">[\s\S]{0,400}\{copy\.unreadableTitleBody\}[\s\S]{0,200}\{copy\.unreadableBody\}[\s\S]{0,200}<Button label=\{copy\.startNewLabel\}[^>]*onPress=\{onStartNew\}/.test(scr)) out.push('the screen does not say the model could not be read, with a Start a New Model button');
+  for (const tab of ['rooms', 'tasks', 'replay']) if (!new RegExp(`\\{model && !blocked && tab === '${tab}' \\?`).test(scr)) out.push(`the ${tab} tab is drawn while the saved model is unread: an edit there would be the first step to saving over it`);
+  if (!/if \(!mayWriteModel\(loadStateRef\.current\)\) return;\s*void saveJobModel\(userId, m, new Date\(\)\.toISOString\(\), loadStateRef\.current\)/.test(scr)) out.push('the screen saves without asking mayWriteModel');
+  const starts = scr.match(/loadStateRef\.current = 'started_new'/g) ?? [];
+  const startFn = /const onStartNew = useCallback\(\(\) => \{([\s\S]*?)\}, \[\]\);/.exec(scr);
+  if (starts.length !== 1 || !startFn || !startFn[1].includes("loadStateRef.current = 'started_new'")) out.push('"started_new" is set somewhere other than the Start a New Model button');
+  if (/useEffect\([^)]*onStartNew\(\)/.test(scr)) out.push('Start a New Model is called from an effect');
+  if (w.EN[`${K}load.startNewLabel`] !== 'Start a New Model') out.push('the button is not called Start a New Model');
+  const said = `${w.EN[`${K}load.unreadableTitleBody`]} ${w.EN[`${K}load.unreadableBody`]}`;
+  if (!/could not be read/.test(said) || !/has not been changed or removed/.test(said) || !/Nothing is saved over the old one until you do\./.test(said)) out.push(`the sentence does not say the model could not be read, was not changed, and is not saved over: "${said}"`);
   return out;
 });
 
@@ -356,6 +472,12 @@ rule('B2', 'the words table reads plain task names; a task that fits nothing is 
     const got = w.impl.stageForTask(title, trade as never).stage;
     if (got !== want) out.push(`"${title}" (${trade}) is ${got}, want ${want}`);
   }
+  // The plain names with false friends (__tests__/fixtures/livingModelJobs.ts STAGE_TITLE_CASES).
+  if (STAGE_TITLE_CASES.length < 30) out.push('the list of task names was cut down');
+  for (const [title, trade, want] of STAGE_TITLE_CASES) {
+    const got = w.impl.stageForTask(title, trade as never).stage;
+    if (got !== want) out.push(`"${title}" (${trade}) is ${got}, want ${want}`);
+  }
   const allowed = new Set<string>([...BUILD_STAGES, 'other']);
   for (const title of ['', null, undefined, '???', '12345', 'Zzz']) {
     const a = w.impl.stageForTask(title as string | null, null);
@@ -375,6 +497,49 @@ rule('B3', 'an inspection, a delivery or a punch list is not a building stage, w
     const a = w.impl.stageForTask(title, trade);
     if (a.stage !== 'other') out.push(`"${title}" was put in ${a.stage}`);
   }
+  return out;
+});
+
+rule('B4', 'a person may pick a task\'s stage himself; his choice wins over the table, is kept with the ticks, and can be taken back', (w) => {
+  const out: string[] = [];
+  const a = w.impl.resolveStage('Rough framing', 'framing', 'finishes');
+  if (a.stage !== 'finishes' || a.by !== 'person') out.push(`a picked stage reads ${a.stage} by ${a.by}; want finishes by person`);
+  for (const junk of [undefined, null, '', 'done', 'no_tasks', 'Finishes', 7, {}]) {
+    const b = w.impl.resolveStage('Rough framing', 'framing', junk);
+    if (b.stage !== 'framing' || b.by === 'person') out.push(`a choice of ${JSON.stringify(junk)} was taken as a stage`);
+  }
+  if (w.impl.resolveStage('Coordination', 'general', 'other').by !== 'person') out.push('picking Other Work is not recorded as the person\'s choice');
+  if (TASK_STAGES.length !== 7 || TASK_STAGES[TASK_STAGES.length - 1] !== 'other') out.push('the picker does not offer the six stages and Other Work');
+  // Kept in the model, beside the ticks.
+  const base = sevenRoomJob();
+  const picked = w.impl.setTaskStage(base, 'frame', 'finishes');
+  if (picked === base || picked.stages?.frame !== 'finishes') out.push('picking a stage did not write it into the model');
+  if (JSON.stringify(picked.links) !== JSON.stringify(base.links) || picked.rooms !== base.rooms) out.push('picking a stage changed the ticks or the rooms');
+  if (w.impl.setTaskStage(picked, 'frame', 'finishes') !== picked) out.push('picking the stage a task already has made a new model');
+  if (w.impl.setTaskStage(base, 'frame', null) !== base) out.push('taking back a choice that was never made changed the model');
+  const back = w.impl.setTaskStage(picked, 'frame', null);
+  if (back.stages !== undefined) out.push('taking the last choice back left an empty list in the model');
+  if (w.impl.setTaskStage(base, 'frame', 'done' as never) !== base) out.push('a stage that is not a task stage was written');
+  const round = w.impl.readSavedModel(JSON.stringify(picked), 'p-seven');
+  if (round.state !== 'ok' || round.model.stages?.frame !== 'finishes') out.push('the picked stage did not survive a save and a read');
+  const dirty = w.impl.readSavedModel(JSON.stringify({ ...picked, stages: { frame: 'finishes', demo: 'nonsense', elec: 3 } }), 'p-seven');
+  if (dirty.state !== 'ok' || dirty.model.stages?.demo !== undefined || dirty.model.stages?.frame !== 'finishes') out.push('a saved stage that is not a stage was read back');
+  // The replay reads it.
+  const sched = { id: 's', projectId: 'p', startDate: '2026-10-05', workingDaysPerWeek: 5, tasks: [{ id: 'frame', title: 'Rough framing', startDay: 1, durationDays: 5, progress: 0, status: 'not_started', dependencies: [] }] } as never;
+  const plain = w.impl.buildReplayInput(sched, [], new Date(2026, 9, 9, 10));
+  const chosen = w.impl.buildReplayInput(sched, [], new Date(2026, 9, 9, 10), { frame: 'finishes' });
+  if (plain.tasks[0].stage !== 'framing' || plain.stageBy.frame === 'person') out.push(`with no choice "Rough framing" reads ${plain.tasks[0].stage}`);
+  if (chosen.tasks[0].stage !== 'finishes' || chosen.stageBy.frame !== 'person') out.push(`with Finishes picked the replay still reads ${chosen.tasks[0].stage}`);
+  // The Tasks tab: a small picker per task, writing through setTaskStage from a tap.
+  const tl = code(w.files['components/livingModel/TaskLinks.tsx'] ?? '');
+  if (!/TASK_STAGES\.map\(\(st\) =>/.test(tl) || !/onPress=\{\(\) => \{ onChange\(setTaskStage\(model, t\.id, st\)\); setStageFor\(null\); \}\}/.test(tl)) out.push('the Tasks tab has no stage picker that writes the picked stage');
+  if (!/onChange\(setTaskStage\(model, t\.id, null\)\)/.test(tl) || !/\{copy\.stageFromTitleLabel\}/.test(tl)) out.push('the picker cannot go back to reading the title');
+  if (!/input\.stageBy\[t\.id\] === 'person'/.test(tl) || !/copy\.stagePickedSub\(/.test(tl)) out.push('a stage the person picked is not marked as his');
+  const scr = code(w.files['components/livingModel/LivingModelScreen.tsx'] ?? '');
+  if (!/buildReplayInput\(project\?\.schedule \?\? null, reports, now, chosenStages\)/.test(scr) || !/const chosenStages = model\?\.stages;/.test(scr)) out.push('the screen does not hand the picked stages to the replay');
+  const callers = Object.keys(w.files).filter((f) => f !== 'utils/livingModel/modelCore.ts' && /\bsetTaskStage\s*\(/.test(code(w.files[f])));
+  if (callers.join() !== 'components/livingModel/TaskLinks.tsx') out.push(`setTaskStage is called from ${callers.join(', ') || 'nowhere'}; want only the Tasks tab`);
+  if (w.EN[`${K}tasks.stageFromTitleLabel`] !== 'Read from the Title') out.push('the way back is not called Read from the Title');
   return out;
 });
 
@@ -480,6 +645,171 @@ rule('C5', 'the wall layers follow the stages', (w) => {
   return out;
 });
 
+const AVERAGE_LINE = 'Average of the {count} ticked tasks. A task with nothing reported counts as 0.';
+
+rule('C6', 'the room card is a plain average with unreported tasks at 0, for the week the scrubber is on, and the plan only past today', (w) => {
+  const out: string[] = [];
+  // The hand-worked three: 100, 50 and nothing reported.
+  const f = cardFixture();
+  const c = w.impl.roomCard(f.tasks, f.points, f.clock, f.clock.todayOffset, 'reported');
+  if (c.pct === f.answers.weightedWouldBe) out.push(`the card reads ${c.pct}: that is an average weighted by duration, which the line under it does not say`);
+  else if (c.pct === f.answers.leftOutWouldBe) out.push(`the card reads ${c.pct}: the task with nothing reported was left out instead of counting as 0`);
+  else if (c.pct !== f.answers.pct) out.push(`the card reads ${c.pct}; (100 + 50 + 0) / 3 is ${f.answers.pct}`);
+  if (c.unreported !== f.answers.unreported || c.taskCount !== 3) out.push(`the card counts ${c.unreported} unreported of ${c.taskCount}; want 1 of 3`);
+  if (c.when !== 'today' || c.reading !== 'reported') out.push(`on today the card says ${c.when}, ${c.reading}`);
+  const rowC = c.rows.find((r) => r.id === 'C');
+  if (!rowC || rowC.reportedPct !== null) out.push('the task with nothing reported shows a percent on its row');
+  // The bath on the ten-week job, at three places on the scrubber.
+  const s = tenWeekSchedule();
+  const bath = s.tasks.filter((t) => sevenRoomJob().links.bath.includes(t.id));
+  const A = BATH_CARD_ANSWERS;
+  const wk3 = w.impl.roomCard(bath, s.points, s.clock, A.week3.offset, 'reported');
+  if (wk3.when !== 'earlier' || wk3.reading !== 'reported') out.push(`at week 3 the card says ${wk3.when}, ${wk3.reading}; want earlier, reported`);
+  if (wk3.pct !== A.week3.reported) out.push(`at week 3 the card reads ${wk3.pct}; that week it was ${A.week3.reported} (today it is ${A.today.reported}: the card must follow the scrubber)`);
+  if (wk3.unreported !== A.week3.unreported) out.push(`at week 3 the card counts ${wk3.unreported} with nothing reported; by then it was ${A.week3.unreported}`);
+  if (wk3.rows.find((r) => r.id === 'dry')?.reportedPct !== null) out.push('at week 3 drywall shows a percent it was not reported at until week 6');
+  if (wk3.rows.find((r) => r.id === 'plumb')?.reportedPct !== 40) out.push('at week 3 rough plumbing does not show the 40 its daily report gave it that week');
+  const wk3p = w.impl.roomCard(bath, s.points, s.clock, A.week3.offset, 'planned');
+  if (wk3p.pct !== A.week3.planned || wk3p.reading !== 'planned' || wk3p.unreported !== 0) out.push(`at week 3, Planned reads ${wk3p.pct} (${wk3p.reading}); want ${A.week3.planned}`);
+  const now = w.impl.roomCard(bath, s.points, s.clock, A.today.offset, 'reported');
+  if (now.pct !== A.today.reported || now.unreported !== A.today.unreported || now.when !== 'today') out.push(`today the card reads ${now.pct}, ${now.unreported} unreported, ${now.when}; want ${A.today.reported}, ${A.today.unreported}, today`);
+  if (w.impl.roomCard(bath, s.points, s.clock, A.today.offset + 0.2, 'reported').when !== 'today' || cardWhen(A.today.offset + 0.4, s.clock) !== 'ahead' || cardWhen(A.today.offset - 0.4, s.clock) !== 'earlier') out.push('"as of today" is said when the scrubber is not on today, or not said when it is');
+  for (const mode of ['reported', 'planned'] as const) {
+    const ahead = w.impl.roomCard(bath, s.points, s.clock, A.week8.offset, mode);
+    if (ahead.when !== 'ahead' || ahead.reading !== 'plan_ahead') out.push(`past today (${mode}) the card says ${ahead.when}, ${ahead.reading}; want ahead, plan_ahead`);
+    if (ahead.pct !== A.week8.planOnly) out.push(`past today (${mode}) the card reads ${ahead.pct}; the plan for that week is ${A.week8.planOnly}`);
+    if (ahead.unreported !== 0) out.push('past today the card still counts unreported tasks, though it shows the plan only');
+  }
+  const none: ReplayClock = { ...s.clock, hasStartDate: false, todayOffset: 0 };
+  if (w.impl.roomCard(bath, [], none, 15, 'reported').when !== 'undated') out.push('with no start date the card claims a today');
+  if (w.impl.roomCard([], [], s.clock, 10, 'reported').pct !== 0) out.push('a room with no ticked tasks does not read 0');
+  // The words under the number say what it is, and the number on the screen is the card's.
+  const en = w.EN[`${K}card.averageReportedBody`] as Record<string, string> | undefined;
+  if (!en || en.other !== AVERAGE_LINE) out.push(`the line under the number reads ${JSON.stringify(en?.other)}`);
+  if (!en || !/counts as 0\.$/.test(en.one ?? '') || /\{count\}/.test(en.one ?? '') === false && !/\b1\b/.test(en.one ?? '')) out.push('the line for a single task does not say a task with nothing reported counts as 0');
+  for (const k of ['card.averageReportedBody', 'card.averagePlannedBody']) for (const form of strings(w.EN[`${K}${k}`])) if (/weight|duration|longer/i.test(form)) out.push(`${k} speaks of weighting, and the arithmetic does not weight`);
+  if (w.EN[`${K}card.asOfTodaySub`] !== 'As of today') out.push('"As of today" changed');
+  if (!/past today/.test(String(w.EN[`${K}card.planOnlyBody`])) || !/plan only\.$/.test(String(w.EN[`${K}card.planOnlyBody`]))) out.push('the past-today line does not say the card shows the plan only');
+  const sh = code(w.files['components/livingModel/replayShared.tsx'] ?? '');
+  const panel = sh.slice(sh.indexOf('export function RoomCardPanel('));
+  if (!/roomCard\(tasks, input\.points, input\.clock, offset, mode\)/.test(panel)) out.push('the room card is not worked out for the moment the scrubber is on');
+  if (/todayOffset/.test(panel)) out.push('the room card reads today\'s moment itself: it must take the scrubber\'s');
+  if (!/testID="lm-card-pct">\{`\$\{card\.pct\}%`\}/.test(panel)) out.push('the big number is not the card\'s own figure');
+  if (!/<Text[^>]*testID="lm-card-average">\{card\.reading === 'reported' \? copy\.averageReportedBody\(card\.taskCount\) : copy\.averagePlannedBody\(card\.taskCount\)\}<\/Text>/.test(panel)) out.push('the card does not say, under the number, what the number is');
+  if (/\{[^{}\n]*(&&|\?)[^{}\n]*<Text[^>]*testID="lm-card-average"/.test(panel)) out.push('the line under the number sits behind a condition');
+  if (!/card\.when === 'today' \? copy\.asOfTodaySub/.test(panel)) out.push('"As of today" is not tied to the scrubber being on today');
+  if (!/\{card\.reading === 'plan_ahead' \? <Text[^>]*testID="lm-card-plan-only">\{copy\.planOnlyBody\}<\/Text> : null\}/.test(panel)) out.push('past today the card does not say it shows the plan only');
+  const scr = code(w.files['components/livingModel/LivingModelScreen.tsx'] ?? '');
+  if (!/<RoomCardPanel[^>]*mode=\{state\.mode\} offset=\{state\.offset\}/.test(scr)) out.push('the screen does not hand the scrubber\'s moment to the room card');
+  return out;
+});
+
+/** Run with the clock of one place, whatever machine this is: a wrong date read shows only where local and UTC days differ. */
+function inZone<T>(zone: string, fn: () => T): T {
+  const was = process.env.TZ;
+  process.env.TZ = zone;
+  try { return fn(); } finally { if (was === undefined) delete process.env.TZ; else process.env.TZ = was; }
+}
+
+rule('C7', 'dates are local calendar days (9 pm in New York), a daily report dated after today does not count, and the card uses the schedule\'s closed days', (w) => {
+  const out: string[] = [];
+  inZone('America/New_York', () => {
+    // Monday 5 October 2026 is day 1. Tuesday the 6th is day 2. Today is Friday the 9th: day 5.
+    const ninePm = new Date(2026, 9, 6, 21, 0, 0);
+    const iso = ninePm.toISOString();
+    if (!iso.startsWith('2026-10-07')) { out.push(`the probe is not set up: 9 pm on the 6th in New York should be the 7th in UTC text, got ${iso}`); return; }
+    const sched = {
+      id: 's', projectId: 'p', startDate: '2026-10-05', workingDaysPerWeek: 5,
+      tasks: [
+        { id: 'a', title: 'Demo', startDay: 1, durationDays: 5, progress: 100, status: 'done', actualStartDate: new Date(2026, 9, 5, 7, 30).toISOString(), actualEndDate: iso, dependencies: [] },
+        { id: 'b', title: 'Framing', startDay: 6, durationDays: 5, progress: 0, status: 'not_started', dependencies: [] },
+      ],
+    } as never;
+    const reports = [
+      { id: 'r1', projectId: 'p', date: iso, workProgress: [{ taskId: 'a', pct: 40 }] },
+      { id: 'r2', projectId: 'p', date: '2026-10-08', workProgress: [{ taskId: 'a', pct: 80 }] },
+      { id: 'r3', projectId: 'p', date: new Date(2026, 9, 20, 12).toISOString(), workProgress: [{ taskId: 'b', pct: 90 }] },
+      { id: 'r4', projectId: 'p', date: '2026-10-10', workProgress: [{ taskId: 'b', pct: 70 }] },
+      { id: 'r5', projectId: 'p', date: new Date(2026, 9, 9, 23, 30).toISOString(), workProgress: [{ taskId: 'b', pct: 10 }] },
+    ] as never;
+    const inp = w.impl.buildReplayInput(sched, reports, new Date(2026, 9, 9, 10, 0));
+    const a = inp.tasks.find((t) => t.id === 'a')!;
+    if (a.actualEndOffset !== 2) out.push(`a task finished at 9 pm on Tuesday the 6th in New York is placed on day ${a.actualEndOffset}; want day 2 (its UTC text reads the 7th, which is day 3)`);
+    if (a.actualStartOffset !== 1) out.push(`a task started at 7:30 am on day 1 is placed on day ${a.actualStartOffset}`);
+    const r1 = inp.points.find((p) => p.taskId === 'a' && p.pct === 40);
+    if (!r1 || r1.offset !== 2) out.push(`a daily report filed at 9 pm on the 6th is placed on day ${r1?.offset}; want day 2`);
+    const r2 = inp.points.find((p) => p.taskId === 'a' && p.pct === 80);
+    if (!r2 || r2.offset !== 4) out.push(`a daily report dated the bare day 2026-10-08 is placed on day ${r2?.offset}; want day 4`);
+    if (inp.clock.todayOffset !== 5) out.push(`today, Friday the 9th, is day ${inp.clock.todayOffset}; want 5`);
+    // After today: left out, and the task is still said to have nothing reported.
+    if (inp.points.some((p) => p.pct === 90 || p.pct === 70)) out.push('a daily report dated after today was counted');
+    if (inp.futureReports !== 2) out.push(`${inp.futureReports} daily reports were left out as dated after today; want 2`);
+    const r5 = inp.points.find((p) => p.pct === 10);
+    if (!r5 || r5.offset !== 5) out.push('a daily report filed late this evening (today, though tomorrow in UTC text) was left out or misplaced');
+    const b = inp.tasks.find((t) => t.id === 'b')!;
+    const justFuture = w.impl.buildReplayInput(sched, [reports[2], reports[3]] as never, new Date(2026, 9, 9, 10, 0));
+    if (hasAnyReport(b, justFuture.points)) out.push('a task whose only daily reports are dated after today is said to have progress reported');
+    if (w.impl.roomCard([b], justFuture.points, justFuture.clock, justFuture.clock.todayOffset, 'reported').rows[0].reportedPct !== null) out.push('a room card row shows a percent from a daily report dated after today');
+  });
+  inZone('Asia/Tokyo', () => {
+    // East of Greenwich the same mistake shows in the morning: 1 am on the 7th in Tokyo is still the 6th in UTC text.
+    const oneAm = new Date(2026, 9, 7, 1, 0, 0);
+    const sched = { id: 's', projectId: 'p', startDate: '2026-10-05', workingDaysPerWeek: 5, tasks: [{ id: 'a', title: 'Demo', startDay: 1, durationDays: 5, progress: 100, status: 'done', actualEndDate: oneAm.toISOString(), dependencies: [] }] } as never;
+    const inp = w.impl.buildReplayInput(sched, [], new Date(2026, 9, 9, 10, 0));
+    if (inp.tasks[0].actualEndOffset !== 3) out.push(`a task finished at 1 am on Wednesday the 7th in Tokyo is placed on day ${inp.tasks[0].actualEndOffset}; want day 3`);
+  });
+  // The schedule's closed days reach the card's dates.
+  const closed = { id: 's', projectId: 'p', startDate: '2026-10-05', workingDaysPerWeek: 5, nonWorkingDates: ['2026-10-07'], tasks: [{ id: 'a', title: 'Demo', startDay: 1, durationDays: 5, progress: 0, status: 'not_started', dependencies: [] }] } as never;
+  const ci = w.impl.buildReplayInput(closed, [], new Date(2026, 9, 9, 10, 0));
+  if (ci.nonWorkingDates.join() !== '2026-10-07') out.push('the schedule\'s closed days are not carried to the replay');
+  const d2 = dateOfOffset(ci, 2);
+  const d4 = dateOfOffset(ci, 4);
+  if (!d2 || d2.getDate() !== 8) out.push(`with Wednesday the 7th closed, the third working day is the ${d2?.getDate()}th; the schedule screen says the 8th`);
+  if (!d4 || d4.getDate() !== 12) out.push(`with Wednesday the 7th closed, the fifth working day is the ${d4?.getDate()}th; the schedule screen says Monday the 12th`);
+  if (dateOfOffset({ ...ci, startDate: null }, 2) !== null) out.push('a date is made up for a schedule with no start date');
+  const sh = code(w.files['components/livingModel/replayShared.tsx'] ?? '');
+  if (!/const d = dateOfOffset\(input, at\);/.test(sh)) out.push('the room card does not work its dates out with the schedule\'s closed days');
+  if (/addWorkingDays\(/.test(sh)) out.push('the room card counts working days itself, without the schedule\'s closed days');
+  const ri = code(w.files['utils/livingModel/replayInput.ts'] ?? '');
+  if (/\.slice\(0, 10\)/.test(ri)) out.push('replayInput reads a date by cutting its text: an evening in New York lands on the next day');
+  if (!/calendarDayStart\(value\)/.test(ri) || !/calendarDayStart\(r\.date\)/.test(ri)) out.push('replayInput does not read dates through utils/calendarDate.calendarDayStart');
+  return out;
+});
+
+const NO_START = 'Daily reports cannot be placed without a start date. Reported shows only the schedule’s own progress.';
+rule('C8', 'with no start date the notice says what Reported really shows, and leads to where the date is set', (w) => {
+  const out: string[] = [];
+  const sched = {
+    id: 's', projectId: 'p', workingDaysPerWeek: 5,
+    tasks: [
+      { id: 'a', title: 'Demo', startDay: 1, durationDays: 5, progress: 40, status: 'in_progress', dependencies: [] },
+      { id: 'b', title: 'Framing', startDay: 6, durationDays: 5, progress: 0, status: 'not_started', dependencies: [] },
+    ],
+  } as never;
+  const reports = [{ id: 'r', projectId: 'p', date: '2026-10-06', workProgress: [{ taskId: 'a', pct: 90 }, { taskId: 'b', pct: 55 }] }] as never;
+  const inp = w.impl.buildReplayInput(sched, reports, new Date(2026, 9, 9, 10, 0));
+  if (inp.clock.hasStartDate || inp.startDate !== null) out.push('a schedule with no start date is said to have one');
+  if (inp.points.length !== 0) out.push(`${inp.points.length} daily report percents were placed with no start date: there is no day to put them on`);
+  const a = inp.tasks.find((t) => t.id === 'a')!;
+  const b = inp.tasks.find((t) => t.id === 'b')!;
+  for (const at of [0, 3, 10]) {
+    if (!near(w.impl.reportedAt(a, inp.points, at, inp.clock.todayOffset), 0.4)) out.push(`with no start date, Reported for a task at 40 in the schedule reads ${w.impl.reportedAt(a, inp.points, at, inp.clock.todayOffset)} at day ${at}: the notice says it shows the schedule's own progress`);
+    if (w.impl.reportedAt(b, inp.points, at, inp.clock.todayOffset) !== 0) out.push('with no start date, a task with only a daily report shows that report');
+  }
+  const card = w.impl.roomCard([a, b], inp.points, inp.clock, 3, 'reported');
+  if (card.when !== 'undated' || card.pct !== 20) out.push(`with no start date the card reads ${card.pct} (${card.when}); want 20, the plain average of the schedule's own 40 and 0`);
+  if (w.EN[`${K}replay.noStartBody`] !== NO_START) out.push(`the notice reads ${JSON.stringify(w.EN[`${K}replay.noStartBody`])}`);
+  if (/shows as the plan/i.test(String(w.EN[`${K}replay.noStartBody`]))) out.push('the notice says all of it shows as the plan, which is not so: Reported still draws the schedule\'s own progress');
+  if (w.EN[`${K}replay.setStartLabel`] !== 'Set a Start Date') out.push('the link is not called Set a Start Date');
+  const sh = code(w.files['components/livingModel/replayShared.tsx'] ?? '');
+  if (!/\{!clock\.hasStartDate \? \(\s*<View[^>]*testID="lm-no-start">\s*<Text[^>]*>\{copy\.noStartBody\}<\/Text>\s*\{onSetStartDate \? <Button label=\{copy\.setStartLabel\}[^>]*onPress=\{onSetStartDate\}/.test(sh)) out.push('the notice is not shown with its link while the schedule has no start date');
+  const scr = code(w.files['components/livingModel/LivingModelScreen.tsx'] ?? '');
+  if (!/const onSetStartDate = useCallback\(\(\) => router\.push\(\{ pathname: '\/schedule-pro', params: \{ projectId \} \}\), \[router, projectId\]\);/.test(scr)) out.push('the link does not open this project\'s schedule, where the start date is set');
+  if (!/<ReplayControls input=\{input\} state=\{state\} onSetStartDate=\{onSetStartDate\} \/>/.test(scr)) out.push('the replay controls are not handed the link');
+  if (!w.files['app/schedule-pro.tsx']) out.push('/schedule-pro is not a route');
+  return out;
+});
+
 // D. the links
 rule('D1', 'a suggestion is never a link until the person confirms it', (w) => {
   const out: string[] = [];
@@ -511,15 +841,52 @@ rule('D2', 'only the Confirm Suggested button applies suggestions, and nothing b
   const out: string[] = [];
   const callers = Object.keys(w.files).filter((f) => f !== 'utils/livingModel/linkCore.ts' && /\bconfirmSuggestions\s*\(/.test(code(w.files[f])));
   if (callers.join() !== 'components/livingModel/TaskLinks.tsx') out.push(`confirmSuggestions is called from ${callers.join(', ') || 'nowhere'}; want only TaskLinks.tsx`);
-  const tl = w.files['components/livingModel/TaskLinks.tsx'] ?? '';
+  const tl = code(w.files['components/livingModel/TaskLinks.tsx'] ?? '');
   const calls = tl.match(/confirmSuggestions\s*\(/g) ?? [];
   if (calls.length !== 1 || !/onPress=\{\(\) => onChange\(confirmSuggestions\(/.test(tl)) out.push('confirmSuggestions is not called from exactly one onPress');
   if (/useEffect[\s\S]{0,400}confirmSuggestions/.test(tl)) out.push('confirmSuggestions is called from an effect');
-  const suggesters = Object.keys(w.files).filter((f) => f !== 'utils/livingModel/linkCore.ts' && /\bsuggestLinks\s*\(/.test(code(w.files[f])));
-  if (suggesters.join() !== 'components/livingModel/TaskLinks.tsx') out.push(`suggestLinks is called from ${suggesters.join(', ')}; the replay must never see a suggestion`);
+  const suggesters = Object.keys(w.files).filter((f) => f !== 'utils/livingModel/linkCore.ts' && /\b(suggestLinks|suggestionBox)\s*\(/.test(code(w.files[f])));
+  if (suggesters.join() !== 'components/livingModel/TaskLinks.tsx') out.push(`suggestions are asked for from ${suggesters.join(', ')}; the replay must never see a suggestion`);
   const core = w.files['utils/livingModel/linkCore.ts'];
   const body = core.slice(core.indexOf('export function suggestLinks'), core.indexOf('export function confirmSuggestions'));
-  if (/setRoomTaskLink|\.links\[/.test(body)) out.push('suggestLinks writes a link');
+  if (/setRoomTaskLink|\.links\[/.test(body)) out.push('suggestLinks or suggestionBox writes a link');
+  return out;
+});
+
+rule('D3', 'what the Suggested box lists is what Confirm ticks: every name on screen, and no task whose name was not', (w) => {
+  const out: string[] = [];
+  // Nine suggestions for one kitchen: more than the six the box once stopped at.
+  const tasks: LinkTask[] = [
+    { id: 'k1', title: 'Demo kitchen', trade: 'demo' }, { id: 'k2', title: 'Kitchen cabinets', trade: 'finish' }, { id: 'k3', title: 'Countertop template', trade: 'finish' },
+    { id: 'k4', title: 'Backsplash tile', trade: 'finish' }, { id: 'k5', title: 'Set appliances', trade: 'general' }, { id: 'k6', title: 'Range hood duct', trade: 'hvac' },
+    { id: 'k7', title: 'Rough plumbing', trade: 'plumbing' }, { id: 'k8', title: 'Set sink and faucet', trade: 'plumbing' }, { id: 'k9', title: 'Kitchen paint', trade: 'finish' },
+    { id: 'x1', title: 'Roof repair', trade: 'roofing' }, { id: 'x2', title: 'Paint bedrooms', trade: 'finish' },
+  ];
+  const model = addRoom(emptyJobModel('p'), makeRectRoom({ id: 'k', name: 'Kitchen', kind: 'kitchen', widthM: ft(12), lengthM: ft(10), heightM: ft(8) }));
+  const box = w.impl.suggestionBox(model.rooms[0], tasks, []);
+  const want = ['k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'k8', 'k9'];
+  const listedIds = box.listed.map((l) => l.taskId);
+  if (listedIds.join() !== want.join()) out.push(`the box lists ${listedIds.join(', ') || 'nothing'}; nine tasks are suggested for this kitchen and every one has to be on screen`);
+  if (box.confirmIds.join() !== listedIds.join()) out.push(`Confirm would tick ${box.confirmIds.join(', ')}, but the box lists ${listedIds.join(', ')}: a task whose name was not on screen would be ticked`);
+  const titleOf = new Map(tasks.map((t) => [t.id, t.title]));
+  for (const l of box.listed) if (!l.title || l.title !== titleOf.get(l.taskId)) out.push(`the box lists task ${l.taskId} as "${l.title}", not by its own name`);
+  for (const id of box.confirmIds) if (!box.listed.some((l) => l.taskId === id && l.title)) out.push(`Confirm would tick ${id}, whose name is not listed`);
+  // Confirming exactly those ticks exactly those.
+  const done = w.impl.confirmSuggestions(model, 'k', box.confirmIds);
+  if (linkedTaskIds(done, 'k').slice().sort().join() !== listedIds.slice().sort().join()) out.push('after Confirm the ticked tasks are not the listed ones');
+  if (linkedTaskIds(done, 'k').some((id) => id.startsWith('x'))) out.push('Confirm ticked a task that was never suggested');
+  if (w.impl.suggestionBox(done.rooms[0], tasks, linkedTaskIds(done, 'k')).listed.length !== 0) out.push('a ticked task is still listed as suggested');
+  const some = w.impl.suggestionBox(model.rooms[0], tasks, ['k1', 'k7']);
+  if (some.listed.length !== 7 || some.confirmIds.includes('k1') || some.confirmIds.includes('k7')) out.push('a task already ticked is listed or would be ticked again');
+  // The screen prints every listed line and confirms the box's own ids.
+  const tl = code(w.files['components/livingModel/TaskLinks.tsx'] ?? '');
+  if (!/const box = useMemo\(\(\) => \(room \? suggestionBox\(room, input\.linkTasks, live\.ids\)/.test(tl)) out.push('the Tasks tab does not build the Suggested box from suggestionBox');
+  if (!/\{box\.listed\.map\(\(s, i\) => <Text[^>]*>\{s\.title\}<\/Text>\)\}/.test(tl)) out.push('the Suggested box does not print every listed task');
+  if (!/onPress=\{\(\) => onChange\(confirmSuggestions\(model, room\.id, box\.confirmIds\)\)\}/.test(tl)) out.push('Confirm Suggested does not tick the box\'s own list');
+  if (/\.slice\(/.test(tl)) out.push('the Tasks tab cuts a list short: the box would list fewer tasks than Confirm ticks');
+  if (/numberOfLines/.test(tl.slice(tl.indexOf('testID="lm-suggestion-list"'), tl.indexOf('testID="lm-confirm-suggested"')))) out.push('a suggested task\'s name may be cut off in the box');
+  if (!/<ScrollView[^>]*testID="lm-suggestion-list">/.test(tl)) out.push('the Suggested box does not scroll, so a long list would push Confirm off the screen');
+  if (!/\{copy\.suggestedBody\(box\.listed\.length\)\}/.test(tl)) out.push('the count in the Suggested box is not the count of what it lists');
   return out;
 });
 
@@ -609,6 +976,160 @@ rule('E5', 'the pure core imports no React, no React Native, no storage and no 3
   return out;
 });
 
+/** The files the PHONE bundle reaches from a file, by the phone's own rule for picking a file (never a `.web.` one). Feature files only. */
+function phoneGraph(w: World, roots: string[]): { reached: string[]; libs: Map<string, string[]> } {
+  const EXT = ['.ios.tsx', '.ios.ts', '.native.tsx', '.native.ts', '.tsx', '.ts', '.js', '/index.tsx', '/index.ts'];
+  const inFeature = (f: string): boolean => f.startsWith('components/livingModel/') || f.startsWith('utils/livingModel/') || f === 'app/living-model.tsx';
+  const resolve = (from: string, spec: string): string | null => {
+    let base: string;
+    if (spec.startsWith('@/')) base = spec.slice(2);
+    else if (spec.startsWith('.')) base = join(dirname(from), spec);
+    else return null;
+    if (w.files[base] !== undefined) return base;
+    for (const e of EXT) if (w.files[base + e] !== undefined) return base + e;
+    return null;
+  };
+  const seen = new Set<string>();
+  const libs = new Map<string, string[]>();
+  const queue = [...roots];
+  while (queue.length) {
+    const f = queue.shift() as string;
+    if (seen.has(f) || w.files[f] === undefined) continue;
+    seen.add(f);
+    const src = code(w.files[f]).split('\n').filter((l) => !/^\s*import type\b/.test(l)).join('\n').replace(/typeof\s+import\s*\(\s*['"][^'"]+['"]\s*\)/g, '');
+    const re = /(?:import|export)\s[^;'"]*?from\s*['"]([^'"]+)['"]|import\s*['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+    for (const m of src.matchAll(re)) {
+      const spec = m[1] ?? m[2] ?? m[3] ?? m[4];
+      if (!spec.startsWith('@/') && !spec.startsWith('.')) { libs.set(spec, [...(libs.get(spec) ?? []), f]); continue; }
+      const to = resolve(f, spec);
+      if (to && inFeature(to)) queue.push(to);
+    }
+  }
+  return { reached: [...seen], libs };
+}
+
+/** The names scripts/validate-native-surface.ts looks for in the real phone bundle. One list, read out of that script. */
+function nativeSurface3dMarkers(): string[] {
+  const m = /const WEB_ONLY_3D = \[([^\]]+)\]/.exec(read('scripts/validate-native-surface.ts'));
+  return m ? Array.from(m[1].matchAll(/'([A-Za-z]+)'/g)).map((x) => x[1]) : [];
+}
+
+rule('E6', 'the phone never reaches the 3D library: following the phone\'s own imports from the route and the entry row finds no `three`, no web view and no scene builder', (w) => {
+  const out: string[] = [];
+  const g = phoneGraph(w, ['app/living-model.tsx', 'components/livingModel/LivingModelEntryRow.tsx']);
+  if (!g.reached.includes('components/livingModel/LivingModelScreen.tsx') || !g.reached.includes('components/livingModel/JobReplay3D.tsx') || g.reached.length < 15) out.push(`the walk from the route reached only ${g.reached.length} files: it is not following the phone's imports`);
+  for (const [lib, from] of g.libs) if (lib === 'three' || lib.startsWith('three/')) out.push(`the phone reaches the 3D library: ${from.join(', ')} imports "${lib}"`);
+  for (const f of g.reached) {
+    if (/\.web\.(tsx|ts|js)$/.test(f)) out.push(`the phone reaches a web-only file: ${f}`);
+    if (f === 'components/livingModel/threeScene.ts') out.push('the phone reaches the scene builder (threeScene.ts)');
+  }
+  // The bundle check in validate-native-surface looks for these names in the real phone bundle. Each has to be a name the 3D code really carries,
+  // so that check is not looking for words nothing has: the scene builder and the library, which the phone must never reach, hold all of them.
+  const markers = nativeSurface3dMarkers();
+  if (markers.length < 3) out.push('scripts/validate-native-surface.ts no longer lists the names of the 3D code it looks for in the phone bundle');
+  const scene = w.files['components/livingModel/threeScene.ts'] ?? '';
+  for (const name of markers) {
+    if (!scene.includes(name)) out.push(`validate-native-surface looks for "${name}" in the phone bundle, a name the scene builder does not have: that check would pass with the 3D code in the bundle`);
+    for (const f of g.reached) if ((w.files[f] ?? '').includes(name) && code(w.files[f]).includes(name)) out.push(`${f}, which the phone bundles, carries "${name}": the bundle check in validate-native-surface would go red`);
+  }
+  return out;
+});
+
+/** The real three.js with a renderer that draws nothing, so the scene builder runs here with no WebGL. */
+function fakeThree(): { lib: typeof import('three'); log: { made: number; clear: string[]; released: number; disposed: number } } {
+  const log = { made: 0, clear: [] as string[], released: 0, disposed: 0 };
+  class Renderer {
+    shadowMap = { enabled: false, type: 0 };
+    domElement = {};
+    constructor() { log.made += 1; }
+    setClearColor(c: string): void { log.clear.push(String(c)); }
+    setPixelRatio(): void { /* nothing to draw on */ }
+    setSize(): void { /* nothing to draw on */ }
+    render(): void { /* nothing to draw on */ }
+    dispose(): void { log.disposed += 1; }
+    forceContextLoss(): void { log.released += 1; }
+  }
+  return { lib: { ...(THREE_LIB as object), WebGLRenderer: Renderer } as unknown as typeof import('three'), log };
+}
+const hexDist = (a: string, b: string): number => {
+  const n = (h: string) => { const v = parseInt(h.replace('#', ''), 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
+  const p = n(a); const q = n(b);
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+};
+const LIGHT = livingModelPalette(Theme.light as never);
+const DARK = livingModelPalette(Theme.dark as never);
+
+rule('E7', 'a theme change makes a new scene and the rooms are drawn into it again; the WebGL context is given back; a lost context is said and can be reloaded', (w) => {
+  const out: string[] = [];
+  const rooms = sevenRoomJob().rooms;
+  // The scene itself, run here: a scene that was just made holds no rooms. That is why the view has to draw them again after a theme change.
+  const first = fakeThree();
+  const a = w.impl.createJobScene(first.lib, {} as HTMLCanvasElement, LIGHT);
+  if (a.roomCount() !== 0) out.push('a scene that was just made already holds rooms');
+  a.setRooms(rooms, 1.25);
+  a.resize(1100, 560, 1);
+  if (a.roomCount() !== 7 || a.project('kitchen') === null) out.push('setRooms did not put the seven rooms in the scene');
+  a.dispose();
+  if (first.log.released !== 1) out.push(`throwing a scene away gave the WebGL context back ${first.log.released} times; want once`);
+  if (a.roomCount() !== 0) out.push('a scene that was thrown away still holds rooms');
+  const second = fakeThree();
+  const b = w.impl.createJobScene(second.lib, {} as HTMLCanvasElement, DARK);
+  if (b.roomCount() !== 0 || b.project('kitchen') !== null) out.push('the scene made for the new theme is not empty at the start');
+  if (second.log.clear[0]?.toLowerCase() !== DARK.ground.toLowerCase()) out.push(`the new scene's ground is ${second.log.clear[0]}; the dark theme's is ${DARK.ground}`);
+  b.setRooms(rooms, 1.25);
+  if (b.roomCount() !== 7) out.push('the rooms could not be drawn into the new scene');
+  b.dispose();
+  // The view: when the scene goes, `ready` goes with it, so the two effects that draw rooms and stages run again for the next scene.
+  const web = code(w.files['components/livingModel/JobReplay3D.web.tsx'] ?? '');
+  const start = web.slice(web.indexOf('void loadThree().then('), web.indexOf('// The rooms, or the wall height, changed'));
+  const cleanup = start.slice(start.lastIndexOf('return () => {'));
+  if (!/handle\?\.dispose\(\);[\s\S]*setReady\(false\);/.test(cleanup)) out.push('the view does not reset `ready` when its scene is thrown away: after a theme change the new scene would stay empty (a blank 3D view)');
+  if (!/\}, \[palette, reloads\]\);/.test(start)) out.push('the view does not make a new scene when the palette changes or the person reloads the view');
+  if (!/if \(!ready \|\| !sceneRef\.current\) return;\s*sceneRef\.current\.setRooms\(rooms, cut \? DEFAULT_CUT_M : null\);[\s\S]{0,80}\}, \[ready, rooms, cut\]\);/.test(web)) out.push('the rooms are not drawn again when a scene becomes ready');
+  if (!/sceneRef\.current\.apply\(looks\);[\s\S]{0,80}\}, \[ready, rooms, moments, cut\]\);/.test(web)) out.push('the stages are not drawn again when a scene becomes ready');
+  if (!/key: canvasKey,/.test(web) || !/const sceneKey = useMemo\(\(\) => \(\{ palette, reloads \}\), \[palette, reloads\]\);/.test(web)) out.push('each scene does not get a canvas of its own: a canvas whose context was given back cannot draw again');
+  const scene = code(w.files['components/livingModel/threeScene.ts'] ?? '');
+  if (!/renderer\.dispose\(\);[\s\S]{0,260}renderer\.forceContextLoss\(\)/.test(scene)) out.push('the scene does not give its WebGL context back when it is thrown away');
+  // A lost context.
+  if (!/canvas\.addEventListener\('webglcontextlost', onLost\);/.test(web) || !/canvas\.removeEventListener\('webglcontextlost', onLost\);/.test(web)) out.push('the view does not listen for a lost WebGL context');
+  if (!/const onLost = \(e: Event\) => \{ e\.preventDefault\(\); if \(alive\) setLost\(true\); \};/.test(web)) out.push('a lost context is not recorded');
+  if (!/\{lost \? \(\s*<View[^>]*testID="lm-3d-lost">\s*<Text[^>]*>\{copy\.contextLostBody\}<\/Text>\s*<Button label=\{copy\.reloadViewLabel\}[^>]*onPress=\{\(\) => \{ setLost\(false\); setReloads\(\(n\) => n \+ 1\); \}\}/.test(web)) out.push('a lost context is not said in a plain sentence with a Reload View button that makes a new scene');
+  if (w.EN[`${K}replay.reloadViewLabel`] !== 'Reload View') out.push('the button is not called Reload View');
+  return out;
+});
+
+rule('E8', 'the page still scrolls: the wheel zooms the model only after a click or with Ctrl or Cmd, and on a narrow screen one finger belongs to the page', (w) => {
+  const out: string[] = [];
+  const Z = w.impl.wheelShouldZoom;
+  if (Z({}, false) || Z({ ctrlKey: false, metaKey: false }, false)) out.push('a plain wheel over the model zooms it: the page cannot be scrolled past the 3D view');
+  if (!Z({ ctrlKey: true }, false) || !Z({ metaKey: true }, false)) out.push('Ctrl or Cmd with the wheel does not zoom');
+  if (!Z({}, true)) out.push('the wheel does not zoom after the person clicked the model');
+  const T = w.impl.oneFingerTurnsModel;
+  if (T('touch', true)) out.push('on a narrow screen one finger turns the model: it cannot scroll the page');
+  if (!T('touch', false) || !T('mouse', true) || !T('mouse', false) || !T('pen', true)) out.push('a mouse, a pen, or a finger on a wide screen no longer turns the model');
+  if (w.impl.canvasTouchAction(true) !== 'pan-y' || w.impl.canvasTouchAction(false) !== 'none') out.push('the canvas does not leave the up and down swipe to the page on a narrow screen');
+  const web = code(w.files['components/livingModel/JobReplay3D.web.tsx'] ?? '');
+  const wheel = /const onWheel = \(e: WheelEvent\) => \{([\s\S]*?)\n {6}\};/.exec(web);
+  if (!wheel) out.push('the wheel handler is missing');
+  else {
+    const guard = wheel[1].indexOf('if (!wheelShouldZoom(e, ');
+    const stop = wheel[1].indexOf('e.preventDefault()');
+    if (guard < 0 || stop < 0 || guard > stop || !/if \(!wheelShouldZoom\(e, [^\n]*document\.activeElement === canvas\)\) return;/.test(wheel[1])) out.push('the wheel handler stops the page from scrolling before asking whether the wheel is for the model');
+  }
+  if (!/if \(ptr\.size === 1\) \{\s*if \(!oneFingerTurnsModel\(e\.pointerType, compactRef\.current\)\) return;/.test(web)) out.push('one finger is not left to the page on a narrow screen');
+  if (!/touchAction: canvasTouchAction\(compact\),/.test(web)) out.push('the canvas does not take its touch-action from canvasTouchAction');
+  if (/touchAction: 'none'/.test(web)) out.push('the canvas takes every touch for itself');
+  if (!/const onTouch = \(e: TouchEvent\) => \{ if \(e\.touches\.length >= 2 && e\.cancelable\) e\.preventDefault\(\); \};/.test(web)) out.push('two fingers on the model are not kept from scrolling the page');
+  if (!/canvas\.addEventListener\('pointercancel', onCancel\);/.test(web)) out.push('a touch the browser took for scrolling is treated as a tap on a room');
+  const scr = code(w.files['components/livingModel/LivingModelScreen.tsx'] ?? '');
+  if (!/<Text[^>]*testID="lm-3d-hint">\{wide \? copy\.orbitHelpSub : copy\.touchHelpSub\}<\/Text>/.test(scr)) out.push('the one-line hint under the 3D view is missing');
+  const hint = String(w.EN[`${K}replay.orbitHelpSub`] ?? '');
+  if (!/Ctrl or Cmd/.test(hint) || !/click the model first/.test(hint) || /Scroll or pinch to zoom/.test(hint)) out.push(`the hint does not say how the wheel zooms: "${hint}"`);
+  const touch = String(w.EN[`${K}replay.touchHelpSub`] ?? '');
+  if (!/One finger scrolls the page/.test(touch) || !/Two fingers/.test(touch)) out.push(`the narrow-screen hint does not say one finger scrolls and two move the model: "${touch}"`);
+  return out;
+});
+
 // F. the words
 const BANNED_EN = /\baccurate|\baccuracy|\bexact|\bprecise|\bprecision|\bverified\b|\bverify|real[- ]time|\blive\b|as[- ]built|digital twin|\bBIM\b|\bguarantee/i;
 const BANNED_ES = /\bexact[oa]|\bprecis[oa]|\bprecisión|\bverificad|tiempo real|\ben vivo\b|\ben directo\b|conforme a obra|como se construyó|gemelo digital|\bBIM\b|\bgarantiz|\bgarantía/i;
@@ -656,7 +1177,8 @@ rule('F4', 'a scanned room carries the scanner\'s own "off by an inch or more", 
     if (!/room\.source === 'scan' \? <Text[^>]*>\{copy\.scanCaveatBody\}<\/Text> : null/.test(w.files[f] ?? '')) out.push(`${f} does not show the scan line on a scanned room`);
   }
   if (w.EN[`${K}honesty.savedLocalBody`] !== 'Saved on this device only for now.') out.push('the device-only line changed');
-  if (!/<Text[^>]*testID="lm-saved-local">\{copy\.savedLocalBody\}<\/Text>/.test(w.files['components/livingModel/RoomEditor.tsx'] ?? '')) out.push('the editor does not say the model is saved on this device only');
+  if (w.EN[`${K}honesty.otherDevicesBody`] !== 'It will not appear on your other devices.') out.push('the other-devices line changed');
+  if (!/<Text[^>]*testID="lm-saved-local">\{`\$\{copy\.savedLocalBody\} \$\{copy\.otherDevicesBody\}`\}<\/Text>/.test(w.files['components/livingModel/RoomEditor.tsx'] ?? '')) out.push('the editor does not say the model is saved on this device only and will not appear on other devices');
   if (w.EN[`${K}stage.otherLabel`] !== 'Other Work') out.push('a task that maps to no stage is not called Other Work');
   if (w.EN[`${K}card.noProgressLabel`] !== 'No Progress Reported') out.push('a task with nothing reported does not say No Progress Reported');
   if (!/row\.reportedPct == null\s*\?\s*<Text[^>]*>\{copy\.noProgressLabel\}/.test(w.files['components/livingModel/replayShared.tsx'] ?? '')) out.push('the room card does not print No Progress Reported for a task with nothing reported');
@@ -746,6 +1268,14 @@ rule('G4', 'the route redirects before it mounts anything, and the screen waits 
   const before = body.slice(0, body.indexOf('livingModelAllowed('));
   if (/use(?!Auth)[A-Z][A-Za-z]*\(/.test(before)) out.push('the route calls a hook before the gate');
   if (/LivingModelScreen|loadJobModel|useProjects/.test(body)) out.push('the route\'s first function mounts the screen or reads data');
+  // A refresh: until the saved sign-in is read back nobody is signed in YET. Wait; do not send the owner Home.
+  const waitAt = body.indexOf('if (isLoading) return <AuthSettling />;');
+  const gateAt = body.indexOf('if (!livingModelAllowed(');
+  if (!/const \{ user, isLoading \} = useAuth\(\);/.test(body) || waitAt < 0 || waitAt > gateAt) out.push('the route redirects while the saved sign-in is still being read: a browser refresh sends the owner to Home');
+  const settling = /function AuthSettling\(\) \{([\s\S]*?)\n\}/.exec(r);
+  if (!settling || /LivingModelScreen|Gated|useProjectRoleState|loadJobModel|copy\./.test(settling[1])) out.push('the page shown while the sign-in is read mounts part of the feature');
+  for (const f of [...LM_COMPONENTS(w), 'app/living-model.tsx']) if (/\bas any\b/.test(code(w.files[f] ?? ''))) out.push(`${f} casts with "as any": typed routes are on, so a route string is checked as it is`);
+  if (!/router\.push\(\{ pathname: '\/living-model', params: \{ projectId \} \}\)/.test(w.files['components/livingModel/LivingModelEntryRow.tsx'] ?? '')) out.push('the entry row does not open /living-model as a typed route');
   const gated = r.slice(r.indexOf('function Gated'));
   const seatAt = gated.indexOf("if (seat !== 'open')");
   const screenAt = gated.indexOf('<LivingModelScreen');
@@ -803,7 +1333,8 @@ rule('H2', 'nothing is sent to the server, and no migration was written', (w) =>
   const mig = join(ROOT, 'supabase', 'migrations');
   if (existsSync(mig)) for (const name of readdirSync(mig)) if (/living[_-]?model|job[_-]?model/i.test(name)) out.push(`a migration was written: ${name}`);
   const store = w.files['utils/livingModel/store.ts'] ?? '';
-  if (!/AsyncStorage\.setItem\(key, json\)/.test(store) || (store.match(/AsyncStorage\.setItem\(/g) ?? []).length !== 1) out.push('the store writes somewhere other than the one model key');
+  const writes = (code(store).match(/AsyncStorage\.setItem\([^)]*\)/g) ?? []).sort().join(' ');
+  if (writes !== 'AsyncStorage.setItem(backup, raw) AsyncStorage.setItem(key, json)') out.push(`the store writes ${writes || 'nothing'}; want the model key and the backup of unread text, once each`);
   if (/AsyncStorage\.(clear|multiRemove|removeItem)\(/.test(store)) out.push('the store removes keys');
   return out;
 });
@@ -813,12 +1344,27 @@ rule('I1', 'theme tokens only in the components: no colour is written in them', 
   const out: string[] = [];
   for (const f of [...LM_COMPONENTS(w), 'app/living-model.tsx']) {
     const code = (w.files[f] ?? '').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
-    const m = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/.exec(code.replace(/'#ffffff'/g, "''"));
+    const m = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/.exec(code);
     if (m) out.push(`${f} writes a colour: ${m[0]}`);
   }
   const scene = w.files['components/livingModel/threeScene.ts'] ?? '';
-  if ((scene.match(/'#ffffff'/g) ?? []).length > 6) out.push('threeScene writes more than its white lights and vertex-colour bases');
+  if (!/new THREE\.HemisphereLight\(palette\.sky, palette\.plinth, palette\.skyStrength\)/.test(scene) || !/new THREE\.DirectionalLight\(palette\.sun, palette\.sunStrength\)/.test(scene)) out.push('the 3D lights do not take their colour and strength from the palette');
   if (!/palette\.[a-zA-Z]+/.test(scene)) out.push('the 3D materials do not take their colours from the palette');
+  // A dark table beside the light one, and the theme decides which.
+  const L = w.impl.MATERIALS.light;
+  const D = w.impl.MATERIALS.dark;
+  if (!L || !D) return [...out, 'the palette has no light and dark tables'];
+  if (Object.keys(L).sort().join() !== Object.keys(D).sort().join()) out.push('the light and dark tables do not hold the same materials');
+  const lum = (h: string): number => { const v = parseInt(h.slice(1), 16); return (0.2126 * ((v >> 16) & 255) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255)) / 255; };
+  for (const [k, v] of [...Object.entries(L), ...Object.entries(D)]) if (typeof v === 'string' && !/^#[0-9A-Fa-f]{6}$/.test(v)) out.push(`the palette's ${k} is not a colour: ${v}`);
+  for (const k of ['plinth', 'shell', 'wallOld', 'wallBoard', 'wallFinished', 'trim', 'floorOld', 'floorSub']) {
+    if (typeof L[k] !== 'string' || typeof D[k] !== 'string') { out.push(`the palette has no ${k}`); continue; }
+    if (lum(D[k] as string) >= lum(L[k] as string) - 0.08) out.push(`in the dark table ${k} (${D[k]}) is not darker than in the light one (${L[k]}): pale walls would glare on a dark page`);
+  }
+  if (!((D.skyStrength as number) < (L.skyStrength as number))) out.push('the dark scene is lit as strongly as the light one');
+  if (paletteModeOf(Theme.dark as never) !== 'dark' || paletteModeOf(Theme.light as never) !== 'light') out.push('the theme does not decide which table is used');
+  if (DARK.mode !== 'dark' || DARK.ground !== Theme.dark.bg || LIGHT.ground !== Theme.light.bg || DARK.stage.finishes !== Theme.dark.accent) out.push('the palette does not take its ground and accent from the theme');
+  if (!/return useMemo\(\(\) => livingModelPalette\(colors\), \[colors\]\);/.test(w.files['components/livingModel/replayShared.tsx'] ?? '')) out.push('the views do not build the palette from the theme in use');
   return out;
 });
 
@@ -912,6 +1458,75 @@ rule('J4', 'pipes are drawn only in a kitchen, a bathroom or a laundry; wires in
     if (!wet && g.pipes.boxes > 0) out.push(`${r.id} is not a wet room and has pipes`);
     if (g.wires.boxes === 0) out.push(`${r.id} has no wires`);
   }
+  return out;
+});
+
+rule('J5', 'the home view fits full-height walls; a small room\'s label gives way; each room\'s floor carries its stage colour', (w) => {
+  const out: string[] = [];
+  // 1. The fit, as numbers: every corner of the model, at the top of its walls and at the floor, lands inside the frame at the home view.
+  const AZ = 0.72;
+  const EL = 0.9;
+  const box = modelBounds(sevenRoomJob())!;
+  const cx = (box.minX + box.maxX) / 2;
+  const cz = (box.minY + box.maxY) / 2;
+  let zoomCut = 0;
+  let zoomFull = 0;
+  for (const [what, H] of [['cut-away', 1.25], ['full-height', ft(8)]] as const) {
+    for (const [W, Hpx] of [[1100, 560], [360, 380], [700, 900]] as const) {
+      const ext = w.impl.viewExtent(box, H, AZ, EL);
+      const zoom = fitZoom(ext, W, Hpx);
+      if (what === 'cut-away' && W === 1100) zoomCut = zoom;
+      if (what === 'full-height' && W === 1100) zoomFull = zoom;
+      for (const x of [box.minX, box.maxX]) for (const z of [box.minY, box.maxY]) for (const y of [0, H]) {
+        const p = screenPoint({ x, y, z }, { x: cx, y: H / 2, z: cz }, AZ, EL, zoom);
+        if (Math.abs(p.x) > (W / 2) * VIEW_FILL + 0.5 || Math.abs(p.y) > (Hpx / 2) * VIEW_FILL + 0.5) out.push(`${what} walls on a ${W} by ${Hpx} canvas: the corner at height ${y.toFixed(2)} m lands ${Math.abs(p.x).toFixed(0)}, ${Math.abs(p.y).toFixed(0)} px from the middle, outside the frame's ${((W / 2) * VIEW_FILL).toFixed(0)}, ${((Hpx / 2) * VIEW_FILL).toFixed(0)}`);
+      }
+    }
+  }
+  if (!(zoomFull < zoomCut)) out.push('the view does not pull back for full-height walls');
+  const flat = w.impl.viewExtent(box, 0, AZ, EL);
+  const tall = w.impl.viewExtent(box, ft(8), AZ, EL);
+  if (!near(tall.halfH - flat.halfH, (Math.cos(EL) * ft(8)) / 2, 1e-9) || !near(tall.halfW, flat.halfW)) out.push('the wall height is not counted in how tall the model stands on the screen');
+  if (w.impl.viewExtent(null, Number.NaN, AZ, EL).halfW < 1) out.push('an empty model has no size to fit');
+  const scene = code(w.files['components/livingModel/threeScene.ts'] ?? '');
+  if (!/fitZoom\(viewExtent\(floorBox, V\.wallH, DEFAULT_VIEW\.azimuth, DEFAULT_VIEW\.elevation\), V\.w, V\.h\)/.test(scene) || !/V\.wallH = list\.length \? Math\.max\(/.test(scene)) out.push('the scene does not fit its home view to the walls it draws');
+  // 2. Labels: a label is never wider than its room allows, except for the room the person picked or is pointing at.
+  const P = w.impl.pinSize;
+  if (P(PIN_FULL_PX, false) !== 'full' || P(PIN_FULL_PX - 1, false) !== 'name' || P(PIN_NAME_PX, false) !== 'name' || P(PIN_NAME_PX - 1, false) !== 'dot') out.push('a label does not give way as its room gets smaller');
+  if (P(10, true) !== 'full') out.push('the selected room\'s label is not shown in full');
+  if (P(Number.NaN, false) === 'full') out.push('a room whose size is not known gets a full label');
+  const web = code(w.files['components/livingModel/JobReplay3D.web.tsx'] ?? '');
+  if (!/pinSize\(handle\?\.roomWidthPx\(roomId\) \?\? Number\.NaN, roomId === selectedRef\.current \|\| roomId === hoverRef\.current\)/.test(web)) out.push('the 3D view does not size each label from how wide its room is drawn');
+  if (!/if \(sub\) sub\.style\.display = size === 'full' \? '' : 'none';/.test(web) || !/if \(name\) name\.style\.display = size === 'dot' \? 'none' : '';/.test(web)) out.push('the stage line and the name are not hidden in a small room');
+  // 3. The scene, run with no WebGL: floors by stage, in the light table and the dark one.
+  for (const pal of [LIGHT, DARK]) {
+    const t3 = fakeThree();
+    const h = w.impl.createJobScene(t3.lib, {} as HTMLCanvasElement, pal);
+    h.setRooms(sevenRoomJob().rooms, 1.25);
+    h.resize(1100, 560, 1);
+    const idle = { skin: 1, studs: 0, roughIn: 0, insulation: 0, board: 0, finish: 0 };
+    const stages = { living: 'rough_in', kitchen: 'drywall', hall: 'no_tasks', bed1: 'not_started', bath: 'done', closet: 'framing', bed2: 'demolition' } as const;
+    const looks = new Map(Object.entries(stages).map(([id, stage]) => [id, { solid: idle, ghost: idle, opens: false, stage }]));
+    h.apply(looks as never);
+    const plain = h.floorHex('hall');
+    if (!plain || h.floorHex('bed1') !== plain) out.push(`${pal.mode}: a room with no ticked tasks and a room not started do not share the plain floor`);
+    const seenFloors = new Set<string>();
+    for (const [id, stage] of Object.entries(stages)) {
+      const hex = h.floorHex(id);
+      if (!hex) { out.push(`${pal.mode}: ${id} has no floor`); continue; }
+      if (stage === 'no_tasks' || stage === 'not_started') continue;
+      seenFloors.add(hex);
+      if (hex === plain) out.push(`${pal.mode}: the floor of a room in ${stage} is the plain floor: its stage shows only on the label`);
+      else if (plain && !(hexDist(hex, pal.stage[stage]) < hexDist(plain, pal.stage[stage]) * 0.6)) out.push(`${pal.mode}: the floor of a room in ${stage} (${hex}) is not clearly the stage colour ${pal.stage[stage]}`);
+    }
+    if (seenFloors.size !== 5) out.push(`${pal.mode}: five rooms in five stages are drawn on ${seenFloors.size} floor colours`);
+    const wide = h.roomWidthPx('hall');
+    const small = h.roomWidthPx('closet');
+    if (wide == null || small == null || !(wide > small * 2)) out.push(`${pal.mode}: the 28 ft hall is drawn ${wide?.toFixed(0)} px wide and the 4 ft closet ${small?.toFixed(0)} px: the label sizes have nothing to go on`);
+    if (h.roomWidthPx('no-such-room') !== null) out.push('a room that is not in the scene has a width');
+    h.dispose();
+  }
+  if (!(LIGHT.floorTint >= 0.4 && LIGHT.floorTint <= 0.8 && DARK.floorTint >= 0.4 && DARK.floorTint <= 0.8)) out.push('the floor tint is so weak the stage cannot be read, or so strong the floor is lost');
   return out;
 });
 

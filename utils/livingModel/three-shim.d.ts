@@ -12,6 +12,7 @@ declare module 'three' {
     set(c: string | number): this;
     copy(c: Color): this;
     lerp(c: Color, alpha: number): this;
+    getHexString(): string;
   }
   export class Vector2 {
     constructor(x?: number, y?: number);
