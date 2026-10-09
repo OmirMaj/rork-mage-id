@@ -27,7 +27,7 @@ export interface DemoClock {
   at: (ordinal: number, hour?: number, minute?: number) => string;
   /** A local-time instant on a calendar day, as ISO. */
   atDay: (day: string, hour?: number, minute?: number) => string;
-  /** A calendar day `n` calendar days from today (negative = before). */
+  /** A calendar day `n` calendar days from the data date (negative = before). */
   fromToday: (n: number) => string;
 }
 
@@ -51,6 +51,9 @@ export function makeDemoClock(todayDay: string): DemoClock {
   const dayDate = (ordinal: number): Date => stepWorkdays(start, Math.round(ordinal) - 1);
   const iso = (d: Date, hour: number, minute: number): string =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour, minute, 0, 0).toISOString();
+  // Everything is counted from the DATA DATE, so a job made on a Saturday and
+  // one finished the Monday after are the same job.
+  const anchor = data;
   return {
     today: toCalendarDayString(parsed),
     dataDate: toCalendarDayString(data),
@@ -58,6 +61,17 @@ export function makeDemoClock(todayDay: string): DemoClock {
     dayOf: (ordinal) => toCalendarDayString(dayDate(ordinal)),
     at: (ordinal, hour = 9, minute = 0) => iso(dayDate(ordinal), hour, minute),
     atDay: (day, hour = 9, minute = 0) => iso(parseCalendarDay(day) ?? parsed, hour, minute),
-    fromToday: (n) => toCalendarDayString(addCalendarDays(parsed, n)),
+    fromToday: (n) => toCalendarDayString(addCalendarDays(anchor, n)),
   };
+}
+
+/**
+ * The day to hand makeDemoClock so it rebuilds the SAME calendar as a demo
+ * whose schedule starts on `startDate`: that demo's data date. This is how a
+ * job is finished later, or on another device, with the dates it began with.
+ */
+export function demoSeedDayFromStart(startDate: string | null | undefined): string | null {
+  const start = parseCalendarDay(startDate);
+  if (!start) return null;
+  return toCalendarDayString(stepWorkdays(start, DATA_DAY - 1));
 }
