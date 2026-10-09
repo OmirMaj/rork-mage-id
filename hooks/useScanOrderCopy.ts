@@ -241,7 +241,6 @@ export function useScanOrderCopy(): ScanOrderCopy {
         return t('office.roomScan.order.qty.footValue', '{count} ft of stick', { count });
       }
       switch (l.unit) {
-        case 'foot': return t('office.roomScan.order.qty.footValue', '{count} ft of stick', { count });
         case 'sheet': return tn('office.roomScan.order.qty.sheetValue', count, { one: '1 sheet', other: '{count} sheets' });
         case 'gallon': return tn('office.roomScan.order.qty.gallonValue', count, { one: '1 gallon', other: '{count} gallons' });
         case 'stick': return tn('office.roomScan.order.qty.stickValue', count, { one: '1 stick', other: '{count} sticks' });
@@ -298,67 +297,6 @@ export function useScanOrderCopy(): ScanOrderCopy {
           return `${head}${stacked}${spare}`;
         }
         case 'spare': return t('office.roomScan.order.basis.spareNote', 'You added this. It is not in the cut layout.');
-        case 'screws': return t('office.roomScan.order.line.screwsLabel', 'Drywall Screws');
-        case 'compound': return t('office.roomScan.order.line.compoundLabel', 'Joint Compound');
-        case 'tape': return t('office.roomScan.order.line.tapeLabel', 'Joint Tape');
-        case 'corner_bead': return t('office.roomScan.order.line.cornerBeadLabel', 'Corner Bead');
-        case 'floor': return b.kind === 'area' && b.floorKind === 'tile'
-          ? t('office.roomScan.order.line.floorTileLabel', 'Floor Tile')
-          : t('office.roomScan.order.line.flooringLabel', 'Flooring');
-        case 'wall_tile': return t('office.roomScan.order.line.wallTileLabel', 'Wall Tile');
-        case 'paint_walls': return t('office.roomScan.order.line.paintWallsLabel', 'Paint, Walls');
-        case 'paint_ceiling': return t('office.roomScan.order.line.paintCeilingLabel', 'Paint, Ceiling');
-        case 'primer': return t('office.roomScan.order.line.primerLabel', 'Primer');
-        default: return l.key;
-      }
-    };
-    const quantity: ScanOrderCopy['quantity'] = (l) => {
-      const count = l.quantity;
-      switch (l.key) {
-        case 'screws': return tn('office.roomScan.order.qty.screwsValue', count, { one: '1 box, 5 lb', other: '{count} boxes, 5 lb each' });
-        case 'compound': return tn('office.roomScan.order.qty.compoundValue', count, { one: '1 bucket, 5 gal', other: '{count} buckets, 5 gal each' });
-        case 'tape': return tn('office.roomScan.order.qty.tapeValue', count, { one: '1 roll, 500 ft', other: '{count} rolls, 500 ft each' });
-        case 'corner_bead': return tn('office.roomScan.order.qty.cornerBeadValue', count, { one: '1 stick, 10 ft', other: '{count} sticks, 10 ft each' });
-      }
-      if (l.unit === 'foot') {
-        const b = l.basis;
-        if (b && b.kind === 'trim' && !l.typed && b.counts.length) {
-          const sticks = [...b.counts].sort((p, q) => q.stockFt - p.stockFt)
-            .map((c) => tn('office.roomScan.order.qty.sticksOfValue', c.count, { one: '1 stick of {ft} ft', other: '{count} sticks of {ft} ft' }, { ft: c.stockFt }))
-            .join(', ');
-          return t('office.roomScan.order.qty.footSticksValue', '{count} ft of stick: {sticks}', { count, sticks });
-        }
-        return t('office.roomScan.order.qty.footValue', '{count} ft of stick', { count });
-      }
-      switch (l.unit) {
-        case 'foot': return t('office.roomScan.order.qty.footValue', '{count} ft of stick', { count });
-        case 'sheet': return tn('office.roomScan.order.qty.sheetValue', count, { one: '1 sheet', other: '{count} sheets' });
-        case 'gallon': return tn('office.roomScan.order.qty.gallonValue', count, { one: '1 gallon', other: '{count} gallons' });
-        case 'stick': return tn('office.roomScan.order.qty.stickValue', count, { one: '1 stick', other: '{count} sticks' });
-        case 'box': return tn('office.roomScan.order.qty.boxValue', count, { one: '1 box', other: '{count} boxes' });
-        case 'bucket': return tn('office.roomScan.order.qty.bucketValue', count, { one: '1 bucket', other: '{count} buckets' });
-        case 'roll': return tn('office.roomScan.order.qty.rollValue', count, { one: '1 roll', other: '{count} rolls' });
-        case 'sqft': return t('office.roomScan.order.qty.sqftValue', '{count} sq ft', { count });
-      }
-    };
-    const reason = (r: WasteReason): string => {
-      if (r.kind === 'typed') return t('office.roomScan.order.reason.typedNote', 'You set the allowance to {pct} percent.', { pct: r.pct });
-      if (r.kind === 'wallTile') return t('office.roomScan.order.reason.wallTileNote', 'Wall tile takes {pct} percent, for the cuts at the edges and around openings.', { pct: r.pct });
-      if (r.kind === 'shape') return r.angled
-        ? t('office.roomScan.order.reason.angledNote', 'This room has angled walls, so {pct} percent more.', { pct: r.pct })
-        : t('office.roomScan.order.reason.cornersNote', 'This room has {corners} corners, so {pct} percent more.', { corners: r.corners, pct: r.pct });
-      switch (r.layout) {
-        case 'straight': return t('office.roomScan.order.reason.straightNote', 'A straight layout takes {pct} percent.', { pct: r.pct });
-        case 'diagonal': return t('office.roomScan.order.reason.diagonalNote', 'A diagonal layout takes {pct} percent, for the cuts along every wall.', { pct: r.pct });
-        case 'herringbone': return t('office.roomScan.order.reason.herringboneNote', 'A herringbone layout takes {pct} percent, for the cuts along every wall.', { pct: r.pct });
-      }
-    };
-    const assumption: ScanOrderCopy['assumption'] = (l) => {
-      const b = l.basis;
-      switch (b.kind) {
-        case 'sheets': return b.where === 'walls'
-          ? t('office.roomScan.order.basis.sheetsWallsNote', 'Laid out wall by wall on {hung} sq ft of wall, with doors and windows cut out once. Offcuts of {min} in and over are used again.', { hung: n1(b.hungSF), min: b.minOffcutIn })
-          : t('office.roomScan.order.basis.sheetsCeilingNote', 'Laid out on the true shape of the ceiling, {hung} sq ft, with the sheets along the longest wall.', { hung: n1(b.hungSF) });
         case 'screws': return t('office.roomScan.order.basis.screwsNote', 'Rule of thumb: about 1 screw for each square foot of board, on {board} sq ft. A 5 lb box holds about 1,000.', { board: n1(b.boardSF) });
         case 'compound': return t('office.roomScan.order.basis.compoundNote', 'Rule of thumb: about 1 gallon for each 100 sq ft of board, on {board} sq ft.', { board: n1(b.boardSF) });
         case 'tape': return t('office.roomScan.order.basis.tapeNote', 'Rule of thumb: about 370 ft of tape for each 1,000 sq ft of board, on {board} sq ft.', { board: n1(b.boardSF) });

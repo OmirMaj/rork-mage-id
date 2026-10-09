@@ -43,7 +43,8 @@ export async function recordTapePairs(userId: string | null | undefined, pairs: 
 
 /** Remove the pairs of scans that are no longer on this phone: a deleted scan, or scans the saved-list cap pushed off. Returns the list now stored, or null when nothing was written. */
 export async function forgetScansTapePairs(userId: string | null | undefined, scanIds: readonly string[]): Promise<TapePair[] | null> {
-  if (!userId || scanIds.length === 0) return null;
+  if (!userId) return null;
+  if (scanIds.length === 0) return null;
   try {
     const next = removeScansPairs(await loadTapePairs(userId), scanIds);
     await AsyncStorage.setItem(tapeLogKey(userId), JSON.stringify({ version: 1, pairs: next }));
