@@ -287,6 +287,236 @@ export function threeOpeningsSpec(): RoomSpec {
   };
 }
 
+// ── three more, for Clearance Check (lane CLEARANCE) ────────────────────────
+// Drawn in whole and half inches so every distance can be worked out by hand
+// (the working is in scripts/validate-scan-clearance.ts).
+
+/**
+ * A tight bathroom, 5 ft by 8 ft, ceiling 6 ft 9 in. Left wall x = 0, bottom
+ * wall y = 0. On the left wall: a sink (24 in wide, 20 in deep, from y = 15.5
+ * to 39.5) and a toilet (15 in wide, 28 in deep, centre line at y = 52). A tub
+ * 30 in deep fills the far end from y = 66. A cabinet 10 in deep stands on the
+ * right wall across from the toilet. One 28 in door on the bottom wall.
+ */
+export function tightBathSpec(): RoomSpec {
+  const walls = ring([inPt(0, 0), inPt(60, 0), inPt(60, 96), inPt(0, 96)], 81 * IN);
+  return {
+    walls,
+    openings: [{ kind: 'door', wall: 0, at: 42 * IN, width: 28 * IN, height: 80 * IN, sill: 0 }],
+    objects: [
+      { category: 'bathtub', at: inPt(30, 81), w: 60 * IN, h: 20 * IN, d: 30 * IN },
+      { category: 'toilet', at: inPt(14, 52), w: 15 * IN, h: 30 * IN, d: 28 * IN, turnDeg: 90 },
+      { category: 'sink', at: inPt(10, 27.5), w: 24 * IN, h: 34 * IN, d: 20 * IN, turnDeg: 90 },
+      { category: 'storage', at: inPt(55, 52), w: 20 * IN, h: 72 * IN, d: 10 * IN, turnDeg: 90 },
+    ],
+    rotateDeg: 17,
+    shift: { x: 0.7, y: -0.4 },
+    section: 'bathroom',
+  };
+}
+
+/** A narrow hallway, 3 ft 1 in by 20 ft, 8 ft ceiling. A 30 in door at each end, and a stair the scan saw as one box. */
+export function narrowHallSpec(): RoomSpec {
+  const walls = ring([inPt(0, 0), inPt(240, 0), inPt(240, 37), inPt(0, 37)], 96 * IN);
+  return {
+    walls,
+    openings: [
+      { kind: 'door', wall: 1, at: 18.5 * IN, width: 30 * IN, height: 80 * IN, sill: 0 },
+      { kind: 'door', wall: 3, at: 18.5 * IN, width: 30 * IN, height: 80 * IN, sill: 0 },
+    ],
+    objects: [{ category: 'stairs', at: inPt(200, 18.5), w: 36 * IN, h: 60 * IN, d: 60 * IN }],
+    rotateDeg: -11,
+    shift: { x: 0.2, y: 1.3 },
+  };
+}
+
+/** A bedroom, 10 ft by 11 ft, 8 ft ceiling. One window 24 in by 36 in with its sill 43 in up, and a 36 in door. */
+export function bedroomWindowSpec(): RoomSpec {
+  const walls = ring([inPt(0, 0), inPt(120, 0), inPt(120, 132), inPt(0, 132)], 96 * IN);
+  return {
+    walls,
+    openings: [
+      { kind: 'door', wall: 0, at: 30 * IN, width: 36 * IN, height: 80 * IN, sill: 0 },
+      { kind: 'window', wall: 2, at: 60 * IN, width: 24 * IN, height: 36 * IN, sill: 43 * IN },
+    ],
+    objects: [{ category: 'bed', at: inPt(60, 90), w: 60 * IN, h: 24 * IN, d: 80 * IN }],
+    rotateDeg: 23,
+    shift: { x: -1.1, y: 0.6 },
+    section: 'bedroom',
+  };
+}
+
+// ── eight more, the review round of Clearance Check ─────────────────────────
+// Each is a room an independent reviewer broke the first geometry on, or a
+// figure the reviewer changed. The answer is worked by hand in each comment,
+// in inches, and again in scripts/validate-scan-clearance.ts. Every room is
+// 60 wide (x) by 96 deep (y) unless it says otherwise: left wall x = 0, right
+// wall x = 60, bottom wall y = 0, far wall y = 96. The margin is 1.5.
+
+/**
+ * A SINK IN A VANITY. The cabinet is 36 wide and 22 deep on the left wall:
+ * x 0 to 22, y 30 to 66. The sink is 20 wide and 16 deep, centred in it:
+ * x 3 to 19, y 38 to 58. The sink's centre is inside the cabinet, so the
+ * cabinet is the vanity it sits in: the front line starts at the cabinet's
+ * face, x = 22, and runs to the right wall, x = 60.
+ *   SINK, CLEAR SPACE IN FRONT   60 - 22 = 38. Figure 21: past 22.5, ROOMY.
+ * (The first geometry started at the sink's own front, x = 19, inside the
+ * cabinet, and met the cabinet's own face: 22 - 19 = 3 in, "Tight".)
+ */
+export function vanitySinkSpec(): RoomSpec {
+  return {
+    walls: ring([inPt(0, 0), inPt(60, 0), inPt(60, 96), inPt(0, 96)], 96 * IN),
+    objects: [
+      { category: 'storage', at: inPt(11, 48), w: 36 * IN, h: 34 * IN, d: 22 * IN, turnDeg: 90 },
+      { category: 'sink', at: inPt(11, 48), w: 20 * IN, h: 8 * IN, d: 16 * IN, turnDeg: 90 },
+    ],
+    rotateDeg: 13,
+    shift: { x: 0.4, y: 0.9 },
+    section: 'bathroom',
+  };
+}
+
+/**
+ * A CABINET BESIDE THE FRONT HALF OF A TOILET. The toilet is 15 wide and 28
+ * deep on the left wall, centre line y = 48: x 0 to 28, y 40.5 to 55.5. A
+ * cabinet 12 by 14 stands beside the bowl: x 16 to 28, y 56 to 70. It does
+ * not cross a line drawn sideways from the middle of the box (x = 14).
+ *   TOILET, CENTRE LINE TO THE CABINET   56 - 48 = 8. Figure 15: under 13.5, TIGHT.
+ *   TOILET, CENTRE LINE TO THE WALL      48 - 0 = 48 (the bottom wall). ROOMY.
+ *   TOILET, CLEAR SPACE IN FRONT         the cabinet starts at y = 56, past the
+ *       edge of the box (55.5), so it is not in front: 60 - 28 = 32. ROOMY.
+ * (The first geometry ran one line from x = 14 and read 48 in "Roomy" on both sides.)
+ */
+export function toiletSideCabinetSpec(): RoomSpec {
+  return {
+    walls: ring([inPt(0, 0), inPt(60, 0), inPt(60, 96), inPt(0, 96)], 96 * IN),
+    objects: [
+      { category: 'toilet', at: inPt(14, 48), w: 15 * IN, h: 30 * IN, d: 28 * IN, turnDeg: 90 },
+      { category: 'storage', at: inPt(22, 63), w: 12 * IN, h: 30 * IN, d: 14 * IN },
+    ],
+    rotateDeg: -19,
+    shift: { x: -0.5, y: 0.3 },
+    section: 'bathroom',
+  };
+}
+
+/**
+ * A TOILET NEAR A CORNER, ITS BOX AXES SWAPPED. The same box as a toilet
+ * backed onto the left wall with its centre line 16 from the bottom wall
+ * (x 0 to 28, y 8.5 to 23.5), but written the other way round: "width" 28
+ * along x, "depth" 15 along y. The bottom wall is 8.5 from the box and the
+ * left wall touches it: a wall within reach on BOTH axes.
+ *   NO ROW FOR THIS TOILET. It is left out with "MAGE cannot tell which way
+ *   this fixture faces. Tape it."
+ * (The first geometry trusted the "depth" axis, took the bottom wall for the
+ * back, and read 14 in "Close" to the left wall whatever the true distance.)
+ */
+export function toiletCornerSwappedSpec(): RoomSpec {
+  return {
+    walls: ring([inPt(0, 0), inPt(60, 0), inPt(60, 96), inPt(0, 96)], 96 * IN),
+    objects: [{ category: 'toilet', at: inPt(14, 16), w: 28 * IN, h: 30 * IN, d: 15 * IN }],
+    rotateDeg: 29,
+    shift: { x: 0.9, y: -0.2 },
+    section: 'bathroom',
+  };
+}
+
+/**
+ * SOMETHING AHEAD OF ONLY THE OUTER EDGE OF A BOWL. The toilet is the tight
+ * bathroom's: x 0 to 28, y 44.5 to 59.5, centre line y = 52. A cabinet 10 deep
+ * stands on the right wall covering only y 57 to 63: x 50 to 60. It is ahead
+ * of the last 2.5 in of the bowl and of nothing nearer the centre.
+ *   TOILET, CLEAR SPACE IN FRONT   50 - 28 = 22. Figure 21: 19.5 to 22.5, CLOSE.
+ *   TOILET, EACH SIDE              the cabinet is ahead of the box, not beside
+ *       it: 52 to the bottom wall and 96 - 52 = 44 to the far wall. ROOMY.
+ * (The first geometry looked along y = 48.25, 52 and 55.75 only, missed the
+ * cabinet and read 32 in "Roomy".)
+ */
+export function toiletFrontEdgeSpec(): RoomSpec {
+  return {
+    walls: ring([inPt(0, 0), inPt(60, 0), inPt(60, 96), inPt(0, 96)], 96 * IN),
+    objects: [
+      { category: 'toilet', at: inPt(14, 52), w: 15 * IN, h: 30 * IN, d: 28 * IN, turnDeg: 90 },
+      { category: 'storage', at: inPt(55, 60), w: 6 * IN, h: 72 * IN, d: 10 * IN, turnDeg: 90 },
+    ],
+    rotateDeg: 41,
+    shift: { x: -0.3, y: -0.8 },
+    section: 'bathroom',
+  };
+}
+
+/**
+ * A BEDROOM WITH A JOG. 12 ft by 12 ft (144 by 144), 8 ft ceiling, with a
+ * nook 36 wide and 14 deep off the far wall at the left: the left wall runs
+ * from y = 0 to 158, and the nook's other wall is x = 36 from y = 144 to 158.
+ *   NARROWEST WIDTH BETWEEN WALLS   36, between the left wall and the nook's
+ *       wall. The stretch the two share is 14 long. 14 is under 2.5 x 36 = 90,
+ *       so this is NOT a hallway: no figure, no state.
+ *   LOWEST CEILING                  96. Set beside 84 as a room: ROOMY. (In New
+ *       York City it is also set beside that city's 96: CLOSE.)
+ * (The first geometry used the left wall's whole length, 158, called the room
+ * a 36 in hallway, "Close", and dropped the bedroom's ceiling line.)
+ */
+export function bedroomJogSpec(): RoomSpec {
+  return {
+    walls: ring([inPt(0, 0), inPt(144, 0), inPt(144, 144), inPt(36, 144), inPt(36, 158), inPt(0, 158)], 96 * IN),
+    rotateDeg: 8,
+    shift: { x: 1.2, y: 0.4 },
+    section: 'bedroom',
+  };
+}
+
+/**
+ * A BATHROOM WITH A CEILING AT 82.5. 60 by 96, nothing in it.
+ *   LOWEST CEILING, ANYWHERE BUT NEW YORK CITY   82.5 beside 80 (6 ft 8 in):
+ *       past 81.5, ROOMY.
+ *   LOWEST CEILING, IN NEW YORK CITY             also beside that city's
+ *       commonly cited 84 (7 ft): 84 - 1.5 = 82.5, so 82.5 is CLOSE. The row
+ *       takes CLOSE and credits the New York City figure. Never ROOMY there.
+ */
+export function bathCeiling82Spec(): RoomSpec {
+  return {
+    walls: ring([inPt(0, 0), inPt(60, 0), inPt(60, 96), inPt(0, 96)], 82.5 * IN),
+    rotateDeg: -4,
+    shift: { x: 0.1, y: 0.6 },
+    section: 'bathroom',
+  };
+}
+
+/**
+ * A BEDROOM WITH A CEILING AT 96. 132 by 144, nothing in it.
+ *   LOWEST CEILING, IN BALTIMORE (or anywhere but New York City)   96 beside
+ *       84 alone: past 85.5, ROOMY. There is NO 8 ft line.
+ *   LOWEST CEILING, IN NEW YORK CITY   also beside that city's commonly cited
+ *       96: on it, CLOSE.
+ */
+export function bedroom96Spec(): RoomSpec {
+  return {
+    walls: ring([inPt(0, 0), inPt(132, 0), inPt(132, 144), inPt(0, 144)], 96 * IN),
+    rotateDeg: 15,
+    shift: { x: -0.7, y: 0.2 },
+    section: 'bedroom',
+  };
+}
+
+/**
+ * 22 IN IN FRONT OF A TOILET. The room is 50 wide. The toilet is 15 wide and
+ * 28 deep on the left wall, centre line y = 48: its front is x = 28.
+ *   TOILET, CLEAR SPACE IN FRONT   50 - 28 = 22, to the right wall. Read
+ *       against 21 alone: 19.5 to 22.5, CLOSE. (It was "Tight" while the
+ *       front was also read against 24.)
+ *   TOILET, EACH SIDE              48 to the bottom wall and 48 to the far wall. ROOMY.
+ */
+export function toiletFront22Spec(): RoomSpec {
+  return {
+    walls: ring([inPt(0, 0), inPt(50, 0), inPt(50, 96), inPt(0, 96)], 96 * IN),
+    objects: [{ category: 'toilet', at: inPt(14, 48), w: 15 * IN, h: 30 * IN, d: 28 * IN, turnDeg: 90 }],
+    rotateDeg: -26,
+    shift: { x: 0.5, y: 0.5 },
+    section: 'bathroom',
+  };
+}
+
 export const FIXTURE_FILES: Record<string, () => RoomSpec> = {
   'bathroom.json': bathroomSpec,
   'l-shape.json': lShapeSpec,
@@ -294,4 +524,15 @@ export const FIXTURE_FILES: Record<string, () => RoomSpec> = {
   'bay-room.json': bayRoomSpec,
   'hallway.json': hallwaySpec,
   'three-openings.json': threeOpeningsSpec,
+  'tight-bath.json': tightBathSpec,
+  'narrow-hall.json': narrowHallSpec,
+  'bedroom-window.json': bedroomWindowSpec,
+  'vanity-sink.json': vanitySinkSpec,
+  'toilet-side-cabinet.json': toiletSideCabinetSpec,
+  'toilet-corner-swapped.json': toiletCornerSwappedSpec,
+  'toilet-front-edge.json': toiletFrontEdgeSpec,
+  'bedroom-jog.json': bedroomJogSpec,
+  'bath-ceiling-82.json': bathCeiling82Spec,
+  'bedroom-96.json': bedroom96Spec,
+  'toilet-front-22.json': toiletFront22Spec,
 };

@@ -38,6 +38,8 @@ export interface FloorPlanViewProps {
   onRoomType: (t: RoomType) => void;
   onSave: () => void;
   onNext: () => void;
+  /** The door to Clearance Check. Handed in only for someone the scanner's gate lets in. */
+  clearance?: { label: string; onPress: () => void };
 }
 
 export function FloorPlanView(p: FloorPlanViewProps) {
@@ -243,6 +245,7 @@ export function FloorPlanView(p: FloorPlanViewProps) {
       {p.saveState === 'needsName' && <Text style={styles.errorText} testID="scan-name-needed">{copy.nameNeededBody}</Text>}
       <Button label={copy.saveLabel} variant="secondary" onPress={p.onSave} testID="scan-save" />
       <Button label={copy.seeQuantitiesLabel} variant="primary" onPress={p.onNext} testID="scan-see-quantities" />
+      {p.clearance && <Button label={p.clearance.label} variant="secondary" onPress={p.clearance.onPress} testID="scan-open-clearance" />}
     </View>
   );
 }

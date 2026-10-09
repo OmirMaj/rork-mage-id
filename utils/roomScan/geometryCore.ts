@@ -395,6 +395,8 @@ export function planForDisplay(scan: RoomScan): {
   objects: { id: string; center: Pt; rotationRad: number }[];
   width: number;
   height: number;
+  /** Any plan point, moved the same way (a dimension line drawn over the plan). */
+  place: (p: Pt) => Pt;
 } {
   const longest = scan.walls.reduce<ScanWall | null>((m, w) => (!m || w.lengthM > m.lengthM ? w : m), null);
   const ang = longest ? Math.atan2(longest.b.y - longest.a.y, longest.b.x - longest.a.x) : 0;
@@ -414,5 +416,6 @@ export function planForDisplay(scan: RoomScan): {
     objects: scan.objects.map((o) => ({ id: o.id, center: place(o.center), rotationRad: -(o.rotationRad - ang) })),
     width: maxX - minX,
     height: maxY - minY,
+    place,
   };
 }

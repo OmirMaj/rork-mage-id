@@ -75,7 +75,7 @@ export const ES_OFFICE_CODE_FLAGS: EsCatalog = {
   "office.codeFlags.sheet.introBody": { s: "Es común que este tipo de trabajo se revise en un permiso o lo mire un inspector. MAGE ID lo marca para que lo revises. Tú decides qué hacer.", src: "2c3004fc" },
   "office.codeFlags.sheet.neverBlocksBody": { s: "Un aviso nunca te impide guardar, enviar, firmar ni facturar.", src: "9cc2c7bd" },
   "office.codeFlags.sheet.noFlagBody": { s: "Un renglón sin aviso todavía puede necesitar un permiso o una inspección. Que no haya aviso no significa nada.", src: "43870887" },
-  "office.codeFlags.sheet.privateBody": { s: "Solo tú ves este aviso. No aparece en nada de lo que envías.", src: "a74522d1" },
+  "office.codeFlags.sheet.privateBody": { s: "Este aviso no aparece en nada de lo que envías.", src: "7abb1128" },
   "office.codeFlags.sheet.sectionHeadingLabel": { s: "Número de sección", src: "e9efe4f5" },
   "office.codeFlags.sheet.sourcesHeadingLabel": { s: "Fuentes oficiales", src: "f8536942" },
   "office.codeFlags.sheet.standingNoteBody": { s: "No sustituye al código adoptado. Confírmalo con tu departamento de construcción.", src: "f2a79512" },

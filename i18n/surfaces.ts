@@ -258,6 +258,10 @@ export const SURFACES: Surface[] = [
   // (i18n/catalog/es/office/proofPack.ts). The DOCUMENT's words are not i18n
   // keys: they live in utils/proofPack/docCopy.ts in both languages.
   { id: 'office.proof-pack', phase: 2, state: 'complete', keyPrefixes: ['office.proofPack.'], files: ['hooks/useProofPackCopy.ts'], lane: 'PROOFPACK' },
+  // Clearance Check (owner preview, the room scanner's own gate): distances an
+  // inspector commonly looks at, measured off a scan. Every string lives in the
+  // one copy hook. Complete: each key has Spanish (i18n/catalog/es/office/scanClearance.ts).
+  { id: 'office.scan-clearance', phase: 2, state: 'complete', keyPrefixes: ['office.scanClearance.'], files: ['hooks/useScanClearanceCopy.ts'], lane: 'CLEARANCE' },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

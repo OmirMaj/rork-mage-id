@@ -61,7 +61,7 @@ export const EN: EnCatalog = {
   "office.codeFlags.sheet.introBody": "This kind of work is commonly looked at on a permit or by an inspector. MAGE ID flags it so you can check. You decide what to do.",
   "office.codeFlags.sheet.neverBlocksBody": "A flag never stops you from saving, sending, signing or billing.",
   "office.codeFlags.sheet.noFlagBody": "A line with no flag can still need a permit or an inspection. No flag means nothing.",
-  "office.codeFlags.sheet.privateBody": "Only you see this flag. It is not on anything you send.",
+  "office.codeFlags.sheet.privateBody": "This flag is not on anything you send.",
   "office.codeFlags.sheet.sectionHeadingLabel": "Section Number",
   "office.codeFlags.sheet.sourcesHeadingLabel": "Official Sources",
   "office.codeFlags.sheet.standingNoteBody": "Not a substitute for the adopted code. Confirm with your building department.",

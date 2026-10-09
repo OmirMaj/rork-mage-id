@@ -33,6 +33,7 @@ import { ES_OFFICE_FIRST_JOB } from './office/firstJob';
 import { ES_OFFICE_ROOM_SCAN } from './office/roomScan';
 import { ES_OFFICE_CODE_FLAGS } from './office/codeFlags';
 import { ES_OFFICE_PROOF_PACK } from './office/proofPack';
+import { ES_OFFICE_SCAN_CLEARANCE } from './office/scanClearance';
 
 /** Every Spanish file by its path under es/ (validate-i18n checks a key never sits in two). */
 export const ES_SHARDS: Record<string, EsCatalog> = {
@@ -59,6 +60,7 @@ export const ES_SHARDS: Record<string, EsCatalog> = {
   'office/roomScan': ES_OFFICE_ROOM_SCAN,
   'office/codeFlags': ES_OFFICE_CODE_FLAGS,
   'office/proofPack': ES_OFFICE_PROOF_PACK,
+  'office/scanClearance': ES_OFFICE_SCAN_CLEARANCE,
 };
 
 export const ES_CATALOG: EsCatalog = Object.assign({}, ...Object.values(ES_SHARDS)) as EsCatalog;

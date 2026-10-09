@@ -208,6 +208,14 @@ export const FIRST_JOB_PATH_ENABLED = true;
 // tape-measure test is done.
 export const SCAN_ROOM_ENABLED = false;
 
+// Clearance Check (the room scanner's table of commonly used figures) has its
+// OWN switch. Turning SCAN_ROOM_ENABLED on does NOT show it to anyone. It is
+// shown to the owner account always (preview), and to anyone else only when
+// this is true AND utils/roomScan/clearanceRefs says a named architect or
+// expediter has read the table. The one reader is
+// utils/roomScan/clearanceAllowed; scripts/validate-scan-clearance.ts pins it.
+export const CLEARANCE_CHECK_ENABLED = false;
+
 // CODE FLAGS (Big Bets, Bet 4, Phase 1, 2026-10-06): a quiet chip on a change
 // order line or an estimate line that touches code-sensitive work ("May Need a
 // Permit Amendment or an Inspection"), with a sheet that says in the app's own
