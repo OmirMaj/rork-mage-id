@@ -154,11 +154,11 @@ Saved in `design-previews/living-model/` in the main checkout:
 
 | File | What it shows |
 |---|---|
-| `phone-3d-week3.png` | Week 3, reported. Framing up, rough-in starting in the kitchen. |
+| `phone-3d-week3.png` | Week 3, reported. Framing up, rough-in starting in the kitchen (its floor is blue). |
 | `phone-3d-week6.png` | Week 6 (today in the sample). Drywall at 30 percent. |
 | `phone-3d-done.png` | Week 10, the planned reading. Past today the finishes are faint, as the rule is. |
 | `phone-3d-done-turned.png` | The same, turned and zoomed by the check's own `dx`, `dy` and `zoom`. |
-| `phone-3d-dark.png` | Dark appearance, turned. |
+| `phone-3d-dark.png` | Dark appearance, week 6, turned a little. |
 
 What the simulator could NOT show: fingers. Nothing on a Mac's command line
 can touch a simulator's glass, and the tool that can was not given access.
@@ -168,11 +168,17 @@ the same `orbit` and `zoomBy` a finger does. The finger arithmetic itself
 answers in `bun run test:phone-3d`. A real finger on a real phone is the
 first thing to try.
 
-Those pictures were taken before this branch took in the Living Model's review
-fixes from main. After that merge the phone view also colours each floor by
-stage, turns on a twist and uses the web's label rule. The merged code passed
-the type check, the gate and the smoke tests, and was not built for the
-simulator a second time.
+The app was built twice: once on this lane's own code, and again after the
+branch took in the Living Model's review fixes from main (the stage colour on
+each floor, the twist, the web's label rule). The saved pictures are from the
+second build. The timings below are from the first; the drawing code they
+time did not change.
+
+One thing the simulator taught: wait. A frame takes seconds there (see Frame
+Timing), and a dark-appearance launch builds the scene twice, once as the app
+starts and once when the saved theme arrives. A screenshot taken twelve
+seconds after launch showed labels over an empty box. Thirty seconds showed
+the model.
 
 ## Frame Timing
 
