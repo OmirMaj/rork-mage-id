@@ -28,6 +28,7 @@ import { clearPlanSheetUrlCache } from '@/utils/planSheetUrls';
 import { resetCodeCardStores } from '@/utils/codeCard/reset';
 import { registerForPushNotifications } from '@/utils/notifications';
 import { inviteTokenFromMetadata, markInviteTokenHandled, sanitizeInviteToken, signupMetadata, INVITE_METADATA_FIELD } from '@/utils/deepLinksInvite';
+import { recordSignInAcceptance, type SignInMethod } from '@/utils/legalAcceptance';
 import { createAuthEventHold, holdAuthEvents, offerAuthEvent, releaseAuthEvents, type AuthEventHold } from '@/utils/authEventHold';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -889,6 +890,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const completeSignIn = useCallback(async (
     signedIn: User | null | undefined,
     handoff: { sameUser: boolean; last: LastUser | null },
+    method: SignInMethod,
   ) => {
     const incoming: LastUser | null = signedIn ? { id: signedIn.id, email: signedIn.email ?? null } : null;
     const sameUser = !!incoming && !!handoff.last && handoff.last.id === incoming.id;
@@ -910,6 +912,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
     await writeLastUser(incoming);
     queryClient.clear();
+    // The saved record that the Terms and Privacy Policy on that screen were
+    // accepted (public.legal_acceptances). After the tenant wipe above, so the
+    // note is not swept with the previous user's keys. Not awaited and it
+    // cannot throw: a sign-in never waits on, or fails because of, the record.
+    recordSignInAcceptance(signedIn, method);
     console.log('[Auth] Sign-in completed —', sameUser ? 'same user, offline queue kept' : 'tenant switch, offline queue dropped');
   }, [queryClient]);
 
@@ -963,9 +970,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     // Without a handoff (a caller that could not run the pre-session step)
     // this is the whole guard, just later than ideal.
     let incoming: LastUser | null = null;
+    let arrived: User | null = null;
     try {
       const { data } = await supabase.auth.getSession();
-      if (data.session?.user) incoming = { id: data.session.user.id, email: data.session.user.email ?? null };
+      if (data.session?.user) {
+        incoming = { id: data.session.user.id, email: data.session.user.email ?? null };
+        arrived = data.session.user;
+      }
     } catch { /* treated as unknown below */ }
     const last = await readLastUser();
     const sameUser = !!incoming && !!last && incoming.id === last.id;
@@ -1084,6 +1095,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     if (markerUnsafe) console.log('[Auth] Last-user marker not written — a write queue was unreadable this session');
     else await writeLastUser(incoming);
     queryClient.clear();
+    // An email link (a confirmed sign-up, a sign-in link, a password reset)
+    // made this session: the same saved record the other sign-in paths write.
+    // After the wipe above; not awaited; cannot throw.
+    recordSignInAcceptance(arrived, 'email_link');
     console.log(
       '[Auth] New session established — re-fetchable cache cleared; offline queue',
       keepQueue ? 'preserved' : 'dropped',
@@ -1118,7 +1133,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
     // SYNC-F2: same user → pending offline work is kept; different user → the
     // previous tenant's queues are dropped now, before anything can flush them.
-    await completeSignIn(data.user, handoff);
+    await completeSignIn(data.user, handoff, 'password');
 
     const authUser = mapSupabaseUser(data.user);
     console.log('[Auth] Login successful');
@@ -1206,7 +1221,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         // seen the new session yet (held above).
         const handoff = await beginSignIn({ id: data.user.id, email: email.toLowerCase().trim() });
         if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
-        await completeSignIn(data.user, handoff);
+        await completeSignIn(data.user, handoff, 'signup_email');
       }
       signedUpUser = data.user;
     } finally {
@@ -1647,7 +1662,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           });
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (native flow)');
-          await completeSignIn(data.user ?? data.session?.user, handoff);
+          await completeSignIn(data.user ?? data.session?.user, handoff, 'google');
           return true;
         } catch (gErr) {
           const code = (gErr as { code?: string | number })?.code;
@@ -1721,7 +1736,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           });
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (web GIS flow)');
-          await completeSignIn(data.user ?? data.session?.user, handoff);
+          await completeSignIn(data.user ?? data.session?.user, handoff, 'google');
           return true;
         } catch (gisErr) {
           // Fall through to the legacy redirect flow if GIS isn't
@@ -1764,7 +1779,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             });
             if (sessionError) throw sessionError;
             console.log('[Auth] Google sign-in session set successfully');
-            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff);
+            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff, 'google');
             return true;
           } else {
             console.log('[Auth] No access token found in Google callback URL');
@@ -1840,7 +1855,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           }
         }
         console.log('[Auth] Apple sign-in session set (native iOS flow)');
-        await completeSignIn(data.user ?? data.session?.user, handoff);
+        await completeSignIn(data.user ?? data.session?.user, handoff, 'apple');
         return true;
       }
 
@@ -1878,7 +1893,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             });
             if (sessionError) throw sessionError;
             console.log('[Auth] Apple sign-in session set successfully');
-            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff);
+            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff, 'apple');
             return true;
           } else {
             console.log('[Auth] No access token found in Apple callback URL');

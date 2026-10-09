@@ -49,6 +49,7 @@ import { EN as EN_OFFICE_CODE_FLAGS } from './office.code-flags.generated';
 import { EN as EN_OFFICE_FIRST_JOB } from './office.first-job.generated';
 import { EN as EN_OFFICE_ROOM_SCAN } from './office.room-scan.generated';
 import { EN as EN_OFFICE_SCAN_CLEARANCE } from './office.scan-clearance.generated';
+import { EN as EN_OFFICE_NOTICES } from './office.notices.generated';
 
 /** Every generated shard by surface id (validate-i18n checks duplicates across them). */
 export const EN_SHARDS: Record<string, EnCatalog> = {
@@ -87,6 +88,7 @@ export const EN_SHARDS: Record<string, EnCatalog> = {
   'office.first-job': EN_OFFICE_FIRST_JOB,
   'office.room-scan': EN_OFFICE_ROOM_SCAN,
   'office.scan-clearance': EN_OFFICE_SCAN_CLEARANCE,
+  'office.notices': EN_OFFICE_NOTICES,
 };
 
 export { EN_SEED, EN_UNASSIGNED };
