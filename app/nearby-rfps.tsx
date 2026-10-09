@@ -38,6 +38,7 @@ import {
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useRfpAttachmentUrls } from '@/utils/rfpAttachmentUrls';
 
 interface RfpRow {
   id: string;
@@ -122,6 +123,9 @@ export default function NearbyRfpsScreen() {
         return a.distance - b.distance;
       });
   }, [data, location, radius]);
+  // Each posting's first photo, as a short-lived signed link (the bucket is private).
+  const heroRefs = useMemo(() => filtered.map(r => r.photo_urls?.[0]).filter((v): v is string => !!v), [filtered]);
+  const attachmentUrl = useRfpAttachmentUrls(heroRefs);
 
   const handleOpenRfp = useCallback((id: string) => {
     router.push({ pathname: '/rfp-detail' as never, params: { bidId: id } as never });
@@ -242,7 +246,7 @@ export default function NearbyRfpsScreen() {
               activeOpacity={0.85}
             >
               {heroPhoto ? (
-                <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
+                <Image source={{ uri: attachmentUrl(heroPhoto) || undefined }} style={styles.rfpHero} resizeMode="cover" />
               ) : null}
               <View style={styles.rfpBody}>
                 <View style={styles.rfpHead}>

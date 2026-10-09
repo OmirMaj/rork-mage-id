@@ -34,6 +34,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { describeError } from '@/utils/errorCopy';
+import { rfpAttachmentDisplayName, signRfpAttachment, useRfpAttachmentUrls } from '@/utils/rfpAttachmentUrls';
 
 interface RfpRow {
   id: string;
@@ -56,6 +57,8 @@ interface RfpRow {
   awarded_response_id: string | null;
   awarded_at: string | null;
 }
+
+const NO_ATTACHMENTS: readonly string[] = [];
 
 export default function RfpDetailScreen() {
   const { colors: themeColors } = useTheme();
@@ -124,6 +127,8 @@ export default function RfpDetailScreen() {
   // Pre-bid Q&A — public by default so every prospective bidder gets the
   // same info. The homeowner answers; contractors ask.
   const queryClient = useQueryClient();
+  // The posting's photos, as short-lived signed links (the bucket is private).
+  const attachmentUrl = useRfpAttachmentUrls(rfp?.photo_urls ?? NO_ATTACHMENTS);
   const { data: questions } = useQuery({
     queryKey: ['rfp-questions', bidId],
     enabled: !!bidId && isSupabaseConfigured,
@@ -186,8 +191,13 @@ export default function RfpDetailScreen() {
     router.push({ pathname: '/rfp-responses-review' as never, params: { bidId } as never });
   }, [bidId, router]);
 
-  const openAttachment = useCallback((url: string) => {
-    Linking.openURL(url).catch(() => showAlert('Could Not Open', 'The attachment link is broken.'));
+  // A fresh signed link at the tap: the bucket is private and a link minted at
+  // page load may have expired (utils/rfpAttachmentUrls).
+  const openAttachment = useCallback((stored: string) => {
+    void signRfpAttachment(stored).then((url) => {
+      if (!url) { showAlert('Could Not Open', 'The attachment link is broken.'); return; }
+      Linking.openURL(url).catch(() => showAlert('Could Not Open', 'The attachment link is broken.'));
+    });
   }, []);
 
   // Back has to work even when this screen is the bottom of the stack. Both
@@ -330,7 +340,7 @@ export default function RfpDetailScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gallery}>
             {rfp.photo_urls.map(url => (
               <TouchableOpacity key={url} onPress={() => openAttachment(url)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add Image">
-                <Image source={{ uri: url }} style={styles.galleryImage} resizeMode="cover" />
+                <Image source={{ uri: attachmentUrl(url) || undefined }} style={styles.galleryImage} resizeMode="cover" />
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -429,11 +439,11 @@ export default function RfpDetailScreen() {
             <Text style={styles.cardLabel}>Plans and Documents</Text>
             <View style={styles.drawingList}>
               {rfp.drawing_urls.map(url => {
-                const name = url.split('/').pop()?.replace(/^\d+_/, '') ?? 'attachment';
+                const name = rfpAttachmentDisplayName(url);
                 return (
                   <TouchableOpacity key={url} style={styles.drawingItem} onPress={() => openAttachment(url)}>
                     <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.drawingName} numberOfLines={1}>{decodeURIComponent(name)}</Text>
+                    <Text style={styles.drawingName} numberOfLines={1}>{name}</Text>
                     <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 );

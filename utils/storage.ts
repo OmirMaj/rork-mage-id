@@ -178,21 +178,19 @@ export async function uploadProfileImage(
 }
 
 // Upload a homeowner-RFP attachment (photo or drawing PDF) to the
-// public rfp-attachments bucket. Returns the public URL — the bucket is
-// public-read so contractors browsing the listing can fetch directly.
-// Path convention is <userId>/<rfpId>/<timestamp>_<filename> which the
-// RLS policy on storage.objects expects (folder[1] must equal auth.uid()).
+// rfp-attachments bucket. Returns the storage PATH, never a URL: the bucket is
+// being made private (audit DB-F11b,
+// supabase/migrations/20261009120000_rfp_attachments_private.sql) and a link is
+// minted at read time for people allowed to see the posting
+// (utils/rfpAttachmentUrls.ts). Path convention is
+// <userId>/<rfpId>/<timestamp>_<filename>, which the insert policy on
+// storage.objects expects (folder[1] must equal auth.uid()) and which
+// supabase/functions/_shared/storagePath.ts RFP_ATTACHMENT_PATH describes.
 //
-// ⚠ OPEN FINDING DB-F11b, deliberately NOT closed by DB-F11. This is the same
-// permanent-unsigned-URL shape that DB-F11 removed from `plan-sheets`, on a
-// parallel bucket that DB-F11 does not touch. app/post-rfp.tsx accepts PDFs and
-// images here as kind:'drawing' and writes these URLs into
-// public_bids.drawing_urls, which `public_bids_select … TO authenticated USING
-// (true)` lets ANY signed-in account enumerate — and the bucket being public
-// then makes each URL readable by an unauthenticated third party, forever.
-// Do not read "drawings are private now" as covering this path. The marketplace
-// intent (a listing contractors browse) is why it is a separate decision and
-// not a silent extension of DB-F11.
+// This used to return getPublicUrl(): a permanent, unsigned link to a photo of
+// the inside of someone's house, stored in a table every signed-in account can
+// list. No code builds a public URL for this bucket any more
+// (scripts/validate-rfp-attachments-private.ts).
 export async function uploadRfpAttachment(
   userId: string,
   rfpId: string,
@@ -212,8 +210,7 @@ export async function uploadRfpAttachment(
       console.log('[Storage] RFP attachment upload error:', error.message);
       return null;
     }
-    const { data } = supabase.storage.from('rfp-attachments').getPublicUrl(path);
-    return data.publicUrl ?? null;
+    return path;
   } catch (err) {
     console.log('[Storage] RFP attachment upload failed:', err);
     return null;
