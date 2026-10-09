@@ -338,9 +338,9 @@ export default function RfpDetailScreen() {
         {/* Hero photo gallery */}
         {rfp.photo_urls && rfp.photo_urls.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gallery}>
-            {rfp.photo_urls.map(url => (
-              <TouchableOpacity key={url} onPress={() => openAttachment(url)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add Image">
-                <Image source={{ uri: attachmentUrl(url) || undefined }} style={styles.galleryImage} resizeMode="cover" />
+            {rfp.photo_urls.map(stored => (
+              <TouchableOpacity key={stored} onPress={() => openAttachment(stored)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add Image">
+                <Image source={{ uri: attachmentUrl(stored) || undefined }} style={styles.galleryImage} resizeMode="cover" />
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -438,10 +438,10 @@ export default function RfpDetailScreen() {
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Plans and Documents</Text>
             <View style={styles.drawingList}>
-              {rfp.drawing_urls.map(url => {
-                const name = rfpAttachmentDisplayName(url);
+              {rfp.drawing_urls.map(stored => {
+                const name = rfpAttachmentDisplayName(stored);
                 return (
-                  <TouchableOpacity key={url} style={styles.drawingItem} onPress={() => openAttachment(url)}>
+                  <TouchableOpacity key={stored} style={styles.drawingItem} onPress={() => openAttachment(stored)}>
                     <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.drawingName} numberOfLines={1}>{name}</Text>
                     <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />

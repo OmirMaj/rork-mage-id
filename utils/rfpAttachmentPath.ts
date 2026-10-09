@@ -108,12 +108,15 @@ export function rfpAttachmentStoredValue(
 const isHttp = (v: string): boolean => /^https?:\/\//i.test(v);
 
 /**
- * What to show when a value IN THIS BUCKET could not be signed: a legacy URL
- * as stored (it still opens while the bucket is public), else nothing. A value
- * that is not in this bucket is never shown or opened: it gets ''.
+ * What to show when a value IN THIS BUCKET could not be signed. While this
+ * build still stores public URLs (RFP_ATTACHMENT_STORED_FORM 'public_url', the
+ * bucket is public), a stored public URL is shown as stored: it still opens.
+ * Once the constant is 'path' (the bucket is private) there is no fallback: a
+ * public URL opens for nobody, so it is never handed to a screen. A bare path
+ * and a value that is not in this bucket get '' under either setting.
  */
-export function rfpAttachmentFallback(stored: string): string {
-  return isHttp(stored) && rfpAttachmentPath(stored) !== null ? stored : '';
+export function rfpAttachmentFallback(stored: string, form: RfpAttachmentStoredForm = RFP_ATTACHMENT_STORED_FORM): string {
+  return form === 'public_url' && isHttp(stored) && rfpAttachmentPath(stored) !== null ? stored : '';
 }
 
 /**
@@ -121,12 +124,14 @@ export function rfpAttachmentFallback(stored: string): string {
  * (a signed link, or nothing). The whole read rule in one pure function:
  *   not in this bucket          '' (dropped: never rendered, never opened)
  *   in the bucket, signed       the signed link
- *   in the bucket, not signed   the stored public URL if that is what was
- *                               stored (works only while the bucket is public),
- *                               else ''
+ *   in the bucket, not signed   rfpAttachmentFallback (see above)
  */
-export function rfpAttachmentResolved(stored: string | null | undefined, signedUrl: string | null | undefined): string {
+export function rfpAttachmentResolved(
+  stored: string | null | undefined,
+  signedUrl: string | null | undefined,
+  form: RfpAttachmentStoredForm = RFP_ATTACHMENT_STORED_FORM,
+): string {
   if (typeof stored !== 'string' || rfpAttachmentPath(stored) === null) return '';
   if (typeof signedUrl === 'string' && signedUrl.length > 0) return signedUrl;
-  return rfpAttachmentFallback(stored);
+  return rfpAttachmentFallback(stored, form);
 }
