@@ -23,13 +23,20 @@ export interface ServerWorld {
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
 
+// The harness runs under bun; the app's tsconfig has no bun types, so the two
+// calls it makes are declared here (the repo's other scripts do the same).
+declare const Bun: {
+  serve: (o: { port: number; hostname: string; fetch: (req: Request) => Response | Promise<Response> }) => { stop: (closeActive?: boolean) => unknown };
+  file: (path: string) => BodyInit;
+};
+
 export function startServer(dist: string, port: number, world: () => ServerWorld, log: (line: string) => void) {
   const index = join(dist, 'index.html');
   if (!existsSync(index)) throw new Error(`no web export at ${dist}; run scripts/marketing-screens/build.sh first`);
   return Bun.serve({
     port,
     hostname: '127.0.0.1',
-    async fetch(req) {
+    async fetch(req: Request) {
       const url = new URL(req.url);
       const p = url.pathname;
       const w = world();
