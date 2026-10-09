@@ -39,6 +39,13 @@ export interface KeptModel {
   from: 'account' | 'device';
   model: JobModel;
   keptAt: string;
+  /** 'teammate' = set aside by the app, not by a choice: a teammate's save took this device's place. Absent for a choice. */
+  why?: 'teammate';
+}
+
+/** The text a kept model is stored as (the one shape parseKeptModel reads). */
+export function keptModelJson(kept: KeptModel): string {
+  return JSON.stringify(kept);
 }
 
 export function parseKeptModel(raw: string | null | undefined, projectId: string): KeptModel | null {
@@ -48,7 +55,7 @@ export function parseKeptModel(raw: string | null | undefined, projectId: string
     if (!v || typeof v !== 'object' || (v.from !== 'account' && v.from !== 'device')) return null;
     const read = readSavedModel(JSON.stringify(v.model ?? null), projectId);
     if (read.state !== 'ok') return null;
-    return { from: v.from, model: read.model, keptAt: typeof v.keptAt === 'string' ? v.keptAt : '' };
+    return { from: v.from, model: read.model, keptAt: typeof v.keptAt === 'string' ? v.keptAt : '', ...(v.why === 'teammate' ? { why: 'teammate' as const } : {}) };
   } catch {
     return null;
   }
@@ -73,7 +80,7 @@ export async function writeKeptModel(userId: string | null | undefined, projectI
   const key = livingModelKeptKey(userId, projectId);
   if (!key) return false;
   try {
-    await AsyncStorage.setItem(key, JSON.stringify(kept));
+    await AsyncStorage.setItem(key, keptModelJson(kept));
     return true;
   } catch {
     return false;

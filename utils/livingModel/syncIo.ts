@@ -10,6 +10,14 @@
 // phone is offline, and is replayed in order when it is back. There is no
 // `supabase.from(...).insert/update/upsert/delete` here and there must never
 // be one (scripts/validate-living-model-sync.ts fails on it).
+// THE ONE DELETE is public.living_model_remove, called only from the person's
+// confirmed tap on Remove It From My Account. It goes through the same queue
+// call so it waits behind a save of the same job that is still on the wire,
+// but it is NEVER LEFT QUEUED: when it cannot be sent now it is taken back out
+// and the screen says the copy was not removed (a delete that fires hours
+// later, after he changed his mind, is not what he confirmed).
+// A QUEUED SAVE CAN BE TAKEN BACK (cancelQueuedAccountSave): Keep on This
+// Phone removes this job's waiting save from the queue before it is sent.
 //
 // The supabase client and the queue are required lazily (the house pattern,
 // utils/takeoffCloudSync.ts), so the validators can import this file under bun.
@@ -19,7 +27,7 @@
 import type { WriteOutcome } from '@/utils/offlineQueue';
 import { isTransportError } from '@/utils/networkErrors';
 import {
-  LIVING_MODELS_TABLE, LIVING_MODEL_SAVE_FN, isMissingTable, isSyncableProjectId, parseServerHead, saveArgs,
+  LIVING_MODELS_TABLE, LIVING_MODEL_REMOVE_FN, LIVING_MODEL_SAVE_FN, isMissingTable, isSyncableProjectId, parseServerHead, removeArgs, saveArgs,
   type ServerHead,
 } from './syncCore';
 import type { JobModel } from './types';
@@ -67,7 +75,7 @@ export type AccountRead<T> =
   /** The server answered with an error that is not "no such table". */
   | { kind: 'error' };
 
-const HEAD_COLUMNS = 'revision, last_write_id, schema_version, updated_at, updated_by';
+const HEAD_COLUMNS = 'revision, last_write_id, recent_writes, schema_version, updated_at, updated_by';
 
 async function readRow<T>(projectId: string, columns: string, pick: (row: Record<string, unknown>) => T): Promise<AccountRead<T>> {
   const cloud = cloudModules();
@@ -116,6 +124,64 @@ export async function pushAccountModel(projectId: string, model: JobModel, base:
   }
 }
 
+/** What became of a queued save the person took back. */
+export type CancelOutcome =
+  /** A waiting save was taken out of the queue: it will not be sent. */
+  | 'removed'
+  /** Nothing of this job's was waiting. */
+  | 'none'
+  /** The queue could not be read: a waiting save may still go out. */
+  | 'unknown';
+
+/**
+ * Take this job's waiting save back out of the offline queue (Keep on This
+ * Phone). Only this account's living_model_save for this project; nothing
+ * else in the queue is touched. It cannot recall a request already on the wire.
+ */
+export async function cancelQueuedAccountSave(projectId: string, userId: string | null | undefined): Promise<CancelOutcome> {
+  const cloud = cloudModules();
+  if (!cloud || !userId || !isSyncableProjectId(projectId)) return 'none';
+  try {
+    const res = await cloud.queue.cancelQueuedRpc(LIVING_MODELS_TABLE, projectId, LIVING_MODEL_SAVE_FN, userId);
+    if (res.readFailed) return 'unknown';
+    return res.removed > 0 ? 'removed' : 'none';
+  } catch {
+    return 'unknown';
+  }
+}
+
+export type RemoveOutcome =
+  /** The account answered and now holds no copy for this job. */
+  | 'removed'
+  /** The account could not be reached, or it answered and a copy is still there. Nothing is left waiting. */
+  | 'not_removed';
+
+/**
+ * Delete this job's copy from the account: the person's own confirmed tap and
+ * nothing else. Sent now or not at all (a call that fell into the queue is
+ * taken straight back out), and called removed only after the row was read
+ * and found gone. Touches nothing on the device.
+ */
+export async function removeAccountModel(projectId: string, userId: string | null | undefined): Promise<RemoveOutcome> {
+  const cloud = cloudModules();
+  if (!cloud || !userId || !isSyncableProjectId(projectId)) return 'not_removed';
+  try {
+    const outcome = await cloud.queue.supabaseRpcDetailed(
+      LIVING_MODELS_TABLE, projectId, LIVING_MODEL_REMOVE_FN, removeArgs(projectId),
+      { callerOwnsRefusal: true },
+    );
+    if (outcome !== 'synced') {
+      await cloud.queue.cancelQueuedRpc(LIVING_MODELS_TABLE, projectId, LIVING_MODEL_REMOVE_FN, userId);
+      return 'not_removed';
+    }
+    const back = await fetchAccountHead(projectId);
+    return back.kind === 'none' ? 'removed' : 'not_removed';
+  } catch {
+    try { await cloud.queue.cancelQueuedRpc(LIVING_MODELS_TABLE, projectId, LIVING_MODEL_REMOVE_FN, userId); } catch { /* nothing more to do */ }
+    return 'not_removed';
+  }
+}
+
 export interface QueueHolds {
   /** A save of this job's model is still in the queue. */
   modelSave: boolean;
@@ -131,7 +197,7 @@ export async function accountQueueHolds(projectId: string): Promise<QueueHolds |
     const { entries, readFailed } = await cloud.queue.getOwnOfflineQueueDetailed();
     if (readFailed) return null;
     return {
-      modelSave: entries.some((m) => m.table === LIVING_MODELS_TABLE && m.data?.id === projectId),
+      modelSave: entries.some((m) => m.table === LIVING_MODELS_TABLE && m.data?.id === projectId && (m.operation !== 'rpc' || m.rpc?.fn === LIVING_MODEL_SAVE_FN)),
       projectInsert: entries.some((m) => m.table === 'projects' && m.data?.id === projectId && (m.operation === 'insert' || m.operation === 'upsert')),
     };
   } catch {

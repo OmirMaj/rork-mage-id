@@ -6,7 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parseSavedScans, roomScansKey, type SavedScan } from '@/utils/roomScan/storeCore';
 import { emptyJobModel, readSavedModel } from './modelCore';
-import { MAX_MODEL_CHARS, livingModelBackupKey, livingModelKey, mayWriteModel, type LoadState } from './storeCore';
+import { MAX_MODEL_CHARS, livingModelBackupKey, livingModelKeptKey, livingModelKey, mayWriteModel, type LoadState } from './storeCore';
 import type { JobModel } from './types';
 
 export interface LoadedModel {
@@ -14,6 +14,13 @@ export interface LoadedModel {
   model: JobModel;
   /** 'unreadable' when text is stored and could not be read: the screen says so and nothing is written over it. */
   state: LoadState;
+  /**
+   * False when NOTHING is stored under the model key (a new job on this device,
+   * or the key was lost). The sync notes are read against this: notes that say
+   * "matched the account" beside a missing model mean the model was lost, and
+   * then the account's copy is looked at first (syncCore.resetSyncBase).
+   */
+  found: boolean;
 }
 
 /**
@@ -24,14 +31,14 @@ export interface LoadedModel {
  */
 export async function loadJobModel(userId: string | null | undefined, projectId: string): Promise<LoadedModel> {
   const key = livingModelKey(userId, projectId);
-  if (!key) return { model: emptyJobModel(projectId), state: 'ready' };
+  if (!key) return { model: emptyJobModel(projectId), state: 'ready', found: false };
   let raw: string | null = null;
   try { raw = await AsyncStorage.getItem(key); } catch { /* treated as nothing saved */ }
   const read = readSavedModel(raw, projectId);
-  if (read.state === 'ok') return { model: read.model, state: 'ready' };
-  if (read.state === 'empty') return { model: emptyJobModel(projectId), state: 'ready' };
+  if (read.state === 'ok') return { model: read.model, state: 'ready', found: true };
+  if (read.state === 'empty') return { model: emptyJobModel(projectId), state: 'ready', found: false };
   await keepUnreadText(userId, projectId, raw as string);
-  return { model: emptyJobModel(projectId), state: 'unreadable' };
+  return { model: emptyJobModel(projectId), state: 'unreadable', found: true };
 }
 
 /** Copy text that could not be read under the backup key, untouched. Returns false when the device refused. */
@@ -63,6 +70,28 @@ export async function saveJobModel(userId: string | null | undefined, model: Job
     return false;
   }
 }
+/**
+ * Put `model` under the model key and `keptJson` under the kept key IN ONE
+ * WRITE (AsyncStorage.multiSet: one transaction on the phone). Used when the
+ * model on screen and the one set aside trade places, and when a model is set
+ * aside as another takes its place: there is no instant at which a kill leaves
+ * one of the two models in neither place. Returns false when it could not be
+ * written, and then NEITHER key was changed by this call.
+ */
+export async function saveJobModelWithKept(userId: string | null | undefined, model: JobModel, nowIso: string, state: LoadState, keptJson: string): Promise<boolean> {
+  const key = livingModelKey(userId, model.projectId);
+  const keptKey = livingModelKeptKey(userId, model.projectId);
+  if (!key || !keptKey || !mayWriteModel(state)) return false;
+  try {
+    const json = JSON.stringify({ ...model, updatedAt: nowIso });
+    if (json.length > MAX_MODEL_CHARS || keptJson.length > MAX_MODEL_CHARS + 200) return false;
+    await AsyncStorage.multiSet([[keptKey, keptJson], [key, json]]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The scans saved for this project on this device (the scanner's own list,
  * read only). The scanner keeps scans on the phone that made them and the scan
