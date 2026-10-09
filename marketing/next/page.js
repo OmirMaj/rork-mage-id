@@ -313,7 +313,7 @@
   measure(); readScroll();
 
   /* ---------- things that arrive as you reach them ---------- */
-  var riseSel = '.facts div, .how li, .book, .plan, .straight, .testing-copy, .end > *';
+  var riseSel = '.facts div, .how li, .book, .plan, .straight, .testing-copy, .end-copy > *, .end-lot';
   all(riseSel).forEach(function (el, i) { el.classList.add('rise'); el.style.transitionDelay = (i % 4) * 70 + 'ms'; });
   if (window.IntersectionObserver && !P.full && P.at === null) {
     var io = new IntersectionObserver(function (es) {
