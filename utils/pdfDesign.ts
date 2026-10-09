@@ -256,6 +256,14 @@ export function pdfShell(opts: {
   branding: CompanyBranding;
   title: string;        // for the <title> tag — used in print preview
   pageMargin?: string;  // CSS margin for the body, e.g. '36px 40px'
+  /**
+   * false ONLY for the sealed final punch (utils/punchSealHtml.ts): that PDF's
+   * bytes are hashed and stored once at sealing and every later copy is a
+   * re-render of the same record, so its template stays exactly as it was
+   * sealed and never names MAGE ID (scripts/validate-punch-seal.ts).
+   * scripts/validate-protections.ts fails any other file that passes this.
+   */
+  recipientNotice?: false;
 }): string {
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -290,6 +298,7 @@ ${opts.bodyHtml}
 </html>`;
   // Every PDF passes through here, so every PDF gets the Notice To Recipients:
   // the block as the last thing in the body and the running page footer.
+  if (opts.recipientNotice === false) return html;
   return withRecipientNotice(html, opts.branding?.companyName);
 }
 

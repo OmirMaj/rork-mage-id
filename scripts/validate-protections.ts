@@ -138,6 +138,13 @@ export function checkDocumentBuilders(files: Files): string[] {
       bad.push(`${f}: ${htmlStarts - placeholders} HTML document(s), ${wrapped} wrapped in withRecipientNotice(`);
     }
   }
+  // One document is left without the notice on purpose: the sealed final
+  // punch, whose template is frozen (validate-punch-seal pins that it never
+  // prints "MAGE ID"). Nothing else may opt out.
+  for (const [f, src] of Object.entries(files)) {
+    if (!/^(app|components|utils)\//.test(f) || f === 'utils/pdfDesign.ts') continue;
+    if (/recipientNotice:\s*false/.test(stripComments(src)) && f !== 'utils/punchSealHtml.ts') bad.push(`${f}: opts out of the Notice To Recipients (only the sealed final punch may)`);
+  }
   return bad;
 }
 
