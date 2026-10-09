@@ -72,6 +72,7 @@ import { isSampleProject, noteSampleProject, noteSampleScope } from '@/utils/sam
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
 import type { Delivery, DeliveryReceipt } from '@/utils/deliverySchedule';
+import { deliveryScheduleColumns, deliveryScheduleFieldsFromRow, expectedDateColumn, expectedDateFromRow } from '@/utils/deliveries/rowCore';
 import type { BuildingAccessRules, AccessReservation } from '@/utils/buildingAccess';
 import {
   geocodeProjectLocation, shouldGeocode, clearCoordsOnLocationChange, geocodeStillApplies,
@@ -3232,7 +3233,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               supplier: (r.supplier as string) ?? '',
               commitmentId: (r.commitment_id as string | null) ?? undefined,
               poNumber: (r.po_number as string | null) ?? undefined,
-              expectedDate: r.expected_date as string,
+              // '' = "No date yet" (a NULL column, lane DELIVERIES-1).
+              expectedDate: expectedDateFromRow(r),
               // Column is delivery_window — `window` is reserved in Postgres.
               window: (r.delivery_window as string | null) ?? undefined,
               status: (r.status as Delivery['status']) ?? 'scheduled',
@@ -3244,6 +3246,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               notes: (r.notes as string | null) ?? undefined,
               createdAt: r.created_at as string,
               updatedAt: r.updated_at as string,
+              // The task link and its dates (lane DELIVERIES-1). {} when the
+              // table has no such columns, so the object is the old one.
+              ...deliveryScheduleFieldsFromRow(r),
             })) as Delivery[];
             await saveOwnedLocal(userId, DELIVERIES_KEY, mapped);
             return mapped;
@@ -6872,7 +6877,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     supplier: d.supplier,
     commitment_id: d.commitmentId ?? null,
     po_number: d.poNumber ?? null,
-    expected_date: d.expectedDate,
+    // The day, or null for "No date yet" (only the DELIVERIES-1 screens make one).
+    expected_date: expectedDateColumn(d),
     // Column is delivery_window, NOT window: `window` is a reserved Postgres
     // keyword, so the table could not have been created with it. The TS field
     // keeps the short name — this mapper is the only place they differ.
@@ -6886,6 +6892,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     notes: d.notes ?? null,
     created_at: d.createdAt,
     updated_at: d.updatedAt,
+    // The task link and its dates (lane DELIVERIES-1). {} for a delivery that
+    // carries none of them, so the row is exactly the row from before the
+    // lane and the queue never sends a column an unmigrated table lacks.
+    // Needed On Site By is never here: it is worked out on every read.
+    ...deliveryScheduleColumns(d),
   }), [userId]);
 
   const saveDeliveriesMutation = useMutation({
