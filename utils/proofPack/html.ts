@@ -8,7 +8,7 @@
 //
 // Rules this file holds (each pinned by scripts/validate-proof-pack.ts):
 //   - The first page carries the two "what this is and is not" sentences.
-//   - The Notice To Recipients prints as a block on the first page AND in the
+//   - The Notice to Recipients prints as a block on the first page AND in the
 //     footer of every page. The footer is the <tfoot> of one table that frames
 //     the whole document: a table footer group repeats at the foot of every
 //     printed page in normal flow (utils/aiaBilling.ts PRINT NOTES measured why

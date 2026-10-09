@@ -46,7 +46,7 @@ export const EN: EnCatalog = {
   "office.proofPack.missing.seatBody": "Only the project owner can make a Pay Period Record. It carries the client’s name, the address and the amounts.",
   "office.proofPack.missing.waiversBody": "Lien waivers could not be read. The document will say that part was not checked.",
   "office.proofPack.notice.body": "This record was prepared by the contractor named above using MAGE ID. MAGE ID did not inspect the work and makes no statement to the reader about the work, the amounts or the people named. Do not rely on this record as an inspection, an appraisal or a certification.",
-  "office.proofPack.notice.headingLabel": "Notice To Recipients",
+  "office.proofPack.notice.headingLabel": "Notice to Recipients",
   "office.proofPack.notice.introBody": "The document prints this notice on its first page and at the foot of every page.",
   "office.proofPack.open.headingLabel": "Open Items",
   "office.proofPack.open.manyBody": "The document lists {n} things a reader may ask about that MAGE ID does not hold or did not check.",

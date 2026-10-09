@@ -231,7 +231,10 @@ export const SCAN_ROOM_ENABLED = false;
 // independent review are both done.
 export const CODE_FLAGS_ENABLED = false;
 
-// PROOF OF WORK PACKAGE (Big Bets, Bet 3, Phase 1, 2026-10-09): one document
+// PAY PERIOD RECORD (Big Bets, Bet 3, Phase 1, 2026-10-09; the lane's first
+// name for it was the proof of work package, retired because it read as proof
+// that the work was done; the flag, the folder and the table keep "proof pack"
+// as an internal name only): one document
 // per pay period that says what was billed and lists the records MAGE ID holds
 // for that period, each labelled by how hard it is to change afterwards
 // (Sealed, Signed, Locked, Recorded, Stated), with a fingerprint the
@@ -245,9 +248,11 @@ export const CODE_FLAGS_ENABLED = false;
 //
 // Why it is off: the fingerprint table (supabase/migrations/
 // 20261009120000_proof_packs.sql) is written and proven on PGlite but NOT
-// applied, so a package made today prints "No fingerprint is on file"; a lawyer
-// has not read what the package may say it shows or whether a client's address
-// and photos may go to a third party (BIG-BETS.md, Bet 3, "For the lawyer
+// applied, so a document made today prints "No fingerprint is on file"; the
+// signature provenance migration (20261010090000_signature_provenance.sql) is
+// NOT applied either, so no record can earn the Signed label yet; a lawyer
+// has not read what the document may say it shows, the Notice to Recipients,
+// or whether a client's address and photos may go to a third party (BIG-BETS.md, Bet 3, "For the lawyer
 // first"); the Spanish is a draft no bilingual construction person has read;
 // and the lane has not had its independent review.
 //

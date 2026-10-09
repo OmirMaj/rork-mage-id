@@ -60,7 +60,7 @@ export const ES_OFFICE_PROOF_PACK: EsCatalog = {
   "office.proofPack.missing.seatBody": { s: "Solo el dueño del proyecto puede hacer un registro del periodo de pago. Lleva el nombre del cliente, la dirección y los montos.", src: "d59685fa" },
   "office.proofPack.missing.waiversBody": { s: "Las renuncias de gravamen no se pudieron leer. El documento dirá que esa parte no se revisó.", src: "70aa3d83" },
   "office.proofPack.notice.body": { s: "Este registro lo preparó el contratista nombrado arriba con MAGE ID. MAGE ID no inspeccionó la obra y no le afirma nada al lector sobre la obra, los montos ni las personas nombradas. No tome este registro como una inspección, un avalúo ni una certificación.", src: "055acfa6" },
-  "office.proofPack.notice.headingLabel": { s: "Aviso a quien recibe este documento", src: "acafbf46" },
+  "office.proofPack.notice.headingLabel": { s: "Aviso a quien recibe este documento", src: "56ed0d26" },
   "office.proofPack.notice.introBody": { s: "El documento imprime este aviso en su primera página y al pie de cada página.", src: "acdf9fe9" },
   "office.proofPack.open.headingLabel": { s: "Puntos abiertos", src: "2bf7b12d" },
   "office.proofPack.open.manyBody": { s: "El documento enumera {n} cosas que un lector puede preguntar y que MAGE ID no guarda o no revisó.", src: "091605aa" },
