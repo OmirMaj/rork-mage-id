@@ -1,3 +1,4 @@
+import { withRecipientNotice } from '@/utils/recipientNotice';
 // NOTE: react-native / expo-print / expo-sharing are imported LAZILY inside
 // shareWipPeriodPdf. Importing them at module top level pulls react-native's
 // Flow-typed entry, which crashes Bun — and scripts/validate-wip.ts imports
@@ -439,7 +440,7 @@ export function buildWipHtml(
 ): string {
   const t = period.portfolioTotals;
   const asOfNote = wipLiveAsOfNote(period, liveAsOf);
-  return `<!doctype html><html><head><meta charset="utf-8"/>
+  return withRecipientNotice(`<!doctype html><html><head><meta charset="utf-8"/>
   <style>
     body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1a1a1a; padding: 24px; }
     h1 { font-size: 20px; margin: 0; }
@@ -500,7 +501,7 @@ export function buildWipHtml(
     ${noCostBasisHtml(period)}
     ${provisionHtml(period)}
     ${footnotesHtml(period)}
-  </body></html>`;
+  </body></html>`, companyName);
 }
 
 /** Render + share the WIP schedule as a PDF (mirrors financialReportPdf).
