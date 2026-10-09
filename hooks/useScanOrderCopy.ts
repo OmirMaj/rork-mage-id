@@ -444,9 +444,8 @@ export function useScanOrderCopy(): ScanOrderCopy {
         for (const k of [...new Set(p.cutouts.map((c) => c.kind))]) parts.push(cutoutWord(k));
         if (p.narrow) parts.push(t('office.roomScan.order.layout.narrowPart', 'the wall is this narrow here'));
         if (p.cutToShape) parts.push(t('office.roomScan.order.layout.shapePart', 'cut to the shape of the room'));
-        const long = Math.max(p.w, p.h);
-        const wide = Math.min(p.w, p.h);
-        return t('office.roomScan.order.layout.pieceSub', 'Sheet {sheet}: {long} by {wide} in, {parts}', { sheet: p.sheet, long: inchFraction(long), wide: inchFraction(wide), parts: parts.join(', ') });
+        // As it sits on the surface and in the drawing: across the wall first, then up it.
+        return t('office.roomScan.order.layout.pieceSub', 'Sheet {sheet}: {long} by {wide} in, {parts}', { sheet: p.sheet, long: inchFraction(p.w), wide: inchFraction(p.h), parts: parts.join(', ') });
       },
       floorGapNote: (gapIn) => t('office.roomScan.order.layout.floorGapNote', 'A {gap} in gap at the floor is left for the baseboard.', { gap: inchFraction(gapIn) }),
       longerSheetNote: (overIn, sheet, along) => (along === 'height'

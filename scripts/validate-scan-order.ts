@@ -1344,7 +1344,7 @@ function pieceSentence(w: World, p: CUT.CutPiece): string {
   for (const k of [...new Set(p.cutouts.map((c) => c.kind))]) parts.push(k === 'door' ? L('cutDoorPart') : k === 'window' ? L('cutWindowPart') : L('cutOpeningPart'));
   if (p.narrow) parts.push(L('narrowPart'));
   if (p.cutToShape) parts.push(L('shapePart'));
-  return L('pieceSub').replace('{sheet}', String(p.sheet)).replace('{long}', frac(Math.max(p.w, p.h))).replace('{wide}', frac(Math.min(p.w, p.h))).replace('{parts}', parts.join(', '));
+  return L('pieceSub').replace('{sheet}', String(p.sheet)).replace('{long}', frac(p.w)).replace('{wide}', frac(p.h)).replace('{parts}', parts.join(', '));
 }
 
 rule('O20 the cut layout is written out in words under the drawing, and an offcut is not told apart by colour alone', (w) => {
@@ -1355,8 +1355,8 @@ rule('O20 the cut layout is written out in words under the drawing, and an offcu
   // The bathroom, in the words a hanger would read: the two 82 in pieces over the window, the top of the door, and the strip beside it.
   check(o, all.filter((x) => /^Sheet \d+: 82 by 48 in, from a new sheet, window cut out$/.test(x)).length === 2, `the window wall's pieces read: ${all.filter((x) => /window/.test(x)).join(' | ')}`);
   check(o, all.some((x) => /^Sheet \d+: 61 by 48 in, from a new sheet, door cut out$/.test(x)), `the piece over the door reads: ${all.filter((x) => /door/.test(x)).join(' | ')}`);
-  check(o, all.some((x) => /^Sheet \d+: 48 by 4 5\/8 in, from an offcut, the wall is this narrow here$/.test(x)) && all.some((x) => /^Sheet \d+: 48 by 26 3\/8 in, from an offcut$/.test(x)), `the pieces beside the door read: ${all.filter((x) => /5\/8|3\/8/.test(x)).join(' | ')}`);
-  check(o, all.filter((x) => /^Sheet \d+: 48 by 16 in, from an offcut$/.test(x)).length === 4 && all.length === 13, `${all.length} pieces, ${all.filter((x) => / 16 in/.test(x)).length} of them 16 in`);
+  check(o, all.some((x) => /^Sheet \d+: 4 5\/8 by 48 in, from an offcut, the wall is this narrow here$/.test(x)) && all.some((x) => /^Sheet \d+: 26 3\/8 by 48 in, from an offcut$/.test(x)), `the pieces beside the door read: ${all.filter((x) => /5\/8|3\/8/.test(x)).join(' | ')}`);
+  check(o, all.filter((x) => /^Sheet \d+: 16 by 48 in, from an offcut$/.test(x)).length === 4 && all.length === 13, `${all.length} pieces, ${all.filter((x) => / 16 in/.test(x)).length} of them 16 in`);
   const bay = w.M.list(scanOf('bay-room'), opts(scanOf('bay-room')));
   check(o, (bay.ceilingPlan?.surfaces[0].pieces ?? []).some((p) => /cut to the shape of the room$/.test(pieceSentence(w, p))), 'a ceiling piece cut to the bay is not said to be');
   // The layout carries what the words need: which kind of opening was cut out of a piece.
@@ -1373,7 +1373,7 @@ rule('O20 the cut layout is written out in words under the drawing, and an offcu
   const view = stripComments(w.F['components/roomScan/OrderListView.tsx']);
   check(o, /const pieceLines = React\.useMemo\(\(\) => \(shown \? shown\.pieces\.map\(\(x\) => ocopy\.pieceSub\(x\)\) : \[\]\), \[shown, ocopy\]\);/.test(view) && /<CutLayoutView surface=\{shown\} a11yLabel=\{ocopy\.layoutA11y\(surfaceName\(shown\)\)\} listLabel=\{ocopy\.pieceListLabel\} pieceLines=\{pieceLines\}/.test(view) && /legendBoxOffcut\]\}><View style=\{styles\.legendStripe\} \/>/.test(view), 'the screen does not hand the drawing its piece list, or its legend is a colour swatch');
   const hook = stripComments(w.F['hooks/useScanOrderCopy.ts']);
-  check(o, /return t\('office\.roomScan\.order\.layout\.pieceSub', 'Sheet \{sheet\}: \{long\} by \{wide\} in, \{parts\}', \{ sheet: p\.sheet, long: inchFraction\(long\), wide: inchFraction\(wide\), parts: parts\.join\(', '\) \}\);/.test(hook) && /const parts: string\[\] = \[p\.fromOffcut\s*\? t\('office\.roomScan\.order\.layout\.fromOffcutPart', 'from an offcut'\)/.test(hook), 'the copy hook does not build the piece line from the piece');
+  check(o, /return t\('office\.roomScan\.order\.layout\.pieceSub', 'Sheet \{sheet\}: \{long\} by \{wide\} in, \{parts\}', \{ sheet: p\.sheet, long: inchFraction\(p\.w\), wide: inchFraction\(p\.h\), parts: parts\.join\(', '\) \}\);/.test(hook) && /const parts: string\[\] = \[p\.fromOffcut\s*\? t\('office\.roomScan\.order\.layout\.fromOffcutPart', 'from an offcut'\)/.test(hook), 'the copy hook does not build the piece line from the piece');
   return o;
 });
 
