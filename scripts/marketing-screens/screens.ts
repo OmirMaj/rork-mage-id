@@ -96,11 +96,11 @@ export const SCREENS: Screen[] = [
       { js: `const pane = [...document.querySelectorAll('div')].filter((d) => /auto|scroll/.test(getComputedStyle(d).overflowY) && d.scrollHeight > d.clientHeight + 200 && d.getBoundingClientRect().top > 400)[0]; if (pane) pane.scrollTop = 330;` }, { wait: 1500 }] },
   { id: 'daily-report', set: 'shipped', title: 'Daily Report', plan: 'Free', source: 'app/daily-report.tsx', route: alder('daily-report', `&reportId=${REPORT_YESTERDAY}`),
     about: 'A filed daily report: the weather reading with its source and time, work progress against the schedule, crew and hours.',
-    steps: [{ scroll: 162, to: { text: 'Shared' } }, { wait: 1200 }],
+    steps: [{ scroll: 178, to: { text: 'Shared' } }, { wait: 1200 }],
     sequence: [
       { route: alder('daily-report'), steps: [{ scroll: 172, to: { text: 'DAILY REPORT' } }, { wait: 1200 }], caption: 'A new report for today. The weather is read in with its source and time.' },
       { route: alder('daily-report'), steps: [{ type: { testID: 'work-performed-input' }, value: TODAY_WORK }, { type: { css: 'input[placeholder="Material received"]' }, value: TODAY_MATERIAL }, { scroll: 170, to: { text: 'Workforce' } }, { wait: 1200 }], caption: 'The day\'s work written in.' },
-      { route: alder('daily-report', `&reportId=${todayReport.id}`), steps: [{ scroll: 162, to: { text: 'Shared' } }, { wait: 1200 }], world: withTodayFiled, caption: 'The report as filed and shared with the client.' },
+      { route: alder('daily-report', `&reportId=${todayReport.id}`), steps: [{ scroll: 178, to: { text: 'Shared' } }, { wait: 1200 }], world: withTodayFiled, caption: 'The report as filed and shared with the client.' },
     ] },
   { id: 'punch-list', set: 'shipped', title: 'Punch List', plan: 'Business', source: 'app/punch-list.tsx', route: alder('punch-list'),
     about: 'The punch list by room, each item with its picture, who it is assigned to, its due date and its status. The pictures here are flat placeholder tiles, not site photos.',
@@ -111,9 +111,9 @@ export const SCREENS: Screen[] = [
     ] },
   { id: 'change-order', set: 'shipped', title: 'Change Order', plan: 'Pro', source: 'app/change-order.tsx', route: coRoute,
     about: 'An approved change order: its place in the approval steps, the contract sum before and after, and the client\'s approval.',
+    // No draft frame: at phone width the draft footer's portal button collapses over its own hint text.
     steps: coTop,
     sequence: [
-      { world: withCo2('draft'), caption: 'Draft: priced, not yet sent.' },
       { world: withCo2('submitted'), caption: 'Submitted to the client.' },
       { world: withCo2('approved'), caption: 'Approved by the client.' },
       { world: withCo2('approved'), steps: [{ scroll: 190, to: { text: 'Client Approval' } }, { wait: 1500 }], caption: 'The client\'s approval and the change order\'s lines.' },
