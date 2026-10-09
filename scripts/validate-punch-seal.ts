@@ -181,7 +181,18 @@ ok('PDF prints the hash, the server time and the record id from the row', html.i
 const otherRow = buildPunchSealHtml({ ...seal, manifestHash: 'a'.repeat(64), signerName: 'Someone Else' }, { companyName: '', photos: {}, mode: 'native' });
 ok('PDF hash and name come only from the row (another row prints another hash and name)', otherRow.includes('a'.repeat(64)) && !otherRow.includes('c'.repeat(64)) && otherRow.includes('Someone Else') && !otherRow.includes('Dana'));
 ok('PDF says, in its own statement (not only the client\u2019s acceptance text), it is not a warranty', /It is not a warranty/.test(PUNCH_SEAL_HTML_COPY.statement('X')) && /It is not a warranty/.test(html));
-ok('PDF never prints "MAGE ID"', !/MAGE ID/i.test(html) && !/MAGE ID/i.test(otherRow));
+// PROTECT-TEXT (2026-10-09): the one place "MAGE ID" may appear is the Notice To
+// Recipients that pdfShell puts on every document ("Prepared by {company}
+// using MAGE ID software. MAGE ID did not prepare, review or check ..."), which
+// says the opposite of authorship. Everything else in the record still never
+// names MAGE ID, and the notice itself must be there.
+const outsideNotice = (h: string) => h
+  .replace(/<style data-recipient-notice-page="1">[\s\S]*?<\/style>/g, '')
+  .replace(/<div data-recipient-notice="1"[^>]*>[\s\S]*?<\/div>/g, '');
+ok('PDF never prints "MAGE ID" outside the Notice To Recipients', !/MAGE ID/i.test(outsideNotice(html)) && !/MAGE ID/i.test(outsideNotice(otherRow)));
+ok('PDF carries the Notice To Recipients, naming the company or "the sender"',
+  /data-recipient-notice="1"/.test(html) && /MAGE ID did not prepare, review or check this document/.test(html)
+  && /Prepared by the sender using MAGE ID software\./.test(otherRow));
 ok('PDF prints "Before photo not on file" for a before photo that never uploaded', html.includes(PUNCH_SEAL_HTML_COPY.beforeNotOnFile));
 ok('PDF prints a sentence, never a blank tile, for a photo it could not load', html.includes(PUNCH_SEAL_HTML_COPY.photoNotLoaded));
 ok('PDF from the web says the stored copy is made on the phone; native does not',
