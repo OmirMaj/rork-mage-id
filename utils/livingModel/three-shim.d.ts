@@ -104,6 +104,7 @@ declare module 'three' {
     setSize(w: number, h: number, updateStyle?: boolean): void;
     render(scene: Scene, camera: Camera): void;
     dispose(): void;
+    forceContextLoss(): void;
   }
   export const PCFSoftShadowMap: number;
   export const DoubleSide: number;

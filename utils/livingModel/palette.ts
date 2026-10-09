@@ -182,16 +182,6 @@ export function livingModelPalette(t: ThemeColors, mode: PaletteMode = paletteMo
   };
 }
 
-/**
- * The colour of a room's floor for its stage: the stage colour, softened
- * toward the floor underneath so walls and labels still read on it. A room
- * with no ticked tasks, or none started, keeps the plain floor.
- */
-export function stageFloor(p: LivingModelPalette, stage: RoomStage | undefined, base: string): string {
-  if (!stage || stage === 'no_tasks' || stage === 'not_started') return base;
-  return mixHex(base, p.stage[stage], p.floorTint);
-}
-
 /** '#RRGGBB' to three numbers from 0 to 1. Anything else reads as mid grey. */
 export function hexToRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
