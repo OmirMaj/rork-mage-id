@@ -360,8 +360,8 @@ console.log('\nreminder state line:');
     label.startsWith('Reminder sent · Stage 2 · ') && label.length > 26, label);
   ok('stage labels escalate',
     dunningStageLabel(1) === 'First Reminder' &&
-    dunningStageLabel(2) === 'Second Notice' &&
-    dunningStageLabel(3) === 'Final Notice');
+    dunningStageLabel(2) === 'Second Reminder' &&
+    dunningStageLabel(3) === 'Third Reminder');
 }
 
 // ── 7. Cron / core parity + edge-function safety ─────────────────────

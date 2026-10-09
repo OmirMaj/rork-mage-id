@@ -1054,8 +1054,8 @@ export function targetDunningStage(days: number): number {
 }
 
 export function dunningStageLabel(stage: number): string {
-  if (stage >= 3) return 'Final Notice';
-  if (stage === 2) return 'Second Notice';
+  if (stage >= 3) return 'Third Reminder';
+  if (stage === 2) return 'Second Reminder';
   if (stage === 1) return 'First Reminder';
   return 'No Reminder Sent';
 }
