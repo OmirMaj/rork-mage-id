@@ -969,9 +969,9 @@ function BudgetStep({
                 strangers could not bid on their job, which was untrue. Until
                 the WITH CHECK predicate exists server-side, the promise here
                 is scoped to what actually happens: notification targeting. */}
-            <Text style={styles.verifyToggleTitle}>Notify Verified Pros Only</Text>
+            <Text style={styles.verifyToggleTitle}>Notify Only Contractors With a License on File</Text>
             <Text style={styles.verifyToggleSub}>
-              We only alert contractors with a current license on file. Fewer bids, higher quality.
+              We only alert contractors who have given MAGE ID a license number. MAGE ID does not check that number with the state.
             </Text>
             {/* Audit round 2, #8: licenses are self-added and contractor_licenses
                 is select-own under RLS, so this screen cannot count them — and

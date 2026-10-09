@@ -361,7 +361,7 @@ export default function RfpDetailScreen() {
                     USING(true) to authenticated and bid_responses has no
                     verification predicate. "ONLY" claimed a restriction that does
                     not exist, to both the homeowner and every bidder. */}
-                <Text style={[styles.pillText, { color: themeColors.accent }]}>Verified Pros Notified</Text>
+                <Text style={[styles.pillText, { color: themeColors.accent }]}>Alerted Contractors With a License on File</Text>
               </View>
             )}
             {/* address_verified is written by the HOMEOWNER'S device when its

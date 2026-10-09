@@ -382,7 +382,7 @@ const REGISTRY = [
   { id: 'notification-settings', title: 'Notification Settings', synonyms: ['push', 'mute', 'quiet hours'], route: '/notifications-settings', icon: 'BellRing', group: 'account', persona: 'all' },
   { id: 'report-inbox', title: 'Report Inbox', synonyms: ['incoming reports', 'shared with me'], route: '/report-inbox', icon: 'Inbox', group: 'account' },
   { id: 'company-profile', title: 'Company Profile', synonyms: ['my company', 'logo', 'branding', 'license'], route: '/company-profile', icon: 'Building2', group: 'account' },
-  { id: 'get-verified', title: 'Get Verified', synonyms: ['verification', 'badge', 'trust'], route: '/get-verified', icon: 'BadgeCheck', group: 'account' },
+  { id: 'get-verified', title: 'Add Your License', synonyms: ['license', 'licence', 'get verified', 'verification'], route: '/get-verified', icon: 'BadgeCheck', group: 'account' },
   { id: 'data-export', title: 'Data Export', synonyms: ['backup', 'csv', 'export everything'], route: '/data-export', icon: 'Download', group: 'account' },
   { id: 'data-import', title: 'Data Import', synonyms: ['import', 'migrate', 'bring data'], route: '/data-import', icon: 'Upload', group: 'account' },
   { id: 'upgrade', title: 'Upgrade Plan', synonyms: ['subscription', 'pricing', 'pro', 'billing plan', 'paywall'], route: '/paywall', icon: 'CreditCard', group: 'account', persona: 'all' },

@@ -1952,7 +1952,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Get Verified</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Add Your License</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>

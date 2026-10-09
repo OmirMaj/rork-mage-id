@@ -83,8 +83,8 @@ export default function GetVerifiedScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Trust and Credibility</Text>
-          <Text style={styles.title}>Get Verified</Text>
+          <Text style={styles.eyebrow}>License on File</Text>
+          <Text style={styles.title}>Add Your License</Text>
         </View>
       </View>
       <ProfileLoadNotice testID="get-verified-loading" />
@@ -200,7 +200,7 @@ function GetVerifiedForm() {
         ['Document attached', docUri ? 'Yes' : 'No'],
       ];
       const html = `
-        <h2 style="font-family:sans-serif;color:#2B3038;">Contractor verification request</h2>
+        <h2 style="font-family:sans-serif;color:#2B3038;">Contractor license on file request</h2>
         <table style="font-family:sans-serif;border-collapse:collapse;font-size:14px;">
           ${rows.map(([k, val]) =>
             `<tr><td style="padding:6px 14px 6px 0;color:#9AA3AD;">${escapeHtml(k)}</td>` +
@@ -209,8 +209,8 @@ function GetVerifiedForm() {
         </table>
         <p style="font-family:sans-serif;font-size:12px;color:#9AA3AD;margin-top:16px;">
           Review and, if valid, add a row to contractor_licenses for user_id
-          <code>${escapeHtml(user.id)}</code> so this contractor counts as verified
-          for "Verified pros only" RFPs.
+          <code>${escapeHtml(user.id)}</code> so this contractor is alerted
+          for RFPs that notify only contractors with a license on file.
         </p>`;
 
       const res = await sendEmail({
@@ -241,8 +241,8 @@ function GetVerifiedForm() {
           <View style={styles.successIcon}><CheckCircle2 size={40} color={themeColors.success} strokeWidth={1.75} /></View>
           <Text style={styles.successTitle}>Request Sent</Text>
           <Text style={styles.successBody}>
-            Our team will review your license and verify your account, usually within 1–2 business days.
-            Once verified, you&apos;ll be eligible for &quot;Verified pros only&quot; projects.
+            Your license details were sent to MAGE ID. Once they are on file, you can be alerted to projects that
+            notify only contractors with a license on file. MAGE ID does not check a license number with the state.
           </Text>
           {profileNote ? <Text style={styles.successBody} testID="get-verified-profile-note">{profileNote}</Text> : null}
           <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()} activeOpacity={0.85}>
@@ -262,8 +262,8 @@ function GetVerifiedForm() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Trust and Credibility</Text>
-          <Text style={styles.title}>Get Verified</Text>
+          <Text style={styles.eyebrow}>License on File</Text>
+          <Text style={styles.title}>Add Your License</Text>
         </View>
       </View>
 
@@ -276,8 +276,8 @@ function GetVerifiedForm() {
         <View style={styles.pitch}>
           <View style={styles.pitchIcon}><ShieldCheck size={20} color={themeColors.success} strokeWidth={1.75} /></View>
           <Text style={styles.pitchText}>
-            Verified pros win more work: clients can post projects open only to verified
-            contractors. Submit your license and we&apos;ll review it.
+            Clients can choose to alert only contractors with a license on file. Send your license
+            details here to be included. MAGE ID keeps what you enter and does not check it with the state.
           </Text>
         </View>
 

@@ -679,7 +679,7 @@ export default function SubmitBidResponseScreen() {
           </View>
           {!company && (
             <Text style={styles.identityHelper}>
-              Tip: add a company profile in Settings &gt; Companies so the client sees a verified pitch.
+              Tip: add a company profile in Settings &gt; Companies so the client sees your company details.
             </Text>
           )}
         </View>
