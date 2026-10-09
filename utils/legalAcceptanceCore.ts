@@ -154,13 +154,13 @@ export type SignInScreen = 'signup' | 'login';
 export const TERMS_SENTENCE_ON_SIGNUP_SCREEN = true;
 
 /**
- * Does app/login.tsx display the Terms sentence in THIS build? Not yet: the
- * sentence is being added by another change. While this is false, a password
+ * Does app/login.tsx display the Terms sentence in THIS build? Yes: the
+ * sentence sits above its buttons (the PROTECT-TEXT change). So a password
  * sign-in, a Face ID sign-in and Apple / Google started from the login screen
- * record NOTHING. Change it to true in the same commit that lands the sentence
- * on the login screen; the validator fails if it is true without the sentence.
+ * record an acceptance. Set it back to false in the same commit that ever
+ * removes the sentence; the validator fails if it is true without the sentence.
  */
-export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;
+export const TERMS_SENTENCE_ON_LOGIN_SCREEN = true;
 
 export function screenShowsTerms(screen: SignInScreen | null | undefined): boolean {
   if (screen === 'signup') return TERMS_SENTENCE_ON_SIGNUP_SCREEN;

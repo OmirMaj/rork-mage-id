@@ -370,18 +370,18 @@ async function runChecks(files: Files): Promise<Result[]> {
         c.signInAcceptanceSurface({ method: 'apple', user: fresh, reacceptOn: on }),
         c.signInAcceptanceSurface({ method: 'google', startedFrom: 'somewhere' as never, user: fresh, reacceptOn: on }),
       ].map((v) => v ?? '-').join(' ');
-      ok('B15 as built (the sign-up screen shows the sentence, the login screen does not): a sign-up records; a password sign-in and Apple / Google from the login screen record NOTHING; Apple / Google with no screen named record nothing',
-        core.TERMS_SENTENCE_ON_SIGNUP_SCREEN === true && core.TERMS_SENTENCE_ON_LOGIN_SCREEN === false
-        && table(core, false) === 'signup_email signup_apple signup_google login_first - - - - -', table(core, false));
-      // The one-line change, made in memory: the login screen's constant true.
-      const flippedSrc = files[F.core].replace('export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;', 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = true;');
+      ok('B15 as built (both the sign-up and the login screen show the sentence): a sign-up records; a password sign-in records login_first and Apple / Google from the login screen record; Apple / Google with no screen named record nothing',
+        core.TERMS_SENTENCE_ON_SIGNUP_SCREEN === true && core.TERMS_SENTENCE_ON_LOGIN_SCREEN === true
+        && table(core, false) === 'signup_email signup_apple signup_google login_first login_first signup_apple login_first - -', table(core, false));
+      // The one-line change, made in memory: the login screen's constant false.
+      const flippedSrc = files[F.core].replace('export const TERMS_SENTENCE_ON_LOGIN_SCREEN = true;', 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;');
       const flipped = flippedSrc === files[F.core] ? core : await evalModule<Core>(flippedSrc);
-      ok('B22 with the login screen\'s constant true (the one-line change), a password sign-in records login_first and Apple / Google from the login screen record; a screen that is not named still records nothing',
-        flippedSrc !== files[F.core] && table(flipped, false) === 'signup_email signup_apple signup_google login_first login_first signup_apple login_first - -', table(flipped, false));
+      ok('B22 with the login screen\'s constant false (the one-line change back), a password sign-in and Apple / Google from the login screen record NOTHING; a sign-up still records',
+        flippedSrc !== files[F.core] && table(flipped, false) === 'signup_email signup_apple signup_google login_first - - - - -', table(flipped, false));
       const links = [core, flipped].flatMap((c) => [false, true].flatMap((on) => [fresh, old, null].map((u) => c.signInAcceptanceSurface({ method: 'email_link', startedFrom: 'login', user: u, reacceptOn: on }))));
       ok('B23 an email link (a confirmation, a sign-in link, a password reset) never records, whatever the constants and the account\'s age', links.length === 12 && links.every((v) => v === null), JSON.stringify(links));
       ok('B24 with the re-acceptance gate ON, an account that already existed records nothing at sign-in from any screen (signing out and back in cannot agree for it); a NEW account still records its sign-up',
-        table(core, true) === 'signup_email signup_apple signup_google - - - - - -' && table(flipped, true) === 'signup_email signup_apple signup_google - - signup_apple - - -', `${table(core, true)} | ${table(flipped, true)}`);
+        table(core, true) === 'signup_email signup_apple signup_google - - signup_apple - - -' && table(flipped, true) === 'signup_email signup_apple signup_google - - - - - -', `${table(core, true)} | ${table(flipped, true)}`);
       ok('B25 a restored session has no method and no screen: nothing names it, so nothing records it', S({ method: 'restore' as never, user: old, reacceptOn: false }) === null && core.screenShowsTerms(null) === false && core.screenShowsTerms('email') === false);
     }
     const wiring = stripComments(files[F.wiring]);
@@ -470,10 +470,11 @@ async function runChecks(files: Files): Promise<Result[]> {
     const signup = stripComments(files[F.signup]);
     const login = stripComments(files[F.login]);
     ok('C15 the sign-up screen says so when it starts Apple or Google', /await signInWithGoogle\('signup'\)/.test(signup) && /await signInWithApple\('signup'\)/.test(signup) && !/signInWith(Google|Apple)\('signup'\)/.test(login));
-    const sentence = (src: string): boolean => /Terms of Service/.test(src) && /Privacy Policy/.test(src) && /agree/i.test(src);
+    // The sentence is either typed on the screen or drawn by the shared <AgreementNotice /> (components/AgreementNotice.tsx).
+    const sentence = (src: string): boolean => (/Terms of Service/.test(src) && /Privacy Policy/.test(src) && /agree/i.test(src)) || /<AgreementNotice\b/.test(src);
     ok('C16 TERMS_SENTENCE_ON_SIGNUP_SCREEN is true and app/signup.tsx displays the sentence, with a link to each document',
       core.TERMS_SENTENCE_ON_SIGNUP_SCREEN === true && /By creating an account you agree to our/.test(signup) && sentence(signup) && /mageid\.app\/terms/.test(signup) && /mageid\.app\/privacy/.test(signup));
-    ok('C17 TERMS_SENTENCE_ON_LOGIN_SCREEN is true ONLY IF app/login.tsx displays the sentence (today it does not, and the constant is false: a login records nothing)',
+    ok('C17 TERMS_SENTENCE_ON_LOGIN_SCREEN is true ONLY IF app/login.tsx displays the sentence (today it does, and the constant is true)',
       core.TERMS_SENTENCE_ON_LOGIN_SCREEN === false || sentence(login), 'the constant says the login screen shows the Terms sentence and app/login.tsx does not contain it');
     // The two files that call setSession themselves must go on to onNewSessionEstablished.
     for (const f of [F.layout, F.reset]) {
@@ -713,8 +714,8 @@ const M: Mutation[] = [
   { name: 'a refused record is retried forever', file: F.core, from: 'was.tries >= LEGAL_REFUSAL_MAX_TRIES || ', to: '', red: 'B19' },
   { name: 'the rpc drops the update id', file: F.core, from: "    p_update_id: ctx.updateId && /^[A-Za-z0-9-]{1,64}$/.test(ctx.updateId) ? ctx.updateId : null,", to: '    p_update_id: null,', red: 'B5' },
   { name: 'an email link records', file: F.core, from: "  if (method === 'email_link') return null;", to: "  if (method === 'email_link') return 'login_first';", red: 'B23' },
-  { name: 'the login screen records whatever its constant says', file: F.core, from: "  if (screen === 'login') return TERMS_SENTENCE_ON_LOGIN_SCREEN;", to: "  if (screen === 'login') return true;", red: 'B15' },
-  { name: 'the login screen\'s constant is true with no sentence on the screen', file: F.core, from: 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;', to: 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = true;', red: 'C17' },
+  { name: 'the login screen records whatever its constant says', file: F.core, from: "  if (screen === 'login') return TERMS_SENTENCE_ON_LOGIN_SCREEN;", to: "  if (screen === 'login') return true;", red: 'B22' },
+  { name: 'the login screen\'s constant is set back to false while the sentence is on the screen', file: F.core, from: 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = true;', to: 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;', red: 'B15' },
   { name: 'Apple with no screen named records as a sign-up', file: F.core, from: "return startedFrom === 'signup' || startedFrom === 'login' ? startedFrom : null;", to: "return startedFrom === 'login' ? 'login' : 'signup';", red: 'B15' },
   { name: 'with the gate on, signing out and back in records the new version', file: F.core, from: '  if (input.reacceptOn === true && !fresh) return null;\n', to: '', red: 'B24' },
   { name: 'has() does not wait for a note made a moment ago', file: F.core, from: 'try { await notesWritten; return hasLegalItem(', to: 'try { return hasLegalItem(', red: 'B21' },
