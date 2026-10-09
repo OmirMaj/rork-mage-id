@@ -40,6 +40,36 @@
 //
 // A gap under one inch (a 96 1/2 in wall under a 96 in sheet) is not boarded:
 // the corner or the trim takes it. It is reported as `gapIn`, never hidden.
+//
+// ── THE RULES A HANGER WOULD HOLD THE LAYOUT TO (lane SCANORDER, review round) ──
+//   MINIMUM END PIECE, 16 in. A run longer than a sheet is never finished with
+//     a strip. The last piece is at least MIN_PIECE_IN long (one stud bay at
+//     16 in on centre, so it lands on two framing members) and the piece before
+//     it is shortened to make room: a 98 in wall on 96 in sheets is 82 + 16,
+//     never 96 + 2. A piece is shorter than that only where the wall itself is
+//     (the strip between a door and a corner): that piece is marked `narrow`.
+//   STAGGER, 16 in. A butt joint is kept at least STAGGER_IN (one stud bay)
+//     from every butt joint in the course above or below it. The run is tried
+//     full sheets first, then from the other end, then starting with a half
+//     sheet, then in equal pieces; the first that clears the joints already
+//     hung is used. Where no way of cutting the run clears them, the joints
+//     are counted in `stackedJoints` and the screen says so.
+//   THE GAP AT THE FLOOR, 2 in. A wall up to FLOOR_GAP_IN taller than its
+//     sheets is not given a strip of board at the floor: the baseboard covers
+//     it. An 8 ft 1 1/8 in wall under 4x8 sheets leaves a 1 1/8 in gap, which
+//     is reported as `floorGapIn`. This keeps the scan's own inch of error from
+//     flipping the sheet count.
+//   A LONGER SHEET. When the longest run on a surface is 1 to 24 in longer
+//     than the sheet and the next sheet size would span it, `longerSheet` says
+//     so. It is a suggestion for the screen: the layout is not changed.
+// TWO WAYS ARE TRIED, and the one that buys fewer sheets is kept (`policy`):
+//   'layout_first'  decide every joint by the rules above, then cut the pieces
+//                   longest first, each from the smallest offcut that covers it;
+//   'run_by_run'    take the runs longest first and, among the ways of cutting
+//                   a run that keep the rules, use the one that opens the
+//                   fewest new sheets from the offcuts on hand.
+// Neither is proven to be the fewest sheets possible. The count is checked in
+// scripts/validate-scan-order.ts against a bound worked out another way.
 
 export const SHEET_WIDTH_IN = 48;
 export const SHEET_LENGTHS_IN = { '4x8': 96, '4x10': 120, '4x12': 144 } as const;
@@ -51,12 +81,23 @@ export type HangDirection = 'across' | 'upright';
 export const DEFAULT_MIN_OFFCUT_IN = 12;
 /** A gap narrower than this is left for the corner or the trim. */
 export const SLIVER_IN = 1;
+/** The shortest piece a butt joint may leave: one stud bay at 16 in on centre. */
+export const MIN_PIECE_IN = 16;
+/** Butt joints in neighbouring courses are kept at least this far apart: one stud bay. */
+export const STAGGER_IN = 16;
+/** A wall up to this much taller than its sheets leaves a gap at the floor for the baseboard, not a strip of board. */
+export const FLOOR_GAP_IN = 2;
+/** A run up to this much longer than the sheet gets the "a longer sheet removes the joint" suggestion. */
+export const LONGER_SHEET_OVER_IN = 24;
 
 const EPS = 1e-6;
 /** To the nearest eighth of an inch. */
 export const r8 = (n: number): number => Math.round(n * 8) / 8;
 
 export interface RectIn { x0: number; x1: number; y0: number; y1: number }
+export type OpeningKind = 'door' | 'window' | 'opening';
+/** An opening on a wall face. `kind` rides along so the cut list can say "window cut out". */
+export interface OpeningRect extends RectIn { kind?: OpeningKind }
 export interface PtIn { x: number; y: number }
 
 export interface WallSurface {
@@ -65,7 +106,7 @@ export interface WallSurface {
   widthIn: number;
   heightIn: number;
   /** Doors, windows and openings on the wall face, x from the wall's start, y up from the floor. */
-  openings: RectIn[];
+  openings: OpeningRect[];
 }
 export interface CeilingSurface {
   kind: 'ceiling';
@@ -86,7 +127,9 @@ export interface CutPiece {
   /** Where on its sheet the piece was cut: `a` along the sheet's length, `c` across its width. */
   src: { a: number; c: number; alongIn: number; acrossIn: number };
   /** Holes cut out of this piece, in surface coordinates. Each opening's area appears once across all pieces. */
-  cutouts: RectIn[];
+  cutouts: OpeningRect[];
+  /** True when the piece is under MIN_PIECE_IN because the wall there is: the strip between a door and a corner. */
+  narrow: boolean;
   /** Board area of the piece less its cutouts, square inches. */
   netAreaIn2: number;
   /** A ceiling piece whose rectangle is larger than the room under it (an angled wall): it is cut to the shape. */
@@ -104,16 +147,26 @@ export interface SurfacePlan {
   offcutPieces: number;
   /** Total length of sub-inch gaps left unboarded on this surface. */
   gapIn: number;
+  /** The height of the gap left at the floor for the baseboard (a wall up to FLOOR_GAP_IN taller than its sheets). 0 for none. */
+  floorGapIn: number;
+  /** Butt joints closer than STAGGER_IN to a joint in the next course, because no way of cutting the run cleared them. */
+  stackedJoints: number;
+  /** Set when the next sheet size would hang the longest run here with no butt joint. A suggestion: nothing is changed. */
+  longerSheet: { sheet: SheetKey; overIn: number; along: 'length' | 'height' } | null;
   /** The ceiling's outline after turning, for drawing. Empty for a wall. */
   outline: PtIn[];
   /** The openings as hung (clipped to the wall). Empty for a ceiling. */
-  openings: RectIn[];
+  openings: OpeningRect[];
 }
 
 export interface CutPlan {
   sheet: SheetKey;
   hang: HangDirection;
   minOffcutIn: number;
+  minPieceIn: number;
+  staggerIn: number;
+  /** Which of the two ways of laying it out bought fewer sheets (see the top of this file). */
+  policy: 'layout_first' | 'run_by_run';
   /** How many sheets to buy. */
   sheets: number;
   sheetAreaSF: number;
@@ -256,20 +309,24 @@ interface Prepared {
   polygon: PtIn[] | null;
 }
 
-function clipOpenings(s: WallSurface): RectIn[] {
+function clipOpenings(s: WallSurface): OpeningRect[] {
   const W = r8(s.widthIn);
   const H = r8(s.heightIn);
   return s.openings
-    .map((o) => ({ x0: r8(Math.max(0, o.x0)), x1: r8(Math.min(W, o.x1)), y0: r8(Math.max(0, o.y0)), y1: r8(Math.min(H, o.y1)) }))
+    .map((o) => ({ x0: r8(Math.max(0, o.x0)), x1: r8(Math.min(W, o.x1)), y0: r8(Math.max(0, o.y0)), y1: r8(Math.min(H, o.y1)), ...(o.kind ? { kind: o.kind } : {}) }))
     .filter((o) => o.x1 - o.x0 > EPS && o.y1 - o.y0 > EPS);
 }
 
-function prepare(surface: CutSurface, index: number, hang: HangDirection): Prepared {
+function prepare(surface: CutSurface, index: number, hang: HangDirection, L: number): Prepared {
+  const blank = (kind: 'wall' | 'ceiling', W: number, H: number, outline: PtIn[], openings: OpeningRect[]): SurfacePlan => ({
+    surfaceId: surface.id, kind, widthIn: W, heightIn: H, pieces: [], newSheets: 0, offcutPieces: 0,
+    gapIn: 0, floorGapIn: 0, stackedJoints: 0, longerSheet: null, outline, openings,
+  });
   if (surface.kind === 'wall') {
     const W = r8(surface.widthIn);
     const H = r8(surface.heightIn);
     const openings = clipOpenings(surface);
-    const plan: SurfacePlan = { surfaceId: surface.id, kind: 'wall', widthIn: W, heightIn: H, pieces: [], newSheets: 0, offcutPieces: 0, gapIn: 0, outline: [], openings };
+    const plan = blank('wall', W, H, [], openings);
     const needs: Need[] = [];
     let seq = 0;
     if (!(W > 0) || !(H > 0)) return { plan, needs, alongAxis: 'x', polygon: null };
@@ -278,6 +335,8 @@ function prepare(surface: CutSurface, index: number, hang: HangDirection): Prepa
       for (let top = H; top > EPS; top -= SHEET_WIDTH_IN) {
         const c1 = top;
         const c0 = Math.max(0, top - SHEET_WIDTH_IN);
+        // The wall is only a little taller than its sheets: a gap at the floor for the baseboard, not a strip of board.
+        if (c0 <= EPS && c1 < H - EPS && c1 - c0 <= FLOOR_GAP_IN + EPS) { plan.floorGapIn = r8(c1 - c0); continue; }
         if (c1 - c0 < SLIVER_IN) { plan.gapIn += c1 - c0; continue; }
         const blocked = openings.filter((o) => o.y0 <= c0 + EPS && o.y1 >= c1 - EPS).map((o) => [o.x0, o.x1] as [number, number]);
         for (const [a0, a1] of complement(blocked, 0, W)) {
@@ -293,8 +352,12 @@ function prepare(surface: CutSurface, index: number, hang: HangDirection): Prepa
       const c1 = Math.min(W, left + SHEET_WIDTH_IN);
       if (c1 - c0 < SLIVER_IN) { plan.gapIn += c1 - c0; continue; }
       const blocked = openings.filter((o) => o.x0 <= c0 + EPS && o.x1 >= c1 - EPS).map((o) => [o.y0, o.y1] as [number, number]);
-      for (const [a0, a1] of complement(blocked, 0, H)) {
+      for (const [lo, a1] of complement(blocked, 0, H)) {
+        let a0 = lo;
         if (a1 - a0 < SLIVER_IN) { plan.gapIn += a1 - a0; continue; }
+        // A column a little taller than its sheets is pushed up to the ceiling and leaves the gap at the floor.
+        const over = (a1 - a0) - Math.floor((a1 - a0 + EPS) / L) * L;
+        if (a0 <= EPS && a1 - a0 > L + EPS && over > EPS && over <= FLOOR_GAP_IN + EPS) { plan.floorGapIn = Math.max(plan.floorGapIn, r8(over)); a0 += over; }
         needs.push({ surface: index, a0, a1, c0, c1, seq: seq++ });
       }
     }
@@ -303,7 +366,7 @@ function prepare(surface: CutSurface, index: number, hang: HangDirection): Prepa
   const outline = turnToLongestSide(surface.polygon);
   const W = outline.length ? r8(Math.max(...outline.map((p) => p.x))) : 0;
   const H = outline.length ? r8(Math.max(...outline.map((p) => p.y))) : 0;
-  const plan: SurfacePlan = { surfaceId: surface.id, kind: 'ceiling', widthIn: W, heightIn: H, pieces: [], newSheets: 0, offcutPieces: 0, gapIn: 0, outline, openings: [] };
+  const plan = blank('ceiling', W, H, outline, []);
   const needs: Need[] = [];
   let seq = 0;
   for (let bottom = 0; bottom < H - EPS; bottom += SHEET_WIDTH_IN) {
@@ -319,95 +382,164 @@ function prepare(surface: CutSurface, index: number, hang: HangDirection): Prepa
 }
 
 /**
+ * The ways a run of `len` may be cut from sheets `L` long, each a list of piece
+ * lengths in order along the run. Every piece is at least MIN_PIECE_IN (a run
+ * one sheet spans is one piece, whatever its length). In order: full sheets
+ * first, the same from the other end, starting with a half sheet, that from
+ * the other end, and equal pieces.
+ */
+export function waysToCut(len: number, L: number): number[][] {
+  if (len <= L + EPS) return [[len]];
+  const forward = (n: number): number[] => {
+    if (n <= L + EPS) return [n];
+    const full = Math.floor((n + EPS) / L);
+    const rest = n - full * L;
+    const sheets = (k: number): number[] => Array.from({ length: k }, () => L);
+    if (rest <= EPS) return sheets(full);
+    if (rest >= MIN_PIECE_IN - EPS) return [...sheets(full), rest];
+    // The piece before the last is shortened so the last is not a strip.
+    return [...sheets(full - 1), L - (MIN_PIECE_IN - rest), MIN_PIECE_IN];
+  };
+  const full = forward(len);
+  const half = [L / 2, ...forward(len - L / 2)];
+  const k = Math.ceil((len - EPS) / L);
+  const each = r8(len / k);
+  const even = [...Array.from({ length: k - 1 }, () => each), len - each * (k - 1)];
+  const seen = new Set<string>();
+  return [full, [...full].reverse(), half, [...half].reverse(), even].filter((w) => {
+    const key = w.join(',');
+    return seen.has(key) ? false : (seen.add(key), true);
+  });
+}
+
+/**
  * Lay out sheets for a set of surfaces that share offcuts (the walls of one
  * room, or its ceiling). Returns how many sheets to buy and every piece.
  */
 export function planSheets(surfaces: readonly CutSurface[], opts: CutPlanOptions): CutPlan {
-  const L = SHEET_LENGTHS_IN[opts.sheet];
-  const minOff = Math.max(0, opts.minOffcutIn ?? DEFAULT_MIN_OFFCUT_IN);
+  const L = SHEET_LENGTHS_IN[opts.sheet] ?? SHEET_LENGTHS_IN['4x8'];
+  const minOff = Math.max(0, Number.isFinite(opts.minOffcutIn as number) ? (opts.minOffcutIn as number) : DEFAULT_MIN_OFFCUT_IN);
   const reuse = opts.reuse !== false;
-  const prepared = surfaces.map((s, i) => prepare(s, i, opts.hang));
-  const needs = prepared.flatMap((p) => p.needs);
-  // Full-width strips before ripped ones, long runs before short ones.
-  needs.sort((p, q) =>
-    (q.c1 - q.c0) - (p.c1 - p.c0) || (q.a1 - q.a0) - (p.a1 - p.a0) || p.surface - q.surface || p.seq - q.seq);
 
-  const pool: Offcut[] = [];
-  let sheets = 0;
-  const keep = (o: Offcut) => { if (reuse && o.alongIn >= minOff - EPS && o.acrossIn >= minOff - EPS && o.alongIn > EPS && o.acrossIn > EPS) pool.push(o); };
+  const attempt = (policy: CutPlan['policy']) => {
+    const prepared = surfaces.map((s, i) => prepare(s, i, opts.hang, L));
+    const pool: Offcut[] = [];
+    let sheets = 0;
+    let stacked = 0;
+    /** Butt joints hung so far, by surface: where along the strip, and which strip. */
+    const joints: { at: number; c0: number; c1: number }[][] = prepared.map(() => []);
 
-  const place = (n: Need, at: number, len: number, across: number, from: Offcut | null): void => {
-    const prep = prepared[n.surface];
-    let src: Offcut;
-    if (from) {
-      src = from;
-      pool.splice(pool.indexOf(from), 1);
+    /** Take a piece from the smallest offcut that covers it, else from a new sheet. The drops go back in the pool. */
+    const take = (from: Offcut[], len: number, across: number, fresh: () => number): { src: Offcut; isNew: boolean } => {
+      const fits = from.filter((o) => o.acrossIn >= across - EPS && o.alongIn >= len - EPS)
+        .sort((p, q) => p.alongIn * p.acrossIn - q.alongIn * q.acrossIn || p.sheet - q.sheet || p.a - q.a || p.c - q.c)[0];
+      const src: Offcut = fits ?? { sheet: fresh(), a: 0, c: 0, alongIn: L, acrossIn: SHEET_WIDTH_IN };
+      if (fits) from.splice(from.indexOf(fits), 1);
+      // Cut the length first, then rip: the end of the sheet, and the rip beside the piece.
+      for (const o of [
+        { sheet: src.sheet, a: src.a + len, c: src.c, alongIn: src.alongIn - len, acrossIn: src.acrossIn },
+        { sheet: src.sheet, a: src.a, c: src.c + across, alongIn: len, acrossIn: src.acrossIn - across },
+      ]) if (reuse && o.alongIn >= minOff - EPS && o.acrossIn >= minOff - EPS && o.alongIn > EPS && o.acrossIn > EPS) from.push(o);
+      return { src, isNew: !fits };
+    };
+
+    const hang = (n: Need, at: number, len: number, narrow: boolean): void => {
+      const prep = prepared[n.surface];
+      const across = n.c1 - n.c0;
+      const { src, isNew } = take(pool, len, across, () => { sheets += 1; prep.plan.newSheets += 1; return sheets; });
+      const rect: RectIn = prep.alongAxis === 'x'
+        ? { x0: at, x1: at + len, y0: n.c0, y1: n.c1 }
+        : { x0: n.c0, x1: n.c1, y0: at, y1: at + len };
+      const cutouts = prep.plan.openings
+        .map((o) => ({ ...o, x0: Math.max(o.x0, rect.x0), x1: Math.min(o.x1, rect.x1), y0: Math.max(o.y0, rect.y0), y1: Math.min(o.y1, rect.y1) }))
+        .filter((o) => o.x1 - o.x0 > EPS && o.y1 - o.y0 > EPS);
+      const gross = (rect.x1 - rect.x0) * (rect.y1 - rect.y0);
+      let net = gross - rectUnionArea(cutouts);
+      let cutToShape = false;
+      if (prep.polygon) {
+        // What the room has under this rectangle: clip the outline to it.
+        const a = polygonAreaIn2(clipToRect(prep.polygon, rect));
+        if (a < gross - 0.5) { cutToShape = true; net = a; }
+      }
+      if (!isNew) prep.plan.offcutPieces += 1;
+      prep.plan.pieces.push({
+        surfaceId: prep.plan.surfaceId,
+        x: rect.x0, y: rect.y0, w: rect.x1 - rect.x0, h: rect.y1 - rect.y0,
+        sheet: src.sheet, fromOffcut: !isNew,
+        src: { a: src.a, c: src.c, alongIn: len, acrossIn: across },
+        cutouts, narrow, netAreaIn2: net, cutToShape,
+      });
+    };
+
+    /** Decide how one run is cut. Returns its pieces as [where, how long]. */
+    const layRun = (n: Need): { at: number; len: number }[] => {
+      const prep = prepared[n.surface];
+      const across = n.c1 - n.c0;
+      let len = n.a1 - n.a0;
+      // A run under an inch longer than its sheets is not given a strip: the corner takes it.
+      const over = len - Math.floor((len + EPS) / L) * L;
+      if (len > L + EPS && over > EPS && over < SLIVER_IN) { prep.plan.gapIn += over; len -= over; }
+      const near = joints[n.surface].filter((j) => Math.abs(j.c1 - n.c0) < EPS || Math.abs(j.c0 - n.c1) < EPS);
+      const scored = waysToCut(len, L).map((way, index) => {
+        const mine: number[] = [];
+        let at = n.a0;
+        for (let i = 0; i + 1 < way.length; i++) { at += way[i]; mine.push(at); }
+        const close = mine.filter((j) => near.some((q) => Math.abs(q.at - j) < STAGGER_IN - EPS)).length;
+        let fresh = 0;
+        if (policy === 'run_by_run') {
+          const trial = [...pool];
+          for (const piece of [...way].sort((p, q) => q - p)) take(trial, piece, across, () => { fresh += 1; return -1; });
+        }
+        return { way, mine, close, fresh, index };
+      });
+      const best = scored.sort((p, q) => p.close - q.close || p.fresh - q.fresh || p.way.length - q.way.length || p.index - q.index)[0];
+      stacked += best.close;
+      prep.plan.stackedJoints += best.close;
+      for (const at of best.mine) joints[n.surface].push({ at, c0: n.c0, c1: n.c1 });
+      const out: { at: number; len: number }[] = [];
+      let at = n.a0;
+      for (const piece of best.way) { out.push({ at, len: piece }); at += piece; }
+      return out;
+    };
+
+    const narrowRun = (n: Need): boolean => n.a1 - n.a0 < MIN_PIECE_IN - EPS;
+    const bySize = (p: { n: Need; len: number; at: number }, q: { n: Need; len: number; at: number }): number =>
+      (q.n.c1 - q.n.c0) - (p.n.c1 - p.n.c0) || q.len - p.len || p.n.surface - q.n.surface || p.n.seq - q.n.seq || p.at - q.at;
+    const needs = prepared.flatMap((p) => p.needs);
+    if (policy === 'layout_first') {
+      // Every joint first, in the order the courses go up. Then the pieces, longest first.
+      const laid = needs.flatMap((n) => layRun(n).map((x) => ({ n, ...x })));
+      for (const x of laid.sort(bySize)) hang(x.n, x.at, x.len, narrowRun(x.n));
     } else {
-      sheets += 1;
-      prep.plan.newSheets += 1;
-      src = { sheet: sheets, a: 0, c: 0, alongIn: L, acrossIn: SHEET_WIDTH_IN };
+      // Full-width strips before ripped ones, long runs before short ones.
+      const order = [...needs].sort((p, q) => (q.c1 - q.c0) - (p.c1 - p.c0) || (q.a1 - q.a0) - (p.a1 - p.a0) || p.surface - q.surface || p.seq - q.seq);
+      for (const n of order) for (const x of layRun(n).map((y) => ({ n, ...y })).sort(bySize)) hang(x.n, x.at, x.len, narrowRun(n));
     }
-    // Cut the length first, then rip: the end of the sheet, and the rip beside the piece.
-    keep({ sheet: src.sheet, a: src.a + len, c: src.c, alongIn: src.alongIn - len, acrossIn: src.acrossIn });
-    keep({ sheet: src.sheet, a: src.a, c: src.c + across, alongIn: len, acrossIn: src.acrossIn - across });
-    const rect: RectIn = prep.alongAxis === 'x'
-      ? { x0: at, x1: at + len, y0: n.c0, y1: n.c1 }
-      : { x0: n.c0, x1: n.c1, y0: at, y1: at + len };
-    const cutouts = prep.plan.openings
-      .map((o) => ({ x0: Math.max(o.x0, rect.x0), x1: Math.min(o.x1, rect.x1), y0: Math.max(o.y0, rect.y0), y1: Math.min(o.y1, rect.y1) }))
-      .filter((o) => o.x1 - o.x0 > EPS && o.y1 - o.y0 > EPS);
-    const gross = (rect.x1 - rect.x0) * (rect.y1 - rect.y0);
-    let net = gross - rectUnionArea(cutouts);
-    let cutToShape = false;
-    if (prep.polygon) {
-      // What the room has under this rectangle: clip the outline to it.
-      const under = clipToRect(prep.polygon, rect);
-      const a = polygonAreaIn2(under);
-      if (a < gross - 0.5) { cutToShape = true; net = a; }
+
+    for (const p of prepared) {
+      // The next sheet size that would span the longest run here, when the run is only a little longer than this one.
+      const longest = p.needs.reduce((m, n) => Math.max(m, n.a1 - n.a0), 0);
+      const over = longest - L;
+      const next = SHEET_KEYS.find((k) => SHEET_LENGTHS_IN[k] > L && SHEET_LENGTHS_IN[k] >= longest - EPS);
+      if (over >= SLIVER_IN - EPS && over <= LONGER_SHEET_OVER_IN + EPS && next) p.plan.longerSheet = { sheet: next, overIn: r8(over), along: p.alongAxis === 'x' ? 'length' : 'height' };
+      p.plan.gapIn = r8(p.plan.gapIn);
+      p.plan.pieces.sort((a, b) => b.y - a.y || a.x - b.x);
     }
-    if (from) prep.plan.offcutPieces += 1;
-    prep.plan.pieces.push({
-      surfaceId: prep.plan.surfaceId,
-      x: rect.x0, y: rect.y0, w: rect.x1 - rect.x0, h: rect.y1 - rect.y0,
-      sheet: src.sheet, fromOffcut: !!from,
-      src: { a: src.a, c: src.c, alongIn: len, acrossIn: across },
-      cutouts, netAreaIn2: net, cutToShape,
-    });
+    return { policy, prepared, sheets, stacked, pieces: prepared.reduce((s, p) => s + p.plan.pieces.length, 0) };
   };
 
-  for (const n of needs) {
-    const across = n.c1 - n.c0;
-    let at = n.a0;
-    while (n.a1 - at > EPS) {
-      const left = n.a1 - at;
-      if (left < SLIVER_IN) { prepared[n.surface].plan.gapIn += left; break; }
-      const fits = pool.filter((o) => o.acrossIn >= across - EPS);
-      // One piece for the whole of what is left, from the smallest offcut that covers it.
-      const whole = fits.filter((o) => o.alongIn >= left - EPS).sort((p, q) => p.alongIn * p.acrossIn - q.alongIn * q.acrossIn || p.sheet - q.sheet)[0];
-      if (whole) { place(n, at, left, across, whole); break; }
-      if (left > L + EPS) {
-        // Longer than a sheet: a joint is coming anyway, so a kept offcut may start it.
-        const starter = fits.sort((p, q) => q.alongIn - p.alongIn || p.sheet - q.sheet)[0];
-        const len = starter ? starter.alongIn : L;
-        place(n, at, len, across, starter ?? null);
-        at += len;
-        continue;
-      }
-      place(n, at, left, across, null);
-      break;
-    }
-  }
+  const first = attempt('layout_first');
+  const second = reuse ? attempt('run_by_run') : first;
+  const won = second.sheets < first.sheets
+    || (second.sheets === first.sheets && (second.stacked < first.stacked || (second.stacked === first.stacked && second.pieces < first.pieces)))
+    ? second : first;
 
   const sheetAreaSF = (L * SHEET_WIDTH_IN) / 144;
-  const hung = prepared.reduce((s, p) => s + p.plan.pieces.reduce((t, x) => t + x.netAreaIn2, 0), 0);
-  for (const p of prepared) {
-    p.plan.gapIn = r8(p.plan.gapIn);
-    p.plan.pieces.sort((a, b) => b.y - a.y || a.x - b.x);
-  }
+  const hung = won.prepared.reduce((s, p) => s + p.plan.pieces.reduce((t, x) => t + x.netAreaIn2, 0), 0);
   return {
-    sheet: opts.sheet, hang: opts.hang, minOffcutIn: minOff,
-    sheets, sheetAreaSF, boardSF: sheets * sheetAreaSF, hungSF: hung / 144,
-    surfaces: prepared.map((p) => p.plan),
+    sheet: opts.sheet, hang: opts.hang, minOffcutIn: minOff, minPieceIn: MIN_PIECE_IN, staggerIn: STAGGER_IN, policy: won.policy,
+    sheets: won.sheets, sheetAreaSF, boardSF: won.sheets * sheetAreaSF, hungSF: hung / 144,
+    surfaces: won.prepared.map((p) => p.plan),
   };
 }
 
