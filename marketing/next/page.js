@@ -211,7 +211,7 @@
     if (job) {
       job.setS(target, still);
       var hk = clamp(1 - scrollS / 0.7, 0, 1); hk = hk * hk * (3 - 2 * hk);
-      if (P.shot !== null) job.setLayout(0.5, 0.5, 0.94, true);
+      if (P.shot !== null) job.setLayout(0.5, 0.5, 0.8, true);
       else if (wide()) job.setLayout(0.56 + 0.11 * hk, 0.47 + 0.03 * hk, 0.44 + 0.08 * hk, still);
       else job.setLayout(0.5, 0.44, 0.98, still);
     }
@@ -241,7 +241,7 @@
         var x = pt[0], y = pt[1];
         if (!c.w) { c.w = c.el.lastChild.offsetWidth; c.h = c.el.lastChild.offsetHeight; }
         var vw = scene.clientWidth, left = c.el.classList.contains('l');
-        x = left ? clamp(x, c.w - 14, vw + 14) : clamp(x, 30, vw - c.w + 14);
+        x = left ? clamp(x, c.w - 14, vw + 14) : clamp(x, 30, vw - c.w + (narrow ? 14 : -2));
         y = Math.max(y, c.h + (narrow ? 30 : 100));
         c.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
       }

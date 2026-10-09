@@ -18,7 +18,7 @@
     (function () {
       var d = document.documentElement, q = location.search, c = 'js';
       var lowPower = (navigator.connection && navigator.connection.saveData) || (navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2);
-      var can = !!window.WebGLRenderingContext && !!window.requestAnimationFrame && !!window.IntersectionObserver;
+      var can = !!window.WebGLRenderingContext && !!window.IntersectionObserver;
       if (/[?&]still=1/.test(q) || /[?&]full=1/.test(q)) can = false;
       else if (/[?&]still=0/.test(q)) lowPower = false;
       if (can && !lowPower) c += ' is3d';
@@ -37,9 +37,12 @@
       <span>MAGE ID</span>
     </a>
     <nav class="navlinks" aria-label="Site">
-      <a href="#prices">Your Prices</a>
+      <a href="/playbook.html">How It Works</a>
+      <a href="/features/">Features</a>
+      <a href="/compare/">Compare</a>
       <a href="/pricing.html">Pricing</a>
-      <a href="/access.html">iPhone Invite</a>
+      <a href="/demo.html">Demo</a>
+      <a href="/support.html">Support</a>
     </nav>
     <a class="btn small" href="https://app.mageid.app">Start Free</a>
   </header>
@@ -311,7 +314,7 @@
         <a href="/terms.html">Terms</a>
       </nav>
     </div>
-    <nav class="trust-strip" aria-label="About this company">
+    <nav class="trust-strip" aria-label="About this company" style="border-top:1px solid rgba(128,128,128,0.3)">
       <a href="/proof.html">New product, no reviews yet, and we say so</a>
       <a href="/who-built-this.html">Who built this</a>
       <a href="/changelog.html">Changelog</a>

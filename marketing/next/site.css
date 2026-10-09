@@ -290,14 +290,14 @@ h1 span:last-child { color: var(--green-lite); }
 .foot nav { display: flex; flex-wrap: wrap; gap: 6px 22px; }
 .foot a { display: inline-block; padding: 4px 0; text-decoration: none; }
 .foot a:hover { color: #fff; text-decoration: underline; }
-.trust-strip { margin-top: 20px; padding-top: 16px; font-weight: 600; border-top: 1px solid var(--ink-line); }
+.trust-strip { margin-top: 20px; padding-top: 16px; font-weight: 600; }
 .aia-notice { margin-top: 16px; max-width: 70em; font-size: 13px; line-height: 1.55; color: var(--mute); }
 
 /* things that rise into view lower down the page */
 .js .rise { opacity: 0; transform: translateY(34px); transition: opacity .6s ease, transform .9s var(--out); }
 .js .rise.in { opacity: 1; transform: none; }
 
-@media (max-width: 899px) {
+@media (max-width: 1099px) {
   .navlinks { display: none; }
   .top .btn { margin-left: auto; }
 }
