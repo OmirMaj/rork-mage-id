@@ -53,6 +53,8 @@ export function DemoJobScreen(props: DemoJobScreenProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [demoCount, setDemoCount] = useState(0);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [taskCount, setTaskCount] = useState(1);
   const freshId = useRef<string | null>(null);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
@@ -70,7 +72,10 @@ export function DemoJobScreen(props: DemoJobScreenProps) {
     const job = jobNow();
     const res = await demoStatus(job, ports);
     if (!alive.current) return;
-    setDemoCount(existingDemoProjects(ports.world()).length);
+    const found = existingDemoProjects(ports.world());
+    setDemoCount(found.length);
+    setProjectId(found[0]?.id ?? null);
+    setTaskCount(job.project.schedule?.tasks.length ?? 1);
     setState(res.state);
     setAreas(res.areas);
   }, [jobNow, ports]);
@@ -127,8 +132,6 @@ export function DemoJobScreen(props: DemoJobScreenProps) {
 
   const busy = phase !== 'idle';
   const tooMany = demoCount > 1;
-  const projectId = useMemo(() => existingDemoProjects(ports.world())[0]?.id ?? null, [ports, state, demoCount]);
-  const taskCount = useMemo(() => jobNow().project.schedule?.tasks.length ?? 1, [jobNow, state]);
   const failed = useMemo(() => new Map(failures.map((f) => [f.key, f] as const)), [failures]);
   const stateBody = phase === 'checking' ? copy.checkingBody
     : phase === 'working' ? copy.workingBody
