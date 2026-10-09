@@ -1132,7 +1132,12 @@ rule('N3 nothing outside the feature links to it or imports it', (w) => {
   const OWNER_ROW_IMPORT = "import { ScanRoomOwnerRow } from '@/components/roomScan/ScanRoomOwnerRow';";
   for (const [f, text] of Object.entries(w.outside)) {
     const s = stripComments(text);
-    const seen = f === 'app/project-detail.tsx' ? s.replace(OWNER_ROW_IMPORT, '') : s;
+    // The Living Model (lane LIVINGMODEL) reuses the scanner's ROOM MODEL so it is not forked: its pure core
+    // (utils/livingModel/*) may import the scanner's four pure files and nothing else. The native lookup, the
+    // store that hashes, the flow, the copy hook and the flag stay out of reach, and no screen of it imports
+    // the scanner at all.
+    const PURE_REUSE = /^(?:import|export)(?: type)? \{[^}]*\} from '@\/utils\/roomScan\/(?:types|units|geometryCore|storeCore)';$/gm;
+    const seen = f === 'app/project-detail.tsx' ? s.replace(OWNER_ROW_IMPORT, '') : f.startsWith('utils/livingModel/') ? s.replace(PURE_REUSE, '') : s;
     if (f === 'app/project-detail.tsx') {
       check(o, s.split(OWNER_ROW_IMPORT).length === 2 && (s.match(/<ScanRoomOwnerRow\b/g) ?? []).length === 1 && /<ScanRoomOwnerRow projectId=\{project\.id\} \/>/.test(s), 'the project page does not import and draw the owner row exactly once');
     }
@@ -1912,6 +1917,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'N2', what: 'the route mounts the screen for someone the gate refuses', plant: text('app/scan-room.tsx', '  if (!scanRoomAllowed(userEmail)) return <Redirect href="/(tabs)/(home)" />;\n', '') },
   { rule: 'N3', what: 'the project page links to the route', plant: outside('app/project-detail.tsx', "\nrouter.push({ pathname: '/scan-room', params: { projectId: id } });\n") },
   { rule: 'N3', what: 'another screen imports the flow', plant: outside('app/area-takeoff.tsx', "\nimport { RoomScanFlow } from '@/components/roomScan/RoomScanFlow';\n") },
+  { rule: 'N3', what: 'the Living Model reaches past the room model into the native lookup', plant: outside('utils/livingModel/store.ts', "\nimport { startScan } from '@/utils/roomScan/native';\n") },
+  { rule: 'N3', what: 'a Living Model screen imports the scanner directly', plant: outside('components/livingModel/RoomEditor.tsx', "\nimport { formatFeetInches } from '@/utils/roomScan/units';\n") },
   { rule: 'N3', what: 'a second file reads the flag', plant: outside('components/DesktopSidebar.tsx', "\nimport { SCAN_ROOM_ENABLED } from '@/constants/featureFlags';\n") },
   { rule: 'N4', what: 'the lookup moves to module scope', plant: text('utils/roomScan/native.ts', 'let looked = false;', "const Native = requireOptionalNativeModule<MageRoomScanNative>('MageRoomScan');\nlet looked = false;") },
   { rule: 'N4', what: 'the lookup uses requireNativeModule', plant: text('utils/roomScan/native.ts', "cached = requireOptionalNativeModule<MageRoomScanNative>('MageRoomScan');", "cached = requireNativeModule<MageRoomScanNative>('MageRoomScan');") },

@@ -28,7 +28,7 @@ import {
 import type { ReplayInput } from '@/utils/livingModel/replayInput';
 import { BUILD_STAGES, type RoomStage } from '@/utils/livingModel/stageCore';
 import type { JobModel, PlacedRoom } from '@/utils/livingModel/types';
-import { formatFeetInches, formatSqFt, sqMetresToSqFeet } from '@/utils/roomScan/units';
+import { formatFeetInches, formatSqFt, sqMetresToSqFeet } from '@/utils/livingModel/measure';
 import { makeLivingModelStyles } from './styles';
 
 /** How long one week takes to play. */

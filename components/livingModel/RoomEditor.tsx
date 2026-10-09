@@ -30,8 +30,7 @@ import { mixHex } from '@/utils/livingModel/palette';
 import { fitPlanView, toMetres, type PlanView } from '@/utils/livingModel/planView';
 import { loadProjectScans } from '@/utils/livingModel/store';
 import { ROOM_KINDS, type JobModel, type PlacedRoom, type RoomKind } from '@/utils/livingModel/types';
-import type { SavedScan } from '@/utils/roomScan/storeCore';
-import { formatFeetInches, formatSqFt, parseTapeMeasure, sqMetresToSqFeet } from '@/utils/roomScan/units';
+import { formatFeetInches, formatSqFt, parseTapeMeasure, sqMetresToSqFeet, type SavedScan } from '@/utils/livingModel/measure';
 import { ModelPlan } from './ModelPlan';
 import { makeLivingModelStyles } from './styles';
 
@@ -137,6 +136,8 @@ export function RoomEditor({ projectId, model, onChange, onUndo, onRedo, canUndo
       setWallId(null);
       onSelectRef.current(cur.roomId);
     },
+    // The page may take the gesture back (to scroll) unless a room is being dragged.
+    onPanResponderTerminationRequest: () => !gesture.current.roomId,
     onPanResponderTerminate: () => setDrag(null),
   }), []);
   useEffect(() => { setWallId(null); }, [selectedId]);
