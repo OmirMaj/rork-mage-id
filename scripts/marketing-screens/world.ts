@@ -242,7 +242,7 @@ const earlier = (n: number, offset: number, conditions: string, temp: string, wo
 export const TODAY_WORK = 'Base cabinets set and levelled on the north run. Shower walls tiled to the ceiling, bath floor grouted. Electrician moved the range outlet for change order 2.';
 export const TODAY_MATERIAL = 'Cabinet hardware, 2 boxes';
 export const todayReport = {
-  id: '07e00000-0000-4000-8000-000000000009', projectId: P.alder, date: dayOnly(0), weather: reading(0, '57°F', 'Scattered clouds', '6 mph NW', 9.68),
+  id: '07e00000-0000-4000-8000-000000000009', projectId: P.alder, date: dayOnly(0), weather: { ...reading(0, '57°F', 'Scattered clouds', '6 mph NW', 9), readAt: NOW.toISOString() },
   manpower: [{ id: 'mp-t1', trade: 'Carpentry', company: 'Example Builders', headcount: 2, hoursWorked: 16 }, { id: 'mp-t2', trade: 'Tile', company: 'Example Builders', headcount: 1, hoursWorked: 8 }, { id: 'mp-t3', trade: 'Electrical', company: 'Sample Electric Co.', headcount: 1, hoursWorked: 4 }],
   workPerformed: TODAY_WORK, workProgress: [{ taskId: 't-cab', taskName: 'Cabinet install', phase: 'Finishes', pct: 30 }, { taskId: 't-tile', taskName: 'Tile, bath floor and shower', phase: 'Finishes', pct: 60 }],
   materialsDelivered: [TODAY_MATERIAL], issuesAndDelays: '', photos: [], status: 'sent', createdAt: day(0, 16), updatedAt: day(0, 16),

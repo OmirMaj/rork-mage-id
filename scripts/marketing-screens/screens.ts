@@ -61,9 +61,10 @@ const withTodayFiled: WorldOptions = { patch: (d) => { d.mageid_daily_reports = 
 
 const alder = (path: string, more = '') => `/${path}?projectId=${P.alder}${more}`;
 const coRoute = alder('change-order', `&coId=${CO2}`);
-const coTop: Step[] = [{ scroll: 118, to: { text: 'Share PDF' } }];
+const coTop: Step[] = [{ scroll: 150, to: { text: 'Share PDF' } }, { wait: 1500 }];
 const replay: Step[] = [{ click: { testID: 'living-model-tabs-replay' }, then: 1800 }];
 const times = (n: number, testID: string): Step[] => Array.from({ length: n }, () => ({ click: { testID }, then: 350 }));
+const toTop: Step[] = [{ scroll: 0 }, { wait: 1500 }];
 const scanOpen: Step[] = [{ click: { text: 'Hall Bath' }, then: 1200 }];
 
 export const SCREENS: Screen[] = [
@@ -72,7 +73,7 @@ export const SCREENS: Screen[] = [
     about: 'The Home tab: the morning brief, what needs attention, and the inbox.' },
   { id: 'projects', set: 'shipped', title: 'Your Projects', plan: 'Free', source: 'app/(tabs)/(home)/index.tsx', route: '/',
     about: 'The job cards on the Home tab, each with its stage, size and estimate total.',
-    steps: [{ scroll: 118, to: { text: 'Construction', exact: false } }] },
+    steps: [{ scroll: 118, to: { text: 'Construction', exact: false } }, { wait: 1200 }] },
   { id: 'summary', set: 'shipped', title: 'Summary', plan: 'Free', source: 'app/(tabs)/summary/index.tsx', route: '/summary', dark: true,
     about: 'The Summary tab: who is on site today, the week ahead, contract and outstanding money, and what needs you.' },
   { id: 'project', set: 'shipped', title: 'Project Page', plan: 'Free', source: 'app/project-detail.tsx', route: `/project-detail?id=${P.alder}`,
@@ -90,21 +91,23 @@ export const SCREENS: Screen[] = [
     about: 'The phone schedule: this week, tomorrow\'s lineup, and the task list by phase.' },
   { id: 'schedule-timeline', set: 'shipped', title: 'Schedule Timeline', plan: 'Free', source: 'app/(tabs)/schedule/index.tsx', route: `/schedule?projectId=${P.alder}`,
     about: 'The same schedule as a timeline, with the links between tasks and a line at today.',
-    steps: [{ click: { text: 'Timeline' } }, { click: { text: 'Fit' } }, { scroll: 250, to: { text: 'Tile, bath floo', exact: false } }] },
+    steps: [{ click: { text: 'Timeline' } }, { click: { text: 'Fit' } },
+      // The timeline is its own small scrolling pane on the phone: bring the work that is under way into it.
+      { js: `const pane = [...document.querySelectorAll('div')].filter((d) => /auto|scroll/.test(getComputedStyle(d).overflowY) && d.scrollHeight > d.clientHeight + 200 && d.getBoundingClientRect().top > 400)[0]; if (pane) pane.scrollTop = 330;` }, { wait: 1500 }] },
   { id: 'daily-report', set: 'shipped', title: 'Daily Report', plan: 'Free', source: 'app/daily-report.tsx', route: alder('daily-report', `&reportId=${REPORT_YESTERDAY}`),
     about: 'A filed daily report: the weather reading with its source and time, work progress against the schedule, crew and hours.',
-    steps: [{ scroll: 118, to: { text: 'Shared' } }],
+    steps: [{ scroll: 162, to: { text: 'Shared' } }, { wait: 1200 }],
     sequence: [
-      { route: alder('daily-report'), steps: [{ scroll: 118, to: { text: 'DAILY REPORT' } }], caption: 'A new report for today. The weather is read in with its source and time.' },
-      { route: alder('daily-report'), steps: [{ type: { testID: 'work-performed-input' }, value: TODAY_WORK }, { type: { css: 'input[placeholder="Material received"]' }, value: TODAY_MATERIAL }, { scroll: 140, to: { text: 'Workforce' } }], caption: 'The day\'s work written in.' },
-      { route: alder('daily-report', `&reportId=${todayReport.id}`), steps: [{ scroll: 118, to: { text: 'Shared' } }], world: withTodayFiled, caption: 'The report as filed and shared with the client.' },
+      { route: alder('daily-report'), steps: [{ scroll: 172, to: { text: 'DAILY REPORT' } }, { wait: 1200 }], caption: 'A new report for today. The weather is read in with its source and time.' },
+      { route: alder('daily-report'), steps: [{ type: { testID: 'work-performed-input' }, value: TODAY_WORK }, { type: { css: 'input[placeholder="Material received"]' }, value: TODAY_MATERIAL }, { scroll: 170, to: { text: 'Workforce' } }, { wait: 1200 }], caption: 'The day\'s work written in.' },
+      { route: alder('daily-report', `&reportId=${todayReport.id}`), steps: [{ scroll: 162, to: { text: 'Shared' } }, { wait: 1200 }], world: withTodayFiled, caption: 'The report as filed and shared with the client.' },
     ] },
   { id: 'punch-list', set: 'shipped', title: 'Punch List', plan: 'Business', source: 'app/punch-list.tsx', route: alder('punch-list'),
     about: 'The punch list by room, each item with its picture, who it is assigned to, its due date and its status. The pictures here are flat placeholder tiles, not site photos.',
     steps: [
       // On the phone the header title is cut short before the Export button; the web header lets it run underneath.
       { js: `for (const h of document.querySelectorAll('h1')) if ((h.innerText || '').startsWith('Punch List')) h.parentElement.style.maxWidth = '286px';` },
-      { scroll: 124, to: { text: 'By Location' } },
+      { scroll: 150, to: { text: 'By Location' } }, { wait: 1200 },
     ] },
   { id: 'change-order', set: 'shipped', title: 'Change Order', plan: 'Pro', source: 'app/change-order.tsx', route: coRoute,
     about: 'An approved change order: its place in the approval steps, the contract sum before and after, and the client\'s approval.',
@@ -113,7 +116,7 @@ export const SCREENS: Screen[] = [
       { world: withCo2('draft'), caption: 'Draft: priced, not yet sent.' },
       { world: withCo2('submitted'), caption: 'Submitted to the client.' },
       { world: withCo2('approved'), caption: 'Approved by the client.' },
-      { world: withCo2('approved'), steps: [{ scroll: 118, to: { text: 'Client Approval' } }], caption: 'The client\'s approval and the change order\'s lines.' },
+      { world: withCo2('approved'), steps: [{ scroll: 190, to: { text: 'Client Approval' } }, { wait: 1500 }], caption: 'The client\'s approval and the change order\'s lines.' },
     ] },
   { id: 'invoice', set: 'shipped', title: 'Progress Invoice', plan: 'Pro', source: 'app/invoice.tsx', route: alder('invoice', `&invoiceId=${INVOICE1}`),
     about: 'A progress invoice built from the estimate\'s lines, with payment terms, retainage and its sent status.' },
@@ -122,8 +125,8 @@ export const SCREENS: Screen[] = [
     steps: [{ click: { text: 'I Understand' } }],
     sequence: [
       { caption: 'The pay application\'s cover figures.' },
-      { steps: [{ scroll: 118, to: { text: 'Schedule of Values (G703)' } }], caption: 'The schedule of values, one line per estimate line and approved change order.' },
-      { steps: [{ scroll: 118, to: { text: 'Summary (G702 Cover)' } }], caption: 'The summary: contract sum to date, completed work, retainage and the payment due.' },
+      { steps: [{ scroll: 150, to: { text: '#1' } }, { wait: 1200 }], caption: 'The schedule of values, one line per estimate line and approved change order.' },
+      { steps: [{ scroll: 150, to: { text: 'Summary (G702 Cover)' } }, { wait: 1200 }], caption: 'The summary: contract sum to date, completed work, retainage and the payment due.' },
     ] },
   { id: 'client-portal', set: 'shipped', title: 'Client View', plan: 'Pro', source: 'app/client-view.tsx', route: `/client-view?portalId=${PORTAL_ID}`, shot: { statusBar: 'light' },
     about: 'The job as the client sees it in the app: progress, contract and change totals, what has been invoiced and paid, and what is waiting on them.' },
@@ -136,7 +139,7 @@ export const SCREENS: Screen[] = [
     ],
     sequence: [
       { caption: 'Where the answer comes from, and that section numbers are from model recall.' },
-      { steps: [{ scroll: 150, to: { text: 'Summary' } }], caption: 'The summary and the code cards.' },
+      { steps: [{ scroll: 150, to: { text: 'Summary' } }, { wait: 1200 }], caption: 'The summary and the code cards.' },
     ] },
 
   // ── In testing (switched off today) ───────────────────────────────────────
@@ -146,20 +149,22 @@ export const SCREENS: Screen[] = [
     about: 'The schedule played over the rooms, week by week, planned against what daily reports said. The 3D view is drawn by the web build.',
     steps: replay,
     sequence: [
-      { steps: times(4, 'lm-prev-week'), caption: 'Week 2.' },
-      { steps: times(2, 'lm-prev-week'), caption: 'Week 4.' },
-      { caption: 'Week 6, today.' },
-      { steps: [{ click: { testID: 'lm-mode-planned' }, then: 400 }, ...times(4, 'lm-next-week')], caption: 'Week 10, as planned.' },
+      { steps: [...times(4, 'lm-prev-week'), ...toTop], caption: 'Week 2, as reported.' },
+      { steps: [...times(2, 'lm-prev-week'), ...toTop], caption: 'Week 4, as reported.' },
+      { steps: toTop, caption: 'Week 6, today, as reported.' },
+      { steps: [{ click: { testID: 'lm-mode-planned' }, then: 400 }, ...times(5, 'lm-next-week'), ...toTop], caption: 'Week 10, as planned.' },
     ] },
   { id: 'scan-floor-plan', set: 'in-testing', title: 'Scan The Room: Floor Plan', plan: 'Pro', source: 'components/roomScan/RoomScanFlow.tsx', route: alder('scan-room'),
     about: 'A room\'s floor plan with wall lengths. This room is a hand-built test fixture, not a scan from a phone.',
     steps: scanOpen },
   { id: 'scan-quantities', set: 'in-testing', title: 'Scan The Room: Quantities', plan: 'Pro', source: 'components/roomScan/RoomScanFlow.tsx', route: alder('scan-room'),
     about: 'Floor, wall, ceiling and trim quantities worked out from the room\'s outline.',
-    steps: [...scanOpen, { click: { testID: 'scan-see-quantities' }, then: 1500 }] },
+    steps: [...scanOpen, { click: { testID: 'scan-see-quantities' }, then: 1500 }, ...toTop] },
   { id: 'scan-order-list', set: 'in-testing', title: 'Scan The Room: Order List', plan: 'Pro', source: 'components/roomScan/RoomScanFlow.tsx', route: alder('scan-room'),
     about: 'The order list made from the room\'s quantities.',
-    steps: [...scanOpen, { click: { testID: 'scan-see-quantities' }, then: 1500 }, { click: { testID: 'scan-order-open' }, then: 2000 }] },
+    steps: [...scanOpen, { click: { testID: 'scan-see-quantities' }, then: 1500 }, { click: { testID: 'scan-order-open' }, then: 1500 }, { click: { text: 'I Understand' }, then: 2000 }, ...toTop],
+    sequence: [{ steps: [{ scroll: 150, to: { text: 'Drywall Sheets 4x8, Walls' } }, { wait: 1200 }], caption: 'The drywall lines of the order list.' },
+      { steps: [{ scroll: 150, to: { testID: 'scan-order-layout' } }, { wait: 1200 }], caption: 'The drywall cut layout, wall by wall.' }] },
   { id: 'pay-period-record', set: 'in-testing', title: 'Pay Period Record', plan: 'Pro', source: 'components/proofPack/ProofPackReview.tsx', route: alder('proof-pack', `&kind=invoice&payId=${INVOICE1}`),
     about: 'The first page of a Pay Period Record: what was billed in the period and how each record MAGE ID holds for it is kept.' },
 ];
