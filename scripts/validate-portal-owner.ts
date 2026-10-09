@@ -576,7 +576,7 @@ const portalHtml = read('marketing/portal/index.html');
   ok('portal invoice drawer does the same',
     /var invStatus = inv\.effectiveStatus \|\| inv\.status;/.test(portalHtml));
   ok('portal invoice drawer renders retainage as the pending amount (retentionAmount − retentionReleased)',
-    /inv\.retentionAmount - retentionReleased/.test(portalHtml) && /Retainage held/.test(portalHtml));
+    /inv\.retentionAmount - retentionReleased/.test(portalHtml) && /Retainage Held/.test(portalHtml));
   ok('…and never subtracts the ORIGINAL withholding',
     !/fmtMoney\(inv\.retentionAmount, \{dec:2\}\)/.test(portalHtml));
   // 2026-09-11 (AIA wave): these two used to pin the literal expressions
@@ -1706,7 +1706,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     // pushing esign-1 (MAGE's 10% deposit) or a proposal whose terms are not
     // confirmed can never be signed, whichever of web or OTA ships first.
     ok('esign-2 stamped: payment rows are drawn',
-      html.includes('How payment works') && html.includes('Deposit — Due on signing · 25%') && html.includes('$260,000'),
+      html.includes('How Payment Works') && html.includes('Deposit — Due on signing · 25%') && html.includes('$260,000'),
       html.slice(html.indexOf('prop-group-head'), html.indexOf('prop-group-head') + 900));
     const v1 = make(null)({ ...snapProposal, version: 'proposal-esign-1' }, true);
     ok('esign-1: NO accept or decline button', !v1.includes('data-proposal-accept') && !v1.includes('data-proposal-decline'), v1.slice(-400));
@@ -1978,7 +1978,7 @@ console.log('\nportal owner — completion ask + message starters:');
     /msgInput\.value = opener;/.test(portalHtml)
     && !/data-msg-prompt[\s\S]{0,400}postPortalMessage/.test(portalHtml));
   ok('…under a heading that says what actually happens to them',
-    /Start a message — your contractor reads these/.test(portalHtml));
+    /Start a message\. Your contractor reads these\./.test(portalHtml));
   // Zuper converts a portal request into a job. MAGE does not, and must not
   // imply it.
   ok('nothing on the page claims a request becomes a job automatically',
@@ -2506,16 +2506,16 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
     const behind = { status: 'behind', pct: 20, expected: 0.6, finishISO: '2026-08-21' };
     win.__portalData = { project: { type: 'renovation' } };
     expect('behind, finish ahead → planned finish',
-      P.schedulePaceCopy(behind, new Date(2026, 6, 1, 9).getTime()).chip, 'Behind schedule · planned finish Aug 21');
+      P.schedulePaceCopy(behind, new Date(2026, 6, 1, 9).getTime()).chip, 'Behind Schedule · planned finish Aug 21');
     expect('behind, finish passed → was due',
-      P.schedulePaceCopy(behind, new Date(2026, 8, 1, 9).getTime()).chip, 'Behind schedule · was due Aug 21');
+      P.schedulePaceCopy(behind, new Date(2026, 8, 1, 9).getTime()).chip, 'Behind Schedule · was due Aug 21');
     expect('on track → finishing',
-      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On track · finishing Aug 21');
+      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On Track · finishing Aug 21');
     expect('the basis line names what the verdict rests on',
       P.schedulePaceCopy(behind, new Date(2026, 6, 1, 9).getTime()).basis, '20% of the work reported done · 60% of the scheduled time used');
     win.__portalData = { project: { type: 'commercial' } };
     expect('commercial projects get completion wording via the copy switch',
-      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On track · scheduled completion Aug 21');
+      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On Track · scheduled completion Aug 21');
     win.__portalData = undefined;
     ok('no chip copy ever says "now finishing" (the date is the plan, not a forecast)',
       !/now finishing/i.test(portalHtml.slice(fallbackStart, fallbackStop).split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n')));
@@ -2539,8 +2539,8 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
 
 // ── The portal HTML must not read the retired figure, anywhere ─────────────
 ok('portal no longer renders budget.pctComplete', !/pctComplete/.test(portalHtml));
-ok('portal labels the stat "Work complete", not "Project complete"',
-  portalHtml.includes("label: 'Work complete'") && !portalHtml.includes("label: 'Project complete'"));
+ok('portal labels the stat "Work Complete", not "Project Complete"',
+  portalHtml.includes("label: 'Work Complete'") && !/label: 'Project [Cc]omplete'/.test(portalHtml));
 ok('portal says "Not reported yet" instead of a fabricated 0%',
   portalHtml.includes("sub: 'Not reported yet'"));
 ok('the hero progress bar is gated on a real progress signal',

@@ -598,12 +598,6 @@
       "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
     },
     {
-      "file": "app/punch-list.tsx",
-      "rule": "R15",
-      "match": "Photo code check",
-      "reason": "the feature's one name, pinned in eight files (two of them the server's) by validate-code-look: it becomes \"Photo Code Check\" in all of them together, with the lane that converts CodeLookSheet and the analyze-photos function"
-    },
-    {
       "file": "app/payment-predictions.tsx",
       "rule": "R20",
       "match": "to forecast real inflows",
@@ -1052,12 +1046,6 @@
       "rule": "R15",
       "match": "Last updated",
       "reason": "a label that carries a time (\"Last updated 3:38 PM\"): sentence case, VOICE 3"
-    },
-    {
-      "file": "app/client-view.tsx",
-      "rule": "R15",
-      "match": "Check financing options",
-      "reason": "this screen is the preview of the client portal page, whose button says \"Check financing options\" (marketing/portal, not in any lane), and the note beside it quotes that name (utils/financingCore.ts, founder's financing copy): it changes with the portal page, in all of them together"
     },
     {
       "file": "app/plans.tsx",
@@ -1930,34 +1918,10 @@
       "reason": "an internal `because` reason for logs and tests, never shown"
     },
     {
-      "file": "components/inspectionPrep/InspectionReadySheet.tsx",
-      "rule": "R15",
-      "match": "Photo code check",
-      "reason": "the feature's one name, pinned in eight files (two of them the server's, one app/project-detail.tsx in lane 5) by validate-code-look: it becomes \"Photo Code Check\" in all of them together, with the server pass"
-    },
-    {
-      "file": "components/codeLook/CodeLookSheet.tsx",
-      "rule": "R15",
-      "match": "Photo code check",
-      "reason": "the feature's one name, pinned in eight files (two of them the server's, one app/project-detail.tsx in lane 5) by validate-code-look: it becomes \"Photo Code Check\" in all of them together, with the server pass"
-    },
-    {
-      "file": "utils/portalOwnerCore.ts",
-      "rule": "R20",
-      "match": "send this one for signature — a message is not a signed change",
-      "reason": "the signing-off sentence the static portal page (marketing/portal/index.html) carries byte for byte (validate-portal-owner): it tells a homeowner what their reply legally is, and changes with the portal page and a deploy"
-    },
-    {
       "file": "utils/plans/specBookRange.ts",
       "rule": "R15",
       "match": "No pages were read",
       "reason": "a coverage sentence printed in line with the others (\"Read pages 1–24 of 212\"), pinned by validate-spec-book-coverage; not a standalone label"
-    },
-    {
-      "file": "utils/plans/revisionActions.ts",
-      "rule": "R20",
-      "match": "indexes the plan set — you can ask questions",
-      "reason": "PLAN_INDEX_REFUSAL: the plan-extract and project-memory-embed edge functions refuse with this exact sentence (validate-w4-plans-fixes holds them equal); it changes with the server pass"
     },
     {
       "file": "utils/retainageSource.ts",
@@ -2242,12 +2206,6 @@
       "reason": "a Discover promo card (equipment financing): left exactly as typed for a founder decision"
     },
     {
-      "file": "app/project-detail.tsx",
-      "rule": "R15",
-      "match": "Photo code check",
-      "reason": "one name held equal in eight files by validate-code-look, two of them on the server (supabase/functions); it changes with the server pass and its deploy"
-    },
-    {
       "file": "utils/demoSeed.ts",
       "rule": "R20",
       "match": "Sample — ",
@@ -2512,42 +2470,6 @@
       "reason": "the division label is also printed into the profit-leak scope summary sent to the model (utils/profitLeak/scopeSummary.ts); validate-profit-leak pins it"
     },
     {
-      "file": "utils/ownerConfidence.ts",
-      "rule": "R15",
-      "match": "No start date set",
-      "reason": "a schedule chip held equal to the static client portal page (marketing/portal FALLBACK_STRINGS) by validate-portal-owner; both change with the portal pass and its deploy"
-    },
-    {
-      "file": "utils/ownerConfidence.ts",
-      "rule": "R15",
-      "match": "Progress not reported yet",
-      "reason": "a schedule chip held equal to the static client portal page (marketing/portal FALLBACK_STRINGS) by validate-portal-owner; both change with the portal pass and its deploy"
-    },
-    {
-      "file": "utils/ownerConfidence.ts",
-      "rule": "R15",
-      "match": "Starting soon",
-      "reason": "a schedule chip held equal to the static client portal page (marketing/portal FALLBACK_STRINGS) by validate-portal-owner; both change with the portal pass and its deploy"
-    },
-    {
-      "file": "utils/ownerConfidence.ts",
-      "rule": "R15",
-      "match": "Behind schedule",
-      "reason": "a schedule chip held equal to the static client portal page (marketing/portal FALLBACK_STRINGS) by validate-portal-owner; both change with the portal pass and its deploy"
-    },
-    {
-      "file": "utils/ownerConfidence.ts",
-      "rule": "R15",
-      "match": "Minor delays",
-      "reason": "a schedule chip held equal to the static client portal page (marketing/portal FALLBACK_STRINGS) by validate-portal-owner; both change with the portal pass and its deploy"
-    },
-    {
-      "file": "utils/ownerConfidence.ts",
-      "rule": "R15",
-      "match": "On track",
-      "reason": "a schedule chip held equal to the static client portal page (marketing/portal FALLBACK_STRINGS) by validate-portal-owner; both change with the portal pass and its deploy"
-    },
-    {
       "file": "utils/buildingRecord.ts",
       "rule": "R20",
       "match": " active 0 — 0, as of",
@@ -2618,36 +2540,6 @@
       "rule": "R20",
       "match": "DOB publishes no applicant on this filing",
       "reason": "the drafted-question recipient line, part of the outputs validate-baltimore-ai holds byte-identical to its recorded baseline (the same text is sent to the model)"
-    },
-    {
-      "file": "components/OwnerConfidenceCard.tsx",
-      "rule": "R15",
-      "match": "What's next",
-      "reason": "the client-view card is a preview of the static client portal page (marketing/portal), which prints these words; q4-financing-portal holds the preview byte-identical; they change with the portal pass and its deploy"
-    },
-    {
-      "file": "components/OwnerConfidenceCard.tsx",
-      "rule": "R15",
-      "match": "Balance remaining",
-      "reason": "the client-view card is a preview of the static client portal page (marketing/portal), which prints these words; q4-financing-portal holds the preview byte-identical; they change with the portal pass and its deploy"
-    },
-    {
-      "file": "components/OwnerConfidenceCard.tsx",
-      "rule": "R15",
-      "match": "Invoiced to date",
-      "reason": "the client-view card is a preview of the static client portal page (marketing/portal), which prints these words; q4-financing-portal holds the preview byte-identical; they change with the portal pass and its deploy"
-    },
-    {
-      "file": "components/OwnerConfidenceCard.tsx",
-      "rule": "R15",
-      "match": "Revised contract",
-      "reason": "the client-view card is a preview of the static client portal page (marketing/portal), which prints these words; q4-financing-portal holds the preview byte-identical; they change with the portal pass and its deploy"
-    },
-    {
-      "file": "components/OwnerConfidenceCard.tsx",
-      "rule": "R15",
-      "match": "Approved changes",
-      "reason": "the client-view card is a preview of the static client portal page (marketing/portal), which prints these words; q4-financing-portal holds the preview byte-identical; they change with the portal pass and its deploy"
     },
     {
       "file": "components/summary/NeedsYou.tsx",

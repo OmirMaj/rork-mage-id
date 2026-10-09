@@ -511,6 +511,13 @@ Title Case. Rows 23 on are from the Title Case pass (2026-10-05).
   every string the guard reads. Read the diff after `--fix-labels`: a script
   cannot tell a label from a short sentence. What is still to convert is in
   `docs/copy-style-remaining.md`.
+- **Server and portal copy has its own guard,** `scripts/validate-server-copy-voice.ts`
+  (`bun run test:server-copy-voice`). It holds the edge function files and
+  static pages on `scripts/server-copy-style-converted.json` to the same copy
+  style (Title Case on a label, no dash, "and", no "e.g.", no arrows, never
+  "unlimited"). Its header says where it can see a label and where it cannot.
+  Legal and signed text in those files is on
+  `scripts/server-copy-voice-allowlist.json` and is never restyled.
 - **Spanish stays in sentence case.** That is correct Spanish. When an English
   string changes, regenerate its shard (`bun run i18n:extract`), re-read the
   Spanish entry, and set its `src` to the new hash that `bun run test:i18n`

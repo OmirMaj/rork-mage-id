@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Email preferences · MAGE ID</title>
+  <title>Email Preferences · MAGE ID</title>
   <meta name="robots" content="noindex" />
   <meta name="theme-color" content="#0B0D10" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -128,12 +128,12 @@
   <main class="card" role="main">
     <div class="head">
       <div class="name">MAGE&nbsp;ID</div>
-      <div class="chip">Email preferences</div>
+      <div class="chip">Email Preferences</div>
     </div>
     <div class="body">
-      <p class="eyebrow">Notification settings</p>
+      <p class="eyebrow">Notification Settings</p>
       <h1>Tune what hits your inbox.</h1>
-      <p id="lede">For <span class="target" id="emailLabel">your address</span> — toggle a category off and we'll stop sending those emails. Toggle back on to resume. Critical account / contract emails always go through.</p>
+      <p id="lede">For <span class="target" id="emailLabel">your address</span>: toggle a category off and we'll stop sending those emails. Toggle back on to resume. Critical account / contract emails always go through.</p>
 
       <div id="noTokenNote" class="no-token-note hidden">
         We can't verify this preferences link was sent by us, so the toggles are read-only. To make changes, use the <strong>"manage email preferences"</strong> link in any recent MAGE ID email.
@@ -146,12 +146,12 @@
       <div id="empty" class="empty hidden">No email address on the link. Use the preferences link from any of our emails.</div>
 
       <div id="allOffNote" class="no-token-note hidden">
-        All MAGE ID email is off for this address. The switches above can't bring it back on their own &mdash;
+        All MAGE ID email is off for this address. The switches above can't bring it back on their own:
         <a href="#" id="resubAll">turn email back on</a> first.
       </div>
 
       <div class="footer">
-        Powered by <a href="https://mageid.app">MAGE ID</a>. <a href="#" id="unsubAll">Turn off everything</a>.
+        Powered by <a href="https://mageid.app">MAGE ID</a>. <a href="#" id="unsubAll">Turn Off Everything</a>.
       </div>
     </div>
   </main>
@@ -299,7 +299,7 @@
               checkbox.checked = !on; // revert
               var msg = res.data && res.data.error === 'token_invalid'
                 ? 'Open this page from a recent MAGE ID email to make changes.'
-                : 'Could not save — try again.';
+                : 'Could not save. Try again.';
               showToast(msg, true);
             }
           }).catch(function () {
@@ -433,7 +433,7 @@
           } else {
             showToast(res.data && res.data.error === 'token_invalid'
               ? 'Open this page from a recent MAGE ID email to make changes.'
-              : 'Could not save — try again.', true);
+              : 'Could not save. Try again.', true);
           }
         }).catch(function () { showToast('Network error', true); });
       });

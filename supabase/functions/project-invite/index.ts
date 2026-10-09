@@ -166,7 +166,7 @@ async function seatCheck(
   if (included === 0) {
     return {
       allowed: false,
-      reason: "Inviting teammates needs a Pro plan or higher. Field access is free — invite them as Field instead.",
+      reason: "Inviting teammates needs a Pro plan or higher. Field access is free. Invite them as Field instead.",
       used: 0,
       included: 0,
     };
@@ -203,7 +203,7 @@ async function seatCheck(
   if (admins.size >= included) {
     return {
       allowed: false,
-      reason: `Your plan includes ${included} team seat${included === 1 ? "" : "s"} and ${admins.size} are in use. Upgrade for more, or invite them as Field — field access is always free.`,
+      reason: `Your plan includes ${included} team seat${included === 1 ? "" : "s"} and ${admins.size} are in use. Upgrade for more, or invite them as Field. Field access is always free.`,
       used: admins.size,
       included,
     };
@@ -229,7 +229,7 @@ const ROLE_WORD: Record<string, string> = { editor: "Editor", viewer: "Viewer", 
 const ROLE_LINE: Record<string, string> = {
   editor: "You'll be able to edit the job, including its costs.",
   viewer: "You'll be able to see the job, including its costs, read-only.",
-  field: "You'll see the schedule and the field work — daily reports, photos, RFIs, punch list.",
+  field: "You'll see the schedule and the field work: daily reports, photos, RFIs, punch list.",
 };
 
 export type InviteEmailResult = { sent: boolean; reason?: "not_configured" | "rejected" | "network" };
@@ -254,7 +254,7 @@ async function sendInviteEmail(
       body: JSON.stringify({
         from: FROM_EMAIL,
         to,
-        subject: `${who} invited you to ${project}${roleWord ? ` as ${roleWord}` : ""} — MAGE ID`,
+        subject: `${who} invited you to ${project}${roleWord ? ` as ${roleWord}` : ""} · MAGE ID`,
         html: `<p><b>${escapeHtml(who)}</b> invited you to <b>${escapeHtml(project)}</b> in MAGE ID${roleWord ? ` as <b>${escapeHtml(roleWord)}</b>` : ""}.</p>
                ${ROLE_LINE[role] ? `<p>${escapeHtml(ROLE_LINE[role])}</p>` : ""}
                <p><a href="${escapeHtml(link)}">Open the invite</a> (sign in or create a free account with this address to accept).</p>
@@ -528,7 +528,7 @@ serve(async (req) => {
     const row = ((await r.json()) as { status: string; invite_token: string | null }[])[0];
     if (!row || row.status !== "pending" || !row.invite_token) {
       // 200 + error: invoke() drops a non-2xx body, and this line is the answer.
-      return json({ success: false, code: "not_pending", error: "This invite isn't waiting any more — they've accepted it or it was removed." });
+      return json({ success: false, code: "not_pending", error: "This invite isn't waiting any more. They've accepted it or it was removed." });
     }
     return json({ success: true, link: `${APP_ORIGIN}/accept-invite?token=${row.invite_token}` });
   }

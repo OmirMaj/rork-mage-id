@@ -285,9 +285,9 @@ const REFUSALS: { code: string; reason: string; final: boolean }[] = [
     reason: 'Type your full legal name above. Nothing has been signed.' },
   { code: 'lien_waiver_voided', final: true,
     reason: 'This waiver was voided by the contractor while you had it open. '
-      + 'There is nothing to sign — nothing has been signed.' },
+      + 'There is nothing to sign. Nothing has been signed.' },
   { code: 'lien_waiver_denied', final: true,
-    reason: 'This signing link has been replaced — the contractor sent a newer '
+    reason: 'This signing link has been replaced. The contractor sent a newer '
       + 'one. Open the most recent email and sign there. Nothing has been signed here.' },
 ];
 for (const c of REFUSALS) {
@@ -343,16 +343,16 @@ for (const [name, sign, note, pressable] of [
   ['voided', { status: 400, body: { message: 'lien_waiver_voided' } }, REFUSALS[2].reason, false],
   ['denied', { status: 400, body: { message: 'lien_waiver_denied' } }, REFUSALS[3].reason, true],
   ['unknown', { status: 400, body: { message: 'x' } },
-    'That did not go through. Check your connection and try again — nothing has been signed.', true],
-  ['network', 'network', 'We could not reach the server. Nothing has been signed — try again.', true],
+    'That did not go through. Check your connection and try again. Nothing has been signed.', true],
+  ['network', 'network', 'We could not reach the server. Nothing has been signed. Try again.', true],
 ] as const) {
   const r = await filledPage(sign as ServerAnswer, false);
   r.get('submit').fire('click');
   await settle(); await settle();
   ok(`button, ${name}: today's sentence, byte for byte`, r.get('submit-note').textContent === note,
     r.get('submit-note').textContent);
-  ok(`button, ${name}: ${pressable ? 'pressable again' : 'stays off'} and labelled "Sign this waiver"`,
-    r.get('submit').disabled === !pressable && r.get('submit').textContent === 'Sign this waiver'
+  ok(`button, ${name}: ${pressable ? 'pressable again' : 'stays off'} and labelled "Sign This Waiver"`,
+    r.get('submit').disabled === !pressable && r.get('submit').textContent === 'Sign This Waiver'
     && r.get('done').hidden === true);
 }
 

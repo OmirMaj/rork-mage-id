@@ -585,7 +585,7 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
       // what this page can and cannot do, and names the thing to ask for.
       detail: input.coApprovalEnabled
         ? 'Review the scope and the change to your contract total, then sign to approve or decline with a reason.'
-        : 'Signing is switched off for this portal, so there is no approve button here. Reply in Messages with your answer, then ask your contractor to send this one for signature — a message is not a signed change to your contract.',
+        : 'Signing is switched off for this portal, so there is no approve button here. Reply in Messages with your answer, then ask your contractor to send this one for signature. A message is not a signed change to your contract.',
       urgency: 'waiting',
       waitingDays,
       amount,

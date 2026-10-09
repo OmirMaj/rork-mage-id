@@ -194,10 +194,10 @@ function buildEmailHtml(opts: {
       ? `${opts.subCompanyName}'s COI expired ${Math.abs(opts.daysUntilExpiry)} ${Math.abs(opts.daysUntilExpiry) === 1 ? 'day' : 'days'} ago`
       : `${opts.subCompanyName}'s COI expires in ${opts.daysUntilExpiry} ${opts.daysUntilExpiry === 1 ? 'day' : 'days'}`;
   const eyebrow =
-    opts.threshold === 0 ? 'COI expired' :
-    opts.threshold === 7 ? 'COI · 7-day warning' :
-    opts.threshold === 14 ? 'COI · 14-day warning' :
-    'COI · 30-day reminder';
+    opts.threshold === 0 ? 'COI Expired' :
+    opts.threshold === 7 ? 'COI · 7-Day Warning' :
+    opts.threshold === 14 ? 'COI · 14-Day Warning' :
+    'COI · 30-Day Reminder';
 
   const contactLines: string[] = [];
   if (opts.subContactName) contactLines.push(`<strong style="color:#0B0D10;">Contact:</strong> ${escapeHtml(opts.subContactName)}`);
@@ -214,7 +214,7 @@ function buildEmailHtml(opts: {
       ${contactLines.map(l => `<tr><td style="padding:4px 0;">${l}</td></tr>`).join('')}
     </table>` : ''}
     <p style="margin:16px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#9AA3AD;line-height:19px;">
-      Once you have the renewed COI, enter its expiry in MAGE ID (the COI vault: tap the certificate, then Coverages; or Subs → ${escapeHtml(opts.subCompanyName)} → Edit). Reminders start over for the new date.
+      Once you have the renewed COI, enter its expiry in MAGE ID (the COI vault: tap the certificate, then Coverages; or Subs > ${escapeHtml(opts.subCompanyName)} > Edit). Reminders start over for the new date.
     </p>
   `;
 
@@ -293,7 +293,7 @@ async function processForUser(client: SupabaseClient, userId: string, profile: P
       threshold,
     });
     const subject = threshold === 0
-      ? `COI expired · ${sub.company_name}`
+      ? `COI Expired · ${sub.company_name}`
       : `COI expires in ${daysUntil} ${daysUntil === 1 ? 'day' : 'days'} · ${sub.company_name}`;
     const result = await sendEmail({
       to: gcEmail,

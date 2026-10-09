@@ -139,7 +139,7 @@ console.log('\n#63 who filed it:');
   ok('the DFR PDF prints a "Filed by" row, escaped', /Filed By/.test(html) && html.includes('Luis &lt;R&gt;'));
   const html2 = pdf.buildDFRHtml({ id: 'r', projectId: 'p', date: '2026-09-15', weather: {}, manpower: [], workPerformed: 'x', materialsDelivered: [], issuesAndDelays: '', photos: [], status: 'sent', createdAt: '', updatedAt: '' } as never,
     { id: 'p', name: 'Maple', location: '' } as never, { companyName: 'Acme' } as never, {});
-  ok('…and none when the caller names nobody', !/Filed by/.test(html2));
+  ok('…and none when the caller names nobody', !/Filed by/i.test(html2));
   ok('#62: the PDF never prints the record\'s status (a sent report never reads "draft")', !/>\s*draft\s*</i.test(html) && !/>\s*sent\s*</i.test(html));
 }
 
@@ -322,9 +322,9 @@ console.log('\n#60/#59/#133 the "report filed" notification:');
   const legacy = w({ author_name: 'Luis' });
   ok('an old trigger (no status, no day) makes neither promise', legacy?.pushBody === 'Luis filed a daily report. Open it to check what your client can see.', legacy?.pushBody);
   ok('a garbled or instant day is never printed as a guess', /filed a daily report\./.test(w({ report_date: '2026-09-14T12:00:00Z', portal_status: 'draft' })?.pushBody ?? '') && /filed a daily report\./.test(w({ report_date: '2026-02-31', portal_status: 'draft' })?.pushBody ?? ''));
-  ok('the email has a "Report date" row and the portal state', JSON.stringify(draft?.rows) === JSON.stringify([['Filed by', 'Luis'], ['Report date', 'Mon, Sep 14'], ['Client portal', 'Not shown — waiting on you']]), draft?.rows);
+  ok('the email has a "Report date" row and the portal state', JSON.stringify(draft?.rows) === JSON.stringify([['Filed By', 'Luis'], ['Report Date', 'Mon, Sep 14'], ['Client Portal', 'Not shown. Waiting on you.']]), draft?.rows);
   ok('the subject names the day too', draft?.emailSubject === 'Luis filed the report for Mon, Sep 14 · Henderson');
-  ok('#73 the decline email names "Revise & re-issue"', /use Revise & re-issue on the change order if it still applies/.test(NOTIFY) && /use Revise & re-issue on the change order if appropriate/.test(NOTIFY));
+  ok('#73 the decline email names "Revise and Re-Issue", the button on the change order', /use Revise and Re-Issue on the change order if it still applies/.test(NOTIFY) && /use Revise and Re-Issue on the change order if appropriate/.test(NOTIFY));
   ok('the safety lane\'s case order is kept', /case 'pro_response_received':\s*case 'safety_incident_filed':\s*case 'punch_marked_ready': \{/.test(NOTIFY));
 }
 

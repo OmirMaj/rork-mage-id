@@ -8,7 +8,7 @@
 <!-- T6.6: this page carries its access token in ?t=. No Referer leaves it, so
      no link here (the growth link included) can hand the token to another site. -->
 <meta name="referrer" content="no-referrer" />
-<title>Sub Portal — MAGE ID</title>
+<title>Sub Portal · MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
@@ -674,10 +674,10 @@
   <div id="gate" class="gate-wrap" style="display:none">
     <div class="gate">
       <div class="gate-logo">M</div>
-      <h1>Enter passcode</h1>
+      <h1>Enter Passcode</h1>
       <p>This sub portal is protected. Enter the 4-digit code your contractor shared with you.</p>
       <input id="gate-input" type="tel" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" />
-      <button id="gate-submit">Unlock portal</button>
+      <button id="gate-submit">Unlock Portal</button>
       <div class="err" id="gate-err"></div>
     </div>
   </div>
@@ -690,8 +690,8 @@
       <div class="gate-logo" style="margin-bottom:18px">M</div>
       <h1 id="fallback-title">This link is incomplete</h1>
       <p id="fallback-text">This link doesn't include a portal to open. Ask your contractor to send it again from the MAGE ID app.</p>
-      <button type="button" id="fallback-retry" class="fallback-retry" style="display:none">Try again</button>
-      <a class="cta" id="fallback-help" href="mailto:help@mageid.app?subject=Sub%20Portal%20Help">Contact support</a>
+      <button type="button" id="fallback-retry" class="fallback-retry" style="display:none">Try Again</button>
+      <a class="cta" id="fallback-help" href="mailto:help@mageid.app?subject=Sub%20Portal%20Help">Contact Support</a>
     </div>
   </div>
 
@@ -702,7 +702,7 @@
           <div class="brand-mark" id="brand-mark">M</div>
           <span class="brand-name" id="brand-name">MAGE ID</span>
         </div>
-        <div class="hero-eyebrow" id="hero-eyebrow">Sub portal</div>
+        <div class="hero-eyebrow" id="hero-eyebrow">Sub Portal</div>
         <h1 id="sub-title">—</h1>
         <div class="hero-meta" id="sub-meta"></div>
       </div>
@@ -722,7 +722,7 @@
         </div>
         <button id="open-submit" class="submit-bar-btn">
           <svg class="icn" width="16" height="16" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          <span>Submit an invoice</span>
+          <span>Submit an Invoice</span>
         </button>
       </div>
 
@@ -743,8 +743,8 @@
   <aside class="drawer" id="drawer" aria-hidden="true">
     <header class="drawer-header">
       <div class="drawer-header-titles">
-        <div class="drawer-header-eyebrow">Submit invoice</div>
-        <h2>Bill for work performed</h2>
+        <div class="drawer-header-eyebrow">Submit Invoice</div>
+        <h2>Bill for Work Performed</h2>
       </div>
       <button class="drawer-close" id="drawer-close">
         <svg class="icn" width="18" height="18" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -752,36 +752,36 @@
     </header>
     <div class="drawer-body">
       <div class="form-field">
-        <div class="form-label">Invoice number</div>
-        <input id="f-num" class="form-input" type="text" placeholder="e.g. 2026-04-001" />
+        <div class="form-label">Invoice Number</div>
+        <input id="f-num" class="form-input" type="text" placeholder="2026-04-001" />
       </div>
       <div class="form-field">
-        <div class="form-label">Against commitment</div>
+        <div class="form-label">Against Commitment</div>
         <select id="f-commitment" class="form-select"></select>
       </div>
       <div class="form-field">
-        <div class="form-label">Total amount</div>
+        <div class="form-label">Total Amount</div>
         <div class="amount-prefix">
           <input id="f-amount" class="form-input amount num" type="text" inputmode="decimal" placeholder="0" />
         </div>
       </div>
       <div class="form-field">
-        <div class="form-label">Retainage held (optional)</div>
+        <div class="form-label">Retainage Held (Optional)</div>
         <div class="amount-prefix">
           <input id="f-retention" class="form-input num" type="text" inputmode="decimal" placeholder="0" />
         </div>
       </div>
       <div class="form-field">
-        <div class="form-label">Description / scope billed</div>
+        <div class="form-label">Description or Scope Billed</div>
         <textarea id="f-desc" class="form-textarea" placeholder="What's included in this invoice?"></textarea>
       </div>
       <div class="form-field">
-        <div class="form-label">Line items (optional)</div>
+        <div class="form-label">Line Items (Optional)</div>
         <div id="f-lines"></div>
-        <button type="button" id="f-add-line" class="line-add">+ Add line item</button>
+        <button type="button" id="f-add-line" class="line-add">+ Add Line Item</button>
       </div>
       <div class="form-field">
-        <div class="form-label">Your name + email</div>
+        <div class="form-label">Your Name and Email</div>
         <input id="f-name" class="form-input" type="text" placeholder="Name (so they know who sent it)" />
         <input id="f-email" class="form-input" type="email" placeholder="Email (optional, for replies)" style="margin-top:8px" />
       </div>
@@ -789,7 +789,7 @@
     </div>
     <footer class="drawer-footer">
       <button class="drawer-btn drawer-btn-ghost" id="drawer-cancel">Cancel</button>
-      <button class="drawer-btn drawer-btn-primary" id="drawer-submit">Submit invoice</button>
+      <button class="drawer-btn drawer-btn-primary" id="drawer-submit">Submit Invoice</button>
     </footer>
   </aside>
 
@@ -960,9 +960,9 @@
     var paidToDate = (s.commitments || []).reduce(function (sum, c) { return sum + (c.paidToDate || 0); }, 0);
     var balance = Math.max(0, totalCommitment - paidToDate);
     var stats = [
-      { label: 'Contract value', value: fmtMoney(totalCommitment) },
-      { label: 'Paid to you', value: fmtMoney(paidToDate) },
-      { label: 'Balance remaining', value: fmtMoney(balance), amber: balance > 0 },
+      { label: 'Contract Value', value: fmtMoney(totalCommitment) },
+      { label: 'Paid to You', value: fmtMoney(paidToDate) },
+      { label: 'Balance Remaining', value: fmtMoney(balance), amber: balance > 0 },
     ];
     document.getElementById('stats-grid').innerHTML = stats.map(function (s) {
       return (
@@ -983,14 +983,14 @@
           '<svg class="icn" width="22" height="22" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>' +
         '</div>' +
         '<div class="section-title-block">' +
-          '<div class="section-title">Your scope</div>' +
+          '<div class="section-title">Your Scope</div>' +
           '<div class="section-subtitle">Signed commitments under your contract</div>' +
         '</div>' +
         '<span class="section-count">' + (commitments.length || 0) + '</span>' +
       '</div>';
 
     if (!commitments.length) {
-      html += '<div class="empty-section">No scope shared yet — your contractor will add commitments as they come up.</div>';
+      html += '<div class="empty-section">No scope shared yet. Your contractor will add commitments as they come up.</div>';
     } else {
       html += commitments.map(function (c) {
         var pillClass = statusPillClass(c.status);
@@ -1008,7 +1008,7 @@
                   '<div class="commit-num-value num">' + fmtMoney(c.contractToDate) + '</div>' +
                 '</div>' +
                 '<div class="commit-num-block">' +
-                  '<div class="commit-num-label">Paid to date</div>' +
+                  '<div class="commit-num-label">Paid to Date</div>' +
                   '<div class="commit-num-value num">' + fmtMoney(c.paidToDate) + '</div>' +
                 '</div>' +
                 '<div class="commit-num-block">' +
@@ -1034,14 +1034,14 @@
           '<svg class="icn" width="22" height="22" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>' +
         '</div>' +
         '<div class="section-title-block">' +
-          '<div class="section-title">Your invoices</div>' +
+          '<div class="section-title">Your Invoices</div>' +
           '<div class="section-subtitle">Submitted billings + their review status</div>' +
         '</div>' +
         '<span class="section-count">' + invoices.length + '</span>' +
       '</div>';
 
     if (!invoices.length) {
-      html += '<div class="empty-section">You haven\'t submitted any invoices yet. Use the &quot;Submit invoice&quot; button above to send your first.</div>';
+      html += '<div class="empty-section">You haven\'t submitted any invoices yet. Use the &quot;Submit an Invoice&quot; button above to send your first.</div>';
     } else {
       html += invoices.map(function (i) {
         var pillClass = statusPillClass(i.status);
@@ -1068,7 +1068,7 @@
 
   function renderCommitmentSelect(commitments) {
     var sel = document.getElementById('f-commitment');
-    var opts = ['<option value="">— Whole contract / no specific commitment —</option>']
+    var opts = ['<option value="">Whole contract (no specific commitment)</option>']
       .concat(commitments.map(function (c) {
         return '<option value="' + esc(c.id) + '">#' + esc(c.number) + ' · ' +
           esc((c.description || '').slice(0, 50)) + '</option>';
@@ -1121,13 +1121,13 @@
     } else if (p.dueDate) {
       // A due date typed as free text ("Fri") is not a date: say so rather
       // than print it like one.
-      dueLine = '<span class="punch-bad-due">Due “' + esc(p.dueDate) + '” — not a date, ask your contractor</span>';
+      dueLine = '<span class="punch-bad-due">Due “' + esc(p.dueDate) + '” is not a date. Ask your contractor.</span>';
     }
     // #56 'Unspecified' is the walk's "no room given", not a room (the server
     // already nulls it; an older frozen copy may still carry it).
     var loc = p.location && String(p.location).trim().toLowerCase() !== 'unspecified' ? String(p.location).trim() : '';
     var locLine = loc ? '<span class="punch-loc">' + esc(loc) + '</span>'
-      : p.planSheetId ? '<span class="punch-loc">No room given — check the sheet</span>' : '';
+      : p.planSheetId ? '<span class="punch-loc">No room given. Check the sheet.</span>' : '';
     // No invented 'Plan': a pin whose sheet has no name (or isn't synced) says so.
     var pinLine = p.planSheetId
       ? (p.sheetLabel && p.sheetLabel !== 'Plan'
@@ -1140,7 +1140,7 @@
     var gcNote = punchIsOnSub(p) && p.gcNote ? String(p.gcNote).trim() : '';
     var sentBackLine = gcNote
       ? '<div class="punch-sentback">' + (GENERIC_REJECT_RE.test(gcNote)
-          ? 'Sent back by ' + esc(punchState.contractor) + ' — no reason given'
+          ? 'Sent back by ' + esc(punchState.contractor) + '. No reason given.'
           : 'Sent back by ' + esc(punchState.contractor) + ': ' + esc(gcNote)) + '</div>'
       : '';
     // Labelled by what it is, not "Your note": after a reassignment an older
@@ -1153,15 +1153,15 @@
     } else if (punchIsOnSub(p) && getSubToken() && punchState.subPortalId) {
       if (punchOpenNote[p.id]) {
         actions = '<div class="punch-actions">' +
-          '<textarea class="punch-note-input" data-note-for="' + esc(p.id) + '" maxlength="1000" placeholder="Optional note for your contractor, e.g. swapped the cover plate"' + (pend === 'sending' ? ' disabled' : '') + '>' + esc(punchDraft[p.id] || '') + '</textarea>' +
+          '<textarea class="punch-note-input" data-note-for="' + esc(p.id) + '" maxlength="1000" placeholder="Optional note for your contractor, such as: swapped the cover plate"' + (pend === 'sending' ? ' disabled' : '') + '>' + esc(punchDraft[p.id] || '') + '</textarea>' +
           '<div class="punch-row-btns">' +
-            '<button type="button" class="punch-send-btn" data-punch-send="' + esc(p.id) + '"' + (pend === 'sending' ? ' disabled' : '') + '>' + (pend === 'sending' ? 'Sending…' : 'Send for review') + '</button>' +
+            '<button type="button" class="punch-send-btn" data-punch-send="' + esc(p.id) + '"' + (pend === 'sending' ? ' disabled' : '') + '>' + (pend === 'sending' ? 'Sending…' : 'Send for Review') + '</button>' +
             '<button type="button" class="punch-cancel-btn" data-punch-cancel="' + esc(p.id) + '">Cancel</button>' +
           '</div>' +
           (pend && pend !== 'sending' ? '<span class="punch-err">' + esc(pend) + '</span>' : '') +
         '</div>';
       } else {
-        actions = '<div class="punch-actions"><button type="button" class="punch-fix-btn" data-punch-fix="' + esc(p.id) + '">Mark fixed</button></div>';
+        actions = '<div class="punch-actions"><button type="button" class="punch-fix-btn" data-punch-fix="' + esc(p.id) + '">Mark Fixed</button></div>';
       }
     }
     return '' +
@@ -1187,23 +1187,23 @@
     var waiting = items.filter(function (p) { return (p.status || 'open') === 'ready_for_review'; });
     var total = Math.max(punchState.total || 0, items.length);
     var head = onYou.length + ' still on you' + (waiting.length ? ' · ' + waiting.length + ' waiting on ' + punchState.contractor + ' to verify' : '');
-    var capLine = total > items.length ? '<p class="punch-asof">Showing ' + items.length + ' of ' + total + ' — the most urgent first. Ask ' + esc(punchState.contractor) + ' for the full list.</p>' : '';
+    var capLine = total > items.length ? '<p class="punch-asof">Showing ' + items.length + ' of ' + total + ', the most urgent first. Ask ' + esc(punchState.contractor) + ' for the full list.</p>' : '';
     // A frozen copy says WHY it is frozen — "back online" only when it was
     // actually the signal (#50).
     var asOf = punchState.liveAt
       ? '<p class="punch-asof">Live from ' + esc(punchState.contractor) + '’s punch list.</p>'
       : punchState.frozenWhy === 'network'
-        ? '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ' — couldn’t reach the server to refresh it. Check your signal.<button type="button" class="punch-retry-btn" data-portal-retry="1">Retry</button></p>'
+        ? '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + '. Couldn’t reach the server to refresh it. Check your signal.<button type="button" class="punch-retry-btn" data-portal-retry="1">Retry</button></p>'
         : punchState.frozenWhy === 'missing'
-          ? '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ' — the copy saved in this link. ' + esc(punchState.contractor) + ' hasn’t published a live one yet.</p>'
-          : '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ' — the copy saved in this link, not the live list.</p>';
+          ? '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ', the copy saved in this link. ' + esc(punchState.contractor) + ' hasn’t published a live one yet.</p>'
+          : '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ', the copy saved in this link, not the live list.</p>';
     var html = '';
-    if (onYou.length) html += '<div class="punch-group-title">Still on you</div><div class="punch-list">' + onYou.map(renderPunchRow).join('') + '</div>';
+    if (onYou.length) html += '<div class="punch-group-title">Still on You</div><div class="punch-list">' + onYou.map(renderPunchRow).join('') + '</div>';
     if (waiting.length) html += '<div class="punch-group-title">Waiting on ' + esc(punchState.contractor) + ' to verify</div><div class="punch-list">' + waiting.map(renderPunchRow).join('') + '</div>';
     sec.innerHTML = '' +
       '<section class="section">' +
         '<div class="section-head">' +
-          '<h3>Punch list</h3>' +
+          '<h3>Punch List</h3>' +
           '<p>' + esc(head) + '</p>' +
         '</div>' +
         asOf + capLine + html +
@@ -1241,7 +1241,7 @@
       return r;
     }, function () {
       if (timer) clearTimeout(timer);
-      throw new Error('Could not send it just now. Check your signal and try again — your note is kept.');
+      throw new Error('Could not send it just now. Check your signal and try again. Your note is kept.');
     }).then(function (r) {
       if (r.ok) return r.json();
       return r.text().then(function (t) {
@@ -1269,10 +1269,10 @@
   function punchSentMessage(res, note) {
     var gc = punchState.contractor;
     if (!res || res.already !== true) return 'Sent to ' + gc + ' for review';
-    if (!note) return 'Already marked fixed — waiting on ' + gc + ' to verify';
+    if (!note) return 'Already marked fixed. Waiting on ' + gc + ' to verify.';
     return res.note_added === true
-      ? 'Already marked fixed — your note was added for ' + gc
-      : 'Already marked fixed — your note was not added';
+      ? 'Already marked fixed. Your note was added for ' + gc + '.'
+      : 'Already marked fixed. Your note was not added.';
   }
 
   document.addEventListener('click', function (e) {
@@ -1362,7 +1362,7 @@
     sec.innerHTML = '' +
       '<section class="section">' +
         '<div class="section-head">' +
-          '<h3>Your schedule on this project</h3>' +
+          '<h3>Your Schedule on This Project</h3>' +
           '<p>' + slice.tasks.length + ' task' + (slice.tasks.length === 1 ? '' : 's') + ' on you. Tap a date in the contractor\'s app for the live timeline.</p>' +
         '</div>' +
         '<div class="sched-list">' + rows + '</div>' +
@@ -1444,12 +1444,12 @@
 
     document.getElementById('brand-mark').textContent = (company.name || 'M').charAt(0).toUpperCase();
     document.getElementById('brand-name').textContent = company.name || 'MAGE ID';
-    document.getElementById('hero-eyebrow').textContent = sub.companyName ? sub.companyName : 'Sub portal';
+    document.getElementById('hero-eyebrow').textContent = sub.companyName ? sub.companyName : 'Sub Portal';
 
     var titleEl = document.getElementById('sub-title');
     var firstName = sub.contactName ? sub.contactName.split(' ')[0] : null;
     if (firstName) {
-      titleEl.innerHTML = 'Hi ' + esc(firstName) + ' — your portal for ' + '<em>' + esc(project.name || 'this project') + '</em>';
+      titleEl.innerHTML = 'Hi ' + esc(firstName) + ', your portal for ' + '<em>' + esc(project.name || 'this project') + '</em>';
     } else {
       titleEl.innerHTML = 'Your portal for <em>' + esc(project.name || 'this project') + '</em>';
     }
@@ -1461,7 +1461,7 @@
 
     if (data.welcomeMessage) {
       var w = document.getElementById('welcome');
-      w.innerHTML = '<strong>A note from ' + esc(company.contactName || company.name) + '</strong> — ' + esc(data.welcomeMessage);
+      w.innerHTML = '<strong>A note from ' + esc(company.contactName || company.name) + ':</strong> ' + esc(data.welcomeMessage);
       w.style.display = 'block';
     }
 
@@ -1548,7 +1548,7 @@
           document.getElementById('f-num').value = '';
           linesContainer.innerHTML = '';
           btn.disabled = false;
-          btn.innerHTML = 'Submit invoice';
+          btn.innerHTML = 'Submit Invoice';
           // Optimistic add to UI (without reload)
           var optimistic = (data.submittedInvoices || []).slice();
           optimistic.unshift({
@@ -1565,10 +1565,10 @@
       } else {
         // Fallback to mailto so the sub still gets through
         var href = buildMailto(cfg, payload, project.name, sub.companyName);
-        statusEl.textContent = "We couldn't reach the server, so we'll open your email instead — review and send to deliver this invoice.";
+        statusEl.textContent = "We couldn't reach the server, so we'll open your email instead. Review and send to deliver this invoice.";
         statusEl.classList.add('show', 'error');
         btn.disabled = false;
-        btn.innerHTML = 'Submit invoice';
+        btn.innerHTML = 'Submit Invoice';
         setTimeout(function () { window.location.href = href; }, 80);
       }
     });
@@ -1592,7 +1592,7 @@
         gate.style.display = 'none';
         onPass();
       } else {
-        err.textContent = 'Incorrect passcode — please try again.';
+        err.textContent = 'Incorrect passcode. Try again.';
         input.value = '';
         input.focus();
       }
@@ -1605,9 +1605,9 @@
   // link with no id + token and no copy in it.
   var CARD_COPY = {
     loading: { title: 'Opening your portal…', text: 'Getting the latest from your contractor.' },
-    network: { title: 'Couldn’t reach the server', text: 'Check your signal and try again. The link itself is fine.', retry: true },
+    network: { title: 'Couldn’t Reach the Server', text: 'Check your signal and try again. The link itself is fine.', retry: true },
     denied: { title: 'This link was turned off or replaced', text: 'Ask {gc} for the new link. Anything this page showed before is no longer current.' },
-    missing: { title: 'Nothing published yet', text: '{gc} hasn’t published this portal yet. Try again later, or ask them to open your portal in the MAGE ID app.', retry: true },
+    missing: { title: 'Nothing Published Yet', text: '{gc} hasn’t published this portal yet. Try again later, or ask them to open your portal in the MAGE ID app.', retry: true },
     nodata: null,
   };
   var cardDefault = null;
@@ -1624,7 +1624,7 @@
     textEl.textContent = c.text.replace(/\{gc\}/g, gc).replace(/^your contractor/, 'Your contractor');
     retryEl.style.display = c.retry ? 'block' : 'none';
     retryEl.disabled = false;
-    retryEl.textContent = 'Try again';
+    retryEl.textContent = 'Try Again';
     helpEl.style.display = kind === 'loading' ? 'none' : 'block';
     fb.style.display = 'flex';
   }

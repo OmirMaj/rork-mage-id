@@ -209,6 +209,6 @@ export function postedAlertBody(
   const where = (city ?? '').trim() || 'your area';
   return `Your project is live. We alert MAGE ID contractors who cover ${where}`
     + (verifiedOnly ? ' and have a license on file' : '')
-    + ' — My RFPs shows how many were reached, including if that is none. '
+    + '. My RFPs shows how many were reached, including if that is none. '
     + (browseOpen ? STILL_LISTED : NOT_BROWSABLE);
 }

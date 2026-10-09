@@ -62,8 +62,8 @@ import {
   type CodeLookResult,
 } from '@/utils/codeLook';
 
-export const CODE_LOOK_NEEDS_PRO = 'Photo code check uses AI and needs Pro';
-export const CODE_LOOK_NOT_LIVE = "Photo code check isn't live on the server yet.";
+export const CODE_LOOK_NEEDS_PRO = 'Photo Code Check uses AI and needs Pro';
+export const CODE_LOOK_NOT_LIVE = "Photo Code Check isn't live on the server yet.";
 
 type RunState =
   | { kind: 'idle' }
@@ -148,7 +148,7 @@ export default function CodeLookSheet({
       setRun({ kind: 'done', result });
     } catch (e) {
       if (!alive.current || mine !== seq.current) return;
-      const message = aiConsentErrorText(e) ?? (e instanceof Error && e.message.trim() ? e.message.trim() : "Photo code check didn't finish. Try again.");
+      const message = aiConsentErrorText(e) ?? (e instanceof Error && e.message.trim() ? e.message.trim() : "Photo Code Check didn't finish. Try again.");
       setRun({ kind: 'error', message, code: edgeErrorCode(e) });
     }
   }, [canAI, photoUri, project, trade, checklist]);
@@ -223,7 +223,7 @@ export default function CodeLookSheet({
             <ClipboardCheck size={13} color={t.textSecondary} strokeWidth={1.75} />
             <Text style={s.actionText}>
               {addedTo
-                ? (prepFull[o.id] ? `Not added: ${addedTo}'s photo code check list is full` : `Added to ${addedTo} prep on this device`)
+                ? (prepFull[o.id] ? `Not added: ${addedTo}'s Photo Code Check list is full` : `Added to ${addedTo} prep on this device`)
                 : prepBlocked
                   ? `No inspection in the next ${PREP_WINDOW_DAYS} days to add it to`
                   : 'Add to Inspection Prep'}
@@ -241,7 +241,7 @@ export default function CodeLookSheet({
     >
       <View style={s.header}>
         <View style={s.headerBody}>
-          <Text style={s.sheetHeading}>Photo code check</Text>
+          <Text style={s.sheetHeading}>Photo Code Check</Text>
           <Text style={s.disclaimer} testID="codelook-disclaimer">{CODE_LOOK_DISCLAIMER}</Text>
           <Text style={s.groundingChip}>{grounding.chipLabel}</Text>
         </View>

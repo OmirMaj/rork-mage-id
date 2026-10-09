@@ -6377,7 +6377,7 @@ export default function ProjectDetailScreen() {
             <TouchableOpacity
               testID="codelook-open-lightbox"
               accessibilityRole="button"
-              accessibilityLabel="Photo code check"
+              accessibilityLabel="Photo Code Check"
               style={styles.lightboxCodeLookBtn}
               onPress={() => {
                 const target = { photoUri: lightboxPhoto.uri, sourcePhotoId: lightboxPhoto.id };
@@ -6389,7 +6389,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.85}
             >
               <ScanSearch size={14} color={themeColors.surface} strokeWidth={1.75} />
-              <Text style={styles.lightboxMarkupBtnText} numberOfLines={1}>Photo code check</Text>
+              <Text style={styles.lightboxMarkupBtnText} numberOfLines={1}>Photo Code Check</Text>
             </TouchableOpacity>
           )}
           {lightboxPhoto && project && (

@@ -139,7 +139,7 @@ const FN = 'https://nteoqhcswappxxjlpvap.supabase.co/functions/v1';
     core.portalFinancingRedirectUrl(FN, { projectId: 'portal:abc', portalId: 'p', accessToken: 'k' }) === null);
   const note = core.portalFinancingPreviewNote('Acme Home Loans');
   ok('the GC preview says what the client sees and why it is not live here',
-    /Your client sees a "Check financing options" button here/.test(note) && /Acme Home Loans/.test(note) && /not from this preview/.test(note), note);
+    /Your client sees a "Check Financing Options" button here/.test(note) && /Acme Home Loans/.test(note) && /not from this preview/.test(note), note);
 }
 
 const html = read('marketing/portal/index.html');
@@ -162,7 +162,7 @@ const html = read('marketing/portal/index.html');
   const cardHtml = card({ partnerName: 'Acme <b>Loans</b>', disclosure: core.financingDisclosureText('Acme') }, 'https://x/y?a=1&b=2');
   ok('the card is a real link to that URL, opened in a new tab',
     /<a class="invoice-pay-btn fin-btn" href="https:\/\/x\/y\?a=1&amp;b=2" target="_blank" rel="noopener noreferrer"/.test(cardHtml), cardHtml.slice(0, 300));
-  ok('…labelled "Check financing options", the lender name escaped', /Check financing options/.test(cardHtml) && /Acme &lt;b&gt;Loans&lt;\/b&gt;/.test(cardHtml) && !/<b>Loans/.test(cardHtml));
+  ok('…labelled "Check Financing Options", the lender name escaped', /Check Financing Options/.test(cardHtml) && /Acme &lt;b&gt;Loans&lt;\/b&gt;/.test(cardHtml) && !/<b>Loans/.test(cardHtml));
   ok('…with the snapshot\'s disclosure under it', cardHtml.includes('is not paid for this referral'));
   const page = code(html);
   ok('render() adds the section only when data.financing is present AND a link could be built',
@@ -321,7 +321,7 @@ const html = read('marketing/portal/index.html');
   // The executed copy.
   const on = core.invoiceFinancingOnLine('  Acme Home Loans ');
   ok('invoiceFinancingOnLine names the GC\'s own lender and says MAGE ID is not one and is not paid',
-    on === 'Financing is on: invoice emails you send and your client portal offer "Check financing options" from Acme Home Loans. '
+    on === 'Financing is on: invoice emails you send and your client portal offer "Check Financing Options" from Acme Home Loans. '
       + 'MAGE ID is not a lender and is not paid for referrals.', on);
   ok('INVOICE_FINANCING_SETUP_LINE is bring-your-own-lender, pointing at Payments',
     core.INVOICE_FINANCING_SETUP_LINE === 'Want to offer your client monthly payments? Bring your own lender. Set it up in Payments');

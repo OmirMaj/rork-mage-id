@@ -278,7 +278,7 @@ async function retire(ctx: Ctx) { await sleep(200); allCalls.push(...ctx.calls);
     ok('the composer offers attach with the exact accept list',
       ctx.d.getElementById('msg-file')?.getAttribute('accept') === 'image/jpeg,image/png,image/webp,application/pdf'
       && ctx.d.getElementById('msg-file')?.hasAttribute('multiple')
-      && ctx.d.getElementById('msg-attach')?.getAttribute('aria-label') === 'Attach a photo or PDF');
+      && ctx.d.getElementById('msg-attach')?.getAttribute('aria-label') === 'Attach a Photo or PDF');
     // pure helpers
     const T = ctx.w.__msgFilesTest;
     ok('the test hook exists under the test flag', !!T);
@@ -663,7 +663,7 @@ async function retire(ctx: Ctx) { await sleep(200); allCalls.push(...ctx.calls);
     ok('no signed URL is ever written to localStorage (msgFileUrls is memory only)', !/localStorage\.setItem\([^)]*msgFileUrls/.test(html));
 
     const COPY: Record<string, string> = {
-      msgFileAttach: 'Attach a photo or PDF',
+      msgFileAttach: 'Attach a Photo or PDF',
       msgFileRemove: 'Remove {name}',
       msgFileRefuseType: "{name} can't be sent. Send a photo (JPG, PNG or WebP) or a PDF.",
       msgFileRefuseSize: '{name} is {size}. Files can be up to 20 MB.',
@@ -678,7 +678,7 @@ async function retire(ctx: Ctx) { await sleep(200); allCalls.push(...ctx.calls);
       msgFileFailBusy: 'Too many files at once. Wait a few minutes, then try again.',
       msgFileFailRejected: "{name} isn't the photo or PDF it says it is, so it wasn't sent.",
       msgFileFailServer: "The upload didn't finish. Try again when you have a good connection.",
-      msgFileTryAgain: 'Try again',
+      msgFileTryAgain: 'Try Again',
       msgFileRemoveMsg: 'Remove',
       msgFileNotKeptOne: "1 message didn't send before the page closed. Its text is back in the box. Attach the files again.",
       msgFileNotKeptOther: "{count} messages didn't send before the page closed. The last one's text is back in the box. Attach the files again.",

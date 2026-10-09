@@ -116,13 +116,13 @@ export interface EmailCopy {
  *  so it can say neither "Welcome back" nor "no account will be created". */
 export function signInEmailCopy(email: string): EmailCopy {
   return {
-    subject: 'Your MAGE ID sign-in link',
+    subject: 'Your MAGE ID Sign-In Link',
     preheader: 'Your one-tap sign-in link for MAGE ID. It expires in 60 minutes.',
-    eyebrow: 'One-tap sign-in',
-    title: 'Your MAGE ID sign-in link',
+    eyebrow: 'One-Tap Sign-In',
+    title: 'Your MAGE ID Sign-In Link',
     subtitle: `Tap the button below to continue as ${email}. The link is good for one tap and expires in 60 minutes.`,
     footer: `You're receiving this because someone entered ${email} on MAGE ID. If you didn't expect it, you can ignore this email.`,
-    ctaLabel: 'Sign in to MAGE ID',
+    ctaLabel: 'Sign In to MAGE ID',
   };
 }
 
@@ -133,10 +133,10 @@ export function crewClaimEmailCopy(inviter: string, email: string): EmailCopy {
   return {
     subject: `${inviter} added you to their crew on MAGE ID`,
     preheader: `${inviter} added you to their crew on MAGE ID. Claim your profile to keep your own details up to date.`,
-    eyebrow: 'Claim your profile',
-    title: 'Claim your crew profile',
+    eyebrow: 'Claim Your Profile',
+    title: 'Claim Your Crew Profile',
     subtitle: `${inviter} added you to their crew on MAGE ID. Claim the profile to keep your own phone, email and trades on it up to date yourself.`,
-    footer: `You're receiving this because ${inviter} added ${email} to their crew on MAGE ID. The button signs you in with this email; it works once and expires in 60 minutes — if it has expired, open it anyway and the page lets you get a fresh one. If you don't know ${inviter}, you can ignore this email.`,
-    ctaLabel: 'Claim my profile',
+    footer: `You're receiving this because ${inviter} added ${email} to their crew on MAGE ID. The button signs you in with this email; it works once and expires in 60 minutes. If it has expired, open it anyway and the page lets you get a fresh one. If you don't know ${inviter}, you can ignore this email.`,
+    ctaLabel: 'Claim My Profile',
   };
 }

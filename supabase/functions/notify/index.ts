@@ -251,7 +251,7 @@ function bidInviteExpiryText(expiresAt: unknown, nowMs: number): string {
   const t = typeof expiresAt === 'string' ? Date.parse(expiresAt) : NaN;
   if (!Number.isFinite(t)) return 'It stops working 30 days after it was first sent.';
   const days = Math.ceil((t - nowMs) / 86_400_000);
-  if (days <= 0) return 'Its expiry time has passed — if it no longer opens, reply to this email for a new one.';
+  if (days <= 0) return 'Its expiry time has passed. If it no longer opens, reply to this email for a new one.';
   return days === 1 ? 'It stops working within a day.' : `It stops working in ${days} days.`;
 }
 // <<< bid-invite-format
@@ -419,19 +419,19 @@ function wave3NotifyText(event: string, p: Record<string, unknown>, projectName:
       return {
         prefKey: 'invoice_paid',
         pushTitle: `Client paid ${label} · ${projectName}`,
-        pushBody: full ? `${paid} received — paid in full.` : `${paid} received${bal ? ` · ${bal} still due` : ''}.`,
+        pushBody: full ? `${paid} received, paid in full.` : `${paid} received${bal ? ` · ${bal} still due` : ''}.`,
         emailSubject: `Client paid ${label}: ${paid} · ${projectName}`,
-        eyebrow: 'Payment received',
+        eyebrow: 'Payment Received',
         title: `Your client paid ${paid}`,
         subtitle: full
           ? `${label[0].toUpperCase()}${label.slice(1)} is paid in full. The money settles to your Stripe account on its payout schedule.`
           : `${label[0].toUpperCase()}${label.slice(1)} still has a balance. The money settles to your Stripe account on its payout schedule.`,
         rows: [
           ['Invoice', inv || '—'],
-          ['Amount received', paid, true],
-          ['Balance remaining', full ? 'Paid in full' : (bal ?? '—')],
+          ['Amount Received', paid, true],
+          ['Balance Remaining', full ? 'Paid in full' : (bal ?? '—')],
         ],
-        ctaLabel: 'Open the invoice',
+        ctaLabel: 'Open the Invoice',
       };
     }
     case 'client_payment_failed': {
@@ -440,14 +440,14 @@ function wave3NotifyText(event: string, p: Record<string, unknown>, projectName:
       const label = inv ? `Invoice ${inv}` : 'an invoice';
       return {
         prefKey: 'invoice_paid',
-        pushTitle: `Payment failed · ${label}`,
+        pushTitle: `Payment Failed · ${label}`,
         pushBody: `${amt} from your client did not go through. The invoice is still open.`,
         emailSubject: `Payment failed: ${amt} on ${label} · ${projectName}`,
-        eyebrow: 'Payment failed',
+        eyebrow: 'Payment Failed',
         title: `A ${amt} payment did not go through`,
-        subtitle: 'Your client started a bank payment that failed after checkout. Nothing was credited — the invoice is still open. Reach out, or send a new pay link.',
+        subtitle: 'Your client started a bank payment that failed after checkout. Nothing was credited and the invoice is still open. Reach out, or send a new pay link.',
         rows: [['Invoice', inv || '—'], ['Attempted', amt, true]],
-        ctaLabel: 'Open the invoice',
+        ctaLabel: 'Open the Invoice',
       };
     }
     case 'field_report_filed': {
@@ -472,19 +472,19 @@ function wave3NotifyText(event: string, p: Record<string, unknown>, projectName:
         : status === 'draft'
           ? 'Review it before anything goes to your client.'
           : 'Open it to check what your client can see.';
-      const rows: [string, string, boolean?][] = [['Filed by', who]];
-      if (day) rows.push(['Report date', day]);
-      rows.push(['Client portal', status === 'sent' ? 'Showing now' : status === 'draft' ? 'Not shown — waiting on you' : 'Check in the app']);
+      const rows: [string, string, boolean?][] = [['Filed By', who]];
+      if (day) rows.push(['Report Date', day]);
+      rows.push(['Client Portal', status === 'sent' ? 'Showing now' : status === 'draft' ? 'Not shown. Waiting on you.' : 'Check in the app']);
       return {
         prefKey: 'field_report',
-        pushTitle: `Daily report filed · ${projectName}`,
+        pushTitle: `Daily Report Filed · ${projectName}`,
         pushBody: `${who} ${filed}. ${tail}`,
         emailSubject: `${who} ${filed} · ${projectName}`,
-        eyebrow: 'Daily report filed',
+        eyebrow: 'Daily Report Filed',
         title: `${who} filed a daily report`,
         subtitle: tail,
         rows,
-        ctaLabel: 'Review the report',
+        ctaLabel: 'Review the Report',
       };
     }
     case 'pro_response_received': {
@@ -496,7 +496,7 @@ function wave3NotifyText(event: string, p: Record<string, unknown>, projectName:
       return {
         prefKey: 'pro_response',
         pushTitle: `${label} answered · ${projectName}`,
-        pushBody: `${who} responded${code ? ` — ${code}` : ''}.`,
+        pushBody: `${who} responded${code ? `: ${code}` : ''}.`,
         emailSubject: `${who} responded to ${label} · ${projectName}`,
         eyebrow: `${kind} response`,
         title: `${who} responded to ${label}`,
@@ -519,37 +519,37 @@ function wave3NotifyText(event: string, p: Record<string, unknown>, projectName:
       const loc = clip(s(p.location).replace(/\s+/g, ' '), 60);
       const note = clip(s(p.sub_note).replace(/\s+/g, ' '), 200);
       const moreN = typeof p.more_count === 'number' && Number.isInteger(p.more_count) && p.more_count > 0 ? p.more_count : 0;
-      const more = moreN ? ` And ${moreN} more from ${who} since the last alert — see Review.` : '';
+      const more = moreN ? ` And ${moreN} more from ${who} since the last alert. See Review.` : '';
       const item = desc ? `“${desc}”` : 'a punch item';
       const rows: [string, string, boolean?][] = [['From', who]];
       if (desc) rows.push(['Item', desc, true]);
       rows.push(['Location', loc || 'No room given']);
-      if (note) rows.push(['Sub’s note', note]);
-      if (moreN) rows.push(['Also marked since the last alert', `${moreN} more`]);
+      if (note) rows.push(['Sub’s Note', note]);
+      if (moreN) rows.push(['Also Marked Since the Last Alert', `${moreN} more`]);
       return {
         prefKey: 'punch_ready',
-        pushTitle: `Punch item ready · ${projectName}`,
+        pushTitle: `Punch Item Ready · ${projectName}`,
         pushBody: `${who} marked ${item}${loc ? ` (${loc})` : ''} ready for your review.${more}`,
         emailSubject: `${who} marked ${desc ? `“${clip(desc, 50)}”` : 'a punch item'} ready · ${projectName}`,
-        eyebrow: 'Punch list',
+        eyebrow: 'Punch List',
         title: `${who} says ${desc ? `“${desc}”` : 'a punch item'} is done`,
         subtitle: 'Walk it and close it, or send it back.',
         rows,
-        ctaLabel: 'Open the item',
+        ctaLabel: 'Open the Item',
       };
     }
     case 'safety_incident_filed': {
       const who = s(p.author_name) || 'Someone on your team';
       return {
         prefKey: 'safety_incident',
-        pushTitle: `Incident report filed · ${projectName}`,
+        pushTitle: `Incident Report Filed · ${projectName}`,
         pushBody: `${who} filed an incident report on ${projectName}. Open it in Safety.`,
         emailSubject: `${who} filed an incident report · ${projectName}`,
         eyebrow: 'Safety',
         title: `${who} filed an incident report`,
         subtitle: `Open it in Safety to review the case and decide whether it goes on your OSHA 300 log.`,
-        rows: [['Filed by', who]],
-        ctaLabel: 'Open the incident',
+        rows: [['Filed By', who]],
+        ctaLabel: 'Open the Incident',
       };
     }
     default:
@@ -865,14 +865,14 @@ function wave5NotifyText(event: string, f: Record<string, unknown>, projectName:
       if (projectName) rows.push(['Project', projectName]);
       return {
         prefKey: 'bid_invite_received',
-        pushTitle: `Bid received · ${pkg}`,
+        pushTitle: `Bid Received · ${pkg}`,
         pushBody: amt ? `${who} bid ${amt} on ${pkg}${projectName ? ` (${projectName})` : ''}.` : `${who} filed a bid on ${pkg}${projectName ? ` (${projectName})` : ''}.`,
         emailSubject: amt ? `${who} bid ${amt} · ${pkg}${onJob}` : `${who} filed a bid · ${pkg}${onJob}`,
-        eyebrow: 'Bid received',
+        eyebrow: 'Bid Received',
         title: amt ? `${who} bid ${amt}` : `${who} filed a bid`,
         subtitle: `On ${pkg}, through the invite link you sent. It is in the package's bid matrix, ready to level against the others.`,
         rows,
-        ctaLabel: 'Open the package',
+        ctaLabel: 'Open the Package',
       };
     }
     case 'lien_waiver_signed': {
@@ -883,34 +883,34 @@ function wave5NotifyText(event: string, f: Record<string, unknown>, projectName:
       const through = throughDayLabel(f.through_date);
       const amt = fmtMoney2(f.paid_amount);
       const rows: [string, string, boolean?][] = [['Sub', who]];
-      if (signer && signer !== who) rows.push(['Signed by', signer]);
+      if (signer && signer !== who) rows.push(['Signed By', signer]);
       if (type) rows.push(['Waiver', type]);
       if (through) rows.push(['Through', through]);
       if (amt) rows.push(['Amount', amt, true]);
       return {
         prefKey: 'lien_waiver_signed',
-        pushTitle: `Lien waiver signed${onJob}`,
+        pushTitle: `Lien Waiver Signed${onJob}`,
         pushBody: `${who} signed their ${type ? `${type.toLowerCase()} ` : ''}lien waiver${amt ? ` for ${amt}` : ''}.`,
         emailSubject: `${who} signed their lien waiver${onJob}`,
-        eyebrow: 'Lien waiver signed',
+        eyebrow: 'Lien Waiver Signed',
         title: `${who} signed their lien waiver`,
         subtitle: 'The signed waiver is on the project’s lien waiver list.',
         rows,
-        ctaLabel: 'Open lien waivers',
+        ctaLabel: 'Open Lien Waivers',
       };
     }
     case 'prequal_submitted': {
       const who = one(f.sub_name, 80) || 'A subcontractor';
       return {
         prefKey: 'prequal_submitted',
-        pushTitle: 'Prequalification submitted',
+        pushTitle: 'Prequalification Submitted',
         pushBody: `${who} submitted their prequalification packet. Review it before you award them work.`,
         emailSubject: `${who} submitted their prequalification packet`,
         eyebrow: 'Prequalification',
         title: `${who} submitted their prequalification packet`,
         subtitle: 'Run the auto-review, then approve it or send it back with what needs changing.',
         rows: [['From', who], ...(projectName ? [['Project', projectName] as [string, string]] : [])],
-        ctaLabel: 'Review the packet',
+        ctaLabel: 'Review the Packet',
       };
     }
     default:
@@ -1543,7 +1543,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const trimmed = shown.length > 220 ? shown.slice(0, 220) + '…' : shown;
       await dispatchOne('gc', {
         prefKey: 'portal_message',
-        pushTitle: `New message · ${projectName}`,
+        pushTitle: `New Message · ${projectName}`,
         pushBody: `${author}: ${shown.slice(0, 140)}`,
         pushData: { projectId, portalId, kind: 'portal_message' },
         pushToken: gc.push_token,
@@ -1551,12 +1551,12 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         emailSubject: `${author} sent a message · ${projectName}`,
         emailWrap: {
           preheader: `${author}: ${shown.slice(0, 100)}`,
-          eyebrow: 'New portal message',
+          eyebrow: 'New Portal Message',
           title: `${author} sent you a message`,
           subtitle: `Reply through MAGE ID. Your client gets an email with your answer and a link back to their portal.`,
           bodyHtml: emailQuote(trimmed) + attachmentLineHtml(files, 'Open the thread in MAGE ID to see them.'),
           cta: { label: 'Reply in MAGE ID', href: appLink('portal_message', projectData) },
-          secondaryCta: portalUrl ? { label: 'View their portal', href: portalUrl } : undefined,
+          secondaryCta: portalUrl ? { label: 'View Their Portal', href: portalUrl } : undefined,
         },
       });
       break;
@@ -1568,7 +1568,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const note = (payload.note as string) || '';
       await dispatchOne('gc', {
         prefKey: 'budget_proposal',
-        pushTitle: `Budget proposed · ${projectName}`,
+        pushTitle: `Budget Proposed · ${projectName}`,
         pushBody: `${proposer}: ${fmtMoney(amount)}`,
         pushData: { projectId, portalId, kind: 'budget_proposal' },
         pushToken: gc.push_token,
@@ -1576,11 +1576,11 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         emailSubject: `Budget proposed: ${fmtMoney(amount)} · ${projectName}`,
         emailWrap: {
           preheader: `${proposer} suggested ${fmtMoney(amount)} for ${projectName}.`,
-          eyebrow: 'Budget proposal',
+          eyebrow: 'Budget Proposal',
           title: `${proposer} suggested ${fmtMoney(amount)}`,
           subtitle: 'Accept it as the project target, counter, or reply with a message.',
-          bodyHtml: `${emailStatCard(emailStatRow('Proposed budget', fmtMoney(amount), { emphasize: true }))}${note ? emailQuote(note) : ''}`,
-          cta: { label: 'Review the proposal', href: appLink('budget_proposal', projectData) },
+          bodyHtml: `${emailStatCard(emailStatRow('Proposed Budget', fmtMoney(amount), { emphasize: true }))}${note ? emailQuote(note) : ''}`,
+          cta: { label: 'Review the Proposal', href: appLink('budget_proposal', projectData) },
         },
       });
       break;
@@ -1628,15 +1628,15 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const verb = isApproved ? 'approved' : 'declined';
       await dispatchOne('gc', {
         prefKey: 'co_approval',
-        pushTitle: `${isApproved ? 'CO approved' : 'CO declined'} · ${projectName}`,
-        pushBody: `${signerName} ${verb} ${coName}${coAmount ? ` (${coAmount})` : ''}${!isApproved && note ? ` — "${note.slice(0, 90)}"` : ''}`,
+        pushTitle: `${isApproved ? 'CO Approved' : 'CO Declined'} · ${projectName}`,
+        pushBody: `${signerName} ${verb} ${coName}${coAmount ? ` (${coAmount})` : ''}${!isApproved && note ? `: "${note.slice(0, 90)}"` : ''}`,
         pushData: { projectId, portalId, kind: 'co_approval', changeOrderId: coId ?? undefined },
         pushToken: gc.push_token,
         email: gc.email,
         emailSubject: `${coName === 'a change order' ? 'Change order' : coName} ${verb}${coAmount ? ` · ${coAmount}` : ''} · ${projectName}`,
         emailWrap: {
           preheader: `${signerName} ${verb} ${coName}${coAmount ? ` for ${coAmount}` : ''}.`,
-          eyebrow: isApproved ? 'Change order approved' : 'Change order declined',
+          eyebrow: isApproved ? 'Change Order Approved' : 'Change Order Declined',
           title: `${signerName} ${verb} ${coName}`,
           subtitle: isApproved
             ? 'Approval is logged and time-stamped. Proceed with the work.'
@@ -1644,18 +1644,18 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
             // re-issue" on the declined CO starts a new version with the next
             // number (the declined one keeps its record).
             : note
-              ? 'Their reason is below. Answer it, then use Revise & re-issue on the change order if it still applies.'
-              : 'They gave no reason. Reach out to clarify, then use Revise & re-issue on the change order if appropriate.',
+              ? 'Their reason is below. Answer it, then use Revise and Re-Issue on the change order if it still applies.'
+              : 'They gave no reason. Reach out to clarify, then use Revise and Re-Issue on the change order if appropriate.',
           bodyHtml: `${emailStatCard([
-            coName !== 'a change order' ? emailStatRow('Change order', escapeHtml(coName.replace('CO ', ''))) : '',
+            coName !== 'a change order' ? emailStatRow('Change Order', escapeHtml(coName.replace('CO ', ''))) : '',
             description ? emailStatRow('Scope', escapeHtml(description.length > 80 ? description.slice(0, 80) + '…' : description)) : '',
             coAmount ? emailStatRow('Amount', coAmount, { emphasize: true, valueColor: isApproved ? '#026354' : '#C2410C' }) : '',
             coNoCost ? emailStatRow('Amount', 'No cost change') : '',
-            isApproved && newTotal ? emailStatRow('New contract total', newTotal) : '',
+            isApproved && newTotal ? emailStatRow('New Contract Total', newTotal) : '',
             emailStatRow('Decision', isApproved ? 'Approved' : 'Declined', coAmount ? undefined : { emphasize: true }),
           ].join(''))}${!isApproved && note ? emailQuote(note) : ''}`,
           // Lands on THIS change order (projectId + coId), not a blank new one.
-          cta: { label: 'View change order', href: appLink('co_approval', { project_id: projectId, change_order_id: coId }) },
+          cta: { label: 'View Change Order', href: appLink('co_approval', { project_id: projectId, change_order_id: coId }) },
         },
       });
       break;
@@ -1676,7 +1676,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const lineCount = payload.line_count as number | undefined;
       await dispatchOne('gc', {
         prefKey: 'sub_invoice',
-        pushTitle: `Sub invoice · ${fmtMoney(amount)}`,
+        pushTitle: `Sub Invoice · ${fmtMoney(amount)}`,
         pushBody: `${submitter} submitted invoice #${num}`,
         pushData: { projectId, kind: 'sub_invoice', subPortalId, subId: strOrNull(payload.sub_id) ?? undefined },
         pushToken: gc.push_token,
@@ -1684,11 +1684,11 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         emailSubject: `New invoice: ${fmtMoney(amount)} from ${submitter}`,
         emailWrap: {
           preheader: `${submitter} submitted invoice #${num} for ${fmtMoney(amount)}.`,
-          eyebrow: 'Sub invoice submitted',
+          eyebrow: 'Sub Invoice Submitted',
           title: `${submitter} sent invoice #${num}`,
           subtitle: 'Review the lines, approve, and mark paid when the wire clears.',
-          bodyHtml: emailStatCard(`${emailStatRow('Invoice', `#${escapeHtml(num)}`)}${emailStatRow('From', escapeHtml(submitter))}${lineCount ? emailStatRow('Line items', String(lineCount)) : ''}${emailStatRow('Total due', fmtMoney(amount), { emphasize: true })}`),
-          cta: { label: 'Review invoice', href: appLink('sub_invoice_submitted', { project_id: projectId, sub_id: payload.sub_id }) },
+          bodyHtml: emailStatCard(`${emailStatRow('Invoice', `#${escapeHtml(num)}`)}${emailStatRow('From', escapeHtml(submitter))}${lineCount ? emailStatRow('Line Items', String(lineCount)) : ''}${emailStatRow('Total Due', fmtMoney(amount), { emphasize: true })}`),
+          cta: { label: 'Review Invoice', href: appLink('sub_invoice_submitted', { project_id: projectId, sub_id: payload.sub_id }) },
         },
       });
       break;
@@ -1715,11 +1715,11 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         break;
       }
       const statusMap: Record<string, { eyebrow: string; title: string; subtitle: string; statusWord: string; accent?: string }> = {
-        paid: { eyebrow: 'Invoice paid', title: `${company} paid invoice #${num}`, subtitle: 'Payment is on its way. Check your bank for the deposit. We sent this on their behalf.', statusWord: 'paid', accent: '#026354' },
-        approved: { eyebrow: 'Invoice approved', title: `${company} approved invoice #${num}`, subtitle: "You'll get another note once payment is on its way.", statusWord: 'approved' },
-        rejected: { eyebrow: 'Invoice update', title: `${company} sent back invoice #${num}`, subtitle: 'Reach out for clarification, or revise and resubmit through your portal.', statusWord: 'sent back', accent: '#C2410C' },
+        paid: { eyebrow: 'Invoice Paid', title: `${company} paid invoice #${num}`, subtitle: 'Payment is on its way. Check your bank for the deposit. We sent this on their behalf.', statusWord: 'paid', accent: '#026354' },
+        approved: { eyebrow: 'Invoice Approved', title: `${company} approved invoice #${num}`, subtitle: "You'll get another note once payment is on its way.", statusWord: 'approved' },
+        rejected: { eyebrow: 'Invoice Update', title: `${company} sent back invoice #${num}`, subtitle: 'Reach out for clarification, or revise and resubmit through your portal.', statusWord: 'sent back', accent: '#C2410C' },
       };
-      const meta = statusMap[newStatus] ?? { eyebrow: 'Invoice update', title: `${company} updated invoice #${num}`, subtitle: '', statusWord: 'updated' };
+      const meta = statusMap[newStatus] ?? { eyebrow: 'Invoice Update', title: `${company} updated invoice #${num}`, subtitle: '', statusWord: 'updated' };
       const subject = newStatus === 'paid'
         ? `Invoice #${num} paid · ${fmtMoney(amount)}`
         : `Invoice #${num} ${meta.statusWord} · ${fmtMoney(amount)}`;
@@ -1734,7 +1734,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           ${notesFromGc ? emailQuote(notesFromGc) : ''}
           <p style="margin:0;">${escapeHtml(meta.subtitle)}</p>
         `,
-        cta: subPortalLink ? { label: 'View in your sub portal', href: subPortalLink } : { label: 'Open MAGE ID', href: APP_BASE },
+        cta: subPortalLink ? { label: 'View in Your Sub Portal', href: subPortalLink } : { label: 'Open MAGE ID', href: APP_BASE },
         accent: meta.accent,
         companyName: gc.company_name ?? undefined,
         sender: {
@@ -1858,19 +1858,19 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const detailUrl = appLink('nearby_rfp_posted', { rfp_id: rfpId });
       await dispatchOne('gc', {
         prefKey: 'nearby_rfp_posted',
-        pushTitle: `New project nearby · ${cityState || 'your area'}`,
-        pushBody: `${title}${scope ? ' — ' + scope.slice(0, 100) : ''}`,
+        pushTitle: `New Project Nearby · ${cityState || 'your area'}`,
+        pushBody: `${title}${scope ? ': ' + scope.slice(0, 100) : ''}`,
         pushData: { rfpId, kind: 'nearby_rfp_posted' },
         pushToken: gc.push_token,
         email: gc.email,
         emailSubject: `New ${cityState ? cityState + ' ' : ''}project: ${title}`,
         emailWrap: {
           preheader: `${cityState ? cityState + ' · ' : ''}${budgetLine}. ${scope.slice(0, 80)}`,
-          eyebrow: 'New project nearby',
+          eyebrow: 'New Project Nearby',
           title,
           subtitle: 'Open it to see plans, photos and the full scope. Bid before the deadline.',
           bodyHtml: `${emailStatCard(`${emailStatRow('Location', cityState || 'Pending')}${emailStatRow('Budget', budgetLine, { emphasize: true })}`)}${scope ? emailQuote(scope) : ''}`,
-          cta: { label: 'View project', href: detailUrl },
+          cta: { label: 'View Project', href: detailUrl },
         },
       });
       break;
@@ -1892,24 +1892,24 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const newProjectLink = appLink('rfp_awarded', { project_id: newProjectId });
       await dispatchOne('gc', {
         prefKey: 'rfp_awarded',
-        pushTitle: `Bid won · ${projectName}`,
+        pushTitle: `Bid Won · ${projectName}`,
         pushBody: `The client picked you. The project is set up. Open it to publish their portal and send them the link.`,
         pushData: { projectId: newProjectId, kind: 'rfp_awarded' },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `Bid won · ${projectName}`,
+        emailSubject: `Bid Won · ${projectName}`,
         emailWrap: {
           preheader: `The client picked you for ${projectName}.`,
           accent: '#026354',
-          eyebrow: 'Bid awarded',
+          eyebrow: 'Bid Awarded',
           title: 'The project is yours.',
           subtitle: `The client awarded ${projectName} to you. The project is set up in MAGE ID with their address, photos, plans, scope and the price they accepted. Their email is already on the client portal invite. Open portal setup to publish it and send them the link.`,
           bodyHtml: `
-            ${emailHero({ kicker: 'Project awarded', bigText: projectName, subText: awardedValueText ? `${awardedValueText} contract value` : undefined, photoUrl: heroPhoto, accent: '#026354' })}
+            ${emailHero({ kicker: 'Project Awarded', bigText: projectName, subText: awardedValueText ? `${awardedValueText} contract value` : undefined, photoUrl: heroPhoto, accent: '#026354' })}
             <p style="margin:0 0 12px;"><strong>What's next:</strong> open the project, review what the client posted, then publish their portal and send the link to ${homeownerEmail ? escapeHtml(homeownerEmail) : 'the client'} so they know you're on it.</p>
             <p style="margin:0;color:#9AA3AD;font-size:13px;">The other bidders were declined automatically. There's nothing to do on that side.</p>
           `,
-          cta: { label: 'Open the project', href: newProjectLink },
+          cta: { label: 'Open the Project', href: newProjectLink },
         },
       });
       break;
@@ -1921,25 +1921,25 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const contractTitle = (payload.contract_title as string) || 'the construction agreement';
       await dispatchOne('gc', {
         prefKey: 'contract_signed',
-        pushTitle: `Contract signed · ${projectName}`,
+        pushTitle: `Contract Signed · ${projectName}`,
         pushBody: `${signerName} signed ${contractTitle}${contractValue ? ` (${fmtMoney(contractValue)})` : ''}`,
         pushData: { projectId, portalId, kind: 'contract_signed' },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `Contract signed · ${projectName}${contractValue ? ` · ${fmtMoney(contractValue)}` : ''}`,
+        emailSubject: `Contract Signed · ${projectName}${contractValue ? ` · ${fmtMoney(contractValue)}` : ''}`,
         emailWrap: {
           preheader: `${signerName} signed ${contractTitle}${contractValue ? ` for ${fmtMoney(contractValue)}` : ''}.`,
-          eyebrow: 'Contract signed',
+          eyebrow: 'Contract Signed',
           title: 'Signed. The job is yours.',
           subtitle: `${signerName} counter-signed ${contractTitle}. The agreement is now in effect.`,
           accent: '#026354',
           bodyHtml: `
-            ${contractValue ? emailHero({ kicker: 'Contract value', bigText: fmtMoney(contractValue), subText: `Signed by ${signerName}`, accent: '#026354' }) : ''}
-            ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${emailStatRow('Signed by', escapeHtml(signerName))}${contractValue ? emailStatRow('Contract value', fmtMoney(contractValue), { emphasize: true, valueColor: '#026354' }) : ''}${emailStatRow('Signed at', new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))}`)}
+            ${contractValue ? emailHero({ kicker: 'Contract Value', bigText: fmtMoney(contractValue), subText: `Signed by ${signerName}`, accent: '#026354' }) : ''}
+            ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${emailStatRow('Signed By', escapeHtml(signerName))}${contractValue ? emailStatRow('Contract Value', fmtMoney(contractValue), { emphasize: true, valueColor: '#026354' }) : ''}${emailStatRow('Signed At', new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))}`)}
             <p style="margin:0;">The signed PDF is in MAGE ID under this project's contract. A copy is in your client's portal too, so they can refer to it any time.</p>
           `,
-          cta: { label: 'View signed contract', href: appLink('contract_signed', projectData) },
-          secondaryCta: portalUrl ? { label: 'Open client portal', href: portalUrl } : undefined,
+          cta: { label: 'View Signed Contract', href: appLink('contract_signed', projectData) },
+          secondaryCta: portalUrl ? { label: 'Open Client Portal', href: portalUrl } : undefined,
         },
       });
       break;
@@ -1954,22 +1954,22 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const productImage = (payload.product_image_url as string) || undefined;
       await dispatchOne('gc', {
         prefKey: 'selection_chosen',
-        pushTitle: overBudget ? `Selection (over allowance) · ${projectName}` : `Selection chosen · ${projectName}`,
-        pushBody: `${category}: ${productName}${brand ? ' · ' + brand : ''}${totalCost ? ` — ${fmtMoney(totalCost)}` : ''}`,
+        pushTitle: overBudget ? `Selection (Over Allowance) · ${projectName}` : `Selection Chosen · ${projectName}`,
+        pushBody: `${category}: ${productName}${brand ? ' · ' + brand : ''}${totalCost ? ` · ${fmtMoney(totalCost)}` : ''}`,
         pushData: { projectId, portalId, kind: 'selection_chosen' },
         pushToken: gc.push_token,
         email: gc.email,
         emailSubject: `Selection: ${productName} for ${category}${overBudget ? ' (over allowance)' : ''}`,
         emailWrap: {
           preheader: `Your client picked ${productName}${brand ? ' by ' + brand : ''} for ${category}.`,
-          eyebrow: overBudget ? 'Selection chosen · over allowance' : 'Selection chosen',
+          eyebrow: overBudget ? 'Selection Chosen · Over Allowance' : 'Selection Chosen',
           title: `Picked: ${productName}`,
           subtitle: 'Place the order and lock the spec. The choice is in MAGE ID under Selections.',
           bodyHtml: `
             ${emailProductCard({ imageUrl: productImage, productName, brand, category, price: totalCost ? fmtMoney(totalCost) : undefined, overBudget })}
           `,
           cta: { label: 'View in MAGE ID', href: appLink('selection_chosen', projectData) },
-          secondaryCta: portalUrl ? { label: 'Open client portal', href: portalUrl } : undefined,
+          secondaryCta: portalUrl ? { label: 'Open Client Portal', href: portalUrl } : undefined,
         },
       });
       break;
@@ -1985,7 +1985,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const detailUrl = appLink('bid_question_asked', { rfp_id: rfpId });
       await dispatchOne('gc', {
         prefKey: 'bid_question_asked',
-        pushTitle: `New bid question · ${rfpTitle}`,
+        pushTitle: `New Bid Question · ${rfpTitle}`,
         pushBody: `${askerName}: ${question.slice(0, 140)}`,
         pushData: { rfpId, kind: 'bid_question_asked' },
         pushToken: homeownerToken,
@@ -1993,7 +1993,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         emailSubject: `${askerName} asked about ${rfpTitle}`,
         emailWrap: {
           preheader: `${askerName}: ${question.slice(0, 100)}`,
-          eyebrow: 'New question on your RFP',
+          eyebrow: 'New Question on Your RFP',
           title: `${askerName} asked:`,
           subtitle: 'Answer once. Every bidder sees the same response, so your scope stays consistent.',
           bodyHtml: `${emailQuote(question)}<p style="margin:0;"><strong>RFP:</strong> ${escapeHtml(rfpTitle)}</p>`,
@@ -2024,7 +2024,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         if (em) {
           const html = wrapEmailHtml({
             preheader: `Q: ${question.slice(0, 60)} · A: ${answer.slice(0, 60)}`,
-            eyebrow: 'Pre-bid Q&A',
+            eyebrow: 'Pre-Bid Q&A',
             title: 'A question was answered',
             subtitle: `If this changes your scope or pricing, update your bid before the deadline.`,
             bodyHtml: `
@@ -2038,7 +2038,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           });
           await sendIfNotSuppressed({
             to: em,
-            subject: `Answer posted on ${rfpTitle}`,
+            subject: `Answer Posted on ${rfpTitle}`,
             html,
             fromCompanyName: gc.company_name ?? undefined,
             unsubscribe: { recipientEmail: em, eventKey: 'bid_question_answered', enabled: true },
@@ -2076,7 +2076,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       if (homeownerEmail) {
         const html = wrapEmailHtml({
           preheader: `${company} sent you the closeout binder for ${projectName}. It's in your portal.`,
-          eyebrow: 'Closeout binder delivered',
+          eyebrow: 'Closeout Binder Delivered',
           title: `Hi ${homeownerName}, your home's records are ready`,
           // Phase 0 (founder decision 5): a sub's direct contact reaches the
           // owner only when the GC shares it for the job, and it is off by
@@ -2085,12 +2085,12 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           subtitle: `${company} delivered the closeout binder for ${projectName}. Every paint color, fixture brand, warranty, maintenance reminder and the trades who did the work are in your portal.`,
           accent: '#026354',
           bodyHtml: `
-            ${emailHero({ kicker: 'Project complete', bigText: projectName, subText: finalCost ? `Final cost: ${fmtMoney(finalCost)}` : undefined, photoUrl: heroPhoto, accent: '#026354' })}
-            ${emailStatCard(`${photoCount ? emailStatRow('Project photos', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties on file', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
+            ${emailHero({ kicker: 'Project Complete', bigText: projectName, subText: finalCost ? `Final cost: ${fmtMoney(finalCost)}` : undefined, photoUrl: heroPhoto, accent: '#026354' })}
+            ${emailStatCard(`${photoCount ? emailStatRow('Project Photos', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties on File', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final Cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
             <p style="margin:0 0 14px;">Open your portal and tap <strong>Closeout binder</strong>. Read it on your phone, or tap Print to save a PDF you can keep.</p>
             <p style="margin:0;color:#9AA3AD;font-size:13px;">Save the binder as a PDF while you can: the portal link below stays open until 30 days after ${escapeHtml(company)} closes out the job, then it stops working.</p>
           `,
-          cta: { label: 'Open my portal', href: portalLink2 },
+          cta: { label: 'Open My Portal', href: portalLink2 },
           companyName: gc.company_name ?? undefined,
           sender: {
             name: gc.contact_name ?? gc.company_name ?? undefined,
@@ -2102,7 +2102,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         });
         const r = await sendIfNotSuppressed({
           to: homeownerEmail,
-          subject: `Closeout binder ready · ${projectName}`,
+          subject: `Closeout Binder Ready · ${projectName}`,
           html,
           fromCompanyName: gc.company_name ?? undefined,
           replyTo: gc.email ?? undefined,
@@ -2136,24 +2136,24 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       if (gc.email) {
         await dispatchOne('gc', {
           prefKey: 'closeout_binder',
-          pushTitle: `Closeout delivered · ${projectName}`,
+          pushTitle: `Closeout Delivered · ${projectName}`,
           pushBody: `Binder sent${homeownerName ? ' to ' + homeownerName : ''}. Project complete.`,
           pushData: { projectId, kind: 'closeout_binder_sent_confirmation', binderId },
           pushToken: gc.push_token,
           email: gc.email,
-          emailSubject: `Closeout delivered · ${projectName}`,
+          emailSubject: `Closeout Delivered · ${projectName}`,
           emailWrap: {
             preheader: `Closeout binder for ${projectName} sent${homeownerName !== 'there' ? ` to ${homeownerName}` : ''}.`,
             accent: '#026354',
-            eyebrow: 'Project closed out',
+            eyebrow: 'Project Closed Out',
             title: 'Binder delivered. Project complete.',
             subtitle: `${homeownerName !== 'there' ? `${homeownerName} now has` : 'Your client now has'} the full closeout package: every spec, warranty and maintenance reminder for ${projectName}.`,
             bodyHtml: `
-              ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${photoCount ? emailStatRow('Photos delivered', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties packaged', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
+              ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${photoCount ? emailStatRow('Photos Delivered', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties Packaged', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final Cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
               <p style="margin:0;">Their warranty walk reminder is set for 11 months from substantial completion. It shows on your Home tab when it's time.</p>
             `,
-            cta: { label: 'View binder', href: appLink('closeout_binder_sent', projectData) },
-            secondaryCta: portalUrl ? { label: 'Open client portal', href: portalLink2 } : undefined,
+            cta: { label: 'View Binder', href: appLink('closeout_binder_sent', projectData) },
+            secondaryCta: portalUrl ? { label: 'Open Client Portal', href: portalLink2 } : undefined,
           },
         });
       }
@@ -2204,16 +2204,16 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         // preheader / title / subtitle go in RAW: wrapEmailHtml escapes all
         // three itself, so escaping here too printed "&amp;amp;" for a package
         // called "Doors & Hardware".
-        preheader: `${gc.company_name ?? 'A contractor'} is asking you to price ${pkgName} on ${projectName}${dueLabel ? ` — bids due ${dueLabel}` : ''}.`,
-        eyebrow: 'Invitation to bid',
+        preheader: `${gc.company_name ?? 'A contractor'} is asking you to price ${pkgName} on ${projectName}${dueLabel ? `, bids due ${dueLabel}` : ''}.`,
+        eyebrow: 'Invitation to Bid',
         title: `You're invited to bid on ${pkgName}`,
-        subtitle: `${String(subName)} — ${gc.company_name ?? 'a contractor'} wants your number on ${projectName}. No account, no app: open the link, read the scope, type your price.`,
+        subtitle: `${String(subName)}, ${gc.company_name ?? 'a contractor'} wants your number on ${projectName}. No account, no app: open the link, read the scope, type your price.`,
         bodyHtml: `
-          ${emailStatCard(`${emailStatRow('Package', escapeHtml(pkgName))}${dueLabel ? emailStatRow('Bids due', escapeHtml(dueLabel), { emphasize: true }) : ''}${csi ? emailStatRow('CSI division', escapeHtml(csi)) : ''}${phase ? emailStatRow('Phase', escapeHtml(phase)) : ''}${emailStatRow('Project', escapeHtml(projectName))}`)}
+          ${emailStatCard(`${emailStatRow('Package', escapeHtml(pkgName))}${dueLabel ? emailStatRow('Bids Due', escapeHtml(dueLabel), { emphasize: true }) : ''}${csi ? emailStatRow('CSI Division', escapeHtml(csi)) : ''}${phase ? emailStatRow('Phase', escapeHtml(phase)) : ''}${emailStatRow('Project', escapeHtml(projectName))}`)}
           ${scope.trim() ? `<p style="margin:0 0 14px;"><strong>Scope:</strong><br>${bidScopeHtml(scope)}</p>` : ''}
-          <p style="margin:0;color:#9AA3AD;font-size:13px;">This link is yours — anyone who has it can file a bid under your name, so please don't forward it. ${escapeHtml(bidInviteExpiryText(payload.expires_at, Date.now()))}</p>
+          <p style="margin:0;color:#9AA3AD;font-size:13px;">This link is yours. Anyone who has it can file a bid under your name, so don't forward it. ${escapeHtml(bidInviteExpiryText(payload.expires_at, Date.now()))}</p>
         `,
-        cta: { label: 'Open the invitation', href: inviteUrl },
+        cta: { label: 'Open the Invitation', href: inviteUrl },
         companyName: gc.company_name ?? undefined,
         sender: { name: gc.contact_name ?? gc.company_name ?? undefined, email: gc.email ?? undefined, phone: gc.phone ?? undefined },
         project: { name: projectName, location: projectCtx.location },
@@ -2221,7 +2221,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       });
       const r = await sendIfNotSuppressed({
         to: subEmail,
-        subject: `Invitation to bid \u00b7 ${pkgName} \u00b7 ${projectName}`,
+        subject: `Invitation to Bid \u00b7 ${pkgName} \u00b7 ${projectName}`,
         html,
         fromCompanyName: gc.company_name ?? undefined,
         replyTo: (payload.reply_to as string) || gc.email || undefined,
@@ -2323,11 +2323,11 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         const unsubscribe: UnsubscribeOpts = { recipientEmail: rc.email, eventKey: 'portal_message', enabled: true };
         const html = wrapEmailHtml({
           preheader: `${company}: ${body.slice(0, 100)}`,
-          eyebrow: 'New message in your portal',
-          title: `${rc.name ? `Hi ${rc.name.split(' ')[0]} — ` : ''}new message from ${company}`,
+          eyebrow: 'New Message in Your Portal',
+          title: `${rc.name ? `Hi ${rc.name.split(' ')[0]}, ` : ''}new message from ${company}`,
           subtitle: `About ${projectName}. Reply in your portal so the answer stays with the project.`,
           bodyHtml: emailQuote(trimmed) + attachmentLineHtml(files, 'Open your portal to see them.'),
-          cta: { label: 'Read and reply in your portal', href: portalUrl },
+          cta: { label: 'Read and Reply in Your Portal', href: portalUrl },
           companyName: gc.company_name ?? undefined,
           sender: { name: gc.contact_name ?? gc.company_name ?? undefined, email: gc.email ?? undefined, phone: gc.phone ?? undefined },
           project: { name: projectName, location: projectCtx.location },
@@ -2385,7 +2385,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       }
       await dispatchOne('gc', {
         prefKey: 'lead_received',
-        pushTitle: `New website lead · ${kind}`,
+        pushTitle: `New Website Lead · ${kind}`,
         pushBody: [who, saw ? `saw ${saw}` : null, budget ? `budget ${budget}` : null, phone].filter(Boolean).join(' · '),
         pushData: { kind: 'lead_received', leadId: leadId ?? undefined },
         pushToken: gc.push_token,
@@ -2401,26 +2401,26 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         // Only a well-formed address: Resend refuses the whole send on a bad
         // reply_to, and a typo'd lead email must not cost him the lead alert.
         replyTo: validLeadEmail ?? undefined,
-        emailSubject: `New website lead · ${kind} · ${who}`,
+        emailSubject: `New Website Lead · ${kind} · ${who}`,
         emailWrap: {
           preheader: `${who} asked about ${kind}${saw ? ` after seeing ${saw}` : ''}. Call back tonight.`,
-          eyebrow: 'New website lead',
+          eyebrow: 'New Website Lead',
           title: `${who} wants a price`,
           subtitle: saw
-            ? `Your Instant Estimate widget showed them ${saw} — a published national range, not your price. They are waiting for a real number.`
+            ? `Your Instant Estimate widget showed them ${saw}, a published national range, not your price. They are waiting for a real number.`
             : 'Most homeowners ask two or three contractors. The first one to call back usually gets the site visit.',
           bodyHtml: `${emailStatCard([
             emailStatRow('Name', escapeHtml(who)),
             emailStatRow('Project', escapeHtml(kind)),
             phone ? emailStatRow('Phone', escapeHtml(phone), { emphasize: true }) : '',
             leadEmail ? emailStatRow('Email', escapeHtml(leadEmail)) : '',
-            saw ? emailStatRow('Widget range shown', escapeHtml(saw)) : '',
-            budget ? emailStatRow('Their budget', escapeHtml(budget)) : '',
+            saw ? emailStatRow('Widget Range Shown', escapeHtml(saw)) : '',
+            budget ? emailStatRow('Their Budget', escapeHtml(budget)) : '',
             // The widget builds its scope from the form fields, so it is shown
             // as request details, not quoted as if the homeowner wrote it.
-            fromWidget && ownWords ? emailStatRow('Request details', escapeHtml(ownWords.length > 400 ? ownWords.slice(0, 400) + '…' : ownWords)) : '',
+            fromWidget && ownWords ? emailStatRow('Request Details', escapeHtml(ownWords.length > 400 ? ownWords.slice(0, 400) + '…' : ownWords)) : '',
           ].join(''))}${!fromWidget && ownWords ? emailQuote(ownWords.length > 400 ? ownWords.slice(0, 400) + '…' : ownWords) : ''}`,
-          cta: { label: 'Open the lead', href: appLink('lead_received', { lead_id: leadId }) },
+          cta: { label: 'Open the Lead', href: appLink('lead_received', { lead_id: leadId }) },
           secondaryCta: phone ? { label: `Call ${phone}`, href: `tel:${phone.replace(/[^\d+]/g, '')}` } : undefined,
         },
       });

@@ -191,7 +191,7 @@ const caseStart = notifySrc.indexOf("case 'bid_invite_sent':");
 const caseBody = caseStart > -1 ? notifySrc.slice(caseStart, notifySrc.indexOf('default:', caseStart)) : '';
 ok('notify has the bid_invite_sent branch', caseBody.length > 0);
 ok('the branch reads bids_due_at through bidDueDayLabel', /bidDueDayLabel\(\s*payload\.bids_due_at\s*\)/.test(caseBody));
-ok('the stat card prints a "Bids due" row', /emailStatRow\('Bids due',\s*escapeHtml\(dueLabel\)/.test(caseBody));
+ok('the stat card prints a "Bids Due" row', /emailStatRow\('Bids Due',\s*escapeHtml\(dueLabel\)/.test(caseBody));
 ok('the scope renders through bidScopeHtml (escaped + line breaks)', /bidScopeHtml\(scope\)/.test(caseBody) && !/escapeHtml\(scope\)/.test(caseBody));
 ok('the expiry sentence comes from the payload, not "30 days from today"',
   /bidInviteExpiryText\(\s*payload\.expires_at/.test(caseBody) && !/30 days from today/.test(caseBody));

@@ -1666,11 +1666,11 @@ export default function ClientViewScreen() {
                       style={{ backgroundColor: '#1F6FEB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center' }}
                       activeOpacity={0.8}
                       accessibilityRole="link"
-                      accessibilityLabel={`Check financing options with ${portalFinancing.partnerName}`}
+                      accessibilityLabel={`Check Financing Options with ${portalFinancing.partnerName}`}
                       testID="portal-financing-button"
                       onPress={() => { void Linking.openURL(portalFinancingUrl); }}
                     >
-                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Check financing options</Text>
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Check Financing Options</Text>
                     </TouchableOpacity>
                     <Text style={[styles.budgetLabel, { marginTop: 6, textAlign: 'center' }]}>
                       {portalFinancing.disclosure}
