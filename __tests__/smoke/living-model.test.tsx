@@ -118,6 +118,8 @@ const mockSchedule = {
 const START = mockSchedule.startDate;
 const mockProject = { id: 'p1', name: 'Maple Street', schedule: mockSchedule };
 const mockReports = [{ id: 'r1', projectId: 'p1', date: iso(daysAgo(14)), workProgress: [{ taskId: 't-demo', taskName: 'Demo kitchen', phase: 'Build', pct: 100 }] }];
+// Lane LIVINGSYNC: the screen names who last saved the account's copy from the project's collaborator list. No network here.
+jest.mock('@/hooks/useProjectCollaborators', () => ({ useProjectCollaborators: () => ({ collaborators: [] }) }));
 jest.mock('@/contexts/ProjectContext', () => ({
   useProjects: () => ({ getProject: () => mockProject, getDailyReportsForProject: () => mockReports }),
 }));
