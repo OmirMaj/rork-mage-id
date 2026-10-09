@@ -228,8 +228,70 @@ export function missingWallSpec(): RoomSpec {
   };
 }
 
+// ── three more, for the order list (lane SCANORDER) ─────────────────────────
+// Drawn in whole inches so the cut layouts can be checked by hand.
+const inPt = (x: number, y: number): Pt => ({ x: x * IN, y: y * IN });
+
+/**
+ * A 14 ft by 10 ft room with a bay on the far wall, 8 ft ceiling. The bay is
+ * 6 ft wide at the wall, 3 ft wide at its face and 2 ft deep, so each angled
+ * wall is 30 in (18, 24, 30). Eight walls, two outside corners where the bay
+ * leaves the wall. A window on each of the bay's three walls, a door on the
+ * near wall.
+ */
+export function bayRoomSpec(): RoomSpec {
+  const walls = ring([
+    inPt(0, 0), inPt(168, 0), inPt(168, 120), inPt(120, 120), inPt(102, 144), inPt(66, 144), inPt(48, 120), inPt(0, 120),
+  ], 96 * IN);
+  return {
+    walls,
+    openings: [
+      { kind: 'door', wall: 0, at: 40 * IN, width: 32 * IN, height: 80 * IN, sill: 0 },
+      { kind: 'window', wall: 3, at: 15 * IN, width: 20 * IN, height: 48 * IN, sill: 30 * IN },
+      { kind: 'window', wall: 4, at: 18 * IN, width: 28 * IN, height: 48 * IN, sill: 30 * IN },
+      { kind: 'window', wall: 5, at: 15 * IN, width: 20 * IN, height: 48 * IN, sill: 30 * IN },
+    ],
+    rotateDeg: 12,
+    shift: { x: 1.5, y: 0.4 },
+    section: 'bedroom',
+  };
+}
+
+/** A hallway, 3 ft 6 in by 22 ft, 8 ft ceiling. A door at each end and a cased opening, floor to ceiling, on one long wall. */
+export function hallwaySpec(): RoomSpec {
+  const walls = ring([inPt(0, 0), inPt(264, 0), inPt(264, 42), inPt(0, 42)], 96 * IN);
+  return {
+    walls,
+    openings: [
+      { kind: 'door', wall: 1, at: 21 * IN, width: 30 * IN, height: 80 * IN, sill: 0 },
+      { kind: 'door', wall: 3, at: 21 * IN, width: 30 * IN, height: 80 * IN, sill: 0 },
+      { kind: 'opening', wall: 2, at: 132 * IN, width: 48 * IN, height: 96 * IN, sill: 0 },
+    ],
+    rotateDeg: -7,
+    shift: { x: -0.6, y: 2.2 },
+  };
+}
+
+/** A 12 ft by 10 ft room, 8 ft ceiling, with three openings on ONE wall: a door, a window and a cased opening. */
+export function threeOpeningsSpec(): RoomSpec {
+  const walls = ring([inPt(0, 0), inPt(144, 0), inPt(144, 120), inPt(0, 120)], 96 * IN);
+  return {
+    walls,
+    openings: [
+      { kind: 'door', wall: 0, at: 22 * IN, width: 32 * IN, height: 80 * IN, sill: 0 },
+      { kind: 'window', wall: 0, at: 68 * IN, width: 36 * IN, height: 48 * IN, sill: 36 * IN },
+      { kind: 'opening', wall: 0, at: 120 * IN, width: 36 * IN, height: 96 * IN, sill: 0 },
+    ],
+    rotateDeg: 31,
+    shift: { x: 0.3, y: -0.9 },
+  };
+}
+
 export const FIXTURE_FILES: Record<string, () => RoomSpec> = {
   'bathroom.json': bathroomSpec,
   'l-shape.json': lShapeSpec,
   'missing-wall.json': missingWallSpec,
+  'bay-room.json': bayRoomSpec,
+  'hallway.json': hallwaySpec,
+  'three-openings.json': threeOpeningsSpec,
 };

@@ -1,0 +1,347 @@
+{
+ "walls": [
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000001",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    6.7056,
+    2.4384,
+    0
+   ],
+   "transform": [
+    0.992546,
+    0,
+    0.121869,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.121869,
+    0,
+    0.992546,
+    0,
+    2.727809,
+    0.0192,
+    -1.791396,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000002",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    1.0668,
+    2.4384,
+    0
+   ],
+   "transform": [
+    0.121869,
+    0,
+    -0.992546,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.992546,
+    0,
+    0.121869,
+    0,
+    6.120623,
+    0.0192,
+    -1.912217,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000003",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    6.7056,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.992546,
+    0,
+    -0.121869,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.121869,
+    0,
+    -0.992546,
+    0,
+    2.857819,
+    0.0192,
+    -2.850245,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000004",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    1.0668,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.121869,
+    0,
+    0.992546,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.992546,
+    0,
+    -0.121869,
+    0,
+    -0.534995,
+    0.0192,
+    -2.729424,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  }
+ ],
+ "doors": [
+  {
+   "identifier": "5CA90002-0000-4000-8000-000000000001",
+   "category": {
+    "door": {
+     "isOpen": false
+    }
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.762,
+    2.032,
+    0
+   ],
+   "transform": [
+    0.121869,
+    0,
+    -0.992546,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.992546,
+    0,
+    0.121869,
+    0,
+    6.120623,
+    -0.184,
+    -1.912217,
+    1
+   ],
+   "completedEdges": [],
+   "curve": null,
+   "parentIdentifier": "5CA90001-0000-4000-8000-000000000002",
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90002-0000-4000-8000-000000000002",
+   "category": {
+    "door": {
+     "isOpen": false
+    }
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.762,
+    2.032,
+    0
+   ],
+   "transform": [
+    -0.121869,
+    0,
+    0.992546,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.992546,
+    0,
+    -0.121869,
+    0,
+    -0.534995,
+    -0.184,
+    -2.729424,
+    1
+   ],
+   "completedEdges": [],
+   "curve": null,
+   "parentIdentifier": "5CA90001-0000-4000-8000-000000000004",
+   "story": 0,
+   "polygonCorners": []
+  }
+ ],
+ "windows": [],
+ "openings": [
+  {
+   "identifier": "5CA90004-0000-4000-8000-000000000001",
+   "category": {
+    "opening": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    1.2192,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.992546,
+    0,
+    -0.121869,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.121869,
+    0,
+    -0.992546,
+    0,
+    2.857819,
+    0.0192,
+    -2.850245,
+    1
+   ],
+   "completedEdges": [],
+   "curve": null,
+   "parentIdentifier": "5CA90001-0000-4000-8000-000000000003",
+   "story": 0,
+   "polygonCorners": []
+  }
+ ],
+ "objects": [],
+ "version": 2,
+ "story": 0,
+ "floors": [],
+ "sections": [],
+ "referenceOriginTransform": [
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  1
+ ]
+}

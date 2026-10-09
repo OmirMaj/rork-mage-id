@@ -1,4 +1,4 @@
-// scripts/fixtures/scan-room/make-fixtures.ts — writes the three hand-built
+// scripts/fixtures/scan-room/make-fixtures.ts — writes the hand-built
 // CapturedRoom JSON files from builder.ts.
 //   bun run scripts/fixtures/scan-room/make-fixtures.ts
 // scripts/validate-scan-room.ts fails when a file on disk no longer equals
