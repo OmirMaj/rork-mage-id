@@ -12,7 +12,7 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 {
   "lines": 533,
   "modals": 7,
-  "sha256": "a4a8c363da806dae4c2da6c055ec65ce7b2b06f60b813f78282f73c112afd8a0",
+  "sha256": "54cc3f4eddaf05cc0f14531f6a7a182870faf7f803031f2a3084c11b0d8edc03",
 }
 `;
 
@@ -194,17 +194,17 @@ exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (
 
 exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) productivity-calculator — dark 1`] = `
 {
-  "lines": 623,
+  "lines": 599,
   "modals": 1,
-  "sha256": "e019811e31c142276c9cea75e64603dc530e13ecbb4b1fba4517f336a7bc1c72",
+  "sha256": "796a5113b7c7e823cf477a1961387562a3966038abe544257f72a55a0d830052",
 }
 `;
 
 exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) productivity-calculator — light 1`] = `
 {
-  "lines": 623,
+  "lines": 599,
   "modals": 1,
-  "sha256": "45b6dcb39f80ce4232976a547c7623df8454db772d14a7adac7ed1c3636ca770",
+  "sha256": "4e1482d46823a4e9e2bb87d75b6f122fa7030c96a681c60320b8bb4d72314771",
 }
 `;
 
