@@ -37,10 +37,12 @@ import { addOpening, addRoom, emptyJobModel, makeRectRoom } from '@/utils/living
 import { offsetOfWeek, weekCount, weekOf } from '@/utils/livingModel/replayCore';
 import type { ReplayInput } from '@/utils/livingModel/replayInput';
 import type { JobModel, RoomKind } from '@/utils/livingModel/types';
-import { feetToMetres as ft } from '@/utils/roomScan/units';
 
 /** True only in a bundle made with the variable set in the builder's own shell. */
 export const PHONE3D_SPIKE_ON = process.env.EXPO_PUBLIC_PHONE3D_SPIKE === '1';
+
+/** Feet to metres. Written here so this file reaches nothing of the room scanner's. */
+const ft = (feet: number): number => feet * 0.3048;
 
 const WHOLE_HOUSE = ['demo', 'frame', 'elec', 'insp', 'insul', 'dry', 'paint', 'trim', 'clean'];
 
