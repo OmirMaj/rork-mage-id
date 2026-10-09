@@ -39,6 +39,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { withoutDemoPayees } from '@/utils/demoJob/payees';
 
 /**
  * The per-row notes, minus the two sentences the screen now renders as their
@@ -90,7 +91,13 @@ export default function Tax1099ExportScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { subcontractors, commitments } = useProjects();
+  const { subcontractors: allSubcontractors, commitments: allCommitments, projects } = useProjects();
+  // The owner's made-up Demo Job is never on a tax form: its subs, its
+  // subcontracts and anything recorded against them are left out here.
+  const { subcontractors, commitments } = useMemo(
+    () => withoutDemoPayees(projects, allSubcontractors, allCommitments),
+    [projects, allSubcontractors, allCommitments],
+  );
   // MONEY-1099-GC-1 (audit 2026-09-11). `sub_submitted_invoices` has no GC
   // INSERT path — the sub creates that row from inside a portal he has to log
   // into — so for the residential norm (the framer texts a photo of an invoice

@@ -1,5 +1,6 @@
 import { getActiveTutorialId } from '@/utils/tutorial/activeRun';
 import { isKnownSampleProjectId } from '@/utils/sampleGuard';
+import { isKnownDemoProjectId } from '@/utils/demoJob/marker';
 
 type EventProperties = Record<string, string | number | boolean | undefined>;
 
@@ -43,7 +44,18 @@ export function withFunnelContext(properties?: EventProperties): EventProperties
   return out;
 }
 
+/**
+ * True when an event belongs to the owner's Demo Job (utils/demoJob). Those
+ * are DROPPED, not tagged: creating the demo fires a few hundred create events
+ * for records nobody made, on the founder's own account.
+ */
+export function isDemoJobEvent(properties?: EventProperties): boolean {
+  const pid = properties?.project_id;
+  return typeof pid === 'string' && isKnownDemoProjectId(pid);
+}
+
 export function track(eventName: string, properties?: EventProperties): void {
+  if (isDemoJobEvent(properties)) return;
   try {
     provider.track(eventName, withFunnelContext(properties));
   } catch (err) {

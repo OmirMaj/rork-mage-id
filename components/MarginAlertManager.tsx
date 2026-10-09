@@ -30,6 +30,7 @@ import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
 import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import { sendLocalNotification } from '@/utils/notifications';
 import { recordDidForYou } from '@/utils/brain/didForYou';
+import { withoutDemoProjects } from '@/utils/demoJob/marker';
 import {
   computeCurrentBaselines, computeAlerts, selectNotifiable,
   MARGIN_ALERTS_BASELINE_KEY, MARGIN_ALERTS_NOTIFIED_KEY,
@@ -102,8 +103,9 @@ export default function MarginAlertManager() {
         const acknowledged: BaselineMap = baseRaw ? JSON.parse(baseRaw) : {};
         const notified: string[] = notifiedRaw ? JSON.parse(notifiedRaw) : [];
 
+        // The owner's made-up Demo Job never raises a margin alert on his phone.
         const { baselines, names } = computeCurrentBaselines({
-          projects, changeOrders, commitments, invoices, costSources,
+          projects: withoutDemoProjects(projects), changeOrders, commitments, invoices, costSources,
         });
         const alerts = computeAlerts(baselines, names, acknowledged);
         const notifiable = selectNotifiable(alerts);

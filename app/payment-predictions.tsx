@@ -28,6 +28,7 @@ import { formatMoney } from '@/utils/formatters';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { aiConsentErrorText } from '@/utils/aiConsent';
+import { demoProjectIdSet, withoutDemoRows } from '@/utils/demoJob/marker';
 
 function formatShortDate(iso: string): string {
   try {
@@ -95,9 +96,12 @@ function PaymentPredictionsScreenInner() {
   const [forecastGate, setForecastGate] = useState<string | null>(null);
 
   const relevantInvoices = useMemo(() => {
-    if (scopeProjectId) return getInvoicesForProject(scopeProjectId);
-    return invoices;
-  }, [scopeProjectId, invoices, getInvoicesForProject]);
+    // The made-up Demo Job's invoices are never sent to the model: an answer
+    // about them would be a forecast of payments nobody owes.
+    const demoIds = demoProjectIdSet(projects);
+    if (scopeProjectId) return demoIds.has(scopeProjectId) ? [] : getInvoicesForProject(scopeProjectId);
+    return withoutDemoRows(invoices, demoIds);
+  }, [scopeProjectId, invoices, getInvoicesForProject, projects]);
 
   const projectsById = useMemo(() => {
     const map: Record<string, Project> = {};

@@ -69,6 +69,7 @@ import { track, AnalyticsEvents } from '@/utils/analytics';
 // Sample fences: no QuickBooks push from a sample, and every create event says
 // whether it came from one (utils/sampleGuard — the outbound invariant).
 import { isSampleProject, noteSampleProject, noteSampleScope } from '@/utils/sampleGuard';
+import { isDemoProject, noteDemoProjectId, noteDemoScope } from '@/utils/demoJob/marker';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
 import type { Delivery, DeliveryReceipt } from '@/utils/deliverySchedule';
@@ -5262,6 +5263,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // QuickBooks call sites are handed ids, not projects, and read it; replacing
   // it wholesale here means a sign-out's empty lists empty it too.
   useEffect(() => { noteSampleScope(projects, invoices); }, [projects, invoices]);
+  // The owner's Demo Job (utils/demoJob): its ids, for analytics, which drops its events.
+  useEffect(() => { noteDemoScope(projects); }, [projects]);
   // BACKFILL + CENTROID SCRUB, once this account's server list has landed.
   // (1) A job with an address but no coordinates was never looked up — it was
   //     saved before geocoding, or its lookup failed (The Henderson Residence,
@@ -5318,6 +5321,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // and their create events must already read is_sample: true.
     const projectIsSample = isSampleProject(project);
     noteSampleProject(project);
+    // The Demo Job is known before its own create event, which is then dropped (utils/analytics).
+    if (isDemoProject(project)) noteDemoProjectId(project.id);
     // Activation funnel: fire once at the imperative create (never on hydration,
     // which replaces `projects` via the query, not through addProject).
     track(AnalyticsEvents.PROJECT_CREATED, {

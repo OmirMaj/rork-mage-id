@@ -1,0 +1,1 @@
+{ "extends": "./tsconfig.json", "include": ["utils/demoJob/*.ts", "expo-env.d.ts", "utils/livingModel/three-shim.d.ts"], "exclude": ["node_modules"] }

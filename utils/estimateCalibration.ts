@@ -40,6 +40,7 @@
 
 import type { Project, Commitment } from '@/types';
 import { computeEstimateActuals, isClosedProject } from '@/utils/estimateActuals';
+import { isDemoProject } from '@/utils/demoJob/marker';
 
 /** Within ±3% of bid, the category is considered calibrated. */
 const ALIGNED_BAND = 0.03;
@@ -144,6 +145,8 @@ export function computeCalibration(input: CalibrationInput): CalibrationReport {
     // evidence about how far through the job you are. Same predicate the cost
     // book uses, so the two engines can never disagree about the population.
     if (!isClosedProject(project)) continue;
+    // The owner's made-up Demo Job is never evidence about his estimating.
+    if (isDemoProject(project)) continue;
     const report = computeEstimateActuals(project, commitments);
     if (!report.hasEstimate || !report.hasActuals) continue;
 
