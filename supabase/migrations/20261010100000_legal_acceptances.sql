@@ -7,7 +7,17 @@
 --   rests on being able to say who agreed, to which words, and when.
 --
 -- WHAT A ROW MEANS. One person accepted or acknowledged one document, at one
---   version, once.
+--   version, once. For 'terms' and 'privacy' precisely: this account signed in
+--   or created itself ON A SCREEN THAT DISPLAYED the sentence naming both
+--   documents, at these versions, or tapped "I Agree" on the re-acceptance
+--   sheet. The app writes a row from nowhere else: not from a screen that does
+--   not show the sentence in that build (one constant per screen in
+--   utils/legalAcceptanceCore.ts; the login screen's is false until its
+--   sentence ships), never from an email link (a confirmation, a sign-in
+--   link, a password reset), never from a restored session, and, once the
+--   re-acceptance gate is on, never from an existing account's sign-in. The
+--   database cannot see a screen; the surface column says which path wrote
+--   the row, and scripts/validate-legal-acceptance.ts holds the app to this.
 --     user_id        the signed-in account, stamped from auth.uid() inside the
 --                    function (a caller cannot name anyone else). Set NULL by
 --                    the foreign key when the account is deleted: the record
@@ -23,8 +33,9 @@
 --     subject_ref    for a no-account row: the portal's or signing link's ID,
 --                    never the secret token. NULL for an account row.
 --     kind           what was accepted: 'terms', 'privacy', 'code_answer_ack',
---                    'scan_ack'. A short identifier the app chose; new kinds
---                    need no migration.
+--                    'scan_ack'. The function accepts these four and no
+--                    other, so junk kinds cannot use up a person's 400 rows.
+--                    A new kind is one line in the function (a new migration).
 --     version        the document version the app showed (utils/legalAcceptance
 --                    TERMS_VERSION and friends).
 --     text_sha256    SHA-256 (hex) of the exact words shown, so "which words"
@@ -33,6 +44,12 @@
 --                    login_first, reaccept, in_app (and portal, signing_link
 --                    later).
 --     app_version, platform   the build and ios / android / web.
+--     update_id      the over-the-air update the phone was running when it
+--                    SENT the row (expo-updates' update id), NULL for the
+--                    bundle built into the binary and for web. With
+--                    app_version it says which bundle, so which screens and
+--                    which words. A row noted offline and sent after an update
+--                    carries the sender's id; reported_delay_ms shows the gap.
 --     accepted_at    THE SERVER'S CLOCK when the row was written. Never a time
 --                    the phone sent.
 --     reported_delay_ms  how long the phone says passed between the tap and
@@ -49,7 +66,7 @@
 --
 -- WHO WRITES. The signed-in person, for themselves only, through
 --   public.record_my_legal_acceptance(kind, version, text hash, surface, app
---   version, platform, delay): SECURITY DEFINER, empty search_path, user id from
+--   version, platform, delay, update id): SECURITY DEFINER, empty search_path, user id from
 --   auth.uid(), time from the server. One row per (person, kind, version, text
 --   hash): a second call answers ok with recorded = false and writes nothing,
 --   so a retry or a queued replay is harmless. At most 400 rows per person.
@@ -80,11 +97,16 @@
 --   on this table: a bare "record an acceptance for this id" function would let
 --   anyone write rows for a portal they have only seen the id of.
 --
--- DEPLOY ORDER. Any order is safe. Apply this BEFORE or AFTER the app update:
---   the app records best effort, treats a missing function as "not yet" and
---   keeps the pending record on the phone to send later; nothing waits on it
---   and no sign-in is ever blocked. Apply through the Supabase MCP
---   apply_migration, never `supabase db push`. Depends on: auth.users.
+-- DEPLOY ORDER. Apply this BEFORE the app update, or together with it. The
+--   app does not break either way: it records best effort, treats a missing
+--   function as "not yet", keeps the owed record on the phone and sends it
+--   later; no sign-in waits on it or fails because of it. But until this file
+--   is applied the only copy of an acceptance is on one phone, and it is lost
+--   if the app is deleted or the phone is replaced. The owed record does
+--   survive sign-out and another person signing in on the same phone (it is
+--   kept through the tenant wipe, keyed by its owner). Apply through the
+--   Supabase MCP apply_migration, never `supabase db push`.
+--   Depends on: auth.users.
 --
 -- VERIFY AFTER
 --   select relrowsecurity from pg_class where oid = 'public.legal_acceptances'::regclass;       -- true
@@ -94,15 +116,15 @@
 --          has_table_privilege('authenticated', 'public.legal_acceptances', 'insert'),           -- false
 --          has_table_privilege('authenticated', 'public.legal_acceptances', 'update'),           -- false
 --          has_table_privilege('authenticated', 'public.legal_acceptances', 'delete');           -- false
---   select has_function_privilege('anon', 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint)', 'execute'),          -- false
---          has_function_privilege('authenticated', 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint)', 'execute'); -- true
+--   select has_function_privilege('anon', 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint,text)', 'execute'),          -- false
+--          has_function_privilege('authenticated', 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint,text)', 'execute'); -- true
 --   select prosecdef, proconfig from pg_proc where proname = 'record_my_legal_acceptance';       -- true, {search_path=""}
 --   -- after the app update, signed in once:
 --   select kind, version, surface, platform, accepted_at from public.legal_acceptances order by id desc limit 4;
 --
 -- UNDO (by hand, only if the record is withdrawn; the rows are the proof, so
 --   export them first)
---   drop function if exists public.record_my_legal_acceptance(text, text, text, text, text, text, bigint);
+--   drop function if exists public.record_my_legal_acceptance(text, text, text, text, text, text, bigint, text);
 --   drop table if exists public.legal_acceptances;
 --   drop function if exists public.legal_acceptances_keep();
 --
@@ -125,6 +147,7 @@ create table if not exists public.legal_acceptances (
   surface            text not null,
   app_version        text,
   platform           text,
+  update_id          text,
   accepted_at        timestamptz not null default now(),
   reported_delay_ms  bigint,
   account_deleted_at timestamptz,
@@ -135,6 +158,7 @@ create table if not exists public.legal_acceptances (
   constraint legal_acceptances_surface_check     check (surface ~ '^[a-z][a-z0-9_]{1,39}$'),
   constraint legal_acceptances_app_version_check check (app_version is null or app_version ~ '^[A-Za-z0-9._+() -]{1,40}$'),
   constraint legal_acceptances_platform_check    check (platform is null or platform in ('ios', 'android', 'web')),
+  constraint legal_acceptances_update_id_check   check (update_id is null or update_id ~ '^[A-Za-z0-9-]{1,64}$'),
   constraint legal_acceptances_delay_check       check (reported_delay_ms is null or reported_delay_ms >= 0),
   constraint legal_acceptances_subject_hash_check check (subject_hash is null or subject_hash ~ '^[0-9a-f]{64}$'),
   constraint legal_acceptances_subject_kind_check check (subject_kind in ('account', 'portal', 'signing_link')),
@@ -188,6 +212,7 @@ begin
      and new.surface = old.surface
      and new.app_version is not distinct from old.app_version
      and new.platform is not distinct from old.platform
+     and new.update_id is not distinct from old.update_id
      and new.accepted_at = old.accepted_at
      and new.reported_delay_ms is not distinct from old.reported_delay_ms
      and new.account_deleted_at is not distinct from old.account_deleted_at
@@ -225,7 +250,8 @@ create or replace function public.record_my_legal_acceptance(
   p_surface text,
   p_app_version text default null,
   p_platform text default null,
-  p_delay_ms bigint default null
+  p_delay_ms bigint default null,
+  p_update_id text default null
 )
 returns jsonb
 language plpgsql
@@ -240,6 +266,7 @@ declare
   v_app text;
   v_platform text;
   v_delay bigint;
+  v_update text;
 begin
   if v_uid is null then
     raise exception 'record_my_legal_acceptance: not signed in' using errcode = '28000';
@@ -249,6 +276,11 @@ begin
      or p_text_sha256 is null or p_text_sha256 !~ '^[0-9a-f]{64}$'
      or p_surface is null or p_surface !~ '^[a-z][a-z0-9_]{1,39}$' then
     raise exception 'record_my_legal_acceptance: kind, version, text hash and surface must be short identifiers' using errcode = '22023';
+  end if;
+  -- The kinds there are. A closed list, so a caller cannot fill the per-person
+  -- limit below with made-up kinds and crowd out a real record.
+  if p_kind not in ('terms', 'privacy', 'code_answer_ack', 'scan_ack') then
+    raise exception 'record_my_legal_acceptance: unknown kind' using errcode = '22023';
   end if;
   -- The surfaces a signed-in account can claim. 'portal' and 'signing_link'
   -- belong to people with no account and are never written here.
@@ -263,6 +295,9 @@ begin
   end if;
   if p_platform in ('ios', 'android', 'web') then
     v_platform := p_platform;
+  end if;
+  if p_update_id is not null and p_update_id ~ '^[A-Za-z0-9-]{1,64}$' then
+    v_update := p_update_id;
   end if;
   if p_delay_ms is not null and p_delay_ms >= 0 then
     -- Capped at ten years.
@@ -282,11 +317,11 @@ begin
   end if;
 
   insert into public.legal_acceptances
-    (user_id, subject_hash, subject_kind, kind, version, text_sha256, surface, app_version, platform, accepted_at, reported_delay_ms)
+    (user_id, subject_hash, subject_kind, kind, version, text_sha256, surface, app_version, platform, update_id, accepted_at, reported_delay_ms)
   values
     (v_uid,
      pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to('mageid:legal_acceptance:v1:' || v_uid::text, 'UTF8')), 'hex'),
-     'account', p_kind, p_version, p_text_sha256, p_surface, v_app, v_platform,
+     'account', p_kind, p_version, p_text_sha256, p_surface, v_app, v_platform, v_update,
      pg_catalog.clock_timestamp(), v_delay)
   on conflict (user_id, kind, version, text_sha256) where user_id is not null do nothing
   returning id, accepted_at into v_id, v_at;
@@ -302,8 +337,8 @@ begin
 end
 $function$;
 
-revoke all on function public.record_my_legal_acceptance(text, text, text, text, text, text, bigint) from public, anon;
-grant execute on function public.record_my_legal_acceptance(text, text, text, text, text, text, bigint) to authenticated;
+revoke all on function public.record_my_legal_acceptance(text, text, text, text, text, text, bigint, text) from public, anon;
+grant execute on function public.record_my_legal_acceptance(text, text, text, text, text, text, bigint, text) to authenticated;
 
 -- ── self-check ───────────────────────────────────────────────────────────────
 do $$
@@ -327,7 +362,7 @@ begin
         raise exception '[legal_acceptances] verify: anon holds % on the table', v_priv;
       end if;
     end loop;
-    if has_function_privilege('anon', 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint)', 'execute') then
+    if has_function_privilege('anon', 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint,text)', 'execute') then
       raise exception '[legal_acceptances] verify: anon can call the recorder';
     end if;
   end if;
@@ -337,7 +372,7 @@ begin
         raise exception '[legal_acceptances] verify: authenticated holds % on the table', v_priv;
       end if;
     end loop;
-    if not has_function_privilege('authenticated', 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint)', 'execute') then
+    if not has_function_privilege('authenticated', 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint,text)', 'execute') then
       raise exception '[legal_acceptances] verify: authenticated cannot call the recorder';
     end if;
   end if;
@@ -349,7 +384,7 @@ begin
     end if;
   end if;
   select p.prosecdef, p.proconfig into v_def, v_cfg from pg_proc p
-   where p.oid = 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint)'::regprocedure;
+   where p.oid = 'public.record_my_legal_acceptance(text,text,text,text,text,text,bigint,text)'::regprocedure;
   if v_def is not true or v_cfg is null or not ('search_path=""' = any (v_cfg)) then
     raise exception '[legal_acceptances] verify: the recorder must be SECURITY DEFINER with an empty search_path';
   end if;

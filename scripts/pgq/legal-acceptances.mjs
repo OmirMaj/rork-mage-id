@@ -24,6 +24,9 @@ if (process.argv[3] === '--all') {
     12: ['20'],          // the deletion stamp is not written
     13: ['18'],          // the trigger lets any update through when user_id goes to NULL
     14: ['14'],          // the row cap removed
+    15: ['25'],          // the closed list of kinds removed: junk kinds fill a person's limit
+    16: ['4'],           // the update id is accepted and thrown away
+    17: ['18'],          // the keep trigger lets update_id be rewritten at account deletion
   });
 }
 
@@ -31,7 +34,7 @@ let MIG = readMigration(ROOT, FILE);
 const MUTATE = Number(process.env.MUTATE || 0);
 const rep = replacer(() => MIG, (v) => { MIG = v; }, MUTATE);
 const noSelfCheck = () => rep("raise exception '[legal_acceptances] verify:", "raise notice '[legal_acceptances] verify:", true);
-const SIG = 'text, text, text, text, text, text, bigint';
+const SIG = 'text, text, text, text, text, text, bigint, text';
 switch (MUTATE) {
   case 0: break;
   case 1: rep('revoke all on public.legal_acceptances from public, anon, authenticated, service_role;', ''); noSelfCheck(); break;
@@ -53,6 +56,9 @@ switch (MUTATE) {
   case 12: rep('new.account_deleted_at := coalesce(old.account_deleted_at, pg_catalog.clock_timestamp());', ''); break;
   case 13: rep("     and new.id = old.id\n     and new.subject_hash is not distinct from old.subject_hash", '     and new.id = old.id'); rep('     and new.surface = old.surface\n', ''); rep('     and new.version = old.version\n', ''); break;
   case 14: rep('if v_count >= 400 then', 'if v_count >= 400000 then'); break;
+  case 15: rep("  if p_kind not in ('terms', 'privacy', 'code_answer_ack', 'scan_ack') then", '  if false then'); break;
+  case 16: rep('    v_update := p_update_id;\n', '    v_update := null;\n'); break;
+  case 17: rep('     and new.update_id is not distinct from old.update_id\n', ''); break;
   default: console.error('unknown MUTATE'); process.exit(2);
 }
 if (MUTATE) console.log(`(planted mutation M${MUTATE} applied)`);
@@ -61,6 +67,7 @@ const A = '00000000-0000-4000-8000-0000000000a1';
 const B = '00000000-0000-4000-8000-0000000000b2';
 const H1 = 'a'.repeat(64);
 const H2 = 'b'.repeat(64);
+const UPD = '0198c5a2-7d3e-7b61-9f04-2c1d5e6f7a8b';   // an over-the-air update id
 
 const PGlite = await loadPGlite();
 const db = new PGlite();
@@ -73,11 +80,11 @@ try { await db.exec(MIG); await db.exec(MIG); } catch (e) { applyErr = e; }
 ok('1 the migration applies cleanly, twice (idempotent)', applyErr === null, applyErr ? String(applyErr.message) : '');
 if (applyErr) done();
 
-const REC = (kind = 'terms', version = '2026-05-12', hash = H1, surface = 'signup_email', extra = `'1.0.0 (18)', 'ios', null`) =>
+const REC = (kind = 'terms', version = '2026-05-12', hash = H1, surface = 'signup_email', extra = `'1.0.0 (18)', 'ios', null, '${UPD}'`) =>
   `select public.record_my_legal_acceptance('${kind}', '${version}', '${hash}', '${surface}', ${extra}) as r`;
 
 const cols = (await rows(`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'legal_acceptances' order by ordinal_position`)).map((r) => r.column_name);
-const WANT = ['id', 'user_id', 'subject_hash', 'subject_kind', 'subject_ref', 'kind', 'version', 'text_sha256', 'surface', 'app_version', 'platform', 'accepted_at', 'reported_delay_ms', 'account_deleted_at'];
+const WANT = ['id', 'user_id', 'subject_hash', 'subject_kind', 'subject_ref', 'kind', 'version', 'text_sha256', 'surface', 'app_version', 'platform', 'update_id', 'accepted_at', 'reported_delay_ms', 'account_deleted_at'];
 ok('2 the columns are exactly the list in the header (no IP, user agent, email or token column)', JSON.stringify(cols) === JSON.stringify(WANT), cols.join(','));
 
 // ── the account path ──
@@ -86,8 +93,8 @@ const a1 = await tryRun('authenticated', REC(), A);
 const after = (await rows('select clock_timestamp() as t'))[0].t;
 ok('3 a signed-in person records an acceptance (recorded: true)', a1.ok && a1.rows[0].r.ok === true && a1.rows[0].r.recorded === true, a1.err ?? JSON.stringify(a1.rows));
 const row1 = (await rows(`select * from public.legal_acceptances where user_id = '${A}'`))[0] ?? {};
-ok('4 the row is stamped with the caller, kind, version, words, surface, build and platform',
-  row1.user_id === A && row1.kind === 'terms' && row1.version === '2026-05-12' && row1.text_sha256 === H1 && row1.surface === 'signup_email' && row1.app_version === '1.0.0 (18)' && row1.platform === 'ios' && row1.subject_kind === 'account',
+ok('4 the row is stamped with the caller, kind, version, words, surface, build, update id and platform',
+  row1.update_id === UPD && row1.user_id === A && row1.kind === 'terms' && row1.version === '2026-05-12' && row1.text_sha256 === H1 && row1.surface === 'signup_email' && row1.app_version === '1.0.0 (18)' && row1.platform === 'ios' && row1.subject_kind === 'account',
   JSON.stringify(row1));
 const wantHash = (await rows(`select encode(sha256(convert_to('mageid:legal_acceptance:v1:${A}', 'UTF8')), 'hex') as h`))[0].h;
 ok('5 subject_hash is the SHA-256 of the fixed prefix and the account id (and is not the id)', row1.subject_hash === wantHash && row1.subject_hash !== A);
@@ -163,10 +170,19 @@ ok('11 accepted_at is the server clock at the write', new Date(row1.accepted_at)
   ];
   const res = [];
   for (const q of bad) res.push((await tryRun('authenticated', q, A)).ok);
-  const odd = await tryRun('authenticated', REC('privacy', 'odd-build', H1, 'in_app', `E'<script>\\n', 'windows', -5`), A);
-  const oddRow = (await rows(`select app_version, platform, reported_delay_ms from public.legal_acceptances where version = 'odd-build'`))[0] ?? {};
-  ok('15 prose in kind, version, hash or a no-account surface is refused; an odd build string, platform or delay is dropped and the record still lands',
-    res.every((v) => v === false) && odd.ok && oddRow.app_version === null && oddRow.platform === null && oddRow.reported_delay_ms === null, JSON.stringify({ res, odd: odd.err, oddRow }));
+  const odd = await tryRun('authenticated', REC('privacy', 'odd-build', H1, 'in_app', `E'<script>\\n', 'windows', -5, 'not an id!'`), A);
+  const oddRow = (await rows(`select app_version, platform, reported_delay_ms, update_id from public.legal_acceptances where version = 'odd-build'`))[0] ?? {};
+  ok('15 prose in kind, version, hash or a no-account surface is refused; an odd build string, update id, platform or delay is dropped and the record still lands',
+    res.every((v) => v === false) && odd.ok && oddRow.update_id === null && oddRow.app_version === null && oddRow.platform === null && oddRow.reported_delay_ms === null, JSON.stringify({ res, odd: odd.err, oddRow }));
+}
+
+{
+  const junk = [];
+  for (let i = 0; i < 5; i++) junk.push((await tryRun('authenticated', REC(`junk_kind_${i}`, 'v1', H1, 'in_app'), A)).ok);
+  const n = (await rows(`select count(*)::int as n from public.legal_acceptances where kind like 'junk%'`))[0].n;
+  const real = [];
+  for (const k of ['terms', 'privacy', 'code_answer_ack', 'scan_ack']) real.push((await tryRun('authenticated', REC(k, 'kinds-v1', H2, 'in_app'), A)).ok);
+  ok('25 a kind outside the four the app has is refused and writes nothing (junk kinds cannot fill the limit); the four are accepted', junk.every((v) => v === false) && n === 0 && real.every((v) => v === true), JSON.stringify({ junk, n, real }));
 }
 
 // ── nothing is changed or removed, by anyone ──
@@ -181,7 +197,8 @@ ok('11 accepted_at is the server clock at the write', new Date(row1.accepted_at)
   const left = (await rows(`select count(*)::int as n from public.legal_acceptances where user_id = '${A}'`))[0].n;
   ok('17 a row cannot be deleted by the service role, even if someone grants it DELETE (the trigger refuses)', !sDel.ok && !sDel2.ok && left >= 4, JSON.stringify({ sDel: sDel.err, sDel2: sDel2.err, left }));
   const sneaky = await tryRun(null, `update public.legal_acceptances set user_id = null, version = 'rewritten', surface = 'reaccept' where user_id = '${A}' and kind = 'scan_ack'`);
-  ok('18 an update that nulls user_id AND changes anything else is refused', !sneaky.ok, JSON.stringify(sneaky));
+  const sneaky2 = await tryRun(null, `update public.legal_acceptances set user_id = null, update_id = 'another-bundle' where user_id = '${A}' and kind = 'scan_ack'`);
+  ok('18 an update that nulls user_id AND changes anything else (the version, the surface, the update id) is refused', !sneaky.ok && !sneaky2.ok, JSON.stringify({ sneaky, sneaky2 }));
 }
 
 // ── account deletion ──
