@@ -6,28 +6,38 @@ It presents Apple's own scanner full screen and hands back Apple's
 TypeScript under `utils/roomScan/`, where they are tested without a phone and
 can be fixed over the air.
 
-**Status: written and typechecked against Apple's iOS SDK (iPhoneOS 27.0 at
-the 15.1 floor, and the simulator SDK) with only ExpoModulesCore stubbed. Never
-compiled against the real ExpoModulesCore, never linked into an app, never run
-on a phone, not in any release.** The feature is dark behind
-`SCAN_ROOM_ENABLED = false` (`constants/featureFlags.ts`).
+**Status (2026-10-08, lane SCANBUILD): in the build, for the owner only.** The
+three Swift files compiled unchanged against the real ExpoModulesCore and
+Apple's RoomPlan, and the whole app linked for a real iPhone (Release,
+`iphoneos`, unsigned) on a Mac. `otool` showed RoomPlan as a weak link
+(`LC_LOAD_WEAK_DYLIB`) with all 50 of its symbols weak imports. **It has still
+never run on a phone.** The feature stays dark behind `SCAN_ROOM_ENABLED = false`
+(`constants/featureFlags.ts`); only the owner's account reaches it
+(`utils/roomScan/allowed.ts`).
 
-## Why it sits in native-staging/ and not in modules/
+## Why it is under modules/
 
 Expo autolinking compiles every folder under `<appRoot>/modules` into the next
-iOS build by itself. This Swift has not earned that yet, so it waits here, in
-`native-staging/`, a folder autolinking does not look at. A build made today
-has no scanner in it, and the JavaScript says so ("This version of the app does
-not include room scanning").
+iOS build by itself. That is how the scanner gets into the owner preview build.
+`bun run test:scan-room` fails if the folder leaves `modules/`, if
+`package.json` leaves it out of autolinking, if the podspec stops weak-linking
+RoomPlan or raises the iOS 15.1 floor, or if the Swift asks for a USDZ file, a
+camera frame or video.
 
-Before a build that carries it, in this order
-(`docs/scan-the-room-native-checklist.md`, section 0):
+What is still owed before the public can have it is in
+`docs/scan-the-room-native-checklist.md`. The first item is one launch of a
+build that carries this module on a PHYSICAL iOS 15 phone. Not a simulator: the
+simulator compiles RoomPlan out, so it proves nothing about the link.
 
-1. `git mv native-staging/mage-room-scan modules/mage-room-scan`.
-2. Compile it once against the real ExpoModulesCore, in a local or preview build.
-3. Run `otool -L` on the built app and require RoomPlan to be a WEAK link.
-4. Launch that build once on a physical iOS 15 phone. Not a simulator: the
-   simulator compiles RoomPlan out, so it proves nothing about the link.
+## What comes back from a scan
+
+`startScan` resolves with Apple's `CapturedRoom` as JSON, untouched, and beside
+it a small `summary` counted in Swift on the `CapturedRoom` itself (walls,
+doors, windows, openings, objects, each wall's dimensions, and the first wall's
+transform as 16 numbers). The summary does not pass through `JSONEncoder`, so it
+is what the JSON and the TypeScript parser are checked against. A room that will
+not encode still comes back as a finished scan, with an empty JSON string, the
+reason in `encodeError`, and the summary.
 
 ## Why there is no JavaScript in here
 
@@ -36,7 +46,7 @@ directory holds native code and autolinking config only. JS reaches the module
 exactly one way:
 
 ```ts
-// utils/roomScan/native.ts, inside native(), after the flag check
+// utils/roomScan/native.ts, inside native(userEmail), after the gate
 cached = requireOptionalNativeModule<MageRoomScanNative>('MageRoomScan');
 ```
 
@@ -45,9 +55,9 @@ cached = requireOptionalNativeModule<MageRoomScanNative>('MageRoomScan');
 the ones built before this module existed. `requireOptionalNativeModule`
 returns `null` there; `requireNativeModule` would throw. So: no `main`, no
 `index.ts`, one nullable lookup that is not at module scope and is refused
-while the flag is off. `scripts/validate-scan-room.ts` pins all of it.
+for everyone the gate refuses (the flag is off and he is not the owner). `scripts/validate-scan-room.ts` pins all of it.
 
-## How it reaches the Podfile (once it is moved back under modules/)
+## How it reaches the Podfile
 
 Autolinking. `expo-modules-autolinking` scans `<appRoot>/modules` and the
 generated Podfile calls `use_expo_modules!`, so a directory there is linked with
@@ -67,13 +77,15 @@ no entry in the root `package.json`, no Podfile edit and no config plugin.
 - **No camera prompt of its own.** It reads the permission and refuses with a
   typed error; JS raises the prompt through expo-image-picker.
 
-## What it DOES require before any build
+## The camera sentence
 
-The camera purpose string in `app.json` must change in the same commit that
-ships a build containing this module: today it says "no video is recorded, kept
-or uploaded", and a scan keeps the shape of the room. The wording and the
-validator change are written out in `docs/scan-the-room-native-checklist.md`.
-This lane does not touch `app.json`.
+`app.json`'s camera purpose string covers a room scan since 2026-10-08: when
+you scan a room the app keeps the room's measurements on your phone, and video
+of a scan is not recorded, kept or uploaded. That is true of this Swift: it
+asks RoomPlan for the finished room only, reads no camera frame, records
+nothing, and writes no file (the USDZ export is off unless asked for, and the
+app never asks). `scripts/validate-scan-room.ts` (rules N5 and N8) and
+`scripts/validate-ar-spike.ts` pin both the sentence and the Swift.
 
 ## The ways it says "no"
 
@@ -85,6 +97,11 @@ This lane does not touch `app.json`.
 | `simulator` | Compiled out. No camera, no LiDAR. |
 | `cameraUndetermined` | Never asked. The screen offers the prompt. |
 | `cameraDenied` | Refused. Only Settings changes it. |
+
+And a scan that started can end six ways, each settled exactly once: done,
+cancelled, a session error (with RoomPlan's own error name), interrupted (the
+app left the screen: `E_ROOM_SCAN_INTERRUPTED`), a room that would not encode
+(still resolved, with `encodeError`), and a scanner that never got on screen.
 
 Each has its own sentence on the screen (`hooks/useRoomScanCopy.ts`).
 
@@ -103,10 +120,13 @@ Each has its own sentence on the screen (`hooks/useRoomScanCopy.ts`).
    calls it stands in for were read against
    `node_modules/expo-modules-core/ios`. This is the check that says the
    RoomPlan names and signatures are right. It last passed on Xcode's
-   iPhoneOS 27.0 SDK on 2026-10-06.
+   iPhoneOS 27.0 SDK on 2026-10-08.
 
-Neither is a link or a run. Whether the weak link holds on iOS 15, and
-everything RoomPlan does with a camera, is settled only by a build on a phone.
+Neither is a link or a run. The link was done once by hand on 2026-10-08 (the
+commands and the `otool` lines are in the checklist). Whether the weak link
+holds on a real iOS 15 phone, and everything RoomPlan does with a camera, is
+settled only by a build on a phone. Both typechecks only run on a Mac: on the
+Linux gate they are skipped.
 
 ## Not in this module yet
 

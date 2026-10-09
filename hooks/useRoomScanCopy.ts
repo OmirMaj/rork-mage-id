@@ -30,6 +30,7 @@ import { useT } from '@/contexts/LanguageContext';
 import type { RoomScanUnavailableReason } from '@/utils/roomScan/availability';
 import type { DraftBlock, OwnPriceClaim, ScanPriceSource } from '@/utils/roomScan/pricingCore';
 import type { RecipeKey } from '@/utils/roomScan/recipesCore';
+import type { ScanCountKey, ScanOutcome } from '@/utils/roomScan/scanDebugCore';
 import type { RoomType, ScanFact } from '@/utils/roomScan/types';
 import { formatFeetInches } from '@/utils/roomScan/units';
 
@@ -168,6 +169,40 @@ export interface RoomScanCopy {
   unconfirmedBody: string;
   addFailedBody: string;
   paywallFeatureLabel: string;
+  // ── the owner preview: the entry row, every way a scan can end, the facts ──
+  ownerRowLabel: string;
+  ownerOnlySub: string;
+  cancelledBody: string;
+  scanStoppedBody: (code: string | null) => string;
+  phoneSaidSub: (text: string) => string;
+  scanAgainLabel: string;
+  unreadBody: (outcome: Exclude<ScanOutcome, 'read'>) => string;
+  unreadNextBody: (ownerTools: boolean) => string;
+  rawSizeLabel: string;
+  rawSizeValue: (characters: number) => string;
+  topKeysLabel: string;
+  noneFoundSub: string;
+  errorLabel: string;
+  shareRawLabel: string;
+  shareRawBody: string;
+  shareRawTitleLabel: string;
+  shareRawResultBody: (outcome: 'shared' | 'unavailable' | 'failed', file: string) => string;
+  rawKeepFailedBody: string;
+  factsHeadingLabel: string;
+  factIosLabel: string;
+  factDeviceLabel: string;
+  factDurationLabel: string;
+  durationValue: (seconds: number) => string;
+  countsHeadingLabel: string;
+  countSourceLabel: (source: 'phone' | 'file' | 'app') => string;
+  countName: (key: ScanCountKey) => string;
+  countsMatchBody: string;
+  countsMismatchBody: string;
+  firstWallLabel: string;
+  firstWallSub: (source: 'phone' | 'app', width: string, height: string) => string;
+  firstWallMatchBody: (match: boolean) => string;
+  lastScanHeadingLabel: string;
+  lastScanSub: (date: string, time: string) => string;
 }
 
 export function useRoomScanCopy(): RoomScanCopy {
@@ -437,6 +472,82 @@ export function useRoomScanCopy(): RoomScanCopy {
       unconfirmedBody: t('office.roomScan.price.unconfirmedBody', 'The estimate has not shown these lines yet. Open the estimate and check it before you price this scan again.'),
       addFailedBody: t('office.roomScan.price.addFailedBody', 'The estimate could not be saved. Nothing was changed.'),
       paywallFeatureLabel: t('office.roomScan.paywallFeatureLabel', 'Scan The Room'),
+      ownerRowLabel: t('office.roomScan.preview.rowLabel', 'Scan A Room (Owner Preview)'),
+      ownerOnlySub: t('office.roomScan.preview.ownerOnlySub', 'Only your account sees this'),
+      cancelledBody: t('office.roomScan.preview.cancelledBody', 'The scan was cancelled. Nothing was saved.'),
+      scanStoppedBody: (code) => {
+        switch (code) {
+          case 'E_ROOM_SCAN_INTERRUPTED': return t('office.roomScan.stopped.interruptedBody', 'The scan stopped because the app left the screen. Nothing was saved. Keep MAGE ID open and the phone unlocked until you tap Done.');
+          case 'E_ROOM_SCAN_SESSION_FAILED': return t('office.roomScan.stopped.sessionBody', 'The iPhone stopped the scan before it finished. Nothing was saved. Turn on more light, move more slowly and try again.');
+          case 'E_ROOM_SCAN_ENCODE_FAILED': return t('office.roomScan.stopped.encodeBody', 'The scan finished, but the iPhone could not write it out as data. Nothing was saved.');
+          case 'E_ROOM_SCAN_CAMERA_DENIED': return t('office.roomScan.unavailable.cameraDeniedBody', 'Camera access is off for MAGE ID, so a scan cannot start. Turn it on in Settings, under MAGE ID, Camera.');
+          case 'E_ROOM_SCAN_CAMERA_UNDETERMINED': return t('office.roomScan.stopped.cameraAskBody', 'MAGE ID has not been allowed to use the camera yet. Tap Allow Camera, then start the scan again.');
+          case 'E_ROOM_SCAN_ALREADY_RUNNING': return t('office.roomScan.stopped.runningBody', 'A scan is already open. Finish it or cancel it first.');
+          case 'E_ROOM_SCAN_NO_PRESENTER': return t('office.roomScan.stopped.presenterBody', 'The scanner could not be shown over this screen. Close any open sheet and try again.');
+          case 'E_ROOM_SCAN_NOT_IN_THIS_BUILD': return t('office.roomScan.unavailable.notInThisBuildBody', 'This version of the app does not include room scanning. It comes with a newer version from the App Store.');
+          case 'E_ROOM_SCAN_OS_TOO_OLD': return t('office.roomScan.unavailable.osTooOldBody', 'Room scanning needs iOS 16 or later. Update this iPhone to use it.');
+          case 'E_ROOM_SCAN_UNSUPPORTED_DEVICE': return t('office.roomScan.unavailable.noLidarBody', 'This iPhone has no LiDAR sensor. Room scanning needs an iPhone Pro, 12 Pro or newer.');
+          case 'E_ROOM_SCAN_SIMULATOR': return t('office.roomScan.unavailable.simulatorBody', 'Room scanning only runs on a real iPhone.');
+          default: return t('office.roomScan.error.failedBody', 'The scan stopped before it finished. Nothing was saved. Try again.');
+        }
+      },
+      phoneSaidSub: (text) => t('office.roomScan.stopped.phoneSaidSub', 'What the iPhone said: {text}', { text }),
+      scanAgainLabel: t('office.roomScan.unread.scanAgainLabel', 'Scan Again'),
+      unreadBody: (outcome) => {
+        switch (outcome) {
+          case 'unreadable': return t('office.roomScan.unread.unreadableBody', 'The scan finished, but MAGE could not read it yet.');
+          case 'noWalls': return t('office.roomScan.unread.noWallsBody', 'The scan finished, but it holds no walls. A scan that is too short gives the iPhone nothing to build a room from. Walk the whole room, point the phone at every wall, then tap Done.');
+          case 'notEncoded': return t('office.roomScan.unread.notEncodedBody', 'The scan finished, but the iPhone could not write it out as data. Only its own counts came back.');
+        }
+      },
+      unreadNextBody: (ownerTools) => ownerTools
+        ? t('office.roomScan.unread.nextOwnerBody', 'Nothing was added to the project. Share the raw scan data so the reader can be fixed, then scan again.')
+        : t('office.roomScan.unread.nextBody', 'Nothing was added to the project. Scan the room again.'),
+      rawSizeLabel: t('office.roomScan.unread.rawSizeLabel', 'Raw Size'),
+      rawSizeValue: (characters) => tn('office.roomScan.unread.rawSizeValue', characters, { one: '1 character', other: '{count} characters' }),
+      topKeysLabel: t('office.roomScan.unread.topKeysLabel', 'Top-Level Keys'),
+      noneFoundSub: t('office.roomScan.unread.noneFoundSub', 'None found'),
+      errorLabel: t('office.roomScan.unread.errorLabel', 'Error'),
+      shareRawLabel: t('office.roomScan.share.rawLabel', 'Share Raw Scan Data'),
+      shareRawBody: t('office.roomScan.share.rawBody', 'The file holds the shapes and sizes of the room and the facts on this screen. It holds no photos and no video.'),
+      shareRawTitleLabel: t('office.roomScan.share.titleLabel', 'Raw Scan Data'),
+      shareRawResultBody: (outcome, file) => {
+        switch (outcome) {
+          case 'shared': return t('office.roomScan.share.sharedBody', 'The share sheet opened with {file}.', { file });
+          case 'unavailable': return t('office.roomScan.share.unavailableBody', 'Sharing is not available on this device.');
+          case 'failed': return t('office.roomScan.share.failedBody', 'The file could not be shared.');
+        }
+      },
+      rawKeepFailedBody: t('office.roomScan.share.keepFailedBody', 'The phone could not keep the raw scan data. Share it now, before you leave this screen.'),
+      factsHeadingLabel: t('office.roomScan.facts.headingLabel', 'Scan Facts'),
+      factIosLabel: t('office.roomScan.facts.iosLabel', 'System Version'),
+      factDeviceLabel: t('office.roomScan.facts.deviceLabel', 'Device Model'),
+      factDurationLabel: t('office.roomScan.facts.durationLabel', 'Scan Time'),
+      durationValue: (seconds) => tn('office.roomScan.facts.durationValue', Math.round(seconds), { one: '1 second', other: '{count} seconds' }),
+      countsHeadingLabel: t('office.roomScan.facts.countsHeadingLabel', 'What Was Counted'),
+      countSourceLabel: (source) => source === 'phone'
+        ? t('office.roomScan.facts.sourcePhoneLabel', 'Phone')
+        : source === 'file' ? t('office.roomScan.facts.sourceFileLabel', 'File') : t('office.roomScan.facts.sourceAppLabel', 'App'),
+      countName: (key) => {
+        switch (key) {
+          case 'walls': return t('office.roomScan.facts.wallsLabel', 'Walls');
+          case 'doors': return t('office.roomScan.facts.doorsLabel', 'Doors');
+          case 'windows': return t('office.roomScan.facts.windowsLabel', 'Windows');
+          case 'openings': return t('office.roomScan.facts.openingsLabel', 'Openings');
+          case 'objects': return t('office.roomScan.facts.objectsLabel', 'Objects');
+        }
+      },
+      countsMatchBody: t('office.roomScan.facts.countsMatchBody', 'The phone, the file and the app count the same.'),
+      countsMismatchBody: t('office.roomScan.facts.countsMismatchBody', 'The counts do not match. Share the raw scan data.'),
+      firstWallLabel: t('office.roomScan.facts.firstWallLabel', 'First Wall'),
+      firstWallSub: (source, width, height) => source === 'phone'
+        ? t('office.roomScan.facts.firstWallPhoneSub', 'Phone: {width} wide, {height} high', { width, height })
+        : t('office.roomScan.facts.firstWallAppSub', 'App: {width} wide, {height} high', { width, height }),
+      firstWallMatchBody: (match) => match
+        ? t('office.roomScan.facts.firstWallMatchBody', 'The first wall is the same on the phone and in the app.')
+        : t('office.roomScan.facts.firstWallMismatchBody', 'The first wall differs between the phone and the app. Share the raw scan data.'),
+      lastScanHeadingLabel: t('office.roomScan.preview.lastScanHeadingLabel', 'Last Scan On This Phone'),
+      lastScanSub: (date, time) => t('office.roomScan.plan.scannedSub', 'Scanned {date}, {time}', { date, time }),
     };
   }, [t, tn]);
 }

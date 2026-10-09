@@ -18,6 +18,7 @@ import AVFoundation
 import UIKit
 #if canImport(RoomPlan) && !targetEnvironment(simulator)
 import RoomPlan
+import simd
 #endif
 
 internal enum RoomScanSupport {
@@ -169,7 +170,15 @@ internal final class RoomScanViewController: UIViewController, RoomCaptureViewDe
     // The screen must stay awake while the person walks the room.
     if priorIdleTimerDisabled == nil { priorIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled }
     UIApplication.shared.isIdleTimerDisabled = true
+    // The phone was locked or the app left the screen: the camera stops and
+    // RoomPlan does not promise a delegate call for it. Without this the
+    // promise could wait for ever. See `interrupted` below.
+    NotificationCenter.default.addObserver(self, selector: #selector(interrupted), name: UIApplication.didEnterBackgroundNotification, object: nil)
     captureView?.captureSession.run(configuration: RoomCaptureSession.Configuration())
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
   }
 
   override func viewWillDisappear(_ animated: Bool) {
@@ -198,6 +207,24 @@ internal final class RoomScanViewController: UIViewController, RoomCaptureViewDe
     // stop() makes RoomPlan process what it has. The result arrives in
     // captureView(didPresent:error:) below.
     captureView?.captureSession.stop()
+  }
+
+  /// The app went to the background with a scan pending (a lock, the home
+  /// gesture, a call taken full screen). The scan is over: say so, once, and
+  /// leave the screen without an animation nobody would see. Settled BEFORE the
+  /// dismissal, because a dismissal's completion is not promised to run while
+  /// the app is in the background.
+  @objc private func interrupted() {
+    guard !cancelled, let pending = take() else { return }
+    cancelled = true
+    if running {
+      running = false
+      captureView?.captureSession.stop()
+    }
+    restoreIdleTimer()
+    pending(.failure(Exceptions.RoomScanInterrupted()))
+    let top: UIViewController = navigationController ?? self
+    if top.presentingViewController != nil { top.dismiss(animated: false) }
   }
 
   @objc private func cancelTapped() {
@@ -229,7 +256,7 @@ internal final class RoomScanViewController: UIViewController, RoomCaptureViewDe
   func captureSession(_ session: RoomCaptureSession, didEndWith data: CapturedRoomData, error: Error?) {
     // A failed session never reaches captureView(didPresent:), so it is reported here.
     guard let error = error else { return }
-    let message = error.localizedDescription
+    let message = RoomScanViewController.describe(error)
     onMain { self.fail(message) }
   }
 
@@ -240,7 +267,7 @@ internal final class RoomScanViewController: UIViewController, RoomCaptureViewDe
     if let error = error {
       // Returning false means captureView(didPresent:) never comes. Without
       // this the JS screen would wait for ever on a scan that already failed.
-      let message = error.localizedDescription
+      let message = RoomScanViewController.describe(error)
       onMain { self.fail(message) }
       return false
     }
@@ -249,7 +276,7 @@ internal final class RoomScanViewController: UIViewController, RoomCaptureViewDe
 
   /// The finished room. Encode it as it is and hand it over.
   func captureView(didPresent processedResult: CapturedRoom, error: Error?) {
-    let message = error?.localizedDescription
+    let message = error.map { RoomScanViewController.describe($0) }
     onMain { self.deliver(processedResult, errorMessage: message) }
   }
 
@@ -271,20 +298,24 @@ internal final class RoomScanViewController: UIViewController, RoomCaptureViewDe
       finish(.failure(Exceptions.RoomScanSessionFailed(errorMessage)))
       return
     }
-    let json: String
+    // The counts and the first wall, read from the CapturedRoom itself. They
+    // do not pass through JSONEncoder, so they are what the JSON and the
+    // TypeScript parser are checked against after the first real scan.
+    let summary = RoomScanViewController.summary(of: processedResult)
+    // A room that will not encode is still a finished scan: the summary goes
+    // back with an empty JSON string and the reason, so the screen can say what
+    // the phone saw instead of only "it failed".
+    var json = ""
+    var encodeError: String? = nil
     do {
       let data = try JSONEncoder().encode(processedResult)
       json = String(data: data, encoding: .utf8) ?? ""
+      if json.isEmpty { encodeError = "The encoded room was empty or was not UTF-8 text." }
     } catch {
-      finish(.failure(Exceptions.RoomScanEncodeFailed(error.localizedDescription)))
-      return
-    }
-    if json.isEmpty {
-      finish(.failure(Exceptions.RoomScanEncodeFailed("empty")))
-      return
+      encodeError = RoomScanViewController.describe(error)
     }
     var usdz: String? = nil
-    if options.exportUsdz {
+    if options.exportUsdz && !json.isEmpty {
       // Optional. A failed export is a warning, never a failed scan: the JSON is the record.
       let safeId = options.scanId.filter { $0.isLetter || $0.isNumber || $0 == "-" }
       let name = "room-scan-" + (safeId.isEmpty ? UUID().uuidString : safeId) + ".usdz"
@@ -297,17 +328,56 @@ internal final class RoomScanViewController: UIViewController, RoomCaptureViewDe
         warnings.append("usdzExportFailed")
       }
     }
-    finish(.success(payload(status: "done", json: json, usdz: usdz)))
+    finish(.success(payload(status: "done", json: json, usdz: usdz, summary: summary, encodeError: encodeError)))
   }
 
-  private func payload(status: String, json: String, usdz: String?) -> [String: Any] {
+  /// The error's own name (for a RoomPlan CaptureError that is its case, such
+  /// as "worldTrackingFailure") and Apple's sentence for it.
+  static func describe(_ error: Error) -> String {
+    let kind = String(describing: error)
+    let text = error.localizedDescription
+    return kind == text ? text : kind + ": " + text
+  }
+
+  /// Plain numbers only. `floors` and `sections` exist from iOS 17.
+  /// `firstWall.transform` is the wall's 4x4 matrix as 16 numbers, column by
+  /// column (columns.0 first), the order simd keeps them in.
+  static func summary(of room: CapturedRoom) -> [String: Any] {
+    var out: [String: Any] = [
+      "walls": room.walls.count,
+      "doors": room.doors.count,
+      "windows": room.windows.count,
+      "openings": room.openings.count,
+      "objects": room.objects.count,
+      "wallDimensions": room.walls.map { [Double($0.dimensions.x), Double($0.dimensions.y), Double($0.dimensions.z)] },
+    ]
+    if #available(iOS 17.0, *) {
+      out["floors"] = room.floors.count
+      out["sections"] = room.sections.count
+    }
+    if let wall = room.walls.first {
+      let d = wall.dimensions
+      let c = wall.transform.columns
+      out["firstWall"] = [
+        "dimensions": [Double(d.x), Double(d.y), Double(d.z)],
+        "transform": [c.0, c.1, c.2, c.3].flatMap { [Double($0.x), Double($0.y), Double($0.z), Double($0.w)] },
+      ] as [String: Any]
+    }
+    return out
+  }
+
+  private func payload(status: String, json: String, usdz: String?, summary: [String: Any]? = nil, encodeError: String? = nil) -> [String: Any] {
     let iso = ISO8601DateFormatter()
+    let ended = Date()
     return [
+      "summary": summary.map { $0 as Any } ?? NSNull(),
+      "encodeError": encodeError.map { $0 as Any } ?? NSNull(),
+      "durationSeconds": max(0, ended.timeIntervalSince(startedAt)),
       "status": status,
       "capturedRoomJson": json,
       "usdzUri": usdz.map { $0 as Any } ?? NSNull(),
       "startedAt": iso.string(from: startedAt),
-      "endedAt": iso.string(from: Date()),
+      "endedAt": iso.string(from: ended),
       "roomPlanSdk": UIDevice.current.systemVersion,
       "deviceModel": RoomScanSupport.deviceModel(),
       "warnings": warnings,

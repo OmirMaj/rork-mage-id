@@ -93,6 +93,7 @@ import * as PRICING from '../utils/roomScan/pricingCore';
 import { parseSavedScans } from '../utils/roomScan/storeCore';
 import type { RoomScan } from '../utils/roomScan/types';
 import { SCAN_ROOM_ENABLED } from '../constants/featureFlags';
+import { scanRoomAllowedWith } from '../utils/roomScan/allowed';
 import { BASE_MATERIALS as MATERIALS } from '../constants/materials';
 import { isAppStorageKey } from '../utils/localCacheKeys';
 import { buildCostDatabase } from '../utils/costDatabase';
@@ -117,6 +118,9 @@ const OTHER_FILES = [
   'utils/roomScan/pricingCore.ts', 'constants/featureFlags.ts', 'app/scan-room.tsx', 'docs/scan-the-room-native-checklist.md',
   'scripts/validate-scan-room.ts', 'package.json',
   'components/roomScan/PricedDraftView.tsx', 'hooks/useRoomScanCopy.ts', 'utils/roomScan/store.ts',
+  // The owner preview build (lane SCANBUILD): the gate, the lookup, the row, and the linked module.
+  'utils/roomScan/allowed.ts', 'utils/roomScan/native.ts', 'components/roomScan/ScanRoomOwnerRow.tsx',
+  'modules/mage-room-scan/ios/MageRoomScan.podspec', 'modules/mage-room-scan/ios/RoomScanSupport.swift', 'modules/mage-room-scan/expo-module.config.json',
 ] as const;
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -138,6 +142,8 @@ for (const dir of ['app', 'components', 'utils', 'hooks', 'contexts', 'constants
 }
 
 interface Mods {
+  /** utils/roomScan/allowed.scanRoomAllowedWith: the flag, or the owner. */
+  allowed: typeof scanRoomAllowedWith;
   list: typeof ORDER.buildOrderList;
   sheets: typeof CUT.planSheets;
   checkSheets: typeof CUT.checkSheetCuts;
@@ -158,6 +164,8 @@ interface Mods {
   flag: boolean;
 }
 interface World {
+  /** The folders under modules/, where Expo autolinking looks. */
+  modulesDirs: string[];
   M: Mods;
   F: Record<string, string>;
   outside: Record<string, string>;
@@ -169,11 +177,11 @@ const REAL_MODS: Mods = {
   send: ORDER.confirmOrderSend, text: ORDER.orderListText, parseOptions: ORDER.parseOrderOptions,
   facts: LEARN.tapeFacts, suggest: LEARN.longWallSuggestion, pair: LEARN.tapePairFromEdit, upsert: LEARN.upsertTapePairs,
   waste: LEARN.wasteFactors, wasteOffer: LEARN.wasteSuggestion,
-  draft: OPRICE.buildOrderDraft, patch: PRICING.buildEstimatePatch, resend: OPRICE.planOrderResend, flag: SCAN_ROOM_ENABLED,
+  draft: OPRICE.buildOrderDraft, patch: PRICING.buildEstimatePatch, resend: OPRICE.planOrderResend, flag: SCAN_ROOM_ENABLED, allowed: scanRoomAllowedWith,
 };
 const F_REAL: Record<string, string> = {};
 for (const f of [...NEW_FILES, ...OTHER_FILES]) F_REAL[f] = existsSync(join(ROOT, f)) ? read(f) : '';
-const REAL: World = { M: REAL_MODS, F: F_REAL, outside: OUTSIDE, EN: EN_REAL as Record<string, unknown>, ES: ES_REAL as World['ES'] };
+const REAL: World = { modulesDirs: existsSync(join(ROOT, 'modules')) ? readdirSync(join(ROOT, 'modules')) : [], M: REAL_MODS, F: F_REAL, outside: OUTSIDE, EN: EN_REAL as Record<string, unknown>, ES: ES_REAL as World['ES'] };
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 const META = { id: 'scan-1', projectId: 'proj-1', name: 'Hall Bathroom', capturedAt: '2026-10-06T13:41:00.000Z', device: { model: 'iPhone16,1', os: '17.5' } };
@@ -1737,10 +1745,28 @@ rule('S2 nothing in the lane talks to a server or a model', (w) => {
   return o;
 });
 
-rule('N1 with the flag off there is no entry point, and nothing outside the feature imports the lane', (w) => {
+rule('N1 with the flag off the owner alone has a way in, the module is linked with a weak RoomPlan, and nothing outside the feature imports the lane', (w) => {
   const o: string[] = [];
   check(o, w.M.flag === false && /^export const SCAN_ROOM_ENABLED = false;$/m.test(w.F['constants/featureFlags.ts']), 'SCAN_ROOM_ENABLED is not false');
-  check(o, /export default function ScanRoomRoute\(\) \{\s*if \(!SCAN_ROOM_ENABLED\) return <Redirect href="[^"]+" \/>;/.test(stripComments(w.F['app/scan-room.tsx'])), 'the route does not redirect before it mounts anything');
+  // THE OWNER PREVIEW (lane SCANBUILD, 2026-10-08). The scanner is in the build
+  // and the order list is reached through it, so this lane holds the same five
+  // things validate-scan-room does, by its own read of the files:
+  //   the gate holds; the module is linked; RoomPlan is weak; every RoomPlan
+  //   use is behind an iOS 16 mark; no USDZ, video or frame is asked for.
+  const route = stripComments(w.F['app/scan-room.tsx']);
+  check(o, /export default function ScanRoomRoute\(\) \{\s*const \{ user \} = useAuth\(\);\s*const userEmail = user\?\.email \?\? null;\s*if \(!scanRoomAllowed\(userEmail\)\) return <Redirect href="[^"]+" \/>;/.test(route) && !/SCAN_ROOM_ENABLED/.test(route), 'the route does not redirect before it mounts anything');
+  const gate = stripComments(w.F['utils/roomScan/allowed.ts']);
+  check(o, /return flagOn === true \|\| isOwner\(userEmail\);/.test(gate) && /return scanRoomAllowedWith\(SCAN_ROOM_ENABLED, userEmail\);/.test(gate) && !/@gmail\.com|@mageid\.app/.test(gate), 'the gate is not "the flag, or the owner in utils/owner.ts"');
+  check(o, w.M.allowed(false, 'someone@example.com') === false && w.M.allowed(false, null) === false && w.M.allowed(false, 'omirmajeed2000@gmail.com') === true, 'with the flag off the gate lets a stranger in, or refuses the owner');
+  check(o, /if \(!scanRoomAllowed\(userEmail\)\) return null;\s*if \(!looked\) \{/.test(stripComments(w.F['utils/roomScan/native.ts'])), 'the native lookup runs for someone the gate refuses');
+  check(o, /if \(Platform\.OS !== 'ios' \|\| !scanRoomAllowed\(user\?\.email\)\) return null;/.test(stripComments(w.F['components/roomScan/ScanRoomOwnerRow.tsx'])), 'the one entry row is drawn for someone the gate refuses');
+  const podspec = w.F['modules/mage-room-scan/ios/MageRoomScan.podspec'].replace(/^\s*#.*$/gm, '');
+  check(o, w.modulesDirs.includes('mage-room-scan') && /"modules": \["MageRoomScanModule"\]/.test(w.F['modules/mage-room-scan/expo-module.config.json']), 'the scanner module is not under modules/, so the build would not carry it');
+  check(o, /^\s*s\.weak_frameworks = 'RoomPlan'$/m.test(podspec) && !/s\.frameworks?\s*=[^\n]*RoomPlan/.test(podspec) && /:ios => '15\.1'/.test(podspec), 'the podspec does not weak-link RoomPlan at the iOS 15.1 floor (a hard link crashes iOS 15 at launch)');
+  const swift = w.F['modules/mage-room-scan/ios/RoomScanSupport.swift'].replace(/^\s*\/\/.*$/gm, '');
+  check(o, /#if canImport\(RoomPlan\) && !targetEnvironment\(simulator\)\nimport RoomPlan\n/.test(swift) && /@available\(iOS 16\.0, \*\)\ninternal final class RoomScanViewController/.test(swift), 'RoomPlan is imported or used outside its iOS 16 guard');
+  check(o, /if options\.exportUsdz && !json\.isEmpty \{/.test(swift) && !/AVCaptureMovieFileOutput|AVAssetWriter|capturedImage|ARFrame\b|currentFrame|UIImage\b/.test(swift), 'the module writes a USDZ file unasked, records video or reads a camera frame');
+  check(o, /RoomScanNative\.startScan\(userEmail, \{ scanId, exportUsdz: false \}\)/.test(stripComments(w.F['components/roomScan/RoomScanFlow.tsx'])), 'the flow asks for a USDZ file, or starts a scan without the signed-in email');
   const names = /OrderListView|CutLayoutView|TapeFactsPanel|useScanOrderCopy|orderListCore|cutPlanCore|trimPackCore|learnCore|learnStore|orderPricingCore/;
   for (const [f, text] of Object.entries(w.outside)) {
     if (f === 'i18n/surfaces.ts') continue;
@@ -1933,6 +1959,19 @@ const MUTATIONS: Mutation[] = [
   { rule: 'S2', what: 'the tape list is uploaded', plant: text('utils/roomScan/learnStore.ts', "import AsyncStorage from '@react-native-async-storage/async-storage';", "import AsyncStorage from '@react-native-async-storage/async-storage';\nimport { supabase } from '@/lib/supabase';") },
   { rule: 'S2', what: 'the facts are sent to a model', plant: text('utils/roomScan/learnCore.ts', "import type { RoomScan, RoomType } from './types';", "import type { RoomScan, RoomType } from './types';\nimport { mageAI } from '@/utils/mageAI';") },
   { rule: 'N1', what: 'the flag is on', plant: mod(() => ({ flag: true })) },
+  { rule: 'N1', what: 'the route mounts for someone the gate refuses', plant: text('app/scan-room.tsx', '  if (!scanRoomAllowed(userEmail)) return <Redirect href="/(tabs)/(home)" />;\n', '') },
+  { rule: 'N1', what: 'the gate lets a stranger in', plant: mod(() => ({ allowed: () => true })) },
+  { rule: 'N1', what: 'the gate refuses the owner', plant: mod(() => ({ allowed: (flagOn: boolean) => flagOn })) },
+  { rule: 'N1', what: 'the gate is rewritten to say yes', plant: text('utils/roomScan/allowed.ts', 'return flagOn === true || isOwner(userEmail);', 'return true;') },
+  { rule: 'N1', what: 'the native lookup runs before the gate', plant: text('utils/roomScan/native.ts', '  if (!scanRoomAllowed(userEmail)) return null;\n', '') },
+  { rule: 'N1', what: 'the entry row is drawn for everyone', plant: text('components/roomScan/ScanRoomOwnerRow.tsx', "if (Platform.OS !== 'ios' || !scanRoomAllowed(user?.email)) return null;", "if (Platform.OS !== 'ios') return null;") },
+  { rule: 'N1', what: 'the module leaves modules/', plant: (w) => ({ ...w, modulesDirs: w.modulesDirs.filter((d) => d !== 'mage-room-scan') }) },
+  { rule: 'N1', what: 'the podspec hard-links RoomPlan', plant: text('modules/mage-room-scan/ios/MageRoomScan.podspec', "s.weak_frameworks = 'RoomPlan'", "s.frameworks = 'RoomPlan'") },
+  { rule: 'N1', what: 'the podspec raises the iOS floor', plant: text('modules/mage-room-scan/ios/MageRoomScan.podspec', ":ios => '15.1'", ":ios => '16.0'") },
+  { rule: 'N1', what: 'the scanner class loses its iOS 16 mark', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '@available(iOS 16.0, *)\ninternal final class RoomScanViewController', 'internal final class RoomScanViewController') },
+  { rule: 'N1', what: 'a USDZ file is written unasked', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', 'if options.exportUsdz && !json.isEmpty {', 'if !json.isEmpty {') },
+  { rule: 'N1', what: 'the module reads a camera frame', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', 'let summary = RoomScanViewController.summary(of: processedResult)', 'let frame = captureView?.captureSession.arSession.currentFrame\n    let summary = RoomScanViewController.summary(of: processedResult)') },
+  { rule: 'N1', what: 'the flow asks for a USDZ file', plant: text(FL, 'exportUsdz: false', 'exportUsdz: true') },
   { rule: 'N1', what: 'another screen imports the order list', plant: (w) => ({ ...w, outside: { ...w.outside, 'app/project-detail.tsx': `${w.outside['app/project-detail.tsx'] ?? ''}\nimport { OrderListView } from '@/components/roomScan/OrderListView';` } }) },
   { rule: 'N1', what: 'the order list opens for a room that cannot be priced', plant: text('components/roomScan/QuantitiesView.tsx', 'onPress={order.onPress} disabled={block != null}', 'onPress={order.onPress}') },
   { rule: 'N1', what: 'the order list is mounted outside its step', plant: text(FL, "{step === 'order' && saved && orderList", "{saved && orderList") },

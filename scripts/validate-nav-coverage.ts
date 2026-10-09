@@ -165,7 +165,6 @@ const NO_ENTRY_POINT_EXEMPT: Record<string, string> = {
   'claim-crew': 'entered by a crew member from a tokenized invite link, pre-auth',
   'accept-invite': 'entered by a collaborator from a tokenized invite email, possibly before they have an account',
   integrations: 'OAuth callback page — Intuit and friends redirect an in-app browser here; it authenticates on a signed state HMAC, not a session',
-  'scan-room': 'Scan The Room is dark behind SCAN_ROOM_ENABLED = false: the route redirects to Home and validate-scan-room asserts nothing links to it. The project-page tile is added in the change that turns the flag on',
   'dev-ar-measure': 'owner-only AR measurement dev harness; it redirects everyone else, and validate-ar-spike asserts it is deliberately doorless (no tab, no sidebar)',
   'integrations/qbo/callback': 'the QuickBooks half of the same OAuth callback: Intuit redirects to this URL directly, so nothing in the app links it',
 };

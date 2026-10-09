@@ -13,7 +13,8 @@
  *   S4 The Priced Estimate labels every line with where its price came from,
  *      and Open In Estimate writes NOTHING until the confirm sheet's yes.
  *   S5 With the flag off the route mounts nothing and the native module is
- *      never looked up.
+ *      never looked up (for someone who is not the owner; the owner preview
+ *      has its own suite, __tests__/smoke/scan-build.test.tsx).
  *   S6 A phone that cannot scan is told why, in its own sentence.
  *
  * The review round (2026-10-06):

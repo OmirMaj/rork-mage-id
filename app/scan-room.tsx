@@ -1,11 +1,15 @@
-// app/scan-room.tsx — Scan The Room (Phase 1). DARK.
+// app/scan-room.tsx — Scan The Room (Phase 1). DARK, with an OWNER PREVIEW.
 //
-// While SCAN_ROOM_ENABLED is false this route redirects to Home and mounts
-// nothing: the flow component is not rendered, no saved scan is read, and the
-// native module is never looked up (utils/roomScan/native.ts refuses the lookup
-// while the flag is off). No tab, sidebar row, tile or search hit leads here.
+// SCAN_ROOM_ENABLED is false. For everyone the gate refuses
+// (utils/roomScan/allowed.scanRoomAllowed: the flag is off and he is not the
+// owner) this route redirects to Home and mounts nothing: the flow component is
+// not rendered, no saved scan is read, and the native module is never looked up
+// (utils/roomScan/native.ts refuses the lookup for the same people). No tab,
+// sidebar row, tile or search hit leads here; the one row that does
+// (components/roomScan/ScanRoomOwnerRow.tsx) is drawn for the owner only.
 //
-// With the flag on, two gates, then the flow for the project in `projectId`:
+// For the owner, and for everyone once the flag is on, two gates, then the flow
+// for the project in `projectId`:
 //   1. Pro and up, through hooks/useProjectAccess (the project-scoped form of
 //      useTierAccess; the same key as Visual Takeoff, whose takeoff-to-estimate
 //      path this feature prices through).
@@ -16,7 +20,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SCAN_ROOM_ENABLED } from '@/constants/featureFlags';
+import { useAuth } from '@/contexts/AuthContext';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -25,14 +29,17 @@ import { Button } from '@/components/ui';
 import { RoomScanFlow } from '@/components/roomScan/RoomScanFlow';
 import { makeRoomScanStyles } from '@/components/roomScan/styles';
 import { useRoomScanCopy } from '@/hooks/useRoomScanCopy';
+import { scanRoomAllowed, scanRoomOwnerTools } from '@/utils/roomScan/allowed';
 import { SCAN_ROOM_FEATURE, SCAN_ROOM_REQUIRED_TIER, scanSeat } from '@/utils/roomScan/gate';
 
 export default function ScanRoomRoute() {
-  if (!SCAN_ROOM_ENABLED) return <Redirect href="/(tabs)/(home)" />;
-  return <ScanRoomScreen />;
+  const { user } = useAuth();
+  const userEmail = user?.email ?? null;
+  if (!scanRoomAllowed(userEmail)) return <Redirect href="/(tabs)/(home)" />;
+  return <ScanRoomScreen userEmail={userEmail} />;
 }
 
-function ScanRoomScreen() {
+function ScanRoomScreen({ userEmail }: { userEmail: string | null }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const copy = useRoomScanCopy();
@@ -64,7 +71,7 @@ function ScanRoomScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <RoomScanFlow projectId={projectId} mayEditEstimate />
+      <RoomScanFlow projectId={projectId} mayEditEstimate userEmail={userEmail} ownerTools={scanRoomOwnerTools(userEmail)} />
     </>
   );
 }

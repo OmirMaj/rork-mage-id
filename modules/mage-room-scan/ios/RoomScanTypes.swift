@@ -54,6 +54,12 @@ internal extension Exceptions {
     override var reason: String { "The scanner could not be shown." }
   }
 
+  /// The phone was locked or the app left the screen while a scan was pending.
+  final class RoomScanInterrupted: Exception {
+    override var code: String { "E_ROOM_SCAN_INTERRUPTED" }
+    override var reason: String { "The room scan was interrupted because the app left the screen." }
+  }
+
   /// RoomPlan ended the session with an error, or handed back no room.
   final class RoomScanSessionFailed: GenericException<String> {
     override var code: String { "E_ROOM_SCAN_SESSION_FAILED" }

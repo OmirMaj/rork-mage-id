@@ -36,19 +36,39 @@
 // F. THE WIRING (source text): the flag is false; the route redirects before
 //    it mounts anything; nothing outside the feature links to it or imports
 //    it; the native module is reached by ONE optional lookup that is not at
-//    module scope and is refused while the flag is off; the Swift module waits
-//    in native-staging/, OUTSIDE the folder Expo autolinking builds from, and
-//    the autolinking search itself is run to prove the next iOS build does not
-//    carry it; it holds no JavaScript; the Swift that touches RoomPlan is
+//    module scope and is refused for everyone the gate refuses (the flag is
+//    off and he is not the owner); the Swift module IS under modules/ (lane
+//    SCANBUILD, the owner preview build), the autolinking search itself is run
+//    to prove the next iOS build carries it, the podspec weak-links RoomPlan
+//    and keeps the iOS 15.1 floor, no USDZ, video or camera frame is asked for,
+//    and the one entry row is drawn for the owner only (rule N9);
+//    it holds no JavaScript; the Swift that touches RoomPlan is
 //    iOS 16 guarded, settles its promise exactly once on every path and
 //    typechecks; no react-native-reanimated; theme colours only; Lucide icons
 //    only; storage keys under an owned prefix; no server write; the Pro gate
-//    through hooks/useTierAccess; app.json is not changed by this lane.
+//    through hooks/useTierAccess; app.json's camera sentence says what a scan
+//    keeps, and says it truthfully (rule N8).
 // G. THE WORDS (the English shard and the Spanish catalog): labels with every
 //    word capitalised, sentences that end, no em dash, no "&", no "e.g.", no
 //    arrows, no promise of how right a number is, and the plain statement that
 //    a phone scan can be off by an inch or more; English and Spanish key sets,
 //    plural shapes and placeholders equal.
+//
+// I. THE OWNER PREVIEW BUILD (lane SCANBUILD, 2026-10-08):
+//    N9  the flag stays false and ONE pure gate (utils/roomScan/allowed) lets
+//        the owner in: for anyone else no row is drawn, the route redirects,
+//        the native lookup is refused, and none of the owner's extras show;
+//    N10 the first scan is informative: the raw JSON is on the phone before
+//        the parser's answer is used, a scan that cannot be read has its own
+//        screen, every way the scanner can end has a sentence, and the counts
+//        are shown three ways (the iPhone's own, the file's, the app's) with a
+//        mismatch said out loud; the shared file holds Apple's JSON character
+//        for character.
+//    ONLY ON A MAC: the two Swift typechecks (the stub one needs the Command
+//    Line Tools, the Apple SDK one needs Xcode). On Linux (the GitHub gate)
+//    they print SKIPPED. The autolinking search runs wherever node_modules is
+//    installed. The link and the otool check are in no gate;
+//    docs/scan-the-room-native-checklist.md records them.
 //
 // H. THE REVIEW ROUND (2026-10-06, an independent read of the lane), each a
 //    behaviour check with planted mutations:
@@ -96,6 +116,10 @@ import { ROOM_RECIPES, RECIPE_NAMES_EN, type RecipeKey, type RecipeLine } from '
 import { RoomScanParseError, type RoomScan, type ScanQuantities } from '../utils/roomScan/types';
 import { SCAN_ROOM_FEATURE, SCAN_ROOM_REQUIRED_TIER, scanSeat } from '../utils/roomScan/gate';
 import { SCAN_ROOM_ENABLED } from '../constants/featureFlags';
+import { scanRoomAllowed, scanRoomAllowedWith, scanRoomOwnerTools } from '../utils/roomScan/allowed';
+import * as DEBUG from '../utils/roomScan/scanDebugCore';
+import { ROOM_SCAN_RAW_KEY_PREFIX } from '../utils/roomScan/storeCore';
+import { isOwner } from '../utils/owner';
 import { isAppStorageKey } from '../utils/localCacheKeys';
 import { buildCostDatabase, lookupRate, type CostBookEntry, type CostDatabase } from '../utils/costDatabase';
 import { KIND_UNIT, priceCondition } from '../utils/takeoff/conditions';
@@ -129,6 +153,9 @@ const FEATURE_FILES = [
   'utils/roomScan/editsCore.ts', 'utils/roomScan/gate.ts', 'utils/roomScan/geometryCore.ts', 'utils/roomScan/native.ts',
   'utils/roomScan/pricingCore.ts', 'utils/roomScan/quantitiesCore.ts', 'utils/roomScan/recipesCore.ts',
   'utils/roomScan/store.ts', 'utils/roomScan/storeCore.ts', 'utils/roomScan/types.ts', 'utils/roomScan/units.ts',
+  // The owner preview (lane SCANBUILD): the gate, the raw scan kept and shared, the facts.
+  'utils/roomScan/allowed.ts', 'utils/roomScan/scanDebugCore.ts', 'utils/roomScan/rawKeep.ts',
+  'components/roomScan/ScanFactsPanel.tsx', 'components/roomScan/ScanRoomOwnerRow.tsx',
   // The order list and the learning loop (lane SCANORDER; its own rules are in scripts/validate-scan-order.ts).
   'components/roomScan/OrderListView.tsx', 'components/roomScan/CutLayoutView.tsx', 'components/roomScan/TapeFactsPanel.tsx',
   'hooks/useScanOrderCopy.ts',
@@ -138,10 +165,10 @@ const FEATURE_FILES = [
 const SWIFT_FILES = ['RoomScanTypes.swift', 'MageRoomScanModule.swift', 'RoomScanSupport.swift'] as const;
 const OTHER_FILES = [
   'constants/featureFlags.ts', 'app.json', 'package.json', '.gitignore', 'docs/scan-the-room-native-checklist.md',
-  'native-staging/mage-room-scan/package.json', 'native-staging/mage-room-scan/expo-module.config.json',
-  'native-staging/mage-room-scan/ios/MageRoomScan.podspec', 'native-staging/mage-room-scan/README.md',
-  'scripts/fixtures/scan-room/builder.ts',
-  ...SWIFT_FILES.map((f) => `native-staging/mage-room-scan/ios/${f}`),
+  'modules/mage-room-scan/package.json', 'modules/mage-room-scan/expo-module.config.json',
+  'modules/mage-room-scan/ios/MageRoomScan.podspec', 'modules/mage-room-scan/README.md',
+  'scripts/fixtures/scan-room/builder.ts', 'utils/owner.ts',
+  ...SWIFT_FILES.map((f) => `modules/mage-room-scan/ios/${f}`),
 ] as const;
 
 /** Every source file outside the feature, for "nothing links to it". Read once. */
@@ -187,6 +214,11 @@ interface Mods {
   upsert: typeof STORE.upsertSavedScan;
   seat: typeof scanSeat;
   flag: boolean;
+  allowedWith: typeof scanRoomAllowedWith;
+  ownerTools: typeof scanRoomOwnerTools;
+  scanFacts: typeof DEBUG.buildScanFacts;
+  fileName: typeof DEBUG.rawScanFileName;
+  fileBody: typeof DEBUG.rawScanFileBody;
 }
 interface World {
   /** The folders under modules/, the one place Expo autolinking looks (package.json sets no other). */
@@ -205,6 +237,7 @@ const REAL_MODS: Mods = {
   draft: PRICING.buildScanDraft, patch: PRICING.buildEstimatePatch, flag: SCAN_ROOM_ENABLED,
   tradeFor: PRICING.resolveTrade, draftBlock: PRICING.draftBlock, holds: PRICING.estimateHoldsPush,
   scanBlock: QTY.scanPricingBlock, rename: EDITS.renameScan, far: UNITS.tapeFarFromScan, upsert: STORE.upsertSavedScan, seat: scanSeat,
+  allowedWith: scanRoomAllowedWith, ownerTools: scanRoomOwnerTools, scanFacts: DEBUG.buildScanFacts, fileName: DEBUG.rawScanFileName, fileBody: DEBUG.rawScanFileBody,
 };
 const F_REAL: Record<string, string> = {};
 for (const f of [...FEATURE_FILES, ...OTHER_FILES]) F_REAL[f] = existsSync(join(ROOT, f)) ? read(f) : '';
@@ -729,8 +762,18 @@ rule('R3 nothing is built or saved without the person confirming', (w) => {
   check(o, /testID="scan-open-estimate"/.test(view) && /onPress=\{\(\) => setConfirming\(true\)\} disabled=\{p\.block != null \|\| p\.busy\}[^>]*testID="scan-open-estimate"/.test(view), 'Open In Estimate does something other than open the confirm sheet');
   for (const f of FEATURE_FILES) {
     const s = stripComments(w.F[f]);
-    check(o, !/@\/lib\/supabase|supabase\.from\(|\.functions\.invoke\(|\bfetch\(|offlineQueue|sendEmail|Sharing\./.test(s), `${f} talks to a server or shares something`);
+    // utils/roomScan/rawKeep.ts is the one file that may open the share sheet on a FILE (the owner's raw scan). Its one caller is pinned below.
+    const shares = f === 'utils/roomScan/rawKeep.ts' ? /(?!)/ : /Sharing\./;
+    check(o, !/@\/lib\/supabase|supabase\.from\(|\.functions\.invoke\(|\bfetch\(|offlineQueue|sendEmail/.test(s) && !shares.test(s), `${f} talks to a server or shares something`);
   }
+  // The raw scan leaves the phone one way: the owner's tap on Share Raw Scan Data.
+  const share = body('shareRaw');
+  check(o, count(/shareRawScanFile\(/g, flow) === 1 && /shareRawScanFile\(/.test(share) && count(/\bshareRaw\(\)/g, flow) === 3 && count(/onShare=\{\(\) => void shareRaw\(\)\}/g, flow) === 3, 'the raw scan file is shared from somewhere other than the Share Raw Scan Data button');
+  for (const m of flow.matchAll(/useEffect\(\(\) => \{([\s\S]*?)\n  \}, \[/g)) {
+    check(o, !/shareRaw|shareRawScanFile|keepRawScan/.test(m[1]), 'an effect keeps or shares a raw scan by itself');
+  }
+  const keepSrc = stripComments(w.F['utils/roomScan/rawKeep.ts']);
+  check(o, count(/Sharing\.shareAsync\(/g, keepSrc) === 1 && /mimeType: 'application\/json'/.test(keepSrc), 'rawKeep shares something other than the one JSON file');
   return o;
 });
 
@@ -859,7 +902,7 @@ rule('A1 only a seat that may change the estimate can push, and "Added" waits fo
   const route = stripComments(w.F['app/scan-room.tsx']);
   check(o, /const roleState = useProjectRoleState\(projectId\);/.test(route) && /const seat = scanSeat\(\{ role: roleState\.role, isLoading: roleState\.isLoading, isError: roleState\.isError \}\);/.test(route), 'the route does not read his seat on the project');
   check(o, /if \(seat !== 'open'\) \{/.test(route) && route.indexOf("if (seat !== 'open') {") < route.indexOf('<RoomScanFlow') && route.indexOf("if (seat !== 'open') {") > 0, 'the flow mounts before the seat check');
-  check(o, (route.match(/<RoomScanFlow /g) ?? []).length === 1 && /<RoomScanFlow projectId=\{projectId\} mayEditEstimate \/>/.test(route), 'the flow is mounted somewhere other than after the seat check');
+  check(o, (route.match(/<RoomScanFlow /g) ?? []).length === 1 && /<RoomScanFlow projectId=\{projectId\} mayEditEstimate userEmail=\{userEmail\} ownerTools=\{scanRoomOwnerTools\(userEmail\)\} \/>/.test(route), 'the flow is mounted somewhere other than after the seat check');
   check(o, /copy\.seatBody\(seat\)/.test(route), 'a refused seat is not told why');
   const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
   const confirm = bodyOf(flow, 'confirmDraft');
@@ -1066,10 +1109,11 @@ rule('N1 the flag is off', (w) => {
 rule('N2 the route redirects before it mounts anything', (w) => {
   const o: string[] = [];
   const s = stripComments(w.F['app/scan-room.tsx']);
-  check(o, /export default function ScanRoomRoute\(\) \{\s*if \(!SCAN_ROOM_ENABLED\) return <Redirect href="[^"]+" \/>;\s*return <ScanRoomScreen \/>;\s*\}/.test(s), 'the default export is not "flag off: redirect, else the screen"');
-  check(o, /import \{ SCAN_ROOM_ENABLED \} from '@\/constants\/featureFlags';/.test(s), 'the route does not read the flag from constants/featureFlags');
+  check(o, /export default function ScanRoomRoute\(\) \{\s*const \{ user \} = useAuth\(\);\s*const userEmail = user\?\.email \?\? null;\s*if \(!scanRoomAllowed\(userEmail\)\) return <Redirect href="[^"]+" \/>;\s*return <ScanRoomScreen userEmail=\{userEmail\} \/>;\s*\}/.test(s), 'the default export is not "the gate says no: redirect, else the screen"');
+  check(o, /import \{ scanRoomAllowed, scanRoomOwnerTools \} from '@\/utils\/roomScan\/allowed';/.test(s) && !/SCAN_ROOM_ENABLED/.test(s) && !/isOwner\b/.test(s), 'the route does not ask utils/roomScan/allowed (or reads the flag or the owner list itself)');
   const fn = s.slice(s.indexOf('export default function ScanRoomRoute'), s.indexOf('function ScanRoomScreen'));
-  check(o, !/use[A-Z]\w*\(/.test(fn), 'the route calls a hook before the flag check');
+  // The signed-in person is the one thing the gate needs. No other hook runs before it.
+  check(o, JSON.stringify(fn.match(/use[A-Z]\w*\(/g) ?? []) === '["useAuth("]', 'the route calls a hook other than useAuth before the gate');
   return o;
 });
 
@@ -1080,9 +1124,16 @@ rule('N3 nothing outside the feature links to it or imports it', (w) => {
     'utils/desktopPage.ts': /'scan-room': 'form'/,
     'i18n/surfaces.ts': /hooks\/useRoomScanCopy\.ts/,
   };
+  // The ONE door: the project page imports the owner row and draws it once.
+  // The row itself draws nothing unless the gate says yes (rule N9).
+  const OWNER_ROW_IMPORT = "import { ScanRoomOwnerRow } from '@/components/roomScan/ScanRoomOwnerRow';";
   for (const [f, text] of Object.entries(w.outside)) {
     const s = stripComments(text);
-    if (/roomScan\/|useRoomScanCopy|RoomScanFlow/.test(s) && !(f === 'i18n/surfaces.ts')) o.push(`${f} imports the feature`);
+    const seen = f === 'app/project-detail.tsx' ? s.replace(OWNER_ROW_IMPORT, '') : s;
+    if (f === 'app/project-detail.tsx') {
+      check(o, s.split(OWNER_ROW_IMPORT).length === 2 && (s.match(/<ScanRoomOwnerRow\b/g) ?? []).length === 1 && /<ScanRoomOwnerRow projectId=\{project\.id\} \/>/.test(s), 'the project page does not import and draw the owner row exactly once');
+    }
+    if (/roomScan\/|useRoomScanCopy|RoomScanFlow/.test(seen) && !(f === 'i18n/surfaces.ts')) o.push(`${f} imports the feature`);
     const mentions = (s.match(/scan-room/g) ?? []).length;
     if (mentions > 0) {
       const allow = allowedMention[f];
@@ -1090,18 +1141,27 @@ rule('N3 nothing outside the feature links to it or imports it', (w) => {
     }
     if (/SCAN_ROOM_ENABLED/.test(s) && f !== 'constants/featureFlags.ts') o.push(`${f} reads the flag (an entry point belongs in the change that turns it on)`);
   }
+  // Inside the feature, the flag is read in ONE file: the gate.
+  for (const f of FEATURE_FILES) {
+    if (f === 'utils/roomScan/allowed.ts') continue;
+    check(o, !/SCAN_ROOM_ENABLED/.test(stripComments(w.F[f])), `${f} reads the flag itself instead of asking utils/roomScan/allowed`);
+  }
   return o;
 });
 
-rule('N4 the native module is one optional lookup, not at module scope, refused while the flag is off', (w) => {
+rule('N4 the native module is one optional lookup, not at module scope, refused for everyone the gate refuses, and linked with a weak RoomPlan', (w) => {
   const o: string[] = [];
   const nat = stripComments(w.F['utils/roomScan/native.ts']);
   check(o, (nat.match(/requireOptionalNativeModule</g) ?? []).length === 1 && /requireOptionalNativeModule<MageRoomScanNative>\('MageRoomScan'\)/.test(nat), 'native.ts does not make exactly one optional lookup of MageRoomScan');
   check(o, !/\brequireNativeModule\b/.test(nat), 'native.ts uses requireNativeModule, which throws on a build without the module');
-  const fnStart = nat.indexOf('function native(): MageRoomScanNative | null {');
+  const fnStart = nat.indexOf('function native(userEmail: string | null | undefined): MageRoomScanNative | null {');
   const call = nat.indexOf("requireOptionalNativeModule<MageRoomScanNative>('MageRoomScan')");
-  const guard = nat.indexOf('if (!SCAN_ROOM_ENABLED) return null;');
-  check(o, fnStart >= 0 && guard > fnStart && call > guard, 'the lookup is not inside native(), after the flag check');
+  const guard = nat.indexOf('if (!scanRoomAllowed(userEmail)) return null;');
+  check(o, fnStart >= 0 && guard > fnStart && call > guard, 'the lookup is not inside native(), after the gate');
+  check(o, /import \{ scanRoomAllowed \} from '\.\/allowed';/.test(nat) && (nat.match(/\bnative\(/g) ?? []).length === 4 && (nat.match(/\bnative\(userEmail\)/g) ?? []).length === 3, 'a call into native() does not hand over the signed-in email');
+  // "Not in this build" is an answer, never a throw: getCapabilities returns null, and startScan's refusal is a typed error the screen reads.
+  check(o, /export function getCapabilities\(userEmail: string \| null \| undefined\): RoomScanCapabilities \| null \{\s*const n = native\(userEmail\);\s*if \(!n\) return null;\s*try \{ return n\.getCapabilities\(\); \} catch \{ return null; \}/.test(nat), 'getCapabilities can throw, or answers something other than null when the module is not in the build');
+  check(o, /if \(!n\) throw new RoomScanUnavailableError\(\);/.test(nat) && /readonly code = 'E_ROOM_SCAN_NOT_IN_THIS_BUILD';/.test(nat), 'startScan without the module is not the typed "not in this build" error');
   check(o, !/^(?:export )?(?:const|let|var) \w+\s*(?::[^=]+)?=\s*requireOptionalNativeModule/m.test(nat), 'the lookup runs at module scope');
   check(o, /try \{\s*cached = requireOptionalNativeModule/.test(nat), 'the lookup is not inside a try');
   for (const f of FEATURE_FILES) {
@@ -1111,23 +1171,29 @@ rule('N4 the native module is one optional lookup, not at module scope, refused 
     check(o, !/from ['"][^'"]*modules\//.test(s), `${f} imports from modules/`);
   }
   for (const [f, text] of Object.entries(w.outside)) check(o, !/MageRoomScan/.test(text), `${f} names the native module`);
-  // NOT AUTOLINKED. Expo autolinking builds every folder under modules/ into the
-  // next iOS binary by itself. This Swift has never been compiled against the
-  // real ExpoModulesCore, linked, or run, so it waits in native-staging/, which
-  // autolinking does not look at, until the checklist's build steps are done.
-  check(o, !w.modulesDirs.includes('mage-room-scan'), 'modules/mage-room-scan exists: Expo autolinking would compile the unproven Swift into the next iOS build');
-  check(o, !!w.F['native-staging/mage-room-scan/expo-module.config.json'] && !!w.F['native-staging/mage-room-scan/ios/MageRoomScan.podspec'], 'the module is not waiting in native-staging/mage-room-scan');
+  // LINKED (lane SCANBUILD, 2026-10-08). The Swift was compiled against the
+  // real ExpoModulesCore and Apple's RoomPlan and linked into the whole app on
+  // a Mac, and `otool` showed RoomPlan as LC_LOAD_WEAK_DYLIB with every one of
+  // its symbols a weak import (docs/scan-the-room-native-checklist.md). So the
+  // module belongs under modules/, where Expo autolinking finds it.
+  check(o, w.modulesDirs.includes('mage-room-scan'), 'modules/mage-room-scan is missing: the next iOS build would not carry the scanner');
+  check(o, !!w.F['modules/mage-room-scan/expo-module.config.json'] && !!w.F['modules/mage-room-scan/ios/MageRoomScan.podspec'], 'the module is not in modules/mage-room-scan');
   const rootPkg = JSON.parse(w.F['package.json'] || '{}') as { expo?: { autolinking?: Record<string, unknown> }; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
   const linking = JSON.stringify(rootPkg.expo?.autolinking ?? {});
-  check(o, !/native-staging/.test(linking) && !/nativeModulesDir/.test(linking), `package.json points Expo autolinking somewhere new: ${linking}`);
-  check(o, !('mage-room-scan' in (rootPkg.dependencies ?? {})) && !('mage-room-scan' in (rootPkg.devDependencies ?? {})) && !/native-staging/.test(JSON.stringify(rootPkg.dependencies ?? {})), 'package.json depends on the staged module (a dependency is autolinked too)');
-  check(o, /^!\/native-staging\/\*\/ios\/$/m.test(w.F['.gitignore']), '.gitignore would drop the staged Swift (the `ios/` rule matches at any depth; native-staging needs its own negation)');
-  const pkg = JSON.parse(w.F['native-staging/mage-room-scan/package.json'] || '{}') as Record<string, unknown>;
+  check(o, !/nativeModulesDir|exclude|searchPaths/.test(linking), `package.json changes where Expo autolinking looks, or leaves a module out: ${linking}`);
+  check(o, !('mage-room-scan' in (rootPkg.dependencies ?? {})) && !('mage-room-scan' in (rootPkg.devDependencies ?? {})), 'package.json depends on the module (it is linked from modules/, and a second copy would be linked twice)');
+  check(o, /^!\/modules\/\*\/ios\/$/m.test(w.F['.gitignore']), '.gitignore would drop the module Swift (the `ios/` rule matches at any depth; modules/*/ios needs its negation)');
+  const pkg = JSON.parse(w.F['modules/mage-room-scan/package.json'] || '{}') as Record<string, unknown>;
   check(o, pkg.private === true && !('main' in pkg) && !('module' in pkg) && !('exports' in pkg), 'the module package has a JS entry point');
-  const cfg = JSON.parse(w.F['native-staging/mage-room-scan/expo-module.config.json'] || '{}') as { platforms?: string[]; apple?: { modules?: string[] } };
+  const cfg = JSON.parse(w.F['modules/mage-room-scan/expo-module.config.json'] || '{}') as { platforms?: string[]; apple?: { modules?: string[] } };
   check(o, JSON.stringify(cfg.platforms) === '["apple"]' && JSON.stringify(cfg.apple?.modules) === '["MageRoomScanModule"]', 'the module config is not apple-only with one module');
-  const podspec = w.F['native-staging/mage-room-scan/ios/MageRoomScan.podspec'].replace(/^\s*#.*$/gm, '');
-  check(o, /:ios => '15\.1'/.test(podspec) && /weak_frameworks = 'RoomPlan'/.test(podspec), 'the podspec raises the iOS floor or does not weak-link RoomPlan');
+  const podspec = w.F['modules/mage-room-scan/ios/MageRoomScan.podspec'].replace(/^\s*#.*$/gm, '');
+  // THE WEAK LINK. The app's floor is iOS 15.1 and RoomPlan is iOS 16. A hard
+  // link is a crash at launch on every iOS 15 phone, before any JavaScript.
+  check(o, /:ios => '15\.1'/.test(podspec), 'the podspec raises the iOS floor');
+  check(o, /^\s*s\.weak_frameworks = 'RoomPlan'$/m.test(podspec), 'the podspec does not weak-link RoomPlan');
+  check(o, !/s\.frameworks?\s*=[^\n]*RoomPlan/.test(podspec) && !/-framework[ "',]+RoomPlan/.test(podspec), 'the podspec ALSO links RoomPlan as a required framework (a hard link crashes iOS 15 at launch)');
+  check(o, /s\.static_framework = true/.test(podspec), 'the podspec is no longer a static framework (the weak link was proven for that shape only)');
   check(o, !/UIRequiredDeviceCapabilities/.test(w.F['app.json']), 'app.json requires a device capability');
   return o;
 });
@@ -1135,11 +1201,11 @@ rule('N4 the native module is one optional lookup, not at module scope, refused 
 rule('N5 the Swift that touches RoomPlan is guarded for iOS 16', (w) => {
   const o: string[] = [];
   const strip = (s: string) => s.replace(/^\s*\/\/.*$/gm, '');
-  const sup = strip(w.F['native-staging/mage-room-scan/ios/RoomScanSupport.swift']);
-  const mod = strip(w.F['native-staging/mage-room-scan/ios/MageRoomScanModule.swift']);
-  const types = strip(w.F['native-staging/mage-room-scan/ios/RoomScanTypes.swift']);
+  const sup = strip(w.F['modules/mage-room-scan/ios/RoomScanSupport.swift']);
+  const mod = strip(w.F['modules/mage-room-scan/ios/MageRoomScanModule.swift']);
+  const types = strip(w.F['modules/mage-room-scan/ios/RoomScanTypes.swift']);
   check(o, !/RoomCapture|CapturedRoom|import RoomPlan/.test(mod) && !/RoomCapture|CapturedRoom|import RoomPlan/.test(types), 'RoomPlan is named outside RoomScanSupport.swift');
-  check(o, /#if canImport\(RoomPlan\) && !targetEnvironment\(simulator\)\nimport RoomPlan\n#endif/.test(sup), 'import RoomPlan is not behind canImport and off the simulator');
+  check(o, /#if canImport\(RoomPlan\) && !targetEnvironment\(simulator\)\nimport RoomPlan\nimport simd\n#endif/.test(sup) && (sup.match(/import RoomPlan/g) ?? []).length === 1, 'import RoomPlan is not behind canImport and off the simulator');
   // Every line that names a RoomPlan type sits inside a guarded region.
   let depth = 0;
   sup.split('\n').forEach((line, i) => {
@@ -1170,9 +1236,47 @@ rule('N5 the Swift that touches RoomPlan is guarded for iOS 16', (w) => {
   const iMain = sup.indexOf('private func onMain(');
   const appends = [...sup.matchAll(/warnings\.append\(/g)].map((m) => m.index ?? 0);
   check(o, iMain > 0 && appends.length === 2 && appends.filter((i) => i > iMain).length === 1, 'warnings are appended somewhere that is not moved to the main queue');
-  check(o, /func captureView\(didPresent processedResult: CapturedRoom, error: Error\?\) \{\s*let message = error\?\.localizedDescription\s*onMain \{ self\.deliver\(processedResult, errorMessage: message\) \}/.test(sup), 'the finished room is handled off the main queue');
+  check(o, /func captureView\(didPresent processedResult: CapturedRoom, error: Error\?\) \{\s*let message = error\.map \{ RoomScanViewController\.describe\(\$0\) \}\s*onMain \{ self\.deliver\(processedResult, errorMessage: message\) \}/.test(sup), 'the finished room is handled off the main queue');
   check(o, !/isIdleTimerDisabled = false/.test(sup) && /if priorIdleTimerDisabled == nil \{ priorIdleTimerDisabled = UIApplication\.shared\.isIdleTimerDisabled \}/.test(sup) && /UIApplication\.shared\.isIdleTimerDisabled = prior\b/.test(sup), 'the idle timer is not put back to what it was before the scan');
-  for (const code of ['UNSUPPORTED_DEVICE', 'OS_TOO_OLD', 'SIMULATOR', 'CAMERA_DENIED', 'CAMERA_UNDETERMINED', 'ALREADY_RUNNING', 'SESSION_FAILED', 'NO_PRESENTER']) {
+  // Every type and member that needs iOS 16 sits inside the one class marked
+  // for it, or behind an `if #available`. Nothing after the class's end names RoomPlan.
+  const classAt = sup.indexOf('@available(iOS 16.0, *)\ninternal final class RoomScanViewController');
+  const before = sup.slice(0, classAt < 0 ? undefined : classAt);
+  check(o, classAt > 0 && !/CapturedRoom\b|RoomCaptureView\b|RoomCaptureSessionDelegate|RoomCaptureViewDelegate/.test(before), 'a RoomPlan type is named before the iOS 16 class');
+  for (const m of before.matchAll(/RoomCaptureSession\b[^\n]*/g)) {
+    const upTo = before.slice(0, m.index ?? 0);
+    const fnAt = Math.max(upTo.lastIndexOf('static func '), 0);
+    check(o, /if #available\(iOS 16\.0, \*\)/.test(upTo.slice(fnAt)), `RoomCaptureSession is used outside an iOS 16 check: ${m[0].trim().slice(0, 60)}`);
+  }
+  check(o, (sup.match(/if #available\(iOS 17\.0, \*\) \{\s*out\["floors"\] = room\.floors\.count\s*out\["sections"\] = room\.sections\.count\s*\}/g) ?? []).length === 1 && (sup.match(/\.floors\b|\.sections\b/g) ?? []).length === 2, 'the iOS 17 lists (floors, sections) are read outside an iOS 17 check');
+  // ── an interruption settles, and before the dismissal ──
+  check(o, /NotificationCenter\.default\.addObserver\(self, selector: #selector\(interrupted\), name: UIApplication\.didEnterBackgroundNotification, object: nil\)/.test(fn('override func viewDidAppear')), 'the scanner does not watch for the app leaving the screen (a locked phone would leave the promise waiting)');
+  const intr = fn('@objc private func interrupted()');
+  check(o, /guard !cancelled, let pending = take\(\) else \{ return \}/.test(intr) && intr.indexOf('pending(.failure(Exceptions.RoomScanInterrupted()))') > 0 && intr.indexOf('pending(.failure(Exceptions.RoomScanInterrupted()))') < intr.indexOf('top.dismiss(animated: false)'), 'an interruption does not settle once, with its own error, before the scanner is dismissed');
+  check(o, /deinit \{\s*NotificationCenter\.default\.removeObserver\(self\)/.test(sup), 'the background observer is never removed');
+  // ── the ground truth: counted in Swift, not through JSON ──
+  const deliver = fn('private func deliver(');
+  check(o, deliver.indexOf('let summary = RoomScanViewController.summary(of: processedResult)') > 0 && deliver.indexOf('let summary = RoomScanViewController.summary(of: processedResult)') < deliver.indexOf('JSONEncoder().encode(processedResult)'), 'the summary is not read from the CapturedRoom before it is encoded');
+  const sum = fn('static func summary(of room: CapturedRoom)');
+  for (const k of ['walls', 'doors', 'windows', 'openings', 'objects']) check(o, sum.includes(`"${k}": room.${k}.count`), `the Swift summary does not count ${k} on the room itself`);
+  check(o, /if let wall = room\.walls\.first \{[\s\S]*"dimensions": \[Double\(d\.x\), Double\(d\.y\), Double\(d\.z\)\][\s\S]*"transform": \[c\.0, c\.1, c\.2, c\.3\]\.flatMap/.test(sum), 'the Swift summary does not carry the first wall as plain numbers');
+  check(o, !/JSON|Decoder|Encoder/.test(sum), 'the Swift summary goes through JSON (it must be independent of it)');
+  check(o, /"summary": summary\.map/.test(sup) && /"encodeError": encodeError\.map/.test(sup) && /"durationSeconds": max\(0, ended\.timeIntervalSince\(startedAt\)\)/.test(sup), 'the payload does not carry the summary, the encode error and the scan time');
+  // A room that will not encode still comes back as a finished scan with its counts.
+  check(o, !/finish\(\.failure\(Exceptions\.RoomScanEncodeFailed/.test(sup) && /encodeError = RoomScanViewController\.describe\(error\)/.test(deliver), 'a room that does not encode is thrown away with its counts');
+  // ── nothing but shapes: no file, no frame, no video ──
+  const all = sup + mod + types;
+  check(o, (all.match(/\.export\(/g) ?? []).length === 1 && /if options\.exportUsdz && !json\.isEmpty \{[\s\S]*try processedResult\.export\(to: url, exportOptions: \.parametric\)/.test(deliver), 'a USDZ file is written without being asked for (or more than one export exists)');
+  check(o, /@Field var exportUsdz: Bool = false/.test(types), 'the USDZ export is on by default');
+  for (const [what, re] of [
+    ['records video', /AVCaptureMovieFileOutput|AVAssetWriter|AVCaptureVideoDataOutput|AVCaptureSession\b|RPScreenRecorder|ReplayKit/],
+    ['reads camera frames', /capturedImage|ARFrame\b|currentFrame|CVPixelBuffer|arSession\b|ARSession\b/],
+    ['writes an image', /UIImage\b|pngData|jpegData|UIGraphicsImageRenderer|drawHierarchy|snapshotView|PHPhotoLibrary|UIImageWriteToSavedPhotosAlbum/],
+    ['sends anything off the phone', /URLSession|URLRequest|NWConnection|CFNetwork/],
+    ['keeps a world map or an archive of the session', /ARWorldMap|NSKeyedArchiver/],
+    ['writes a file other than the optional USDZ', /\.write\(to:|createFile\(|FileHandle\b|UserDefaults/],
+  ] as [string, RegExp][]) check(o, !re.test(all), `the module ${what}`);
+  for (const code of ['UNSUPPORTED_DEVICE', 'OS_TOO_OLD', 'SIMULATOR', 'CAMERA_DENIED', 'CAMERA_UNDETERMINED', 'ALREADY_RUNNING', 'SESSION_FAILED', 'NO_PRESENTER', 'INTERRUPTED']) {
     check(o, types.includes(`"E_ROOM_SCAN_${code}"`), `no typed error E_ROOM_SCAN_${code}`);
   }
   return o;
@@ -1223,13 +1327,31 @@ rule('N7 house rules: no reanimated, Lucide icons, theme colours, owned storage 
   return o;
 });
 
-rule('N8 app.json is not changed by this lane, and the checklist carries what the next native build needs', (w) => {
+rule('N8 the camera sentence says what a scan keeps, and the checklist carries this build and what is left', (w) => {
   const o: string[] = [];
-  const app = w.F['app.json'];
-  check(o, !/room scan|RoomPlan|depth sensor/i.test(app), 'app.json was changed for room scanning (the permission sentence and its two validators change together, in the native-build change)');
+  const app = JSON.parse(w.F['app.json'] || '{}') as { expo?: { version?: string; ios?: { infoPlist?: Record<string, unknown> } } };
+  const plist = app.expo?.ios?.infoPlist ?? {};
+  const camera = String(plist.NSCameraUsageDescription ?? '');
+  // The module is linked, so the sentence the system shows must cover a scan.
+  check(o, /^MAGE ID /.test(camera), 'the camera sentence no longer starts with the app name');
+  check(o, /When you scan a room on an iPhone with a LiDAR sensor, the camera and the depth sensor measure the room/.test(camera), 'the camera sentence does not say a room scan uses the camera and the depth sensor');
+  check(o, /the app keeps the room's measurements \(its walls, doors, windows and fixtures, and their sizes\) on your phone/.test(camera), 'the camera sentence does not say what a scan keeps, and where');
+  check(o, /video of a scan is not recorded, kept or uploaded\./.test(camera), 'the camera sentence does not say a scan records no video');
+  // The measuring screen's sentence is still there and still true.
+  check(o, /track how the phone moves/.test(camera) && /no video is recorded, kept or uploaded/.test(camera) && /stops when you leave/.test(camera), 'the measuring screen\'s part of the camera sentence was lost');
+  check(o, !/[\u2014\u2013]/.test(camera) && !/\b(exact|accurate|precise)\w*/i.test(camera) && !/ & /.test(camera), 'the camera sentence breaks the house style (a dash, an "&", or a promise of how right a scan is)');
+  // RoomPlan needs the camera permission only. No new key rides along.
+  check(o, !('NSMotionUsageDescription' in plist) && !('NSLocationAlwaysAndWhenInUseUsageDescription' in plist) && !('UIRequiredDeviceCapabilities' in plist), 'app.json gained a motion, always-location or required-capability key for the scanner');
+  check(o, app.expo?.version === '1.0.0', 'expo.version changed (an over-the-air update would no longer reach installed builds)');
   const doc = w.F['docs/scan-the-room-native-checklist.md'];
   for (const [what, re] of [
-    ['the proposed camera sentence', /measure a room when you start a room scan/],
+    ['what this build contains', /## What The Owner Preview Build Contains/],
+    ['how the founder runs his first scan', /## Your First Scan, Step By Step/],
+    ['what to send back', /## What To Send Back/],
+    ['what remains before the public can have it', /## What Remains Before The Public Can Have It/],
+    ['that the iOS 15 launch test is not covered, in capitals', /THE PHYSICAL iOS 15 LAUNCH TEST IS STILL REQUIRED BEFORE A PUBLIC RELEASE AND IS NOT COVERED BY THIS BUILD/],
+    ['the commands that built it', /xcodebuild -workspace ios\/MAGEID\.xcworkspace -scheme MAGEID -configuration Release -sdk iphoneos/],
+    ['the otool proof', /LC_LOAD_WEAK_DYLIB/],
     ['validate-ar-spike', /validate-ar-spike/],
     ['validate-ios-permission-strings', /validate-ios-permission-strings/],
     ['the iOS 15 launch check', /iOS 15/],
@@ -1237,22 +1359,138 @@ rule('N8 app.json is not changed by this lane, and the checklist carries what th
     ['the list of unsure Swift lines', /UNSURE/],
     ['the proposed table', /create table public\.room_scans/],
     ['the old-build check', /without the module/i],
-    ['where the module waits', /native-staging\/mage-room-scan/],
-    ['the move back into modules/', /git mv native-staging\/mage-room-scan modules\/mage-room-scan/],
     ['one compile against the real ExpoModulesCore', /real ExpoModulesCore/],
     ['the otool check', /otool -L/],
     ['RoomPlan as a weak link', /weak/i],
     ['a physical iOS 15 phone', /PHYSICAL iOS 15/],
+    ['which checks only run on a Mac', /only run on a Mac/i],
   ] as [string, RegExp][]) check(o, re.test(doc), `the checklist is missing ${what}`);
   check(o, !/phone or simulator|or (a |the )?simulator that|iOS 15 (phone or )?simulator/i.test(doc) && /simulator (compiles RoomPlan out|proves nothing)/i.test(doc), 'the checklist still lets a simulator stand in for the iOS 15 launch (the simulator slice compiles RoomPlan out, so it proves nothing)');
-  check(o, /native-staging/.test(w.F['native-staging/mage-room-scan/README.md']) && !/phone or simulator/i.test(w.F['native-staging/mage-room-scan/README.md']), 'the module README does not say where it waits, or still accepts a simulator');
-  check(o, /requireOptionalNativeModule/.test(w.F['native-staging/mage-room-scan/README.md']), 'the module README does not explain the optional lookup');
+  check(o, !/native-staging/.test(w.F['modules/mage-room-scan/README.md']) && !/phone or simulator/i.test(w.F['modules/mage-room-scan/README.md']), 'the module README still says the module waits outside modules/, or accepts a simulator');
+  check(o, /requireOptionalNativeModule/.test(w.F['modules/mage-room-scan/README.md']), 'the module README does not explain the optional lookup');
   return o;
 });
 
 // ── the words ───────────────────────────────────────────────────────────────
 const forms = (v: unknown): string[] => (typeof v === 'string' ? [v] : v && typeof v === 'object' ? Object.values(v as Record<string, string>) : []);
 const placeholders = (s: string): string => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
+
+rule('N9 the owner gate: nothing for a non-owner while the flag is off, one row for the owner', (w) => {
+  const o: string[] = [];
+  // ── the rule itself, asked both ways ──
+  const OWNER = 'omirmajeed2000@gmail.com';
+  check(o, /'omirmajeed2000@gmail\.com'/.test(w.F['utils/owner.ts']) && isOwner(OWNER), 'the founder is not in OWNER_EMAILS');
+  for (const nobody of [null, undefined, '', 'someone@example.com', `${OWNER}.example.com`, `x${OWNER}`]) {
+    check(o, w.M.allowedWith(false, nobody) === false, `with the flag off, ${JSON.stringify(nobody)} is allowed in`);
+    check(o, w.M.ownerTools(nobody) === false, `${JSON.stringify(nobody)} gets the owner's tools`);
+  }
+  for (const owner of [OWNER, ` ${OWNER.toUpperCase()} `, 'support@mageid.app']) {
+    check(o, w.M.allowedWith(false, owner) === true, `with the flag off, the owner (${owner.trim()}) is refused`);
+    check(o, w.M.ownerTools(owner) === true, `the owner (${owner.trim()}) does not get the owner's tools`);
+  }
+  check(o, w.M.allowedWith(true, null) === true && w.M.allowedWith(true, 'someone@example.com') === true, 'with the flag on, a person is refused');
+  check(o, w.M.flag === false && scanRoomAllowed('someone@example.com') === false && scanRoomAllowed(OWNER) === true, 'the real gate does not read "flag off: the owner only"');
+  const gate = stripComments(w.F['utils/roomScan/allowed.ts']);
+  check(o, /return flagOn === true \|\| isOwner\(userEmail\);/.test(gate) && /return scanRoomAllowedWith\(SCAN_ROOM_ENABLED, userEmail\);/.test(gate), 'allowed.ts is not "the flag, or the owner"');
+  check(o, /export function scanRoomOwnerTools\([^)]*\): boolean \{\s*return isOwner\(userEmail\);\s*\}/.test(gate), 'the owner\'s tools are switched on by something other than the owner list');
+  check(o, /import \{ isOwner \} from '@\/utils\/owner';/.test(gate), 'allowed.ts keeps its own owner list');
+  for (const f of FEATURE_FILES) check(o, !/@gmail\.com|@mageid\.app|OWNER_EMAILS/.test(stripComments(w.F[f])), `${f} carries an owner email of its own`);
+  // ── the row: nothing drawn, nothing looked up, unless the gate says yes ──
+  const row = stripComments(w.F['components/roomScan/ScanRoomOwnerRow.tsx']);
+  check(o, /export function ScanRoomOwnerRow\(\{ projectId \}: \{ projectId: string \}\) \{\s*const \{ user \} = useAuth\(\);\s*if \(Platform\.OS !== 'ios' \|\| !scanRoomAllowed\(user\?\.email\)\) return null;\s*return <OwnerRow projectId=\{projectId\} \/>;\s*\}/.test(row), 'the owner row draws something before the gate, or for someone the gate refuses');
+  check(o, !/roomScan\/native|RoomScanFlow|rawKeep|roomScan\/store|expo-sharing|expo-file-system|AsyncStorage/.test(row), 'the owner row reaches the native module, the flow or the phone\'s storage');
+  check(o, /router\.push\(\{ pathname: '\/scan-room' as any, params: \{ projectId \} \}\)/.test(row) && /\{copy\.ownerRowLabel\}/.test(row) && /testID="scan-room-owner-row"/.test(row), 'the owner row does not open /scan-room for this project under its own label');
+  check(o, w.EN['office.roomScan.preview.rowLabel'] === 'Scan A Room (Owner Preview)', 'the row is not labelled "Scan A Room (Owner Preview)"');
+  // ── the file share uses the two modules every shipped build already has, and only rawKeep.ts does ──
+  for (const f of FEATURE_FILES) {
+    if (f === 'utils/roomScan/rawKeep.ts') continue;
+    check(o, !/from ['"]expo-(sharing|file-system)[^'"]*['"]/.test(stripComments(w.F[f])), `${f} imports expo-sharing or expo-file-system (only utils/roomScan/rawKeep.ts writes and shares the file)`);
+  }
+  // ── the flow: the email goes to every native call, and the extras are the owner's ──
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  check(o, (flow.match(/RoomScanNative\.getCapabilities\(/g) ?? []).length === 2 && (flow.match(/RoomScanNative\.getCapabilities\(userEmail\)/g) ?? []).length === 2, 'a capabilities read does not hand over the signed-in email');
+  check(o, (flow.match(/RoomScanNative\.startScan\(/g) ?? []).length === 1 && /RoomScanNative\.startScan\(userEmail, \{ scanId, exportUsdz: false \}\)/.test(flow), 'the scan is not started with the signed-in email and with the USDZ file off');
+  for (const f of FEATURE_FILES) check(o, !/exportUsdz: true/.test(stripComments(w.F[f])), `${f} asks for a USDZ file`);
+  const panels = [...flow.matchAll(/<ScanFactsPanel\b/g)].map((m) => m.index ?? 0);
+  check(o, panels.length === 3, `the flow draws Scan Facts ${panels.length} times, not 3 (the start, an unread scan, the plan)`);
+  for (const at of panels) check(o, /\bownerTools && /.test(flow.slice(Math.max(0, at - 420), at)), 'Scan Facts is drawn for someone who is not the owner');
+  check(o, /const shareRaw = useCallback\(async \(\) => \{\s*if \(!ownerTools \|\| !last \|\| sharing\) return;/.test(flow), 'the raw file can be shared by someone who is not the owner');
+  check(o, /\{ownerTools && !!scanEnd\.text && <Text[^>]*testID="scan-ended-text">/.test(flow), 'the phone\'s own error text is shown to someone who is not the owner');
+  check(o, /ownerTools = false \}: RoomScanFlowProps\)/.test(flow) && /userEmail = null,/.test(flow), 'the flow\'s owner extras are on unless switched off');
+  return o;
+});
+
+rule('N10 the first scan is informative: the raw is kept before it is read, an unread scan has its own screen, the counts are shown three ways', (w) => {
+  const o: string[] = [];
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  const start = flow.slice(flow.indexOf('const startScan = useCallback'), flow.indexOf('const shareRaw = useCallback'));
+  const at = (needle: string) => start.indexOf(needle);
+  // ── the raw string is never changed, and it is on the phone before anything is done with the answer ──
+  check(o, /const json = typeof raw\.capturedRoomJson === 'string' \? raw\.capturedRoomJson : '';/.test(start), 'the raw JSON is changed on its way in');
+  check(o, at('const kept = await keepRawScan(json, facts, summary);') > 0 && at('const kept = await keepRawScan(json, facts, summary);') < at("setStep('unread')") && at("setStep('unread')") < at("setStep('plan')"), 'the raw scan is not kept before the result is used (a scan that cannot be read would be lost)');
+  check(o, at('lastRawText.current = { scanId, raw: json };') > 0 && at('lastRawText.current = { scanId, raw: json };') < at('await keepRawScan('), 'the raw scan is not held in memory for the share');
+  const keep = stripComments(w.F['utils/roomScan/rawKeep.ts']);
+  check(o, /if \(raw\) await AsyncStorage\.setItem\(roomScanRawKey\(facts\.scanId\), raw\);/.test(keep), 'rawKeep does not store the raw string as it was handed over');
+  check(o, ROOM_SCAN_RAW_KEY_PREFIX === 'mageid_room_scan_raw::' && /export const ROOM_SCAN_LAST_KEY = 'mageid_room_scan_last';/.test(keep) && isAppStorageKey('mageid_room_scan_last') && isAppStorageKey(`${ROOM_SCAN_RAW_KEY_PREFIX}x`), 'the kept scan is under a key the tenant-switch sweep does not own');
+  check(o, !/fetch\(|supabase|offlineQueue/.test(keep), 'the kept scan is sent somewhere');
+  // ── reading it can fail in three ways, and none of them throws past the screen ──
+  check(o, /try \{\s*parsed = parseCapturedRoom\(json\);\s*\} catch \(e\) \{\s*outcome = e instanceof RoomScanParseError && e\.code === 'no_walls' \? 'noWalls' : 'unreadable';\s*errorText = RoomScanNative\.roomScanErrorText\(e\);/.test(start), 'a scan the parser cannot read is not an outcome with its real error text');
+  check(o, /try \{\s*next = buildRoomScan\(parsed, \{[\s\S]*?\}\);\s*\} catch \(e\) \{\s*outcome = 'unreadable';\s*errorText = RoomScanNative\.roomScanErrorText\(e\);/.test(start), 'a scan the geometry cannot build is not an outcome with its real error text');
+  check(o, /if \(!json\) \{\s*outcome = 'notEncoded';\s*errorText = raw\.encodeError \?\? '';/.test(start), 'a room the iPhone could not encode is not its own outcome');
+  check(o, /if \(!next\) \{\s*setSaved\(null\);\s*setStep\('unread'\);\s*return;\s*\}/.test(start), 'a scan that was not read does not open the unread screen');
+  // ── every way the scanner can end says something ──
+  check(o, /if \(raw\.status !== 'done'\) \{ setScanEnd\(\{ kind: 'cancelled' \}\); return; \}/.test(start), 'a cancel says nothing');
+  check(o, /\} catch \(e\) \{\s*setScanEnd\(\{ kind: 'stopped', code: RoomScanNative\.roomScanErrorCode\(e\), text: RoomScanNative\.roomScanErrorText\(e\) \}\);\s*refreshAvailability\(\);\s*\} finally \{\s*setBusy\(false\);/.test(start), 'a stop from the module is not caught with its code and its words, or leaves the button spinning');
+  check(o, /\{scanEnd\?\.kind === 'cancelled' && <Text[^>]*>\{copy\.cancelledBody\}<\/Text>\}/.test(flow) && /\{scanEnd\?\.kind === 'stopped' && \(\s*<View style=\{styles\.blocked\}[^>]*>\s*<Text style=\{styles\.blockedText\}>\{copy\.scanStoppedBody\(scanEnd\.code\)\}<\/Text>/.test(flow), 'the start screen does not say how the last scan ended');
+  const hook = stripComments(w.F['hooks/useRoomScanCopy.ts']);
+  const stoppedAt = hook.indexOf('scanStoppedBody: (code) => {');
+  const stopped = stoppedAt < 0 ? '' : hook.slice(stoppedAt, hook.indexOf('phoneSaidSub: (text)', stoppedAt));
+  const codes = [...w.F['modules/mage-room-scan/ios/RoomScanTypes.swift'].matchAll(/"(E_ROOM_SCAN_[A-Z_]+)"/g)].map((m) => m[1]);
+  check(o, codes.length === 10, `the module has ${codes.length} typed errors, not 10`);
+  for (const code of [...codes, 'E_ROOM_SCAN_NOT_IN_THIS_BUILD']) check(o, stopped.includes(`case '${code}':`), `no sentence for ${code}`);
+  check(o, /default: return t\(/.test(stopped), 'an error with no known code has no sentence');
+  check(o, /\{avail\.action === 'openSettings' && <Button label=\{copy\.openSettingsLabel\}[^>]*onPress=\{\(\) => void Linking\.openSettings\(\)\}/.test(flow), 'a refused camera has no Open Settings button');
+  // ── the unread screen ──
+  check(o, /\{step === 'unread' && last && \(\s*<View style=\{styles\.body\} testID=\{`scan-unread-\$\{last\.facts\.outcome\}`\}>/.test(flow) && /copy\.unreadBody\(/.test(flow) && /testID="scan-unread-again"/.test(flow), 'there is no screen for a scan that could not be read');
+  check(o, w.EN['office.roomScan.unread.unreadableBody'] === 'The scan finished, but MAGE could not read it yet.', 'the unread screen does not say "The scan finished, but MAGE could not read it yet."');
+  check(o, /no photos and no video/.test(String(w.EN['office.roomScan.share.rawBody'])) && /shapes and sizes/.test(String(w.EN['office.roomScan.share.rawBody'])), 'the share button does not say what the file holds');
+  const panel = stripComments(w.F['components/roomScan/ScanFactsPanel.tsx']);
+  for (const id of ['scan-facts-ios', 'scan-facts-device', 'scan-facts-duration', 'scan-facts-raw-size', 'scan-facts-keys', 'scan-facts-error', 'scan-share-raw']) check(o, panel.includes(`testID="${id}"`), `Scan Facts has no ${id}`);
+  check(o, /facts\.counts\.map\(/.test(panel) && /num\(c\.phone\)/.test(panel) && /num\(c\.file\)/.test(panel) && /num\(c\.app\)/.test(panel) && /facts\.mismatch \? copy\.countsMismatchBody : copy\.countsMatchBody/.test(panel), 'Scan Facts does not show the three counts and say when they differ');
+  // ── the facts themselves, on a real fixture ──
+  const json = JSON.stringify(buildCapturedRoom(bathroomSpec()), null, 1);
+  const parsed = w.M.parse(json);
+  const summary = {
+    walls: parsed.walls.length, doors: parsed.doors.length, windows: parsed.windows.length, openings: parsed.openings.length, objects: parsed.objects.length,
+    firstWall: { dimensions: [parsed.walls[0].widthM, parsed.walls[0].heightM, 0], transform: parsed.walls[0].transform },
+  };
+  const base = { scanId: 's1', projectId: 'p1', raw: json, rawSha256: 'h', summary, parsed, outcome: 'read' as const, errorText: '', osVersion: '26.0', deviceModel: 'iPhone16,2', startedAt: '2026-10-08T14:00:00Z', endedAt: '2026-10-08T14:01:30Z', durationSeconds: null, warnings: [] };
+  const good = w.M.scanFacts(base);
+  check(o, good.mismatch === false && good.counts.length === 5 && good.counts.every((c) => c.match && c.phone === c.file && c.file === c.app), 'equal counts are called a mismatch');
+  check(o, good.counts[0].key === 'walls' && good.counts[0].phone === 4, `the bathroom has ${good.counts[0].phone} walls on the phone, not 4`);
+  check(o, good.rawLength === json.length && good.rawIsJson && good.topLevelKeys.includes('walls') && good.durationSeconds === 90, 'the raw size, the top-level keys or the scan time are wrong');
+  check(o, good.firstWall.match === true, 'an equal first wall is called different');
+  const short = w.M.scanFacts({ ...base, summary: { ...summary, walls: summary.walls + 1 } });
+  check(o, short.mismatch === true && short.counts[0].match === false && short.counts[1].match === true, 'a wall the phone counted and the app did not is not a mismatch');
+  const moved = w.M.scanFacts({ ...base, summary: { ...summary, firstWall: { dimensions: [summary.firstWall.dimensions[0] + 0.5, summary.firstWall.dimensions[1], 0], transform: summary.firstWall.transform } } });
+  check(o, moved.firstWall.match === false, 'a first wall half a metre longer on the phone is called the same');
+  const lost = w.M.scanFacts({ ...base, raw: '{"rooms":[],"version":2}', parsed: null, outcome: 'unreadable', errorText: 'The scan file has no list of walls' });
+  check(o, lost.mismatch === true && JSON.stringify(lost.topLevelKeys) === '["rooms","version"]' && lost.counts[0].app === null && lost.counts[0].file === null && lost.errorText === 'The scan file has no list of walls', 'an unreadable scan does not show its keys, its error and that nothing was understood');
+  const junk = w.M.scanFacts({ ...base, raw: 'not json', parsed: null, summary: null, outcome: 'unreadable' });
+  check(o, junk.rawIsJson === false && junk.rawLength === 8 && junk.topLevelKeys.length === 0 && junk.mismatch === true, 'text that is not JSON is not reported as such');
+  // ── the file ──
+  check(o, w.M.fileName('2026-10-08', 'Hall Bathroom') === 'mage-room-scan-2026-10-08-hall-bathroom.json', `the file is named ${w.M.fileName('2026-10-08', 'Hall Bathroom')}`);
+  check(o, w.M.fileName('', '') === 'mage-room-scan-undated-unnamed-room.json' && !/[\/\\]|\.\./.test(w.M.fileName('2026-10-08', '../../etc/passwd')), 'a missing or hostile room name gives a bad file name');
+  const body = w.M.fileBody(good, summary, 'Hall Bathroom', json);
+  let file: { mageScanFacts?: { scanId?: string; roomName?: string; phoneSummary?: { walls?: number } }; capturedRoom?: unknown } = {};
+  try { file = JSON.parse(body); } catch { o.push('the shared file is not JSON'); }
+  check(o, body.includes(json), 'the shared file does not hold Apple\'s JSON character for character');
+  check(o, JSON.stringify(file.capturedRoom) === JSON.stringify(JSON.parse(json)) && file.mageScanFacts?.scanId === 's1' && file.mageScanFacts?.roomName === 'Hall Bathroom' && file.mageScanFacts?.phoneSummary?.walls === 4, 'the shared file does not carry the room and its facts');
+  let odd: { capturedRoom?: unknown } = {};
+  try { odd = JSON.parse(w.M.fileBody(junk, null, '', 'not json')); } catch { o.push('a raw scan that is not JSON makes a file that is not JSON'); }
+  check(o, odd.capturedRoom === 'not json', 'a raw scan that is not JSON is not carried as text');
+  return o;
+});
 
 rule('W1 labels are written with every word capitalised', (w) => {
   const o: string[] = [];
@@ -1377,10 +1615,10 @@ for (const [id, fn] of Object.entries(RULES)) {
   } else {
     const dir = mkdtempSync(join(tmpdir(), 'scan-room-swift-'));
     try {
-      const stubs = join(ROOT, 'native-staging/mage-room-scan/typecheck/Stubs.swift');
+      const stubs = join(ROOT, 'modules/mage-room-scan/typecheck/Stubs.swift');
       for (const [label, flag] of [['with RoomPlan', '#if true'], ['with RoomPlan compiled out', '#if false']] as const) {
         const files = SWIFT_FILES.map((f) => {
-          const src = read(`native-staging/mage-room-scan/ios/${f}`)
+          const src = read(`modules/mage-room-scan/ios/${f}`)
             .replace(/^import (ExpoModulesCore|UIKit|RoomPlan)$/gm, '')
             .replace(/^#if canImport\(RoomPlan\) && !targetEnvironment\(simulator\)$/gm, flag);
           const out = join(dir, `${flag === '#if true' ? 'a' : 'b'}-${f}`);
@@ -1392,10 +1630,10 @@ for (const [id, fn] of Object.entries(RULES)) {
         if (r.status === 0) { pass += 1; console.log(`  ✓ the Swift typechecks ${label} (against typecheck/Stubs.swift, which is a claim about Apple's API, not a check of it)`); }
         else { fail += 1; console.log(`  ✗ the Swift does not typecheck ${label}`); for (const e of errs) console.log(`      ${e}`); }
       }
-      const swiftFiles = readdirSync(join(ROOT, 'native-staging/mage-room-scan/ios'));
-      const js = walk('native-staging/mage-room-scan');
-      if (js.length === 0 && swiftFiles.filter((f) => f.endsWith('.swift')).sort().join() === [...SWIFT_FILES].sort().join()) { pass += 1; console.log('  ✓ native-staging/mage-room-scan holds no JavaScript, and exactly the three Swift files this check reads'); }
-      else { fail += 1; console.log(`  ✗ native-staging/mage-room-scan: JavaScript ${js.join(', ') || 'none'}; Swift ${swiftFiles.join(', ')}`); }
+      const swiftFiles = readdirSync(join(ROOT, 'modules/mage-room-scan/ios'));
+      const js = walk('modules/mage-room-scan');
+      if (js.length === 0 && swiftFiles.filter((f) => f.endsWith('.swift')).sort().join() === [...SWIFT_FILES].sort().join()) { pass += 1; console.log('  ✓ modules/mage-room-scan holds no JavaScript, and exactly the three Swift files this check reads'); }
+      else { fail += 1; console.log(`  ✗ modules/mage-room-scan: JavaScript ${js.join(', ') || 'none'}; Swift ${swiftFiles.join(', ')}`); }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1428,7 +1666,7 @@ for (const [id, fn] of Object.entries(RULES)) {
   } else {
     const dir = mkdtempSync(join(tmpdir(), 'scan-room-sdk-'));
     try {
-      const stubs = read('native-staging/mage-room-scan/typecheck/Stubs.swift');
+      const stubs = read('modules/mage-room-scan/typecheck/Stubs.swift');
       const cut = stubs.indexOf('// ── UIKit');
       const expoOnly = stubs.slice(0, cut).replace(/^import AVFoundation$/m, 'import AVFoundation\nimport UIKit');
       if (cut < 0 || !/open class Module/.test(expoOnly) || /class UIViewController/.test(expoOnly)) {
@@ -1436,7 +1674,7 @@ for (const [id, fn] of Object.entries(RULES)) {
       } else {
         const expoFile = join(dir, 'ExpoModulesCore.swift');
         writeFileSync(expoFile, expoOnly);
-        const sources = SWIFT_FILES.map((f) => join(ROOT, 'native-staging/mage-room-scan/ios', f));
+        const sources = SWIFT_FILES.map((f) => join(ROOT, 'modules/mage-room-scan/ios', f));
         for (const [label, sdk, target] of slices) {
           const out = join(dir, target);
           mkdirSync(out);
@@ -1458,7 +1696,7 @@ for (const [id, fn] of Object.entries(RULES)) {
 // ── Expo autolinking, asked directly: is the scanner in the next iOS build? ──
 // The rule N4 reads the folders. This runs the SAME search `pod install` runs
 // (expo-modules-autolinking search, platform apple) and requires that it finds
-// the AR module (so the search works) and does NOT find the room scanner.
+// the AR module (so the search works) AND the room scanner (lane SCANBUILD).
 {
   const cli = join(ROOT, 'node_modules/expo-modules-autolinking/bin/expo-modules-autolinking.js');
   if (!existsSync(cli)) {
@@ -1469,8 +1707,8 @@ for (const [id, fn] of Object.entries(RULES)) {
     try { found = Object.keys(JSON.parse(r.stdout || '') as Record<string, unknown>); } catch { found = null; }
     if (r.status !== 0 || !found) { fail += 1; console.log(`  ✗ Expo autolinking search could not be run: ${(r.stderr || r.error?.message || '').split('\n')[0]}`); }
     else if (!found.includes('mage-ar-track')) { fail += 1; console.log('  ✗ Expo autolinking search did not find modules/mage-ar-track, so it proves nothing about the scanner'); }
-    else if (found.includes('mage-room-scan')) { fail += 1; console.log('  ✗ Expo autolinking FINDS mage-room-scan: the next iOS build would compile the unproven Swift'); }
-    else { pass += 1; console.log(`  ✓ Expo autolinking (search, apple) finds ${found.length} modules, mage-ar-track among them, and NOT mage-room-scan`); }
+    else if (!found.includes('mage-room-scan')) { fail += 1; console.log('  ✗ Expo autolinking does NOT find mage-room-scan: the next iOS build would have no scanner in it'); }
+    else { pass += 1; console.log(`  ✓ Expo autolinking (search, apple) finds ${found.length} modules, mage-ar-track and mage-room-scan among them`); }
   }
 }
 
@@ -1598,30 +1836,89 @@ const MUTATIONS: Mutation[] = [
   { rule: 'J1', what: 'the start promises a price from past jobs', plant: en('office.roomScan.start.body', 'Walk the room once with this iPhone. You get a floor plan, the quantities and a draft price from your own past jobs. A scan is a fast first measure, not a survey.') },
   { rule: 'J1', what: 'Back drops an unsaved scan without asking', plant: text('components/roomScan/RoomScanFlow.tsx', "    else if (step === 'plan' && dirty) setLeaving(true);\n", '') },
   { rule: 'J1', what: 'the saved list is not read again after a push', plant: text('components/roomScan/RoomScanFlow.tsx', 'if (stored) { setDirty(false); await refreshSavedList(); }', 'if (stored) { setDirty(false); }') },
-  { rule: 'N4', what: 'the module is moved back under modules/ (autolinked)', plant: (w) => ({ ...w, modulesDirs: [...w.modulesDirs, 'mage-room-scan'] }) },
-  { rule: 'N4', what: '.gitignore drops the staged Swift', plant: text('.gitignore', '!/native-staging/*/ios/', '') },
-  { rule: 'N4', what: 'package.json points autolinking at the staging folder', plant: text('package.json', '"scripts": {', '"expo": { "autolinking": { "nativeModulesDir": "./native-staging" } },\n  "scripts": {') },
-  { rule: 'N5', what: 'the idle timer is set to false instead of what it was', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', 'UIApplication.shared.isIdleTimerDisabled = prior', 'UIApplication.shared.isIdleTimerDisabled = false') },
-  { rule: 'N5', what: 'shouldPresent returns false on an error and tells nobody', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', '      onMain { self.fail(message) }\n      return false', '      return false') },
-  { rule: 'N5', what: 'a scanner dismissed from outside never settles', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', 'if leaving, let pending = take() {', 'if false, let pending = take() {') },
-  { rule: 'N5', what: 'present does not reject when nothing was presented', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', 'scanner.abandon()?(.failure(Exceptions.RoomScanNoPresenter()))', '_ = scanner') },
-  { rule: 'N5', what: 'warnings are appended on RoomPlan\'s queue', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', 'onMain { if !self.warnings.contains(name) { self.warnings.append(name) } }', 'if !warnings.contains(name) { warnings.append(name) }') },
+  { rule: 'N4', what: 'the module is taken out of modules/ (no scanner in the build)', plant: (w) => ({ ...w, modulesDirs: w.modulesDirs.filter((d) => d !== 'mage-room-scan') }) },
+  { rule: 'N4', what: '.gitignore drops the module Swift', plant: text('.gitignore', '!/modules/*/ios/', '') },
+  { rule: 'N4', what: 'package.json leaves the module out of autolinking', plant: text('package.json', '"scripts": {', '"expo": { "autolinking": { "exclude": ["mage-room-scan"] } },\n  "scripts": {') },
+  { rule: 'N5', what: 'the idle timer is set to false instead of what it was', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', 'UIApplication.shared.isIdleTimerDisabled = prior', 'UIApplication.shared.isIdleTimerDisabled = false') },
+  { rule: 'N5', what: 'shouldPresent returns false on an error and tells nobody', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '      onMain { self.fail(message) }\n      return false', '      return false') },
+  { rule: 'N5', what: 'a scanner dismissed from outside never settles', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', 'if leaving, let pending = take() {', 'if false, let pending = take() {') },
+  { rule: 'N5', what: 'present does not reject when nothing was presented', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', 'scanner.abandon()?(.failure(Exceptions.RoomScanNoPresenter()))', '_ = scanner') },
+  { rule: 'N5', what: 'warnings are appended on RoomPlan\'s queue', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', 'onMain { if !self.warnings.contains(name) { self.warnings.append(name) } }', 'if !warnings.contains(name) { warnings.append(name) }') },
   { rule: 'N8', what: 'the checklist loses the otool weak-link check', plant: text('docs/scan-the-room-native-checklist.md', /otool -L/g, 'a look at') },
   { rule: 'N8', what: 'the checklist accepts a simulator for the iOS 15 launch', plant: text('docs/scan-the-room-native-checklist.md', /PHYSICAL iOS 15 phone/, 'iOS 15 phone or simulator that') },
+  { rule: 'N2', what: 'the route reads the flag itself', plant: text('app/scan-room.tsx', "import { useAuth } from '@/contexts/AuthContext';", "import { useAuth } from '@/contexts/AuthContext';\nimport { SCAN_ROOM_ENABLED } from '@/constants/featureFlags';") },
+  { rule: 'N2', what: 'the route reads the project before the gate', plant: text('app/scan-room.tsx', '  const { user } = useAuth();\n  const userEmail = user?.email ?? null;\n  if (!scanRoomAllowed', '  const { user } = useAuth();\n  const { projectId } = useLocalSearchParams<{ projectId?: string }>();\n  const userEmail = user?.email ?? null;\n  if (!scanRoomAllowed') },
+  { rule: 'N3', what: 'the project page draws the owner row twice', plant: outside('app/project-detail.tsx', '\n<ScanRoomOwnerRow projectId={project.id} />\n') },
+  { rule: 'N3', what: 'the project page imports the flow beside the row', plant: outside('app/project-detail.tsx', "\nimport { RoomScanFlow } from '@/components/roomScan/RoomScanFlow';\n") },
+  { rule: 'N3', what: 'the flow reads the flag itself', plant: text('components/roomScan/RoomScanFlow.tsx', "type Step = 'start'", "import { SCAN_ROOM_ENABLED } from '@/constants/featureFlags';\ntype Step = 'start'") },
+  { rule: 'N4', what: 'the podspec hard-links RoomPlan', plant: text('modules/mage-room-scan/ios/MageRoomScan.podspec', "s.weak_frameworks = 'RoomPlan'", "s.frameworks = 'RoomPlan'") },
+  { rule: 'N4', what: 'the podspec links RoomPlan both ways', plant: text('modules/mage-room-scan/ios/MageRoomScan.podspec', "s.weak_frameworks = 'RoomPlan'", "s.weak_frameworks = 'RoomPlan'\n  s.frameworks = 'RoomPlan'") },
+  { rule: 'N4', what: 'the podspec stops being a static framework', plant: text('modules/mage-room-scan/ios/MageRoomScan.podspec', 's.static_framework = true', 's.static_framework = false') },
+  { rule: 'N4', what: 'a call into the lookup drops the email', plant: text('utils/roomScan/native.ts', '  const n = native(userEmail);\n  if (!n) throw new RoomScanUnavailableError();', '  const n = native(null);\n  if (!n) throw new RoomScanUnavailableError();') },
+  { rule: 'N4', what: 'a build without the module throws out of getCapabilities', plant: text('utils/roomScan/native.ts', 'try { return n.getCapabilities(); } catch { return null; }', 'return n.getCapabilities();') },
+  { rule: 'N5', what: 'the phone leaving the screen is not watched', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', /    NotificationCenter\.default\.addObserver\(self, selector: #selector\(interrupted\)[^\n]*\n/, '') },
+  { rule: 'N5', what: 'an interruption dismisses before it settles', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '    pending(.failure(Exceptions.RoomScanInterrupted()))\n    let top: UIViewController = navigationController ?? self\n    if top.presentingViewController != nil { top.dismiss(animated: false) }', '    let top: UIViewController = navigationController ?? self\n    if top.presentingViewController != nil { top.dismiss(animated: false) }\n    pending(.failure(Exceptions.RoomScanInterrupted()))') },
+  { rule: 'N5', what: 'a USDZ file is written without being asked for', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', 'if options.exportUsdz && !json.isEmpty {', 'if !json.isEmpty {') },
+  { rule: 'N5', what: 'the USDZ export is on by default', plant: text('modules/mage-room-scan/ios/RoomScanTypes.swift', '@Field var exportUsdz: Bool = false', '@Field var exportUsdz: Bool = true') },
+  { rule: 'N5', what: 'the module reads a camera frame', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '    let summary = RoomScanViewController.summary(of: processedResult)', '    let frame = captureView?.captureSession.arSession.currentFrame?.capturedImage\n    let summary = RoomScanViewController.summary(of: processedResult)') },
+  { rule: 'N5', what: 'the module records video', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '  private var warnings: [String] = []', '  private var warnings: [String] = []\n  private let movie = AVCaptureMovieFileOutput()') },
+  { rule: 'N5', what: 'the summary is read after the encode', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '    let summary = RoomScanViewController.summary(of: processedResult)\n', '') },
+  { rule: 'N5', what: 'the summary counts doors from somewhere else', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '"doors": room.doors.count,', '"doors": 0,') },
+  { rule: 'N5', what: 'the iOS 17 lists are read on iOS 16', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '    if #available(iOS 17.0, *) {\n      out["floors"] = room.floors.count\n      out["sections"] = room.sections.count\n    }', '    out["floors"] = room.floors.count\n    out["sections"] = room.sections.count') },
+  { rule: 'N5', what: 'a room that does not encode is thrown away', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '      encodeError = RoomScanViewController.describe(error)\n    }', '      finish(.failure(Exceptions.RoomScanEncodeFailed(error.localizedDescription)))\n      return\n    }') },
+  { rule: 'N5', what: 'RoomPlan is asked outside an iOS 16 check', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '    if #available(iOS 16.0, *) {\n      return RoomCaptureSession.isSupported\n    }', '    return RoomCaptureSession.isSupported') },
+  { rule: 'N8', what: 'the camera sentence says a scan is exact', plant: text('app.json', "the app keeps the room's measurements", "the app keeps the room's exact measurements") },
+  { rule: 'N8', what: 'the camera sentence stops saying no video', plant: text('app.json', '; video of a scan is not recorded, kept or uploaded.', '.') },
+  { rule: 'N8', what: 'the camera sentence loses the measuring screen', plant: text('app.json', 'no video is recorded, kept or uploaded, and the tracking stops when you leave that screen.', 'the tracking is brief.') },
+  { rule: 'N8', what: 'a motion permission rides along', plant: text('app.json', '"NSCameraUsageDescription": "', '"NSMotionUsageDescription": "MAGE ID uses motion to scan a room.",\n        "NSCameraUsageDescription": "') },
+  { rule: 'N8', what: 'the app version is bumped', plant: text('app.json', '"version": "1.0.0"', '"version": "1.0.1"') },
+  { rule: 'N8', what: 'the checklist stops saying the iOS 15 test is not covered', plant: text('docs/scan-the-room-native-checklist.md', /THE PHYSICAL iOS 15 LAUNCH TEST IS STILL REQUIRED BEFORE A PUBLIC RELEASE AND IS NOT COVERED BY THIS BUILD/g, 'The iOS 15 launch test was done') },
+  { rule: 'N8', what: 'the checklist loses the first-scan steps', plant: text('docs/scan-the-room-native-checklist.md', '## Your First Scan, Step By Step', '## Notes') },
+  { rule: 'N8', what: 'the module README still says it waits in native-staging', plant: text('modules/mage-room-scan/README.md', '# ', '# native-staging ') },
+  { rule: 'N9', what: 'the gate lets everyone in', plant: mods({ allowedWith: () => true }) },
+  { rule: 'N9', what: 'the gate refuses the owner', plant: mods({ allowedWith: (flagOn) => flagOn === true }) },
+  { rule: 'N9', what: 'the owner tools follow the gate, not the owner list', plant: mods({ ownerTools: () => true }) },
+  { rule: 'N9', what: 'allowed.ts answers yes', plant: text('utils/roomScan/allowed.ts', 'return flagOn === true || isOwner(userEmail);', 'return true;') },
+  { rule: 'N9', what: 'allowed.ts keeps its own email', plant: text('utils/roomScan/allowed.ts', 'return flagOn === true || isOwner(userEmail);', "return flagOn === true || isOwner(userEmail) || userEmail === 'friend@gmail.com';") },
+  { rule: 'N9', what: 'the owner row is drawn for everyone', plant: text('components/roomScan/ScanRoomOwnerRow.tsx', "if (Platform.OS !== 'ios' || !scanRoomAllowed(user?.email)) return null;", "if (Platform.OS !== 'ios') return null;") },
+  { rule: 'N9', what: 'the owner row looks the native module up', plant: text('components/roomScan/ScanRoomOwnerRow.tsx', "import { makeRoomScanStyles } from './styles';", "import { makeRoomScanStyles } from './styles';\nimport { isModuleLinked } from '@/utils/roomScan/native';") },
+  { rule: 'N9', what: 'the owner row is renamed', plant: en('office.roomScan.preview.rowLabel', 'Scan A Room') },
+  { rule: 'N9', what: 'Scan Facts is drawn for everyone on an unread scan', plant: text('components/roomScan/RoomScanFlow.tsx', '            {ownerTools && (\n              <ScanFactsPanel', '            {(\n              <ScanFactsPanel') },
+  { rule: 'N9', what: 'anyone can share the raw file', plant: text('components/roomScan/RoomScanFlow.tsx', 'if (!ownerTools || !last || sharing) return;', 'if (!last || sharing) return;') },
+  { rule: 'N9', what: 'the scan is started without the email', plant: text('components/roomScan/RoomScanFlow.tsx', 'RoomScanNative.startScan(userEmail, { scanId, exportUsdz: false })', 'RoomScanNative.startScan(null, { scanId, exportUsdz: false })') },
+  { rule: 'N9', what: 'the scan asks for a USDZ file', plant: text('components/roomScan/RoomScanFlow.tsx', 'RoomScanNative.startScan(userEmail, { scanId, exportUsdz: false })', 'RoomScanNative.startScan(userEmail, { scanId, exportUsdz: true })') },
+  { rule: 'N9', what: 'the facts panel shares a file itself', plant: text('components/roomScan/ScanFactsPanel.tsx', "import { Button } from '@/components/ui';", "import { Button } from '@/components/ui';\nimport * as Sharing from 'expo-sharing';") },
+  { rule: 'N9', what: 'the phone\'s own error text is shown to everyone', plant: text('components/roomScan/RoomScanFlow.tsx', '{ownerTools && !!scanEnd.text && <Text', '{!!scanEnd.text && <Text') },
+  { rule: 'N10', what: 'the raw scan is not kept', plant: text('components/roomScan/RoomScanFlow.tsx', 'const kept = await keepRawScan(json, facts, summary);', 'const kept = true;') },
+  { rule: 'N10', what: 'the raw scan is kept only after it was read', plant: text('components/roomScan/RoomScanFlow.tsx', /      const kept = await keepRawScan\(json, facts, summary\);\n([\s\S]*?)      setSaved\(emptySaved\(next\)\);/, '$1      const kept = await keepRawScan(json, facts, summary);\n      setSaved(emptySaved(next));') },
+  { rule: 'N10', what: 'the raw string is re-encoded before it is stored', plant: text('utils/roomScan/rawKeep.ts', 'setItem(roomScanRawKey(facts.scanId), raw)', 'setItem(roomScanRawKey(facts.scanId), JSON.stringify(JSON.parse(raw)))') },
+  { rule: 'N10', what: 'the kept scan leaves the owned prefix', plant: text('utils/roomScan/rawKeep.ts', "'mageid_room_scan_last'", "'room_scan_last'") },
+  { rule: 'N10', what: 'an unread scan goes back to the start with no screen', plant: text('components/roomScan/RoomScanFlow.tsx', "        setSaved(null);\n        setStep('unread');", "        setSaved(null);\n        setStep('start');") },
+  { rule: 'N10', what: 'a parse error is swallowed without its words', plant: text('components/roomScan/RoomScanFlow.tsx', "outcome = e instanceof RoomScanParseError && e.code === 'no_walls' ? 'noWalls' : 'unreadable';\n          errorText = RoomScanNative.roomScanErrorText(e);", "outcome = 'unreadable';") },
+  { rule: 'N10', what: 'a cancel says nothing', plant: text('components/roomScan/RoomScanFlow.tsx', "if (raw.status !== 'done') { setScanEnd({ kind: 'cancelled' }); return; }", "if (raw.status !== 'done') return;") },
+  { rule: 'N10', what: 'an interruption has no sentence', plant: text('hooks/useRoomScanCopy.ts', "case 'E_ROOM_SCAN_INTERRUPTED':", "case 'E_ROOM_SCAN_PAUSED':") },
+  { rule: 'N10', what: 'a refused camera has no Open Settings button', plant: text('components/roomScan/RoomScanFlow.tsx', "{avail.action === 'openSettings' && <Button", "{false && <Button") },
+  { rule: 'N10', what: 'a mismatch is never reported', plant: mods({ scanFacts: (i) => ({ ...DEBUG.buildScanFacts(i), mismatch: false }) }) },
+  { rule: 'N10', what: 'the counts ignore what the phone said', plant: mods({ scanFacts: (i) => DEBUG.buildScanFacts({ ...i, summary: null }) }) },
+  { rule: 'N10', what: 'the first wall is never compared', plant: mods({ scanFacts: (i) => { const f = DEBUG.buildScanFacts(i); return { ...f, firstWall: { ...f.firstWall, match: true } }; } }) },
+  { rule: 'N10', what: 'the shared file re-encodes the room', plant: mods({ fileBody: (f, sum, name, raw) => JSON.stringify({ mageScanFacts: { ...f, roomName: name, phoneSummary: sum ?? null }, capturedRoom: JSON.parse(raw) }) }) },
+  { rule: 'N10', what: 'the file name carries the room name as typed', plant: mods({ fileName: (day, name) => `mage-room-scan-${day}-${name}.json` }) },
+  { rule: 'N10', what: 'the unread sentence changes', plant: en('office.roomScan.unread.unreadableBody', 'Something went wrong.') },
+  { rule: 'N10', what: 'the share sentence stops saying no photos and no video', plant: en('office.roomScan.share.rawBody', 'The file holds the scan.') },
   { rule: 'N1', what: 'the flag is turned on', plant: (w) => mods({ flag: true })(text('constants/featureFlags.ts', 'export const SCAN_ROOM_ENABLED = false;', 'export const SCAN_ROOM_ENABLED = true;')(w)) },
-  { rule: 'N2', what: 'the route mounts the screen with the flag off', plant: text('app/scan-room.tsx', /  if \(!SCAN_ROOM_ENABLED\) return <Redirect href="\/\(tabs\)\/\(home\)" \/>;\n  return <ScanRoomScreen \/>;/, '  return <ScanRoomScreen />;') },
+  { rule: 'N2', what: 'the route mounts the screen for someone the gate refuses', plant: text('app/scan-room.tsx', '  if (!scanRoomAllowed(userEmail)) return <Redirect href="/(tabs)/(home)" />;\n', '') },
   { rule: 'N3', what: 'the project page links to the route', plant: outside('app/project-detail.tsx', "\nrouter.push({ pathname: '/scan-room', params: { projectId: id } });\n") },
   { rule: 'N3', what: 'another screen imports the flow', plant: outside('app/area-takeoff.tsx', "\nimport { RoomScanFlow } from '@/components/roomScan/RoomScanFlow';\n") },
   { rule: 'N3', what: 'a second file reads the flag', plant: outside('components/DesktopSidebar.tsx', "\nimport { SCAN_ROOM_ENABLED } from '@/constants/featureFlags';\n") },
   { rule: 'N4', what: 'the lookup moves to module scope', plant: text('utils/roomScan/native.ts', 'let looked = false;', "const Native = requireOptionalNativeModule<MageRoomScanNative>('MageRoomScan');\nlet looked = false;") },
   { rule: 'N4', what: 'the lookup uses requireNativeModule', plant: text('utils/roomScan/native.ts', "cached = requireOptionalNativeModule<MageRoomScanNative>('MageRoomScan');", "cached = requireNativeModule<MageRoomScanNative>('MageRoomScan');") },
-  { rule: 'N4', what: 'the lookup no longer checks the flag', plant: text('utils/roomScan/native.ts', '  if (!SCAN_ROOM_ENABLED) return null;\n', '') },
+  { rule: 'N4', what: 'the lookup no longer asks the gate', plant: text('utils/roomScan/native.ts', '  if (!scanRoomAllowed(userEmail)) return null;\n', '') },
   { rule: 'N4', what: 'a screen names the native module', plant: text('components/roomScan/RoomScanFlow.tsx', "type Step = 'start'", "const MODULE = 'MageRoomScan';\ntype Step = 'start'") },
-  { rule: 'N4', what: 'the podspec raises the iOS floor', plant: text('native-staging/mage-room-scan/ios/MageRoomScan.podspec', ":ios => '15.1'", ":ios => '16.0'") },
-  { rule: 'N4', what: 'the module package gets a JS entry point', plant: text('native-staging/mage-room-scan/package.json', '"private": true,', '"private": true,\n  "main": "index.js",') },
-  { rule: 'N5', what: 'the scanner controller loses its iOS 16 mark', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', '@available(iOS 16.0, *)\ninternal final class RoomScanViewController', 'internal final class RoomScanViewController') },
-  { rule: 'N5', what: 'import RoomPlan is unguarded', plant: text('native-staging/mage-room-scan/ios/RoomScanSupport.swift', '#if canImport(RoomPlan) && !targetEnvironment(simulator)\nimport RoomPlan\n#endif', 'import RoomPlan') },
-  { rule: 'N5', what: 'the module raises the camera prompt', plant: text('native-staging/mage-room-scan/ios/MageRoomScanModule.swift', 'case .authorized: break', 'case .authorized: AVCaptureDevice.requestAccess(for: .video) { _ in }') },
+  { rule: 'N4', what: 'the podspec raises the iOS floor', plant: text('modules/mage-room-scan/ios/MageRoomScan.podspec', ":ios => '15.1'", ":ios => '16.0'") },
+  { rule: 'N4', what: 'the module package gets a JS entry point', plant: text('modules/mage-room-scan/package.json', '"private": true,', '"private": true,\n  "main": "index.js",') },
+  { rule: 'N5', what: 'the scanner controller loses its iOS 16 mark', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '@available(iOS 16.0, *)\ninternal final class RoomScanViewController', 'internal final class RoomScanViewController') },
+  { rule: 'N5', what: 'import RoomPlan is unguarded', plant: text('modules/mage-room-scan/ios/RoomScanSupport.swift', '#if canImport(RoomPlan) && !targetEnvironment(simulator)\nimport RoomPlan\nimport simd\n#endif', 'import RoomPlan\nimport simd') },
+  { rule: 'N5', what: 'the module raises the camera prompt', plant: text('modules/mage-room-scan/ios/MageRoomScanModule.swift', 'case .authorized: break', 'case .authorized: AVCaptureDevice.requestAccess(for: .video) { _ in }') },
   { rule: 'N6', what: 'no LiDAR and not-in-this-build share one sentence', plant: text('hooks/useRoomScanCopy.ts', "case 'noLidar': return t('office.roomScan.unavailable.noLidarBody'", "case 'noLidar': return t('office.roomScan.unavailable.notInThisBuildBody'") },
   { rule: 'N7', what: 'a screen imports reanimated', plant: text('components/roomScan/FloorPlanView.tsx', "import { AlertTriangle, Check } from 'lucide-react-native';", "import { AlertTriangle, Check } from 'lucide-react-native';\nimport Animated from 'react-native-reanimated';") },
   { rule: 'N7', what: 'a screen writes a colour', plant: text('components/roomScan/styles.ts', 'screen: { flex: 1, backgroundColor: t.bg },', "screen: { flex: 1, backgroundColor: '#ECEDE9' },") },
@@ -1629,7 +1926,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'N7', what: 'the route loses the tier gate', plant: text('app/scan-room.tsx', 'if (!canAccess(SCAN_ROOM_FEATURE)) {', 'if (false) {') },
   { rule: 'N7', what: 'a screen uses @expo/vector-icons', plant: text('components/roomScan/RoomScanFlow.tsx', "import { ChevronLeft, Ruler, Trash2 } from 'lucide-react-native';", "import { ChevronLeft, Ruler, Trash2 } from 'lucide-react-native';\nimport { Ionicons } from '@expo/vector-icons';") },
   { rule: 'N7', what: 'a screen carries its own t() key', plant: text('components/roomScan/QuantitiesView.tsx', "const sf = copy.unitWord('SF');", "const sf = t('office.roomScan.unit.sf', 'sq ft');") },
-  { rule: 'N8', what: 'app.json gets the scan sentence in this lane', plant: text('app.json', '"NSCameraUsageDescription": "', '"NSCameraUsageDescription": "It also measures a room when you start a room scan. ') },
+  { rule: 'N8', what: 'the camera sentence loses the room scan', plant: text('app.json', / When you scan a room on an iPhone with a LiDAR sensor[^"]*/, '') },
   { rule: 'N8', what: 'the checklist loses the ten-room test', plant: text('docs/scan-the-room-native-checklist.md', /ten rooms/gi, 'some rooms') },
   { rule: 'W1', what: 'a label goes to sentence case', plant: en('office.roomScan.plan.seeQuantitiesLabel', 'See the quantities') },
   { rule: 'W2', what: 'a sentence loses its period', plant: en('office.roomScan.plan.noteBody', 'A phone scan can be off by an inch or more') },

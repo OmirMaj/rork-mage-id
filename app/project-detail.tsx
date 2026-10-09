@@ -152,6 +152,7 @@ import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useProjectPulse } from '@/hooks/useProjectPulse';
 import { ProjectWorkspaceHeader } from '@/components/project/ProjectWorkspaceHeader';
 import { ProjectPeopleBlock, ProjectPeopleStack } from '@/components/whoson';
+import { ScanRoomOwnerRow } from '@/components/roomScan/ScanRoomOwnerRow';
 import { ProjectKpiStrip } from '@/components/project/ProjectKpiStrip';
 import { ProjectLevelCard } from '@/components/level/ProjectLevelCard';
 import { ProjectOverviewColumns } from '@/components/project/ProjectOverviewColumns';
@@ -5072,6 +5073,9 @@ export default function ProjectDetailScreen() {
               <ProjectPeopleStack variant="hero" projectId={project.id} inviteNudge={!project.clientPortal?.enabled} onOpen={() => openSection('collaborators')} />
             </View>
           </View>
+          {/* Scan The Room, owner preview: renders nothing for anyone but the
+              owner while SCAN_ROOM_ENABLED is false (utils/roomScan/allowed). */}
+          <ScanRoomOwnerRow projectId={project.id} />
 
           {hasAnyEstimate && (
             <View style={styles.heroStats}>

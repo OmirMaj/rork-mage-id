@@ -18,6 +18,7 @@
 // source_files glob is relative to ios/.
 
 import Foundation
+import simd
 import AVFoundation
 
 // ── ExpoModulesCore ─────────────────────────────────────────────────────────
@@ -121,6 +122,7 @@ open class UINavigationController: UIViewController {
 public final class UIApplication {
   public static let shared = UIApplication()
   public var isIdleTimerDisabled = false
+  public static let didEnterBackgroundNotification = Notification.Name("UIApplicationDidEnterBackgroundNotification")
 }
 
 // ── RoomPlan (iOS 16) ───────────────────────────────────────────────────────
@@ -135,6 +137,22 @@ public struct CapturedRoom: Encodable {
     public static let parametric = USDExportOptions(rawValue: 2)
   }
   public func export(to url: URL, exportOptions: USDExportOptions = .mesh) throws {}
+  public struct Surface: Encodable {
+    public var dimensions: simd_float3 { simd_float3(0, 0, 0) }
+    public var transform: simd_float4x4 { matrix_identity_float4x4 }
+    public func encode(to encoder: Encoder) throws {}
+  }
+  public struct Object: Encodable {}
+  public struct Section: Encodable {}
+  public var walls: [Surface] { [] }
+  public var doors: [Surface] { [] }
+  public var windows: [Surface] { [] }
+  public var openings: [Surface] { [] }
+  public var objects: [Object] { [] }
+  @available(macOS 14.0, iOS 17.0, *)
+  public var floors: [Surface] { [] }
+  @available(macOS 14.0, iOS 17.0, *)
+  public var sections: [Section] { [] }
 }
 @available(macOS 13.0, iOS 16.0, *)
 public protocol RoomCaptureSessionDelegate: AnyObject {

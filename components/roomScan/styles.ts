@@ -61,6 +61,7 @@ export const makeRoomScanStyles = (t: ThemeColors) => StyleSheet.create({
   blockedText: { fontSize: Type.caption1.fontSize, lineHeight: 18, color: t.warningLabel },
   errorText: { fontSize: Type.caption1.fontSize, color: t.dangerLabel },
   okText: { fontSize: Type.caption1.fontSize, color: t.successLabel },
+  ownerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, marginTop: 10 },
   // order list
   choice: { gap: 6 },
   qtyCol: { alignItems: 'flex-end' as const, gap: 2, maxWidth: 130 },

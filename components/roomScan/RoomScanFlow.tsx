@@ -38,6 +38,22 @@
 // A scan the saved-list cap pushes off the phone takes its taped walls with it
 // in the same save (`dropTape`).
 //
+// THE OWNER PREVIEW (lane SCANBUILD). Nobody had run the scanner when the first
+// build that carries it was cut, and Apple does not document the JSON a
+// CapturedRoom encodes to. So a finished scan is handled to be INFORMATIVE:
+//   * the raw JSON is kept on the phone the moment the scanner closes, before
+//     the parser runs (utils/roomScan/rawKeep), whether or not it can be read;
+//   * a scan that cannot be read, or holds no walls, opens its own plain screen
+//     (step 'unread') instead of a red line or a blank: what happened, and for
+//     the owner the raw size, the top-level keys, the real error text and the
+//     Share Raw Scan Data button;
+//   * every way the scanner can end says something: a cancel, an interruption,
+//     a refused camera, a session error, a build without the module;
+//   * the owner sees Scan Facts on the plan: what the iPhone counted in Swift
+//     beside what the file holds and what the app understood.
+// `userEmail` is handed to every call into utils/roomScan/native, which refuses
+// the lookup for anyone the gate refuses. `ownerTools` only shows extras.
+//
 // A SCAN IS NEVER NAMED FOR HIM. It starts with an empty name; the name goes
 // on every estimate line, so Save and Price both ask for one.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -58,12 +74,12 @@ import { useRoomScanCopy } from '@/hooks/useRoomScanCopy';
 import { useScanOrderCopy } from '@/hooks/useScanOrderCopy';
 import { copyToClipboard } from '@/utils/clipboard';
 import { shareText } from '@/utils/shareText';
-import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
+import { formatCalendarDay, calendarDayOf, todayCalendarDay } from '@/utils/calendarDate';
 import { formatTimeL } from '@/i18n/format';
 import { generateUUID } from '@/utils/generateId';
 import type { MarkupPct } from '@/utils/estimateMarkup';
 import { roomScanAvailability, type RoomScanAvailability } from '@/utils/roomScan/availability';
-import { parseCapturedRoom } from '@/utils/roomScan/capturedRoomParser';
+import { parseCapturedRoom, type ParsedRoom } from '@/utils/roomScan/capturedRoomParser';
 import { makeCatalogRater } from '@/utils/roomScan/catalogRate';
 import { correctCeilingHeight, correctOpening, correctWallLength, renameScan } from '@/utils/roomScan/editsCore';
 import { buildRoomScan } from '@/utils/roomScan/geometryCore';
@@ -77,18 +93,21 @@ import {
 import { buildOrderDraft, makeMaterialRater, orderAfterPush, orderDraftWithout, orderPriceSources, orderWroteFrom, planOrderResend } from '@/utils/roomScan/orderPricingCore';
 import { buildEstimatePatch, buildScanDraft, draftBlock, draftPushLines, estimateHoldsPush, pushedLinesInEstimate, startsEstimate } from '@/utils/roomScan/pricingCore';
 import { computeQuantities, scanFacts, scanPricingBlock } from '@/utils/roomScan/quantitiesCore';
+import { keepRawScan, loadLastRawScan, loadRawScan, shareRawScanFile, type LastRawScan } from '@/utils/roomScan/rawKeep';
 import { ROOM_RECIPES, type RecipeKey } from '@/utils/roomScan/recipesCore';
+import { buildScanFacts, type ScanOutcome } from '@/utils/roomScan/scanDebugCore';
 import { deleteScan, hashRawScan, loadSavedScans, saveScan } from '@/utils/roomScan/store';
 import { withOrderSent, type SavedScan } from '@/utils/roomScan/storeCore';
-import type { RoomScan, RoomType } from '@/utils/roomScan/types';
+import { RoomScanParseError, type RoomScan, type RoomType } from '@/utils/roomScan/types';
 import { EditMeasureSheet, type EditTarget } from './EditMeasureSheet';
 import { FloorPlanView } from './FloorPlanView';
 import { OrderListView, type OrderSendState } from './OrderListView';
 import { PricedDraftView } from './PricedDraftView';
 import { QuantitiesView } from './QuantitiesView';
+import { ScanFactsPanel, type RawShareState } from './ScanFactsPanel';
 import { makeRoomScanStyles } from './styles';
 
-type Step = 'start' | 'plan' | 'quantities' | 'order' | 'price';
+type Step = 'start' | 'unread' | 'plan' | 'quantities' | 'order' | 'price';
 type Editing =
   | { on: 'wall'; id: string }
   | { on: 'ceiling' }
@@ -105,6 +124,10 @@ export interface RoomScanFlowProps {
   mayEditEstimate: boolean;
   /** A scan to open straight on the plan (a saved one, or a fixture in a test). */
   initial?: SavedScan;
+  /** The signed-in person's email, for the gate in utils/roomScan/native (the lookup is refused without it while the flag is off). */
+  userEmail?: string | null;
+  /** The owner's extras: Scan Facts, Share Raw Scan Data, the real error text. */
+  ownerTools?: boolean;
 }
 
 const emptySaved = (scan: RoomScan): SavedScan => ({ scan, pushed: {}, manualRates: {}, excluded: [], savedAt: '', pricedAt: null });
@@ -114,7 +137,7 @@ const KEPT_TRIES = 15;
 const KEPT_STEP_MS = 100;
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFlowProps) {
+export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = null, ownerTools = false }: RoomScanFlowProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -143,9 +166,17 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
   const [step, setStep] = useState<Step>(initial ? 'plan' : 'start');
   const [saved, setSaved] = useState<SavedScan | null>(initial ?? null);
   const [rawJson, setRawJson] = useState<string | null>(null);
-  const [avail, setAvail] = useState<RoomScanAvailability>(() => roomScanAvailability(RoomScanNative.getCapabilities()));
+  const [avail, setAvail] = useState<RoomScanAvailability>(() => roomScanAvailability(RoomScanNative.getCapabilities(userEmail)));
   const [busy, setBusy] = useState(false);
-  const [scanError, setScanError] = useState<'failed' | 'unreadable' | null>(null);
+  /** How the last try ended when it did not end in a room: a cancel, or a stop with its code and the phone's own words. */
+  const [scanEnd, setScanEnd] = useState<{ kind: 'cancelled' } | { kind: 'stopped'; code: string | null; text: string } | null>(null);
+  /** The last finished scan on this phone: its facts and where its raw data is. Also read back after a crash. */
+  const [last, setLast] = useState<LastRawScan | null>(null);
+  const [rawKept, setRawKept] = useState(true);
+  const [sharing, setSharing] = useState(false);
+  const [shareState, setShareState] = useState<RawShareState>(null);
+  /** Apple's JSON for the scan just made, as the module returned it, held in memory so a share does not depend on the phone's storage. */
+  const lastRawText = useRef<{ scanId: string; raw: string } | null>(null);
   const [savedList, setSavedList] = useState<SavedScan[]>([]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saved' | 'failed' | 'needsName'>('idle');
@@ -177,6 +208,15 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     void loadTapePairs(userId).then((pairs) => { if (live) setTapeLog(pairs); });
     return () => { live = false; };
   }, [userId]);
+
+  // The owner's last scan, read back from the phone: a scan that could not be
+  // read, or one the app was closed on, can still be shared.
+  useEffect(() => {
+    if (!ownerTools) return undefined;
+    let live = true;
+    void loadLastRawScan().then((l) => { if (live && l) setLast((cur) => cur ?? l); });
+    return () => { live = false; };
+  }, [ownerTools]);
 
   const scan = saved?.scan ?? null;
   const quantities = useMemo(() => (scan ? computeQuantities(scan) : null), [scan]);
@@ -233,7 +273,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
   }, []);
 
   // ── the scan ──
-  const refreshAvailability = useCallback(() => setAvail(roomScanAvailability(RoomScanNative.getCapabilities())), []);
+  const refreshAvailability = useCallback(() => setAvail(roomScanAvailability(RoomScanNative.getCapabilities(userEmail))), [userEmail]);
   const allowCamera = useCallback(async () => {
     try { await ImagePicker.requestCameraPermissionsAsync(); } catch { /* the sentence on screen already says what is needed */ }
     refreshAvailability();
@@ -242,42 +282,98 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
   const startScan = useCallback(async () => {
     if (busy) return;
     setBusy(true);
-    setScanError(null);
+    setScanEnd(null);
+    setShareState(null);
     const scanId = generateUUID();
     try {
-      const raw = await RoomScanNative.startScan({ scanId, exportUsdz: false });
-      if (raw.status !== 'done' || !raw.capturedRoomJson) return; // cancelled: nothing happened, nothing to say
-      let next: RoomScan;
-      try {
-        const parsed = parseCapturedRoom(raw.capturedRoomJson);
-        next = buildRoomScan(parsed, {
-          id: scanId,
-          projectId,
-          // No name yet. The field shows an example as its placeholder; the
-          // scan itself is never called "Hall Bathroom" for him.
-          name: '',
-          capturedAt: raw.endedAt || new Date().toISOString(),
-          device: { model: raw.deviceModel ?? '', os: raw.roomPlanSdk ?? '' },
-          warnings: raw.warnings ?? [],
-          rawSha256: await hashRawScan(raw.capturedRoomJson),
-        });
-      } catch {
-        setScanError('unreadable');
+      const raw = await RoomScanNative.startScan(userEmail, { scanId, exportUsdz: false });
+      if (raw.status !== 'done') { setScanEnd({ kind: 'cancelled' }); return; }
+      const json = typeof raw.capturedRoomJson === 'string' ? raw.capturedRoomJson : '';
+      const endedAt = raw.endedAt || new Date().toISOString();
+      const rawSha256 = json ? await hashRawScan(json) : '';
+      // Read it. Whatever happens here is an outcome with its real words, never a throw past this block.
+      let parsed: ParsedRoom | null = null;
+      let next: RoomScan | null = null;
+      let outcome: ScanOutcome = 'read';
+      let errorText = '';
+      if (!json) {
+        outcome = 'notEncoded';
+        errorText = raw.encodeError ?? '';
+      } else {
+        try {
+          parsed = parseCapturedRoom(json);
+        } catch (e) {
+          outcome = e instanceof RoomScanParseError && e.code === 'no_walls' ? 'noWalls' : 'unreadable';
+          errorText = RoomScanNative.roomScanErrorText(e);
+        }
+        if (parsed) {
+          try {
+            next = buildRoomScan(parsed, {
+              id: scanId,
+              projectId,
+              // No name yet. The field shows an example as its placeholder; the
+              // scan itself is never called "Hall Bathroom" for him.
+              name: '',
+              capturedAt: endedAt,
+              device: { model: raw.deviceModel ?? '', os: raw.roomPlanSdk ?? '' },
+              warnings: raw.warnings ?? [],
+              rawSha256,
+            });
+          } catch (e) {
+            outcome = 'unreadable';
+            errorText = RoomScanNative.roomScanErrorText(e);
+          }
+        }
+      }
+      const summary = raw.summary ?? null;
+      const facts = buildScanFacts({
+        scanId, projectId, raw: json, rawSha256, summary, parsed, outcome, errorText,
+        osVersion: raw.roomPlanSdk ?? '', deviceModel: raw.deviceModel ?? '',
+        startedAt: raw.startedAt ?? '', endedAt, durationSeconds: raw.durationSeconds ?? null, warnings: raw.warnings ?? [],
+      });
+      // Kept on the phone BEFORE the result is used for anything, read or not.
+      lastRawText.current = { scanId, raw: json };
+      const kept = await keepRawScan(json, facts, summary);
+      setRawKept(kept);
+      setLast({ version: 1, scanId, projectId, facts, summary });
+      setRawJson(json || null);
+      if (!next) {
+        setSaved(null);
+        setStep('unread');
         return;
       }
-      setRawJson(raw.capturedRoomJson);
       setSaved(emptySaved(next));
       setSaveState('idle');
       setResult('idle');
       setDirty(true);
       setStep('plan');
-    } catch {
-      setScanError('failed');
+    } catch (e) {
+      // The module said no, or the scan stopped. Each code has its own sentence; the owner also sees the phone's own words.
+      setScanEnd({ kind: 'stopped', code: RoomScanNative.roomScanErrorCode(e), text: RoomScanNative.roomScanErrorText(e) });
       refreshAvailability();
     } finally {
       setBusy(false);
     }
-  }, [busy, projectId, refreshAvailability]);
+  }, [busy, projectId, refreshAvailability, userEmail]);
+
+  // ── the raw scan as a file, only from a tap, only for the owner ──
+  const shareRaw = useCallback(async () => {
+    if (!ownerTools || !last || sharing) return;
+    setSharing(true);
+    try {
+      // The text in memory when this is the scan on screen; otherwise what the phone kept.
+      const held = lastRawText.current;
+      const raw = held && held.scanId === last.scanId ? held.raw : await loadRawScan(last.scanId);
+      const roomName = saved?.scan.id === last.scanId ? saved.scan.name : '';
+      const res = await shareRawScanFile({
+        facts: last.facts, summary: last.summary, raw, roomName,
+        day: calendarDayOf(last.facts.at) ?? todayCalendarDay(), dialogTitle: copy.shareRawTitleLabel,
+      });
+      setShareState({ outcome: res.outcome, file: res.fileName, error: res.errorText });
+    } finally {
+      setSharing(false);
+    }
+  }, [ownerTools, last, sharing, saved, copy]);
 
   // ── fixing a number ──
   const editTarget: EditTarget | null = useMemo(() => {
@@ -439,6 +535,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     // Leaving the plan drops whatever the phone does not hold. Ask first.
     else if (step === 'plan' && dirty) setLeaving(true);
     else if (step === 'plan') leavePlan();
+    else if (step === 'unread') { setRawJson(null); setStep('start'); }
     else router.back();
   }, [step, dirty, leavePlan, router]);
 
@@ -474,7 +571,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
                     </View>
                   ))}
                 </View>
-                {scanError && <Text style={styles.errorText}>{scanError === 'failed' ? copy.scanFailedBody : copy.scanUnreadableBody}</Text>}
+                {scanEnd?.kind === 'cancelled' && <Text style={styles.note} testID="scan-ended-cancelled">{copy.cancelledBody}</Text>}
                 <Button label={copy.startScanLabel} variant="primary" onPress={() => void startScan()} loading={busy} testID="scan-start-button" />
               </>
             ) : (
@@ -483,9 +580,23 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
                 {avail.action === 'none' && <Text style={styles.blockedText}>{copy.otherWaysBody}</Text>}
               </View>
             )}
+            {/* A stop is said whether or not the phone can still scan: a refused camera turns the start into the Open Settings block. */}
+            {scanEnd?.kind === 'stopped' && (
+              <View style={styles.blocked} testID={`scan-ended-${scanEnd.code ?? 'unknown'}`}>
+                <Text style={styles.blockedText}>{copy.scanStoppedBody(scanEnd.code)}</Text>
+                {ownerTools && !!scanEnd.text && <Text style={styles.blockedText} selectable testID="scan-ended-text">{copy.phoneSaidSub(scanEnd.text)}</Text>}
+              </View>
+            )}
             {avail.action === 'requestCamera' && <Button label={copy.allowCameraLabel} variant="primary" onPress={() => void allowCamera()} testID="scan-allow-camera" />}
             {avail.action === 'openSettings' && <Button label={copy.openSettingsLabel} variant="secondary" onPress={() => void Linking.openSettings()} testID="scan-open-settings" />}
 
+            {ownerTools && last && (
+              <>
+                <Text style={styles.cardHeading}>{copy.lastScanHeadingLabel}</Text>
+                <Text style={styles.note}>{copy.lastScanSub(formatCalendarDay(calendarDayOf(last.facts.at), undefined, lang), formatTimeL(last.facts.at, lang))}</Text>
+                <ScanFactsPanel facts={last.facts} copy={copy} styles={styles} rawKept sharing={sharing} shareState={shareState} onShare={() => void shareRaw()} />
+              </>
+            )}
             <View style={styles.card}>
               <Text style={styles.cardHeading}>{copy.savedHeadingLabel}</Text>
               {savedList.length === 0 && <Text style={styles.note}>{copy.savedEmptyBody}</Text>}
@@ -506,6 +617,18 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
             </View>
           </View>
         )}
+        {step === 'unread' && last && (
+          <View style={styles.body} testID={`scan-unread-${last.facts.outcome}`}>
+            <View style={styles.blocked}>
+              <Text style={styles.blockedText}>{copy.unreadBody(last.facts.outcome === 'read' ? 'unreadable' : last.facts.outcome)}</Text>
+              <Text style={styles.blockedText}>{copy.unreadNextBody(ownerTools)}</Text>
+            </View>
+            {ownerTools && (
+              <ScanFactsPanel facts={last.facts} copy={copy} styles={styles} rawKept={rawKept} sharing={sharing} shareState={shareState} onShare={() => void shareRaw()} />
+            )}
+            <Button label={copy.scanAgainLabel} variant="primary" onPress={() => { setRawJson(null); setStep('start'); }} testID="scan-unread-again" />
+          </View>
+        )}
         {step === 'plan' && scan && quantities && (
           <FloorPlanView
             scan={scan}
@@ -522,6 +645,11 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
             onSave={() => void save()}
             onNext={() => setStep('quantities')}
           />
+        )}
+        {step === 'plan' && scan && quantities && ownerTools && last && last.scanId === scan.id && (
+          <View style={styles.body} testID="scan-plan-facts">
+            <ScanFactsPanel facts={last.facts} copy={copy} styles={styles} rawKept={rawKept} sharing={sharing} shareState={shareState} onShare={() => void shareRaw()} />
+          </View>
         )}
         {step === 'quantities' && scan && quantities && (
           <QuantitiesView
