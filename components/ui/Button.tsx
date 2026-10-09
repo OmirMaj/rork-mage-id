@@ -516,6 +516,12 @@ export function Button({
         // fill show at FULL opacity; the press stays blocked by `disabled`.
         isDisabled && !morphing && styles.disabled,
         style,
+        // Web at phone width only. A caller's `style={{ flex: 1 }}` lands here,
+        // inside the auto-height wrapper; the browser then takes flex-basis 0
+        // over `height` and the pill collapsed to its label (a 20 px sliver).
+        // The phone's layout engine keeps `height`, so this is web parity and
+        // nothing is added to the native array.
+        Platform.OS === 'web' && { minHeight: sz.height },
       ];
 
   // The wrapper is what sits in the caller's layout. On a phone it stays the
