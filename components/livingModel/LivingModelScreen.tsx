@@ -7,9 +7,14 @@
 //   Job Replay  play the job from start to finish, planned against reported.
 //               In 3D on the web; drawn flat on the phone, which says so.
 //
-// The model is SAVED ON THIS DEVICE ONLY FOR NOW (utils/livingModel/storeCore)
-// and the Room Editor says so. Every change is the person's: this screen
-// writes the model after he changes it and never changes it itself.
+// The model is SAVED ON THIS DEVICE FIRST (utils/livingModel/storeCore), at
+// every change, and then to the person's account when it can be
+// (hooks/useLivingModelSync; the rules are utils/livingModel/syncCore). One
+// line under the tabs says where it is saved, and is true at that moment
+// (SyncStatus). Every change is the person's: this screen writes the model
+// after he changes it. The one time the model on screen is replaced without a
+// tap is when the account holds a later save and this device has no changes of
+// its own; when BOTH have changed he is asked, and nothing is replaced first.
 //
 // A SAVED MODEL THAT CANNOT BE READ IS KEPT. When text is stored for this job
 // and it is not a sound model, the screen says so in a plain sentence, the text
@@ -18,7 +23,9 @@
 // then the tabs are not drawn at all, so there is nothing to edit.
 //
 // NOT IN THIS PHASE, and not built: a money lens, open items, a client view,
-// sharing a replay, reading rooms from an uploaded plan, cloud sync. The seams
+// sharing a replay, reading rooms from an uploaded plan, syncing the scan list
+// (a scan stays on the phone that made it; only a room placed in the model is
+// sent, and only after he says yes). The seams
 // are the model (JobModel), the per-room moment (replayCore.roomMoment) and the
 // 3D view's `looks`; nothing here depends on how those later features are made.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -30,6 +37,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
+import { useLivingModelSync } from '@/hooks/useLivingModelSync';
+import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { Button, SegmentedControl } from '@/components/ui';
 import { useIsDesktop } from '@/components/ui/desktop';
 import { canRedo, canUndo, historyOf, historyPush, historyRedo, historyUndo, type History } from '@/utils/livingModel/historyCore';
@@ -38,11 +47,13 @@ import { cardWhen, weekCount, weekOf } from '@/utils/livingModel/replayCore';
 import { buildReplayInput } from '@/utils/livingModel/replayInput';
 import { loadJobModel, saveJobModel } from '@/utils/livingModel/store';
 import { mayWriteModel, type LoadState } from '@/utils/livingModel/storeCore';
+import { scanRoomIds } from '@/utils/livingModel/syncCore';
 import type { JobModel } from '@/utils/livingModel/types';
 import { FlatReplay } from './FlatReplay';
 import { HonestyLines } from './HonestyLines';
 import { JOB_REPLAY_3D_ON_THIS_PLATFORM, JobReplay3D } from './JobReplay3D';
 import { RoomEditor } from './RoomEditor';
+import { SyncStatus } from './SyncStatus';
 import { TaskLinks } from './TaskLinks';
 import { ReplayControls, ReplayRoomList, RoomCardPanel, StageLegend, useReplayState, useRoomMoments, useRoomTasks } from './replayShared';
 import { makeLivingModelStyles } from './styles';
@@ -113,6 +124,21 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
   const onRedo = useCallback(() => setHistory((h) => { if (!h || !canRedo(h)) return h; const r = historyRedo(h); persist(r.present); return r; }), [persist]);
 
   const model = history?.present ?? null;
+  /** The device's model was replaced by the account's, or by one he had set aside: show it. The undo list starts again. */
+  const onAdopt = useCallback((m: JobModel) => {
+    setHistory(historyOf(m));
+    setSelectedId(null);
+    const levels = modelLevels(m);
+    setLevel((l) => (levels.length === 0 || levels.includes(l) ? l : levels[0]));
+  }, []);
+  const sync = useLivingModelSync({ projectId, userId, project, model, loadState, onAdopt });
+  const { collaborators } = useProjectCollaborators(projectId);
+  const nameOf = useCallback((id: string | null): string | null => {
+    if (!id) return null;
+    const c = collaborators.find((x) => x.userId === id);
+    return c ? (c.name || c.email || null) : null;
+  }, [collaborators]);
+  const hasScanRoom = useMemo(() => (model ? scanRoomIds(model).length > 0 : false), [model]);
   const reports = useMemo(() => getDailyReportsForProject(projectId), [getDailyReportsForProject, projectId]);
   const chosenStages = model?.stages;
   const input = useMemo(() => buildReplayInput(project?.schedule ?? null, reports, now, chosenStages), [project?.schedule, reports, now, chosenStages]);
@@ -150,6 +176,7 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
           </View>
         ) : null}
         {model && loadState === 'started_new' ? <Text style={styles.note} testID="lm-started-new">{copy.startedNewBody}</Text> : null}
+        {model && !blocked ? <SyncStatus sync={sync} deviceRooms={model.rooms.length} hasScanRoom={hasScanRoom} nameOf={nameOf} /> : null}
         {model && !blocked && tab === 'rooms' ? (
           <>
             <RoomEditor

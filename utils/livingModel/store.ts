@@ -65,8 +65,10 @@ export async function saveJobModel(userId: string | null | undefined, model: Job
 }
 /**
  * The scans saved for this project on this device (the scanner's own list,
- * read only). The scanner keeps scans on the phone that made them, so on the
- * web this is empty until scans sync.
+ * read only). The scanner keeps scans on the phone that made them and the scan
+ * list is NOT synced, so on the web this is empty and the sheet says why. A
+ * room placed in the model from a scan does reach the web, inside the model,
+ * after the person says yes (syncCore.scanGate).
  */
 export async function loadProjectScans(projectId: string): Promise<SavedScan[]> {
   let raw: string | null = null;
