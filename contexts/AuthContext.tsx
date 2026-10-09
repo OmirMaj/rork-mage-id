@@ -28,6 +28,7 @@ import { clearPlanSheetUrlCache } from '@/utils/planSheetUrls';
 import { resetCodeCardStores } from '@/utils/codeCard/reset';
 import { registerForPushNotifications } from '@/utils/notifications';
 import { inviteTokenFromMetadata, markInviteTokenHandled, sanitizeInviteToken, signupMetadata, INVITE_METADATA_FIELD } from '@/utils/deepLinksInvite';
+import { recordSignInAcceptance, type SignInMethod, type SignInScreen } from '@/utils/legalAcceptance';
 import { createAuthEventHold, holdAuthEvents, offerAuthEvent, releaseAuthEvents, type AuthEventHold } from '@/utils/authEventHold';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -889,6 +890,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const completeSignIn = useCallback(async (
     signedIn: User | null | undefined,
     handoff: { sameUser: boolean; last: LastUser | null },
+    method: SignInMethod,
+    // Which screen Apple / Google was started on. The other methods name their own.
+    startedFrom?: SignInScreen,
   ) => {
     const incoming: LastUser | null = signedIn ? { id: signedIn.id, email: signedIn.email ?? null } : null;
     const sameUser = !!incoming && !!handoff.last && handoff.last.id === incoming.id;
@@ -910,6 +914,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
     await writeLastUser(incoming);
     queryClient.clear();
+    // The saved record that the Terms and Privacy Policy were accepted
+    // (public.legal_acceptances), written ONLY when the screen this sign-in
+    // came from displays the sentence in this build (utils/legalAcceptanceCore
+    // signInAcceptanceSurface decides; for the login screen that is false
+    // today). Not awaited and it cannot throw: a sign-in never waits on, or
+    // fails because of, the record.
+    recordSignInAcceptance(signedIn, method, startedFrom);
     console.log('[Auth] Sign-in completed —', sameUser ? 'same user, offline queue kept' : 'tenant switch, offline queue dropped');
   }, [queryClient]);
 
@@ -1084,6 +1095,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     if (markerUnsafe) console.log('[Auth] Last-user marker not written — a write queue was unreadable this session');
     else await writeLastUser(incoming);
     queryClient.clear();
+    // An email link (a confirmed sign-up, a sign-in link, a password reset)
+    // made this session. NOTHING is recorded here: no screen with the Terms
+    // sentence was shown at this moment. A sign-up that was waiting for this
+    // link noted its acceptance at the sign-up tap, under this account's id;
+    // components/LegalGateHost sends it now that the account has a session.
     console.log(
       '[Auth] New session established — re-fetchable cache cleared; offline queue',
       keepQueue ? 'preserved' : 'dropped',
@@ -1118,7 +1134,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
     // SYNC-F2: same user → pending offline work is kept; different user → the
     // previous tenant's queues are dropped now, before anything can flush them.
-    await completeSignIn(data.user, handoff);
+    await completeSignIn(data.user, handoff, 'password');
 
     const authUser = mapSupabaseUser(data.user);
     console.log('[Auth] Login successful');
@@ -1206,7 +1222,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         // seen the new session yet (held above).
         const handoff = await beginSignIn({ id: data.user.id, email: email.toLowerCase().trim() });
         if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
-        await completeSignIn(data.user, handoff);
+        await completeSignIn(data.user, handoff, 'signup_email');
+      } else {
+        // No session yet: the confirmation email is on its way. The person
+        // agreed NOW, on the sign-up screen, so the acceptance is noted now,
+        // under the new account's id (a real one: the obfuscated "already
+        // exists" answer was refused above). It is sent when that account's
+        // session arrives, however much later the link is opened, and keeps
+        // the surface signup_email. Not awaited; cannot throw.
+        recordSignInAcceptance(data.user, 'signup_email');
       }
       signedUpUser = data.user;
     } finally {
@@ -1576,7 +1600,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // so the calling screen stays put instead of firing a success haptic, a
   // false USER_LOGGED_IN and a navigation the root gate then bounces to /login
   // (stashing that destination as a pending link to replay later).
-  const signInWithGoogle = useCallback(async (): Promise<boolean> => {
+  const signInWithGoogle = useCallback(async (startedFrom: SignInScreen = 'login'): Promise<boolean> => {
     console.log('[Auth] Starting Google sign-in');
     try {
       // ─── Native iOS / Android flow ───
@@ -1647,7 +1671,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           });
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (native flow)');
-          await completeSignIn(data.user ?? data.session?.user, handoff);
+          await completeSignIn(data.user ?? data.session?.user, handoff, 'google', startedFrom);
           return true;
         } catch (gErr) {
           const code = (gErr as { code?: string | number })?.code;
@@ -1721,7 +1745,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           });
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (web GIS flow)');
-          await completeSignIn(data.user ?? data.session?.user, handoff);
+          await completeSignIn(data.user ?? data.session?.user, handoff, 'google', startedFrom);
           return true;
         } catch (gisErr) {
           // Fall through to the legacy redirect flow if GIS isn't
@@ -1764,7 +1788,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             });
             if (sessionError) throw sessionError;
             console.log('[Auth] Google sign-in session set successfully');
-            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff);
+            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff, 'google', startedFrom);
             return true;
           } else {
             console.log('[Auth] No access token found in Google callback URL');
@@ -1781,7 +1805,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   }, [beginSignIn, completeSignIn]);
 
   // #159: same contract as signInWithGoogle — true only after completeSignIn.
-  const signInWithApple = useCallback(async (): Promise<boolean> => {
+  const signInWithApple = useCallback(async (startedFrom: SignInScreen = 'login'): Promise<boolean> => {
     console.log('[Auth] Starting Apple sign-in');
     try {
       // ─── iOS native flow ───
@@ -1840,7 +1864,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           }
         }
         console.log('[Auth] Apple sign-in session set (native iOS flow)');
-        await completeSignIn(data.user ?? data.session?.user, handoff);
+        await completeSignIn(data.user ?? data.session?.user, handoff, 'apple', startedFrom);
         return true;
       }
 
@@ -1878,7 +1902,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             });
             if (sessionError) throw sessionError;
             console.log('[Auth] Apple sign-in session set successfully');
-            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff);
+            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff, 'apple', startedFrom);
             return true;
           } else {
             console.log('[Auth] No access token found in Apple callback URL');

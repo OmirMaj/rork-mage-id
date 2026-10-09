@@ -318,7 +318,7 @@ console.log('\n5 · auth events held while the tenant handoff runs');
   const holdAt = signup.indexOf('holdAuthEvents(authHoldRef.current)');
   ok('signup holds auth events BEFORE supabase.auth.signUp', holdAt > 0 && holdAt < signup.indexOf('supabase.auth.signUp('));
   ok('…releases them in a finally AFTER the handoff (wipe + completeSignIn)',
-    /await completeSignIn\(data\.user, handoff\);[\s\S]*\} finally \{\s*releaseAuthEvents\(authHoldRef\.current, applyAuthSessionRef\.current\);/.test(signup));
+    /await completeSignIn\(data\.user, handoff, 'signup_email'\);[\s\S]*\} finally \{\s*releaseAuthEvents\(authHoldRef\.current, applyAuthSessionRef\.current\);/.test(signup));
   ok('the listener offers every event through the hold', /onAuthStateChange\(\(_event, newSession\) => \{[\s\S]{0,160}offerAuthEvent\(authHoldRef\.current, newSession, applyAuthSession\)/.test(AUTH));
   ok('the mount holds events until its marker check is done',
     /holdAuthEvents\(mountHold\);[\s\S]*\.finally\(\(\) => \{\s*releaseAuthEvents\(mountHold, applyAuthSession\);/.test(AUTH));

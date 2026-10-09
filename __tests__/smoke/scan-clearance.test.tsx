@@ -53,6 +53,8 @@ jest.mock('@/contexts/ProjectContext', () => ({
 }));
 jest.mock('@/contexts/MaterialCartContext', () => ({ useMaterialCart: () => ({ globalMarkup: 20, markupDecided: true }) }));
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
+// The one-time scan notice (hooks/useScanAck) is already acknowledged here; __tests__/smoke/scan-ack.test.tsx tests the notice itself.
+jest.mock('@/hooks/useScanAck', () => ({ useScanAck: () => ({ ensure: async () => true, known: () => true }) }));
 jest.mock('@/hooks/useScopeCostBook', () => {
   const { buildCostDatabase } = jest.requireActual('@/utils/costDatabase');
   const db = buildCostDatabase([], [], [], [], []);

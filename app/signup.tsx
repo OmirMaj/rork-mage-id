@@ -230,7 +230,7 @@ export default function SignupScreen() {
     try {
       // #159: false = he closed the Google sheet. Stay on Sign-up — a
       // navigation with no session was bounced to Login by the root gate.
-      const signedIn = await signInWithGoogle();
+      const signedIn = await signInWithGoogle('signup');
       if (!signedIn) return;
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -251,7 +251,7 @@ export default function SignupScreen() {
     try {
       // #159: false = he closed the Apple sheet. Stay on Sign-up — a
       // navigation with no session was bounced to Login by the root gate.
-      const signedIn = await signInWithApple();
+      const signedIn = await signInWithApple('signup');
       if (!signedIn) return;
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

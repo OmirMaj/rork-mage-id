@@ -268,6 +268,12 @@ export const SURFACES: Surface[] = [
   // inspector commonly looks at, measured off a scan. Every string lives in the
   // one copy hook. Complete: each key has Spanish (i18n/catalog/es/office/scanClearance.ts).
   { id: 'office.scan-clearance', phase: 2, state: 'complete', keyPrefixes: ['office.scanClearance.'], files: ['hooks/useScanClearanceCopy.ts'], lane: 'CLEARANCE' },
+  // Notices (lane PROTECT-SERVER): the first-use scan notice and the
+  // re-acceptance sheet (dark behind TERMS_REACCEPT_ENABLED). Every string lives
+  // in the one copy hook. Complete: the scan notice has Spanish
+  // (i18n/catalog/es/office/notices.ts); the sheet's keys are `.legal.` keys,
+  // which only a human legal translator may put into Spanish.
+  { id: 'office.notices', phase: 2, state: 'complete', keyPrefixes: ['office.notices.'], files: ['hooks/useLegalCopy.ts'], lane: 'PROTECT' },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

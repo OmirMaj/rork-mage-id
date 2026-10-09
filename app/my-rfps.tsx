@@ -26,6 +26,7 @@ import { rfpReachLine } from '@/supabase/functions/notify-nearby-contractors/rea
 import { RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED } from '@/constants/featureFlags';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useRfpAttachmentUrls } from '@/utils/rfpAttachmentUrls';
 
 interface MyRfpRow {
   id: string;
@@ -123,6 +124,9 @@ export default function MyRfpsScreen() {
   });
 
   const rfps = data ?? [];
+  // Each posting's first photo, as a short-lived signed link (the bucket is private).
+  const heroRefs = useMemo(() => (data ?? []).map(r => r.photo_urls?.[0]).filter((v): v is string => !!v), [data]);
+  const attachmentUrl = useRfpAttachmentUrls(heroRefs);
 
   const handleNew = useCallback(() => {
     router.push('/post-rfp' as never);
@@ -218,7 +222,7 @@ export default function MyRfpsScreen() {
               activeOpacity={0.85}
             >
               {heroPhoto ? (
-                <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
+                <Image source={{ uri: attachmentUrl(heroPhoto) || undefined }} style={styles.rfpHero} resizeMode="cover" />
               ) : (
                 <View style={[styles.rfpHero, styles.rfpHeroPlaceholder]}>
                   <Inbox size={24} color={themeColors.textMuted} strokeWidth={1.75} />

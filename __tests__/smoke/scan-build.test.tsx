@@ -72,6 +72,8 @@ jest.mock('@/components/Paywall', () => ({ __esModule: true, default: () => null
 const OWNER = 'omirmajeed2000@gmail.com';
 let mockUser: { id: string; email?: string } | null = { id: 'user-1', email: 'someone@example.com' };
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: mockUser }) }));
+// The one-time scan notice (hooks/useScanAck) is already acknowledged here; __tests__/smoke/scan-ack.test.tsx tests the notice itself.
+jest.mock('@/hooks/useScanAck', () => ({ useScanAck: () => ({ ensure: async () => true, known: () => true }) }));
 
 // The native half. `mockLinked = false` is a build made before the module existed.
 let mockLinked = true;

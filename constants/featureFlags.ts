@@ -251,6 +251,25 @@ export const CODE_FLAGS_ENABLED = false;
 // product is real, and rewrite the card to say what the product does.
 export const DISCOVER_WAITLIST_CARDS_ENABLED: boolean = false;
 
+// RE-ACCEPTANCE OF THE TERMS (lane PROTECT-SERVER, 2026-10-09): a full-screen
+// sheet shown to a signed-in account that has no saved acceptance of the
+// CURRENT Terms of Service and Privacy Policy (public.legal_acceptances): what
+// changed, links to both, "I Agree", and "Sign Out". Built and tested; OFF.
+//
+// While this is false the sheet is never mounted, the account's rows are never
+// read for it, and nobody is asked or blocked. Acceptances at sign-up and
+// sign-in are recorded either way (that does not depend on this flag).
+//
+// Turning it on is the FOUNDER'S decision, after his attorney has finalised the
+// Terms (the words a person is asked to agree to must be the words counsel
+// approved, and the sheet's own sentences are draft). Before flipping: the
+// legal_acceptances migration is applied, the Terms and Privacy pages are final
+// and their version and hash in utils/legalAcceptanceCore.ts match
+// (scripts/validate-legal-acceptance.ts fails otherwise), and the sheet's
+// "what changed" lines in hooks/useLegalCopy.ts say what changed.
+// The one reader is components/LegalGateHost.tsx.
+export const TERMS_REACCEPT_ENABLED = false;
+
 // PAY PERIOD RECORD (Big Bets, Bet 3, Phase 1, 2026-10-09; the lane's first
 // name for it was the proof of work package, retired because it read as proof
 // that the work was done; the flag, the folder and the table keep "proof pack"

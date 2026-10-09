@@ -112,6 +112,8 @@ jest.mock('@/utils/roomScan/store', () => ({
 // __tests__/smoke/scan-order.test.tsx): stand them in so nothing here touches
 // the device.
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
+// The one-time scan notice (hooks/useScanAck) is already acknowledged here; __tests__/smoke/scan-ack.test.tsx tests the notice itself.
+jest.mock('@/hooks/useScanAck', () => ({ useScanAck: () => ({ ensure: async () => true, known: () => true }) }));
 jest.mock('@/utils/roomScan/learnStore', () => ({
   loadTapePairs: async () => [],
   recordTapePairs: async (_userId: unknown, pairs: unknown[]) => pairs,

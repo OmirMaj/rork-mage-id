@@ -82,6 +82,7 @@ import { useScopeCostBook } from '@/hooks/useScopeCostBook';
 import { Button, Sheet } from '@/components/ui';
 import { useRoomScanCopy } from '@/hooks/useRoomScanCopy';
 import { useScanOrderCopy } from '@/hooks/useScanOrderCopy';
+import { useScanAck } from '@/hooks/useScanAck';
 import { useScanClearanceCopy } from '@/hooks/useScanClearanceCopy';
 import { codeCheckFromJobHref } from '@/utils/uxRoutes';
 import { copyToClipboard } from '@/utils/clipboard';
@@ -161,6 +162,13 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
   const copy = useRoomScanCopy();
   const ocopy = useScanOrderCopy();
   const ccopy = useScanClearanceCopy();
+  // "Before you rely on a scan": asked once per account, before the first scan, Order List or Clearance Check.
+  const scanAck = useScanAck();
+  // Runs `go` at once when this account has acknowledged (no extra tick), else after "I Understand".
+  const afterScanAck = useCallback((go: () => void) => {
+    if (scanAck.known()) { go(); return; }
+    void scanAck.ensure().then((ok) => { if (ok) go(); });
+  }, [scanAck]);
   // Clearance Check has its own gate: the owner always, anyone else only once its own switch is on and a named professional has read its table.
   const clearanceOn = clearanceCheckAllowed(userEmail);
   const { lang } = useT();
@@ -304,6 +312,8 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
 
   const startScan = useCallback(async () => {
     if (busy) return;
+    // The one-time scan notice, before the first scan (hooks/useScanAck).
+    if (!scanAck.known() && !(await scanAck.ensure())) return;
     setBusy(true);
     setScanEnd(null);
     setShareState(null);
@@ -377,7 +387,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
     } finally {
       setBusy(false);
     }
-  }, [busy, projectId, refreshAvailability, userEmail]);
+  }, [busy, projectId, refreshAvailability, userEmail, scanAck]);
 
   // ── the raw scan as a file, only from a tap, only for the owner ──
   const shareRaw = useCallback(async () => {
@@ -668,7 +678,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
             onRoomType={(rt: RoomType) => change((s) => (s.roomType === rt ? s : { ...s, roomType: rt }))}
             onSave={() => void save()}
             onNext={() => setStep('quantities')}
-            clearance={clearanceOn ? { label: ccopy.openLabel, onPress: () => setStep('clearance') } : undefined}
+            clearance={clearanceOn ? { label: ccopy.openLabel, onPress: () => afterScanAck(() => setStep('clearance')) } : undefined}
           />
         )}
         {step === 'plan' && scan && quantities && ownerTools && last && last.scanId === scan.id && (
@@ -690,7 +700,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
             copy={copy}
             block={scanPricingBlock(scan, quantities)}
             onPrice={() => setStep('price')}
-            order={{ label: ocopy.openLabel, onPress: () => { setOrderSend('idle'); setStep('order'); } }}
+            order={{ label: ocopy.openLabel, onPress: () => afterScanAck(() => { setOrderSend('idle'); setStep('order'); }) }}
           />
         )}
         {step === 'order' && saved && orderList && orderDraft && orderSendDraft && orderOptions && (
