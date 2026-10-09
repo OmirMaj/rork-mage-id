@@ -8,6 +8,11 @@
 //
 // Rules this file holds (each pinned by scripts/validate-proof-pack.ts):
 //   - The first page carries the two "what this is and is not" sentences.
+//   - The Notice To Recipients prints as a block on the first page AND in the
+//     footer of every page. The footer is the <tfoot> of one table that frames
+//     the whole document: a table footer group repeats at the foot of every
+//     printed page in normal flow (utils/aiaBilling.ts PRINT NOTES measured why
+//     a position:fixed footer cannot be used: it overprints the content).
 //   - EVERY item prints its class label. There is no code path that prints
 //     an item without one (`strengthPill` is in every row builder).
 //   - Money is printed from the record's integer cents, never recomputed, and
@@ -279,6 +284,10 @@ export function buildProofPackHtml(pack: ProofPack, opts: ProofPackHtmlOptions):
     ],
   });
   out += `<div data-what-this-is style="margin:14px 0 6px;padding:12px 14px;border-left:4px solid ${P.brand};background:${P.brandTint};font-size:12.5px;color:${P.text};font-family:${PDF_FONT_DISPLAY};font-weight:600">${escHtml(c.whatThisIs)} ${escHtml(c.whatThisIsNot)}</div>`;
+  out += `<div class="no-break" data-notice="first-page" style="margin:10px 0 10px;padding:10px 14px;border:1.5px solid ${P.text};border-radius:6px">
+  <div style="font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${P.text}">${escHtml(c.noticeHeadingLabel)}</div>
+  <div style="font-size:11.5px;color:${P.text};margin-top:3px">${escHtml(c.notice)}</div>
+</div>`;
   out += muted(c.labelMeaning);
   out += muted(c.periodStart[pack.period.startSource]);
 
@@ -447,7 +456,12 @@ export function buildProofPackHtml(pack: ProofPack, opts: ProofPackHtmlOptions):
 
   out += pdfFooter(branding, undefined, c.footer);
 
-  const html = pdfShell({ bodyHtml: out, branding, title: `${c.titleLabel} ${payName}` });
+  // One table frames the document so its footer group repeats on every page.
+  const framed = `<table data-page-frame style="width:100%;border-collapse:collapse">
+<tfoot style="display:table-footer-group"><tr><td data-notice="page-footer" style="padding:10px 0 0;font-size:8.5px;line-height:1.4;color:${P.text2}"><div style="border-top:1px solid ${P.hairline};padding-top:6px"><span style="font-weight:700;letter-spacing:0.6px;text-transform:uppercase">${escHtml(c.noticeHeadingLabel)}.</span> ${escHtml(c.notice)}</div></td></tr></tfoot>
+<tbody><tr><td style="padding:0">${out}</td></tr></tbody>
+</table>`;
+  const html = pdfShell({ bodyHtml: framed, branding, title: `${c.titleLabel} ${payName}` });
   return lang === 'es' ? html.replace('<html lang="en">', '<html lang="es">') : html;
 }
 

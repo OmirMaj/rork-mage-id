@@ -75,7 +75,12 @@ export async function resolveProofPhotoSources(
 }
 
 export interface ProofShareArgs {
-  pack: ProofPack;
+  /**
+   * The record, or a function that builds it. The review screen hands a
+   * function so the server facts are read fresh INSIDE the share call (on web
+   * the print tab has to open within the tap, before anything is awaited).
+   */
+  pack: ProofPack | (() => Promise<ProofPack>);
   lang: ProofDocLang;
   branding: CompanyBranding;
   photoSources: readonly ProofPhotoSource[];
@@ -89,10 +94,11 @@ export interface ProofShareResult {
 }
 
 async function prepare(args: ProofShareArgs): Promise<{ html: string; saved: SavedProofPack }> {
-  const fingerprint = await proofPackFingerprint(args.pack, sha256HexOnDevice);
-  const filed = await fileFingerprint(args.pack, fingerprint);
-  const photoSrc = await resolveProofPhotoSources(args.pack, args.photoSources);
-  const html = buildProofPackHtml(args.pack, {
+  const pack = typeof args.pack === 'function' ? await args.pack() : args.pack;
+  const fingerprint = await proofPackFingerprint(pack, sha256HexOnDevice);
+  const filed = await fileFingerprint(pack, fingerprint);
+  const photoSrc = await resolveProofPhotoSources(pack, args.photoSources);
+  const html = buildProofPackHtml(pack, {
     branding: args.branding,
     lang: args.lang,
     fingerprint: { hash: fingerprint.hash, code: fingerprint.code, serverCreatedAt: filed?.createdAt ?? null },
@@ -101,7 +107,7 @@ async function prepare(args: ProofShareArgs): Promise<{ html: string; saved: Sav
   return {
     html,
     saved: {
-      pack: args.pack, lang: args.lang, fingerprint,
+      pack, lang: args.lang, fingerprint,
       serverId: filed?.id ?? null, serverCreatedAt: filed?.createdAt ?? null, pdfHash: filed?.pdfHash ?? null,
     },
   };
@@ -139,7 +145,7 @@ export async function createAndShareProofPack(args: ProofShareArgs): Promise<Pro
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',
-      dialogTitle: proofPackFileTitle(args.pack, args.lang),
+      dialogTitle: proofPackFileTitle(saved.pack, args.lang),
       UTI: 'com.adobe.pdf',
     });
     return { how: 'shared', saved, keptOnDevice };

@@ -1,13 +1,19 @@
 // components/proofPack/ProofPackReview.tsx — the review screen of the Pay Period Record: what will be in the document, each record's strength, a switch
 // to leave a record out, then Create and Share.
 //
-// This screen only READS the job's records (contexts/ProjectContext, the punch
-// seal, the lien waiver list). It changes none of them. The one write it can
-// cause is the fingerprint record, and only from the Create and Share tap
+// This screen only READS the job's records (contexts/ProjectContext, the lien
+// waiver list) and the five server facts a label needs (utils/proofPack/store
+// readProofServerFacts). It changes none of them. The one write it can cause is
+// the fingerprint record, and only from the Create and Share tap
 // (utils/proofPack/share.ts). Nothing here calls a model.
 //
+// THE LABELS ON THIS SCREEN ARE A PREVIEW. The server facts are read again
+// inside the Create and Share tap, and the document is built from that read,
+// so what prints is classed by what the server held when the document was made.
+//
 // Leaving a record out is the contractor's right and the reader's business: the
-// package counts what was left out and prints the count on its first page.
+// document counts what was left out under each label, in the same strip as what
+// was included, and by kind.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,12 +21,10 @@ import { ChevronLeft } from 'lucide-react-native';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useT } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { usePunchSeal } from '@/hooks/usePunchSeal';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useProofPackCopy } from '@/hooks/useProofPackCopy';
 import { Button } from '@/components/ui';
 import type { LienWaiver } from '@/types';
-import type { ProofCoSignatureRecord } from '@/utils/proofPack/core';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { loadLienWaiversChecked } from '@/utils/lienWaiverEngine';
 import {
@@ -31,7 +35,9 @@ import type { ProofDocLang } from '@/utils/proofPack/docCopy';
 import type { ProofCheck } from '@/utils/proofPack/fingerprint';
 import { proofMoney } from '@/utils/proofPack/html';
 import { checkFileAgainst, createAndShareProofPack, type ProofPhotoSource } from '@/utils/proofPack/share';
-import { readCoSignatureRecords, readSavedProofPacks, recheckSavedProofPack, type SavedProofPack } from '@/utils/proofPack/store';
+import {
+  readProofServerFacts, readSavedProofPacks, recheckSavedProofPack, type ProofServerFacts, type SavedProofPack,
+} from '@/utils/proofPack/store';
 import { makeProofPackStyles } from './styles';
 
 export interface ProofPackReviewProps {
@@ -65,7 +71,6 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
   const copy = useProofPackCopy();
   const { lang: appLang } = useT();
   const ctx = useProjects();
-  const { status: sealStatus, seal } = usePunchSeal(projectId);
 
   const project = useMemo(() => ctx.projects.find((p) => p.id === projectId) ?? null, [ctx.projects, projectId]);
 
@@ -81,14 +86,21 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
     return () => { live = false; };
   }, [projectId]);
 
-  // The signature rows for change orders live on the server: read them once.
-  // A failed read stays `undefined`: a change order is then never called Signed.
-  const [coSignatures, setCoSignatures] = useState<ProofCoSignatureRecord[] | undefined>(undefined);
+  // The five server facts a label above Recorded needs. null = still reading.
+  // A part that could not be read is `undefined` inside the facts, and the core
+  // then never awards the label that part would have justified.
+  const [facts, setFacts] = useState<ProofServerFacts | null>(null);
   useEffect(() => {
     let live = true;
-    readCoSignatureRecords(projectId).then((r) => { if (live) setCoSignatures(r); }).catch(() => {});
+    setFacts(null);
+    readProofServerFacts(projectId, payRef)
+      .then((r) => { if (live) setFacts(r); })
+      .catch(() => { if (live) setFacts({ payAppServer: undefined, coSignatures: undefined, punchSeal: undefined, waiverSignedVia: undefined, fieldTicketServer: undefined }); });
     return () => { live = false; };
-  }, [projectId]);
+  }, [projectId, payRef]);
+
+  // Photo coordinates show where the property is: they print only when switched on.
+  const [includeCoordinates, setIncludeCoordinates] = useState(false);
 
   const [off, setOff] = useState<ReadonlySet<string>>(() => new Set());
   const [docLang, setDocLang] = useState<ProofDocLang>(appLang === 'es' ? 'es' : 'en');
@@ -104,10 +116,13 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
   const photos = useMemo(() => ctx.getPhotosForProject(projectId), [ctx, projectId]);
   const reports = useMemo(() => ctx.getDailyReportsForProject(projectId), [ctx, projectId]);
 
-  const baseInput = useMemo<Omit<ProofPackInput, 'leaveOut' | 'generatedAt'> | null>(() => {
+  type LocalInput = Omit<ProofPackInput, 'leaveOut' | 'generatedAt' | 'payAppServer' | 'coSignatures' | 'punchSeal' | 'waiverSignedVia' | 'fieldTicketServer'>;
+  const localInput = useMemo<LocalInput | null>(() => {
     if (!project) return null;
     return {
       project: { id: project.id, name: project.name, location: project.location },
+      companyName: ctx.settings.branding?.companyName ?? '',
+      includeCoordinates,
       payRef,
       payApps: ctx.getAIAPayAppsForProject(projectId),
       invoices: ctx.getInvoicesForProject(projectId),
@@ -116,14 +131,25 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
       photos,
       photosLoaded: ctx.photosLoaded,
       changeOrders: ctx.getChangeOrdersForProject(projectId),
-      coSignatures,
       punchItems: ctx.getPunchItemsForProject(projectId),
-      punchSeal: sealStatus === 'ready' ? seal : undefined,
       permits: ctx.getPermitsForProject(projectId),
       lienWaivers: waivers,
       fieldTickets: ctx.getFieldTicketsForProject(projectId),
     };
-  }, [project, payRef, ctx, projectId, reports, photos, sealStatus, seal, waivers, coSignatures]);
+  }, [project, payRef, ctx, projectId, reports, photos, waivers, includeCoordinates]);
+
+  const withFacts = useCallback((local: LocalInput, f: ProofServerFacts | null): Omit<ProofPackInput, 'leaveOut' | 'generatedAt'> => ({
+    ...local,
+    payAppServer: f ? f.payAppServer : undefined,
+    coSignatures: f ? f.coSignatures : undefined,
+    punchSeal: f ? f.punchSeal : undefined,
+    waiverSignedVia: f ? f.waiverSignedVia : undefined,
+    fieldTicketServer: f ? f.fieldTicketServer : undefined,
+  }), []);
+  const baseInput = useMemo(() => (localInput ? withFacts(localInput, facts) : null), [localInput, facts, withFacts]);
+  const factsUnread = !!facts && (
+    (payRef.kind === 'pay_app' && facts.payAppServer === undefined) || facts.coSignatures === undefined
+    || facts.punchSeal === undefined || facts.waiverSignedVia === undefined || facts.fieldTicketServer === undefined);
 
   // The preview never carries a time: the clock is read once, at the tap.
   const preview = useMemo(
@@ -163,7 +189,7 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
   const itemSub = useCallback((i: ProofItem): string => {
     switch (i.kind) {
       case 'photo': return copy.photoStampBody(i.placeSource);
-      case 'change_order': return proofMoney(i.changeAmountCents);
+      case 'change_order': return proofMoney(i.signedAmountCents ?? i.changeAmountCents);
       case 'lien_waiver': return `${day(i.throughDay)} ${proofMoney(i.paidAmountCents)}`.trim();
       case 'punch_item': return i.location;
       case 'daily_report': return i.workPerformed.slice(0, 80);
@@ -172,11 +198,19 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
   }, [copy, day]);
 
   const onCreate = useCallback(async () => {
-    if (!baseInput || made.kind === 'busy') return;
-    const built = buildProofPack({ ...baseInput, leaveOut: Array.from(off), generatedAt: new Date().toISOString() });
-    if (!built.ok) return;
+    if (!localInput || !facts || made.kind === 'busy') return;
     setMade({ kind: 'busy' });
     try {
+      // Built INSIDE the share call (the web print tab must open within the
+      // tap), from a FRESH read of the server facts: the document is classed by
+      // what the server held when it was made, not by what this screen showed.
+      const makePack = async () => {
+        const fresh = await readProofServerFacts(projectId, payRef);
+        setFacts(fresh);
+        const built = buildProofPack({ ...withFacts(localInput, fresh), leaveOut: Array.from(off), generatedAt: new Date().toISOString() });
+        if (!built.ok) throw new Error('proof pack: the pay document is no longer on file');
+        return built.pack;
+      };
       // Where each photo's image is. The gallery copy first, then the report's own.
       const sources: ProofPhotoSource[] = [
         ...photos.map((p) => ({ id: p.id, uri: p.uri, localUri: p.localUri, storagePath: p.storagePath, timestamp: p.timestamp })),
@@ -186,14 +220,14 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
       const seen = new Set<string>();
       const photoSources = sources.filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)));
       const res = await createAndShareProofPack({
-        pack: built.pack, lang: docLang, branding: ctx.settings.branding, photoSources,
+        pack: makePack, lang: docLang, branding: ctx.settings.branding, photoSources,
       });
       setMade({ kind: 'made', code: res.saved.fingerprint.code, onFile: !!res.saved.serverCreatedAt, kept: res.keptOnDevice });
       reloadSaved();
     } catch {
       setMade({ kind: 'failed' });
     }
-  }, [baseInput, made.kind, off, photos, reports, docLang, ctx.settings.branding, reloadSaved]);
+  }, [localInput, facts, withFacts, projectId, payRef, made.kind, off, photos, reports, docLang, ctx.settings.branding, reloadSaved]);
 
   const onCheck = useCallback(async (s: SavedProofPack) => {
     const k = s.fingerprint.hash;
@@ -269,7 +303,7 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
             {pack.period.from ? copy.periodRangeBody(day(pack.period.from), day(pack.period.to)) : copy.periodOpenBody(day(pack.period.to))}
           </Text>
           <Text style={styles.heading}>{copy.billedLabel}</Text>
-          <Text style={styles.big} testID="proof-pack-billed">{proofMoney(billedCents)}</Text>
+          <Text style={styles.big} testID="proof-pack-billed">{typeof billedCents === 'number' ? proofMoney(billedCents) : copy.notOnFileLabel}</Text>
         </View>
 
         <View style={styles.card} testID="proof-pack-counts">
@@ -279,9 +313,14 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
               <View key={s} style={styles.stripCell}>
                 <Text style={styles.stripCount} testID={`proof-count-${s}`}>{pack.counts[s]}</Text>
                 <StrengthChip strength={s} label={copy.strengthLabel(s)} />
+                <Text style={[styles.note, pack.leftOut.byStrength[s] > 0 && styles.leftOutOn]} testID={`proof-left-out-${s}`}>
+                  {copy.leftOutCountLabel(pack.leftOut.byStrength[s])}
+                </Text>
               </View>
             ))}
           </View>
+          {facts === null && <Text style={styles.note} testID="proof-pack-checking">{copy.checkingServerBody}</Text>}
+          {factsUnread && <Text style={styles.note} testID="proof-pack-server-unread">{copy.serverNotReadBody}</Text>}
           {PROOF_STRENGTHS.map((s) => (
             <View key={s} style={styles.ruleRow}>
               <StrengthChip strength={s} label={copy.strengthLabel(s)} />
@@ -357,7 +396,27 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
         <View style={styles.card} testID="proof-pack-privacy">
           <Text style={styles.heading}>{copy.privacyHeadingLabel}</Text>
           <Text style={styles.para}>{copy.privacyBody}</Text>
+          <Text style={styles.para} testID="proof-pack-server-gets">{copy.serverGetsBody}</Text>
+          <Text style={styles.para} testID="proof-pack-free-text">{copy.freeTextBody}</Text>
           <Text style={styles.para}>{copy.peopleBody}</Text>
+          <View style={styles.row}>
+            <View style={styles.rowMain}>
+              <Text style={styles.rowTitle}>{copy.coordsLabel}</Text>
+              <Text style={styles.rowSub}>{copy.coordsBody}</Text>
+            </View>
+            <Switch
+              value={includeCoordinates}
+              onValueChange={(v) => { setIncludeCoordinates(v); setMade({ kind: 'idle' }); }}
+              accessibilityLabel={copy.coordsLabel}
+              testID="proof-pack-coords"
+            />
+          </View>
+        </View>
+
+        <View style={styles.card} testID="proof-pack-notice">
+          <Text style={styles.heading}>{copy.noticeHeadingLabel}</Text>
+          <Text style={styles.para}>{copy.noticeIntroBody}</Text>
+          <Text style={styles.para}>{copy.noticeBody}</Text>
         </View>
 
         <Button
@@ -365,7 +424,7 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
           variant="primary"
           onPress={onCreate}
           loading={made.kind === 'busy'}
-          disabled={made.kind === 'busy'}
+          disabled={made.kind === 'busy' || facts === null}
           testID="proof-pack-create"
         />
         {made.kind === 'made' && (
@@ -391,6 +450,8 @@ export function ProofPackReview({ projectId, payRef: payRefProp, onBack }: Proof
                 <Text style={styles.code}>{s.fingerprint.code}</Text>
                 <Text style={styles.heading}>{copy.fingerprintLabel}</Text>
                 <Text style={styles.mono} selectable>{s.fingerprint.hash}</Text>
+                <Text style={styles.note}>{copy.checkCodeNoteBody}</Text>
+                <Text style={styles.note}>{copy.fingerprintLimitsBody}</Text>
                 <View style={styles.btnRow}>
                   <Button label={copy.checkAgainLabel} variant="secondary" onPress={() => onCheck(s)} loading={!!st.busy} testID={`proof-check-${s.fingerprint.code}`} />
                   {Platform.OS !== 'web' && (

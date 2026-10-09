@@ -21,6 +21,7 @@ export const makeProofPackStyles = (t: ThemeColors) => StyleSheet.create({
   strip: { flexDirection: 'row' as const, gap: 6 },
   stripCell: { flex: 1, alignItems: 'center' as const, gap: 4, paddingVertical: 10, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line, backgroundColor: t.bg },
   stripCount: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
+  leftOutOn: { fontWeight: '700' as const, color: t.text },
   chip: { alignSelf: 'flex-start' as const, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.line, backgroundColor: t.neutralSoft },
   chipStrong: { borderColor: t.accent, backgroundColor: t.accentSoft },
   chipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textSecondary },

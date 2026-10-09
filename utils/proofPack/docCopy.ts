@@ -53,6 +53,9 @@ export interface ProofDocCopy {
   /** The two sentences the first page must carry, word for word. */
   whatThisIs: string;
   whatThisIsNot: string;
+  /** The block the first page AND the footer of every page carry, word for word. */
+  noticeHeadingLabel: string;
+  notice: string;
   labelMeaning: string;
   projectLabel: string;
   locationLabel: string;
@@ -192,6 +195,8 @@ const EN: ProofDocCopy = {
   eyebrowLabel: 'Records Held for One Pay Period',
   whatThisIs: 'This is a record of what MAGE ID holds for this pay period.',
   whatThisIsNot: 'It is not an inspection, an appraisal or a certification of the work.',
+  noticeHeadingLabel: 'Notice To Recipients',
+  notice: 'This record was prepared by the contractor named above using MAGE ID. MAGE ID did not inspect the work and makes no statement to the reader about the work, the amounts or the people named. Do not rely on this record as an inspection, an appraisal or a certification.',
   labelMeaning: 'Each record below carries a label that says how the record is kept. A label describes the record. It says nothing about the quality of the work.',
   projectLabel: 'Project',
   locationLabel: 'Location',
@@ -250,7 +255,7 @@ const EN: ProofDocCopy = {
     punch_item_differs_from_seal: 'The sealed final punch record lists this item, but this device’s copy does not carry the seal’s id or is not equal to the sealed record. It is listed as this device holds it.',
     punch_item_open: 'Saved in the app. It is not part of a sealed final punch record.',
     co_client_signed: 'Signed on the client portal page. The server’s portal function wrote the signature record and set its time, and the database keeps it as it was signed. The amount printed first is the one in that record. Anyone holding the portal link can sign, the contractor included. MAGE ID does not check who signed.',
-    co_signature_recorded: 'A signature record for this change order was saved to MAGE ID’s server, dated as shown. The contractor’s account is able to create such a record and to set its date. MAGE ID does not check who signed.',
+    co_signature_recorded: 'A signature record for this change order was saved to MAGE ID’s server, dated as shown. The contractor’s account is able to create such a record. It is also able to set the date. MAGE ID does not check who signed.',
     co_signature_by_account: 'A signature record for this change order was saved to MAGE ID’s server at the time shown. The contractor’s account is able to create such a record. MAGE ID does not check who signed.',
     co_signature_no_amount: 'A signature record written by the portal function is on MAGE ID’s server, but no amount could be read from it. The amount printed is the contractor’s current copy. MAGE ID does not check who signed.',
     co_portal_no_signature: 'An approval with no drawn signature is on file for this change order. The contractor’s account is able to create such a record.',
@@ -258,7 +263,7 @@ const EN: ProofDocCopy = {
     co_server_declined: 'The newest decision record on MAGE ID’s server for this change order is a decline, dated as shown. The contractor’s copy says approved.',
     co_marked_approved: 'Marked approved by the contractor. No client signature is on file.',
     waiver_sub_signed: 'Signed on the waiver’s signing page. The server’s signing function wrote the signature and set its time, and the database keeps it. Anyone holding the signing link can sign, the contractor included. The amount and dates on the waiver are not locked, and no fingerprint of the waiver is kept.',
-    waiver_link_signature: 'A signature is recorded for this waiver as made through the signing link. The contractor’s account is able to create such a record. MAGE ID does not check who used the link.',
+    waiver_link_signature: 'A signature was recorded through the signing link for this waiver. The contractor’s account is able to create such a record. MAGE ID does not check who used the link.',
     waiver_paper: 'Recorded by the contractor from a paper original. The app holds no signature from the subcontractor.',
     waiver_received: 'Marked received by the contractor. The app holds no signature.',
     pay_app_locked: 'MAGE ID’s server holds a lock on this pay application, dated as shown. While the lock is in place the database refuses edits to its figures and lines. The figures printed here were compared with the server’s when this document was made and are equal. The contractor’s account is able to set the lock and its date.',
@@ -429,6 +434,8 @@ const ES: ProofDocCopy = {
   eyebrowLabel: 'Registros guardados de un periodo de pago',
   whatThisIs: 'Este es un registro de lo que MAGE ID guarda de este periodo de pago.',
   whatThisIsNot: 'No es una inspección, un avalúo ni una certificación de la obra.',
+  noticeHeadingLabel: 'Aviso a quien recibe este documento',
+  notice: 'Este registro lo preparó el contratista nombrado arriba con MAGE ID. MAGE ID no inspeccionó la obra y no le afirma nada al lector sobre la obra, los montos ni las personas nombradas. No tome este registro como una inspección, un avalúo ni una certificación.',
   labelMeaning: 'Cada registro lleva una etiqueta que dice cómo se guarda. La etiqueta describe el registro. No dice nada sobre la calidad de la obra.',
   projectLabel: 'Proyecto',
   locationLabel: 'Ubicación',
@@ -487,7 +494,7 @@ const ES: ProofDocCopy = {
     punch_item_differs_from_seal: 'El registro sellado de la lista final incluye este pendiente, pero la copia de este dispositivo no lleva el identificador del sello o no es igual al registro sellado. Aparece tal como lo guarda este dispositivo.',
     punch_item_open: 'Guardado en la app. No forma parte de un registro sellado de la lista final de pendientes.',
     co_client_signed: 'Firmada en la página del portal del cliente. La función del portal en el servidor escribió el registro de firma y puso su hora, y la base de datos lo conserva tal como se firmó. El monto que aparece primero es el de ese registro. Cualquiera que tenga el enlace del portal puede firmar, incluido el contratista. MAGE ID no revisa quién firmó.',
-    co_signature_recorded: 'Se guardó un registro de firma de esta orden de cambio en el servidor de MAGE ID, con la fecha que se muestra. La cuenta del contratista puede crear un registro así y ponerle la fecha. MAGE ID no revisa quién firmó.',
+    co_signature_recorded: 'Se guardó un registro de firma de esta orden de cambio en el servidor de MAGE ID, con la fecha que se muestra. La cuenta del contratista puede crear un registro así. También puede ponerle la fecha. MAGE ID no revisa quién firmó.',
     co_signature_by_account: 'Se guardó un registro de firma de esta orden de cambio en el servidor de MAGE ID a la hora que se muestra. La cuenta del contratista puede crear un registro así. MAGE ID no revisa quién firmó.',
     co_signature_no_amount: 'Hay en el servidor de MAGE ID un registro de firma escrito por la función del portal, pero no se pudo leer un monto en él. El monto impreso es el de la copia actual del contratista. MAGE ID no revisa quién firmó.',
     co_portal_no_signature: 'Hay una aprobación sin firma dibujada para esta orden de cambio. La cuenta del contratista puede crear un registro así.',
@@ -495,7 +502,7 @@ const ES: ProofDocCopy = {
     co_server_declined: 'El registro de decisión más reciente en el servidor de MAGE ID para esta orden de cambio es un rechazo, con la fecha que se muestra. La copia del contratista dice aprobada.',
     co_marked_approved: 'Marcada como aprobada por el contratista. No hay firma del cliente.',
     waiver_sub_signed: 'Firmada en la página de firma de la renuncia. La función de firma del servidor escribió la firma y puso su hora, y la base de datos la conserva. Cualquiera que tenga el enlace de firma puede firmar, incluido el contratista. El monto y las fechas de la renuncia no tienen candado y no se guarda huella de la renuncia.',
-    waiver_link_signature: 'Esta renuncia tiene anotada una firma como hecha por el enlace de firma. La cuenta del contratista puede crear un registro así. MAGE ID no revisa quién usó el enlace.',
+    waiver_link_signature: 'Se anotó una firma por el enlace de firma de esta renuncia. La cuenta del contratista puede crear un registro así. MAGE ID no revisa quién usó el enlace.',
     waiver_paper: 'Anotada por el contratista a partir de un original en papel. La app no guarda firma del subcontratista.',
     waiver_received: 'Marcada como recibida por el contratista. La app no guarda firma.',
     pay_app_locked: 'El servidor de MAGE ID tiene un candado sobre esta solicitud de pago, con la fecha que se muestra. Mientras el candado esté puesto, la base de datos rechaza ediciones a sus cifras y partidas. Las cifras impresas aquí se compararon con las del servidor al hacer este documento y son iguales. La cuenta del contratista puede poner el candado y su fecha.',

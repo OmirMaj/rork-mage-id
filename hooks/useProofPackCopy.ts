@@ -65,6 +65,10 @@ export interface ProofPackCopy {
   peopleBody: string;
   coordsLabel: string;
   coordsBody: string;
+  noticeHeadingLabel: string;
+  noticeIntroBody: string;
+  noticeBody: string;
+  notOnFileLabel: string;
   checkingServerBody: string;
   serverNotReadBody: string;
   createLabel: string;
@@ -181,6 +185,10 @@ export function useProofPackCopy(): ProofPackCopy {
       peopleBody: t('office.proofPack.privacy.peopleBody', 'Workers are shown as trades and head counts. No worker’s name, phone number, ID or pay rate is taken from a worker field. A signature keeps the signer’s name as it was entered. A lien waiver names the subcontractor or supplier that gave it.'),
       coordsLabel: t('office.proofPack.privacy.coordsLabel', 'Print Photo Coordinates'),
       coordsBody: t('office.proofPack.privacy.coordsBody', 'Off, a photo says its place came from the phone’s GPS and no coordinates print. On, the coordinates print, and they show where the property is.'),
+      noticeHeadingLabel: t('office.proofPack.notice.headingLabel', 'Notice To Recipients'),
+      noticeIntroBody: t('office.proofPack.notice.introBody', 'The document prints this notice on its first page and at the foot of every page.'),
+      noticeBody: t('office.proofPack.notice.body', 'This record was prepared by the contractor named above using MAGE ID. MAGE ID did not inspect the work and makes no statement to the reader about the work, the amounts or the people named. Do not rely on this record as an inspection, an appraisal or a certification.'),
+      notOnFileLabel: t('office.proofPack.pay.notOnFileLabel', 'Not on File'),
       checkingServerBody: t('office.proofPack.server.checkingBody', 'Checking the records against the server.'),
       serverNotReadBody: t('office.proofPack.server.notReadBody', 'Part of the server could not be read. A record that needs a server check is listed as Recorded, and the document says that part was not checked.'),
       createLabel: t('office.proofPack.create.label', 'Create and Share'),
