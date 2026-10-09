@@ -114,10 +114,10 @@ function Spike() {
     zoom: num(params.zoom),
     spinToken,
     spinFrames: spinFrames ?? 120,
-    onError: (what: string) => { console.log(`[phone3d] threw: ${what}`); setThrew(what); },
+    onError: (what: string) => { console.info(`[phone3d] threw: ${what}`); setThrew(what); },
     onSpin: (r: { frames: number; medianMs: number; p95Ms: number; worstMs: number; medianGapMs: number; p95GapMs: number }) => {
       const line = `${model.rooms.length} rooms, ${r.frames} frames. Drawn in ${r.medianMs.toFixed(1)} ms (middle), ${r.p95Ms.toFixed(1)} ms (slow end), ${r.worstMs.toFixed(1)} ms (worst). Frame to frame ${r.medianGapMs.toFixed(1)} ms (middle), ${r.p95GapMs.toFixed(1)} ms (slow end).`;
-      console.log(`[phone3d] ${line}`);
+      console.info(`[phone3d] ${line}`);
       setSpin(line);
     },
   }), [params.dx, params.dy, params.zoom, spinToken, spinFrames, model.rooms.length]);

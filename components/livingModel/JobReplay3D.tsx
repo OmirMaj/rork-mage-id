@@ -74,7 +74,9 @@ export function JobReplay3D(props: JobReplay3DProps & { debug?: Phone3DDebug }) 
   if (paletteKey.current.palette !== palette) paletteKey.current = { palette, n: paletteKey.current.n + 1 };
 
   if (mode === '3d' && engine) {
-    const { onUnavailable: _unused, debug, ...rest } = props;
+    // onUnavailable is the web's. The phone never calls it: the flat replay is drawn from here, with the phone's own line.
+    const { onUnavailable, debug, ...rest } = props;
+    void onUnavailable;
     return (
       <Phone3DBoundary onError={() => setMode('failed')}>
         <Phone3DView key={paletteKey.current.n} {...rest} engine={engine} debug={debug} onFailed={() => setMode('failed')} />

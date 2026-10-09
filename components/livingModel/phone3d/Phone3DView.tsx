@@ -292,7 +292,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       const g = frameStats(gaps);
       labelsStale.current = true;
       requestDraw();
-      debug.onSpin?.({ frames: c.frames, medianMs: c.medianMs, p95Ms: c.p95Ms, worstMs: c.worstMs, medianGapMs: g.medianMs, p95GapMs: g.p95Ms });
+      debugRef.current?.onSpin?.({ frames: c.frames, medianMs: c.medianMs, p95Ms: c.p95Ms, worstMs: c.worstMs, medianGapMs: g.medianMs, p95GapMs: g.p95Ms });
     };
     id = requestAnimationFrame(step);
     return () => cancelAnimationFrame(id);
