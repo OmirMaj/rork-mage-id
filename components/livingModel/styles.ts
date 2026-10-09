@@ -98,5 +98,5 @@ export const makeLivingModelStyles = (t: ThemeColors) => StyleSheet.create({
   doneText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.successLabel },
   mutedValue: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textMuted },
   blocked: { ...cardSurface(t, { pad: 16 }), margin: 16, gap: 12 },
-  ownerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 },
+  ownerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, marginTop: 10 },
 });

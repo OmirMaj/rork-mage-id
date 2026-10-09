@@ -153,6 +153,7 @@ import { useProjectPulse } from '@/hooks/useProjectPulse';
 import { ProjectWorkspaceHeader } from '@/components/project/ProjectWorkspaceHeader';
 import { ProjectPeopleBlock, ProjectPeopleStack } from '@/components/whoson';
 import { ScanRoomOwnerRow } from '@/components/roomScan/ScanRoomOwnerRow';
+import { LivingModelEntryRow } from '@/components/livingModel/LivingModelEntryRow';
 import { ProjectKpiStrip } from '@/components/project/ProjectKpiStrip';
 import { ProjectLevelCard } from '@/components/level/ProjectLevelCard';
 import { ProjectOverviewColumns } from '@/components/project/ProjectOverviewColumns';
@@ -4846,6 +4847,8 @@ export default function ProjectDetailScreen() {
             <InspectionReadyCard project={project} openKey={prepParam ?? null} />
             <BuildingRecordCard project={project} testID="project-building-record" />
             <ProjectCodeChecksCard project={project} />
+            {/* The Living Model, owner preview (the desktop workspace's copy of the one row). */}
+            <LivingModelEntryRow projectId={project.id} />
             {/* One row of quick actions. Closeout lives in the header's ⋯. */}
             <TileGrid preset="action" phoneStyle={styles.quickActions} desktopStyle={isDesktop && styles.quickActionsDesktop}>
               <TouchableOpacity
@@ -5076,6 +5079,9 @@ export default function ProjectDetailScreen() {
           {/* Scan The Room, owner preview: renders nothing for anyone but the
               owner while SCAN_ROOM_ENABLED is false (utils/roomScan/allowed). */}
           <ScanRoomOwnerRow projectId={project.id} />
+          {/* The Living Model, owner preview: renders nothing for anyone but the
+              owner while LIVING_MODEL_ENABLED is false (utils/livingModel/allowed). */}
+          <LivingModelEntryRow projectId={project.id} />
 
           {hasAnyEstimate && (
             <View style={styles.heroStats}>

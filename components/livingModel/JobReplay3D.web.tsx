@@ -1,0 +1,259 @@
+// components/livingModel/JobReplay3D.web.tsx — Job Replay in 3D. WEB ONLY.
+//
+// The Living Model, Phase 1. Metro picks this file for the web bundle and
+// JobReplay3D.tsx (which draws nothing) for iOS and Android.
+//
+// HOW THE 3D LIBRARY IS KEPT OUT OF EVERYTHING ELSE. `three` is loaded in ONE
+// place, `loadThree` below: a dynamic import, behind Platform.OS === 'web',
+// called from an effect when this view mounts. So:
+//   - the phone bundle never reads this file and never resolves the library;
+//   - every other web screen pays nothing, because the library is its own
+//     chunk and is fetched only when Job Replay opens;
+//   - jest never loads it (the phone file is the one jest resolves).
+// scripts/validate-living-model.ts fails on a static import of the library
+// anywhere, and on a second dynamic import.
+//
+// The scene itself is built in ./threeScene.ts from plain numbers
+// (utils/livingModel/sceneCore.ts). This file is the canvas, the pointer and
+// keyboard handling, the room labels and the two toggles.
+//
+// MOTION. Nothing here animates on its own: the picture changes only when the
+// scrubber moves or the person turns the model. The clock that plays the job
+// steps a week at a time under Reduce Motion (replayShared.useReplayState).
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, Text, View } from 'react-native';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
+import { roomLayers } from '@/utils/livingModel/replayCore';
+import { DEFAULT_CUT_M } from '@/utils/livingModel/sceneCore';
+import { ToolButton } from './RoomEditor';
+import type { JobReplay3DProps } from './jobReplay3DProps';
+import { StageLegend, stageLine, usePalette } from './replayShared';
+import { makeLivingModelStyles } from './styles';
+import { createJobScene, type JobSceneHandle, type RoomLook } from './threeScene';
+
+export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;
+
+/** The one place the 3D library is loaded: on the web, and only when asked. */
+function loadThree(): Promise<typeof import('three')> {
+  if (Platform.OS !== 'web') return Promise.reject(new Error('The 3D view is on the web only.'));
+  return import('three');
+}
+
+export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUnavailable, weekLine, atToday, height }: JobReplay3DProps) {
+  const styles = useThemedStyles(makeLivingModelStyles);
+  const copy = useLivingModelCopy();
+  const palette = usePalette();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const boxRef = useRef<View | null>(null);
+  const sceneRef = useRef<JobSceneHandle | null>(null);
+  const pinRefs = useRef(new Map<string, HTMLElement>());
+  const dirty = useRef(true);
+  const [ready, setReady] = useState(false);
+  const [cut, setCut] = useState(true);
+  const rooms = useMemo(() => model.rooms.filter((r) => r.level === level), [model, level]);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const selectedRef = useRef(selectedId);
+  selectedRef.current = selectedId;
+  const onUnavailableRef = useRef(onUnavailable);
+  onUnavailableRef.current = onUnavailable;
+
+  // Start: load the library, make the scene, wire the pointer, the wheel and the keys.
+  useEffect(() => {
+    let alive = true;
+    let raf = 0;
+    let handle: JobSceneHandle | null = null;
+    let observer: ResizeObserver | null = null;
+    const canvas = canvasRef.current;
+    const cleanups: (() => void)[] = [];
+    void loadThree().then((THREE) => {
+      if (!alive || !canvas) return;
+      try {
+        handle = createJobScene(THREE, canvas, palette);
+      } catch {
+        onUnavailableRef.current();
+        return;
+      }
+      sceneRef.current = handle;
+      const size = () => {
+        const b = canvas.getBoundingClientRect();
+        handle?.resize(b.width, b.height, window.devicePixelRatio || 1);
+        dirty.current = true;
+      };
+      size();
+      if (typeof ResizeObserver !== 'undefined') { observer = new ResizeObserver(size); observer.observe(canvas); }
+
+      const ptr = new Map<number, { x: number; y: number }>();
+      let down: { x: number; y: number } | null = null;
+      let pinch = 0;
+      let mid = { x: 0, y: 0 };
+      const onDown = (e: PointerEvent) => {
+        canvas.setPointerCapture(e.pointerId);
+        ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (ptr.size === 1) down = { x: e.clientX, y: e.clientY };
+        else {
+          down = null;
+          const [p, q] = [...ptr.values()];
+          pinch = Math.hypot(p.x - q.x, p.y - q.y);
+          mid = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+        }
+      };
+      const onMove = (e: PointerEvent) => {
+        const p = ptr.get(e.pointerId);
+        if (!p || !handle) return;
+        const dx = e.clientX - p.x;
+        const dy = e.clientY - p.y;
+        p.x = e.clientX;
+        p.y = e.clientY;
+        if (ptr.size === 1) {
+          if (e.shiftKey || e.buttons === 2) handle.pan(dx, dy); else handle.orbit(dx, dy);
+        } else if (ptr.size === 2) {
+          const [a, b] = [...ptr.values()];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+          if (pinch > 0) handle.zoomBy(d / pinch);
+          handle.pan(m.x - mid.x, m.y - mid.y);
+          pinch = d;
+          mid = m;
+        }
+        dirty.current = true;
+      };
+      const onUp = (e: PointerEvent) => {
+        if (!ptr.has(e.pointerId)) return;
+        ptr.delete(e.pointerId);
+        if (down && handle && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5) {
+          const b = canvas.getBoundingClientRect();
+          const hit = handle.pick(e.clientX - b.left, e.clientY - b.top);
+          onSelectRef.current(hit && hit !== selectedRef.current ? hit : null);
+        }
+        down = null;
+      };
+      const onWheel = (e: WheelEvent) => { e.preventDefault(); handle?.zoomBy(Math.exp(-e.deltaY * 0.0012)); dirty.current = true; };
+      const onMenu = (e: Event) => e.preventDefault();
+      const onKey = (e: KeyboardEvent) => {
+        if (!handle) return;
+        const k = e.key;
+        if (k === 'ArrowLeft') handle.orbit(24, 0);
+        else if (k === 'ArrowRight') handle.orbit(-24, 0);
+        else if (k === 'ArrowUp') handle.orbit(0, 20);
+        else if (k === 'ArrowDown') handle.orbit(0, -20);
+        else if (k === '+' || k === '=') handle.zoomBy(1.15);
+        else if (k === '-' || k === '_') handle.zoomBy(1 / 1.15);
+        else if (k === '0') handle.resetView();
+        else return;
+        e.preventDefault();
+        dirty.current = true;
+      };
+      canvas.addEventListener('pointerdown', onDown);
+      canvas.addEventListener('pointermove', onMove);
+      canvas.addEventListener('pointerup', onUp);
+      canvas.addEventListener('pointercancel', onUp);
+      canvas.addEventListener('wheel', onWheel, { passive: false });
+      canvas.addEventListener('contextmenu', onMenu);
+      canvas.addEventListener('keydown', onKey);
+      cleanups.push(() => {
+        canvas.removeEventListener('pointerdown', onDown);
+        canvas.removeEventListener('pointermove', onMove);
+        canvas.removeEventListener('pointerup', onUp);
+        canvas.removeEventListener('pointercancel', onUp);
+        canvas.removeEventListener('wheel', onWheel);
+        canvas.removeEventListener('contextmenu', onMenu);
+        canvas.removeEventListener('keydown', onKey);
+      });
+
+      // Draw only when something changed: no frame is spent on a still picture.
+      const frame = () => {
+        if (dirty.current && handle) {
+          dirty.current = false;
+          handle.render();
+          pinRefs.current.forEach((el, roomId) => {
+            const p = handle?.project(roomId);
+            if (p) el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -50%)`;
+          });
+        }
+        raf = requestAnimationFrame(frame);
+      };
+      raf = requestAnimationFrame(frame);
+      setReady(true);
+    }).catch(() => { if (alive) onUnavailableRef.current(); });
+    return () => {
+      alive = false;
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+      for (const c of cleanups) c();
+      handle?.dispose();
+      sceneRef.current = null;
+    };
+  }, [palette]);
+
+  // The rooms, or the wall height, changed: build the shapes again.
+  useEffect(() => {
+    if (!ready || !sceneRef.current) return;
+    sceneRef.current.setRooms(rooms, cut ? DEFAULT_CUT_M : null);
+    dirty.current = true;
+  }, [ready, rooms, cut]);
+
+  // The moment, or the reading, changed: show each room's stage.
+  useEffect(() => {
+    if (!ready || !sceneRef.current) return;
+    const looks = new Map<string, RoomLook>();
+    for (const r of rooms) {
+      const m = moments.get(r.id);
+      if (!m) continue;
+      const a = m.solid;
+      looks.set(r.id, {
+        solid: roomLayers(m.solid),
+        ghost: roomLayers(m.ghost),
+        opens: a.demolition != null || a.framing != null || a.rough_in != null || a.insulation != null || a.drywall != null,
+      });
+    }
+    sceneRef.current.apply(looks);
+    dirty.current = true;
+  }, [ready, rooms, moments, cut]);
+
+  return (
+    <View ref={boxRef} style={[styles.stage3d, { height }]} testID="lm-replay-3d">
+      {React.createElement('canvas', {
+        ref: canvasRef,
+        tabIndex: 0,
+        role: 'img',
+        'aria-label': copy.canvasA11yLabel,
+        style: { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', display: 'block', touchAction: 'none', outlineOffset: -2 },
+      })}
+      {!ready ? <Text style={[styles.note, { position: 'absolute', left: 12, bottom: 12 }]}>{copy.loading3dBody}</Text> : null}
+      {ready ? rooms.map((r) => {
+        const m = moments.get(r.id);
+        const on = r.id === selectedId;
+        return (
+          <Pressable
+            key={r.id}
+            ref={(el) => { if (el) pinRefs.current.set(r.id, el as unknown as HTMLElement); else pinRefs.current.delete(r.id); dirty.current = true; }}
+            style={[styles.pin, on && styles.pinOn]}
+            onPress={() => onSelect(on ? null : r.id)}
+            accessibilityRole="button"
+            accessibilityLabel={copy.roomA11yLabel(r.name, stageLine(m, copy))}
+            testID={`lm-pin-${r.id}`}
+          >
+            <Text style={styles.pinName} numberOfLines={1}>{r.name}</Text>
+            <View style={styles.legendItem}>
+              <View style={[styles.swatch, { backgroundColor: palette.stage[m?.stage ?? 'no_tasks'], width: 8, height: 8 }]} />
+              <Text style={styles.pinSub} numberOfLines={1}>{stageLine(m, copy)}</Text>
+            </View>
+          </Pressable>
+        );
+      }) : null}
+      <View style={styles.hud} pointerEvents="box-none">
+        <View style={styles.hudRow}>
+          <Text style={styles.hudWeek}>{weekLine}</Text>
+          {atToday ? <View style={styles.todayTag}><Text style={styles.todayTagText}>{copy.todayLabel}</Text></View> : null}
+        </View>
+        <StageLegend />
+      </View>
+      <View style={styles.viewBtns}>
+        <ToolButton label={cut ? copy.fullWallsLabel : copy.cutWallsLabel} onPress={() => setCut((c) => !c)} testID="lm-cut" />
+        <ToolButton label={copy.resetViewLabel} onPress={() => { sceneRef.current?.resetView(); dirty.current = true; }} testID="lm-reset-view" />
+      </View>
+    </View>
+  );
+}

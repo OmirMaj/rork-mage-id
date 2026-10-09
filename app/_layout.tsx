@@ -1476,6 +1476,8 @@ function RootLayoutNav() {
       <Stack.Screen name="scan-room" options={{ title: 'Scan the Room', headerShown: false }} />
       {/* Lane PROOFPACK: dark behind PROOF_PACK_ENABLED, owner preview; the screen draws its own header. */}
       <Stack.Screen name="proof-pack" options={{ title: 'Pay Period Record', headerShown: false }} />
+      {/* Lane LIVINGMODEL: dark behind LIVING_MODEL_ENABLED, owner preview; the screen draws its own header. */}
+      <Stack.Screen name="living-model" options={{ title: 'Living Model', headerShown: false }} />
       <Stack.Screen
         name="photo-annotator"
         options={{ headerShown: false, presentation: 'modal' }}
