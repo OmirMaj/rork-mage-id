@@ -2054,6 +2054,7 @@ export default function SettingsScreen() {
                   style={styles.row}
                   onPress={() => router.push('/demo-job')}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
                   testID="demo-job-link"
                 >
                   <View style={styles.iconWrap}>

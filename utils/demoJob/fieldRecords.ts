@@ -30,6 +30,13 @@ import { subId, type IdOf } from './records';
 
 const NOTE = 'Made-up demo record.';
 
+/** A clock day as a Date. The clock only hands out real days, so anything else is a bug and says so. */
+function dayDate(day: string): Date {
+  const d = parseCalendarDay(day);
+  if (!d) throw new Error(`not a calendar day: ${day}`);
+  return d;
+}
+
 // ── Daily reports ───────────────────────────────────────────────────────────
 
 export const DAILY_REPORT_DAYS = 30;
@@ -66,7 +73,7 @@ export function buildDailyReports(id: IdOf, clock: DemoClock, contractorName: st
     }
     const manpower = [...byCompany.values()].map((m) => ({ ...m, hoursWorked: m.headcount * 8 }));
     const date = clock.dayOf(day);
-    const month = (parseCalendarDay(date) ?? new Date()).getMonth();
+    const month = dayDate(date).getMonth();
     const firstAid = i === 11;
     out.push({
       id: id(`dfr:${day}`),
@@ -351,7 +358,7 @@ type WarrantyInput = Omit<Warranty, 'id' | 'createdAt' | 'updatedAt' | 'status' 
 export function buildWarranties(id: IdOf, clock: DemoClock): WarrantyInput[] {
   const mk = (key: string, title: string, category: Warranty['category'], subKey: string, startDay: number, months: number, coverage: string): WarrantyInput => {
     const start = clock.dayOf(startDay);
-    const d = parseCalendarDay(start) ?? new Date();
+    const d = dayDate(start);
     const end = new Date(d.getFullYear(), d.getMonth() + months, d.getDate());
     const pad = (n: number) => String(n).padStart(2, '0');
     return {
