@@ -71,9 +71,14 @@
 --   the project description). The app's photo loader signs those for the
 --   WINNER (he has a bid on the posting). A collaborator on the winner's
 --   project is not admitted by the policy and sees those homeowner photos
---   blank, and the links in the description text are dead for everyone. The
---   real fix is for award-rfp to copy the files into the winner's own
---   project-photos folder; that is a server change of its own.
+--   blank, and the links in the description text are dead for everyone.
+--   award_rfp also hands the posting's first photo to the award-rfp edge
+--   function as heroPhotoUrl, which passes it on as hero_photo_url; once the
+--   bucket is private that value is a link nobody can open (or, for a posting
+--   made after the app update, a bare path). The real fix is for award-rfp to
+--   copy the files into the winner's own project-photos folder and to drop
+--   the hero link; that is a server change of its own, and it should ship
+--   before the marketplace has real awards (production 2026-10-09: 0 awarded).
 --
 -- WHAT THIS DOES NOT CLOSE.
 --   - A link that was signed before a posting closed works until it expires
