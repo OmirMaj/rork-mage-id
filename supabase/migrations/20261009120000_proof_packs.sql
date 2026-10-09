@@ -1,10 +1,23 @@
--- 20261009120000_proof_packs.sql — the fingerprint record of a Proof of Work Package
+-- 20261009120000_proof_packs.sql: the fingerprint record of a Pay Period Record
 -- (Big Bets, Bet 3, Phase 1, lane PROOFPACK).
 --
--- NOT APPLIED. Written and proven on PGlite only (the proof script is
--- pgq/proof-packs.mjs in the session scratchpad; it runs this file verbatim,
--- twice, and 12 planted mutations). Apply it the usual way (Supabase MCP
--- apply_migration, never `supabase db push`) after the lane's review.
+-- The name people see is "Pay Period Record". The table keeps its first name,
+-- proof_packs, and so do the functions; older lines below that say "package"
+-- mean the same document.
+--
+-- NOT APPLIED. Written and proven on PGlite only. The proof is in the repo:
+-- scripts/pgq/proof-packs.proof.mjs runs this file verbatim, twice, then every
+-- check, then a set of planted mutations that must each turn a check red (see
+-- scripts/pgq/README.md for the one command). Apply it the usual way (Supabase
+-- MCP apply_migration, never `supabase db push`) after the lane's review.
+--
+-- HOW MANY ROWS ONE ACCOUNT MAY HOLD. proof_pack_create_v1 refuses a NEW
+-- fingerprint once the account holds 400 for that project or 5,000 in all
+-- (the reasons are written at the check). A fingerprint already on file is
+-- returned as it is and is never counted against either number.
+--
+-- SELF-CHECK. The file ends with a block that fails the apply if a grant, the
+-- policy, the trigger or a function did not land as written.
 --
 -- WHAT THIS STORES. One row per package a contractor makes: the SHA-256 of the
 -- package's canonical data, the short check code derived from it, how many
@@ -64,7 +77,7 @@ create index if not exists proof_packs_user_project_idx on public.proof_packs (u
 create index if not exists proof_packs_check_code_idx on public.proof_packs (check_code);
 
 comment on table public.proof_packs is
-  'Fingerprint records of Proof of Work Packages. Written only by proof_pack_create_v1 / proof_pack_attach_pdf_v1; immutable except a one-time PDF hash attach (proof_packs_immutable). Holds no amount, name or address.';
+  'Fingerprint records of Pay Period Records. Written only by proof_pack_create_v1 / proof_pack_attach_pdf_v1; immutable except a one-time PDF hash attach (proof_packs_immutable). Holds no amount, name or address.';
 
 alter table public.proof_packs enable row level security;
 
@@ -198,6 +211,41 @@ begin
     raise exception 'bad_count' using errcode = '22023';
   end if;
 
+  -- One writer per account at a time, so the two counts below are exact and
+  -- two calls with the same fingerprint cannot both think they are first.
+  -- Released when the transaction ends.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('proof_packs:' || v_me::text, 0));
+
+  -- A fingerprint already on file is returned as it is. It is not a new row,
+  -- so it is never refused by the cap below, even when the account is full.
+  select * into v_row from public.proof_packs pp where pp.user_id = v_me and pp.content_hash = v_hash;
+  if found then
+    return jsonb_build_object(
+      'id', v_row.id,
+      'content_hash', v_row.content_hash,
+      'check_code', v_row.check_code,
+      'created_at', v_row.created_at,
+      'pdf_hash', v_row.pdf_hash
+    );
+  end if;
+
+  -- THE CAP. Rows here can never be deleted by the account (the trigger
+  -- refuses), so a loop calling this function would otherwise grow the table
+  -- without end. Two numbers, both far above honest use:
+  --   400 for one project. A row is made each time a record is printed with
+  --     different contents. A long job billed monthly for three years is 36
+  --     pay periods; ten reprints of every one of them is 360.
+  --   5,000 for one account. That is a dozen such jobs filled to the brim, and
+  --     at about half a kilobyte a row it is under 3 MB for the heaviest
+  --     account there could be.
+  -- A refusal names which number was reached; nothing is written.
+  if (select count(*) from public.proof_packs pp where pp.user_id = v_me and pp.project_id = v_pid) >= 400 then
+    raise exception 'proof_pack_project_limit' using errcode = '54000';
+  end if;
+  if (select count(*) from public.proof_packs pp where pp.user_id = v_me) >= 5000 then
+    raise exception 'proof_pack_account_limit' using errcode = '54000';
+  end if;
+
   insert into public.proof_packs (
     user_id, project_id, pay_kind, pay_id, content_hash, check_code,
     item_count, left_out_count, project_initial, city, created_at
@@ -260,3 +308,134 @@ $function$;
 
 revoke execute on function public.proof_pack_attach_pdf_v1(uuid, text) from public, anon;
 grant execute on function public.proof_pack_attach_pdf_v1(uuid, text) to authenticated, service_role;
+
+-- ── self-check ───────────────────────────────────────────────────────────────
+-- Fail the apply, not a later request, if the locks did not land as written.
+do $$
+declare
+  v_role text;
+  v_priv text;
+  v_fn   text;
+  v_src  text;
+begin
+  -- The table: row level security on, one policy, and it is the owner's read.
+  if not (select relrowsecurity from pg_class where oid = 'public.proof_packs'::regclass) then
+    raise exception '[proof_packs] verify: row level security is off';
+  end if;
+  if (select count(*) from pg_policies where schemaname = 'public' and tablename = 'proof_packs') <> 1
+     or not exists (select 1 from pg_policies
+                     where schemaname = 'public' and tablename = 'proof_packs'
+                       and policyname = 'proof_packs_owner_select' and cmd = 'SELECT'
+                       and roles = array['authenticated']::name[]
+                       and replace(replace(qual, ' ', ''), 'proof_packs.', '') in ('(user_id=auth.uid())', 'user_id=auth.uid()')) then
+    raise exception '[proof_packs] verify: the table must have exactly one policy, proof_packs_owner_select (select, authenticated, user_id = auth.uid())';
+  end if;
+
+  -- Grants: anon holds nothing; a signed-in account reads and does nothing else.
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    foreach v_priv in array array['select', 'insert', 'update', 'delete', 'truncate', 'references', 'trigger'] loop
+      if has_table_privilege('anon', 'public.proof_packs', v_priv) then
+        raise exception '[proof_packs] verify: anon holds % on the table', v_priv;
+      end if;
+    end loop;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    if not has_table_privilege('authenticated', 'public.proof_packs', 'select') then
+      raise exception '[proof_packs] verify: authenticated cannot read its own rows';
+    end if;
+    foreach v_priv in array array['insert', 'update', 'delete', 'truncate', 'references', 'trigger'] loop
+      if has_table_privilege('authenticated', 'public.proof_packs', v_priv) then
+        raise exception '[proof_packs] verify: authenticated holds % on the table; every write goes through the two functions', v_priv;
+      end if;
+    end loop;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    if not has_table_privilege('service_role', 'public.proof_packs', 'select')
+       or not has_table_privilege('service_role', 'public.proof_packs', 'delete') then
+      raise exception '[proof_packs] verify: the service role cannot read or delete (account deletion needs both)';
+    end if;
+  end if;
+
+  -- Functions: who may run each.
+  foreach v_fn in array array[
+    'public.proof_pack_create_v1(text,text,text,text,integer,integer,text,text)',
+    'public.proof_pack_attach_pdf_v1(uuid,text)',
+    'public.proof_pack_check_code(text)',
+    'public.proof_packs_immutable()'
+  ] loop
+    if to_regprocedure(v_fn) is null then
+      raise exception '[proof_packs] verify: % is missing', v_fn;
+    end if;
+    if exists (select 1 from pg_roles where rolname = 'anon')
+       and has_function_privilege('anon', v_fn, 'execute') then
+      raise exception '[proof_packs] verify: anon can run %', v_fn;
+    end if;
+  end loop;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    if not has_function_privilege('authenticated', 'public.proof_pack_create_v1(text,text,text,text,integer,integer,text,text)', 'execute')
+       or not has_function_privilege('authenticated', 'public.proof_pack_attach_pdf_v1(uuid,text)', 'execute') then
+      raise exception '[proof_packs] verify: authenticated cannot run the create or the attach function';
+    end if;
+    if has_function_privilege('authenticated', 'public.proof_packs_immutable()', 'execute') then
+      raise exception '[proof_packs] verify: authenticated can call the trigger function directly';
+    end if;
+  end if;
+
+  -- The two writers: SECURITY DEFINER with an empty search_path.
+  foreach v_fn in array array[
+    'public.proof_pack_create_v1(text,text,text,text,integer,integer,text,text)',
+    'public.proof_pack_attach_pdf_v1(uuid,text)'
+  ] loop
+    if not exists (select 1 from pg_proc p
+                    where p.oid = v_fn::regprocedure and p.prosecdef
+                      and exists (select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c
+                                   where c in ('search_path=""', 'search_path=', 'search_path=''''')) ) then
+      raise exception '[proof_packs] verify: % must be SECURITY DEFINER with an empty search_path', v_fn;
+    end if;
+  end loop;
+
+  -- The create function: the server clock, the server's code, the owner test, the cap.
+  select p.prosrc into v_src from pg_proc p
+   where p.oid = 'public.proof_pack_create_v1(text,text,text,text,integer,integer,text,text)'::regprocedure;
+  if position('p.id = v_pid and p.user_id = v_me' in v_src) = 0
+     or position('public.proof_pack_check_code(v_hash)' in v_src) = 0
+     or position('pp.project_id = v_pid) >= 400 then' in v_src) = 0
+     or position('pp.user_id = v_me) >= 5000 then' in v_src) = 0
+     or position('pg_advisory_xact_lock' in v_src) = 0
+     or v_src !~ 'left\(btrim\(coalesce\(p_city, ''''\)\), 80\),\s*now\(\)\s*\)' then
+    raise exception '[proof_packs] verify: proof_pack_create_v1 lost the owner test, the server-made code, the server clock or the cap';
+  end if;
+
+  -- The attach function: once only.
+  select p.prosrc into v_src from pg_proc p
+   where p.oid = 'public.proof_pack_attach_pdf_v1(uuid,text)'::regprocedure;
+  if position('pp.user_id = v_me and pp.pdf_hash is null' in v_src) = 0 then
+    raise exception '[proof_packs] verify: proof_pack_attach_pdf_v1 can replace a file fingerprint';
+  end if;
+
+  -- The trigger: there, enabled, before update or delete, each row, every column.
+  -- pg_trigger.tgtype: 1 row, 2 before, 8 delete, 16 update.
+  if not exists (select 1 from pg_trigger t
+                  where t.tgrelid = 'public.proof_packs'::regclass and t.tgname = 'proof_packs_immutable'
+                    and not t.tgisinternal and t.tgenabled <> 'D'
+                    and t.tgfoid = 'public.proof_packs_immutable()'::regprocedure
+                    and (t.tgtype & 31) = 27 and t.tgattr = ''::int2vector) then
+    raise exception '[proof_packs] verify: trigger proof_packs_immutable is missing, disabled, or no longer fires before every update and delete';
+  end if;
+
+  -- One row per account and fingerprint (what makes a repeat return the same row).
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.proof_packs'::regclass
+                    and conname = 'proof_packs_user_hash_key' and contype = 'u') then
+    raise exception '[proof_packs] verify: the unique constraint on (user_id, content_hash) is missing';
+  end if;
+
+  -- The table holds fingerprints only.
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'proof_packs'
+                and column_name not in ('id', 'user_id', 'project_id', 'pay_kind', 'pay_id', 'content_hash', 'check_code',
+                                        'item_count', 'left_out_count', 'project_initial', 'city', 'created_at',
+                                        'pdf_hash', 'pdf_attached_at')) then
+    raise exception '[proof_packs] verify: the table has a column this file did not create; it holds no amount, name or address';
+  end if;
+end $$;

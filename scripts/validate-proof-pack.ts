@@ -1602,6 +1602,39 @@ const RULES: Record<string, Rule> = {
     return bad;
   },
 
+  'F4 the signature provenance migration is written, held, and marks what the app reads': (w) => {
+    const bad: string[] = [];
+    const raw = w.F[MIGRATION_SIG];
+    const sql = raw.replace(/^\s*--.*$/gm, '');
+    if (!/NOT APPLIED/.test(raw)) bad.push('the migration does not say it is not applied');
+    const need: [string, RegExp][] = [
+      ['the approval marker column, added and nullable', /alter table public\.change_order_approvals\s+add column if not exists recorded_via\s+text;/],
+      ['the waiver marker column, added and nullable', /alter table public\.lien_waivers\s+add column if not exists signed_via\s+text;/],
+      ['the server clock forced on every approval row', /new\.created_at := pg_catalog\.now\(\);/],
+      ['the portal marker', /new\.recorded_via := 'portal_function';/],
+      ['the contractor marker on approvals', /new\.recorded_via := 'contractor_account';/],
+      ['the signing page marker', /new\.signed_via := 'signing_page';/],
+      ['the contractor marker on waivers', /new\.signed_via := 'contractor_account';/],
+      ['a trigger on approvals', /create trigger change_order_approvals_provenance/],
+      ['a trigger on waivers', /create trigger lien_waivers_signed_via/],
+      ['a self-check block', /do \$[a-z_]*\$[\s\S]*raise exception/i],
+    ];
+    for (const [name, re] of need) if (!re.test(sql)) bad.push(`the migration lost: ${name}`);
+    // Existing rows stay "not known": nothing writes a marker onto a row that is already there.
+    if (/update\s+(?:only\s+)?public\.(?:change_order_approvals|lien_waivers)\b[\s\S]{0,200}?\bset\b[\s\S]{0,200}?\b(?:recorded_via|signed_via)\b/i.test(sql)) bad.push('the migration writes a marker onto existing rows');
+    if (/add column if not exists (?:recorded_via|signed_via)\s+text\s+(?:not null|default)/i.test(sql)) bad.push('a marker column has a default, so existing rows would not stay NULL');
+    if (/\bdrop\s+(?:table|column|policy)\b/i.test(sql)) bad.push('the migration drops something');
+    // The markers are the ones the app awards Signed for, and no other.
+    if (CORE.CO_RECORDED_VIA_PORTAL !== 'portal_function' || CORE.WAIVER_SIGNED_VIA_PAGE !== 'signing_page') bad.push('the app reads other markers than the migration writes');
+    if (w.M.changeOrderStrength(as({ id: 'coX', status: 'approved', auditTrail: [{ id: 'x', action: 'marked_approved', actor: 'a', timestamp: at('2026-09-01') }] }), coRowFor({ recordedVia: 'contractor_account' }))?.strength === 'signed') bad.push('the contractor marker earns Signed');
+    if (!/reverse|undo|roll ?back/i.test(raw.slice(0, raw.indexOf('alter table public.change_order_approvals')))) bad.push('the header gives no reverse path');
+    if (!/app\/client-view\.tsx:\d+/.test(raw)) bad.push('the header does not list the in-app client view as a writer, with its line');
+    // The proofs are in the repo, and nothing applies either migration.
+    for (const f of ['scripts/pgq/README.md', 'scripts/pgq/proof-packs.proof.mjs', 'scripts/pgq/signature-provenance.proof.mjs']) if (!existsSync(join(ROOT, f))) bad.push(`${f} is missing`);
+    if (/pglite/i.test(w.F['package.json'])) bad.push('the PGlite proofs added a dependency to the app');
+    return bad;
+  },
+
   'E1 flag off and not the owner means no entry point': (w) => {
     const bad: string[] = [];
     if (!/^export const PROOF_PACK_ENABLED = false;$/m.test(w.F[FLAG_FILE])) bad.push('PROOF_PACK_ENABLED is not false');
@@ -2000,6 +2033,13 @@ const MUTATIONS: Mutation[] = [
   { rule: 'F3', what: 'the file fingerprint can be replaced', plant: text(MIGRATION, ' and pp.pdf_hash is null;', ';') },
   { rule: 'F3', what: 'the app sends an argument the function does not take', plant: mods({ recordArgs: (p, f) => ({ ...STORE.fingerprintRecordArgs(p, f), p_pdf_hash: 'x' }) }) },
   { rule: 'F3', what: 'the migration says it is applied', plant: text(MIGRATION, 'NOT APPLIED.', 'Applied 2026-10-09.') },
+  // F4
+  { rule: 'F4', what: 'the migration backfills existing approvals as portal rows', plant: text(MIGRATION_SIG, 'alter table public.change_order_approvals add column if not exists recorded_via text;', "alter table public.change_order_approvals add column if not exists recorded_via text;\nupdate public.change_order_approvals set recorded_via = 'portal_function' where recorded_via is null;") },
+  { rule: 'F4', what: 'the waiver marker defaults to the signing page', plant: text(MIGRATION_SIG, /add column if not exists signed_via\s+text;/, "add column if not exists signed_via text default 'signing_page';") },
+  { rule: 'F4', what: 'the client’s created_at is kept', plant: text(MIGRATION_SIG, /new\.created_at := pg_catalog\.now\(\);/g, 'null;') },
+  { rule: 'F4', what: 'the migration says it is applied', plant: text(MIGRATION_SIG, /NOT APPLIED/g, 'Applied') },
+  { rule: 'F4', what: 'the contractor marker earns Signed', plant: mods({ changeOrderStrength: (co, rows) => { const r = CORE.changeOrderStrength(co, rows); return r && r.reason === 'co_signature_by_account' ? { strength: 'signed', reason: 'co_client_signed' } : r; } }) },
+  { rule: 'F4', what: 'the portal marker is renamed in the migration', plant: text(MIGRATION_SIG, /new\.recorded_via := 'portal_function';/g, "new.recorded_via := 'portal';") },
   // E1
   { rule: 'E1', what: 'the flag is turned on', plant: text(FLAG_FILE, 'export const PROOF_PACK_ENABLED = false;', 'export const PROOF_PACK_ENABLED = true;') },
   { rule: 'E1', what: 'a screen reads the flag itself', plant: farAdd("\nimport { PROOF_PACK_ENABLED } from '@/constants/featureFlags';\nexport const x = PROOF_PACK_ENABLED;\n") },
