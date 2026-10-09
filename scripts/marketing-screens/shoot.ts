@@ -53,7 +53,14 @@ function bootScript(world: World, theme: 'light' | 'dark'): string {
 }
 
 /** Helpers the steps use, living in the page. */
+// PHONE PARITY. The web build squeezes the bottom tab labels to 4 px high
+// (the label is a flex child that the browser shrinks; on the phone the layout
+// engine does not shrink it, so the label shows). This one rule gives the
+// label its natural height back so the tab bar reads as it does on the phone.
+const PARITY_CSS = '[role="tablist"] [role="tab"] > div:last-child { flex-shrink: 0 !important; overflow: visible !important; height: auto !important; }';
+
 const PAGE_HELPERS = `(() => {
+  addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.textContent = ${JSON.stringify(PARITY_CSS)}; document.head.appendChild(st); });
   const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const byText = (text, exact) => {
     const all = [...document.querySelectorAll('div[dir="auto"], span, button, [role="button"], a, [tabindex="0"]')].filter(visible);

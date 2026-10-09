@@ -27,6 +27,8 @@ export const P = { alder: 'b2e00000-0000-4000-8000-000000000001', birch: 'b2e000
 export interface WorldOptions {
   /** Which plan the account is on. */
   tier?: 'free' | 'pro' | 'business';
+  /** Edge function answers for this shot (fixtures; no model is called). */
+  functions?: Record<string, unknown | ((body: any) => unknown)>;
   /** Per-shot changes to the seeded storage, applied last. */
   patch?: (storage: Record<string, unknown>) => void;
 }
@@ -66,7 +68,7 @@ const linkedEstimate = { id: 'c3e00000-0000-4000-8000-000000000001', items: esti
 // ---------------------------------------------------------------------------
 const alder = {
   id: P.alder, name: '14 Alder Street, kitchen and bath', type: 'renovation', location: '14 Alder Street, Sampleton, NY',
-  squareFootage: 640, quality: 'standard',
+  locationLatitude: 41.2, locationLongitude: -74.1, locationGeocodedAt: day(-60), squareFootage: 640, quality: 'standard',
   description: 'Kitchen opened to the dining room, new cabinets and counters, hall bath rebuilt with a tiled shower.',
   primaryContact: { name: CLIENT.name, phone: CLIENT.phone, email: CLIENT.email }, leadSource: 'referral',
   createdAt: day(-60), updatedAt: day(-1), estimate: null, linkedEstimate, status: 'in_progress', collaborators: [],
@@ -236,6 +238,20 @@ const clientPortal = {
 };
 export { PORTAL_ID };
 
+const TUTORIAL_IDS = ['daily-report-voice', 'punch-walk', 'invoice-to-self', 'schedule-say-it', 'client-portal-preview', 'first-bid-coach', 'estimate-first', 'change-order-draft', 'field-ticket-log', 'takeoff-to-estimate', 'ask-your-plans', 'construction-ai-ask', 'time-clock-in', 'punch-list-close', 'contract-from-estimate', 'pay-app-period', 'closeout-binder'];
+
+// What the weather service answers (the shape of the weather-forecast relay,
+// which is OpenWeather's own). A fixture: a mild, dry October week.
+const nowSec = Math.floor(NOW.getTime() / 1000);
+const WEATHER_NOW = { cod: '200', kind: 'current', dt: nowSec - 300, name: 'Sampleton', main: { temp: 57.4 }, weather: [{ main: 'Clouds', description: 'scattered clouds' }], wind: { speed: 6.2, deg: 315 } };
+const WEATHER_FORECAST = {
+  cod: '200', city: { name: 'Sampleton', timezone: -14400 },
+  list: Array.from({ length: 40 }, (_, i) => {
+    const dt = nowSec + i * 10800; const d = Math.floor(i / 8); const rain = d === 3;
+    return { dt, dt_txt: new Date(dt * 1000).toISOString().slice(0, 19).replace('T', ' '), main: { temp_max: 62 - d * 1.5 + (i % 8 < 4 ? 0 : 3), temp_min: 48 - d }, weather: [rain ? { main: 'Rain', description: 'light rain' } : { main: 'Clouds', description: 'scattered clouds' }], wind: { speed: 6 + d }, pop: rain ? 0.7 : 0.1 };
+  }),
+};
+
 /** A session the app's Supabase client reads from storage. The token is a
  *  made-up, unsigned string: the only thing that ever sees it is server.ts. */
 function session() {
@@ -272,6 +288,10 @@ export function buildWorld(opts: WorldOptions = {}): World {
     mageid_subscription_tier: tier,
     mageid_ai_consent_v2: 'granted',
     mageid_code_answer_ack: JSON.stringify({ v: 1, at: day(-4), account: USER.id }),
+    // An account that has been in use: the starter card was removed from its
+    // own menu and the practice offers were closed.
+    [`mageid_first_job_path::${USER.id}`]: JSON.stringify({ v: 1, answer: null, skipped: [], hidden: false, removed: true, finishShown: false }),
+    mageid_tutorials_v1: JSON.stringify({ v: 1, byId: {}, chips: Object.fromEntries(TUTORIAL_IDS.map((id) => [id, { dismissedAt: day(-20) }])), lastChipDay: dayOnly(0) }),
   };
   for (const [k, v] of Object.entries(data)) storage[k] = typeof v === 'string' ? v : JSON.stringify(v);
   const mirror = (key: string) => ((data[key] as Record<string, unknown>[] | undefined) ?? []).map(snake);
@@ -283,9 +303,13 @@ export function buildWorld(opts: WorldOptions = {}): World {
       tables: {
         commitments: mirror('mageid_commitments'), rfis: mirror('mageid_rfis'), permits: mirror('mageid_permits'),
         punch_items: mirror('mageid_punch_items'), daily_reports: mirror('mageid_daily_reports'),
+        change_orders: mirror('mageid_change_orders'), invoices: mirror('mageid_invoices'),
       },
-      functions: {},
+      functions: { 'weather-forecast': (body: { kind?: string } | null) => (body?.kind === 'current' ? WEATHER_NOW : WEATHER_FORECAST), ...(opts.functions ?? {}) },
     },
-    outside: [],
+    outside: [
+      { match: 'api.openweathermap.org/data/2.5/weather', body: WEATHER_NOW },
+      { match: 'api.openweathermap.org/data/2.5/forecast', body: WEATHER_FORECAST },
+    ],
   };
 }

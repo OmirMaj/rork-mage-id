@@ -14,8 +14,8 @@ export interface ServerWorld {
   tables: Record<string, unknown[]>;
   /** The subscriptions row. */
   subscription: Record<string, unknown> | null;
-  /** Edge function name -> JSON answer. */
-  functions: Record<string, unknown>;
+  /** Edge function name -> JSON answer, or a function of the request body. */
+  functions: Record<string, unknown | ((body: any) => unknown)>;
 }
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -69,7 +69,13 @@ export function startServer(dist: string, port: number, world: () => ServerWorld
 
       if (p.startsWith('/functions/v1/')) {
         const name = p.slice(14).split('/')[0]!;
-        if (name in w.functions) return json(w.functions[name]);
+        if (name in w.functions) {
+          const f = w.functions[name];
+          if (typeof f !== 'function') return json(f);
+          let body: unknown = null;
+          try { body = await req.json(); } catch { /* no body */ }
+          return json((f as (b: unknown) => unknown)(body));
+        }
         log(`function ${name} (no fixture)`);
         return json({ error: 'stand-in backend: no fixture for this function' }, 404);
       }
