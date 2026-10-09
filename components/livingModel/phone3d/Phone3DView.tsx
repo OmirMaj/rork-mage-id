@@ -136,6 +136,14 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
     raf.current = requestAnimationFrame((ts) => frameRef.current(ts));
   }, []);
 
+  /** Ask for the labels to be placed again without drawing the model again (a label was measured, a room was picked). */
+  const requestLabels = useCallback(() => {
+    labelsStale.current = true;
+    labelsAt.current = 0;
+    if (raf.current || failed.current || !sceneRef.current || !focused.current || !appActive.current) return;
+    raf.current = requestAnimationFrame((ts) => frameRef.current(ts));
+  }, []);
+
   const placeLabels = useCallback((scene: PhoneScene) => {
     const next: Record<string, PinSize> = {};
     const boxes: LabelBox[] = [];
@@ -211,7 +219,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
   }, [ready, rooms, cut, debug?.orbitDx, debug?.orbitDy, debug?.zoom]);
 
   // A room was picked or let go: its label may grow or shrink.
-  useEffect(() => { labelsAt.current = 0; requestDraw(); }, [selectedId, requestDraw]);
+  useEffect(() => { requestLabels(); }, [selectedId, requestLabels]);
 
   // The moment, or the reading, changed: show each room's stage.
   useEffect(() => {
@@ -381,8 +389,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
             ref={(el) => { if (el) labelViews.current.set(r.id, el); else { labelViews.current.delete(r.id); labelSizes.current.delete(r.id); } }}
             onLayout={(e) => {
               labelSizes.current.set(r.id, { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height });
-              labelsAt.current = 0;
-              requestDraw();
+              requestLabels();
             }}
             style={[styles.pin, detail === 'dot' && { paddingHorizontal: 3, paddingVertical: 3 }, r.id === selectedId && styles.pinOn, placed]}
             pointerEvents="none"

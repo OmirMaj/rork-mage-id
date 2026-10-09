@@ -347,7 +347,7 @@ rule('D1', 'a frame is drawn only when something changed, and the frames stop wh
 rule('D2', 'nothing is drawn when the screen is not in front or the app is not active, and coming back draws once', (w) => {
   const out: string[] = [];
   const view = code(w.files[VIEW] ?? '');
-  if (!/if \(raf\.current \|\| failed\.current \|\| !sceneRef\.current \|\| !focused\.current \|\| !appActive\.current\) return;/.test(view)) out.push('a frame can be asked for while the screen is not in front or the app is not active');
+  if ((view.match(/if \(raf\.current \|\| failed\.current \|\| !sceneRef\.current \|\| !focused\.current \|\| !appActive\.current\) return;/g) ?? []).length !== 2 || (view.match(/requestAnimationFrame\(/g) ?? []).length !== 5) out.push('a frame can be asked for while the screen is not in front or the app is not active');
   if (!/if \(!scene \|\| failed\.current \|\| !focused\.current \|\| !appActive\.current\) return;/.test(view)) out.push('a frame already asked for is still drawn after the app leaves the front');
   if (!/AppState\.addEventListener\('change', \(s\) => \{\s*appActive\.current = s === 'active';\s*if \(appActive\.current\) requestDraw\(\);\s*else \{ cancelAnimationFrame\(raf\.current\); raf\.current = 0; \}/.test(view)) out.push('the app leaving the front does not stop the frames, or coming back does not draw');
   if (!/return \(\) => sub\.remove\(\);/.test(view)) out.push('the app-state listener is never removed');
