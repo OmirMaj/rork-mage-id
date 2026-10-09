@@ -156,6 +156,13 @@ create trigger bid_responses_guard
 -- ── self-check ───────────────────────────────────────────────────────────────
 do $mig$
 begin
+  -- The columns the guard reads must exist (a plpgsql body is not checked until it runs).
+  if (select count(*) from information_schema.columns
+       where table_schema = 'public'
+         and ((table_name = 'public_bids' and column_name in ('id', 'user_id', 'status', 'awarded_response_id', 'awarded_at'))
+           or (table_name = 'bid_responses' and column_name in ('id', 'bid_id', 'user_id', 'status', 'created_at')))) <> 10 then
+    raise exception '[bid_responses_closed_posting] verify: public_bids or bid_responses is missing a column this file reads';
+  end if;
   if not exists (select 1 from pg_trigger where tgrelid = 'public.bid_responses'::regclass
                   and tgname = 'bid_responses_guard' and not tgisinternal and tgenabled <> 'D') then
     raise exception '[bid_responses_closed_posting] verify: the guard trigger is missing or disabled';

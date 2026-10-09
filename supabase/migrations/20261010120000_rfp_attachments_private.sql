@@ -252,6 +252,13 @@ begin
          and coalesce(qual, '') like '%rfp-attachments%') <> 1 then
     raise exception '[rfp_attachments_private] verify: exactly one read policy must name rfp-attachments (rfp_attachments_read)';
   end if;
+  -- The columns the rule reads must exist (a plpgsql body is not checked until it runs).
+  if (select count(*) from information_schema.columns
+       where table_schema = 'public'
+         and ((table_name = 'public_bids' and column_name in ('id', 'user_id', 'status', 'awarded_response_id', 'awarded_at'))
+           or (table_name = 'bid_responses' and column_name in ('id', 'bid_id', 'user_id', 'status', 'created_at')))) <> 10 then
+    raise exception '[rfp_attachments_private] verify: public_bids or bid_responses is missing a column this file reads';
+  end if;
   select p.prosecdef, p.proconfig into v_def, v_cfg from pg_proc p
    where p.oid = 'public.can_read_rfp_attachment(text)'::regprocedure;
   if v_def is not true or v_cfg is null or not ('search_path=""' = any (v_cfg)) then
