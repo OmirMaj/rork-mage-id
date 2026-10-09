@@ -73,10 +73,27 @@ const path = require('path');
  * The fix does not depend on plugin order: a FINALIZED mod (it runs after every
  * other mod has run and the project file is on disk) reads project.pbxproj as
  * text and quotes every substitution in every script that names one of the
- * Xcode helper scripts. The withXcodeProject pass stays, for a config with no
- * Sentry plugin. scripts/validate-ios-space-paths.ts pins the line Sentry
+ * Xcode helper scripts. scripts/validate-ios-space-paths.ts pins the line Sentry
  * really leaves behind, and a planted break that leaves its first path bare
  * turns that check red.
+ *
+ * ── 2026-10-09, review: the line with NO Sentry plugin was not a command ────
+ * The paragraph above used to end "the withXcodeProject pass stays, for a
+ * config with no Sentry plugin". With no Sentry plugin the template's line is
+ * the substitution ALONE: the path worked out by node IS the command,
+ *
+ *   `"$NODE_BINARY" --print "… react-native-xcode.sh'"`
+ *
+ * and both passes turned it into  "'$( … )'"  : a command whose name starts
+ * and ends with a literal single quote, which no shell can find. The single
+ * quotes are only right where the path is an ARGUMENT handed to
+ * sentry-xcode.sh (which runs it through `sh -c` and so parses it a second
+ * time). singleQuoteReactNativeXcodeArg now adds them only when
+ * sentry-xcode.sh comes earlier on the same line. With no Sentry plugin the
+ * line is left as  "$( … )"  : the path, quoted once, run as the command.
+ * scripts/validate-ios-space-paths.ts RUNS both lines under /bin/sh from a
+ * folder with a space in its name, and a planted return to the old behaviour
+ * turns the no-Sentry check red.
  *
  * This only matters for a LOCAL build from a path with a space. Cloud builds
  * check out to a path with no space and are unaffected either way.
@@ -100,7 +117,9 @@ function quoteBacktickSubstitutions(script) {
 /**
  * `sentry-xcode.sh` does `/bin/sh -c "$REACT_NATIVE_XCODE"`, re-parsing its own
  * argument. Wrap that argument in literal single quotes so the second parse
- * keeps the path whole. No-op when already quoted.
+ * keeps the path whole. No-op when already quoted, and a no-op when the path
+ * is not an argument to sentry-xcode.sh at all (a config with no Sentry
+ * plugin, where the path is the command itself and single quotes would break it).
  * @param {string} script
  * @returns {string}
  */
@@ -119,6 +138,9 @@ function singleQuoteReactNativeXcodeArg(script) {
     if (line.includes('"\'$(')) return script;
     const open = line.lastIndexOf('"$(');
     if (open === -1) continue;
+    // Only an ARGUMENT to sentry-xcode.sh is parsed twice. With no Sentry
+    // script in front, this substitution is the command: leave it "$( … )".
+    if (!line.slice(0, open).includes('sentry-xcode.sh')) continue;
     if (line.startsWith('"\'', open)) continue; // already single-quoted
     const close = line.lastIndexOf(')"');
     if (close <= open) continue;

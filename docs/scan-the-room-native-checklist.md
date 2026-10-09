@@ -124,6 +124,12 @@ not in any gate: they were done by hand, once, as above.
    sizes and the facts on that screen. No photos, no video.
 9. Before leaving the room, measure two walls and the ceiling height with a
    tape and write them down with the file.
+10. **BLOCKING, in a bathroom: the toilet and the sink.** With a tape, write
+    down for the toilet and for the sink: how wide it is along the wall, how
+    far it comes out from the wall, and how far its center line is from each
+    side wall. Send those with the file. The reason is under
+    **Clearance Check** below: nobody knows yet which of a box's two floor
+    sizes Apple calls its depth.
 
 If the app was closed before you shared: open the row again. The start screen
 shows **Last Scan On This Phone** with the same block and the same button.
@@ -617,39 +623,91 @@ Nothing here is needed while the lane is dark and on one phone.
 
 ## Clearance Check
 
-Added 2026-10-09 (lane CLEARANCE), for the owner only, behind the scanner's own
-gate. It measures the distances an inspector commonly looks at off the scan and
-sets each beside a commonly used figure. The rules and the hand-worked rooms are
-in `scripts/validate-scan-clearance.ts`; the figures are one table,
-`utils/roomScan/clearanceRefs.ts`.
+Added 2026-10-09 (lane CLEARANCE), reviewed and reworked the same day. It is
+for the owner only, behind ITS OWN gate (`utils/roomScan/clearanceAllowed.ts`):
+the owner account always, and anyone else only when `CLEARANCE_CHECK_ENABLED`
+(`constants/featureFlags.ts`, false) is on AND `CLEARANCE_REFS_REVIEW` in
+`utils/roomScan/clearanceRefs.ts` names an architect or an expediter who has
+read the table. Turning `SCAN_ROOM_ENABLED` on shows it to nobody new.
 
-No real scan has been through it. Before anyone leans on a row, check these on
-a real LiDAR iPhone, with a tape:
+It measures the distances an inspector commonly looks at off the scan and sets
+each beside a commonly used figure. The rules and the hand-worked rooms are in
+`scripts/validate-scan-clearance.ts`; the figures are one table,
+`utils/roomScan/clearanceRefs.ts`; the plain-English copy of the table for the
+founder is `design-previews/big-bets/CLEARANCE-FIGURES.md` (on the founder's
+Mac beside the repo, not checked in).
 
-1. **Which way a fixture faces.** The scan gives a toilet or a sink as a box
-   with a width, a depth and a turn. The code takes the box's depth as the
-   direction it faces and the nearer wall along it as its back. Apple does not
-   document which of a box's two floor dimensions is the depth. Scan a toilet,
-   then read its row: if the side distances and the front distance are swapped,
-   the two dimensions are the other way round and `fixtureFacing` has to read
-   the width instead.
-2. **Where a fixture's box sits.** Tape the toilet's centre line to each side
+No real scan has been through it.
+
+### BLOCKING: which box axis is depth
+
+**This blocks the first real scan from being trusted, and blocks
+`CLEARANCE_CHECK_ENABLED` from ever being turned on.**
+
+The scan gives a toilet or a sink as a box with two floor sizes and a turn.
+Apple does not document which of the two sizes is the depth (the way the
+fixture comes out from the wall). `utils/roomScan/clearanceCore.ts` therefore
+does NOT trust the box's own axes: `fixtureFacing` reads the back from the room
+(the one box axis with a wall within reach) and declines to label the fixture
+whenever the room cannot say, with the sentence "MAGE cannot tell which way
+this fixture faces. Tape it." Today that means a toilet or a sink in a corner,
+or with a side wall within about 12 in of its box, is NOT labelled at all.
+That is the commonest place for a toilet, so the feature is deliberately
+holding back until this item is done.
+
+On the first real bathroom scan, confirm on a real toilet and a real sink:
+
+1. Tape each one: its size along the wall, how far it comes out from the wall,
+   and its center line to each side wall (step 10 of the first scan).
+2. Open the shared raw file (**Share Raw Scan Data**) and Scan Facts, the
+   scan's own summary. Find the toilet and the sink under `objects`. Each has
+   `dimensions` (three numbers) and a `transform`.
+3. Say which of the three numbers is the size along the wall, which is the
+   height and which is the size out from the wall, and which way the
+   transform's axes point for each. Check both fixtures: they may differ.
+4. Correct the convention in code from what the scan's own summary shows:
+   `utils/roomScan/capturedRoomParser.ts` (which number becomes `widthM` and
+   which `depthM`, and what `rotationRad` means) and the header of
+   `utils/roomScan/clearanceCore.ts`. Add the real export as a fixture with
+   the taped answers worked by hand.
+5. Only then decide whether a fixture in a corner can be labelled from the
+   box's own axes. Until then it stays declined.
+
+### What else to check on a real LiDAR iPhone, with a tape
+
+1. **Where a fixture's box sits.** Tape the toilet's center line to each side
    wall and compare. The margin is 1.5 in by default; if real boxes sit further
    off than that, the default has to grow.
-3. **What a door's width is.** The parser reads one width per door. Tape the
-   leaf and the frame opening and see which one the scan drew. The screen says
-   it cannot tell and never calls a door roomy or tight.
-4. **A window's sill.** The sill is the bottom of the box the scan drew, above
+2. **Whether the box holds the tank.** The back of the box is taken to be at
+   the wall. If Apple's box stops at the bowl, the back wall can be out of
+   reach and the toilet reads as standing free.
+3. **A sink in a vanity.** The check takes a cabinet that holds the sink's
+   center as the vanity and measures from the cabinet's front. See whether a
+   real scan draws the vanity as a cabinet at all, and whether the sink's box
+   sits inside it.
+4. **Boxes that overlap.** A toilet or sink the scan draws across another
+   fixed thing is left out and said. See how often a real scan does that to
+   things that only stand close.
+5. **A door's swing.** It is not modelled. Every row for the space in front
+   says "A door swinging into this space is not counted."
+6. **What a door's width is.** The parser reads one width per door. Tape the
+   leaf and the frame opening and see which one the scan drew. No door is
+   labelled: the row is a plain number.
+7. **A window's sill.** The sill is the bottom of the box the scan drew, above
    the lowest wall bottom. Tape one.
-5. **The lowest ceiling.** A soffit or a beam may not be in a wall's height at
+8. **The lowest ceiling.** A soffit or a beam may not be in a wall's height at
    all. Scan a room with one and see whether the lowest height shows.
-6. **Stairs.** The scan gives one box. If a real export turns out to carry
+9. **Stairs.** The scan gives one box. If a real export turns out to carry
    more (it is not documented to), stairs can be added; until then they are
    left out and the screen says so.
 
+### What a professional has to read
+
 Every figure in the table is marked as NOT confirmed by the repo's checked data
-for New York City or Baltimore, and no section number is shown. An architect or
-an expediter has to read the table before the flag moves, and the first thing
-to ask is which ceiling height and which escape opening sizes New York City
-uses, since the table holds model-code figures and one 8 ft figure described
-only as one that some city codes use.
+for New York City or Baltimore, and no section number is shown. An independent
+reviewer read the table on 2026-10-09 and it was changed as each row's comment
+says; that read is not a professional's sign-off and none of it is confirmed.
+An architect or an expediter has to read the table, and be named in
+`CLEARANCE_REFS_REVIEW`, before the gate can open for anyone else. The
+questions to put to them are at the top of
+`design-previews/big-bets/CLEARANCE-FIGURES.md`.

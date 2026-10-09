@@ -1,10 +1,12 @@
 // validate-scan-clearance — Scan The Room, Clearance Check (lane CLEARANCE).
-// Owner preview: the scanner's own gate, SCAN_ROOM_ENABLED = false.
+// Owner preview behind ITS OWN gate (utils/roomScan/clearanceAllowed):
+// CLEARANCE_CHECK_ENABLED = false, and no professional has read the table.
 //
 // WHAT IT PROVES, with no phone. Every room is a hand-built fixture
 // (scripts/fixtures/scan-room). NOTHING HERE HAS BEEN CHECKED AGAINST A REAL
 // SCAN, and no figure in the table has been read by an architect or an
-// expediter.
+// expediter. An independent reviewer re-derived the tight bathroom, then broke
+// the first geometry on ordinary bathrooms; A7 and A8 are those rooms.
 //
 // A. THE MEASUREMENTS (utils/roomScan/clearanceCore)
 //    A1  the tight bathroom, every row, against the answers worked by hand below;
@@ -15,25 +17,40 @@
 //        moving the room changes no number; each line drawn on the plan is
 //        as long as the number beside it;
 //    A6  the stated method: a fixture that stands free is left out, furniture
-//        is not in the way, the three lines in front, an open outline has no
-//        passage, a scan with no heights has no ceiling row, and a window
-//        outside a bedroom is not set beside anything.
+//        is not in the way, the WHOLE width in front (to just inside each
+//        edge of the box), an open outline has no passage, a scan with no
+//        heights has no ceiling row, a window outside a bedroom is not set
+//        beside anything, and a number that is not a number is no row;
+//    A7  the reviewer's rooms: a sink in a vanity is measured from the
+//        cabinet's front; the side distance is the shortest anywhere along
+//        the toilet's depth; a fixture whose facing is not sure (a corner, a
+//        wall within reach on the other axis, a near-square box, a toilet
+//        not clearly deeper than wide, no open floor in front) is NOT
+//        labelled and the screen says so; the room, not the box's own axes,
+//        decides the facing; a fixture drawn across another thing is left
+//        out; the outer edge of a bowl; a bedroom with a jog is not a
+//        hallway; 22 in front of a toilet is close;
+//    A8  the ceiling by place: New York City's two lines (7 ft in a bathroom,
+//        8 ft in a room people live in) are shown there and nowhere else.
 // B. THE STATES
 //    B1  the boundaries: on the figure, the margin either side, a hair past
 //        the margin either side, well clear, and the same for a "most";
-//    B2  a door and a window are never 'roomy' and never 'tight', and a window
-//        is compared only in a bedroom;
-//    B3  set beside two figures, a row takes the state most worth a tape and
-//        names the figure that gave it; the ceiling figures follow the room.
+//    B2  a door is a plain number with no figure and no state; a window is
+//        never 'roomy' and never 'tight', and is compared only in a bedroom;
+//    B3  a toilet's front is read against 21 in alone; set beside two
+//        figures, a row takes the state most worth a tape and names the
+//        figure that gave it; the ceiling figures follow the room and the place.
 // C. THE MARGIN
 //    C1  1.5 in by default, never less, wider with a worse tape history, up to
 //        a cap, and never from too few walls or a slip of the thumb;
 //    C2  a number he taped uses the tighter margin, the row says so, and a
 //        taped wall never tightens a fixture's row.
 // D. THE FIGURES (utils/roomScan/clearanceRefs)
-//    D1  one table: every figure has its number, what it is called and its
-//        family; the numbers are the pinned ones; the screen's words are the
-//        table's; no figure is typed into a string;
+//    D1  one table: every figure has its number, what it is called, its
+//        family, whether it is compared or words only, and where it is used;
+//        the numbers are the pinned ones; the screen's words are the table's;
+//        no figure is typed into a string; a words-only figure is never set
+//        beside a distance; the table is still waiting on the founder;
 //    D2  no figure is called checked, and no section number exists, unless
 //        the repo's checked jurisdiction data holds it; no section number is
 //        written anywhere in the lane; every figure is drawn with "A commonly
@@ -45,22 +62,29 @@
 //    W2  the sentences that must be there are there and are always drawn: a
 //        scan can be off by an inch or more, no label means not checked
 //        against anything, nothing here stops an action, a door's clear width
-//        is less, a window's net clear opening cannot be seen, stairs are not
-//        measured;
+//        is less, a door swinging into the space in front is not counted, a
+//        window's net clear opening cannot be seen and the row never clears a
+//        window, stairs are not measured, and "MAGE cannot tell which way
+//        this fixture faces. Tape it.";
 //    W3  every sentence is in the app's own words (utils/codeCard/echoCheck),
 //        is short, quotes nothing, and never says how right a number is;
 //    W4  house style: labels with every word capitalised, sentences that end,
 //        captions that do not, no em dash, no "&", no "e.g.", no arrows; the
-//        three state names;
+//        three state names; roomy says which side and that it is not a check
+//        against the local code; the Spanish for close is not "justo";
 //    W5  English and Spanish carry the same keys, plural shapes, placeholders
 //        and source hashes, and the surface is registered.
 // N. THE GATE AND THE WIRING (source text)
 //    N1  it never blocks: no action depends on a state, the result carries no
 //        verdict about the room, and nothing outside the feature reads it;
-//    N2  with the flag off, someone who is not the owner sees nothing;
+//    N2  its own gate: the owner always; anyone else only with
+//        CLEARANCE_CHECK_ENABLED on AND a named professional's read of the
+//        table. Flipping the scanner's switch alone shows it to nobody new;
 //    N3  no model call, no network, no storage, no clock in the lane;
 //    N4  it is registered: the package script, the ship-check chain, the
-//        gate's pinned count, and the smoke suite.
+//        gate's pinned count, and the smoke suite;
+//    N5  the native checklist blocks the first real scan on which box axis
+//        is depth.
 //
 // PLANTED MUTATIONS. Every rule is run a second time against a planted break
 // (a wrapped copy of a function, or edited text, in memory only) and the run
@@ -81,8 +105,10 @@ import * as CORE from '../utils/roomScan/clearanceCore';
 import * as REFS from '../utils/roomScan/clearanceRefs';
 import { tapeFacts, lengthClass, type TapeFacts, type TapePair } from '../utils/roomScan/learnCore';
 import type { RoomScan } from '../utils/roomScan/types';
-import { SCAN_ROOM_ENABLED } from '../constants/featureFlags';
+import { CLEARANCE_CHECK_ENABLED, SCAN_ROOM_ENABLED } from '../constants/featureFlags';
 import { scanRoomAllowedWith } from '../utils/roomScan/allowed';
+import { clearanceCheckAllowedWith } from '../utils/roomScan/clearanceAllowed';
+import { clearanceInNyc } from '../utils/roomScan/clearancePlace';
 import { LOCAL_ADOPTIONS } from '../utils/codeJurisdiction';
 import { longestRun, passesProseCheck } from '../utils/codeCard/echoCheck';
 import { sourceHash } from '../i18n/hash';
@@ -92,7 +118,8 @@ import { ES_SHARDS } from '../i18n/catalog/es';
 import { EN as EN_REAL } from '../i18n/catalog/en/office.scan-clearance.generated';
 import { ES_OFFICE_SCAN_CLEARANCE as ES_REAL } from '../i18n/catalog/es/office/scanClearance';
 import {
-  FIXTURE_FILES, bedroomWindowSpec, buildCapturedRoom, narrowHallSpec, tightBathSpec, type RoomSpec,
+  FIXTURE_FILES, bathCeiling82Spec, bedroom96Spec, bedroomJogSpec, bedroomWindowSpec, buildCapturedRoom, narrowHallSpec, tightBathSpec,
+  toiletCornerSwappedSpec, toiletFront22Spec, toiletFrontEdgeSpec, toiletSideCabinetSpec, vanitySinkSpec, type RoomSpec,
 } from './fixtures/scan-room/builder';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -110,7 +137,7 @@ const GATE_YML = '.github/workflows/ship-gate.yml';
 const LANE_FILES = [...CORE_FILES, VIEW, HOOK] as const;
 const OTHER_FILES = [
   FLOW, PLAN, SMOKE, GATE_YML, 'package.json', 'app/scan-room.tsx', 'utils/roomScan/allowed.ts', 'constants/featureFlags.ts',
-  'utils/owner.ts', 'scripts/fixtures/scan-room/builder.ts',
+  'utils/owner.ts', 'scripts/fixtures/scan-room/builder.ts', 'utils/roomScan/clearanceAllowed.ts', 'utils/roomScan/clearancePlace.ts', 'docs/scan-the-room-native-checklist.md',
 ] as const;
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -140,6 +167,13 @@ interface Mods {
   familyWords: Readonly<Record<REFS.ClearanceFamily, string>>;
   allowed: typeof scanRoomAllowedWith;
   flag: boolean;
+  /** Clearance Check's own gate, its own switch, and the table's review record. */
+  clearanceAllowed: typeof clearanceCheckAllowedWith;
+  clearanceFlag: boolean;
+  review: REFS.ClearanceRefsReview;
+  proRead: typeof REFS.clearanceRefsProfessionallyRead;
+  /** Is this project in New York City, by the app's one resolver. */
+  inNyc: typeof clearanceInNyc;
 }
 interface World {
   M: Mods;
@@ -154,6 +188,7 @@ const REAL: World = {
   M: {
     build: CORE.buildClearanceCheck, state: CORE.clearanceState, boundState: CORE.clearanceBoundState, margin: CORE.clearanceMargin,
     refs: REFS.CLEARANCE_REFS, familyWords: REFS.CLEARANCE_FAMILY_WORDS, allowed: scanRoomAllowedWith, flag: SCAN_ROOM_ENABLED,
+    clearanceAllowed: clearanceCheckAllowedWith, clearanceFlag: CLEARANCE_CHECK_ENABLED, review: REFS.CLEARANCE_REFS_REVIEW, proRead: REFS.clearanceRefsProfessionallyRead, inNyc: clearanceInNyc,
   },
   F: F_REAL, outside: OUTSIDE, EN: EN_REAL as Record<string, unknown>, ES: ES_REAL as World['ES'],
 };
@@ -194,8 +229,8 @@ const towardOf = (m: CORE.ClearanceMeasure): string => (m.toward ? (m.toward.kin
 function pick(c: CORE.ClearanceCheck, want: Pick<Want, 'kind' | 'index' | 'toward'>): CORE.ClearanceMeasure | undefined {
   return c.measures.find((m) => m.kind === want.kind && m.index === (want.index ?? 1) && (want.toward == null || towardOf(m) === want.toward));
 }
-function compare(o: string[], room: string, c: CORE.ClearanceCheck, wants: Want[]) {
-  check(o, c.measures.length === wants.length, `${room}: ${c.measures.length} rows, not the ${wants.length} worked by hand (${c.measures.map((m) => m.kind).join(', ')})`);
+function compare(o: string[], room: string, c: CORE.ClearanceCheck, wants: Want[], total = wants.length) {
+  check(o, c.measures.length === total, `${room}: ${c.measures.length} rows, not the ${total} worked by hand (${c.measures.map((m) => m.kind).join(', ')})`);
   for (const want of wants) {
     const name = `${room} ${want.kind}${want.index && want.index > 1 ? ` ${want.index}` : ''}${want.toward ? ` to ${want.toward}` : ''}`;
     const m = pick(c, want);
@@ -208,6 +243,7 @@ function compare(o: string[], room: string, c: CORE.ClearanceCheck, wants: Want[
     check(o, m.restsOnTaped === (want.taped ?? false), `${name}: rests on a taped number is ${m.restsOnTaped}`);
   }
 }
+const NYC = { nyc: true } as const;
 const leftKinds = (c: CORE.ClearanceCheck): string => c.leftOut.map((l) => `${l.kind}:${l.count}`).sort().join(' ');
 
 // ── A. the measurements ─────────────────────────────────────────────────────
@@ -225,19 +261,20 @@ const leftKinds = (c: CORE.ClearanceCheck): string => c.leftOut.map((l) => `${l.
 //       Figure 15. 15 - 1.5 = 13.5, and 12.5 is under it: TIGHT.
 //   TOILET, CENTRE LINE TO THE TUB    66 - 52 = 14.
 //       13.5 <= 14 <= 16.5: CLOSE.
-//   TOILET, CLEAR SPACE IN FRONT      the front of the box is x = 28. Three
-//       lines run ahead from it, at y = 52 and a quarter of the width either
-//       side (52 - 3.75 = 48.25 and 55.75). All three meet the cabinet, whose
+//   TOILET, CLEAR SPACE IN FRONT      the front of the box is x = 28. The
+//       whole width of the box is looked along, from just inside one edge
+//       (y = 44.5) to just inside the other (59.5). It meets the cabinet, whose
 //       face is x = 50 between y 42 and 62: 50 - 28 = 22.
-//       Figure 21: 19.5 <= 22 <= 22.5, CLOSE.
-//       Figure 24: 24 - 1.5 = 22.5, and 22 is under it, TIGHT.
-//       The row takes TIGHT and credits the 24 in figure.
-//   SINK, CLEAR SPACE IN FRONT        the front of the box is x = 20. Lines at
-//       y = 27.5, 21.5 and 33.5 pass under the cabinet (it starts at y 42) and
-//       meet the right wall at x = 60: 40. Figure 21: 40 is past 22.5, ROOMY.
-//   DOOR                              28 as scanned. Figure 32, the CLEAR
-//       width, which the scan cannot see. 28 is not past 32 + 1.5: CLOSE
-//       (never TIGHT, never ROOMY).
+//       Figure 21, the only one a toilet's front is read against:
+//       19.5 <= 22 <= 22.5, CLOSE. (The 24 in figure is words only now.)
+//   SINK, CLEAR SPACE IN FRONT        the front of the box is x = 20. Its width
+//       (y 15.5 to 39.5) passes under the cabinet (it starts at y 42) and
+//       meets the right wall at x = 60: 40. Figure 21: 40 is past 22.5, ROOMY.
+//   DOOR                              28 as scanned. A plain number: NO figure
+//       and NO state (a 28 in bathroom door is ordinary).
+//   THE FACING. Neither fixture is in a corner: the sink's box is 15.5 from the
+//       bottom wall and the toilet's 36.5 from the far wall, both past the
+//       11.8 in reach. Each backs onto the left wall alone.
 //   NARROWEST WIDTH BETWEEN WALLS     60 (the left and right walls). The room
 //       is 96 long: 96 / 60 = 1.6, under 2.5, so it is not shaped like a
 //       hallway. No figure, no state.
@@ -248,9 +285,9 @@ const leftKinds = (c: CORE.ClearanceCheck): string => c.leftOut.map((l) => `${l.
 const TIGHT_BATH: Want[] = [
   { kind: 'toilet_side', toward: 'sink', value: 12.5, state: 'tight', ref: 'toilet_side_15', figures: [['toilet_side_15', 'tight']] },
   { kind: 'toilet_side', toward: 'bathtub', value: 14, state: 'close', ref: 'toilet_side_15', figures: [['toilet_side_15', 'close']] },
-  { kind: 'toilet_front', toward: 'storage', value: 22, state: 'tight', ref: 'toilet_front_24', figures: [['toilet_front_21', 'close'], ['toilet_front_24', 'tight']] },
+  { kind: 'toilet_front', toward: 'storage', value: 22, state: 'close', ref: 'toilet_front_21', figures: [['toilet_front_21', 'close']] },
   { kind: 'sink_front', toward: 'wall', value: 40, state: 'roomy', ref: 'sink_front_21', figures: [['sink_front_21', 'roomy']] },
-  { kind: 'door_width', value: 28, state: 'close', ref: 'door_clear_32', figures: [['door_clear_32', 'close']] },
+  { kind: 'door_width', value: 28, state: null, ref: null, figures: [] },
   { kind: 'passage_width', value: 60, state: null, ref: null, figures: [] },
   { kind: 'ceiling_low', value: 81, state: 'close', ref: 'ceiling_bath_80', figures: [['ceiling_bath_80', 'close']] },
 ];
@@ -259,7 +296,7 @@ rule('A1 the tight bathroom, every row, against the answers worked by hand', (w)
   const c = w.M.build(scanOf('tight-bath'));
   compare(o, 'tight bathroom', c, TIGHT_BATH);
   check(o, leftKinds(c) === 'door_clear:1 stairs:0 tub_opening:1', `left out: ${leftKinds(c)}`);
-  check(o, c.comparedCount === 6 && c.tapedCount === 0, `${c.comparedCount} rows compared and ${c.tapedCount} taped, not 6 and 0`);
+  check(o, c.comparedCount === 5 && c.tapedCount === 0, `${c.comparedCount} rows compared and ${c.tapedCount} taped, not 5 and 0`);
   const sink = pick(c, { kind: 'toilet_side', toward: 'sink' });
   check(o, !!sink && sink.wallIds.length === 0 && !!sink.objectId, 'a toilet side that meets the sink names a wall');
   const front = pick(c, { kind: 'sink_front' });
@@ -271,13 +308,13 @@ rule('A1 the tight bathroom, every row, against the answers worked by hand', (w)
 // in door in each end wall. A stair the scan saw as one box.
 //   NARROWEST WIDTH   37. 240 / 37 = 6.5, past 2.5: a hallway. Figure 36:
 //                     34.5 <= 37 <= 37.5, CLOSE.
-//   DOORS             30 each. Not past 33.5: CLOSE.
+//   DOORS             30 each. Plain numbers: no figure, no state.
 //   LOWEST CEILING    96. A room shaped like a hallway is set beside 84 alone:
 //                     96 is past 85.5, ROOMY.
 //   STAIRS            left out: one box, no risers or treads.
 const NARROW_HALL: Want[] = [
-  { kind: 'door_width', index: 1, value: 30, state: 'close', ref: 'door_clear_32', figures: [['door_clear_32', 'close']] },
-  { kind: 'door_width', index: 2, value: 30, state: 'close', ref: 'door_clear_32', figures: [['door_clear_32', 'close']] },
+  { kind: 'door_width', index: 1, value: 30, state: null, ref: null, figures: [] },
+  { kind: 'door_width', index: 2, value: 30, state: null, ref: null, figures: [] },
   { kind: 'passage_width', value: 37, state: 'close', ref: 'passage_36', figures: [['passage_36', 'close']] },
   { kind: 'ceiling_low', value: 96, state: 'roomy', ref: 'ceiling_84', figures: [['ceiling_84', 'roomy']] },
 ];
@@ -296,7 +333,7 @@ rule('A2 the narrow hallway, and a stair the scan saw as one box', (w) => {
 
 // THE BEDROOM (bedroomWindowSpec). 120 by 132, ceiling 96. One window 24 wide
 // by 36 high, its sill 43 off the floor. One 36 in door.
-//   DOOR            36. Past 32 + 1.5 = 33.5: no state (never ROOMY).
+//   DOOR            36. A plain number: no figure, no state.
 //   WINDOW WIDTH    24. Figure 20 (net clear). Past 21.5: no state.
 //   WINDOW HEIGHT   36. Figure 24 (net clear). Past 25.5: no state.
 //   WINDOW AREA     24 x 36 = 864 sq in = 6.0 sq ft. Figure 5.7 sq ft (net
@@ -305,16 +342,16 @@ rule('A2 the narrow hallway, and a stair the scan saw as one box', (w) => {
 //   WINDOW SILL     43. Figure 44, a most. 44 - 1.5 = 42.5, and 43 is past
 //                   it: CLOSE.
 //   NARROWEST WIDTH 120. 132 / 120 = 1.1: not a hallway, no state.
-//   LOWEST CEILING  96. Figure 84: past 85.5, ROOMY. Figure 96: on it, CLOSE.
-//                   The row takes CLOSE and credits the 96 in figure.
+//   LOWEST CEILING  96. Figure 84: past 85.5, ROOMY. The 96 in figure is New
+//                   York City's alone and no place is handed in here: no 8 ft line.
 const BEDROOM: Want[] = [
-  { kind: 'door_width', value: 36, state: null, ref: null, figures: [['door_clear_32', null]] },
+  { kind: 'door_width', value: 36, state: null, ref: null, figures: [] },
   { kind: 'window_width', value: 24, state: null, ref: null, figures: [['escape_width_20', null]] },
   { kind: 'window_height', value: 36, state: null, ref: null, figures: [['escape_height_24', null]] },
   { kind: 'window_area', value: 6, state: 'close', ref: 'escape_area_5_7', figures: [['escape_area_5_7', 'close']] },
   { kind: 'window_sill', value: 43, state: 'close', ref: 'escape_sill_44', figures: [['escape_sill_44', 'close']] },
   { kind: 'passage_width', value: 120, state: null, ref: null, figures: [] },
-  { kind: 'ceiling_low', value: 96, state: 'close', ref: 'ceiling_96', figures: [['ceiling_84', 'roomy'], ['ceiling_96', 'close']] },
+  { kind: 'ceiling_low', value: 96, state: 'roomy', ref: 'ceiling_84', figures: [['ceiling_84', 'roomy']] },
 ];
 rule('A3 the bedroom with one window', (w) => {
   const o: string[] = [];
@@ -329,11 +366,11 @@ rule('A3 the bedroom with one window', (w) => {
 // ceiling 96, a 30 in door in each end wall and a cased opening (not a door:
 // it is not measured here).
 //   NARROWEST WIDTH   42. 264 / 42 = 6.3: a hallway. Figure 36: past 37.5, ROOMY.
-//   DOORS             30 each: CLOSE.
+//   DOORS             30 each: plain numbers.
 //   LOWEST CEILING    96 beside 84 alone: ROOMY.
 const HALLWAY: Want[] = [
-  { kind: 'door_width', index: 1, value: 30, state: 'close', ref: 'door_clear_32', figures: [['door_clear_32', 'close']] },
-  { kind: 'door_width', index: 2, value: 30, state: 'close', ref: 'door_clear_32', figures: [['door_clear_32', 'close']] },
+  { kind: 'door_width', index: 1, value: 30, state: null, ref: null, figures: [] },
+  { kind: 'door_width', index: 2, value: 30, state: null, ref: null, figures: [] },
   { kind: 'passage_width', value: 42, state: 'roomy', ref: 'passage_36', figures: [['passage_36', 'roomy']] },
   { kind: 'ceiling_low', value: 96, state: 'roomy', ref: 'ceiling_84', figures: [['ceiling_84', 'roomy']] },
 ];
@@ -347,18 +384,24 @@ rule('A4 the wide hallway', (w) => {
 
 rule('A5 the fixture files are the builder\'s, turning the room changes nothing, and each line is as long as its number', (w) => {
   const o: string[] = [];
-  for (const name of ['tight-bath.json', 'narrow-hall.json', 'bedroom-window.json']) {
+  for (const name of ['tight-bath.json', 'narrow-hall.json', 'bedroom-window.json', 'vanity-sink.json', 'toilet-side-cabinet.json', 'toilet-corner-swapped.json', 'toilet-front-edge.json', 'bedroom-jog.json', 'bath-ceiling-82.json', 'bedroom-96.json', 'toilet-front-22.json']) {
     const spec = FIXTURE_FILES[name];
     check(o, !!spec && read(`scripts/fixtures/scan-room/${name}`) === JSON.stringify(buildCapturedRoom(spec()), null, 1) + '\n', `${name} no longer equals what builder.ts writes`);
   }
   check(o, /NOT FROM A PHONE/.test(w.F['scripts/fixtures/scan-room/builder.ts']), 'the fixture builder no longer says its rooms are not from a phone');
-  for (const [name, spec] of [['tight bathroom', tightBathSpec], ['narrow hallway', narrowHallSpec], ['bedroom', bedroomWindowSpec]] as [string, () => RoomSpec][]) {
+  const turned: [string, () => RoomSpec][] = [
+    ['tight bathroom', tightBathSpec], ['narrow hallway', narrowHallSpec], ['bedroom', bedroomWindowSpec], ['sink in a vanity', vanitySinkSpec],
+    ['cabinet beside a toilet', toiletSideCabinetSpec], ['toilet near a corner', toiletCornerSwappedSpec], ['outer edge of a bowl', toiletFrontEdgeSpec],
+    ['bedroom with a jog', bedroomJogSpec], ['bathroom at 82.5', bathCeiling82Spec], ['bedroom at 96', bedroom96Spec], ['22 in front', toiletFront22Spec],
+  ];
+  for (const [name, spec] of turned) {
     const base = w.M.build(fromSpec(spec()));
     for (const turn of [0, 90, 211]) {
       const c = w.M.build(fromSpec({ ...spec(), rotateDeg: turn, shift: { x: -3.3, y: 7.1 } }));
-      check(o, c.measures.length === base.measures.length, `${name} turned ${turn} degrees has ${c.measures.length} rows`);
+      check(o, c.measures.length === base.measures.length && leftKinds(c) === leftKinds(base), `${name} turned ${turn} degrees has ${c.measures.length} rows and leaves out ${leftKinds(c)}`);
       for (const m of base.measures) {
-        const t = pick(c, { kind: m.kind, index: m.index, toward: m.toward ? towardOf(m) : undefined });
+        // The same row in the turned room: the same kind, number and thing met, and (a toilet has two sides) the nearest value.
+        const t = c.measures.filter((x) => x.kind === m.kind && x.index === m.index && towardOf(x) === towardOf(m)).sort((p, q) => Math.abs(p.valueUS - m.valueUS) - Math.abs(q.valueUS - m.valueUS))[0];
         check(o, !!t && near(t.valueUS, m.valueUS, 1e-4) && t.state === m.state, `${name} turned ${turn} degrees: ${m.kind} reads ${t?.valueUS} ${t?.state}, not ${m.valueUS} ${m.state}`);
       }
     }
@@ -374,7 +417,7 @@ rule('A5 the fixture files are the builder\'s, turning the room changes nothing,
   return o;
 });
 
-rule('A6 the stated method: what is left out, what is in the way, and the three lines in front', (w) => {
+rule('A6 the stated method: what is left out, what is in the way, the whole width in front, and no number that is not a number', (w) => {
   const o: string[] = [];
   const bath = tightBathSpec();
   const objects = bath.objects ?? [];
@@ -388,13 +431,32 @@ rule('A6 the stated method: what is left out, what is in the way, and the three 
   check(o, near(pick(chair, { kind: 'toilet_front' })?.valueUS, 22, 0.005), `a chair changed the space in front of the toilet to ${pick(chair, { kind: 'toilet_front' })?.valueUS}`);
   const box = withObjects([...objects, { category: 'storage', at: inPt(40, 52), w: 10 * IN, h: 30 * IN, d: 10 * IN }]);
   check(o, near(pick(box, { kind: 'toilet_front' })?.valueUS, 7, 0.005), `a cabinet in front of the toilet gives ${pick(box, { kind: 'toilet_front' })?.valueUS}, not 7`);
-  // The three lines in front are at y = 48.25, 52 and 55.75. A cabinet covering only y 54 to 62 is met by the last one: still 22.
+  // The front looks along the box's whole width, y 44.5 to 59.5, to just inside each edge. A cabinet covering only y 54 to 62 is in front: still 22.
   const noCabinet = objects.filter((x) => x.category !== 'storage');
   const quarter = withObjects([...noCabinet, { category: 'storage', at: inPt(55, 58), w: 8 * IN, h: 72 * IN, d: 10 * IN, turnDeg: 90 }]);
   check(o, near(pick(quarter, { kind: 'toilet_front' })?.valueUS, 22, 0.005), `a cabinet in front of a quarter of the toilet is missed: ${pick(quarter, { kind: 'toilet_front' })?.valueUS}`);
-  // One covering only y 57 to 63 is past all three lines: the right wall, 60 - 28 = 32.
-  const past = withObjects([...noCabinet, { category: 'storage', at: inPt(55, 60), w: 6 * IN, h: 72 * IN, d: 10 * IN, turnDeg: 90 }]);
-  check(o, near(pick(past, { kind: 'toilet_front' })?.valueUS, 32, 0.005) && towardOf(pick(past, { kind: 'toilet_front' }) as CORE.ClearanceMeasure) === 'wall', `the space in front does not reach the wall: ${pick(past, { kind: 'toilet_front' })?.valueUS}`);
+  // One covering only y 57 to 63 is ahead of the last 2.5 in of the bowl (its edge is y = 59.5): it IS in front. 50 - 28 = 22.
+  // (This rule once pinned the miss as correct: 32, to the wall.)
+  const edge = withObjects([...noCabinet, { category: 'storage', at: inPt(55, 60), w: 6 * IN, h: 72 * IN, d: 10 * IN, turnDeg: 90 }]);
+  check(o, near(pick(edge, { kind: 'toilet_front' })?.valueUS, 22, 0.005) && towardOf(pick(edge, { kind: 'toilet_front' }) as CORE.ClearanceMeasure) === 'storage', `a cabinet ahead of only the outer edge of the bowl is missed: ${pick(edge, { kind: 'toilet_front' })?.valueUS}`);
+  // One covering only y 60 to 66 starts past the edge of the box: it is not in front. The right wall, 60 - 28 = 32.
+  const past = withObjects([...noCabinet, { category: 'storage', at: inPt(55, 63), w: 6 * IN, h: 72 * IN, d: 10 * IN, turnDeg: 90 }]);
+  check(o, near(pick(past, { kind: 'toilet_front' })?.valueUS, 32, 0.005) && towardOf(pick(past, { kind: 'toilet_front' }) as CORE.ClearanceMeasure) === 'wall', `a cabinet past the edge of the bowl is counted as in front: ${pick(past, { kind: 'toilet_front' })?.valueUS}`);
+  // A number that is not a number is not a measurement: no row, in any room.
+  const bathScan = scanOf('tight-bath');
+  const broken: RoomScan[] = [
+    { ...bathScan, ceilingHeightM: { ...bathScan.ceilingHeightM, min: Infinity } },
+    { ...bathScan, ceilingHeightM: { ...bathScan.ceilingHeightM, min: NaN } },
+    { ...bathScan, openings: bathScan.openings.map((x) => ({ ...x, widthM: Infinity })) },
+    { ...bathScan, objects: bathScan.objects.map((x) => (x.category === 'toilet' ? { ...x, center: { x: NaN, y: x.center.y } } : x)) },
+    { ...bathScan, objects: bathScan.objects.map((x) => (x.category === 'sink' ? { ...x, depthM: Infinity } : x)) },
+  ];
+  for (const [i, b] of broken.entries()) {
+    const c = w.M.build(b);
+    check(o, c.measures.every((m) => Number.isFinite(m.value) && Number.isFinite(m.valueUS) && (!m.line || [m.line.a.x, m.line.a.y, m.line.b.x, m.line.b.y].every(Number.isFinite))), `broken scan ${i + 1}: a row carries a number that is not a number`);
+  }
+  check(o, !pick(w.M.build(broken[0]), { kind: 'ceiling_low' }) && !pick(w.M.build(broken[2]), { kind: 'door_width' }), 'a ceiling or a door with no finite size still has a row');
+  check(o, !w.M.build(broken[3]).measures.some((m) => m.kind.startsWith('toilet_')) && w.M.build(broken[3]).leftOut.some((l) => l.kind === 'fixture_facing'), 'a toilet with no finite place is measured, or is not said to be left out');
   // An open outline: no floor between walls is known, so no passage, and it is said.
   const open = w.M.build(scanOf('missing-wall'));
   check(o, !pick(open, { kind: 'passage_width' }) && open.leftOut.some((l) => l.kind === 'passage_open'), 'a room whose outline did not close has a narrowest width, or does not say it was left out');
@@ -406,6 +468,188 @@ rule('A6 the stated method: what is left out, what is in the way, and the three 
   check(o, !hallBath.measures.some((m) => m.kind.startsWith('window_')) && hallBath.leftOut.some((l) => l.kind === 'windows_not_bedroom' && l.count === 1), 'a bathroom window is set beside the escape opening figures');
   // A cased opening is not a door.
   check(o, w.M.build(scanOf('hallway')).measures.filter((m) => m.kind === 'door_width').length === 2, 'a cased opening is measured as a door');
+  return o;
+});
+
+// THE REVIEWER'S ROOMS (scripts/fixtures/scan-room/builder.ts, each worked by
+// hand there too). An independent reviewer broke the first geometry on each.
+// Every room is 60 wide by 96 deep unless it says otherwise. Inches.
+//   A SINK IN A VANITY (vanity-sink). Cabinet x 0 to 22, y 30 to 66. Sink
+//       x 3 to 19, centred in it. The front line starts at the CABINET's face:
+//       60 - 22 = 38. Figure 21: ROOMY. (It read 22 - 19 = 3, "Tight".)
+//   A CABINET BESIDE THE FRONT HALF OF A TOILET (toilet-side-cabinet). Centre
+//       line y = 48, box x 0 to 28. Cabinet x 16 to 28, y 56 to 70.
+//       To the cabinet: 56 - 48 = 8, TIGHT. To the bottom wall: 48, ROOMY.
+//       In front: the cabinet starts past the box's edge (55.5): 60 - 28 = 32, ROOMY.
+//   A TOILET NEAR A CORNER, AXES SWAPPED (toilet-corner-swapped). Box x 0 to
+//       28, y 8.5 to 23.5. Walls within reach on both axes: NOT LABELLED.
+//   THE OUTER EDGE OF A BOWL (toilet-front-edge). Box y 44.5 to 59.5. Cabinet
+//       on the right wall, y 57 to 63, face x = 50. In front: 50 - 28 = 22,
+//       CLOSE. Sides: 52 to the bottom wall, 44 to the far wall, ROOMY.
+//   A BEDROOM WITH A JOG (bedroom-jog). 144 by 144 with a nook 36 wide and 14
+//       deep. Narrowest 36, the two walls share 14: 14 < 2.5 x 36, NOT a
+//       hallway, no state. Ceiling 96 beside 84: ROOMY.
+//   22 IN FRONT OF A TOILET (toilet-front-22). Room 50 wide: 50 - 28 = 22,
+//       beside 21 alone: CLOSE. Sides 48 and 48: ROOMY.
+const VANITY: Want[] = [
+  { kind: 'sink_front', toward: 'wall', value: 38, state: 'roomy', ref: 'sink_front_21', figures: [['sink_front_21', 'roomy']] },
+  { kind: 'passage_width', value: 60, state: null, ref: null, figures: [] },
+  { kind: 'ceiling_low', value: 96, state: 'roomy', ref: 'ceiling_bath_80', figures: [['ceiling_bath_80', 'roomy']] },
+];
+const SIDE_CABINET: Want[] = [
+  { kind: 'toilet_side', toward: 'storage', value: 8, state: 'tight', ref: 'toilet_side_15', figures: [['toilet_side_15', 'tight']] },
+  { kind: 'toilet_side', toward: 'wall', value: 48, state: 'roomy', ref: 'toilet_side_15', figures: [['toilet_side_15', 'roomy']] },
+  { kind: 'toilet_front', toward: 'wall', value: 32, state: 'roomy', ref: 'toilet_front_21', figures: [['toilet_front_21', 'roomy']] },
+  { kind: 'passage_width', value: 60, state: null, ref: null, figures: [] },
+  { kind: 'ceiling_low', value: 96, state: 'roomy', ref: 'ceiling_bath_80', figures: [['ceiling_bath_80', 'roomy']] },
+];
+const CORNER: Want[] = [
+  { kind: 'passage_width', value: 60, state: null, ref: null, figures: [] },
+  { kind: 'ceiling_low', value: 96, state: 'roomy', ref: 'ceiling_bath_80', figures: [['ceiling_bath_80', 'roomy']] },
+];
+const FRONT_EDGE: Want[] = [
+  { kind: 'toilet_front', toward: 'storage', value: 22, state: 'close', ref: 'toilet_front_21', figures: [['toilet_front_21', 'close']] },
+  { kind: 'passage_width', value: 60, state: null, ref: null, figures: [] },
+  { kind: 'ceiling_low', value: 96, state: 'roomy', ref: 'ceiling_bath_80', figures: [['ceiling_bath_80', 'roomy']] },
+];
+const JOG: Want[] = [
+  { kind: 'passage_width', value: 36, state: null, ref: null, figures: [] },
+  { kind: 'ceiling_low', value: 96, state: 'roomy', ref: 'ceiling_84', figures: [['ceiling_84', 'roomy']] },
+];
+const FRONT_22: Want[] = [
+  { kind: 'toilet_front', toward: 'wall', value: 22, state: 'close', ref: 'toilet_front_21', figures: [['toilet_front_21', 'close']] },
+  { kind: 'passage_width', value: 50, state: null, ref: null, figures: [] },
+  { kind: 'ceiling_low', value: 96, state: 'roomy', ref: 'ceiling_bath_80', figures: [['ceiling_bath_80', 'roomy']] },
+];
+rule('A7 the reviewer\'s rooms: a sink in a vanity, a cabinet beside a toilet, a corner, the outer edge of a bowl, a jog', (w) => {
+  const o: string[] = [];
+  const inPt = (x: number, y: number) => ({ x: x * IN, y: y * IN });
+  const room = (objects: NonNullable<RoomSpec['objects']>) => w.M.build(fromSpec({ ...toiletCornerSwappedSpec(), objects }));
+  const toilet = (x: number, y: number, wIn: number, dIn: number, turnDeg: number) => ({ category: 'toilet', at: inPt(x, y), w: wIn * IN, h: 30 * IN, d: dIn * IN, turnDeg });
+  const sides = (c: CORE.ClearanceCheck) => c.measures.filter((m) => m.kind === 'toilet_side').map((m) => Math.round(m.valueUS * 100) / 100).sort((a, b) => a - b).join();
+
+  // 1. A sink in a vanity.
+  const vanity = w.M.build(scanOf('vanity-sink'));
+  compare(o, 'sink in a vanity', vanity, VANITY);
+  check(o, leftKinds(vanity) === 'stairs:0', `sink in a vanity leaves out ${leftKinds(vanity)}`);
+  check(o, pick(vanity, { kind: 'sink_front' })?.frontFrom === 'cabinet', 'the sink row does not say it was measured from the front of the cabinet');
+  check(o, pick(w.M.build(scanOf('tight-bath')), { kind: 'sink_front' })?.frontFrom === 'box' && pick(w.M.build(scanOf('tight-bath')), { kind: 'toilet_front' })?.frontFrom === 'box', 'a fixture with no cabinet is said to be measured from one');
+  // A sink across TWO cabinets, or a toilet drawn across a cabinet, is not measured past either: left out, and said.
+  const spec = vanitySinkSpec();
+  const two = w.M.build(fromSpec({ ...spec, objects: [...(spec.objects ?? []), { category: 'storage', at: inPt(11, 60), w: 10 * IN, h: 30 * IN, d: 10 * IN }] }));
+  check(o, !pick(two, { kind: 'sink_front' }) && two.leftOut.some((l) => l.kind === 'fixture_overlap' && l.count === 1), 'a sink the scan drew across two cabinets is measured');
+  const across = room([toilet(14, 48, 15, 28, 90), { category: 'storage', at: inPt(14, 58), w: 12 * IN, h: 30 * IN, d: 12 * IN }]);
+  check(o, !across.measures.some((m) => m.kind.startsWith('toilet_')) && across.leftOut.some((l) => l.kind === 'fixture_overlap'), 'a toilet the scan drew across a cabinet is measured past it');
+  // A cabinet that only TOUCHES the toilet's box (its edge on y = 55.5) is beside it: 55.5 - 48 = 7.5, tight.
+  const touching = room([toilet(14, 48, 15, 28, 90), { category: 'storage', at: inPt(14, 61.5), w: 12 * IN, h: 30 * IN, d: 12 * IN }]);
+  check(o, near(pick(touching, { kind: 'toilet_side', toward: 'storage' })?.valueUS, 7.5, 0.005) && pick(touching, { kind: 'toilet_side', toward: 'storage' })?.state === 'tight', `a cabinet touching the toilet reads ${pick(touching, { kind: 'toilet_side', toward: 'storage' })?.valueUS}`);
+
+  // 2. A cabinet beside the front half of a toilet.
+  const beside = w.M.build(scanOf('toilet-side-cabinet'));
+  compare(o, 'cabinet beside a toilet', beside, SIDE_CABINET);
+  check(o, leftKinds(beside) === 'stairs:0', `cabinet beside a toilet leaves out ${leftKinds(beside)}`);
+  // The same cabinet beside the BACK half (x 2 to 14): still 8. Ahead of the box altogether (x 30 to 42): not beside it, 48 to the far wall.
+  const backHalf = room([toilet(14, 48, 15, 28, 90), { category: 'storage', at: inPt(8, 63), w: 12 * IN, h: 30 * IN, d: 14 * IN }]);
+  check(o, sides(backHalf) === '8,48', `a cabinet beside the back half of a toilet reads ${sides(backHalf)}`);
+  const ahead = room([toilet(14, 48, 15, 28, 90), { category: 'storage', at: inPt(36, 63), w: 12 * IN, h: 30 * IN, d: 14 * IN }]);
+  check(o, sides(ahead) === '48,48', `a cabinet ahead of a toilet is counted as beside it: ${sides(ahead)}`);
+
+  // 3. The facing: when it is not sure, the fixture is not labelled.
+  const corner = w.M.build(scanOf('toilet-corner-swapped'));
+  compare(o, 'toilet near a corner', corner, CORNER);
+  check(o, leftKinds(corner) === 'fixture_facing:1 stairs:0', `toilet near a corner leaves out ${leftKinds(corner)}`);
+  const declines = (name: string, c: CORE.ClearanceCheck) => check(o, !c.measures.some((m) => m.kind.startsWith('toilet_') || m.kind === 'sink_front') && c.leftOut.some((l) => l.kind === 'fixture_facing' && l.count === 1), `${name} is labelled (${c.measures.map((m) => m.kind).join()}; ${leftKinds(c)})`);
+  // The same box with its axes the usual way round is in the same corner: not labelled either.
+  declines('a toilet near a corner with the usual axes', room([toilet(14, 16, 15, 28, 90)]));
+  // A toilet in an alcove 30 wide (a wall 7.5 from each side of the box) has walls within reach on both axes too.
+  declines('a toilet between two near walls', w.M.build(fromSpec({ ...toiletCornerSwappedSpec(), walls: [{ a: inPt(0, 0), b: inPt(60, 0), height: 2.4 }, { a: inPt(60, 0), b: inPt(60, 30), height: 2.4 }, { a: inPt(60, 30), b: inPt(0, 30), height: 2.4 }, { a: inPt(0, 30), b: inPt(0, 0), height: 2.4 }], objects: [toilet(14, 15, 15, 28, 90)] })));
+  // A near-square box (20 by 19), and a toilet whose depth is not clearly more than its width (20 wide, 24 deep: under 1.25 x 20).
+  declines('a near-square toilet', room([toilet(10, 48, 19, 20, 90)]));
+  declines('a toilet 20 wide and 24 deep', room([toilet(12, 48, 20, 24, 90)]));
+  declines('a near-square sink', room([{ category: 'sink', at: inPt(9, 48), w: 19 * IN, h: 8 * IN, d: 18 * IN, turnDeg: 90 }]));
+  // A corridor-thin space: the far wall is within reach of the front as well. No open floor in front.
+  declines('a toilet with a wall within reach in front', w.M.build(fromSpec({ ...toiletCornerSwappedSpec(), walls: [{ a: inPt(0, 0), b: inPt(36, 0), height: 2.4 }, { a: inPt(36, 0), b: inPt(36, 96), height: 2.4 }, { a: inPt(36, 96), b: inPt(0, 96), height: 2.4 }, { a: inPt(0, 96), b: inPt(0, 0), height: 2.4 }], objects: [toilet(14, 48, 15, 28, 90)] })));
+  // AWAY from the corner the room decides, not the box: the same toilet written with its axes swapped reads the same as the usual way.
+  //   box x 0 to 28, centre line y = 40: 40 to the bottom wall, 56 to the far wall, 60 - 28 = 32 in front.
+  const usual = room([toilet(14, 40, 15, 28, 90)]);
+  const swapped = room([toilet(14, 40, 28, 15, 0)]);
+  const turnedRound = room([toilet(14, 40, 15, 28, 270)]);
+  for (const [name, c] of [['the usual axes', usual], ['swapped axes', swapped], ['the box written back to front', turnedRound]] as [string, CORE.ClearanceCheck][]) {
+    check(o, sides(c) === '40,56' && near(pick(c, { kind: 'toilet_front' })?.valueUS, 32, 0.005) && leftKinds(c) === 'stairs:0', `a toilet away from the corner with ${name} reads sides ${sides(c)} and front ${pick(c, { kind: 'toilet_front' })?.valueUS}`);
+  }
+  // The sentence.
+  check(o, w.EN['office.scanClearance.leftOut.fixtureFacingBody'] === 'MAGE cannot tell which way this fixture faces. Tape it.', 'the sentence for a fixture that is not labelled changed');
+  check(o, /case 'fixture_facing': return t\('office\.scanClearance\.leftOut\.fixtureFacingBody'/.test(stripComments(w.F[HOOK])), 'a fixture that is not labelled has no sentence on the screen');
+
+  // 4. Something ahead of only the outer edge of a bowl.
+  const edge = w.M.build(scanOf('toilet-front-edge'));
+  compare(o, 'outer edge of a bowl', edge, FRONT_EDGE, 5);
+  check(o, sides(edge) === '44,52' && edge.measures.filter((m) => m.kind === 'toilet_side').every((m) => m.state === 'roomy'), `outer edge of a bowl: sides ${sides(edge)}`);
+
+  // 6. A bedroom with a jog is not a hallway, and keeps a room's ceiling line.
+  const jog = w.M.build(scanOf('bedroom-jog'));
+  compare(o, 'bedroom with a jog', jog, JOG);
+  // The tight bathroom's walls share all 96 of their length: 96 / 60 = 1.6, not a hallway. The narrow hallway's share 240: 240 / 37 = 6.5.
+  check(o, pick(w.M.build(scanOf('narrow-hall')), { kind: 'passage_width' })?.state === 'close' && pick(w.M.build(scanOf('tight-bath')), { kind: 'passage_width' })?.state === null, 'the hallway test no longer tells a hallway from a bathroom');
+
+  // 8. 22 in front of a toilet is close, read against 21 alone.
+  const f22 = w.M.build(scanOf('toilet-front-22'));
+  compare(o, '22 in front', f22, FRONT_22, 5);
+  check(o, sides(f22) === '48,48', `22 in front: sides ${sides(f22)}`);
+  return o;
+});
+
+// THE CEILING, BY PLACE. `nyc` is handed in by the caller, from the app's one
+// resolver (utils/roomScan/clearancePlace over utils/codeJurisdiction).
+//   A BATHROOM AT 82.5 (bath-ceiling-82)
+//       anywhere else    beside 80 alone: 82.5 is past 81.5, ROOMY.
+//       New York City    also beside that city's commonly cited 84:
+//                        84 - 1.5 = 82.5, so CLOSE. The row takes CLOSE and
+//                        credits the New York City figure. NEVER ROOMY.
+//   A BEDROOM AT 96 (bedroom-96)
+//       Baltimore        beside 84 alone: ROOMY. No 8 ft line.
+//       New York City    also beside that city's commonly cited 96: on it, CLOSE.
+rule('A8 the ceiling by place: New York City\'s two lines are shown there and nowhere else', (w) => {
+  const o: string[] = [];
+  const ceil = (name: string, opt?: CORE.ClearanceOptions) => pick(w.M.build(scanOf(name), [], opt), { kind: 'ceiling_low' });
+  const figs = (m: CORE.ClearanceMeasure | undefined) => JSON.stringify((m?.figures ?? []).map((f) => [f.refId, f.state]));
+  const bath = ceil('bath-ceiling-82');
+  check(o, near(bath?.valueUS, 82.5, 0.005) && bath?.state === 'roomy' && figs(bath) === '[["ceiling_bath_80","roomy"]]', `a bathroom at 82.5 with no place reads ${bath?.state} ${figs(bath)}`);
+  const bathOff = ceil('bath-ceiling-82', { nyc: false });
+  check(o, figs(bathOff) === figs(bath), 'a bathroom outside New York City is set beside that city\'s line');
+  const bathNyc = ceil('bath-ceiling-82', NYC);
+  check(o, bathNyc?.state === 'close' && bathNyc.stateRefId === 'ceiling_bath_84_nyc' && figs(bathNyc) === '[["ceiling_bath_80","roomy"],["ceiling_bath_84_nyc","close"]]', `a New York City bathroom at 82.5 reads ${bathNyc?.state} by ${bathNyc?.stateRefId} ${figs(bathNyc)}`);
+  // A New York City bathroom is not roomy until it is past 84 + 1.5: 85 is still close, 86 is roomy.
+  const scan = scanOf('bath-ceiling-82');
+  const at = (inches: number, opt?: CORE.ClearanceOptions) => pick(w.M.build({ ...scan, ceilingHeightM: { ...scan.ceilingHeightM, min: inches * IN } }, [], opt), { kind: 'ceiling_low' })?.state;
+  check(o, at(85, NYC) === 'close' && at(86, NYC) === 'roomy' && at(82, NYC) === 'tight' && at(82) === 'roomy', `a New York City bathroom reads ${at(82, NYC)} at 82, ${at(85, NYC)} at 85 and ${at(86, NYC)} at 86`);
+  const bed = ceil('bedroom-96', { nyc: false });
+  check(o, near(bed?.valueUS, 96, 0.005) && bed?.state === 'roomy' && figs(bed) === '[["ceiling_84","roomy"]]', `a Baltimore bedroom at 96 reads ${bed?.state} ${figs(bed)}`);
+  const bedNyc = ceil('bedroom-96', NYC);
+  check(o, bedNyc?.state === 'close' && bedNyc.stateRefId === 'ceiling_96' && figs(bedNyc) === '[["ceiling_84","roomy"],["ceiling_96","close"]]', `a New York City bedroom at 96 reads ${bedNyc?.state} ${figs(bedNyc)}`);
+  // The 8 ft line is about rooms people live in: not a bathroom, and not a hallway, even in New York City. A bedroom with a jog keeps it.
+  check(o, figs(ceil('narrow-hall', NYC)) === '[["ceiling_84","roomy"]]', `a New York City hallway is set beside ${figs(ceil('narrow-hall', NYC))}`);
+  check(o, figs(ceil('bedroom-jog', NYC)) === '[["ceiling_84","roomy"],["ceiling_96","close"]]', `a New York City bedroom with a jog is set beside ${figs(ceil('bedroom-jog', NYC))}`);
+  // With no place handed in, no fixture room shows a New York City line.
+  for (const name of ['tight-bath', 'narrow-hall', 'bedroom-window', 'hallway', 'bathroom', 'bedroom-jog', 'bedroom-96', 'bath-ceiling-82']) {
+    for (const m of w.M.build(scanOf(name)).measures) for (const f of m.figures) check(o, w.M.refs.find((r) => r.id === f.refId)?.where === 'anywhere', `${name}: ${f.refId} is shown with no place handed in`);
+  }
+  // Only New York City switches them on, and the place comes from the app's one resolver.
+  const flow = stripComments(w.F[FLOW]);
+  check(o, /const clearanceNyc = useMemo\(\(\) => clearanceInNyc\(project\), \[project\]\);/.test(flow), 'the flow does not ask whether the project is in New York City');
+  const place = stripComments(w.F['utils/roomScan/clearancePlace.ts']);
+  check(o, /const resolved = resolveCodeJurisdiction\(jurisdictionQueryForProject\(project\)\);\s*return resolved\.kind === 'city' && resolved\.entry\.name === NYC_ROW_NAME;/.test(place) && /export const NYC_ROW_NAME = 'New York City';/.test(place), 'the place is not read from the app\'s one resolver');
+  check(o, (place.match(/from '([^']+)'/g) ?? []).join() === "from '@/utils/codeJurisdiction'" && !/location|\.zip|\.city|toLowerCase|RegExp|\/i\b/.test(place.replace(/jurisdictionQueryForProject|resolveCodeJurisdiction/g, '')), 'the place file reads the address a second way of its own');
+  check(o, LOCAL_ADOPTIONS.some((e) => e.name === 'New York City'), 'the resolver has no row named New York City');
+  // The five boroughs are New York City. Baltimore, the rest of New York State, and no address at all are not.
+  for (const location of ['Brooklyn, NY 11201', 'New York, NY', 'Queens, NY 11375', 'Bronx, NY 10451', 'Staten Island, NY 10301']) check(o, w.M.inNyc({ location }) === true, `${location} is not read as New York City`);
+  for (const location of ['Baltimore, MD 21201', 'Towson, MD 21204', 'Buffalo, NY 14201', 'Yonkers, NY 10701', 'Newark, NJ 07102', '', 'New York']) check(o, w.M.inNyc({ location }) === false, `"${location}" is read as New York City`);
+  check(o, w.M.inNyc(null) === false && w.M.inNyc(undefined) === false && w.M.inNyc({}) === false, 'a project with no address is read as New York City');
+  check(o, w.M.inNyc({ structuredAddress: { city: 'Brooklyn', state: 'NY', zip: '11201' } }) === true && w.M.inNyc({ structuredAddress: { city: 'Baltimore', state: 'MD', zip: '21201' } }) === false, 'a structured address is not read by the resolver');
+  check(o, /buildClearanceCheck\(scan, tapePairs, \{ nyc: clearanceNyc \}\)/.test(flow), 'the place is not handed to the check');
+  check(o, /const nyc = options\.nyc === true;/.test(stripComments(w.F['utils/roomScan/clearanceCore.ts'])), 'the check takes anything but a plain yes for New York City');
+  // The two lines are named as that city's commonly cited figure, not confirmed.
+  for (const r of w.M.refs.filter((x) => x.where === 'nyc_only')) check(o, r.family === 'nyc_cited' && /commonly cited for New York City/.test(w.M.familyWords[r.family]) && /not confirmed/.test(w.M.familyWords[r.family]), `${r.id} is not named as New York City's commonly cited, unconfirmed figure`);
   return o;
 });
 
@@ -431,22 +675,27 @@ rule('B1 the boundaries: on the figure, the margin either side, a hair past it, 
   return o;
 });
 
-rule('B2 a door and a window are never roomy and never tight, and a window is compared only in a bedroom', (w) => {
+rule('B2 a door is a plain number, a window is never roomy and never tight, and a window is compared only in a bedroom', (w) => {
   const o: string[] = [];
   for (let v = 0; v <= 80; v += 0.25) {
     const s = w.M.boundState(v, 32, 'min', 1.5);
-    check(o, s === (v <= 33.5 + 1e-9 ? 'close' : null), `a door ${v} in wide as scanned is ${s}`);
+    check(o, s === (v <= 33.5 + 1e-9 ? 'close' : null), `a size the scan can only see larger, ${v} in beside 32, is ${s}`);
   }
   for (const name of ['tight-bath', 'narrow-hall', 'bedroom-window', 'hallway', 'bathroom', 'bay-room', 'three-openings', 'l-shape']) {
-    for (const m of w.M.build(scanOf(name)).measures) {
+    for (const m of [...w.M.build(scanOf(name)).measures, ...w.M.build(scanOf(name), [], NYC).measures]) {
       if (m.kind !== 'door_width' && !m.kind.startsWith('window_')) continue;
       check(o, m.boundOnly === true, `${name} ${m.kind} is not marked as something the scan can only see larger`);
       check(o, m.state === null || m.state === 'close', `${name} ${m.kind} is ${m.state}`);
       check(o, m.figures.every((f) => f.state === null || f.state === 'close'), `${name} ${m.kind} has a figure that is roomy or tight`);
+      // No interior door is labelled: a 28 or 30 in bathroom door is ordinary, and a scan cannot tell which door is a home's main exit.
+      if (m.kind === 'door_width') check(o, m.state === null && m.stateRefId === null && m.figures.length === 0, `${name}: a door is set beside ${m.figures.map((f) => f.refId).join() || 'nothing'} and reads ${m.state}`);
     }
   }
-  // A door 4 in under the figure is still only 'close': the scan cannot see the clear width.
-  check(o, pick(w.M.build(scanOf('tight-bath')), { kind: 'door_width' })?.state === 'close', 'a 28 in door is not close');
+  // A 28 in bathroom door is a plain number, and the row says in words what the 32 in figure is about.
+  check(o, pick(w.M.build(scanOf('tight-bath')), { kind: 'door_width' })?.state === null, 'a 28 in bathroom door is labelled');
+  const hookB2 = stripComments(w.F[HOOK]);
+  check(o, /case 'door_width': return \[\s*t\('office\.scanClearance\.note\.doorNote',[^\n]*\n\s*t\('office\.scanClearance\.note\.doorExitNote', [^\n]*mention\('door_clear_32'\)\),/.test(hookB2), 'a door row does not say to tape it with the door open, or what the main exit door figure is');
+  check(o, /main exit door of a home/.test(String(w.EN['office.scanClearance.called.doorClearText'])) && /A scan cannot tell which door that is, so no door gets a label here\./.test(String(w.EN['office.scanClearance.note.doorExitNote'])), 'the door sentence no longer says a scan cannot tell which door is the main exit');
   // The same bedroom marked as a plain room: its window is set beside nothing.
   const plain = w.M.build({ ...scanOf('bedroom-window'), roomType: 'room' });
   check(o, !plain.measures.some((m) => m.kind.startsWith('window_')) && plain.leftOut.some((l) => l.kind === 'windows_not_bedroom'), 'a window is compared in a room that is not a bedroom');
@@ -462,28 +711,43 @@ rule('B2 a door and a window are never roomy and never tight, and a window is co
   return o;
 });
 
-rule('B3 beside two figures a row takes the state most worth a tape, and the ceiling figures follow the room', (w) => {
+rule('B3 a toilet\'s front is read against 21 alone, and beside two figures a row takes the state most worth a tape', (w) => {
   const o: string[] = [];
   const front = pick(w.M.build(scanOf('tight-bath')), { kind: 'toilet_front' });
-  check(o, front?.state === 'tight' && front.stateRefId === 'toilet_front_24', `22 in front of a toilet is ${front?.state} by ${front?.stateRefId}`);
-  // 22.5 in (a cabinet 9.5 deep, its face at x = 50.5): the margin over 21 and the margin under 24, so close by both
-  // figures. The one asking for more room is credited.
+  check(o, front?.state === 'close' && front.stateRefId === 'toilet_front_21' && front.figures.length === 1, `22 in front of a toilet is ${front?.state} by ${front?.stateRefId} beside ${front?.figures.map((f) => f.refId).join()}`);
+  // 22.5 in (a cabinet 9.5 deep, its face at x = 50.5): the margin over 21, still close. 24 in (8 deep): past 22.5, roomy.
+  // 19 in (a cabinet 13 deep, face at x = 47): under 19.5, tight.
   const bath = tightBathSpec();
-  const moved = (bath.objects ?? []).map((x) => (x.category === 'storage' ? { ...x, at: { x: 55.25 * IN, y: 52 * IN }, d: 9.5 * IN } : x));
-  const both = pick(w.M.build(fromSpec({ ...bath, objects: moved })), { kind: 'toilet_front' });
-  check(o, near(both?.valueUS, 22.5, 0.005) && both?.state === 'close' && both.figures.every((f) => f.state === 'close') && both.stateRefId === 'toilet_front_24', `22.5 in front of a toilet is ${both?.valueUS} ${both?.state} by ${both?.stateRefId}`);
-  // 24 in (a cabinet 8 deep): past 21 by more than the margin, on the 24 in figure. Close, by the 24 in figure.
-  const at24 = (bath.objects ?? []).map((x) => (x.category === 'storage' ? { ...x, at: { x: 56 * IN, y: 52 * IN }, d: 8 * IN } : x));
-  const f24 = pick(w.M.build(fromSpec({ ...bath, objects: at24 })), { kind: 'toilet_front' });
-  check(o, near(f24?.valueUS, 24, 0.005) && f24?.state === 'close' && f24.stateRefId === 'toilet_front_24' && f24.figures[0].state === 'roomy', `24 in front of a toilet is ${f24?.valueUS} ${f24?.state} by ${f24?.stateRefId}`);
-  const refsOf = (scan: RoomScan) => (pick(w.M.build(scan), { kind: 'ceiling_low' })?.figures ?? []).map((f) => f.refId).join();
+  const frontAt = (faceX: number) => {
+    const deep = 60 - faceX;
+    const moved = (bath.objects ?? []).map((x) => (x.category === 'storage' ? { ...x, at: { x: (faceX + deep / 2) * IN, y: 52 * IN }, d: deep * IN } : x));
+    return pick(w.M.build(fromSpec({ ...bath, objects: moved })), { kind: 'toilet_front' });
+  };
+  for (const [faceX, value, want] of [[50.5, 22.5, 'close'], [52, 24, 'roomy'], [47, 19, 'tight'], [49, 21, 'close']] as [number, number, CORE.ClearanceState][]) {
+    const m = frontAt(faceX);
+    check(o, near(m?.valueUS, value, 0.005) && m?.state === want && m.stateRefId === 'toilet_front_21', `${value} in front of a toilet is ${m?.valueUS} ${m?.state} by ${m?.stateRefId}`);
+  }
+  const refsOf = (scan: RoomScan, opt?: CORE.ClearanceOptions) => (pick(w.M.build(scan, [], opt), { kind: 'ceiling_low' })?.figures ?? []).map((f) => f.refId).join();
   check(o, refsOf(scanOf('tight-bath')) === 'ceiling_bath_80', `a bathroom ceiling is set beside ${refsOf(scanOf('tight-bath'))}`);
   check(o, refsOf(scanOf('narrow-hall')) === 'ceiling_84', `a hallway ceiling is set beside ${refsOf(scanOf('narrow-hall'))}`);
-  check(o, refsOf(scanOf('bedroom-window')) === 'ceiling_84,ceiling_96', `a bedroom ceiling is set beside ${refsOf(scanOf('bedroom-window'))}`);
-  // The lowest height the scan saw, not the typical one.
+  check(o, refsOf(scanOf('bedroom-window')) === 'ceiling_84', `a bedroom ceiling is set beside ${refsOf(scanOf('bedroom-window'))}`);
+  check(o, refsOf(scanOf('tight-bath'), NYC) === 'ceiling_bath_80,ceiling_bath_84_nyc' && refsOf(scanOf('bedroom-window'), NYC) === 'ceiling_84,ceiling_96', 'in New York City the ceiling is not set beside that city\'s line as well');
+  // Two figures, two states: the row takes the one most worth a tape and names the figure that gave it.
+  //   the bedroom in New York City, 96: roomy by 84, close by 96. Close, by the 96 in figure.
+  const two = pick(w.M.build(scanOf('bedroom-window'), [], NYC), { kind: 'ceiling_low' });
+  check(o, two?.state === 'close' && two.stateRefId === 'ceiling_96' && two.figures[0].state === 'roomy', `a New York City bedroom at 96 is ${two?.state} by ${two?.stateRefId}`);
+  // Two figures, the same state: the one asking for more room is credited.
+  //   the tight bathroom in New York City, 81: close by 80 (78.5 to 81.5) and tight by 84 (under 82.5). Tight, by the New York City figure.
+  //   a New York City bathroom at 78: tight by both. Credited to the one asking for more, 84.
+  const tb = pick(w.M.build(scanOf('tight-bath'), [], NYC), { kind: 'ceiling_low' });
+  check(o, tb?.state === 'tight' && tb.stateRefId === 'ceiling_bath_84_nyc' && tb.figures[0].state === 'close', `a New York City bathroom at 81 is ${tb?.state} by ${tb?.stateRefId}`);
+  const bscan = scanOf('tight-bath');
+  const low78 = pick(w.M.build({ ...bscan, ceilingHeightM: { ...bscan.ceilingHeightM, min: 78 * IN } }, [], NYC), { kind: 'ceiling_low' });
+  check(o, low78?.state === 'tight' && low78.figures.every((f) => f.state === 'tight') && low78.stateRefId === 'ceiling_bath_84_nyc', `a New York City bathroom at 78 is credited to ${low78?.stateRefId}`);
+  // The lowest height the scan saw, not the typical one. 82 beside 84: under 82.5, tight.
   const scan = scanOf('bedroom-window');
   const low = pick(w.M.build({ ...scan, ceilingHeightM: { ...scan.ceilingHeightM, min: 82 * IN } }), { kind: 'ceiling_low' });
-  check(o, near(low?.valueUS, 82, 0.005) && low?.state === 'tight' && low.stateRefId === 'ceiling_96', `a ceiling that drops to 82 in reads ${low?.valueUS} ${low?.state}`);
+  check(o, near(low?.valueUS, 82, 0.005) && low?.state === 'tight' && low.stateRefId === 'ceiling_84', `a ceiling that drops to 82 in reads ${low?.valueUS} ${low?.state}`);
   return o;
 });
 
@@ -513,7 +777,7 @@ rule('C1 the margin: 1.5 in by default, never less, wider with a worse tape hist
   check(o, CORE.DEFAULT_MARGIN_IN === 1.5 && CORE.TAPED_MARGIN_IN === 0.5, 'the default margins are not 1.5 in and 0.5 in');
   // Through the tight bathroom. The history WORSE has a largest difference of 3 in.
   //   toilet to the sink, 12.5: 15 - 3 = 12, so 12.5 is now CLOSE (it was TIGHT);
-  //   in front of the toilet, 22: beside 24, 24 - 3 = 21, so CLOSE (it was TIGHT);
+  //   in front of the toilet, 22: beside 21 with 3 either side, still CLOSE;
   //   in front of the sink, 40: still past 21 + 3, ROOMY.
   check(o, tapeFacts(WORSE).enough === true && (tapeFacts(WORSE) as { largestIn: number }).largestIn === 3, 'the fixture history does not have a largest difference of 3 in');
   const scan = scanOf('tight-bath');
@@ -551,18 +815,15 @@ rule('C2 a number he taped uses the tighter margin, the row says so, and a taped
   const long = hall.walls.find((x) => near(x.lengthM / IN, 240, 0.01));
   const longTaped = long ? pick(w.M.build(correctWallLength(hall, long.id, 240.5 * IN, AT)), { kind: 'passage_width' }) : undefined;
   check(o, !!longTaped && !longTaped.restsOnTaped && longTaped.marginIn === 1.5, 'taping a long wall tightened the width between the walls');
-  // A door he typed at 33: the margin is 0.5, 33 is past 32.5, no state. The other door, still scanned at 30, keeps 1.5.
+  // A door he typed at 33: the row rests on a taped number and carries the taped margin, 0.5. The other door, still scanned at 30, keeps 1.5. Neither has a state.
   const door = hall.openings.find((x) => x.kind === 'door');
   if (!door) return [...o, 'the narrow hallway has no door'];
   const typedDoor = w.M.build(correctOpening(hall, door.id, 'widthM', 33 * IN, AT));
   const d1 = typedDoor.measures.find((m) => m.openingId === door.id);
   const d2 = typedDoor.measures.find((m) => m.kind === 'door_width' && m.openingId !== door.id);
   check(o, !!d1 && d1.restsOnTaped && d1.marginIn === 0.5 && d1.state === null, `a door typed at 33 in reads ${d1?.state} with margin ${d1?.marginIn}`);
-  check(o, !!d2 && !d2.restsOnTaped && d2.marginIn === 1.5 && d2.state === 'close', 'the door he did not tape lost its scan margin');
-  // The same 33 in door read from the scan is within 1.5 of 32: CLOSE.
+  check(o, !!d2 && !d2.restsOnTaped && d2.marginIn === 1.5 && d2.state === null, 'the door he did not tape lost its scan margin');
   const spec = narrowHallSpec();
-  const scanned33 = w.M.build(fromSpec({ ...spec, openings: (spec.openings ?? []).map((x, i) => (i === 0 ? { ...x, width: 33 * IN } : x)) }));
-  check(o, pick(scanned33, { kind: 'door_width', index: 1 })?.state === 'close', 'a door scanned at 33 in is not close');
   // A ceiling he typed at 85 in a hallway: past 84.5, ROOMY with the taped margin. Scanned at 85 it is within 1.5: CLOSE.
   const typedCeiling = pick(w.M.build(correctCeilingHeight(hall, 85 * IN, AT)), { kind: 'ceiling_low' });
   check(o, !!typedCeiling && typedCeiling.restsOnTaped && typedCeiling.marginIn === 0.5 && typedCeiling.state === 'roomy', `a ceiling typed at 85 in reads ${typedCeiling?.state} with margin ${typedCeiling?.marginIn}`);
@@ -591,29 +852,37 @@ rule('C2 a number he taped uses the tighter margin, the row says so, and a taped
 
 // ── D. the figures ──────────────────────────────────────────────────────────
 /** The figures, pinned. A changed number is a decision, made here too. */
-const PINNED: Record<REFS.ClearanceRefId, [number, 'in' | 'sqft', 'min' | 'max', REFS.ClearanceFamily]> = {
-  toilet_side_15: [15, 'in', 'min', 'residential_and_plumbing_model'],
-  toilet_front_21: [21, 'in', 'min', 'residential_and_plumbing_model'],
-  toilet_front_24: [24, 'in', 'min', 'other_plumbing'],
-  sink_front_21: [21, 'in', 'min', 'residential_and_plumbing_model'],
-  door_clear_32: [32, 'in', 'min', 'building_model'],
-  passage_36: [36, 'in', 'min', 'residential_model'],
-  ceiling_84: [84, 'in', 'min', 'residential_model'],
-  ceiling_bath_80: [80, 'in', 'min', 'residential_model'],
-  ceiling_96: [96, 'in', 'min', 'some_city'],
-  escape_area_5_7: [5.7, 'sqft', 'min', 'residential_model'],
-  escape_height_24: [24, 'in', 'min', 'residential_model'],
-  escape_width_20: [20, 'in', 'min', 'residential_model'],
-  escape_sill_44: [44, 'in', 'max', 'residential_model'],
+const PINNED: Record<REFS.ClearanceRefId, [number, 'in' | 'sqft', 'min' | 'max', REFS.ClearanceFamily, REFS.ClearanceRef['use'], REFS.ClearanceRef['where']]> = {
+  toilet_side_15: [15, 'in', 'min', 'residential_and_plumbing_model', 'compared', 'anywhere'],
+  toilet_front_21: [21, 'in', 'min', 'residential_and_plumbing_model', 'compared', 'anywhere'],
+  toilet_front_24: [24, 'in', 'min', 'other_plumbing', 'words_only', 'anywhere'],
+  toilet_spacing_30: [30, 'in', 'min', 'residential_and_plumbing_model', 'words_only', 'anywhere'],
+  sink_front_21: [21, 'in', 'min', 'residential_and_plumbing_model', 'compared', 'anywhere'],
+  door_clear_32: [32, 'in', 'min', 'building_model', 'words_only', 'anywhere'],
+  passage_36: [36, 'in', 'min', 'residential_model', 'compared', 'anywhere'],
+  ceiling_84: [84, 'in', 'min', 'residential_model', 'compared', 'anywhere'],
+  ceiling_bath_80: [80, 'in', 'min', 'residential_model', 'compared', 'anywhere'],
+  ceiling_bath_84_nyc: [84, 'in', 'min', 'nyc_cited', 'compared', 'nyc_only'],
+  ceiling_90: [90, 'in', 'min', 'several_homes', 'words_only', 'anywhere'],
+  ceiling_96: [96, 'in', 'min', 'nyc_cited', 'compared', 'nyc_only'],
+  escape_area_5_7: [5.7, 'sqft', 'min', 'residential_model', 'compared', 'anywhere'],
+  escape_height_24: [24, 'in', 'min', 'residential_model', 'compared', 'anywhere'],
+  escape_width_20: [20, 'in', 'min', 'residential_model', 'compared', 'anywhere'],
+  escape_sill_44: [44, 'in', 'max', 'residential_model', 'compared', 'anywhere'],
 };
 const CALLED_KEY: Record<REFS.ClearanceRefId, string> = {
-  toilet_side_15: 'toiletSideText', toilet_front_21: 'toiletFrontText', toilet_front_24: 'toiletFrontText', sink_front_21: 'sinkFrontText',
-  door_clear_32: 'doorClearText', passage_36: 'passageText', ceiling_84: 'ceilingText', ceiling_bath_80: 'ceilingBathText', ceiling_96: 'ceilingText',
+  toilet_side_15: 'toiletSideText', toilet_front_21: 'toiletFrontText', toilet_front_24: 'toiletFrontText', toilet_spacing_30: 'spacingText', sink_front_21: 'sinkFrontText',
+  door_clear_32: 'doorClearText', passage_36: 'passageText', ceiling_84: 'ceilingText', ceiling_bath_80: 'ceilingBathText', ceiling_bath_84_nyc: 'ceilingBathText',
+  ceiling_90: 'ceilingText', ceiling_96: 'ceilingText',
   escape_area_5_7: 'escapeAreaText', escape_height_24: 'escapeHeightText', escape_width_20: 'escapeWidthText', escape_sill_44: 'escapeSillText',
 };
 const FAMILY_KEY: Record<REFS.ClearanceFamily, string> = {
   residential_model: 'residentialModelText', residential_and_plumbing_model: 'residentialAndPlumbingModelText', other_plumbing: 'otherPlumbingText',
-  building_model: 'buildingModelText', some_city: 'someCityText',
+  building_model: 'buildingModelText', several_homes: 'severalHomesText', nyc_cited: 'nycCitedText',
+};
+/** The sentence each words-only figure is mentioned in. */
+const MENTION_KEY: Partial<Record<REFS.ClearanceRefId, string>> = {
+  toilet_front_24: 'frontOtherNote', toilet_spacing_30: 'spacingNote', door_clear_32: 'doorExitNote', ceiling_90: 'ceilingSeveralHomesNote',
 };
 
 rule('D1 one table: every figure has its number, its name and its family, and the screen uses the table', (w) => {
@@ -624,7 +893,7 @@ rule('D1 one table: every figure has its number, its name and its family, and th
   for (const r of w.M.refs) {
     const pin = PINNED[r.id];
     if (!pin) continue;
-    check(o, r.value === pin[0] && r.unit === pin[1] && r.bound === pin[2] && r.family === pin[3], `${r.id} is ${r.value} ${r.unit} ${r.bound} ${r.family}, pinned as ${pin.join(' ')}`);
+    check(o, r.value === pin[0] && r.unit === pin[1] && r.bound === pin[2] && r.family === pin[3] && r.use === pin[4] && r.where === pin[5], `${r.id} is ${r.value} ${r.unit} ${r.bound} ${r.family} ${r.use} ${r.where}, pinned as ${pin.join(' ')}`);
     check(o, Number.isFinite(r.value) && r.value > 0, `${r.id} has no usable number`);
     check(o, typeof r.called === 'string' && r.called.length >= 10 && /^[a-z]/.test(r.called) && !/[.!?]$/.test(r.called), `${r.id} has no plain name: "${r.called}"`);
     check(o, typeof w.M.familyWords[r.family] === 'string' && w.M.familyWords[r.family].length > 5, `${r.id} has no family in plain words`);
@@ -632,19 +901,41 @@ rule('D1 one table: every figure has its number, its name and its family, and th
     check(o, w.EN[`office.scanClearance.family.${FAMILY_KEY[r.family]}`] === w.M.familyWords[r.family], `${r.id}: the screen's family words are not the table's`);
     check(o, typeof r.checked?.nyc === 'boolean' && typeof r.checked?.baltimore === 'boolean', `${r.id} does not say whether the repo's checked data confirms it for New York City and for Baltimore`);
   }
-  // The core uses every figure, and only figures the table holds.
+  // The core uses every COMPARED figure, only figures the table holds, and never a words-only one.
   const core = stripComments(w.F['utils/roomScan/clearanceCore.ts']);
   const used = new Set((core.match(/'(?:toilet|sink|door|passage|ceiling|escape)_[a-z0-9_]+'/g) ?? []).map((x) => x.slice(1, -1)).filter((x) => /_\d/.test(x)));
-  for (const id of ids) check(o, used.has(id), `${id} is in the table and is never used`);
+  for (const r of w.M.refs) {
+    if (r.use === 'compared') check(o, used.has(r.id), `${r.id} is in the table to be compared and is never used`);
+    else check(o, !used.has(r.id), `${r.id} is words only, and the core sets a distance beside it`);
+  }
   for (const id of used) check(o, ids.includes(id as REFS.ClearanceRefId), `the core uses a figure the table does not hold: ${id}`);
+  // No room, in any place, shows a words-only figure as a figure.
+  for (const name of ['tight-bath', 'narrow-hall', 'bedroom-window', 'hallway', 'bathroom', 'three-openings', 'vanity-sink', 'toilet-front-22']) {
+    for (const opt of [undefined, NYC]) for (const m of w.M.build(scanOf(name), [], opt).measures) for (const f of m.figures) {
+      check(o, w.M.refs.find((r) => r.id === f.refId)?.use === 'compared', `${name}: ${m.kind} is set beside the words-only figure ${f.refId}`);
+    }
+  }
+  // A words-only figure is mentioned in one sentence, with its number, name and family from the table.
+  const hookD = stripComments(w.F[HOOK]);
+  for (const r of w.M.refs.filter((x) => x.use === 'words_only')) {
+    const key = MENTION_KEY[r.id];
+    if (!key) { o.push(`${r.id} is words only and no sentence is pinned for it`); continue; }
+    const en = String(w.EN[`office.scanClearance.note.${key}`] ?? '');
+    check(o, new RegExp(`t\\('office\\.scanClearance\\.note\\.${key}', '[^\\n]*', mention\\('${r.id}'\\)\\)`).test(hookD), `${r.id} is not mentioned from the table in note.${key}`);
+    check(o, placeholders(en) === '{called},{family},{value}', `note.${key} does not carry the figure's number, name and family: "${en}"`);
+  }
+  check(o, /const mention = \(refId: ClearanceRefId\): \{ value: string; called: string; family: string \} => \{\s*const r = clearanceRef\(refId\);\s*return \{ value: figureValue\(refId\), called: called\(refId\), family: family\(r\.family\) \};/.test(hookD), 'a mentioned figure is not read from the table');
+  // The 24 in figure is said to be from a different family of plumbing code than New York and Maryland use.
+  check(o, /different family of plumbing code than the one New York and Maryland use/.test(w.M.familyWords.other_plumbing), 'the 24 in figure is no longer said to come from a different family of plumbing code');
   // No figure is typed into a string: the number in a sentence is the table's.
   const hook = stripComments(w.F[HOOK]);
   check(o, /figureBody: \(refId\) => t\('office\.scanClearance\.figureBody', '\{value\}: \{called\}\. From \{family\}\.', \{ value: figureValue\(refId\), called: called\(refId\), family: family\(clearanceRef\(refId\)\.family\) \}\)/.test(hook), 'the figure sentence is not built from the table');
   check(o, /const r = clearanceRef\(refId\);/.test(hook) && /r\.value/.test(hook), 'the number shown is not read from the table');
-  const typed = /(?<![\d.{])\b(?:15|20|21|24|32|36|44|80|84|96|5\.7)\b(?![\d}])/;
+  const typed = /(?<![\d.{])\b(?:15|20|21|24|30|32|36|44|80|84|90|96|5\.7)\b(?![\d}])/;
   for (const [k, v] of Object.entries(w.EN)) for (const f of forms(v)) if (typed.test(f)) o.push(`English ${k} types a figure into the words: "${f}"`);
   for (const [k, v] of Object.entries(w.ES)) for (const f of forms(v?.s)) if (typed.test(f)) o.push(`Spanish ${k} types a figure into the words`);
-  check(o, REFS.CLEARANCE_REFS_REVIEW.professionalReview === 'none' ? /No architect or expediter has read it yet/.test(String(w.EN['office.scanClearance.starterBody'])) : true, 'the screen no longer says nobody has read the list');
+  check(o, w.M.review.professionalReview === 'none' ? /No architect or expediter has read it yet/.test(String(w.EN['office.scanClearance.starterBody'])) : true, 'the screen no longer says nobody has read the list');
+  check(o, w.M.review.status === 'pending_founder_review' && w.M.review.professionalReview === 'none' && w.M.review.reviewedBy === null, `the table is marked ${JSON.stringify(w.M.review)}: it is still waiting on the founder, with no professional named`);
   return o;
 });
 
@@ -676,7 +967,7 @@ rule('D2 no figure is called checked and no section number exists unless the che
   for (const f of LANE_FILES) if (SECTION.test(stripComments(w.F[f]))) o.push(`${f} holds a section number`);
   // Every figure on the screen is followed by the local sentence, with no condition on it.
   const view = stripComments(w.F[VIEW]);
-  const block = view.slice(view.indexOf('{m.figures.map((f) => ('), view.indexOf('{note && '));
+  const block = view.slice(view.indexOf('{m.figures.map((f) => ('), view.indexOf('{notes.map('));
   check(o, /<Text style=\{styles\.factText\}>\{copy\.figureBody\(f\.refId\)\}<\/Text>\s*<Text style=\{styles\.note\}>\{copy\.figureLocalBody\}<\/Text>/.test(block), 'a figure is drawn without "A commonly used figure. Your local code may differ." straight after it');
   check(o, w.EN['office.scanClearance.figureLocalBody'] === 'A commonly used figure. Your local code may differ.', 'the local sentence is not "A commonly used figure. Your local code may differ."');
   check(o, w.ES['office.scanClearance.figureLocalBody']?.s === 'Una cifra de uso común. Tu código local puede ser distinto.', 'the Spanish local sentence changed');
@@ -726,6 +1017,14 @@ rule('W2 the sentences that must be there are there, in both languages, and are 
     ['office.scanClearance.leftOut.windowBody', /net clear opening of a window with the sash open is not measured/, /abertura libre neta de una ventana con la hoja abierta no se mide/],
     ['office.scanClearance.noStateSub', /^Not checked against anything$/, /^No se comparó con nada$/],
     ['office.scanClearance.note.fixtureNote', /comes from the scan, even beside a wall you taped/, /sale del escaneo, aunque esté junto a una pared que mediste con cinta/],
+    ['office.scanClearance.note.doorSwingNote', /^A door swinging into this space is not counted\.$/, /^No se cuenta una puerta que abra hacia este espacio\.$/],
+    ['office.scanClearance.leftOut.fixtureFacingBody', /^MAGE cannot tell which way this fixture faces\. Tape it\.$/, /^MAGE no puede saber hacia dónde mira este mueble de baño\. Mídelo con cinta\.$/],
+    ['office.scanClearance.leftOut.fixtureOverlapBody', /across something else, so it is not measured\. Tape it\./, /encima de otra cosa, así que no se mide\. Mídelo con cinta\./],
+    ['office.scanClearance.note.doorExitNote', /A scan cannot tell which door that is, so no door gets a label here\./, /Un escaneo no sabe cuál puerta es esa, así que aquí ninguna puerta lleva etiqueta\./],
+    ['office.scanClearance.note.windowStricterNote', /^This row never clears a window\. New York City commonly asks for more than these figures\.$/, /^Esta fila nunca da por buena una ventana\. La ciudad de Nueva York comúnmente pide más que estas cifras\.$/],
+    ['office.scanClearance.note.cabinetFrontNote', /measured from the front of the cabinet/, /se mide desde el frente del gabinete/],
+    ['office.scanClearance.note.sideNote', /shortest distance from the center line to anything beside the toilet, anywhere along its depth/, /distancia más corta del eje a lo que haya junto al inodoro/],
+    ['office.scanClearance.state.roomyBody', /^Past the commonly used figure by more than the margin, as scanned\. Not checked against your local code\.$/, /^Supera la cifra de uso común por más del margen, según el escaneo\. No se comparó con tu código local\.$/],
   ];
   for (const [key, en, es] of need) {
     check(o, typeof w.EN[key] === 'string' && en.test(w.EN[key] as string), `English ${key} does not say it`);
@@ -740,13 +1039,17 @@ rule('W2 the sentences that must be there are there, in both languages, and are 
   check(o, view.indexOf('{copy.scanNoticeBody}') < view.indexOf('check.measures.map('), 'the scan notice comes after the measurements');
   check(o, /const stateText = m\.state \? copy\.stateLabel\(m\.state\) : copy\.noStateSub;/.test(view), 'a row with no state does not say it was not checked against anything');
   check(o, /\{check\.leftOut\.map\(\(l\) => \(\s*<Text key=\{l\.kind\}[^>]*>\{copy\.leftOutBody\(l\)\}<\/Text>/.test(view), 'what is left out is not listed');
-  check(o, /\{note && <Text style=\{styles\.note\}>\{note\}<\/Text>\}/.test(view) && /const note = copy\.measureNote\(m\);/.test(view), 'a row does not carry its own note');
+  check(o, /\{notes\.map\(\(note\) => <Text key=\{note\} style=\{styles\.note\}>\{note\}<\/Text>\)\}/.test(view) && /const notes = copy\.measureNotes\(m\);/.test(view), 'a row does not carry its own notes, every one of them');
   // Every door row carries the door note and every window row the window note.
   const hook = stripComments(w.F[HOOK]);
-  check(o, /case 'door_width': return t\('office\.scanClearance\.note\.doorNote'/.test(hook), 'a door row has no note saying the clear width is less');
-  check(o, /case 'ceiling_low': return null;\s*default: return t\('office\.scanClearance\.note\.windowNote'/.test(hook), 'a window row has no note saying the scan cannot see the net clear opening');
+  check(o, /case 'door_width': return \[\s*t\('office\.scanClearance\.note\.doorNote'/.test(hook), 'a door row has no note saying the clear width is less');
+  check(o, /default: return \[\s*t\('office\.scanClearance\.note\.windowNote',[^\n]*\n\s*t\('office\.scanClearance\.note\.windowStricterNote'/.test(hook), 'a window row has no note saying the scan cannot see the net clear opening, or that the row never clears a window');
+  // A door's swing is not modelled, and BOTH front rows say so, every time.
+  check(o, /const swing = t\('office\.scanClearance\.note\.doorSwingNote', 'A door swinging into this space is not counted\.'\);/.test(hook), 'the door swing sentence is gone');
+  check(o, /case 'toilet_front': return \[\s*fixture, swing,/.test(hook) && /case 'sink_front': return \[\s*fixture, swing,/.test(hook), 'a row for the space in front does not say a door swinging into it is not counted');
+  check(o, /\.\.\.\(m\.frontFrom === 'cabinet' \? \[t\('office\.scanClearance\.note\.cabinetFrontNote'/.test(hook), 'a sink measured from the front of its cabinet does not say so');
   // Stairs are always in the left-out list, seen or not.
-  for (const name of ['tight-bath', 'narrow-hall', 'bedroom-window', 'hallway', 'missing-wall']) {
+  for (const name of ['tight-bath', 'narrow-hall', 'bedroom-window', 'hallway', 'missing-wall', 'toilet-corner-swapped']) {
     check(o, w.M.build(scanOf(name)).leftOut.some((l) => l.kind === 'stairs'), `${name}: the screen does not say stairs are not measured`);
   }
   return o;
@@ -801,14 +1104,16 @@ rule('W4 house style, and the three state names', (w) => {
   for (const [k, v] of Object.entries(w.ES)) for (const f of forms(v?.s)) style(k, f, 'es');
   const names: [string, string, string][] = [
     ['office.scanClearance.state.roomyLabel', 'Roomy', 'Holgado'],
-    ['office.scanClearance.state.closeLabel', 'Close, Tape It', 'Justo, mídelo con cinta'],
+    ['office.scanClearance.state.closeLabel', 'Close, Tape It', 'Al límite, mídelo con cinta'],
     ['office.scanClearance.state.tightLabel', 'Tight, Tape It And Check Your Local Code', 'Apretado, mídelo con cinta y revisa tu código local'],
     ['office.scanClearance.titleLabel', 'Clearance Check', 'Revisión de espacios libres'],
   ];
   for (const [k, en, es] of names) check(o, w.EN[k] === en && w.ES[k]?.s === es, `${k} reads "${String(w.EN[k])}" and "${String(w.ES[k]?.s)}"`);
   // What each state means is said in the words of its rule.
-  check(o, /Further from the commonly used figure than the margin/.test(String(w.EN['office.scanClearance.state.roomyBody'])), 'roomy is not explained as further from the figure than the margin');
-  check(o, /Within the margin of the commonly used figure, on either side of it\./.test(String(w.EN['office.scanClearance.state.closeBody'])) && /A door or a window gets this label/.test(String(w.EN['office.scanClearance.state.closeBody'])), 'close is not explained, or does not say what it means on a door or a window');
+  check(o, w.EN['office.scanClearance.state.roomyBody'] === 'Past the commonly used figure by more than the margin, as scanned. Not checked against your local code.', 'roomy does not say which side of the figure it is on, or that it is not a check against the local code');
+  check(o, /Within the margin of the commonly used figure, on either side of it\./.test(String(w.EN['office.scanClearance.state.closeBody'])) && /A window gets this label/.test(String(w.EN['office.scanClearance.state.closeBody'])) && !/door/i.test(String(w.EN['office.scanClearance.state.closeBody'])), 'close is not explained, does not say what it means on a window, or still speaks of a door');
+  // "Justo" can read as "just right" in Spanish.
+  for (const [k, v] of Object.entries(w.ES)) for (const f of forms(v?.s)) if (/\bjust[oa]s?\b/i.test(f)) o.push(`Spanish ${k} says "justo", which can read as "just right"`);
   check(o, /Short of the commonly used figure by more than the margin/.test(String(w.EN['office.scanClearance.state.tightBody'])), 'tight is not explained as short of the figure by more than the margin');
   // The look: no tick, no warning triangle, no green for roomy, no danger colour.
   const view = stripComments(w.F[VIEW]);
@@ -859,7 +1164,9 @@ rule('N1 it never blocks: no action depends on a state, the result holds no verd
   // In the flow, the check is worked out and handed to its own screen. Nothing else reads it.
   const flow = stripComments(w.F[FLOW]);
   const SAFE = [
-    "'clearance'", 'const clearance = useMemo(() => (scan && clearanceOn ? buildClearanceCheck(scan, tapePairs) : null), [scan, clearanceOn, tapePairs]);',
+    "'clearance'", 'const clearance = useMemo(() => (scan && clearanceOn ? buildClearanceCheck(scan, tapePairs, { nyc: clearanceNyc }) : null), [scan, clearanceOn, tapePairs, clearanceNyc]);',
+    'const clearanceNyc = useMemo(() => clearanceInNyc(project), [project]);', "import { clearanceInNyc } from '@/utils/roomScan/clearancePlace';",
+    'const clearanceOn = clearanceCheckAllowed(userEmail);', "import { clearanceCheckAllowed } from '@/utils/roomScan/clearanceAllowed';",
     "clearanceOn && scan && clearance && (", 'check={clearance}', 'clearance={clearanceOn ? { label: ccopy.openLabel, onPress: () => setStep(', 'clearanceOn',
   ];
   for (const line of flow.split('\n')) {
@@ -884,7 +1191,7 @@ rule('N1 it never blocks: no action depends on a state, the result holds no verd
     }
   }
   // Nothing outside the feature imports the lane.
-  const names = /clearanceCore|clearanceRefs|ClearanceView|useScanClearanceCopy|buildClearanceCheck/;
+  const names = /clearanceCore|clearanceRefs|ClearanceView|useScanClearanceCopy|buildClearanceCheck|clearanceAllowed|clearanceCheckAllowed|clearancePlace|clearanceInNyc/;
   for (const [f, text] of Object.entries(w.outside)) {
     if (f === 'i18n/surfaces.ts') continue;
     if (names.test(stripComments(text))) o.push(`${f} reads Clearance Check`);
@@ -894,21 +1201,55 @@ rule('N1 it never blocks: no action depends on a state, the result holds no verd
   return o;
 });
 
-rule('N2 with the flag off, someone who is not the owner sees nothing', (w) => {
+const GATE = 'utils/roomScan/clearanceAllowed.ts';
+const READ_BY: REFS.ClearanceRefsReview = { status: 'professional_reviewed', professionalReview: 'architect_or_expediter', reviewedBy: 'A Named Architect' };
+rule('N2 Clearance Check has its own gate: the owner always, anyone else only with its own switch on AND a named professional\'s read', (w) => {
   const o: string[] = [];
-  check(o, w.M.flag === false && /^export const SCAN_ROOM_ENABLED = false;$/m.test(w.F['constants/featureFlags.ts']), 'SCAN_ROOM_ENABLED is not false');
   const owner = (w.F['utils/owner.ts'].match(/'([^'\s]+@[^'\s]+)'/) ?? [])[1] ?? '';
-  check(o, !!owner && w.M.allowed(false, owner) === true, 'with the flag off the gate refuses the owner');
-  check(o, w.M.allowed(false, 'someone@example.com') === false && w.M.allowed(false, null) === false && w.M.allowed(false, undefined) === false && w.M.allowed(false, '') === false, 'with the flag off the gate lets in someone who is not the owner');
+  const pending = w.M.review;
+  const others = ['someone@example.com', null, undefined, ''] as const;
+  // Today: the switch is off and nobody has read the table.
+  check(o, w.M.clearanceFlag === false && /^export const CLEARANCE_CHECK_ENABLED = false;$/m.test(w.F['constants/featureFlags.ts']), 'CLEARANCE_CHECK_ENABLED is not false');
+  check(o, w.M.proRead(pending) === false, 'the table says a professional has read it');
+  // The owner, every way round.
+  for (const flag of [false, true]) for (const review of [pending, READ_BY]) check(o, !!owner && w.M.clearanceAllowed(flag, review, owner) === true, `the gate refuses the owner (switch ${flag}, read ${w.M.proRead(review)})`);
+  // Anyone else: only with BOTH.
+  for (const email of others) {
+    check(o, w.M.clearanceAllowed(false, pending, email) === false, `switch off, table unread: ${String(email)} is let in`);
+    check(o, w.M.clearanceAllowed(true, pending, email) === false, `switch on, table unread: ${String(email)} is let in`);
+    check(o, w.M.clearanceAllowed(false, READ_BY, email) === false, `switch off, table read: ${String(email)} is let in`);
+    check(o, w.M.clearanceAllowed(true, READ_BY, email) === true, `switch on, table read by a named professional: ${String(email)} is refused`);
+    // A read with nobody named, or a name with no read, is not a read.
+    check(o, w.M.clearanceAllowed(true, { ...READ_BY, reviewedBy: null }, email) === false && w.M.clearanceAllowed(true, { ...READ_BY, reviewedBy: '  ' }, email) === false, 'a read with nobody named opens the gate');
+    check(o, w.M.clearanceAllowed(true, { ...READ_BY, status: 'pending_founder_review' }, email) === false && w.M.clearanceAllowed(true, { ...READ_BY, status: 'founder_reviewed' }, email) === false && w.M.clearanceAllowed(true, { ...READ_BY, professionalReview: 'none' }, email) === false, 'the founder\'s own read, or a name with no professional read, opens the gate');
+  }
+  check(o, w.M.proRead(READ_BY) === true && w.M.proRead({ ...READ_BY, reviewedBy: null }) === false && w.M.proRead({ ...READ_BY, professionalReview: 'none' }) === false && w.M.proRead({ ...READ_BY, status: 'founder_reviewed' }) === false, 'the table\'s own test of a professional read is wrong');
+  // FLIPPING THE SCANNER'S SWITCH ALONE SHOWS IT TO NOBODY NEW. With the scanner on, the scanner's own gate lets a
+  // stranger scan (w.M.allowed), and Clearance Check, with its switch and its review as they are today, still refuses.
+  check(o, w.M.allowed(true, 'someone@example.com') === true, 'the scanner\'s own gate changed');
+  for (const email of others) check(o, w.M.clearanceAllowed(w.M.clearanceFlag, w.M.review, email) === false, `with the scanner switched on, Clearance Check is shown to ${String(email)}`);
+  const gate = stripComments(w.F[GATE]);
+  check(o, !/SCAN_ROOM_ENABLED|scanRoomAllowed|roomScan\/allowed/.test(gate), 'the gate reads the scanner\'s switch');
+  check(o, /if \(isOwner\(userEmail\)\) return true;\s*return flagOn === true && clearanceRefsProfessionallyRead\(review\);/.test(gate), 'the gate is not "the owner, or its own switch and a named professional\'s read"');
+  check(o, /return clearanceCheckAllowedWith\(CLEARANCE_CHECK_ENABLED, CLEARANCE_REFS_REVIEW, userEmail\);/.test(gate), 'the gate does not read its own switch and the table\'s review record');
+  for (const i of gate.match(/from '([^']+)'/g) ?? []) check(o, /^from '@\/(constants\/featureFlags|utils\/owner|utils\/roomScan\/clearanceRefs)'$/.test(i), `the gate imports ${i}`);
+  // The review record is READ (it was once written and read by nothing).
+  const refsFile = stripComments(w.F['utils/roomScan/clearanceRefs.ts']);
+  check(o, /return review\.status === 'professional_reviewed'\s*&& review\.professionalReview === 'architect_or_expediter'\s*&& typeof review\.reviewedBy === 'string' && review\.reviewedBy\.trim\(\)\.length > 0;/.test(refsFile), 'a professional read no longer needs the status, the kind of professional and a name');
+  // The flow asks this gate and no other, with the signed-in email.
   const flow = stripComments(w.F[FLOW]);
-  check(o, /const clearanceOn = scanRoomAllowed\(userEmail\);/.test(flow) && /import \{ scanRoomAllowed \} from '@\/utils\/roomScan\/allowed';/.test(flow), 'the flow does not ask the scanner\'s gate, with the signed-in email');
-  check(o, /const clearance = useMemo\(\(\) => \(scan && clearanceOn \? buildClearanceCheck\(scan, tapePairs\) : null\)/.test(flow), 'the check is worked out for someone the gate refuses');
+  check(o, /const clearanceOn = clearanceCheckAllowed\(userEmail\);/.test(flow) && /import \{ clearanceCheckAllowed \} from '@\/utils\/roomScan\/clearanceAllowed';/.test(flow), 'the flow does not ask Clearance Check\'s own gate, with the signed-in email');
+  check(o, !/scanRoomAllowed/.test(flow), 'the flow asks the scanner\'s gate');
+  check(o, /const clearance = useMemo\(\(\) => \(scan && clearanceOn \? buildClearanceCheck\(scan, tapePairs, \{ nyc: clearanceNyc \}\) : null\)/.test(flow), 'the check is worked out for someone the gate refuses');
   check(o, /\{step === 'clearance' && clearanceOn && scan && clearance && \(\s*<ClearanceView/.test(flow), 'the screen is drawn without asking the gate');
   check(o, /clearance=\{clearanceOn \? \{ label: ccopy\.openLabel, onPress: \(\) => setStep\('clearance'\) \} : undefined\}/.test(flow), 'the door on the plan is handed over without asking the gate');
   check(o, (flow.match(/setStep\('clearance'\)/g) ?? []).length === 1, 'there is a second way into the step');
-  check(o, !/SCAN_ROOM_ENABLED|isOwner\b|OWNER_EMAILS/.test(flow) && !/SCAN_ROOM_ENABLED|isOwner\b|scanRoomAllowed/.test(stripComments(w.F[VIEW])), 'the flow or the screen reads the flag or the owner list itself');
-  check(o, /if \(!scanRoomAllowed\(userEmail\)\) return <Redirect href="[^"]+" \/>;/.test(stripComments(w.F['app/scan-room.tsx'])), 'the route does not redirect someone the gate refuses');
-  check(o, /return flagOn === true \|\| isOwner\(userEmail\);/.test(stripComments(w.F['utils/roomScan/allowed.ts'])), 'the gate is not "the flag, or the owner"');
+  check(o, !/SCAN_ROOM_ENABLED|CLEARANCE_CHECK_ENABLED|CLEARANCE_REFS_REVIEW|isOwner\b|OWNER_EMAILS/.test(flow) && !/SCAN_ROOM_ENABLED|CLEARANCE_CHECK_ENABLED|isOwner\b|scanRoomAllowed|clearanceCheckAllowed/.test(stripComments(w.F[VIEW])), 'the flow or the screen reads a switch or the owner list itself');
+  // Nothing else reads the switch.
+  for (const [f, text] of Object.entries(w.outside)) if (f !== 'constants/featureFlags.ts' && /CLEARANCE_CHECK_ENABLED/.test(stripComments(text))) o.push(`${f} reads CLEARANCE_CHECK_ENABLED`);
+  // The scanner's own gate is as it was: the route still turns away someone it refuses.
+  check(o, /if \(!scanRoomAllowed\(userEmail\)\) return <Redirect href="[^"]+" \/>;/.test(stripComments(w.F['app/scan-room.tsx'])), 'the route does not redirect someone the scanner\'s gate refuses');
+  check(o, /return flagOn === true \|\| isOwner\(userEmail\);/.test(stripComments(w.F['utils/roomScan/allowed.ts'])), 'the scanner\'s gate is not "the flag, or the owner"');
   return o;
 });
 
@@ -942,8 +1283,20 @@ rule('N4 it is registered: the script, the ship-check chain, the pinned count an
   const name = (w.F[GATE_YML].match(/name: ship-check — (\d+) checks \((\d+) validators, typecheck, lint, jest\)/) ?? []).slice(1).map(Number);
   check(o, name.length === 2 && name[0] === chain.length && name[1] === chain.length - 3, `the gate reports ${name.join(' and ')}, and the chain has ${chain.length} links`);
   const smoke = w.F[SMOKE];
-  for (const id of ['SC1', 'SC2', 'SC3', 'SC4', 'SC5', 'SC6']) check(o, new RegExp(`it\\('${id} `).test(smoke), `the smoke suite has no ${id}`);
+  for (const id of ['SC1', 'SC2', 'SC3', 'SC4', 'SC5', 'SC6', 'SC7', 'SC8']) check(o, new RegExp(`it\\('${id} `).test(smoke), `the smoke suite has no ${id}`);
   check(o, /tight-bath/.test(smoke) && /scan-open-clearance/.test(smoke) && /someone@example\.com/.test(smoke), 'the smoke suite does not mount the tight bathroom, for the owner and for someone else');
+  return o;
+});
+
+rule('N5 the first real scan is blocked on the box axes', (w) => {
+  const o: string[] = [];
+  const doc = w.F['docs/scan-the-room-native-checklist.md'];
+  const at = doc.indexOf('BLOCKING: which box axis is depth');
+  check(o, at >= 0, 'the checklist has no blocking item for which box axis is depth');
+  const item = at >= 0 ? doc.slice(at, at + 2400) : '';
+  check(o, /a real toilet/.test(item) && /a real sink/.test(item), 'the item does not name a real toilet and a real sink');
+  check(o, /Scan Facts|the scan's own summary/.test(item) && /correct the convention/i.test(item), 'the item does not say to correct the convention from the scan\'s own summary');
+  check(o, /utils\/roomScan\/clearanceCore\.ts/.test(item) && /CLEARANCE_CHECK_ENABLED/.test(item), 'the item does not name the code it blocks');
   return o;
 });
 
@@ -979,9 +1332,9 @@ const esText = (key: string, value: string) => (w: World): World => {
 };
 /** A copy of the check with its rows changed. */
 const rows = (fn: (m: CORE.ClearanceMeasure, scan: RoomScan) => CORE.ClearanceMeasure | null) => mod((m) => ({
-  build: (scan, pairs) => { const c = m.build(scan, pairs); return { ...c, measures: c.measures.map((x) => fn(x, scan)).filter((x): x is CORE.ClearanceMeasure => !!x) }; },
+  build: (scan, pairs, opt) => { const c = m.build(scan, pairs, opt); return { ...c, measures: c.measures.map((x) => fn(x, scan)).filter((x): x is CORE.ClearanceMeasure => !!x) }; },
 }));
-const result = (fn: (c: CORE.ClearanceCheck, scan: RoomScan) => CORE.ClearanceCheck) => mod((m) => ({ build: (scan, pairs) => fn(m.build(scan, pairs), scan) }));
+const result = (fn: (c: CORE.ClearanceCheck, scan: RoomScan) => CORE.ClearanceCheck) => mod((m) => ({ build: (scan, pairs, opt) => fn(m.build(scan, pairs, opt), scan) }));
 const refs = (fn: (r: REFS.ClearanceRef) => REFS.ClearanceRef) => mod((m) => ({ refs: m.refs.map(fn) }));
 const restate = (m: CORE.ClearanceMeasure, state: CORE.ClearanceState | null): CORE.ClearanceMeasure => ({ ...m, state, figures: m.figures.map((f) => ({ ...f, state })) });
 const PKG = 'package.json';
@@ -993,7 +1346,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'A1', what: 'the cabinet in front of the toilet is not seen (the front runs to the wall)', plant: rows((m) => (m.kind === 'toilet_front' ? { ...m, valueUS: 32, value: 32 * IN } : m)) },
   { rule: 'A1', what: 'the front is measured from the centre of the toilet, not the front of its box', plant: rows((m) => (m.kind === 'toilet_front' ? { ...m, valueUS: m.valueUS + 14, value: m.value + 14 * IN } : m)) },
   { rule: 'A1', what: 'a 12.5 in side distance is called close', plant: rows((m) => (m.kind === 'toilet_side' && m.valueUS < 13 ? restate(m, 'close') : m)) },
-  { rule: 'A1', what: 'the front of the toilet is judged by the 21 in figure alone', plant: rows((m) => (m.kind === 'toilet_front' ? { ...m, state: 'close', stateRefId: 'toilet_front_21' } : m)) },
+  { rule: 'A1', what: 'the front of the toilet is read against the 24 in figure again (22 in reads tight)', plant: rows((m) => (m.kind === 'toilet_front' ? { ...m, state: 'tight', stateRefId: 'toilet_front_24', figures: [...m.figures, { refId: 'toilet_front_24', state: 'tight' }] } : m)) },
+  { rule: 'A1', what: 'the 28 in bathroom door is labelled close again', plant: rows((m) => (m.kind === 'door_width' ? { ...m, state: 'close', stateRefId: 'door_clear_32', figures: [{ refId: 'door_clear_32', state: 'close' }] } : m)) },
   { rule: 'A1', what: 'a bathroom is called a hallway', plant: rows((m) => (m.kind === 'passage_width' ? { ...m, state: 'roomy', stateRefId: 'passage_36', figures: [{ refId: 'passage_36', state: 'roomy' }] } : m)) },
   { rule: 'A1', what: 'the sink row is dropped', plant: rows((m) => (m.kind === 'sink_front' ? null : m)) },
   { rule: 'A1', what: 'the tub opening is no longer said to be left out', plant: result((c) => ({ ...c, leftOut: c.leftOut.filter((l) => l.kind !== 'tub_opening') })) },
@@ -1017,6 +1371,9 @@ const MUTATIONS: Mutation[] = [
   }) },
   { rule: 'A6', what: 'a chair counts as something in the way', plant: rows((m, scan) => (m.kind === 'toilet_front' && scan.objects.some((x) => x.category === 'chair') ? { ...m, valueUS: 7, value: 7 * IN } : m)) },
   { rule: 'A6', what: 'only the centre line is looked along in front', plant: rows((m, scan) => (m.kind === 'toilet_front' && scan.objects.some((x) => x.category === 'storage' && near(x.widthM / IN, 8, 0.01)) ? { ...m, valueUS: 32, value: 32 * IN } : m)) },
+  { rule: 'A6', what: 'only the centre and a quarter of the width either side are looked along (the outer edge is missed)', plant: rows((m, scan) => (m.kind === 'toilet_front' && scan.objects.some((x) => x.category === 'storage' && near(x.widthM / IN, 6, 0.01)) ? { ...m, valueUS: 32, value: 32 * IN, toward: { kind: 'wall', wallId: 'w', label: 'Wall 2' } } : m)) },
+  { rule: 'A6', what: 'the lines in front run past the edges of the box', plant: rows((m, scan) => (m.kind === 'toilet_front' && scan.objects.some((x) => x.category === 'storage' && near(x.widthM / IN, 6, 0.01)) ? { ...m, valueUS: 22, value: 22 * IN, toward: { kind: 'object', objectId: 'o', category: 'storage' } } : m)) },
+  { rule: 'A6', what: 'a ceiling that is not a number is given a row', plant: result((c, scan) => (Number.isFinite(scan.ceilingHeightM.min) ? c : { ...c, measures: [...c.measures, { ...c.measures[0], id: 'ceiling:lowest', kind: 'ceiling_low', value: scan.ceilingHeightM.min, valueUS: scan.ceilingHeightM.min / IN }] })) },
   { rule: 'A6', what: 'an open outline is given a narrowest width', plant: result((c, scan) => (scan.closure.closed ? c : { ...c, measures: [...c.measures, { ...c.measures[0], id: 'passage:narrowest', kind: 'passage_width', index: 1 }] })) },
   { rule: 'A6', what: 'a bathroom window is set beside the escape figures', plant: result((c, scan) => (scan.roomType === 'bathroom' && scan.openings.some((x) => x.kind === 'window') ? { ...c, measures: [...c.measures, { ...c.measures[0], id: 'w', kind: 'window_area', index: 1 }] } : c)) },
   // ── B ──
@@ -1028,31 +1385,37 @@ const MUTATIONS: Mutation[] = [
   { rule: 'B1', what: 'in a real room 13.5 in is tight', plant: rows((m) => (m.kind === 'toilet_side' && near(m.valueUS, 13.5, 0.005) ? restate(m, 'tight') : m)) },
   { rule: 'B1', what: 'in a real room 16.6 in is close', plant: rows((m) => (m.kind === 'toilet_side' && near(m.valueUS, 16.6, 0.005) ? restate(m, 'close') : m)) },
   { rule: 'B2', what: 'a wide door is called roomy', plant: mod(() => ({ boundState: (v, l, b, mg) => CORE.clearanceState(v, l, b, mg) as 'close' | null })) },
+  { rule: 'B2', what: 'a door is set beside the 32 in figure again', plant: rows((m) => (m.kind === 'door_width' && m.valueUS < 33.5 ? { ...m, state: 'close', stateRefId: 'door_clear_32', figures: [{ refId: 'door_clear_32', state: 'close' }] } : m)) },
+  { rule: 'B2', what: 'a wide door carries the figure with no state', plant: rows((m) => (m.kind === 'door_width' ? { ...m, figures: [{ refId: 'door_clear_32', state: null }] } : m)) },
+  { rule: 'B2', what: 'the door row stops saying what the main exit door figure is', plant: text(HOOK, "t('office.scanClearance.note.doorExitNote', ", "t('office.scanClearance.note.doorOtherNote', ") },
   { rule: 'B2', what: 'a narrow door is called tight in a room', plant: rows((m) => (m.kind === 'door_width' && m.valueUS < 30.4 ? restate(m, 'tight') : m)) },
   { rule: 'B2', what: 'a big window is called roomy', plant: rows((m) => (m.kind === 'window_height' && m.valueUS > 39 ? restate(m, 'roomy') : m)) },
   { rule: 'B2', what: 'a window is compared in a plain room', plant: result((c, scan) => (scan.roomType === 'room' && scan.openings.some((x) => x.kind === 'window') && scan.walls.length === 4 && near(scan.walls[0].lengthM / IN, 120, 1) ? { ...c, measures: [...c.measures, { ...c.measures[0], id: 'w', kind: 'window_area', boundOnly: true, state: 'close' }] } : c)) },
   { rule: 'B2', what: 'the window area forgets the margin', plant: rows((m) => (m.kind === 'window_area' && near(m.valueUS, 6, 0.01) ? restate(m, null) : m)) },
   { rule: 'B2', what: 'a door row is not marked as larger than the clear width', plant: rows((m) => (m.kind === 'door_width' ? { ...m, boundOnly: false } : m)) },
-  { rule: 'B3', what: 'a row takes the gentler of two states', plant: rows((m) => (m.kind === 'toilet_front' && m.figures.length === 2 && m.figures[0].state !== m.figures[1].state ? { ...m, state: 'close', stateRefId: 'toilet_front_21' } : m)) },
-  { rule: 'B3', what: 'the figure asking for less room is credited', plant: rows((m) => (m.kind === 'toilet_front' && m.figures.every((f) => f.state === 'close') ? { ...m, stateRefId: 'toilet_front_21' } : m)) },
+  { rule: 'B3', what: 'a row takes the gentler of two states', plant: rows((m) => (m.kind === 'ceiling_low' && m.figures.length === 2 && m.figures[0].state !== m.figures[1].state ? { ...m, state: m.figures[0].state, stateRefId: m.figures[0].refId } : m)) },
+  { rule: 'B3', what: 'the figure asking for less room is credited', plant: rows((m) => (m.kind === 'ceiling_low' && m.figures.length === 2 && m.figures.every((f) => f.state === 'tight') ? { ...m, stateRefId: m.figures[0].refId } : m)) },
+  { rule: 'B3', what: 'the front of a toilet is read against 24 in as well', plant: rows((m) => (m.kind === 'toilet_front' ? { ...m, figures: [...m.figures, { refId: 'toilet_front_24', state: CORE.clearanceState(m.valueUS, 24, 'min', m.marginIn) }] } : m)) },
+  { rule: 'B3', what: '22 in front of a toilet reads tight', plant: rows((m) => (m.kind === 'toilet_front' && near(m.valueUS, 22, 0.01) ? restate(m, 'tight') : m)) },
+  { rule: 'B3', what: 'in New York City the ceiling keeps the model figure alone', plant: mod((m) => ({ build: (scan, pairs) => m.build(scan, pairs, {}) })) },
   { rule: 'B3', what: 'a bathroom ceiling is set beside the room figures', plant: rows((m, scan) => (m.kind === 'ceiling_low' && scan.roomType === 'bathroom' ? { ...m, figures: [{ refId: 'ceiling_84', state: 'tight' }, { refId: 'ceiling_96', state: 'tight' }] } : m)) },
-  { rule: 'B3', what: 'the typical ceiling height is used, not the lowest', plant: mod((m) => ({ build: (scan, pairs) => m.build({ ...scan, ceilingHeightM: { ...scan.ceilingHeightM, min: scan.ceilingHeightM.typical } }, pairs) })) },
+  { rule: 'B3', what: 'the typical ceiling height is used, not the lowest', plant: mod((m) => ({ build: (scan, pairs, opt) => m.build({ ...scan, ceilingHeightM: { ...scan.ceilingHeightM, min: scan.ceilingHeightM.typical } }, pairs, opt) })) },
   // ── C ──
   { rule: 'C1', what: 'the default margin is 1 in', plant: mod((m) => ({ margin: (t) => { const x = m.margin(t); return x.basis === 'scan_default' ? { ...x, scanIn: 1 } : x; } })) },
   { rule: 'C1', what: 'a good history takes the margin down to its largest difference', plant: mod((m) => ({ margin: (t) => (t && t.enough ? { ...m.margin(t), scanIn: t.largestIn } : m.margin(t)) })) },
   { rule: 'C1', what: 'a worse history does not widen the margin', plant: mod((m) => ({ margin: () => m.margin(null) })) },
   { rule: 'C1', what: 'there is no cap on the margin', plant: mod((m) => ({ margin: (t) => (t && t.enough && t.largestIn > 6 ? { ...m.margin(t), scanIn: t.largestIn } : m.margin(t)) })) },
   { rule: 'C1', what: 'the typical difference is used, not the largest', plant: mod((m) => ({ margin: (t) => (t && t.enough ? m.margin({ ...t, largestIn: t.typicalIn }) : m.margin(t)) })) },
-  { rule: 'C1', what: 'in a room the history is ignored', plant: mod((m) => ({ build: (scan) => m.build(scan, []) })) },
-  { rule: 'C1', what: 'four walls are enough to widen the margin', plant: mod((m) => ({ build: (scan, pairs) => { const c = m.build(scan, pairs); return pairs && pairs.length === 4 ? { ...c, margin: { ...c.margin, scanIn: 5, basis: 'tape_history' as const } } : c; } })) },
-  { rule: 'C1', what: 'a wider margin is stated and not used', plant: mod((m) => ({ build: (scan, pairs) => ({ ...m.build(scan, []), margin: m.build(scan, pairs).margin }) })) },
+  { rule: 'C1', what: 'in a room the history is ignored', plant: mod((m) => ({ build: (scan, _pairs, opt) => m.build(scan, [], opt) })) },
+  { rule: 'C1', what: 'four walls are enough to widen the margin', plant: mod((m) => ({ build: (scan, pairs, opt) => { const c = m.build(scan, pairs, opt); return pairs && pairs.length === 4 ? { ...c, margin: { ...c.margin, scanIn: 5, basis: 'tape_history' as const } } : c; } })) },
+  { rule: 'C1', what: 'a wider margin is stated and not used', plant: mod((m) => ({ build: (scan, pairs, opt) => ({ ...m.build(scan, [], opt), margin: m.build(scan, pairs, opt).margin }) })) },
   { rule: 'C2', what: 'a taped hallway keeps the scan margin', plant: rows((m) => (m.kind === 'passage_width' && m.restsOnTaped ? { ...m, marginIn: 1.5, marginBasis: 'scan_default', state: CORE.clearanceState(m.valueUS, 36, 'min', 1.5) } : m)) },
   { rule: 'C2', what: 'a taped hallway is not marked', plant: rows((m) => (m.kind === 'passage_width' ? { ...m, restsOnTaped: false } : m)) },
-  { rule: 'C2', what: 'any taped wall tightens the hallway', plant: mod((m) => ({ build: (scan, pairs) => { const c = m.build(scan, pairs); return scan.walls.some((x) => x.lengthSource === 'typed') ? { ...c, measures: c.measures.map((x) => (x.kind === 'passage_width' ? { ...x, restsOnTaped: true, marginIn: 0.5 } : x)) } : c; } })) },
-  { rule: 'C2', what: 'a taped wall tightens the toilet beside it', plant: mod((m) => ({ build: (scan, pairs) => { const c = m.build(scan, pairs); return scan.walls.some((x) => x.lengthSource === 'typed') ? { ...c, measures: c.measures.map((x) => (x.kind === 'toilet_side' ? { ...x, restsOnTaped: true, marginIn: 0.5 } : x)) } : c; } })) },
+  { rule: 'C2', what: 'any taped wall tightens the hallway', plant: mod((m) => ({ build: (scan, pairs, opt) => { const c = m.build(scan, pairs, opt); return scan.walls.some((x) => x.lengthSource === 'typed') ? { ...c, measures: c.measures.map((x) => (x.kind === 'passage_width' ? { ...x, restsOnTaped: true, marginIn: 0.5 } : x)) } : c; } })) },
+  { rule: 'C2', what: 'a taped wall tightens the toilet beside it', plant: mod((m) => ({ build: (scan, pairs, opt) => { const c = m.build(scan, pairs, opt); return scan.walls.some((x) => x.lengthSource === 'typed') ? { ...c, measures: c.measures.map((x) => (x.kind === 'toilet_side' ? { ...x, restsOnTaped: true, marginIn: 0.5 } : x)) } : c; } })) },
   { rule: 'C2', what: 'a typed door keeps the scan margin', plant: rows((m) => (m.kind === 'door_width' && m.restsOnTaped ? { ...m, marginIn: 1.5, state: 'close' } : m)) },
   { rule: 'C2', what: 'a typed ceiling is not marked', plant: rows((m) => (m.kind === 'ceiling_low' ? { ...m, restsOnTaped: false } : m)) },
-  { rule: 'C2', what: 'a worse history widens a taped number', plant: mod((m) => ({ build: (scan, pairs) => { const c = m.build(scan, pairs); return { ...c, measures: c.measures.map((x) => (x.restsOnTaped ? { ...x, marginIn: c.margin.scanIn } : x)) }; } })) },
+  { rule: 'C2', what: 'a worse history widens a taped number', plant: mod((m) => ({ build: (scan, pairs, opt) => { const c = m.build(scan, pairs, opt); return { ...c, measures: c.measures.map((x) => (x.restsOnTaped ? { ...x, marginIn: c.margin.scanIn } : x)) }; } })) },
   { rule: 'C2', what: 'the row stops saying whether it rests on a taped number', plant: text(VIEW, '{m.restsOnTaped ? copy.restsOnTapedSub : copy.fromScanSub}', '{copy.fromScanSub}') },
   { rule: 'C2', what: 'the screen stops stating the margin', plant: text(VIEW, '{copy.marginBody(check.margin)}', '{null}') },
   // ── D ──
@@ -1066,6 +1429,14 @@ const MUTATIONS: Mutation[] = [
   { rule: 'D1', what: 'a figure is typed into the Spanish', plant: esText('office.scanClearance.note.passageNote', 'Solo entre paredes. Un pasillo suele medir 36 in.') },
   { rule: 'D1', what: 'the figure sentence types its own number', plant: text(HOOK, "{ value: figureValue(refId), called: called(refId), family: family(clearanceRef(refId).family) }", "{ value: '21 in', called: called(refId), family: family(clearanceRef(refId).family) }") },
   { rule: 'D1', what: 'the core uses a figure the table does not hold', plant: text(CORE_F, "refs: ['toilet_side_15']", "refs: ['toilet_side_18']") },
+  { rule: 'D1', what: 'the 24 in figure is compared again', plant: refs((r) => (r.id === 'toilet_front_24' ? { ...r, use: 'compared' } : r)) },
+  { rule: 'D1', what: 'the door figure is compared again', plant: refs((r) => (r.id === 'door_clear_32' ? { ...r, use: 'compared' } : r)) },
+  { rule: 'D1', what: 'the 8 ft figure is used everywhere again', plant: refs((r) => (r.id === 'ceiling_96' ? { ...r, where: 'anywhere', family: 'residential_model' } : r)) },
+  { rule: 'D1', what: 'the core sets a distance beside a words-only figure', plant: text(CORE_F, "refs: o.category === 'toilet' ? ['toilet_front_21'] : ['sink_front_21']", "refs: o.category === 'toilet' ? ['toilet_front_21', 'toilet_front_24'] : ['sink_front_21']") },
+  { rule: 'D1', what: 'a room shows a words-only figure as a figure', plant: rows((m) => (m.kind === 'sink_front' ? { ...m, figures: [...m.figures, { refId: 'toilet_spacing_30', state: 'roomy' }] } : m)) },
+  { rule: 'D1', what: 'the 24 in sentence types its own number', plant: en('office.scanClearance.note.frontOtherNote', 'Some places use more for {called}. That figure is from {family}.') },
+  { rule: 'D1', what: 'the spacing figure is mentioned from somewhere other than the table', plant: text(HOOK, "mention('toilet_spacing_30')", "{ value: 'more', called: 'two fixtures', family: 'a code' }") },
+  { rule: 'D1', what: 'the table is marked as read by a professional with the screen still saying nobody has', plant: mod((m) => ({ review: { ...m.review, status: 'professional_reviewed' } })) },
   { rule: 'D2', what: 'a figure is called checked for New York City with no source', plant: refs((r) => (r.id === 'toilet_side_15' ? { ...r, checked: { nyc: true, baltimore: false } } : r)) },
   { rule: 'D2', what: 'a figure is called checked for Baltimore against a row that does not hold it', plant: refs((r) => (r.id === 'passage_36' ? { ...r, checked: { nyc: false, baltimore: true }, checkedSource: { place: 'baltimore', row: 'Baltimore City', needle: '36 inches' } } : r)) },
   { rule: 'D2', what: 'a section number is written from recall', plant: refs((r) => (r.id === 'toilet_side_15' ? { ...r, section: { label: 'R307.1', row: 'New York City' } } : r)) },
@@ -1102,7 +1473,15 @@ const MUTATIONS: Mutation[] = [
   { rule: 'W2', what: 'the never-blocks sentence goes', plant: text(VIEW, '{copy.neverClearedBody} {copy.neverBlocksBody}', '{copy.neverClearedBody}') },
   { rule: 'W2', what: 'the door note stops saying the clear width is less', plant: en('office.scanClearance.note.doorNote', 'This is the width of the door.') },
   { rule: 'W2', what: 'the window note stops saying the scan cannot see the net clear opening', plant: en('office.scanClearance.note.windowNote', 'This is the size of the window opening.') },
-  { rule: 'W2', what: 'a door row loses its note', plant: text(HOOK, "case 'door_width': return t('office.scanClearance.note.doorNote'", "case 'door_width': return null; case 'door_width_old': return t('office.scanClearance.note.doorNote'") },
+  { rule: 'W2', what: 'a door row loses its note', plant: text(HOOK, "t('office.scanClearance.note.doorNote', ", "t('office.scanClearance.note.doorWidthNote', ") },
+  { rule: 'W2', what: 'the toilet front row stops saying a door swing is not counted', plant: text(HOOK, /case 'toilet_front': return \[\s*fixture, swing,/, "case 'toilet_front': return [\n            fixture,") },
+  { rule: 'W2', what: 'the sink front row stops saying a door swing is not counted', plant: text(HOOK, /case 'sink_front': return \[\s*fixture, swing,/, "case 'sink_front': return [\n            fixture,") },
+  { rule: 'W2', what: 'the door swing sentence is reworded to sound counted', plant: en('office.scanClearance.note.doorSwingNote', 'A door swinging into this space is counted.') },
+  { rule: 'W2', what: 'the Spanish door swing sentence is dropped', plant: esText('office.scanClearance.note.doorSwingNote', 'Sin nota.') },
+  { rule: 'W2', what: 'only the first note of a row is drawn', plant: text(VIEW, '{notes.map((note) => <Text key={note} style={styles.note}>{note}</Text>)}', '{notes[0] && <Text style={styles.note}>{notes[0]}</Text>}') },
+  { rule: 'W2', what: 'the sentence for a fixture that is not labelled is softened', plant: en('office.scanClearance.leftOut.fixtureFacingBody', 'This fixture is probably fine.') },
+  { rule: 'W2', what: 'the window row stops saying it never clears a window', plant: en('office.scanClearance.note.windowStricterNote', 'New York City commonly asks for more than these figures.') },
+  { rule: 'W2', what: 'roomy stops saying it is not a check against the local code', plant: en('office.scanClearance.state.roomyBody', 'Past the commonly used figure by more than the margin, as scanned.') },
   { rule: 'W2', what: 'a row with no state shows an empty pill', plant: text(VIEW, 'const stateText = m.state ? copy.stateLabel(m.state) : copy.noStateSub;', "const stateText = m.state ? copy.stateLabel(m.state) : '';") },
   { rule: 'W2', what: 'stairs are dropped from what is left out when none is seen', plant: result((c) => ({ ...c, leftOut: c.leftOut.filter((l) => l.kind !== 'stairs' || l.count > 0) })) },
   { rule: 'W2', what: 'what is left out is no longer listed', plant: text(VIEW, '{copy.leftOutBody(l)}', '{null}') },
@@ -1119,6 +1498,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'W4', what: '"e.g."', plant: en('office.scanClearance.note.passageNote', 'Between walls only. Furniture, e.g. a sofa, is not counted.') },
   { rule: 'W4', what: 'the tight state is renamed', plant: en('office.scanClearance.state.tightLabel', 'Too Tight') },
   { rule: 'W4', what: 'the close state stops saying what it means on a door', plant: en('office.scanClearance.state.closeBody', 'Within the margin of the commonly used figure, on either side of it.') },
+  { rule: 'W4', what: 'the Spanish for close goes back to "Justo"', plant: esText('office.scanClearance.state.closeLabel', 'Justo, mídelo con cinta') },
+  { rule: 'W4', what: 'roomy goes back to "further from the figure"', plant: en('office.scanClearance.state.roomyBody', 'Further from the commonly used figure than the margin, as scanned.') },
   { rule: 'W4', what: 'roomy is drawn in green', plant: text(VIEW, "m.state === 'close' || m.state === 'tight' ? { backgroundColor: colors.warningSoft } : null", "m.state === 'roomy' ? { backgroundColor: colors.successSoft } : null") },
   { rule: 'W4', what: 'a tick is drawn', plant: text(VIEW, "import { Ruler } from 'lucide-react-native';", "import { Check, Ruler } from 'lucide-react-native';") },
   { rule: 'W5', what: 'a key has no Spanish', plant: es('office.scanClearance.notCheckedBody', undefined) },
@@ -1137,14 +1518,62 @@ const MUTATIONS: Mutation[] = [
   { rule: 'N1', what: 'the estimate screen reads the check', plant: (w) => ({ ...w, outside: { ...w.outside, 'app/change-order.tsx': `${w.outside['app/change-order.tsx'] ?? ''}\nimport { buildClearanceCheck } from '@/utils/roomScan/clearanceCore';` } }) },
   { rule: 'N1', what: 'the plan colours itself from the check', plant: text(PLAN, "import { makeRoomScanStyles } from './styles';", "import { makeRoomScanStyles } from './styles';\nimport type { ClearanceState } from '@/utils/roomScan/clearanceCore';") },
   { rule: 'N1', what: 'the door opens somewhere else', plant: text(FLOW, 'onOpenCodeCheck={() => router.push(codeCheckFromJobHref(projectId))}', "onOpenCodeCheck={() => router.push('/paywall')}") },
-  { rule: 'N2', what: 'the flag is turned on', plant: mod(() => ({ flag: true })) },
-  { rule: 'N2', what: 'the gate lets everyone in', plant: mod(() => ({ allowed: () => true })) },
-  { rule: 'N2', what: 'the gate refuses the owner', plant: mod(() => ({ allowed: (flagOn) => flagOn === true })) },
+  { rule: 'N2', what: 'Clearance Check rides on the scanner\'s switch (flip the scanner, everyone sees it)', plant: mod((m) => ({ clearanceAllowed: (_f, _r, e) => m.allowed(true, e) })) },
+  { rule: 'N2', what: 'its own switch alone opens the gate, with the table unread', plant: mod((m) => ({ clearanceAllowed: (f, r, e) => f === true || m.clearanceAllowed(f, r, e) })) },
+  { rule: 'N2', what: 'a professional\'s read alone opens the gate, with the switch off', plant: mod((m) => ({ clearanceAllowed: (f, r, e) => m.proRead(r) || m.clearanceAllowed(f, r, e) })) },
+  { rule: 'N2', what: 'the gate refuses the owner', plant: mod((m) => ({ clearanceAllowed: (f, r) => f === true && m.proRead(r) })) },
+  { rule: 'N2', what: 'the gate lets everyone in', plant: mod(() => ({ clearanceAllowed: () => true })) },
+  { rule: 'N2', what: 'the gate never opens for anyone else', plant: mod((m) => ({ clearanceAllowed: (_f, r, e) => m.clearanceAllowed(false, r, e) })) },
+  { rule: 'N2', what: 'a read with nobody named counts', plant: mod((m) => ({ clearanceAllowed: (f, r, e) => m.clearanceAllowed(f, { ...r, reviewedBy: r.reviewedBy && r.reviewedBy.trim() ? r.reviewedBy : 'someone' }, e) })) },
+  { rule: 'N2', what: 'the founder\'s own read counts as a professional\'s', plant: mod((m) => ({ clearanceAllowed: (f, r, e) => m.clearanceAllowed(f, { ...r, status: r.status === 'founder_reviewed' ? 'professional_reviewed' : r.status }, e) })) },
+  { rule: 'N2', what: 'the switch is turned on', plant: mod(() => ({ clearanceFlag: true })) },
+  { rule: 'N2', what: 'the table is marked as read by a named professional', plant: mod(() => ({ review: READ_BY })) },
+  { rule: 'N2', what: 'the gate reads the scanner\'s switch', plant: text(GATE, "import { CLEARANCE_CHECK_ENABLED } from '@/constants/featureFlags';", "import { CLEARANCE_CHECK_ENABLED, SCAN_ROOM_ENABLED } from '@/constants/featureFlags';") },
+  { rule: 'N2', what: 'the gate stops reading the review record', plant: text(GATE, 'return flagOn === true && clearanceRefsProfessionallyRead(review);', 'return flagOn === true;') },
+  { rule: 'N2', what: 'a professional read needs no name', plant: text('utils/roomScan/clearanceRefs.ts', "    && typeof review.reviewedBy === 'string' && review.reviewedBy.trim().length > 0;", ';') },
+  { rule: 'N2', what: 'the flow asks the scanner\'s gate, as it used to', plant: text(FLOW, 'const clearanceOn = clearanceCheckAllowed(userEmail);', 'const clearanceOn = scanRoomAllowed(userEmail);') },
   { rule: 'N2', what: 'the door on the plan is drawn for everyone', plant: text(FLOW, "clearance={clearanceOn ? { label: ccopy.openLabel, onPress: () => setStep('clearance') } : undefined}", "clearance={{ label: ccopy.openLabel, onPress: () => setStep('clearance') }}") },
   { rule: 'N2', what: 'the screen is drawn without the gate', plant: text(FLOW, "{step === 'clearance' && clearanceOn && scan && clearance && (", "{step === 'clearance' && scan && clearance && (") },
-  { rule: 'N2', what: 'the flow decides for itself who may see it', plant: text(FLOW, 'const clearanceOn = scanRoomAllowed(userEmail);', 'const clearanceOn = true;') },
-  { rule: 'N2', what: 'the check is worked out for everyone', plant: text(FLOW, '(scan && clearanceOn ? buildClearanceCheck(scan, tapePairs) : null)', '(scan ? buildClearanceCheck(scan, tapePairs) : null)') },
+  { rule: 'N2', what: 'the flow decides for itself who may see it', plant: text(FLOW, 'const clearanceOn = clearanceCheckAllowed(userEmail);', 'const clearanceOn = true;') },
+  { rule: 'N2', what: 'the check is worked out for everyone', plant: text(FLOW, '(scan && clearanceOn ? buildClearanceCheck(scan, tapePairs, { nyc: clearanceNyc }) : null)', '(scan ? buildClearanceCheck(scan, tapePairs, { nyc: clearanceNyc }) : null)') },
   { rule: 'N2', what: 'a second way into the step', plant: text(FLOW, "    else if (step === 'quantities' || step === 'clearance') setStep('plan');", "    else if (step === 'quantities') setStep('clearance');\n    else if (step === 'clearance') setStep('plan');") },
+  { rule: 'N2', what: 'another screen reads the switch', plant: (w) => ({ ...w, outside: { ...w.outside, 'app/project-detail.tsx': `${w.outside['app/project-detail.tsx'] ?? ''}\nimport { CLEARANCE_CHECK_ENABLED } from '@/constants/featureFlags';` } }) },
+  // ── the review round ──
+  { rule: 'A7', what: 'a sink\'s front line starts inside its own cabinet (3 in, tight)', plant: rows((m) => (m.kind === 'sink_front' && m.frontFrom === 'cabinet' ? restate({ ...m, valueUS: 3, value: 3 * IN, toward: { kind: 'object', objectId: 'o', category: 'storage' } }, 'tight') : m)) },
+  { rule: 'A7', what: 'a sink in a cabinet is not said to be measured from the cabinet', plant: rows((m) => (m.kind === 'sink_front' ? { ...m, frontFrom: 'box' } : m)) },
+  { rule: 'A7', what: 'the side is one line from the middle of the box (a cabinet beside the bowl is missed)', plant: rows((m) => (m.kind === 'toilet_side' && near(m.valueUS, 8, 0.01) ? restate({ ...m, valueUS: 48, value: 48 * IN, toward: { kind: 'wall', wallId: 'w', label: 'Wall 3' } }, 'roomy') : m)) },
+  { rule: 'A7', what: 'a cabinet ahead of the toilet is counted as beside it', plant: rows((m, scan) => (m.kind === 'toilet_side' && scan.objects.some((x) => x.category === 'storage' && Math.abs(x.center.x) + Math.abs(x.center.y) > 0 && near(x.depthM / IN, 14, 0.01)) && near(m.valueUS, 48, 0.01) ? { ...m, valueUS: 8, value: 8 * IN } : m)) },
+  { rule: 'A7', what: 'a toilet in a corner is labelled from the box\'s own depth axis', plant: result((c, scan) => {
+    const t = scan.objects.find((x) => x.category === 'toilet');
+    if (!t || !c.leftOut.some((l) => l.kind === 'fixture_facing')) return c;
+    const row = { ...c.measures[0], id: `toilet:${t.id}:side:a`, kind: 'toilet_side' as const, index: 1, value: 14 * IN, valueUS: 14, state: 'close' as const, stateRefId: 'toilet_side_15' as const, figures: [{ refId: 'toilet_side_15' as const, state: 'close' as const }] };
+    return { ...c, measures: [row, ...c.measures], leftOut: c.leftOut.filter((l) => l.kind !== 'fixture_facing') };
+  }) },
+  { rule: 'A7', what: 'a fixture whose facing is not sure is dropped without a word', plant: result((c) => ({ ...c, leftOut: c.leftOut.filter((l) => l.kind !== 'fixture_facing') })) },
+  { rule: 'A7', what: 'a fixture whose facing is not sure is said to stand free', plant: result((c) => ({ ...c, leftOut: c.leftOut.map((l) => (l.kind === 'fixture_facing' ? { ...l, kind: 'fixture_free' as const } : l)) })) },
+  { rule: 'A7', what: 'a toilet drawn across a cabinet is measured past it', plant: result((c, scan) => {
+    const t = scan.objects.find((x) => x.category === 'toilet');
+    if (!t || !c.leftOut.some((l) => l.kind === 'fixture_overlap')) return c;
+    return { ...c, measures: [{ ...c.measures[0], id: `toilet:${t.id}:front`, kind: 'toilet_front', index: 1 }, ...c.measures], leftOut: c.leftOut.filter((l) => l.kind !== 'fixture_overlap') };
+  }) },
+  { rule: 'A7', what: 'the box\'s own axes decide away from a corner (swapped axes read differently)', plant: rows((m, scan) => (m.kind === 'toilet_front' && scan.objects.some((x) => x.category === 'toilet' && x.widthM > x.depthM) ? { ...m, valueUS: 56, value: 56 * IN } : m)) },
+  { rule: 'A7', what: 'the outer edge of the bowl is missed in the fixture room', plant: rows((m, scan) => (m.kind === 'toilet_front' && scan.objects.length === 2 && near(m.valueUS, 22, 0.01) && scan.objects.some((x) => x.category === 'storage' && near(x.widthM / IN, 6, 0.01)) ? restate({ ...m, valueUS: 32, value: 32 * IN, toward: { kind: 'wall', wallId: 'w', label: 'Wall 2' } }, 'roomy') : m)) },
+  { rule: 'A7', what: 'a bedroom with a jog is called a hallway (whole wall lengths)', plant: rows((m, scan) => (m.kind === 'passage_width' && scan.roomType === 'bedroom' && near(m.valueUS, 36, 0.01) ? { ...m, state: 'close', stateRefId: 'passage_36', figures: [{ refId: 'passage_36', state: 'close' }] } : m)) },
+  { rule: 'A7', what: '22 in front of a toilet reads tight in the fixture room', plant: rows((m, scan) => (m.kind === 'toilet_front' && scan.objects.length === 1 && near(m.valueUS, 22, 0.01) ? restate(m, 'tight') : m)) },
+  { rule: 'A7', what: 'the sentence for a fixture that is not labelled changes', plant: en('office.scanClearance.leftOut.fixtureFacingBody', 'The scan could not place this fixture. Tape it.') },
+  { rule: 'A8', what: 'the 8 ft line is shown in Baltimore', plant: mod((m) => ({ build: (scan, pairs) => m.build(scan, pairs, { nyc: true }) })) },
+  { rule: 'A8', what: 'a New York City bathroom at 82.5 reads roomy (no 7 ft line)', plant: rows((m, scan) => (m.kind === 'ceiling_low' && scan.roomType === 'bathroom' ? { ...m, figures: m.figures.slice(0, 1), state: m.figures[0].state, stateRefId: m.figures[0].state ? m.figures[0].refId : null } : m)) },
+  { rule: 'A8', what: 'a New York City hallway is set beside the 8 ft line', plant: rows((m, scan) => (m.kind === 'ceiling_low' && scan.roomType !== 'bathroom' && m.figures.length === 1 && scan.walls.some((x) => near(x.lengthM / IN, 240, 0.01)) ? { ...m, figures: [...m.figures, { refId: 'ceiling_96', state: 'close' }] } : m)) },
+  { rule: 'A8', what: 'a New York City bedroom with a jog loses the 8 ft line', plant: rows((m, scan) => (m.kind === 'ceiling_low' && scan.walls.length === 6 ? { ...m, figures: m.figures.slice(0, 1) } : m)) },
+  { rule: 'A8', what: 'the flow reads the place from the settings text, not the resolver', plant: text(FLOW, 'clearanceInNyc(project)', '/new york/i.test(location)') },
+  { rule: 'A8', what: 'the place file reads the address for itself', plant: text('utils/roomScan/clearancePlace.ts', "return resolved.kind === 'city' && resolved.entry.name === NYC_ROW_NAME;", "return /NY/.test(String(project.location));") },
+  { rule: 'A8', what: 'all of New York State counts as the city', plant: mod(() => ({ inNyc: (p) => /NY/.test(String(p?.location ?? '')) })) },
+  { rule: 'A8', what: 'no address counts as New York City', plant: mod((m) => ({ inNyc: (p) => !p || !p.location || m.inNyc(p) })) },
+  { rule: 'A8', what: 'New York City is never recognised', plant: mod(() => ({ inNyc: () => false })) },
+  { rule: 'A8', what: 'the place is not handed to the check', plant: text(FLOW, 'buildClearanceCheck(scan, tapePairs, { nyc: clearanceNyc })', 'buildClearanceCheck(scan, tapePairs)') },
+  { rule: 'A8', what: 'New York City\'s line is named as a model code figure', plant: refs((r) => (r.id === 'ceiling_bath_84_nyc' ? { ...r, family: 'residential_model' } : r)) },
+  { rule: 'N5', what: 'the blocking item leaves the checklist', plant: text('docs/scan-the-room-native-checklist.md', 'BLOCKING: which box axis is depth', 'Later: which box axis is depth') },
+  { rule: 'N5', what: 'the item stops naming a real sink', plant: text('docs/scan-the-room-native-checklist.md', 'confirm on a real toilet and a real sink', 'confirm on a real toilet') },
   { rule: 'N3', what: 'the core asks a model', plant: text(CORE_F, "import { metresToInches, sqMetresToSqFeet } from './units';", "import { metresToInches, sqMetresToSqFeet } from './units';\nimport { askModel } from '@/utils/aiService';") },
   { rule: 'N3', what: 'the core calls the network', plant: text(CORE_F, 'const margin = clearanceMargin(tapeFacts(tapePairs));', "const margin = clearanceMargin(tapeFacts(tapePairs));\n  void fetch('https://example.com');") },
   { rule: 'N3', what: 'the core reads the clock', plant: text(CORE_F, 'const margin = clearanceMargin(tapeFacts(tapePairs));', 'const margin = clearanceMargin(tapeFacts(tapePairs));\n  const at = Date.now();') },

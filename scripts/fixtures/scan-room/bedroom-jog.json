@@ -1,0 +1,342 @@
+{
+ "walls": [
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000001",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    3.6576,
+    2.4384,
+    0
+   ],
+   "transform": [
+    0.990268,
+    0,
+    -0.139173,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.139173,
+    0,
+    0.990268,
+    0,
+    3.011002,
+    0.0192,
+    -0.65452,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000002",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    3.6576,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.139173,
+    0,
+    -0.990268,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.990268,
+    0,
+    -0.139173,
+    0,
+    4.567485,
+    0.0192,
+    -2.720042,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000003",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    2.7432,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.990268,
+    0,
+    0.139173,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.139173,
+    0,
+    -0.990268,
+    0,
+    2.954713,
+    0.0192,
+    -4.340154,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000004",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.3556,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.139173,
+    0,
+    -0.990268,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.990268,
+    0,
+    -0.139173,
+    0,
+    1.571717,
+    0.0192,
+    -4.325334,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000005",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.9144,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.990268,
+    0,
+    0.139173,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.139173,
+    0,
+    -0.990268,
+    0,
+    1.094221,
+    0.0192,
+    -4.437774,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000006",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    4.0132,
+    2.4384,
+    0
+   ],
+   "transform": [
+    0.139173,
+    0,
+    0.990268,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.990268,
+    0,
+    0.139173,
+    0,
+    0.920735,
+    0.0192,
+    -2.387072,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  }
+ ],
+ "doors": [],
+ "windows": [],
+ "openings": [],
+ "objects": [],
+ "version": 2,
+ "story": 0,
+ "floors": [],
+ "sections": [
+  {
+   "label": {
+    "bedroom": {}
+   },
+   "center": [
+    0,
+    0,
+    0
+   ],
+   "story": 0
+  }
+ ],
+ "referenceOriginTransform": [
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  1
+ ]
+}

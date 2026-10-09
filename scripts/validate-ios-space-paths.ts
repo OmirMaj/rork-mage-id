@@ -118,6 +118,57 @@ ok('the plugin patches the Podfile too (bash -l -c phases live in Pods.xcodeproj
     /withFinalizedMod\(config, \[\s*'ios'/.test(pluginSrc) && /withQuotedFinalProject\(/.test(pluginSrc.split('const withQuotedXcodeScriptPaths = config =>')[1] ?? ''));
 }
 
+// ── a config with NO Sentry plugin: the path is the command itself ─────────
+// 2026-10-09, review. With no Sentry plugin the template's bundle line is the
+// substitution alone (TEMPLATE below): the path node prints IS the command.
+// The plugin used to single-quote it as it does the argument to
+// sentry-xcode.sh, leaving  "'$( … )'"  : a command named with a literal quote
+// at each end, which no shell can find. Both lines are RUN here, under
+// /bin/sh, from a folder with a space in its name.
+{
+  const TEMPLATE = `\`"$NODE_BINARY" --print "require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'"\`\n`;
+  const noSentry = plugin.quoteScriptPaths(TEMPLATE) as string;
+  ok('with no Sentry plugin the bundle line is the path quoted ONCE: "$( … )", no single quotes round it',
+    noSentry.startsWith('"$("$NODE_BINARY" --print ') && noSentry.trimEnd().endsWith(`react-native-xcode.sh'")"`) && !noSentry.includes(`"'$(`) && !noSentry.includes('`'),
+    noSentry);
+  ok('…every path on it is quoted, and a second pass changes nothing',
+    plugin.unquotedPathSubstitutions(noSentry).length === 0 && plugin.quoteScriptPaths(noSentry) === noSentry);
+  ok('…the withXcodeProject pass and the project-file pass agree on it',
+    plugin.singleQuoteReactNativeXcodeArg(plugin.quoteBacktickSubstitutions(TEMPLATE)) === noSentry
+    && JSON.parse((plugin.quoteProjectShellScripts(`\t\t\tshellScript = ${JSON.stringify(TEMPLATE)};`).match(/shellScript = (".*");/) ?? [])[1] ?? '""') === noSentry);
+  // Run it. A stand-in for node prints a path inside a folder with a space; the script there says it ran.
+  const dir = join(mkdtempSync(join(tmpdir(), 'mage space path ')), 'MAGE ID - CLAUDE', 'scripts');
+  execFileSync('/bin/mkdir', ['-p', dir]);
+  const mark = (name: string) => `#!/bin/sh\necho "ran ${name} with $# argument(s)"\n[ $# -eq 0 ] || /bin/sh -c "$1"\n`;
+  for (const name of ['react-native-xcode.sh', 'sentry-xcode.sh']) writeFileSync(join(dir, name), mark(name), { mode: 0o755 });
+  // The stand-in: `fake-node --print "<expression>"` prints the folder plus the script the expression names.
+  const fakeNode = join(dir, 'fake node');
+  writeFileSync(fakeNode, `#!/bin/sh\ncase "$2" in\n  *sentry-xcode.sh*) echo "${dir}/sentry-xcode.sh" ;;\n  *) echo "${dir}/react-native-xcode.sh" ;;\nesac\n`, { mode: 0o755 });
+  const run = (line: string): { out: string; okExit: boolean } => {
+    try { return { out: String(execFileSync('/bin/sh', ['-c', line], { env: { ...process.env, PATH: '/usr/bin:/bin', NODE_BINARY: fakeNode }, stdio: ['ignore', 'pipe', 'pipe'] })), okExit: true }; }
+    catch (e) { return { out: String((e as { stderr?: unknown }).stderr ?? e), okExit: false }; }
+  };
+  const ranPlain = run(noSentry);
+  ok('RUN from a folder with a space: the no-Sentry line is a command the shell finds, and it runs react-native-xcode.sh',
+    ranPlain.okExit && ranPlain.out.trim() === 'ran react-native-xcode.sh with 0 argument(s)', ranPlain.out.trim().slice(0, 300));
+  const withSentry = plugin.quoteScriptPaths(
+    `/bin/sh \`"$NODE_BINARY" --print "a + '/scripts/sentry-xcode.sh'"\` \`"$NODE_BINARY" --print "b + '/scripts/react-native-xcode.sh'"\`\n`) as string;
+  const ranSentry = run(withSentry);
+  ok('RUN from a folder with a space: the Sentry line runs sentry-xcode.sh, and its `sh -c` re-parse still finds react-native-xcode.sh',
+    ranSentry.okExit && ranSentry.out.trim() === 'ran sentry-xcode.sh with 1 argument(s)\nran react-native-xcode.sh with 0 argument(s)', ranSentry.out.trim().slice(0, 300));
+  // PLANTED: the old behaviour (single quotes whether or not Sentry is in front). The run must fail.
+  const old = noSentry.replace(/^"(\$\(.*\))"$/m, `"'$1'"`);
+  const ranOld = run(old);
+  ok('planted: single-quoting the no-Sentry path (the old behaviour) is not a command, and the run check goes red',
+    old !== noSentry && old.startsWith(`"'$(`) && !ranOld.okExit, `exit ok: ${ranOld.okExit}; ${ranOld.out.trim().slice(0, 200)}`);
+  // PLANTED: the template's own bare backticks, from the same folder: word-split at the space.
+  ok('planted: the template line as written, unquoted, dies at the space', !run(TEMPLATE).okExit);
+  // PLANTED the other way: without the single quotes, the Sentry line's second parse loses the path at the space.
+  const ranBare = run(withSentry.replace(`"'$(`, '"$(').replace(`)'"`, ')"'));
+  ok('planted: the Sentry line with no single quotes round its argument dies in the `sh -c` re-parse',
+    !ranBare.okExit || !ranBare.out.includes('ran react-native-xcode.sh'), ranBare.out.trim().slice(0, 200));
+}
+
 // ── app.json wiring ──────────────────────────────────────────────────────────
 const appJson = JSON.parse(readFileSync(join(ROOT, 'app.json'), 'utf8'));
 const plugins: unknown[] = appJson.expo?.plugins ?? [];

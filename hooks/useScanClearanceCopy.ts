@@ -22,7 +22,8 @@
 //
 // THE FIGURES. The number in a figure sentence comes from the table
 // (utils/roomScan/clearanceRefs) as {value}; no figure is typed into a string
-// here. The `called` and `family` fragments below are the table's own English,
+// here. A 'words_only' row of the table is only ever MENTIONED, in a note built
+// by `mention` below: no distance is set beside it. The `called` and `family` fragments below are the table's own English,
 // pinned equal by the validator.
 //
 // Never call t() at module scope: the object is rebuilt when the language
@@ -61,7 +62,8 @@ export interface ScanClearanceCopy {
   measuresHeadingLabel: string;
   measureLabel: (m: ClearanceMeasure, counts: { toilets: number; sinks: number; doors: number; windows: number }) => string;
   valueText: (m: ClearanceMeasure) => string;
-  measureNote: (m: ClearanceMeasure) => string | null;
+  /** Every sentence that sits under one row, in order. */
+  measureNotes: (m: ClearanceMeasure) => string[];
   figureBody: (refId: ClearanceRefId) => string;
   figureLocalBody: string;
   rowA11yLabel: (label: string, value: string, state: string) => string;
@@ -88,11 +90,14 @@ export function useScanClearanceCopy(): ScanClearanceCopy {
         case 'toilet_front_21':
         case 'toilet_front_24': return t('office.scanClearance.called.toiletFrontText', 'clear space in front of a toilet');
         case 'sink_front_21': return t('office.scanClearance.called.sinkFrontText', 'clear space in front of a bathroom sink');
-        case 'door_clear_32': return t('office.scanClearance.called.doorClearText', 'clear width of a doorway with the door open');
+        case 'toilet_spacing_30': return t('office.scanClearance.called.spacingText', 'center to center between two fixtures side by side');
+        case 'door_clear_32': return t('office.scanClearance.called.doorClearText', 'clear width of the main exit door of a home with the door open');
         case 'passage_36': return t('office.scanClearance.called.passageText', 'width of a hallway');
         case 'ceiling_84':
+        case 'ceiling_90':
         case 'ceiling_96': return t('office.scanClearance.called.ceilingText', 'ceiling height in a room people live in');
-        case 'ceiling_bath_80': return t('office.scanClearance.called.ceilingBathText', 'ceiling height in a bathroom');
+        case 'ceiling_bath_80':
+        case 'ceiling_bath_84_nyc': return t('office.scanClearance.called.ceilingBathText', 'ceiling height in a bathroom');
         case 'escape_area_5_7': return t('office.scanClearance.called.escapeAreaText', 'net clear area of an emergency escape opening');
         case 'escape_height_24': return t('office.scanClearance.called.escapeHeightText', 'net clear height of an emergency escape opening');
         case 'escape_width_20': return t('office.scanClearance.called.escapeWidthText', 'net clear width of an emergency escape opening');
@@ -103,9 +108,10 @@ export function useScanClearanceCopy(): ScanClearanceCopy {
       switch (f) {
         case 'residential_model': return t('office.scanClearance.family.residentialModelText', 'the model residential code');
         case 'residential_and_plumbing_model': return t('office.scanClearance.family.residentialAndPlumbingModelText', 'the model residential code and the model plumbing code');
-        case 'other_plumbing': return t('office.scanClearance.family.otherPlumbingText', 'some plumbing codes');
+        case 'other_plumbing': return t('office.scanClearance.family.otherPlumbingText', 'a different family of plumbing code than the one New York and Maryland use');
         case 'building_model': return t('office.scanClearance.family.buildingModelText', 'the model building code');
-        default: return t('office.scanClearance.family.someCityText', 'some city codes');
+        case 'several_homes': return t('office.scanClearance.family.severalHomesText', 'codes for buildings with several homes');
+        default: return t('office.scanClearance.family.nycCitedText', 'what is commonly cited for New York City, which this app has not confirmed');
       }
     };
     const thing = (to: ClearanceToward | null): string => {
@@ -120,6 +126,11 @@ export function useScanClearanceCopy(): ScanClearanceCopy {
         case 'stairs': return t('office.scanClearance.thing.stairsLabel', 'The Stairs');
         default: return other;
       }
+    };
+    // A 'words_only' figure, mentioned in a sentence. The number is the table's.
+    const mention = (refId: ClearanceRefId): { value: string; called: string; family: string } => {
+      const r = clearanceRef(refId);
+      return { value: figureValue(refId), called: called(refId), family: family(r.family) };
     };
     const numbered = (one: string, many: (n: number) => string, index: number, count: number): string => (count > 1 ? many(index) : one);
     const stateLabel: ScanClearanceCopy['stateLabel'] = (s) => {
@@ -142,8 +153,8 @@ export function useScanClearanceCopy(): ScanClearanceCopy {
       statesHeadingLabel: t('office.scanClearance.statesHeadingLabel', 'What The Labels Mean'),
       stateLabel,
       stateMeaningBody: (s) => {
-        if (s === 'roomy') return t('office.scanClearance.state.roomyBody', 'Further from the commonly used figure than the margin, as scanned.');
-        if (s === 'close') return t('office.scanClearance.state.closeBody', 'Within the margin of the commonly used figure, on either side of it. A door or a window gets this label whenever the size the scan drew is not past the figure by more than the margin.');
+        if (s === 'roomy') return t('office.scanClearance.state.roomyBody', 'Past the commonly used figure by more than the margin, as scanned. Not checked against your local code.');
+        if (s === 'close') return t('office.scanClearance.state.closeBody', 'Within the margin of the commonly used figure, on either side of it. A window gets this label whenever the size the scan drew is not past the figure by more than the margin.');
         return t('office.scanClearance.state.tightBody', 'Short of the commonly used figure by more than the margin, as scanned.');
       },
       noStateSub: t('office.scanClearance.noStateSub', 'Not checked against anything'),
@@ -181,17 +192,37 @@ export function useScanClearanceCopy(): ScanClearanceCopy {
         }
       },
       valueText: (m) => (m.unit === 'area' ? formatSqFt(sqMetresToSqFeet(m.value)) : formatFeetInches(m.value)),
-      measureNote: (m) => {
+      measureNotes: (m) => {
+        const fixture = t('office.scanClearance.note.fixtureNote', 'Where a fixture sits comes from the scan, even beside a wall you taped.');
+        const swing = t('office.scanClearance.note.doorSwingNote', 'A door swinging into this space is not counted.');
         switch (m.kind) {
-          case 'toilet_side':
-          case 'toilet_front':
-          case 'sink_front': return t('office.scanClearance.note.fixtureNote', 'Where a fixture sits comes from the scan, even beside a wall you taped.');
-          case 'door_width': return t('office.scanClearance.note.doorNote', 'The scan gives one width for a door and cannot tell the door from its frame opening. The clear width with the door open is less than this, so tape it with the door open.');
-          case 'passage_width': return m.figures.length
+          case 'toilet_side': return [
+            fixture,
+            t('office.scanClearance.note.sideNote', 'This is the shortest distance from the center line to anything beside the toilet, anywhere along its depth.'),
+            t('office.scanClearance.note.spacingNote', 'A commonly used figure for {called} is {value}, from {family}. This check does not measure that.', mention('toilet_spacing_30')),
+          ];
+          case 'toilet_front': return [
+            fixture, swing,
+            t('office.scanClearance.note.frontOtherNote', 'Some places use {value} for {called}. That figure is from {family}.', mention('toilet_front_24')),
+          ];
+          case 'sink_front': return [
+            fixture, swing,
+            ...(m.frontFrom === 'cabinet' ? [t('office.scanClearance.note.cabinetFrontNote', 'The sink sits in a cabinet, so this is measured from the front of the cabinet.')] : []),
+          ];
+          case 'door_width': return [
+            t('office.scanClearance.note.doorNote', 'The scan gives one width for a door and cannot tell the door from its frame opening. The clear width with the door open is less than this, so tape it with the door open.'),
+            t('office.scanClearance.note.doorExitNote', 'A commonly used figure for the {called} is {value}, from {family}. A scan cannot tell which door that is, so no door gets a label here.', mention('door_clear_32')),
+          ];
+          case 'passage_width': return [m.figures.length
             ? t('office.scanClearance.note.passageNote', 'Between walls only. Furniture and anything standing in the way is not counted.')
-            : t('office.scanClearance.note.passagePlainNote', 'This room is not shaped like a hallway, so its width is not set beside the hallway figure.');
-          case 'ceiling_low': return null;
-          default: return t('office.scanClearance.note.windowNote', 'An emergency escape opening is judged on its net clear opening with the sash open. A scan cannot see that, so a window here is only ever worth a closer look.');
+            : t('office.scanClearance.note.passagePlainNote', 'This room is not shaped like a hallway, so its width is not set beside the hallway figure.')];
+          case 'ceiling_low': return m.figures.some((f) => f.refId === 'ceiling_84')
+            ? [t('office.scanClearance.note.ceilingSeveralHomesNote', 'A commonly used figure for {called} is {value}, from {family}. This check does not set the ceiling beside it.', mention('ceiling_90'))]
+            : [];
+          default: return [
+            t('office.scanClearance.note.windowNote', 'An emergency escape opening is judged on its net clear opening with the sash open. A scan cannot see that, so a window here is only ever worth a closer look.'),
+            t('office.scanClearance.note.windowStricterNote', 'This row never clears a window. New York City commonly asks for more than these figures.'),
+          ];
         }
       },
       figureBody: (refId) => t('office.scanClearance.figureBody', '{value}: {called}. From {family}.', { value: figureValue(refId), called: called(refId), family: family(clearanceRef(refId).family) }),
@@ -205,6 +236,8 @@ export function useScanClearanceCopy(): ScanClearanceCopy {
             : t('office.scanClearance.leftOut.stairsBody', 'Stairs are not measured. A scan does not carry risers or treads.');
           case 'tub_opening': return t('office.scanClearance.leftOut.tubBody', 'The scan gives a tub as a box, not an opening, so the way into a tub or shower is not measured.');
           case 'door_clear': return t('office.scanClearance.leftOut.doorBody', 'The clear width of a doorway with the door open is not measured. The scan cannot see it.');
+          case 'fixture_facing': return t('office.scanClearance.leftOut.fixtureFacingBody', 'MAGE cannot tell which way this fixture faces. Tape it.');
+          case 'fixture_overlap': return t('office.scanClearance.leftOut.fixtureOverlapBody', 'The scan drew a toilet or sink across something else, so it is not measured. Tape it.');
           case 'window_net_clear': return t('office.scanClearance.leftOut.windowBody', 'The net clear opening of a window with the sash open is not measured. The scan cannot see it.');
           case 'windows_not_bedroom': return t('office.scanClearance.leftOut.windowsOtherRoomBody', 'Windows are set beside the escape opening figures only in a room marked as a bedroom. Change the room type on the plan if this is one.');
           case 'fixture_free': return t('office.scanClearance.leftOut.fixtureFreeBody', 'A toilet or sink that stands away from every wall is not measured. The scan does not say which way it faces.');

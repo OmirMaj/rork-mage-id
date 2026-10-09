@@ -1,6 +1,7 @@
 // components/roomScan/ClearanceView.tsx — Clearance Check: the distances an
 // inspector commonly looks at, measured off the scan, and which are worth a
-// tape (Scan The Room, lane CLEARANCE; owner preview, the scanner's own gate).
+// tape (Scan The Room, lane CLEARANCE; owner preview, behind its own gate,
+// utils/roomScan/clearanceAllowed).
 //
 // The maths is utils/roomScan/clearanceCore (pure). This file draws what it is
 // handed: the plan, a row for each measurement, and the standing sentences.
@@ -131,7 +132,7 @@ export function ClearanceView({ scan, check, copy, onOpenCodeCheck }: ClearanceV
           const value = copy.valueText(m);
           const stateText = m.state ? copy.stateLabel(m.state) : copy.noStateSub;
           const on = chosenId === m.id;
-          const note = copy.measureNote(m);
+          const notes = copy.measureNotes(m);
           return (
             <Pressable
               key={m.id}
@@ -154,7 +155,7 @@ export function ClearanceView({ scan, check, copy, onOpenCodeCheck }: ClearanceV
                     <Text style={styles.note}>{copy.figureLocalBody}</Text>
                   </View>
                 ))}
-                {note && <Text style={styles.note}>{note}</Text>}
+                {notes.map((note) => <Text key={note} style={styles.note}>{note}</Text>)}
                 <View style={styles.legendRow}>
                   <Ruler size={12} color={colors.textMuted} />
                   <Text style={styles.rowSub} testID={`scan-clearance-basis-${m.id}`}>{m.restsOnTaped ? copy.restsOnTapedSub : copy.fromScanSub}</Text>

@@ -14,6 +14,13 @@
  *   SC4 The one action opens the existing Code Check, and nothing is written.
  *   SC5 Someone the gate refuses gets no door at all.
  *   SC6 No word that reads as a verdict is on the screen.
+ *   SC7 The review round on the screen: a toilet in a corner is not labelled
+ *       and the screen says why; a sink in a vanity is measured from the
+ *       cabinet's front; both rows for the space in front say a door's swing
+ *       is not counted; a door is a plain number.
+ *   SC8 A New York City bathroom at 82.5 in is set beside that city's 7 ft
+ *       line and does not read Roomy; a bedroom anywhere else has no 8 ft
+ *       line, and in New York City it has.
  *
  * The pure rules have their own direct tests with planted mutations in
  * scripts/validate-scan-clearance.ts.
@@ -39,8 +46,10 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockUpdateProject = jest.fn();
+// Where the project is. '' is no address at all; SC8 sets a New York City one and a Baltimore one.
+let mockLocation = '';
 jest.mock('@/contexts/ProjectContext', () => ({
-  useProjects: () => ({ getProject: () => ({ id: 'proj-1', name: 'Maple St', linkedEstimate: null, estimateVersions: [] }), updateProject: mockUpdateProject, settings: { location: '' } }),
+  useProjects: () => ({ getProject: () => ({ id: 'proj-1', name: 'Maple St', location: mockLocation, linkedEstimate: null, estimateVersions: [] }), updateProject: mockUpdateProject, settings: { location: '' } }),
 }));
 jest.mock('@/contexts/MaterialCartContext', () => ({ useMaterialCart: () => ({ globalMarkup: 20, markupDecided: true }) }));
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
@@ -109,7 +118,7 @@ function rowId(tree: ReturnType<typeof render>, starts: string): string {
 }
 
 describe('Scan The Room, Clearance Check', () => {
-  beforeEach(() => { mockPush.mockClear(); mockUpdateProject.mockClear(); mockSaveScan.mockClear(); });
+  beforeEach(() => { mockPush.mockClear(); mockUpdateProject.mockClear(); mockSaveScan.mockClear(); mockLocation = ''; });
   afterEach(async () => { await cleanupAsync(); });
 
   it('SC1 the owner reaches it from the plan, and the tight bathroom reads as worked by hand', async () => {
@@ -124,16 +133,21 @@ describe('Scan The Room, Clearance Check', () => {
     // 52 less 39.5 is 12.5 in, shown to the nearest inch.
     expectRow('Toilet, Center Line To The Sink', '1 ft 1 in', 'Tight, Tape It And Check Your Local Code');
     expectRow('Toilet, Center Line To The Tub', '1 ft 2 in', 'Close, Tape It');
-    const front = expectRow('Toilet, Clear Space In Front, To A Cabinet', '1 ft 10 in', 'Tight, Tape It And Check Your Local Code');
+    // 50 less 28 is 22 in, read against 21 in alone: close. (It read Tight while it was also read against 24 in.)
+    const front = expectRow('Toilet, Clear Space In Front, To A Cabinet', '1 ft 10 in', 'Close, Tape It');
     expectRow('Sink, Clear Space In Front, To Wall', '3 ft 4 in', 'Roomy');
-    expectRow('Door, Width As Scanned', '2 ft 4 in', 'Close, Tape It');
+    // A 28 in bathroom door is ordinary: a plain number, set beside nothing.
+    const door = expectRow('Door, Width As Scanned', '2 ft 4 in', 'Not checked against anything');
+    expect(tree.queryByTestId(`scan-clearance-figure-${door}-door_clear_32`)).toBeNull();
     expectRow('Lowest Ceiling The Scan Saw', '6 ft 9 in', 'Close, Tape It');
-    // The toilet's front is set beside both figures, each with the local sentence.
+    // The toilet's front is set beside the one figure, with the local sentence. The other figure is only mentioned.
     const f21 = textOf(tree.getByTestId(`scan-clearance-figure-${front}-toilet_front_21`) as unknown as Node);
-    const f24 = textOf(tree.getByTestId(`scan-clearance-figure-${front}-toilet_front_24`) as unknown as Node);
     expect(f21).toContain('21 in: clear space in front of a toilet. From the model residential code and the model plumbing code.');
-    expect(f24).toContain('24 in: clear space in front of a toilet. From some plumbing codes.');
-    for (const f of [f21, f24]) expect(f).toContain('A commonly used figure. Your local code may differ.');
+    expect(f21).toContain('A commonly used figure. Your local code may differ.');
+    expect(tree.queryByTestId(`scan-clearance-figure-${front}-toilet_front_24`)).toBeNull();
+    const frontRow = textOf(tree.getByTestId(`scan-clearance-row-${front}`) as unknown as Node);
+    expect(frontRow).toContain('Some places use 24 in for clear space in front of a toilet. That figure is from a different family of plumbing code than the one New York and Maryland use.');
+    expect(frontRow).toContain('A door swinging into this space is not counted.');
     expect(textOf(tree.getByTestId('scan-clearance-margin-body') as unknown as Node)).toBe('The margin is 1.5 in. That is how far off this check takes a scanned distance to be.');
   });
 
@@ -193,6 +207,72 @@ describe('Scan The Room, Clearance Check', () => {
     }
   });
 
+  it('SC7 the review round on the screen: a corner, a vanity, a door swing, a plain door', async () => {
+    // A toilet near a corner is not labelled, and the screen says why.
+    const corner = await openClearance('toilet-corner-swapped');
+    expect(corner.queryAllByTestId(/^scan-clearance-row-toilet/)).toHaveLength(0);
+    expect(textOf(corner.getByTestId('scan-clearance-left-fixture_facing') as unknown as Node)).toBe('MAGE cannot tell which way this fixture faces. Tape it.');
+    await cleanupAsync();
+    // A sink in a vanity: 60 less 22 is 38 in, from the cabinet's front. Not 3 in from the sink's own edge.
+    const vanity = await openClearance('vanity-sink');
+    const sink = rowId(vanity, 'Sink, Clear Space In Front, To Wall');
+    expect(textOf(vanity.getByTestId(`scan-clearance-value-${sink}`) as unknown as Node)).toBe('3 ft 2 in');
+    expect(textOf(vanity.getByTestId(`scan-clearance-state-${sink}`) as unknown as Node)).toBe('Roomy');
+    const sinkRow = textOf(vanity.getByTestId(`scan-clearance-row-${sink}`) as unknown as Node);
+    expect(sinkRow).toContain('The sink sits in a cabinet, so this is measured from the front of the cabinet.');
+    expect(sinkRow).toContain('A door swinging into this space is not counted.');
+    expect(textOf(vanity.getByTestId('scan-clearance-states') as unknown as Node)).toContain('Past the commonly used figure by more than the margin, as scanned. Not checked against your local code.');
+    await cleanupAsync();
+    // A cabinet beside the front half of the bowl: 8 in, not 48.
+    const beside = await openClearance('toilet-side-cabinet');
+    const side = rowId(beside, 'Toilet, Center Line To A Cabinet');
+    expect(textOf(beside.getByTestId(`scan-clearance-value-${side}`) as unknown as Node)).toBe('0 ft 8 in');
+    expect(textOf(beside.getByTestId(`scan-clearance-state-${side}`) as unknown as Node)).toBe('Tight, Tape It And Check Your Local Code');
+    await cleanupAsync();
+    // A door says what the main exit door figure is, in words, and is set beside nothing.
+    const hall = await openClearance('narrow-hall');
+    const door = rowId(hall, 'Door 1, Width As Scanned');
+    expect(textOf(hall.getByTestId(`scan-clearance-state-${door}`) as unknown as Node)).toBe('Not checked against anything');
+    expect(textOf(hall.getByTestId(`scan-clearance-row-${door}`) as unknown as Node)).toContain('A commonly used figure for the clear width of the main exit door of a home with the door open is 32 in, from the model building code. A scan cannot tell which door that is, so no door gets a label here.');
+  });
+
+  it('SC8 New York City gets its two ceiling lines, and nowhere else does', async () => {
+    const ceiling = async (file: string, location: string) => {
+      mockLocation = location;
+      const tree = await openClearance(file);
+      const id = rowId(tree, 'Lowest Ceiling The Scan Saw');
+      const out = {
+        state: textOf(tree.getByTestId(`scan-clearance-state-${id}`) as unknown as Node),
+        row: textOf(tree.getByTestId(`scan-clearance-row-${id}`) as unknown as Node),
+        nycBath: tree.queryByTestId(`scan-clearance-figure-${id}-ceiling_bath_84_nyc`) !== null,
+        nycRoom: tree.queryByTestId(`scan-clearance-figure-${id}-ceiling_96`) !== null,
+      };
+      await cleanupAsync();
+      return out;
+    };
+    // A bathroom at 82.5 in. Anywhere else it is past 6 ft 8 in by more than the margin. In New York City it is not Roomy.
+    const bathMd = await ceiling('bath-ceiling-82', 'Baltimore, MD 21201');
+    expect(bathMd.state).toBe('Roomy');
+    expect(bathMd.nycBath).toBe(false);
+    const bathNy = await ceiling('bath-ceiling-82', 'Brooklyn, NY 11201');
+    expect(bathNy.state).toBe('Close, Tape It');
+    expect(bathNy.nycBath).toBe(true);
+    expect(bathNy.row).toContain('7 ft 0 in: ceiling height in a bathroom. From what is commonly cited for New York City, which this app has not confirmed.');
+    expect(bathNy.row).toContain('A commonly used figure. Your local code may differ.');
+    // A bedroom at 96 in. Baltimore: no 8 ft line. New York City: that city's line, and on it.
+    const bedMd = await ceiling('bedroom-96', 'Baltimore, MD 21201');
+    expect(bedMd.state).toBe('Roomy');
+    expect(bedMd.nycRoom).toBe(false);
+    expect(bedMd.row).not.toContain('8 ft 0 in: ceiling height');
+    expect(bedMd.row).toContain('A commonly used figure for ceiling height in a room people live in is 7 ft 6 in, from codes for buildings with several homes. This check does not set the ceiling beside it.');
+    const bedNy = await ceiling('bedroom-96', 'Brooklyn, NY 11201');
+    expect(bedNy.state).toBe('Close, Tape It');
+    expect(bedNy.nycRoom).toBe(true);
+    // No address at all is not New York City.
+    const bedNone = await ceiling('bedroom-96', '');
+    expect(bedNone.nycRoom).toBe(false);
+  });
+
   it('SC6 a bedroom window is only ever worth a closer look, and no verdict word is on any screen', async () => {
     const tree = await openClearance('bedroom-window');
     const area = rowId(tree, 'Window, Opening Area As Scanned');
@@ -202,6 +282,7 @@ describe('Scan The Room, Clearance Check', () => {
     expect(textOf(tree.getByTestId(`scan-clearance-state-${width}`) as unknown as Node)).toBe('Not checked against anything');
     const all = textOf(tree.getByTestId('scan-clearance') as unknown as Node);
     expect(all).toContain('with the sash open');
+    expect(all).toContain('This row never clears a window. New York City commonly asks for more than these figures.');
     expect(all).not.toMatch(/\b(pass|passes|passed|fail|fails|failed|compliant|legal|illegal|approved|violation|required|meets code|looks clear)\b/i);
     expect(all).not.toMatch(/§/);
   });

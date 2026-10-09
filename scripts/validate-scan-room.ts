@@ -163,7 +163,7 @@ const FEATURE_FILES = [
   'utils/roomScan/learnCore.ts', 'utils/roomScan/learnStore.ts', 'utils/roomScan/orderPricingCore.ts',
   // Clearance Check (lane CLEARANCE; its own rules are in scripts/validate-scan-clearance.ts).
   'components/roomScan/ClearanceView.tsx', 'hooks/useScanClearanceCopy.ts',
-  'utils/roomScan/clearanceCore.ts', 'utils/roomScan/clearanceRefs.ts',
+  'utils/roomScan/clearanceCore.ts', 'utils/roomScan/clearanceRefs.ts', 'utils/roomScan/clearanceAllowed.ts', 'utils/roomScan/clearancePlace.ts',
 ] as const;
 const SWIFT_FILES = ['RoomScanTypes.swift', 'MageRoomScanModule.swift', 'RoomScanSupport.swift'] as const;
 const OTHER_FILES = [

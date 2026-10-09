@@ -57,8 +57,10 @@
 // CLEARANCE CHECK (lane CLEARANCE) is a step reached from the plan: the
 // distances an inspector commonly looks at, measured off the scan and set
 // beside commonly used figures (utils/roomScan/clearanceCore). It is drawn
-// only for someone the scanner's own gate lets in (utils/roomScan/allowed),
-// asked again here with the signed-in email. It writes nothing, sends nothing,
+// only for someone its OWN gate lets in (utils/roomScan/clearanceAllowed: the
+// owner, or anyone once its own switch is on and a named professional has read
+// its table), asked here with the signed-in email. The scanner's switch alone
+// shows it to nobody. It writes nothing, sends nothing,
 // and no state it shows is read by anything else in this file: its one action
 // opens the existing Code Check.
 //
@@ -88,11 +90,12 @@ import { formatCalendarDay, calendarDayOf, todayCalendarDay } from '@/utils/cale
 import { formatTimeL } from '@/i18n/format';
 import { generateUUID } from '@/utils/generateId';
 import type { MarkupPct } from '@/utils/estimateMarkup';
-import { scanRoomAllowed } from '@/utils/roomScan/allowed';
+import { clearanceCheckAllowed } from '@/utils/roomScan/clearanceAllowed';
 import { roomScanAvailability, type RoomScanAvailability } from '@/utils/roomScan/availability';
 import { parseCapturedRoom, type ParsedRoom } from '@/utils/roomScan/capturedRoomParser';
 import { makeCatalogRater } from '@/utils/roomScan/catalogRate';
 import { buildClearanceCheck } from '@/utils/roomScan/clearanceCore';
+import { clearanceInNyc } from '@/utils/roomScan/clearancePlace';
 import { correctCeilingHeight, correctOpening, correctWallLength, renameScan } from '@/utils/roomScan/editsCore';
 import { buildRoomScan } from '@/utils/roomScan/geometryCore';
 import { longWallSuggestion, tapeFacts, tapePairFromEdit, upsertTapePairs, type TapePair } from '@/utils/roomScan/learnCore';
@@ -158,13 +161,15 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
   const copy = useRoomScanCopy();
   const ocopy = useScanOrderCopy();
   const ccopy = useScanClearanceCopy();
-  // Clearance Check is for whoever the scanner's gate lets in: the owner while the flag is off.
-  const clearanceOn = scanRoomAllowed(userEmail);
+  // Clearance Check has its own gate: the owner always, anyone else only once its own switch is on and a named professional has read its table.
+  const clearanceOn = clearanceCheckAllowed(userEmail);
   const { lang } = useT();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { getProject, updateProject, settings } = useProjects();
   const project = getProject(projectId) ?? null;
+  // New York City or not, from the app's one resolver. Clearance Check shows that city's two ceiling lines there and nowhere else.
+  const clearanceNyc = useMemo(() => clearanceInNyc(project), [project]);
   // The newest getProject, for reading the project back after a write (a
   // callback keeps the one from the render it was made in).
   const getProjectRef = useRef(getProject);
@@ -261,7 +266,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
   const tapePairs = useMemo(() => upsertTapePairs(tapeLog, saved?.tapePairs ?? []), [tapeLog, saved]);
   const tape = useMemo(() => tapeFacts(tapePairs), [tapePairs]);
   // Clearance Check: worked out again whenever the scan or his tape history changes. Nothing reads it but its own screen.
-  const clearance = useMemo(() => (scan && clearanceOn ? buildClearanceCheck(scan, tapePairs) : null), [scan, clearanceOn, tapePairs]);
+  const clearance = useMemo(() => (scan && clearanceOn ? buildClearanceCheck(scan, tapePairs, { nyc: clearanceNyc }) : null), [scan, clearanceOn, tapePairs, clearanceNyc]);
   // The same phone model as the scan in hand, when he has taped enough long walls with it (learnCore).
   const suggestion = useMemo(() => longWallSuggestion(tapePairs, scan?.device?.model ?? ''), [tapePairs, scan]);
   // What a second send of this list to the estimate would remove and what it would leave alone.
