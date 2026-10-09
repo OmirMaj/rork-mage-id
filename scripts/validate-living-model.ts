@@ -525,6 +525,10 @@ rule('D2', 'only the Confirm Suggested button applies suggestions, and nothing b
 
 // E. the 3D library
 const THREE_SPEC = /['"]three(?:\/[^'"]*)?['"]/;
+/** The one file the phone reaches its 3D engine through (lane PHONE3D; scripts/validate-phone-3d.ts holds the rest of its rules). */
+const PHONE_ENGINE = 'components/livingModel/phone3d/engine.ts';
+/** The simulator check: the one file outside the feature that may draw the model, and only in a Mac-made build (see rule G5). */
+const PHONE_SPIKE = 'app/dev-phone-3d.tsx';
 rule('E1', 'no file imports the 3D library with a static import or a require', (w) => {
   const out: string[] = [];
   for (const [f, src] of Object.entries(w.files)) {
@@ -538,7 +542,7 @@ rule('E1', 'no file imports the 3D library with a static import or a require', (
   return out;
 });
 
-rule('E2', 'the 3D library is loaded by ONE dynamic import, in the web-only view, behind Platform.OS === \'web\'', (w) => {
+rule('E2', 'the 3D library is loaded by ONE dynamic import per platform: the web view behind Platform.OS === \'web\', and the phone\'s engine file behind its optional lookup', (w) => {
   const out: string[] = [];
   const hits: string[] = [];
   for (const [f, src] of Object.entries(w.files)) {
@@ -548,7 +552,8 @@ rule('E2', 'the 3D library is loaded by ONE dynamic import, in the web-only view
     const typeOnly = code.match(/typeof\s+import\s*\(\s*['"]three['"]\s*\)/g) ?? [];
     for (let i = 0; i < all.length - typeOnly.length; i++) hits.push(f);
   }
-  if (hits.join() !== 'components/livingModel/JobReplay3D.web.tsx') out.push(`the library is loaded from ${hits.join(', ') || 'nowhere'}; want once, from JobReplay3D.web.tsx`);
+  const WANT = ['components/livingModel/JobReplay3D.web.tsx', PHONE_ENGINE];
+  if (hits.slice().sort().join() !== WANT.slice().sort().join()) out.push(`the library is loaded from ${hits.join(', ') || 'nowhere'}; want once from JobReplay3D.web.tsx and once from ${PHONE_ENGINE}`);
   const web = w.files['components/livingModel/JobReplay3D.web.tsx'] ?? '';
   const fn = /function loadThree\(\)[^{]*\{([\s\S]*?)\n\}/.exec(web);
   if (!fn) out.push('loadThree is missing');
@@ -560,18 +565,40 @@ rule('E2', 'the 3D library is loaded by ONE dynamic import, in the web-only view
   const eff = web.indexOf('useEffect(');
   if (eff < 0 || web.indexOf('loadThree()', eff) < 0) out.push('the library is not loaded from an effect when the view opens');
   if (/^(?:const|let|var)\s[^\n]*loadThree\(\)|^void loadThree\(\)|^loadThree\(\)/m.test(web)) out.push('the library is loaded at module scope');
+  // The phone: the import sits inside loadPhone3DEngine, after the build has answered that it has the engine, inside a try.
+  const engine = code(w.files[PHONE_ENGINE] ?? '');
+  const pf = /export function loadPhone3DEngine\(\)[^{]*\{([\s\S]*?)\n\}/.exec(engine);
+  if (!pf) out.push('loadPhone3DEngine is missing');
+  else {
+    const guard = pf[1].indexOf('if (!phone3DEngineInBuild()) return Promise.resolve(null);');
+    const tryAt = pf[1].indexOf('try {');
+    const load = pf[1].search(/import\(\s*'three'\s*\)/);
+    if (guard < 0 || tryAt < 0 || load < 0 || !(guard < tryAt && tryAt < load)) out.push('the phone reads the library without first asking whether the build has the engine, or outside a try');
+    if (!/\} catch \{\s*return null;\s*\}/.test(pf[1])) out.push('a failed read on the phone is not answered with null');
+  }
+  for (const [f, src] of Object.entries(w.files)) {
+    if (/^(?:export\s+)?(?:const|let|var)\s[^\n]*loadPhone3DEngine\(\)|^void loadPhone3DEngine\(\)|^loadPhone3DEngine\(\)/m.test(src)) out.push(`${f} reads the phone's engine at module scope`);
+  }
   return out;
 });
 
-rule('E3', 'the phone\'s file for the 3D view draws nothing and reaches no 3D code; the scene builder has one importer', (w) => {
+rule('E3', 'the phone\'s file for the 3D view reaches 3D code only through its engine file, and still draws the flat replay; the scene builder has one static importer and one lazy one', (w) => {
   const out: string[] = [];
-  const phone = w.files['components/livingModel/JobReplay3D.tsx'] ?? '';
-  if (!phone) return ['components/livingModel/JobReplay3D.tsx is missing: the phone would bundle the web view'];
-  if (/threeScene|sceneCore|import\s*\(/.test(phone.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n'))) out.push('the phone file reaches 3D code');
-  if (!/JOB_REPLAY_3D_ON_THIS_PLATFORM = false/.test(phone) || !/return null;/.test(phone)) out.push('the phone file does not say it draws nothing');
+  const phoneRaw = w.files['components/livingModel/JobReplay3D.tsx'] ?? '';
+  if (!phoneRaw) return ['components/livingModel/JobReplay3D.tsx is missing: the phone would bundle the web view'];
+  const phone = code(phoneRaw);
+  if (/threeScene|sceneCore|import\s*\(|\brequire\s*\(|['"]expo-gl['"]|['"]three['"]/.test(phone)) out.push('the phone file reaches 3D code itself instead of through phone3d/engine');
+  if (!/from '\.\/phone3d\/engine';/.test(phone) || !/useState<Mode>\(\(\) => \(phone3DEngineInBuild\(\) \? 'loading' : 'no_engine'\)\)/.test(phone)) out.push('the phone file does not ask its engine file, from inside the component, whether this build can draw');
+  if (!/export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;/.test(phone)) out.push('the phone file does not say it has a 3D view to try');
+  if (!/import \{ FlatReplay \} from '\.\/FlatReplay';/.test(phone) || !/<FlatReplay model=\{model\} level=\{level\} moments=\{moments\} selectedId=\{selectedId\} onSelect=\{onSelect\} \/>/.test(phone)) out.push('the phone file no longer draws the flat replay when it cannot draw in 3D');
   if (!/JOB_REPLAY_3D_ON_THIS_PLATFORM = true/.test(w.files['components/livingModel/JobReplay3D.web.tsx'] ?? '')) out.push('the web file does not say it draws');
-  const importers = Object.keys(w.files).filter((f) => /from ['"](\.\/|@\/components\/livingModel\/)threeScene['"]/.test(w.files[f]));
-  if (importers.join() !== 'components/livingModel/JobReplay3D.web.tsx') out.push(`threeScene is imported by ${importers.join(', ') || 'nobody'}; want only the web view`);
+  const SCENE_FROM = /from ['"](?:\.\.?\/|@\/components\/livingModel\/)threeScene['"]/;
+  const valueImporters = Object.keys(w.files).filter((f) => code(w.files[f]).split('\n').some((l) => SCENE_FROM.test(l) && !/^\s*import type\b/.test(l)));
+  if (valueImporters.join() !== 'components/livingModel/JobReplay3D.web.tsx') out.push(`threeScene is imported at module scope by ${valueImporters.join(', ') || 'nobody'}; want only the web view`);
+  const typeImporters = Object.keys(w.files).filter((f) => code(w.files[f]).split('\n').some((l) => SCENE_FROM.test(l) && /^\s*import type\b/.test(l)));
+  for (const f of typeImporters) if (!f.startsWith('components/livingModel/phone3d/')) out.push(`${f} names the scene builder's types: only the phone's 3D files may`);
+  const lazy = Object.keys(w.files).filter((f) => /import\s*\(\s*['"][^'"]*threeScene['"]\s*\)/.test(code(w.files[f])));
+  if (lazy.join() !== PHONE_ENGINE) out.push(`threeScene is read lazily by ${lazy.join(', ') || 'nobody'}; want only ${PHONE_ENGINE}`);
   for (const [f, src] of Object.entries(w.files)) {
     if (/JobReplay3D\.web['"]/.test(src)) out.push(`${f} imports the web file by its full name, so the phone would bundle it`);
   }
@@ -580,7 +607,7 @@ rule('E3', 'the phone\'s file for the 3D view draws nothing and reaches no 3D co
   return out;
 });
 
-rule('E4', '`three` is pinned to one version, and its licence is MIT', (w) => {
+rule('E4', '`three` is pinned to one version, its licence is MIT, expo-gl is at the SDK\'s range, and no other 3D dependency is added', (w) => {
   const out: string[] = [];
   const v = w.pkg.dependencies.three;
   if (!v) out.push('three is not a dependency');
@@ -592,8 +619,13 @@ rule('E4', '`three` is pinned to one version, and its licence is MIT', (w) => {
     if (meta.license !== 'MIT') out.push(`three's licence reads "${meta.license}"`);
     if (v && meta.version !== v) out.push(`three ${meta.version} is installed; package.json pins ${v}`);
   }
-  for (const banned of ['@react-three/fiber', '@react-three/drei', 'expo-gl', 'expo-three', '@types/three', 'react-native-webview', '@shopify/react-native-skia']) {
-    if (banned in w.pkg.dependencies) out.push(`${banned} was added: three is the only new dependency this phase allows`);
+  // The phone draws the same scene through expo-gl (lane PHONE3D), at the range this Expo SDK ships.
+  const gl = w.pkg.dependencies['expo-gl'];
+  const sdk = (JSON.parse(readFileSync(join(ROOT, 'node_modules', 'expo', 'bundledNativeModules.json'), 'utf8')) as Record<string, string>)['expo-gl'];
+  if (!gl) out.push('expo-gl is not a dependency: the phone has no surface to draw the 3D view on');
+  else if (gl !== sdk) out.push(`expo-gl is "${gl}"; this Expo SDK ships "${sdk}"`);
+  for (const banned of ['@react-three/fiber', '@react-three/drei', 'expo-three', '@types/three', 'react-native-webview', '@shopify/react-native-skia']) {
+    if (banned in w.pkg.dependencies) out.push(`${banned} was added: three and expo-gl are the only 3D dependencies allowed`);
   }
   return out;
 });
@@ -767,8 +799,17 @@ rule('G5', 'one row leads here, on the project page, and it draws nothing for an
   if (users.join() !== 'app/project-detail.tsx') out.push(`the row is drawn by ${users.join(', ') || 'nobody'}; want only the project page`);
   for (const f of ['app/(tabs)/_layout.tsx', 'components/DesktopSidebar.tsx']) if (/living-model|LivingModel/.test(w.files[f] ?? '')) out.push(`${f} mentions the Living Model: it must not be in the tabs or the sidebar`);
   const outside = Object.keys(w.files).filter((f) => !f.startsWith('components/livingModel/') && !f.startsWith('utils/livingModel/') && f !== 'app/living-model.tsx' && f !== 'app/project-detail.tsx' && f !== 'hooks/useLivingModelCopy.ts'
-    && /from ['"]@\/(components|utils)\/livingModel\//.test(w.files[f]));
+    && f !== PHONE_SPIKE && /from ['"]@\/(components|utils)\/livingModel\//.test(w.files[f]));
   if (outside.length) out.push(`files outside the feature import it: ${outside.join(', ')}`);
+  // The one other importer is the simulator check (lane PHONE3D). It may draw the model only in a bundle made with
+  // the variable set in the builder's own shell; in every other bundle it sends everyone Home before any hook.
+  const spike = code(w.files[PHONE_SPIKE] ?? '');
+  if (spike) {
+    if (!/export const PHONE3D_SPIKE_ON = process\.env\.EXPO_PUBLIC_PHONE3D_SPIKE === '1';/.test(spike)) out.push(`${PHONE_SPIKE} is not switched by the builder's own variable`);
+    const route = /export default function DevPhone3DRoute\(\) \{([\s\S]*?)\n\}/.exec(spike);
+    if (!route || !/^\s*if \(!PHONE3D_SPIKE_ON\) return <Redirect href="\/\(tabs\)\/\(home\)" \/>;\s*return <Spike \/>;\s*$/.test(route[1])) out.push(`${PHONE_SPIKE} does not send everyone Home, before anything else, when the variable is not set`);
+    if (/loadJobModel|saveJobModel|useAuth|useProjects|supabase/.test(spike)) out.push(`${PHONE_SPIKE} reads an account or a saved model: it may only draw its built-in sample`);
+  }
   return out;
 });
 
@@ -997,6 +1038,21 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E2', name: 'the platform guard is removed', plant: edit('components/livingModel/JobReplay3D.web.tsx', "  if (Platform.OS !== 'web') return Promise.reject(new Error('The 3D view is on the web only.'));\n", '') },
   { rule: 'E2', name: 'a second dynamic import on the phone screen', plant: edit('components/livingModel/LivingModelScreen.tsx', "type Tab = 'rooms' | 'tasks' | 'replay';", "export const preload = () => import('three');\ntype Tab = 'rooms' | 'tasks' | 'replay';") },
   { rule: 'E2', name: 'the library is loaded at module scope', plant: edit('components/livingModel/JobReplay3D.web.tsx', 'export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;', 'export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;\nvoid loadThree();') },
+  { rule: 'E2', name: 'the phone reads the library without asking whether the build has the engine', plant: edit(PHONE_ENGINE, "  if (!phone3DEngineInBuild()) return Promise.resolve(null);\n", '') },
+  { rule: 'E2', name: 'the phone reads the library outside a try', plant: edit(PHONE_ENGINE, "    try {\n      const [gl, THREE, scene] = await Promise.all([import('expo-gl'), import('three'), import('../threeScene')]);", "    const [gl, THREE, scene] = await Promise.all([import('expo-gl'), import('three'), import('../threeScene')]);\n    try {") },
+  { rule: 'E2', name: 'a second dynamic import in the phone view', plant: edit('components/livingModel/phone3d/Phone3DView.tsx', "const touchesOf = ", "export const preload = () => import('three');\nconst touchesOf = ") },
+  { rule: 'E2', name: 'the phone engine is read at module scope', plant: edit('components/livingModel/JobReplay3D.tsx', "type Mode = ", "void loadPhone3DEngine();\ntype Mode = ") },
+  { rule: 'E3', name: 'the phone file imports the drawing surface itself', plant: edit('components/livingModel/JobReplay3D.tsx', "import type { JobReplay3DProps } from './jobReplay3DProps';", "import type { JobReplay3DProps } from './jobReplay3DProps';\nimport { GLView } from 'expo-gl';\nexport const Surface = GLView;") },
+  { rule: 'E3', name: 'the phone file asks for the engine at module scope', plant: edit('components/livingModel/JobReplay3D.tsx', "useState<Mode>(() => (phone3DEngineInBuild() ? 'loading' : 'no_engine'))", "useState<Mode>(HAS ? 'loading' : 'no_engine')") },
+  { rule: 'E3', name: 'the phone file no longer draws the flat replay', plant: edit('components/livingModel/JobReplay3D.tsx', "      <FlatReplay model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} />\n", '') },
+  { rule: 'E3', name: 'the phone view builds the scene at module scope', plant: edit('components/livingModel/phone3d/Phone3DView.tsx', "import type { RoomLook } from '../threeScene';", "import { createJobScene, type RoomLook } from '../threeScene';\nexport const make = createJobScene;") },
+  { rule: 'E3', name: 'a second lazy reader of the scene builder', plant: edit('components/livingModel/LivingModelScreen.tsx', "type Tab = 'rooms' | 'tasks' | 'replay';", "export const warm = () => import('./threeScene');\ntype Tab = 'rooms' | 'tasks' | 'replay';") },
+  { rule: 'G5', name: 'the simulator check draws for everyone', plant: edit(PHONE_SPIKE, "  if (!PHONE3D_SPIKE_ON) return <Redirect href=\"/(tabs)/(home)\" />;\n", '') },
+  { rule: 'G5', name: 'the simulator check is switched on in every build', plant: edit(PHONE_SPIKE, "process.env.EXPO_PUBLIC_PHONE3D_SPIKE === '1'", "true") },
+  { rule: 'G5', name: 'the simulator check reads a saved model', plant: edit(PHONE_SPIKE, "function Spike() {", "function Spike() {\n  void loadJobModel(null, 'p');") },
+  { rule: 'E4', name: 'expo-gl is removed', plant: pkgEdit((p) => { delete p.dependencies['expo-gl']; return p; }) },
+  { rule: 'E4', name: 'expo-gl is moved off the SDK\'s range', plant: pkgEdit((p) => { p.dependencies['expo-gl'] = '^15.0.0'; return p; }) },
+  { rule: 'E4', name: 'a 3D wrapper is added for the phone', plant: pkgEdit((p) => { p.dependencies['expo-three'] = '8.0.0'; return p; }) },
   { rule: 'E3', name: 'the phone file is deleted', plant: (w) => { const f = { ...w.files }; delete f['components/livingModel/JobReplay3D.tsx']; return { ...w, files: f }; } },
   { rule: 'E3', name: 'the phone file builds the scene', plant: edit('components/livingModel/JobReplay3D.tsx', "import type { JobReplay3DProps } from './jobReplay3DProps';", "import type { JobReplay3DProps } from './jobReplay3DProps';\nimport { createJobScene } from './threeScene';\nexport const make = createJobScene;") },
   { rule: 'E3', name: 'the screen imports the web file by name', plant: edit('components/livingModel/LivingModelScreen.tsx', "from './JobReplay3D';", "from './JobReplay3D.web';") },
