@@ -254,7 +254,12 @@
     var y = window.pageYOffset, i = 0;
     if (y <= marks[0]) scrollS = 0;
     else if (y >= marks[5]) scrollS = 5;
-    else { while (i < 4 && y > marks[i + 1]) i++; scrollS = i + (y - marks[i]) / (marks[i + 1] - marks[i]); }
+    else {
+      while (i < 4 && y > marks[i + 1]) i++;
+      /* each stage holds while its own words and screens are on screen, then the job moves on */
+      var f = (y - marks[i]) / (marks[i + 1] - marks[i]), lo = i === 0 ? 0 : wide() ? 0.16 : 0.5, hi = i === 0 ? 1 : wide() ? 0.84 : 1;
+      scrollS = i + clamp((f - lo) / (hi - lo), 0, 1);
+    }
     atTop = scrollS < 0.14;
   }
   function goStage(n, instant) {
