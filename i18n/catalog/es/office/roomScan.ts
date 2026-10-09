@@ -219,7 +219,7 @@ export const ES_OFFICE_ROOM_SCAN: EsCatalog = {
   "office.roomScan.order.qty.bucketValue": { s: {one: "1 cubeta", other: "{count} cubetas"}, src: "12a58c34" },
   "office.roomScan.order.qty.compoundValue": { s: {one: "1 cubeta, 5 gal", other: "{count} cubetas, 5 gal cada una"}, src: "4632c375" },
   "office.roomScan.order.qty.cornerBeadValue": { s: {one: "1 tira, 10 ft", other: "{count} tiras, 10 ft cada una"}, src: "5a66ee6b" },
-  "office.roomScan.order.qty.footSticksValue": { s: "{count} ft de tira: {sticks}", src: "3db7ab76" },
+  "office.roomScan.order.qty.footSticksValue": { s: "{count} ft de tira ({sticks})", src: "65893cc7" },
   "office.roomScan.order.qty.footValue": { s: "{count} ft de tira", src: "f4d9ebd3" },
   "office.roomScan.order.qty.gallonValue": { s: {one: "1 galón", other: "{count} galones"}, src: "a43ac386" },
   "office.roomScan.order.qty.rollValue": { s: {one: "1 rollo", other: "{count} rollos"}, src: "9baa7bd6" },

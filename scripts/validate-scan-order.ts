@@ -253,8 +253,9 @@ const check = (out: string[], cond: boolean, msg: string) => { if (!cond) out.pu
 // TRIM, sticks of 8, 12 and 16 ft. One line for each kind, in feet of stick.
 //   baseboard  98, 98, 61, 26 3/8, 4 5/8 (the door takes 30 in out) = 288 in = 24 ft
 //              a 16 ft: 98 + 61 + 26 3/8 + 4 5/8 = 190     a 12 ft: 98
-//              28 ft. Nothing under 24 ft will do, and 24 ft is two 12s or
-//              three 8s, which cannot hold two 98s and a 61: 28 is the least.
+//              28 ft. Nothing under 24 ft will do, and 24 ft is two 12s, a 16
+//              and an 8, or three 8s. An 8 holds no 98; two 12s hold a 98 each
+//              and then the 61 fits neither. So 28 is the least.
 //   crown      98, 98, 61, 61 = 318 in = 26.5 ft: (98 + 61) twice, two 16 ft   32 ft
 //              (28 ft would be a 16 and a 12: the 12 holds one 98 and nothing else.)
 //   casing, 2 1/4 in wide, mitred (O17 works every piece):

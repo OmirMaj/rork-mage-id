@@ -236,7 +236,7 @@ export function useScanOrderCopy(): ScanOrderCopy {
           const sticks = [...b.counts].sort((p, q) => q.stockFt - p.stockFt)
             .map((c) => tn('office.roomScan.order.qty.sticksOfValue', c.count, { one: '1 stick of {ft} ft', other: '{count} sticks of {ft} ft' }, { ft: c.stockFt }))
             .join(', ');
-          return t('office.roomScan.order.qty.footSticksValue', '{count} ft of stick: {sticks}', { count, sticks });
+          return t('office.roomScan.order.qty.footSticksValue', '{count} ft of stick ({sticks})', { count, sticks });
         }
         return t('office.roomScan.order.qty.footValue', '{count} ft of stick', { count });
       }

@@ -343,9 +343,11 @@ saves the scan and removed when he deletes it.
    plain rectangle, 350 sq ft to a gallon of paint and 300 for primer. Each is
    labelled a rule of thumb or shown as an allowance, and each is a number a
    working contractor should read and correct.
-3. **The trim cut list** takes wall-to-wall lengths with no extra for a mitre
-   or a cope unless he sets an allowance, and joints a run longer than the
-   longest stick at the end of a full stick.
+3. **The trim cut list** takes wall-to-wall lengths for baseboard and crown
+   with no extra for a cope or a scarf, and joints a run longer than the longest
+   stick. Casing is cut with its mitres (see the review round below). A list of
+   more than 10 pieces is packed longest piece first, which is not always the
+   fewest feet.
 4. **The "long wall" line** is 12 ft. Outside tests put the sensor's error
    growing on long walls; ten real rooms taped by the founder say whether 12 ft
    is the right place to draw it, and whether `MIN_TAPE_PAIRS = 5` and
@@ -353,6 +355,48 @@ saves the scan and removed when he deletes it.
 5. **Outside corners** are read from the outline. A real scan may break one
    wall into two with a small kink; corners turning under 10 degrees are
    ignored, and that number is a guess.
+
+### The Review Round (2026-10-08)
+
+An independent reviewer probed the cores: the arithmetic was right and several
+results were not what a hanger or a trim carpenter would hang or buy. What
+changed, and what each change still assumes:
+
+- **Minimum end piece, 16 in.** A course longer than a sheet is never finished
+  with a strip: a 98 in wall on 96 in sheets is 82 + 16. Sixteen inches is one
+  stud bay at 16 in on centre. Framing at 24 in on centre would want 24. *A
+  working hanger should say which.*
+- **Butt joints staggered 16 in** from one course to the next. Each course is
+  tried full sheets first, then from the other end, then starting with a half
+  sheet, then in equal pieces. Many hangers stagger by 4 ft. The scan does not
+  know where the studs are, so no joint is promised to land on one.
+- **A gap at the floor up to 2 in** is left for the baseboard instead of a
+  strip of board, so an 8 ft 1 1/8 in wall does not buy a third course.
+- **A longer sheet is suggested, never chosen:** when a run is 1 to 24 in
+  longer than the sheet and the next size would span it.
+- **No spare sheet** unless he taps Add One Spare. *A hanger may say one spare
+  per room is the trade's habit; the list does not assume it.*
+- **The strip between a door and a corner** (4 5/8 in in the fixture bathroom)
+  is still a piece: the wall there is that narrow. It is marked as such. A
+  hanger might hang the course across the doorway and cut the door out instead.
+- **Casing with its mitres.** 2 1/4 in wide by default (2 1/2, 3 1/4 and 3 1/2
+  are offered). A head, a sill and an apron are the opening plus twice the
+  width. A door leg is the opening plus once (one mitre, square at the floor).
+  A picture-framed window leg is the opening plus TWICE (a mitre at each end),
+  which is 2 1/4 in more per leg than "once to each leg". The reveal, about
+  3/16 in, is not added. Doors are cased on the side in this room only unless
+  he chooses both sides. *A trim carpenter should check the leg rule and
+  whether he wants a reveal in the number.*
+- **Trim is one line for each kind, in feet of stick.** The line's key no
+  longer carries the stick length, so choosing other sticks is the same line.
+- **A second send to the estimate** removes the lines the list no longer has
+  and names them on the confirm sheet first. A line he changed by hand in the
+  estimate is left alone and named. The removal is the takeoff push's own
+  UPDATE run to a quantity of zero, then the emptied line is taken out.
+- **What your tape says** adds only to a long wall whose length is still the
+  scan's own, and reads walls from the same phone model when there are at
+  least four of them. *Whether one phone model's error carries to another is
+  not known. It needs real scans from two phones.*
 
 ### Bought Versus Scanned: What The App Does Not Hold
 

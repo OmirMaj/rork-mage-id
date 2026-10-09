@@ -115,6 +115,7 @@ jest.mock('@/utils/roomScan/learnStore', () => ({
   loadTapePairs: async () => [],
   recordTapePairs: async (_userId: unknown, pairs: unknown[]) => pairs,
   forgetScanTapePairs: async () => {},
+  forgetScansTapePairs: async () => null,
 }));
 jest.mock('@/utils/clipboard', () => ({ copyToClipboard: jest.fn(async () => true) }));
 jest.mock('@/utils/shareText', () => ({ shareText: jest.fn(async () => 'shared'), canShare: () => true }));
@@ -503,7 +504,15 @@ describe('Scan The Room — the three screens from the bathroom fixture', () => 
     for (let n = 1; n <= core.MAX_SCANS_PER_PROJECT; n++) expect(await real.saveScan(row(n), `{"raw":${n}}`)).toBe(true);
     expect(await AsyncStorage.getItem(core.roomScanRawKey('cap-1'))).toBe('{"raw":1}');
     // One more than the cap: the oldest leaves the list AND its raw JSON goes with it.
-    expect(await real.saveScan(row(core.MAX_SCANS_PER_PROJECT + 1), '{"raw":"new"}')).toBe(true);
+    // The save hands over the scans the cap pushed off, so his taped walls for them can go too (lane SCANORDER).
+    const tape = jest.requireActual('@/utils/roomScan/learnStore') as typeof import('@/utils/roomScan/learnStore');
+    const taped = (scanId: string) => ({ scanId, wallId: 'w1', scannedM: 3, tapedM: 3.02, lengthClass: 'mid' as const, deviceModel: 'iPhone16,1', roomType: 'bathroom' as const, at: '2026-10-06T14:00:00.000Z' });
+    await tape.recordTapePairs('user-cap', [taped('cap-1'), taped('cap-2')]);
+    const droppedSeen: string[][] = [];
+    expect(await real.saveScan(row(core.MAX_SCANS_PER_PROJECT + 1), '{"raw":"new"}', async (ids) => { droppedSeen.push(ids); await tape.forgetScansTapePairs('user-cap', ids); })).toBe(true);
+    expect(droppedSeen).toEqual([['cap-1']]);
+    // The dropped scan's taped walls are gone from his list. The walls of a scan still on the phone stay.
+    expect((await tape.loadTapePairs('user-cap')).map((p) => p.scanId)).toEqual(['cap-2']);
     const list = await real.loadSavedScans(projectId);
     expect(list.scans).toHaveLength(core.MAX_SCANS_PER_PROJECT);
     expect(list.scans.some((x) => x.scan.id === 'cap-1')).toBe(false);

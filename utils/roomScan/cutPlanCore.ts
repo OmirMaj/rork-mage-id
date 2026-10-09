@@ -27,14 +27,12 @@
 // Cutting a piece off a sheet leaves up to two offcuts: the end of the sheet,
 // and the rip beside the piece. An offcut is kept only if BOTH its sides are at
 // least `minOffcutIn` (12 in unless the person changes it); smaller is scrap.
-//   * A run one sheet can span is hung in ONE piece: from a kept offcut if one
-//     covers the whole run (the smallest that does), else from a new sheet. An
-//     offcut is never used to add a joint to a wall a single sheet would span.
-//   * A run longer than a sheet needs a joint anyway, so a kept offcut may
-//     start it (the largest that fits the strip), the way a hanger starts the
-//     next course with the last course's drop.
+//   * Where the joints go is decided by the rules below, never by what happens
+//     to be lying on the floor: an offcut does not add a joint to a wall a
+//     single sheet would span, and does not put a strip at the end of a course.
+//   * Each piece is then cut from the smallest kept offcut that covers it, and
+//     from a new sheet only when none does.
 // Offcuts are not turned: a piece keeps the sheet's long edge along its strip.
-// The longest runs are hung first, so their drops are there for the short ones.
 // Every piece carries where on its sheet it came from, so a test can lay the
 // pieces of one sheet back on the sheet and see they fit without overlapping.
 //

@@ -206,7 +206,7 @@ export const EN: EnCatalog = {
   "office.roomScan.order.qty.bucketValue": { one: "1 bucket", other: "{count} buckets" },
   "office.roomScan.order.qty.compoundValue": { one: "1 bucket, 5 gal", other: "{count} buckets, 5 gal each" },
   "office.roomScan.order.qty.cornerBeadValue": { one: "1 stick, 10 ft", other: "{count} sticks, 10 ft each" },
-  "office.roomScan.order.qty.footSticksValue": "{count} ft of stick: {sticks}",
+  "office.roomScan.order.qty.footSticksValue": "{count} ft of stick ({sticks})",
   "office.roomScan.order.qty.footValue": "{count} ft of stick",
   "office.roomScan.order.qty.gallonValue": { one: "1 gallon", other: "{count} gallons" },
   "office.roomScan.order.qty.rollValue": { one: "1 roll", other: "{count} rolls" },
