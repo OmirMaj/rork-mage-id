@@ -29,7 +29,7 @@ if (process.argv[3] === '--all') {
     10: ['17'],          // the save function is not SECURITY DEFINER
     11: ['17'],          // the save function's search_path is public
     12: ['18'],          // updated_at is taken from the model the caller sent
-    13: ['14'],          // the replay rule removed: the same save sent twice is called stale
+    13: ['14', '25'],    // both replay rules removed: the same save sent twice is called stale
     14: ['22'],          // the author is taken from a caller-shaped setting, not auth.uid()
     15: ['20'],          // the newer-schema rule removed: an old build writes over a newer model
     16: ['6', '7'],      // the read policy asks for the edit seat: a viewer and a field seat read nothing
@@ -76,7 +76,7 @@ switch (MUTATE) {
     rep("         updated_at = pg_catalog.clock_timestamp(),", "         updated_at = coalesce((p_model ->> 'updatedAt')::timestamptz, pg_catalog.clock_timestamp()),");
     rep("         pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp(), v_uid)", "         pg_catalog.clock_timestamp(), coalesce((p_model ->> 'updatedAt')::timestamptz, pg_catalog.clock_timestamp()), v_uid)");
     break;
-  case 13: rep('if v_row.last_write_id = p_write_id and v_row.updated_by is not distinct from v_uid then', 'if false then'); break;
+  case 13: rep('if v_row.last_write_id = p_write_id and v_row.updated_by is not distinct from v_uid then', 'if false then'); rep('if v_hit is not null then', 'if false then'); break;
   case 14: rep('v_uid uuid := auth.uid();', "v_uid uuid := coalesce(nullif(current_setting('request.claimed_user', true), '')::uuid, auth.uid());"); break;
   case 15: rep('if p_schema_version < v_row.schema_version then', 'if false then'); break;
   case 16: rep('using (public.can_access_project(project_id));', "using (public.can_access_project(project_id, 'editor'));"); break;

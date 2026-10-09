@@ -34,6 +34,7 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useT } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
@@ -48,6 +49,7 @@ import { buildReplayInput } from '@/utils/livingModel/replayInput';
 import { loadJobModel, saveJobModel } from '@/utils/livingModel/store';
 import { mayWriteModel, type LoadState } from '@/utils/livingModel/storeCore';
 import { scanRoomIds } from '@/utils/livingModel/syncCore';
+import { recoverKeptSwap } from '@/utils/livingModel/syncStore';
 import type { JobModel } from '@/utils/livingModel/types';
 import { FlatReplay } from './FlatReplay';
 import { HonestyLines } from './HonestyLines';
@@ -60,12 +62,18 @@ import { makeLivingModelStyles } from './styles';
 
 type Tab = 'rooms' | 'tasks' | 'replay';
 
-export function LivingModelScreen({ projectId, userId }: { projectId: string; userId: string | null }) {
+export function LivingModelScreen({ projectId, userId, viewOnly = false }: {
+  projectId: string;
+  userId: string | null;
+  /** True when his seat reads the model and may not change it. The route refuses such a seat today; the line is here for the day it does not. */
+  viewOnly?: boolean;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
+  const { lang } = useT();
   const wide = useIsDesktop();
   const { getProject, getDailyReportsForProject } = useProjects();
   const project = getProject(projectId);
@@ -73,6 +81,8 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
   const [saveFailed, setSaveFailed] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>('ready');
   const loadStateRef = useRef<LoadState>('ready');
+  /** False when nothing was stored for this job when the screen opened (a new job here, or the saved model was lost). */
+  const [modelFound, setModelFound] = useState(true);
   const [tab, setTab] = useState<Tab>('rooms');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
@@ -84,8 +94,10 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
     loadStateRef.current = 'ready';
     setLoadState('ready');
     // loadJobModel never rejects and never throws on what the device holds; the catch is a last guard so the screen cannot sit on "Reading" for ever.
-    void loadJobModel(userId, projectId).then((loaded) => {
+    // A trade of the kept model that a kill cut short is finished first, so the model read here is the right one.
+    void recoverKeptSwap(userId, projectId, new Date().toISOString()).then(() => loadJobModel(userId, projectId)).then((loaded) => {
       if (!alive) return;
+      setModelFound(loaded.found);
       loadStateRef.current = loaded.state;
       setLoadState(loaded.state);
       setHistory(historyOf(loaded.model));
@@ -106,7 +118,11 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
     void saveJobModel(userId, m, new Date().toISOString(), loadStateRef.current).then((ok) => setSaveFailed(!ok));
   }, [userId]);
 
-  /** The person's own choice, from the button: leave the unread model in its backup and begin again. */
+  /**
+   * The person's own choice, from the button: leave the unread model in its backup and begin again. The sync hook
+   * sees 'started_new' and forgets which account revision this device matched, so a copy in the account is put to
+   * him first and is never written over by the new, empty model (syncCore.resetSyncBase).
+   */
   const onStartNew = useCallback(() => {
     loadStateRef.current = 'started_new';
     setLoadState('started_new');
@@ -131,7 +147,7 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
     const levels = modelLevels(m);
     setLevel((l) => (levels.length === 0 || levels.includes(l) ? l : levels[0]));
   }, []);
-  const sync = useLivingModelSync({ projectId, userId, project, model, loadState, onAdopt });
+  const sync = useLivingModelSync({ projectId, userId, project, model, loadState, modelFound, viewOnly, lang, onAdopt });
   const { collaborators } = useProjectCollaborators(projectId);
   const nameOf = useCallback((id: string | null): string | null => {
     if (!id) return null;
@@ -139,6 +155,7 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
     return c ? (c.name || c.email || null) : null;
   }, [collaborators]);
   const hasScanRoom = useMemo(() => (model ? scanRoomIds(model).length > 0 : false), [model]);
+  const roomNameOf = useCallback((id: string): string | null => model?.rooms.find((r) => r.id === id)?.name ?? null, [model]);
   const reports = useMemo(() => getDailyReportsForProject(projectId), [getDailyReportsForProject, projectId]);
   const chosenStages = model?.stages;
   const input = useMemo(() => buildReplayInput(project?.schedule ?? null, reports, now, chosenStages), [project?.schedule, reports, now, chosenStages]);
@@ -176,7 +193,7 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
           </View>
         ) : null}
         {model && loadState === 'started_new' ? <Text style={styles.note} testID="lm-started-new">{copy.startedNewBody}</Text> : null}
-        {model && !blocked ? <SyncStatus sync={sync} deviceRooms={model.rooms.length} hasScanRoom={hasScanRoom} nameOf={nameOf} /> : null}
+        {model && !blocked ? <SyncStatus sync={sync} deviceRooms={model.rooms.length} hasScanRoom={hasScanRoom} nameOf={nameOf} roomNameOf={roomNameOf} /> : null}
         {model && !blocked && tab === 'rooms' ? (
           <>
             <RoomEditor

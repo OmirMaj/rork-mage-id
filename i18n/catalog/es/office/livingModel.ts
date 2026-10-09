@@ -195,6 +195,7 @@ export const ES_OFFICE_LIVING_MODEL: EsCatalog = {
   "office.livingModel.sync.keptFromDeviceBody": { s: "El modelo que no conservaste sigue en este dispositivo.", src: "57d7351c" },
   "office.livingModel.sync.keptOnPhoneBody": { s: "Se queda solo en este teléfono, como elegiste. No aparecerá en tus otros dispositivos.", src: "f25df36b" },
   "office.livingModel.sync.keptOnPhoneMayBody": { s: "Es posible que ya haya una copia en tu cuenta.", src: "cfeb2b06" },
+  "office.livingModel.sync.keptOnPhoneStoppedBody": { s: "No se enviará nada más desde este teléfono, como elegiste.", src: "916208fb" },
   "office.livingModel.sync.removeConfirmBody": { s: "Esto quita el modelo de tu cuenta para todos en este proyecto. El modelo de este teléfono se queda. Tus otros dispositivos y tu equipo conservan las copias que ya tienen, y ya no encontrarán una en la cuenta.", src: "17567b26" },
   "office.livingModel.sync.removeConfirmLabel": { s: "Sí, quitarlo", src: "67efeff9" },
   "office.livingModel.sync.removeFailedBody": { s: "No se pudo quitar de tu cuenta. No se cambió nada. Inténtalo de nuevo cuando este teléfono tenga conexión.", src: "61eb85aa" },

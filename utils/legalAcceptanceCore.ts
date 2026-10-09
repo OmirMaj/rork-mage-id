@@ -93,9 +93,9 @@ export const SCAN_UPLOAD_COPY = {
   button: 'Save to My Account',
 } as const;
 /** SHA-256 of legalNoticeText(SCAN_UPLOAD_COPY.title, SCAN_UPLOAD_COPY.body). Pinned by scripts/validate-living-model-sync.ts. */
-export const SCAN_UPLOAD_TEXT_SHA256 = 'PENDING_EN';
+export const SCAN_UPLOAD_TEXT_SHA256 = '05617f1669466893070c5412c21699817109946831bb81814259057c3de3ab6d';
 /** SHA-256 of the Spanish title and body (office.livingModel.sync.scanAskTitleBody / .scanAskBody). Pinned by the same check. */
-export const SCAN_UPLOAD_TEXT_SHA256_ES = 'PENDING_ES';
+export const SCAN_UPLOAD_TEXT_SHA256_ES = '8595d776f92a8ecc8c02e673405785e47516627edc89a6cada15bc6d1c52f025';
 
 /** The exact string a notice's hash is taken over: title, one newline, body. */
 export function legalNoticeText(title: string, body: string): string {

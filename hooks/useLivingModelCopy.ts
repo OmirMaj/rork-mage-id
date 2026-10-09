@@ -65,6 +65,7 @@ export interface LivingModelCopy {
   syncFailedBody: string;
   scanNotSentBody: string;
   keptOnPhoneBody: string;
+  keptOnPhoneStoppedBody: string;
   keptOnPhoneMayBody: string;
   removeFromAccountLabel: string;
   removeConfirmBody: string;
@@ -291,6 +292,7 @@ export function useLivingModelCopy(): LivingModelCopy {
       syncFailedBody: t('office.livingModel.sync.failedBody', 'Could not save to your account. It is saved on this device.'),
       scanNotSentBody: t('office.livingModel.sync.scanNotSentBody', 'Not sent to your account yet. It is saved on this device.'),
       keptOnPhoneBody: t('office.livingModel.sync.keptOnPhoneBody', 'Kept on this phone only, as you chose. It will not appear on your other devices.'),
+      keptOnPhoneStoppedBody: t('office.livingModel.sync.keptOnPhoneStoppedBody', 'Nothing more will be sent from this phone, as you chose.'),
       keptOnPhoneMayBody: t('office.livingModel.sync.keptOnPhoneMayBody', 'A copy may already be in your account.'),
       removeFromAccountLabel: t('office.livingModel.sync.removeFromAccountLabel', 'Remove It From My Account'),
       removeConfirmBody: t('office.livingModel.sync.removeConfirmBody', 'This removes the model from your account for everyone on this project. The model on this phone stays. Your other devices and your team keep the copies they already have, and they will no longer find one in the account.'),

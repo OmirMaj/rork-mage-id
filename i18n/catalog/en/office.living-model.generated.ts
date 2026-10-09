@@ -182,6 +182,7 @@ export const EN: EnCatalog = {
   "office.livingModel.sync.keptFromDeviceBody": "The model you did not keep is still on this device.",
   "office.livingModel.sync.keptOnPhoneBody": "Kept on this phone only, as you chose. It will not appear on your other devices.",
   "office.livingModel.sync.keptOnPhoneMayBody": "A copy may already be in your account.",
+  "office.livingModel.sync.keptOnPhoneStoppedBody": "Nothing more will be sent from this phone, as you chose.",
   "office.livingModel.sync.removeConfirmBody": "This removes the model from your account for everyone on this project. The model on this phone stays. Your other devices and your team keep the copies they already have, and they will no longer find one in the account.",
   "office.livingModel.sync.removeConfirmLabel": "Yes, Remove It",
   "office.livingModel.sync.removeFailedBody": "Could not remove it from your account. Nothing was changed. Try again when this phone is online.",
