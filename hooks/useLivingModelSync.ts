@@ -103,15 +103,29 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
   /** The fingerprint the account refused, so the same model is not sent in a loop. A change or a reopen clears it. */
   const refused = useRef<string | null>(null);
   const onAdoptRef = useRef(onAdopt);
+  const propRef = useRef<JobModel | null>(model);
+  const adopted = useRef<{ model: JobModel; from: JobModel | null } | null>(null);
   const sample = !!project && isSampleProject(project as Parameters<typeof isSampleProject>[0]);
   const eligibleRef = useRef(false);
   /** The run that follows the first read of the device is not delayed. */
   const opened = useRef(-1);
-  modelRef.current = model;
+  // After the hook replaces the device's model, the very next run must read THAT model, not the one the screen
+  // has not redrawn yet (a run on the old one would send it over the account). The override ends the moment the
+  // screen hands down a different model, whatever it is.
+  if (adopted.current && model !== adopted.current.from) adopted.current = null;
+  modelRef.current = adopted.current ? adopted.current.model : model;
+  propRef.current = model;
   loadStateRef.current = loadState;
   onAdoptRef.current = onAdopt;
   const eligible = !!userId && !!project && !sample && isSyncableProjectId(projectId);
   eligibleRef.current = eligible;
+
+  /** The device's model is now `m`: every later run reads it, and the screen is told to show it. */
+  const adopt = useCallback((m: JobModel) => {
+    adopted.current = { model: m, from: propRef.current };
+    modelRef.current = m;
+    onAdoptRef.current(m);
+  }, []);
 
   const commit = useCallback(async (meta: ModelSyncMeta) => {
     metaRef.current = meta;
@@ -259,7 +273,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
         }
         await commit(metaAfterMatch(meta, head, fingerprint, scanRoomIds(accountModel)));
         if (!live()) return;
-        onAdoptRef.current(accountModel);
+        adopt(accountModel);
         setStatus('saved');
         return;
       }
@@ -278,7 +292,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
         again.current = true;
         return;
     }
-  }, [projectId, userId, commit, send]);
+  }, [projectId, userId, commit, send, adopt]);
 
   const run = useCallback(() => {
     const my = gen.current;
@@ -308,6 +322,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
     conflictRef.current = null;
     keptRef.current = null;
     refused.current = null;
+    adopted.current = null;
     setConflict(null);
     setKept(null);
     setLastChange(null);
@@ -403,9 +418,9 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
     await commit(metaAfterMatch(meta, c.head, modelFingerprint(c.account), scanRoomIds(c.account)));
     conflictRef.current = null;
     setConflict(null);
-    onAdoptRef.current(c.account);
+    adopt(c.account);
     return true;
-  }), [choose, commit, userId, projectId]);
+  }), [choose, commit, adopt, userId, projectId]);
 
   const bringBackKept = useCallback(() => choose(async () => {
     const k = keptRef.current;
@@ -420,9 +435,9 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
     }
     keptRef.current = swapped;
     setKept(swapped);
-    onAdoptRef.current(k.model);
+    adopt(k.model);
     return true;
-  }), [choose, userId, projectId]);
+  }), [choose, adopt, userId, projectId]);
 
   const removeKept = useCallback(() => choose(async () => {
     if (!keptRef.current) return true;

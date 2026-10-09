@@ -439,9 +439,12 @@ rule('F1', 'when both changed nothing is replaced until he chooses, and the mode
   const hook = code(w.files[HOOK]);
   const conflictCase = /case 'conflict': \{([\s\S]*?)\n {6}\}/.exec(hook)?.[1] ?? '';
   if (!conflictCase) out.push('the both-changed branch could not be found');
-  const acts = /saveJobModel\(|send\(|pushAccountModel\(|commit\(|onAdoptRef|writeKeptModel\(|removeKeptModel\(/.exec(conflictCase);
+  const acts = /saveJobModel\(|send\(|pushAccountModel\(|commit\(|onAdoptRef|adopt\(|writeKeptModel\(|removeKeptModel\(/.exec(conflictCase);
   if (acts) out.push(`the both-changed branch acts by itself (${acts[0]})`);
   if (!/setStatus\('conflict'\)/.test(conflictCase)) out.push('the both-changed branch does not ask');
+  // Found by the smoke test: after a choice the next run read the model the screen had not redrawn yet and sent it over the account.
+  if (count(hook, 'onAdoptRef.current(') !== 1 || !/const adopt = useCallback\(\(m: JobModel\) => \{\s+adopted\.current = \{ model: m, from: propRef\.current \};\s+modelRef\.current = m;\s+onAdoptRef\.current\(m\);/.test(hook)) out.push('a model the hook puts on the device is not the model its next run reads');
+  if (!/modelRef\.current = adopted\.current \? adopted\.current\.model : model;/.test(hook)) out.push('a redraw with the old model undoes the model the hook just put on the device');
   if (!/if \(conflictRef\.current\) \{ setStatus\('conflict'\); return; \}/.test(hook)) out.push('a later run does not wait for the answer');
   const take = body(hook, 'takeAccountModel');
   const keep = body(hook, 'keepThisDevice');
@@ -617,11 +620,13 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E1', name: 'the table is upserted directly', plant: edit(IO, "export interface QueueHolds {", "export const direct = (sb: SupabaseModule, row: Record<string, unknown>) => sb.supabase.from(LIVING_MODELS_TABLE).upsert(row);\nexport interface QueueHolds {") },
   { rule: 'E1', name: 'a second save is queued behind the first', plant: edit(HOOK, 'if (holds === null || holds.modelSave || holds.projectInsert) {', 'if (holds === null) {') },
   { rule: 'E1', name: 'a save is called landed without reading the row', plant: edit(HOOK, "if (back.kind === 'row' && back.head.writeId === writeId) {", "if (back.kind === 'row') {") },
-  { rule: 'F1', name: 'the both-changed branch takes the account by itself', plant: edit(HOOK, "        setStatus('conflict');\n        return;\n      }\n      case 'account_unreadable':", "        onAdoptRef.current(accountModel);\n        setStatus('conflict');\n        return;\n      }\n      case 'account_unreadable':") },
+  { rule: 'F1', name: 'the both-changed branch takes the account by itself', plant: edit(HOOK, "        setStatus('conflict');\n        return;\n      }\n      case 'account_unreadable':", "        adopt(accountModel);\n        setStatus('conflict');\n        return;\n      }\n      case 'account_unreadable':") },
+  { rule: 'F1', name: 'the next run reads the model the screen has not redrawn yet', plant: edit(HOOK, "    adopted.current = { model: m, from: propRef.current };\n    modelRef.current = m;\n", '') },
+  { rule: 'F1', name: 'a redraw with the old model undoes the adopted one', plant: edit(HOOK, 'modelRef.current = adopted.current ? adopted.current.model : model;', 'modelRef.current = model;') },
   { rule: 'F1', name: 'Use the One in Your Account does not keep this device\'s model first', plant: edit(HOOK, "    const k: KeptModel = { from: 'device', model: mine, keptAt: new Date().toISOString() };\n    if (!(await writeKeptModel(userId, projectId, k))) return false;\n", "    const k: KeptModel = { from: 'device', model: mine, keptAt: new Date().toISOString() };\n") },
   { rule: 'F1', name: 'Keep This Device\'s Model goes ahead when the account copy could not be kept', plant: edit(HOOK, "    const k: KeptModel = { from: 'account', model: c.account, keptAt: new Date().toISOString() };\n    if (!(await writeKeptModel(userId, projectId, k))) return false;\n", "    const k: KeptModel = { from: 'account', model: c.account, keptAt: new Date().toISOString() };\n    await writeKeptModel(userId, projectId, k);\n") },
   { rule: 'F1', name: 'a new choice writes over a model still set aside', plant: edit(HOOK, 'if (!c || !meta || !mine || keptRef.current) return false;', 'if (!c || !meta || !mine) return false;') },
-  { rule: 'F1', name: 'the kept model is removed after a choice', plant: edit(HOOK, "    conflictRef.current = null;\n    setConflict(null);\n    onAdoptRef.current(c.account);", "    conflictRef.current = null;\n    setConflict(null);\n    void removeKeptModel(userId, projectId);\n    onAdoptRef.current(c.account);") },
+  { rule: 'F1', name: 'the kept model is removed after a choice', plant: edit(HOOK, "    conflictRef.current = null;\n    setConflict(null);\n    adopt(c.account);", "    conflictRef.current = null;\n    setConflict(null);\n    void removeKeptModel(userId, projectId);\n    adopt(c.account);") },
   { rule: 'F1', name: 'the question offers one model only', plant: edit(STATUS, "          <Button label={copy.keepDeviceLabel} variant=\"secondary\" onPress={sync.keepThisDevice} disabled={sync.busy} testID=\"lm-conflict-keep-device\" />\n", '') },
   { rule: 'F1', name: 'a later run does not wait for the answer', plant: edit(HOOK, "    if (conflictRef.current) { setStatus('conflict'); return; }\n", '') },
   { rule: 'G1', name: 'one sync-notes key for every person', plant: swap({ livingModelSyncKey: (u, p) => (u && p ? `mageid_living_model_sync::${p}` : null) }) },
