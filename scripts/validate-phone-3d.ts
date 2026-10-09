@@ -34,9 +34,12 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canvasStandIn, makePhoneScene } from '../components/livingModel/phone3d/phoneScene';
+import { validateModel } from '../utils/livingModel/modelCore';
 import type { JobSceneHandle } from '../components/livingModel/threeScene';
+import { sevenRoomJob, tenWeekSchedule } from '../__tests__/fixtures/livingModelJobs';
 import { EN as EN_SHARD } from '../i18n/catalog/en/office.living-model-phone.generated';
 import { ES_OFFICE_LIVING_MODEL_PHONE } from '../i18n/catalog/es/office/livingModelPhone';
+import { spikeFortyRoomJob, spikeSevenRoomJob, spikeTenWeekSchedule } from '../utils/livingModel/phoneSpikeSample';
 import {
   LABEL_MIN_LONG_PT, LABEL_MIN_SHORT_PT, MAX_ZOOM_STEP, SECOND_LINE_MIN_PT, TAP_MAX_MS, TAP_SLOP_PT,
   frameStats, gestureBegin, gestureEnd, gestureMove, labelDetail, nextZoom, pointsPerMetre, viewSize,
@@ -66,7 +69,7 @@ try { tracked = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' 
 const ENV_FILES = tracked.filter((f) => /(^|\/)\.env(\.|$)/.test(f));
 const WORKFLOWS = tracked.filter((f) => f.startsWith('.github/workflows/'));
 
-const impl = { gestureBegin, gestureMove, gestureEnd, viewSize, pointsPerMetre, labelDetail, nextZoom, frameStats, canvasStandIn, makePhoneScene };
+const impl = { spikeSevenRoomJob, spikeTenWeekSchedule, spikeFortyRoomJob, gestureBegin, gestureMove, gestureEnd, viewSize, pointsPerMetre, labelDetail, nextZoom, frameStats, canvasStandIn, makePhoneScene };
 type Impl = typeof impl;
 type Catalog = Record<string, unknown>;
 interface World { files: Record<string, string>; EN: Catalog; ES: Catalog; impl: Impl; pkg: { scripts: Record<string, string>; dependencies: Record<string, string> } }
@@ -394,6 +397,18 @@ rule('E2', 'without the switch the route sends everyone Home and mounts nothing,
   return out;
 });
 
+rule('E3', 'the check draws the Living Model\'s own sample: the copy equals the fixture, and the big sample is forty rooms that do not overlap', (w) => {
+  const out: string[] = [];
+  if (JSON.stringify(w.impl.spikeSevenRoomJob()) !== JSON.stringify(sevenRoomJob())) out.push('the seven-room sample is not the fixture\'s seven-room job');
+  if (JSON.stringify(w.impl.spikeTenWeekSchedule()) !== JSON.stringify(tenWeekSchedule())) out.push('the ten-week sample is not the fixture\'s schedule');
+  const big = w.impl.spikeFortyRoomJob();
+  if (big.rooms.length !== 40) out.push(`the big sample has ${big.rooms.length} rooms; want 40`);
+  const check = validateModel(big);
+  if (!check.ok || check.warnings.length) out.push(`the big sample has warnings: ${JSON.stringify(check.warnings).slice(0, 200)}`);
+  if (big.rooms.some((r) => (big.links[r.id] ?? []).length === 0)) out.push('a room of the big sample has no tasks ticked, so it would never change');
+  return out;
+});
+
 // ── F. the gate is unchanged ─────────────────────────────────────────────────
 
 rule('F1', 'the Living Model\'s flag is off and its route still redirects everyone the gate refuses', (w) => {
@@ -516,6 +531,9 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E2', name: 'the route is on unless switched off', plant: edit(SPIKE, "process.env.EXPO_PUBLIC_PHONE3D_SPIKE === '1'", "process.env.EXPO_PUBLIC_PHONE3D_SPIKE !== '0'") },
   { rule: 'E2', name: 'the auth wall opens for the route in every build', plant: edit(LAYOUT, "const inPhone3dSpike = process.env.EXPO_PUBLIC_PHONE3D_SPIKE === '1' && (segments[0] as string) === 'dev-phone-3d';", "const inPhone3dSpike = (segments[0] as string) === 'dev-phone-3d';") },
   { rule: 'E2', name: 'a tab links the check', plant: edit('app/(tabs)/_layout.tsx', 'export default', "const DEV = '/dev-phone-3d';\nvoid DEV;\nexport default") },
+  { rule: 'E3', name: 'the sample drifts from the fixture', plant: swap({ spikeSevenRoomJob: () => { const m = spikeSevenRoomJob(); return { ...m, rooms: m.rooms.slice(1) }; } }) },
+  { rule: 'E3', name: 'the schedule drifts from the fixture', plant: swap({ spikeTenWeekSchedule: () => { const s = spikeTenWeekSchedule(); return { ...s, clock: { ...s.clock, todayOffset: 10 } }; } }) },
+  { rule: 'E3', name: 'the big sample is not forty rooms', plant: swap({ spikeFortyRoomJob: () => { const m = spikeFortyRoomJob(); return { ...m, rooms: m.rooms.slice(0, 12) }; } }) },
   { rule: 'F1', name: 'the flag is turned on', plant: edit('constants/featureFlags.ts', 'export const LIVING_MODEL_ENABLED = false;', 'export const LIVING_MODEL_ENABLED = true;') },
   { rule: 'F1', name: 'the route no longer redirects', plant: edit('app/living-model.tsx', '  if (!livingModelAllowed(user?.email)) return <Redirect href="/(tabs)/(home)" />;\n', '') },
   { rule: 'F1', name: 'the phone view makes a gate of its own', plant: edit(ENTRY, 'type Mode = ', "import { LIVING_MODEL_ENABLED } from '@/constants/featureFlags';\nexport const OPEN = LIVING_MODEL_ENABLED || true;\ntype Mode = ") },

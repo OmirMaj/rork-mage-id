@@ -15,8 +15,8 @@
 // eas.json, app.json or a committed env file, or if the redirect is removed.
 //
 // The sample is the seven-room apartment and the ten-week schedule the Living
-// Model's own checks use (__tests__/fixtures/livingModelJobs.ts), and a
-// forty-room grid for timing. Nothing is read from or written to an account.
+// Model's own checks use, and a forty-room grid for timing
+// (utils/livingModel/phoneSpikeSample.ts). Nothing is read from or written to an account.
 //
 // The address takes: week (1 to 10), rooms (7 or 40), dx and dy (turn the
 // view, in points of finger travel), zoom (a factor), planned (1 for the
@@ -25,7 +25,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { sevenRoomJob, tenWeekSchedule } from '@/__tests__/fixtures/livingModelJobs';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { usePhone3DCopy } from '@/hooks/usePhone3DCopy';
@@ -34,36 +33,12 @@ import { phone3DEngineError, phone3DEngineInBuild } from '@/components/livingMod
 import { HonestyLines } from '@/components/livingModel/HonestyLines';
 import { ReplayControls, StageLegend, useReplayState, useRoomMoments, useRoomTasks } from '@/components/livingModel/replayShared';
 import { makeLivingModelStyles } from '@/components/livingModel/styles';
-import { addOpening, addRoom, emptyJobModel, makeRectRoom } from '@/utils/livingModel/modelCore';
+import { spikeFortyRoomJob, spikeSevenRoomJob, spikeTenWeekSchedule } from '@/utils/livingModel/phoneSpikeSample';
 import { offsetOfWeek, weekCount, weekOf } from '@/utils/livingModel/replayCore';
 import type { ReplayInput } from '@/utils/livingModel/replayInput';
-import type { JobModel, RoomKind } from '@/utils/livingModel/types';
 
 /** True only in a bundle made with the variable set in the builder's own shell. */
 export const PHONE3D_SPIKE_ON = process.env.EXPO_PUBLIC_PHONE3D_SPIKE === '1';
-
-/** Feet to metres. Written here so this file reaches nothing of the room scanner's. */
-const ft = (feet: number): number => feet * 0.3048;
-
-const WHOLE_HOUSE = ['demo', 'frame', 'elec', 'insp', 'insul', 'dry', 'paint', 'trim', 'clean'];
-
-/** Forty rooms, eight across and five deep, each 12 by 10 feet with a door, and a window on the outside rows. */
-function fortyRoomJob(): JobModel {
-  const kinds: RoomKind[] = ['bedroom', 'bathroom', 'kitchen', 'living', 'hall', 'closet'];
-  let m = emptyJobModel('p-forty');
-  const links: Record<string, string[]> = {};
-  for (let row = 0; row < 5; row++) {
-    for (let col = 0; col < 8; col++) {
-      const id = `r${row}-${col}`;
-      const kind = kinds[(row * 8 + col) % kinds.length];
-      m = addRoom(m, makeRectRoom({ id, name: `Room ${row * 8 + col + 1}`, kind, widthM: ft(12), lengthM: ft(10), heightM: ft(8), placement: { xM: ft(col * 12), yM: ft(row * 10), rotationDeg: 0 } }));
-      m = addOpening(m, { roomId: id, wallId: `${id}-w3`, id: `${id}-door`, kind: 'door', widthM: ft(2.67) });
-      if (row === 0) m = addOpening(m, { roomId: id, wallId: `${id}-w1`, id: `${id}-win`, kind: 'window', widthM: ft(4) });
-      links[id] = kind === 'bathroom' || kind === 'kitchen' ? [...WHOLE_HOUSE, 'plumb'] : [...WHOLE_HOUSE];
-    }
-  }
-  return { ...m, links };
-}
 
 const num = (v: string | string[] | undefined): number | undefined => {
   const n = Number(Array.isArray(v) ? v[0] : v);
@@ -82,9 +57,9 @@ function Spike() {
   const phoneCopy = usePhone3DCopy();
   const params = useLocalSearchParams<{ week?: string; rooms?: string; dx?: string; dy?: string; zoom?: string; planned?: string; spin?: string }>();
   const big = num(params.rooms) === 40;
-  const model = useMemo(() => (big ? fortyRoomJob() : sevenRoomJob()), [big]);
+  const model = useMemo(() => (big ? spikeFortyRoomJob() : spikeSevenRoomJob()), [big]);
   const input = useMemo<ReplayInput>(() => {
-    const s = tenWeekSchedule();
+    const s = spikeTenWeekSchedule();
     return { tasks: s.tasks, linkTasks: [], points: s.points, clock: s.clock, startDate: null };
   }, []);
   const state = useReplayState(input);
