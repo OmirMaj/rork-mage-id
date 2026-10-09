@@ -4,7 +4,7 @@
  *
  * THE PROMISES THIS PROVES
  *   1. Typing "create a project for the Henderson kitchen" into Ask shows the
- *      offer card (lead line, the "New project" workflow, his words quoted, the
+ *      offer card (lead line, the "New Project" workflow, his words quoted, the
  *      honesty line, Start) and NOT a "You'll pick the job next" line: a new
  *      project has no job to pick.
  *   2. Detection is deterministic: no model call (mageAI), no One Mind answer,
@@ -111,8 +111,8 @@ describe('Ask MAGE: "do it for me" on a phone (real app)', () => {
     // 1. The offer card.
     expect(screen.getByText('I can do that.')).toBeTruthy();
     const cardText = allText(screen.getByTestId('ask-action-card')).join('\n');
-    expect(cardText).toContain('New project');
-    expect(screen.getByText('New project')).toBeTruthy();
+    expect(cardText).toContain('New Project');
+    expect(screen.getByText('New Project')).toBeTruthy();
     expect(screen.getByText(`“${SAID}”`)).toBeTruthy();
     expect(screen.getByText('From what you typed. Nothing is saved until you check it and tap Build it.')).toBeTruthy();
     expect(screen.getByTestId('ask-action-start')).toBeTruthy();
@@ -138,17 +138,17 @@ describe('Ask MAGE: "do it for me" on a phone (real app)', () => {
 
     // The autostart sent his words as the first turn (the one scripted model
     // call), and the Copilot stopped at its review.
-    for (let i = 0; i < 10 && !screen.queryByText('Build it'); i++) await pump(2);
+    for (let i = 0; i < 10 && !screen.queryByText('Build It'); i++) await pump(2);
     expect(mageAI).toHaveBeenCalledTimes(1);
     expect(String((mageAI as jest.Mock).mock.calls[0][0].prompt)).toContain(`WHAT THEY SAID: ${SAID}`);
-    expect(screen.getByText('Build it')).toBeTruthy();
+    expect(screen.getByText('Build It')).toBeTruthy();
     expect(projectWrites(write)).toHaveLength(0);
     expect(projectWrites(writeDetailed)).toHaveLength(0);
     expect(projectWrites(writeOnline)).toHaveLength(0);
     expect(projectCreatedEvents(track)).toHaveLength(0);
 
     // 4. Positive control: Build it is the write.
-    fireEvent.press(screen.getByText('Build it'));
+    fireEvent.press(screen.getByText('Build It'));
     await pump(10);
     const created = projectCreatedEvents(track);
     expect(created).toHaveLength(1);

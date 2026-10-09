@@ -26,10 +26,10 @@ import type {
 
 // Communication-event labels come from a map, never the raw enum (docs/VOICE.md §6).
 const COMM_EVENT_LABEL: Record<string, string> = {
-  document_sent: 'Document sent', co_submitted: 'CO submitted', co_approved: 'CO approved', co_rejected: 'CO rejected',
-  invoice_sent: 'Invoice sent', invoice_paid: 'Invoice paid', invoice_overdue: 'Invoice overdue',
-  daily_report_sent: 'Daily report sent', collaborator_added: 'Team member added', internal_note: 'Internal note',
-  client_message: 'Client message',
+  document_sent: 'Document Sent', co_submitted: 'CO Submitted', co_approved: 'CO Approved', co_rejected: 'CO Rejected',
+  invoice_sent: 'Invoice Sent', invoice_paid: 'Invoice Paid', invoice_overdue: 'Invoice Overdue',
+  daily_report_sent: 'Daily Report Sent', collaborator_added: 'Team Member Added', internal_note: 'Internal Note',
+  client_message: 'Client Message',
 };
 
 

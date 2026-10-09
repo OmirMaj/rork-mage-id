@@ -243,7 +243,7 @@ export function findAccessConflicts(opts: {
             deliveryId: d.id,
             date: d.expectedDate,
             message: `${label[0].toUpperCase()}${label.slice(1)} for ${d.description} is requested but not confirmed`,
-            action: `Chase ${rules.buildingContact ?? 'the property manager'} — it lands in ${daysOut === 0 ? 'less than a day' : `${daysOut}d`}.`,
+            action: `Chase ${rules.buildingContact ?? 'the property manager'}. It lands in ${daysOut === 0 ? 'less than a day' : `${daysOut}d`}.`,
           });
         }
         continue;

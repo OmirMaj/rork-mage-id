@@ -70,7 +70,7 @@ describe('SpineHero', () => {
     expect(text).toContain('$31,870');
     expect(text).toContain('$12,400.00');
     expect(text).toContain('Paid');
-    expect(text).toContain('On track');
+    expect(text).toContain('On Track');
     const root = screen.getByTestId('spine');
     expect(root.props.pointerEvents).toBe('none');
     expect(root.props.accessibilityLabel).toMatch(/^Sample project\./);
@@ -149,7 +149,7 @@ describe('MiniSpine', () => {
 });
 
 const LOGIN_IDS = ['login-apple', 'login-google', 'login-email', 'login-magic-link', 'login-show-password-mode', 'login-forgot', 'login-go-signup'];
-const SIGNUP_IDS = ['signup-apple-top', 'signup-google-top', 'signup-name', 'signup-email', 'signup-password', 'signup-submit', 'signup-terms-link', 'signup-privacy-link', 'signup-go-login'];
+const SIGNUP_IDS = ['signup-apple-top', 'signup-google-top', 'signup-name', 'signup-email', 'signup-password', 'signup-submit', 'signup-agreement', 'signup-agreement-terms', 'signup-agreement-privacy', 'signup-go-login'];
 
 /** Let the real app's providers settle (front-door's pump), so nothing is left running at teardown. */
 async function settle(n = 6) {
@@ -181,8 +181,8 @@ describe('the auth routes wear the spine and keep every control', () => {
     expect(screen.getByTestId('login-mini-spine')).toBeTruthy();
     expect(screen.queryByTestId('login-spine')).toBeNull();
     for (const id of LOGIN_IDS) expect(screen.getByTestId(id)).toBeTruthy();
-    expect(screen.getByText('Welcome back')).toBeTruthy();
-    expect(screen.getByText('Sign in')).toBeTruthy();
+    expect(screen.getByText('Welcome Back')).toBeTruthy();
+    expect(screen.getByText('Sign In')).toBeTruthy();
     await act(async () => { tree.unmount(); });
   });
 
@@ -195,7 +195,7 @@ describe('the auth routes wear the spine and keep every control', () => {
     expect(tree.getPathname()).toBe('/login');
     expect(screen.getByTestId('login-spine')).toBeTruthy();
     expect(screen.queryByTestId('login-mini-spine')).toBeNull();
-    expect(screen.getByText('Sign in to MAGE ID')).toBeTruthy();
+    expect(screen.getByText('Sign In to MAGE ID')).toBeTruthy();
     for (const id of LOGIN_IDS) expect(screen.getByTestId(id)).toBeTruthy();
     await act(async () => { tree.unmount(); });
   });
@@ -208,7 +208,7 @@ describe('the auth routes wear the spine and keep every control', () => {
     expect(tree.getPathname()).toBe('/signup');
     expect(screen.getByTestId('signup-mini-spine')).toBeTruthy();
     for (const id of SIGNUP_IDS) expect(screen.getByTestId(id)).toBeTruthy();
-    expect(screen.getByText('Create your account')).toBeTruthy();
+    expect(screen.getByText('Create Your Account')).toBeTruthy();
     await act(async () => { tree.unmount(); });
   });
 });

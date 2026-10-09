@@ -173,7 +173,7 @@ export function CodeThreadActions({
     'Project Team';
 
   const onAddPermit = () => {
-    showAlert('Add to permits', PERMIT_CONFIRM_TEXT, [
+    showAlert('Add to Permits', PERMIT_CONFIRM_TEXT, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Add',
@@ -264,7 +264,7 @@ export function CodeThreadActions({
           <>
             <View style={styles.row}>
               <Button
-                label={busy === 'permit' ? 'Adding…' : 'Add to permits'}
+                label={busy === 'permit' ? 'Adding…' : 'Add to Permits'}
                 size="sm"
                 variant="secondary"
                 disabled={blocked || busy !== null}
@@ -311,7 +311,7 @@ export function CodeThreadActions({
         <View style={styles.row}>
           {!punchDone ? (
             <Button
-              label={busy === 'punch' ? 'Adding…' : 'Punch item'}
+              label={busy === 'punch' ? 'Adding…' : 'Punch Item'}
               size="sm"
               variant="secondary"
               disabled={busy !== null}
@@ -320,7 +320,7 @@ export function CodeThreadActions({
           ) : null}
           {!rfiDone ? (
             <Button
-              label={busy === 'rfi' ? 'Adding…' : 'Ask the architect (RFI)'}
+              label={busy === 'rfi' ? 'Adding…' : 'Ask the Architect (RFI)'}
               size="sm"
               variant="ghost"
               disabled={busy !== null}

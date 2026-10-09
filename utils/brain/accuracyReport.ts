@@ -59,7 +59,7 @@ function buildPaceAccuracy(resolved: BrainPredictionReadRow[]): AccuracyRow | nu
 
   return {
     kind: 'pace_suggestion_applied',
-    label: 'Pace suggestions',
+    label: 'Pace Suggestions',
     n,
     headline: `Pace calls beat the AI ${beats} of ${n} times (${ties} ties)`,
     detail:
@@ -102,7 +102,7 @@ function buildDelayAccuracy(resolved: BrainPredictionReadRow[]): AccuracyRow | n
 
   return {
     kind: 'delay_ripple_applied',
-    label: 'Delay ripples',
+    label: 'Delay Ripples',
     n,
     headline,
     detail,
@@ -126,7 +126,7 @@ function buildLeakAccuracy(resolved: BrainPredictionReadRow[]): AccuracyRow | nu
 
   return {
     kind: 'leak_flag',
-    label: 'Profit leak flags',
+    label: 'Profit Leak Flags',
     n,
     headline: `${pct(totalBilled, totalItems)} of flagged items recovered via COs (${n} scans graded)`,
     detail:
@@ -164,7 +164,7 @@ function buildEstimateAccuracy(resolved: BrainPredictionReadRow[]): AccuracyRow 
 
   return {
     kind: 'estimate_confidence_snapshot',
-    label: 'Estimate accuracy',
+    label: 'Estimate Accuracy',
     n,
     headline,
     detail,
@@ -190,7 +190,7 @@ function buildJudgesAccuracy(resolved: BrainPredictionReadRow[]): AccuracyRow | 
 
   return {
     kind: 'judges_verdict',
-    label: 'Judges margin calls',
+    label: 'Judges Margin Calls',
     n,
     headline: `${pct(correct, n)} of margin verdicts hit target on ${n} closed jobs`,
     detail:
@@ -215,7 +215,7 @@ function buildInstantBidAccuracy(resolved: BrainPredictionReadRow[]): AccuracyRo
 
   return {
     kind: 'instant_bid_sent',
-    label: 'Instant bid win rate',
+    label: 'Instant Bid Win Rate',
     n,
     headline: `${pct(won, n)} win rate on Instant Bid proposals (${n} decided)`,
     detail:
@@ -261,7 +261,7 @@ function buildBidScoreAccuracy(resolved: BrainPredictionReadRow[]): AccuracyRow 
 
   return {
     kind: 'bid_score',
-    label: 'Bid scorecard',
+    label: 'Bid Scorecard',
     n,
     headline,
     detail,

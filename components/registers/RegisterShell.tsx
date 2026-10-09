@@ -152,7 +152,7 @@ export function RegisterShell({
   const guarded = useCallback((go: () => void) => {
     if (!probes.anyDirty()) { go(); return; }
     showAlert('Discard changes?', 'This record has edits that are not saved.', [
-      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Keep Editing', style: 'cancel' },
       { text: 'Discard', style: 'destructive', onPress: go },
     ]);
   }, [probes]);

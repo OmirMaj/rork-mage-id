@@ -46,7 +46,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
           testID="project-field-actions"
         >
           <View
-            accessibilityLabel="Daily report"
+            accessibilityLabel="Daily Report"
             accessibilityRole="button"
             accessibilityState={
               {
@@ -326,7 +326,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 ]
               }
             >
-              Daily report
+              Daily Report
             </Text>
           </View>
           <View
@@ -509,7 +509,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
             </Text>
           </View>
           <View
-            accessibilityLabel="Punch item"
+            accessibilityLabel="Punch Item"
             accessibilityRole="button"
             accessibilityState={
               {
@@ -682,11 +682,11 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 ]
               }
             >
-              Punch item
+              Punch Item
             </Text>
           </View>
           <View
-            accessibilityLabel="Clock in"
+            accessibilityLabel="Clock In"
             accessibilityRole="button"
             accessibilityState={
               {
@@ -861,7 +861,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 ]
               }
             >
-              Clock in
+              Clock In
             </Text>
           </View>
           <View
@@ -1092,7 +1092,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
               }
             }
           >
-            Projected margin
+            Projected Margin
           </Text>
           <View
             style={
@@ -1262,7 +1262,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 }
               }
             >
-              Margin risk
+              Margin Risk
             </Text>
             <Text
               style={
@@ -1280,7 +1280,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 ]
               }
             >
-              Low risk
+              Low Risk
             </Text>
           </View>
           <View
@@ -1525,7 +1525,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
               }
             }
           >
-            Project health
+            Project Health
           </Text>
           <View
             style={
@@ -2267,7 +2267,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                         ]
                       }
                     >
-                      Bid confidence 
+                      Bid Confidence 
                     </Text>
                     <Text
                       style={
@@ -2659,7 +2659,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                   ]
                 }
               >
-                Next step
+                Next Step
               </Text>
             </View>
             <Text
@@ -3355,7 +3355,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 }
               }
             >
-              Ask MAGE to do anything
+              Ask MAGE to Do Anything
             </Text>
             <Text
               style={
@@ -3367,7 +3367,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 }
               }
             >
-              Say it — daily report, RFI, change order, estimate…
+              Say it: daily report, RFI, change order, estimate…
             </Text>
           </View>
           <RNSVGSvgView
@@ -8075,7 +8075,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 </View>
               </View>
               <View
-                accessibilityLabel="Build schedule"
+                accessibilityLabel="Build Schedule"
                 accessibilityRole="button"
                 accessibilityState={
                   {
@@ -8429,7 +8429,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                       }
                     }
                   >
-                    Build schedule
+                    Build Schedule
                   </Text>
                 </View>
                 <RNSVGSvgView
@@ -8516,7 +8516,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 </RNSVGSvgView>
               </View>
               <View
-                accessibilityLabel="This week"
+                accessibilityLabel="This Week"
                 accessibilityRole="button"
                 accessibilityState={
                   {
@@ -8870,7 +8870,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                       }
                     }
                   >
-                    This week
+                    This Week
                   </Text>
                 </View>
                 <RNSVGSvgView
@@ -8957,7 +8957,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 </RNSVGSvgView>
               </View>
               <View
-                accessibilityLabel="Tomorrow's lineup"
+                accessibilityLabel="Tomorrow's Lineup"
                 accessibilityRole="button"
                 accessibilityState={
                   {
@@ -9221,7 +9221,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                       }
                     }
                   >
-                    Tomorrow's lineup
+                    Tomorrow's Lineup
                   </Text>
                 </View>
                 <RNSVGSvgView
@@ -10287,7 +10287,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                           ]
                         }
                       >
-                        Not drafted
+                        Not Drafted
                       </Text>
                     </View>
                     <RNSVGSvgView
@@ -12743,7 +12743,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 onTouchStart={[Function]}
               >
                 <View
-                  accessibilityLabel="Subs & pay, 3 items"
+                  accessibilityLabel="Subs and Pay, 3 items"
                   accessibilityRole="button"
                   accessibilityState={
                     {
@@ -12998,7 +12998,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                           }
                         }
                       >
-                        Subs & pay
+                        Subs and Pay
                       </Text>
                     </View>
                     <Text
@@ -15095,7 +15095,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 </RNSVGSvgView>
               </View>
               <View
-                accessibilityLabel="Cash flow"
+                accessibilityLabel="Cash Flow"
                 accessibilityRole="button"
                 accessibilityState={
                   {
@@ -15269,7 +15269,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                       }
                     }
                   >
-                    Cash flow
+                    Cash Flow
                   </Text>
                 </View>
                 <RNSVGSvgView
@@ -15356,7 +15356,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 </RNSVGSvgView>
               </View>
               <View
-                accessibilityLabel="Payment forecast"
+                accessibilityLabel="Payment Forecast"
                 accessibilityRole="button"
                 accessibilityState={
                   {
@@ -15530,7 +15530,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                       }
                     }
                   >
-                    Payment forecast
+                    Payment Forecast
                   </Text>
                 </View>
                 <RNSVGSvgView
@@ -15932,7 +15932,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                       ]
                     }
                   >
-                    People & Communication
+                    People and Communication
                   </Text>
                   <RNSVGSvgView
                     align="xMidYMid"
@@ -16578,7 +16578,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 }
               }
             >
-              Generate status report
+              Generate Status Report
             </Text>
           </View>
         </View>
@@ -16737,7 +16737,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
               }
             }
           >
-            Edit project
+            Edit Project
           </Text>
         </View>
         <View

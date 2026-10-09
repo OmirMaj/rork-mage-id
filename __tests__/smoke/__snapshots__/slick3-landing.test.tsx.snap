@@ -3,7 +3,7 @@
 exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (a) discover/bids 1`] = `
 {
   "lines": 604,
-  "sha256": "23385fda513ed946091efe0d412b27e074902223f367a0c054cfbbda112c11e0",
+  "sha256": "f39d27efad6f7c09d09e23dbb9699325556abfeffa85bb2ada2bb56134b22a26",
 }
 `;
 
@@ -17,13 +17,13 @@ exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (b) 
 exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (c) discover/hire 1`] = `
 {
   "lines": 461,
-  "sha256": "ec1d5874bb5389a312b3e6964070d0257212fff5e65522ddf6b91de32f258c33",
+  "sha256": "bf63544fc9acaa4f1a0f1587a12aa3b42c76d149c78ca2a77d381cb182b227c4",
 }
 `;
 
 exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (d) mage-id-bids 1`] = `
 {
   "lines": 500,
-  "sha256": "fc18195e7b43b3857e32b66114c0b72e4045d998f8095b64778dc6ed56a9d7c0",
+  "sha256": "4b1d1b57ac08e4faa8536604e0990c4751dc98eb3383734ef5876181faad2a98",
 }
 `;

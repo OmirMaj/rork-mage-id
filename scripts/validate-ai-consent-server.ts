@@ -1446,7 +1446,7 @@ function partC3(): void {
   // its way all get the plain subtitle: the screen never says AI rewrites a recap the server
   // would send as a plain summary.
   ok('client-portal-setup: the "AI strips the contractor jargon" subtitle is shown only when the account’s own answer is yes; otherwise the plain subtitle',
-    /\{!accountAi\.accountAllows\s*\? <Text style=\{styles\.sectionSubtitle\}>\{AI_ACCOUNT_COPY\.recapSubtitlePlain\}<\/Text>\s*: \(\s*<Text style=\{styles\.sectionSubtitle\}>\s*We email your client a plain-English recap every Friday — what got done this week, what&apos;s coming next\. AI strips the contractor jargon\. Off until you toggle it on\.\s*<\/Text>\s*\)\}/.test(setup));
+    /\{!accountAi\.accountAllows\s*\? <Text style=\{styles\.sectionSubtitle\}>\{AI_ACCOUNT_COPY\.recapSubtitlePlain\}<\/Text>\s*: \(\s*<Text style=\{styles\.sectionSubtitle\}>\s*We email your client a plain-English recap every Friday: what got done this week and what’s coming next\. AI strips the contractor jargon\. Off until you toggle it on\.\s*<\/Text>\s*\)\}/.test(setup));
   ok('…that is the ONE place either subtitle is rendered, the note’s state no longer picks it, and the hook hands the rule’s whole result to the screen',
     count(setup, 'AI strips the contractor jargon') === 1 && count(setup, 'AI_ACCOUNT_COPY.recapSubtitlePlain') === 1 && count(setup, 'accountAi.accountAllows') === 1
     && !/accountAi\.note === 'not_allowed'\s*\?/.test(setup)

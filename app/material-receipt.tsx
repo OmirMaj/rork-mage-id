@@ -153,13 +153,13 @@ function MaterialReceiptInner() {
     try {
       if (source === 'camera') {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { showAlert('Camera access needed', 'Grant camera access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Camera Access Needed', 'Grant camera access in Settings.'); return; }
         const res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
         if (res.canceled || !res.assets[0]) return;
         setImageUri(res.assets[0].uri);
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { showAlert('Photo access needed', 'Grant photo access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Photo Access Needed', 'Grant photo access in Settings.'); return; }
         const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
         if (res.canceled || !res.assets[0]) return;
         setImageUri(res.assets[0].uri);
@@ -175,7 +175,7 @@ function MaterialReceiptInner() {
 
   const extract = useCallback(async () => {
     if (!imageUri || busy) return;
-    if (!projectId) { showAlert('Pick a project', 'Choose which project this material is for.'); return; }
+    if (!projectId) { showAlert('Pick a Project', 'Choose which project this material is for.'); return; }
     const limit = await checkAILimit(tier, 'smart', 'photoAnalysis');
     if (!limit.allowed) { showAILimitAlert({ limit, router, monthly: true }); return; }
     // App Store 5.1.2(i): nothing leaves for the AI provider until the person
@@ -251,8 +251,8 @@ function MaterialReceiptInner() {
 
   const save = useCallback(() => {
     if (!draft) return;
-    if (ownerGate.state !== 'open') { showAlert("Can't save this receipt", ownerGate.reason); return; }
-    if (draft.lines.length === 0) { showAlert('Nothing to save', 'Add at least one line item.'); return; }
+    if (ownerGate.state !== 'open') { showAlert("Can't Save This Receipt", ownerGate.reason); return; }
+    if (draft.lines.length === 0) { showAlert('Nothing to Save', 'Add at least one line item.'); return; }
     const toSave: MaterialReceipt = {
       ...draft,
       projectId,
@@ -284,8 +284,8 @@ function MaterialReceiptInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Material receipt · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Snap a supplier invoice'}</Text>
+          <Text style={styles.headerEyebrow}>Material Receipt · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Snap a Supplier Invoice'}</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -322,11 +322,11 @@ function MaterialReceiptInner() {
           <View style={styles.captureRow}>
             <TouchableOpacity style={styles.captureBtn} onPress={() => pickImage('camera')} activeOpacity={0.85}>
               <Camera size={22} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.captureText}>Snap invoice</Text>
+              <Text style={styles.captureText}>Snap Invoice</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.captureBtn} onPress={() => pickImage('library')} activeOpacity={0.85}>
               <ImagePlus size={22} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.captureText}>From library</Text>
+              <Text style={styles.captureText}>From Library</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -335,7 +335,7 @@ function MaterialReceiptInner() {
         {imageUri && !draft && (
           <TouchableOpacity style={[styles.aiBtn, busy && { opacity: 0.7 }]} onPress={extract} disabled={busy} activeOpacity={0.85} testID="receipt-extract">
             {busy ? <ActivityIndicator size="small" color="#FFF" /> : <MageAIMark size={16} color="#FFF" />}
-            <Text style={styles.aiBtnText}>{busy ? 'Reading the invoice…' : 'Extract line items'}</Text>
+            <Text style={styles.aiBtnText}>{busy ? 'Reading the invoice…' : 'Extract Line Items'}</Text>
           </TouchableOpacity>
         )}
 
@@ -372,7 +372,7 @@ function MaterialReceiptInner() {
             {/* Commitment link — POs AND subcontracts (MONEY-AP-1). */}
             {linkableCommitments.length > 0 && (
               <View style={styles.pickerWrap}>
-                <Text style={styles.pickerLabel}>Bill against a PO or subcontract (optional)</Text>
+                <Text style={styles.pickerLabel}>Bill Against a PO or Subcontract (Optional)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   <TouchableOpacity onPress={() => setCommitmentId(undefined)} style={[styles.chip, !commitmentId && styles.chipOn]}>
                     <Text style={[styles.chipText, !commitmentId && styles.chipTextOn]}>None</Text>
@@ -399,12 +399,12 @@ function MaterialReceiptInner() {
                 <Text style={styles.pickerHelp}>
                   {linkedCommitment
                     ? `Counts against ${linkedCommitment.number || (linkedCommitment.type === 'subcontract' ? 'this subcontract' : 'this PO')} in job costing instead of as separate material cost, so the same dollars are not counted twice.`
-                    : 'Unlinked, this counts as direct material cost — on a job where the vendor already has a PO or subcontract, the same dollars are then counted twice.'}
+                    : 'Unlinked, this counts as direct material cost. On a project where the supplier already has a PO or subcontract, the same dollars are then counted twice.'}
                 </Text>
               </View>
             )}
 
-            <Text style={styles.sectionTitle}>Line items</Text>
+            <Text style={styles.sectionTitle}>Line Items</Text>
             {draft.lines.map(l => (
               <View key={l.id} style={styles.lineCard}>
                 <View style={styles.lineTop}>
@@ -413,7 +413,7 @@ function MaterialReceiptInner() {
                     <Trash2 size={15} color={t.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
-                <TextInput value={l.category ?? ''} onChangeText={v => patchLine(l.id, { category: v })} style={[styles.field, styles.lineCat]} placeholder="Category (e.g. Framing)" placeholderTextColor={t.textMuted} />
+                <TextInput value={l.category ?? ''} onChangeText={v => patchLine(l.id, { category: v })} style={[styles.field, styles.lineCat]} placeholder="Category, such as Framing" placeholderTextColor={t.textMuted} />
                 <View style={styles.lineNums}>
                   <View style={styles.numCol}>
                     <Text style={styles.numLabel}>Qty</Text>
@@ -437,11 +437,11 @@ function MaterialReceiptInner() {
 
             {/* Totals + reconcile */}
             <View style={styles.totalsCard}>
-              <View style={styles.totalRow}><Text style={styles.totalLabel}>Lines subtotal</Text><Text style={styles.totalVal}>{formatMoneyFull(receiptLinesTotal(draft))}</Text></View>
+              <View style={styles.totalRow}><Text style={styles.totalLabel}>Lines Subtotal</Text><Text style={styles.totalVal}>{formatMoneyFull(receiptLinesTotal(draft))}</Text></View>
               {draft.tax != null && <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax</Text><Text style={styles.totalVal}>{formatMoneyFull(draft.tax)}</Text></View>}
-              <View style={styles.totalRow}><Text style={[styles.totalLabel, { fontWeight: '800' }]}>Invoice total</Text><Text style={[styles.totalVal, { fontWeight: '800' }]}>{formatMoneyFull(draft.total)}</Text></View>
+              <View style={styles.totalRow}><Text style={[styles.totalLabel, { fontWeight: '800' }]}>Invoice Total</Text><Text style={[styles.totalVal, { fontWeight: '800' }]}>{formatMoneyFull(draft.total)}</Text></View>
               {recon && !recon.ok && (
-                <Text style={styles.reconWarn}>Heads up: the lines add to {formatMoney(recon.linesTotal)} but the invoice shows {formatMoney(recon.printedTotal)} — check for a missed line.</Text>
+                <Text style={styles.reconWarn}>Heads up: the lines add to {formatMoney(recon.linesTotal)} but the invoice shows {formatMoney(recon.printedTotal)}. Check for a missed line.</Text>
               )}
             </View>
 
@@ -462,7 +462,7 @@ function MaterialReceiptInner() {
               testID="receipt-save"
             >
               <Check size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.saveBtnText}>Save receipt</Text>
+              <Text style={styles.saveBtnText}>Save Receipt</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -472,7 +472,7 @@ function MaterialReceiptInner() {
         {/* Existing receipts for this project */}
         {!draft && existing.length > 0 && (
           <View style={{ marginTop: 22 }}>
-            <Text style={styles.sectionTitle}>Logged for {project?.name ?? 'this project'}</Text>
+            <Text style={styles.sectionTitle}>Logged For {project?.name ?? 'this project'}</Text>
             {existing.map(r => (
               <View key={r.id} style={styles.histCard}>
                 <Receipt size={16} color={t.textSecondary} strokeWidth={1.75} />

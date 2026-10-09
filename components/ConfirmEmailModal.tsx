@@ -162,7 +162,7 @@ export default function ConfirmEmailModal({
             <View style={styles.iconWrap}>
               <CheckCircle2 size={28} color={themeColors.accent} strokeWidth={2} />
             </View>
-            <Text style={styles.title}>Email confirmed</Text>
+            <Text style={styles.title}>Email Confirmed</Text>
             <Text style={[styles.subtitle, styles.elsewhereBody]}>
               Your invite opened in the tab the confirmation link opened. Carry on there. You can close this tab.
             </Text>
@@ -173,7 +173,7 @@ export default function ConfirmEmailModal({
               accessibilityRole="button"
               testID="confirm-email-close"
             >
-              <Text style={styles.primaryBtnText}>Got it</Text>
+              <Text style={styles.primaryBtnText}>Got It</Text>
             </TouchableOpacity>
           </Card>
         </View>
@@ -194,7 +194,7 @@ export default function ConfirmEmailModal({
             <Mail size={28} color={themeColors.accent} strokeWidth={2} />
           </View>
 
-          <Text style={styles.title}>Confirm your email</Text>
+          <Text style={styles.title}>Confirm Your Email</Text>
           <Text style={styles.subtitle}>
             We just sent a confirmation link to
           </Text>
@@ -203,14 +203,14 @@ export default function ConfirmEmailModal({
           <View style={styles.tips}>
             <Tip
               Icon={Inbox}
-              title="Check your inbox"
+              title="Check Your Inbox"
               body={inviteWaiting
                 ? "Tap the link in the email we sent to finish setting up your account. After you confirm, your invite opens first, before any setup questions."
                 : 'Tap the link in the email we sent to finish setting up your account.'}
             />
             <Tip
               Icon={Shield}
-              title="Check spam and promotions"
+              title="Check Spam and Promotions"
               body="If you don't see it in a minute, it may have landed in Spam, Promotions, or Updates."
             />
             <Tip
@@ -251,7 +251,7 @@ export default function ConfirmEmailModal({
               <ActivityIndicator color={themeColors.surface} size="small" />
             ) : (
               <Text style={styles.primaryBtnText}>
-                {secondsUntilResend > 0 ? `Resend in ${secondsUntilResend}s` : 'Resend email'}
+                {secondsUntilResend > 0 ? `Resend in ${secondsUntilResend}s` : 'Resend Email'}
               </Text>
             )}
           </TouchableOpacity>
@@ -273,7 +273,7 @@ export default function ConfirmEmailModal({
               activeOpacity={0.7}
               testID="confirm-email-close"
             >
-              <Text style={styles.secondaryBtnText}>I&apos;ll check now</Text>
+              <Text style={styles.secondaryBtnText}>Check Now</Text>
             </TouchableOpacity>
           </View>
         </Card>

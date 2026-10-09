@@ -31,13 +31,13 @@ function expect<T>(name: string, got: T, want: T) {
 // On pace, no issues.
 const onPace = scheduleVerdict({ slipDaysVsBaseline: 0, finishDateLabel: 'Aug 14, 2026', overdueCount: 0 });
 expect('onPace tone', onPace.tone, 'onPace');
-expect('onPace headline', onPace.headline, 'On pace — finishing about Aug 14, 2026');
+expect('onPace headline', onPace.headline, 'On pace, finishing about Aug 14, 2026');
 expect('onPace detail empty', onPace.detail, '');
 
 // Slightly behind (1..3) + driver + overdue.
 const sb = scheduleVerdict({ slipDaysVsBaseline: 3, finishDateLabel: 'Sep 2, 2026', criticalDriverTitle: 'Electrical rough-in', overdueCount: 2 });
 expect('slightlyBehind tone', sb.tone, 'slightlyBehind');
-expect('slightlyBehind headline', sb.headline, '3 days behind plan — finishing about Sep 2, 2026');
+expect('slightlyBehind headline', sb.headline, '3 days behind plan, finishing about Sep 2, 2026');
 expect('slightlyBehind detail', sb.detail, 'Electrical rough-in is your finish-date driver. 2 tasks overdue.');
 
 // Behind (>=4), no finish date known.
@@ -48,7 +48,7 @@ expect('behind headline (no finish)', behind.headline, '7 days behind plan');
 // Ahead (singular day).
 const ahead = scheduleVerdict({ slipDaysVsBaseline: -1, finishDateLabel: 'Jul 1, 2026', overdueCount: 0 });
 expect('ahead tone', ahead.tone, 'ahead');
-expect('ahead headline (singular)', ahead.headline, '1 day ahead of plan — finishing about Jul 1, 2026');
+expect('ahead headline (singular)', ahead.headline, '1 day ahead of plan, finishing about Jul 1, 2026');
 
 // No baseline set, but we know a finish date.
 const nb = scheduleVerdict({ slipDaysVsBaseline: null, finishDateLabel: 'Aug 14, 2026', overdueCount: 0 });
@@ -86,9 +86,9 @@ console.log('\npaced verdict (the phone):');
     criticalDriverTitle: 'Drywall', overdueCount: 0, pace: 'behind', pctComplete: 32,
   });
   expect('no baseline + behind pace does NOT claim "on track"', behind.headline,
-    'Behind pace — finishing about Aug 14, 2026');
+    'Behind pace, finishing about Aug 14, 2026');
   expect('  …and names the driver and its own basis', behind.detail,
-    'Drywall is your finish-date driver. 32% of the work is done against the time elapsed — no baseline locked, so this is pace, not slip.');
+    'Drywall is your finish-date driver. 32% of the work is done against the time elapsed. No baseline locked, so this is pace, not slip.');
   expect('  …with a tone the UI can colour', behind.tone, 'behind');
 
   const slipping = pacedScheduleVerdict({
@@ -96,7 +96,7 @@ console.log('\npaced verdict (the phone):');
     overdueCount: 0, pace: 'minor_delays', pctComplete: 55,
   });
   expect('minor delays reads as slipping, not behind', slipping.tone, 'slightlyBehind');
-  expect('  …and says so', slipping.headline, 'Slipping behind pace — finishing about Aug 14, 2026');
+  expect('  …and says so', slipping.headline, 'Slipping behind pace, finishing about Aug 14, 2026');
 
   const okPace = pacedScheduleVerdict({
     slipDaysVsBaseline: null, finishDateLabel: 'Aug 14, 2026',
@@ -112,7 +112,7 @@ console.log('\npaced verdict (the phone):');
     overdueCount: 0, pace: 'behind', pctComplete: 32,
   });
   expect('a real baseline outranks the pace read', withBaseline.headline,
-    '3 days behind plan — finishing about Sep 2, 2026');
+    '3 days behind plan, finishing about Sep 2, 2026');
 
   // Undated schedule: no finish to promise, so no finish clause.
   const undated = pacedScheduleVerdict({
@@ -186,7 +186,7 @@ console.log('\nlocking a plan on the phone:');
   expect('the moment after locking, the plan is exactly on plan (no phantom slip)', slipOf(tasks), 0);
   expect('  …so the verdict states it against the plan', pacedScheduleVerdict({
     slipDaysVsBaseline: slipOf(tasks), finishDateLabel: 'Apr 3, 2026', overdueCount: 0, pace: 'behind', pctComplete: 10,
-  }).headline, 'On pace — finishing about Apr 3, 2026');
+  }).headline, 'On pace, finishing about Apr 3, 2026');
   const grown = tasks.map((t) => (t.id === 'A' ? { ...t, durationDays: 13 } : t));
   expect('a 3-day overrun upstream reads as 3 days behind plan', slipOf(grown), 3);
   const stamped = applyBaselineToTasks(tasks, snap);
@@ -246,7 +246,7 @@ console.log('\nphone schedule edits land in the audit log:');
     const moved = describe({ ...base, prev, next: [T('Drywall', { startDay: 5 }), prev[1]], finishAfter: 24 });
     expect('a moved task logs a dated movement with the finish before → after',
       moved && { kind: moved.kind, summary: moved.summary, taskId: moved.taskId },
-      { kind: 'task_edit', summary: 'Drywall: start day 1 → 5 — finish day 20 → day 24', taskId: 'Drywall' });
+      { kind: 'task_edit', summary: 'Drywall: start day 1 to 5, finish day 20 to day 24', taskId: 'Drywall' });
     expect('a CPM-derived critical flag alone is not an edit anyone made',
       describe({ ...base, prev, next: [T('Drywall', { isCriticalPath: true }), prev[1]] }), null);
     expect('an identical dependency array re-created by the sheet is not "dependencies changed"',
@@ -258,7 +258,7 @@ console.log('\nphone schedule edits land in the audit log:');
     const bulk = describe({ ...base, prev, next: [T('Drywall', { startDay: 9 }), T('Paint', { startDay: 14 })], finishAfter: 28, reason: 'Brought the plan up to date' });
     expect('the catch-up is ONE reflow row naming the decision and the finish movement',
       bulk && { kind: bulk.kind, summary: bulk.summary },
-      { kind: 'reflow', summary: 'Brought the plan up to date: 2 tasks changed — finish day 20 → day 28' });
+      { kind: 'reflow', summary: 'Brought the plan up to date: 2 tasks changed, finish day 20 to day 28' });
   }
 }
 
@@ -355,7 +355,7 @@ console.log('\nlocking a plan on the tablet / web Schedule tab:');
       expect('a re-lock keeps the history and becomes the active baseline',
         relock.ok ? (relock.schedule.baselines ?? []).map((b) => b.name) : null, ['v1', 'v2']);
       const gantt = tab.scheduleForGanttBaseline(s);
-      expect('the Gantt ghost bar gets the named lock in its exclusive-end shape',
+      expect('the Gantt ghost bar gets the named lock in its exclusive-end Shape',
         gantt.baseline?.tasks.find((b) => b.id === 'A'), { id: 'A', startDay: 1, endDay: 11 });
       expect('  …and that copy is display-only (the stored schedule is untouched)', s.baseline, undefined);
 

@@ -57,7 +57,7 @@ export async function readFileBytes(fileUri: string): Promise<Uint8Array> {
     } catch (e) {
       if (isObjectUrl) {
         throw new Error(
-          'photo source expired — the browser released this image when the page reloaded. Re-add the photo.',
+          'photo source expired: the browser released this image when the page reloaded. Re-add the photo.',
         );
       }
       throw e;

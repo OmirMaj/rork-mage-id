@@ -103,7 +103,7 @@ export default function PunchSealScreen() {
   // ── After photo from here ────────────────────────────────────────────────
   const takeAfterPhoto = useCallback(async (item: PunchItem | undefined) => {
     if (!item) {
-      showAlert(t('field.punchSeal.itemNotOnPhone', 'Not on this phone yet'), t('field.punchSeal.itemNotOnPhoneBody', 'Open the punch list once so this item loads, then take the after photo.'));
+      showAlert(t('field.punchSeal.itemNotOnPhone', 'Not on This Phone Yet'), t('field.punchSeal.itemNotOnPhoneBody', 'Open the punch list once so this item loads, then take the after photo.'));
       return;
     }
     let result: ImagePicker.ImagePickerResult;
@@ -113,13 +113,13 @@ export default function PunchSealScreen() {
       } else {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-          showAlert(t('field.punchSeal.cameraNeeded', 'Camera access needed'), t('field.punchSeal.cameraNeededBody', 'Allow camera access in Settings to take the after photo.'));
+          showAlert(t('field.punchSeal.cameraNeeded', 'Camera Access Needed'), t('field.punchSeal.cameraNeededBody', 'Allow camera access in Settings to take the after photo.'));
           return;
         }
         result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
       }
     } catch {
-      showAlert(t('field.punchSeal.cameraFailed', 'Couldn’t open the camera'), t('field.punchSeal.cameraFailedBody', 'Try again.'));
+      showAlert(t('field.punchSeal.cameraFailed', 'Couldn’t Open the Camera'), t('field.punchSeal.cameraFailedBody', 'Try again.'));
       return;
     }
     const uri = !result.canceled ? result.assets?.[0]?.uri : undefined;
@@ -184,7 +184,7 @@ export default function PunchSealScreen() {
       storedRef.current = row;
       return {
         status: 'confirmed',
-        title: t('field.punchSeal.acceptedTitle', 'Final punch accepted'),
+        title: t('field.punchSeal.acceptedTitle', 'Final Punch Accepted'),
         detail: tn('field.punchSeal.acceptedDetail', row.itemCount, { one: '{count} item sealed on the record.', other: '{count} items sealed on the record.' }),
       };
     } catch {
@@ -208,9 +208,9 @@ export default function PunchSealScreen() {
   }, [refetch]);
 
   const ceremonyCopy = useMemo(() => ({
-    label: t('field.punchSeal.slideLabel', 'Slide along the line to accept'),
-    srLabel: t('field.punchSeal.srLabel', 'Accept the final punch'),
-    srConfirm: t('field.punchSeal.srConfirm', 'Confirm your acceptance'),
+    label: t('field.punchSeal.slideLabel', 'Slide Along the Line to Accept'),
+    srLabel: t('field.punchSeal.srLabel', 'Accept the Final Punch'),
+    srConfirm: t('field.punchSeal.srConfirm', 'Confirm Your Acceptance'),
     sealedAnnounce: t('field.punchSeal.sealedAnnounce', 'Accepted. The final punch is sealed.'),
   }), [t]);
 
@@ -227,7 +227,7 @@ export default function PunchSealScreen() {
           // The raw storage error is for diagnostics only, never the screen.
           console.warn('[punch-seal] PDF copy not stored', r.storeError);
           showAlert(
-            t('field.punchSeal.pdfNotStoredTitle', 'PDF copy not stored yet'),
+            t('field.punchSeal.pdfNotStoredTitle', 'PDF Copy Not Stored Yet'),
             t('field.punchSeal.pdfNotStoredBody', 'You have your PDF, but the copy kept with this job wasn’t saved. Tap Save PDF again to store it.'),
           );
         }
@@ -237,7 +237,7 @@ export default function PunchSealScreen() {
       // Log the raw error for diagnostics; the GC gets a plain next step.
       console.warn('[punch-seal] PDF failed', e);
       showAlert(
-        t('field.punchSeal.pdfFailed', 'Couldn’t make the PDF'),
+        t('field.punchSeal.pdfFailed', 'Couldn’t Make the PDF'),
         t('field.punchSeal.pdfFailedBody', 'No PDF was made. Try again. If it keeps failing, check your connection.'),
       );
     } finally {
@@ -246,7 +246,7 @@ export default function PunchSealScreen() {
   }, [seal, user?.id, companyName, refetch, t]);
 
   // ── Render ───────────────────────────────────────────────────────────────
-  const screenOptions = useMemo(() => ({ title: t('field.punchSeal.screenTitle', 'Final punch') }), [t]);
+  const screenOptions = useMemo(() => ({ title: t('field.punchSeal.screenTitle', 'Final Punch') }), [t]);
   const day = (iso: string) => formatCalendarDay(calendarDayOf(iso) ?? iso);
 
   const rows: CheckRow[] = formalServer.map((it) => {
@@ -264,7 +264,7 @@ export default function PunchSealScreen() {
             <View style={styles.rowActions}>
               <Text style={styles.rowWarn}>{t('field.punchSeal.notClosed', 'Not closed yet.')}</Text>
               <TouchableOpacity onPress={() => openItem(it.id)} accessibilityRole="button" testID={`punch-seal-open-${it.id}`} style={styles.rowLink}>
-                <Text style={styles.rowLinkText}>{t('field.punchSeal.openItem', 'Open item')}</Text>
+                <Text style={styles.rowLinkText}>{t('field.punchSeal.openItem', 'Open Item')}</Text>
                 <ChevronRight size={14} color={colors.accentLabel} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
@@ -278,7 +278,7 @@ export default function PunchSealScreen() {
               {!uploading ? (
                 <TouchableOpacity onPress={() => { void takeAfterPhoto(local); }} accessibilityRole="button" testID={`punch-seal-photo-${it.id}`} style={styles.rowLink}>
                   <Camera size={14} color={colors.accentLabel} strokeWidth={1.75} />
-                  <Text style={styles.rowLinkText}>{t('field.punchSeal.takeAfterPhoto', 'Take after photo')}</Text>
+                  <Text style={styles.rowLinkText}>{t('field.punchSeal.takeAfterPhoto', 'Take After Photo')}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -305,7 +305,7 @@ export default function PunchSealScreen() {
     body = (
       <Card>
         <Text style={styles.bodyText}>{t('field.punchSeal.loadFailed', 'Couldn’t read the punch list on your account. Check your connection.')}</Text>
-        <Button label={t('field.punchSeal.tryAgainButton', 'Try again')} variant="secondary" onPress={() => { void refetch(); }} style={styles.gapTop} testID="punch-seal-retry" />
+        <Button label={t('field.punchSeal.tryAgainButton', 'Try Again')} variant="secondary" onPress={() => { void refetch(); }} style={styles.gapTop} testID="punch-seal-retry" />
       </Card>
     );
   } else if (seal) {
@@ -313,15 +313,15 @@ export default function PunchSealScreen() {
       <Card testID="punch-seal-record">
         <View style={styles.sealedHead}>
           <Lock size={16} color={colors.successLabel} strokeWidth={1.75} />
-          <Text style={styles.heading}>{t('field.punchSeal.acceptedTitle', 'Final punch accepted')}</Text>
+          <Text style={styles.heading}>{t('field.punchSeal.acceptedTitle', 'Final Punch Accepted')}</Text>
         </View>
         <Text style={styles.bodyText}>{t('field.punchSeal.recordStatement', 'These punch items were closed, each with an after photo, as of the date below. This record is not a warranty.')}</Text>
         {([
           [t('field.punchSeal.rowSealed', 'Sealed'), day(seal.sealedAt)],
           [t('field.punchSeal.rowAcceptedBy', 'Accepted by'), seal.signerName],
-          [t('field.punchSeal.rowItems', 'Punch items'), String(seal.itemCount)],
-          [t('field.punchSeal.rowRecordId', 'Record id'), seal.id],
-          [t('field.punchSeal.rowHash', 'Record hash'), seal.manifestHash],
+          [t('field.punchSeal.rowItems', 'Punch Items'), String(seal.itemCount)],
+          [t('field.punchSeal.rowRecordId', 'Record ID'), seal.id],
+          [t('field.punchSeal.rowHash', 'Record Hash'), seal.manifestHash],
         ] as const).map(([k, v]) => (
           <View key={k} style={styles.kv}>
             <Text style={styles.kvKey}>{k}</Text>
@@ -371,10 +371,10 @@ export default function PunchSealScreen() {
             />
           ) : null}
         </Card>
-        <Button label={t('field.punchSeal.checkAgain', 'Check again')} variant="ghost" onPress={() => { void refetch(); }} style={styles.gapTop} testID="punch-seal-check-again" />
+        <Button label={t('field.punchSeal.checkAgain', 'Check Again')} variant="ghost" onPress={() => { void refetch(); }} style={styles.gapTop} testID="punch-seal-check-again" />
         {readiness.ready ? (
           <Button
-            label={t('field.punchSeal.handToClient', 'Hand the phone to the client to accept')}
+            label={t('field.punchSeal.handToClient', 'Hand the Phone to the Client to Accept')}
             onPress={openSign}
             disabled={offline}
             style={styles.gapTop}
@@ -398,7 +398,7 @@ export default function PunchSealScreen() {
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             <ScrollView style={styles.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <Text style={styles.heading}>{t('field.punchSeal.acceptHeading', 'Accept the final punch')}</Text>
+              <Text style={styles.heading}>{t('field.punchSeal.acceptHeading', 'Accept the Final Punch')}</Text>
               <Text style={styles.muted}>{t('field.punchSeal.acceptSub', 'Walk the list together, then sign with your finger.')}</Text>
             </ScrollView>
             {signOpen ? (
@@ -411,14 +411,14 @@ export default function PunchSealScreen() {
                 sealVerb="ACCEPTED"
                 role="Client"
                 top={{
-                  title: t('field.punchSeal.ceremonyTitle', 'Final punch'),
+                  title: t('field.punchSeal.ceremonyTitle', 'Final Punch'),
                   subtitle: projectName || undefined,
                   rows: [
-                    { label: t('field.punchSeal.rowItems', 'Punch items'), value: String(readiness.count) },
+                    { label: t('field.punchSeal.rowItems', 'Punch Items'), value: String(readiness.count) },
                     { label: t('field.punchSeal.rowState', 'State'), value: t('field.punchSeal.rowStateValue', 'Closed, each with an after photo') },
                   ],
                 }}
-                name={{ value: name, onChange: setName, label: t('field.punchSeal.clientName', 'Your full name'), placeholder: t('field.punchSeal.clientName', 'Your full name'), minLength: 2 }}
+                name={{ value: name, onChange: setName, label: t('field.punchSeal.clientName', 'Your Full Name'), placeholder: t('field.punchSeal.clientName', 'Your Full Name'), minLength: 2 }}
                 consent={{
                   version: PUNCH_SEAL_CONSENT_VERSION,
                   text: t('field.punchSeal.legal.acceptance', 'By signing you confirm you walked this project with the contractor and the items listed were closed on the date shown, each with an after photo. This record is not a warranty and does not change your contract or its warranty terms. A copy is kept by your contractor and is available to you on request.'),

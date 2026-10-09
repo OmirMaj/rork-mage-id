@@ -90,7 +90,7 @@ export function LanguagePicker({
         <View style={styles.row} testID={`${testIDPrefix}-pseudo`}>
           <View style={styles.textCol}>
             <Text style={[Type.bodyEmphasized, { color: colors.text }]}>
-              {t('settings.language.pseudoLabel', 'Pseudo-locale (developer)')}
+              {t('settings.language.pseudoLabel', 'Pseudo-Locale (Developer)')}
             </Text>
             <Text style={[Type.footnote, { color: colors.textSecondary, marginTop: 2 }]}>
               {t(
@@ -105,7 +105,7 @@ export function LanguagePicker({
             trackColor={{ false: colors.line, true: colors.accent }}
             thumbColor={colors.surface}
             ios_backgroundColor={colors.line}
-            accessibilityLabel={t('settings.language.pseudoLabel', 'Pseudo-locale (developer)')}
+            accessibilityLabel={t('settings.language.pseudoLabel', 'Pseudo-Locale (Developer)')}
           />
         </View>
       ) : null}

@@ -258,7 +258,7 @@ function RateOverrideModalImpl({
                 ? subForm.editingId
                   ? `Edit ${subForm.kind === 'labor' ? 'labor' : 'material'} rate`
                   : `Add ${subForm.kind === 'labor' ? 'labor' : 'material'} rate`
-                : 'Rate overrides'}
+                : 'Rate Overrides'}
             </Text>
             <TouchableOpacity
               onPress={onClose}
@@ -284,7 +284,7 @@ function RateOverrideModalImpl({
                 {/* Price input */}
                 <View style={styles.section}>
                   <Text style={styles.label}>
-                    {subForm.kind === 'labor' ? 'Override rate ($/hr)' : 'Override unit price ($)'}
+                    {subForm.kind === 'labor' ? 'Override Rate ($/hr)' : 'Override Unit Price ($)'}
                     {' '}<Text style={styles.required}>*</Text>
                   </Text>
                   <TextInput
@@ -295,7 +295,7 @@ function RateOverrideModalImpl({
                     }}
                     style={styles.input}
                     keyboardType="decimal-pad"
-                    placeholder={subForm.kind === 'labor' ? 'e.g. 35.00' : 'e.g. 4.50'}
+                    placeholder={subForm.kind === 'labor' ? '35.00' : '4.50'}
                     placeholderTextColor={themeColors.textMuted}
                     returnKeyType="done"
                   />
@@ -321,7 +321,7 @@ function RateOverrideModalImpl({
                 >
                   <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.primaryBtnText}>
-                    {subForm.editingId ? 'Save changes' : 'Add override'}
+                    {subForm.editingId ? 'Save Changes' : 'Add Override'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -336,7 +336,7 @@ function RateOverrideModalImpl({
               >
                 {/* Labor overrides section */}
                 <View style={styles.section}>
-                  <Text style={styles.label}>Labor rates</Text>
+                  <Text style={styles.label}>Labor Rates</Text>
                   {laborOverrides.length === 0 && (
                     <Text style={styles.emptyHint}>No labor overrides yet.</Text>
                   )}
@@ -376,13 +376,13 @@ function RateOverrideModalImpl({
                   })}
                   <TouchableOpacity style={styles.addRowBtn} onPress={openAddLabor} activeOpacity={0.8}>
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add labor rate</Text>
+                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add Labor Rate</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Material overrides section */}
                 <View style={styles.section}>
-                  <Text style={styles.label}>Material prices</Text>
+                  <Text style={styles.label}>Material Prices</Text>
                   {materialOverrides.length === 0 && (
                     <Text style={styles.emptyHint}>No material overrides yet.</Text>
                   )}
@@ -422,7 +422,7 @@ function RateOverrideModalImpl({
                   })}
                   <TouchableOpacity style={styles.addRowBtn} onPress={openAddMaterial} activeOpacity={0.8}>
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add material price</Text>
+                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add Material Price</Text>
                   </TouchableOpacity>
                 </View>
 

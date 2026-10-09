@@ -61,7 +61,7 @@ export function InfoBubble({
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType={fInfo.animationType} onRequestClose={() => setOpen(false)}>
-        <Pressable style={[styles.backdrop, fInfo.overlay]} onPress={() => setOpen(false)} accessibilityLabel="Close definition">
+        <Pressable style={[styles.backdrop, fInfo.overlay]} onPress={() => setOpen(false)} accessibilityLabel="Close Definition">
           {/* Inner Pressable swallows taps so they don't dismiss the modal. */}
           <Pressable style={[styles.card, fInfo.card]} onPress={() => undefined}>
             <View style={styles.headerRow}>
@@ -75,11 +75,11 @@ export function InfoBubble({
                 <X size={18} color={t.textMuted} strokeWidth={2} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.label}>What it is</Text>
+            <Text style={styles.label}>What It Is</Text>
             <Text style={styles.body}>{resolvedWhat}</Text>
             {resolvedWhy ? (
               <>
-                <Text style={[styles.label, styles.labelSpaced]}>Why it matters</Text>
+                <Text style={[styles.label, styles.labelSpaced]}>Why It Matters</Text>
                 <Text style={styles.body}>{resolvedWhy}</Text>
               </>
             ) : null}

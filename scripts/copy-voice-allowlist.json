@@ -56,6 +56,7 @@
     "MAGE",
     "ID",
     "Ask MAGE",
+    "Punch from Photos",
     "MAGE ID Bids",
     "MAGE ID",
     "Home Passport",
@@ -157,6 +158,2376 @@
       "rule": "R16",
       "match": "and 0 more",
       "reason": "list continuation (\"and 3 more\") under the rows above"
+    },
+    {
+      "file": "components/DesktopSidebar.tsx",
+      "rule": "R21",
+      "match": "SETUP & TOOLS",
+      "reason": "a section KEY: rows, the saved open state (mageid_sidebar_sections) and validators match it; the header prints SECTION_LABEL, which says \"and\""
+    },
+    {
+      "file": "app/(tabs)/(home)/index.tsx",
+      "rule": "R24",
+      "match": "Unlimited Projects",
+      "reason": "the Paywall `feature` key (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE's 'More Than One Project'"
+    },
+    {
+      "file": "components/DesktopSidebar.tsx",
+      "rule": "R15",
+      "match": "Primary navigation",
+      "reason": "matched by code: SIDEBAR_DOM_SELECTOR in components/ui/desktop.ts and the print stylesheet select nav[aria-label='Primary navigation']"
+    },
+    {
+      "file": "app/takeoff-estimate.tsx",
+      "rule": "R20",
+      "match": "01 - General",
+      "reason": "CSI division key: saved on estimate lines and grouped on, not a sentence"
+    },
+    {
+      "file": "utils/estimateMarkup.ts",
+      "rule": "R21",
+      "match": "Permits & fees",
+      "reason": "line category key: the cost history is keyed on it (the wizard prints \"Permits and Fees\")"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Lumber & Framing",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Lumber & Framing",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Concrete & Masonry",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Concrete & Masonry",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Paint & Finishes",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Paint & Finishes",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Windows & Doors",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Windows & Doors",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Siding & Exterior",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Siding & Exterior",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Steel & Metal",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Steel & Metal",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "utils/scopePricing.ts",
+      "rule": "R21",
+      "match": "Fasteners & Hardware",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Fasteners & Hardware",
+      "reason": "category key: cost history lookups (lookupRate) match on this exact label"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Floor & Decor",
+      "reason": "another company's own name (VOICE 4)"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Ice & Water Shield",
+      "reason": "catalog product name: saved estimate lines, recents and price alerts carry it as typed"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "PVC Cement & Primer Kit",
+      "reason": "catalog product name: saved estimate lines, recents and price alerts carry it as typed"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Cabinet & Trim Enamel",
+      "reason": "catalog product name: saved estimate lines, recents and price alerts carry it as typed"
+    },
+    {
+      "file": "constants/materials.ts",
+      "rule": "R21",
+      "match": "Roller Frame & Cover Kit",
+      "reason": "catalog product name: saved estimate lines, recents and price alerts carry it as typed"
+    },
+    {
+      "file": "utils/copilot/estimate/estimateGrounding.ts",
+      "rule": "R20",
+      "match": "is a rate the contractor SET THEMSELVES",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/copilot/estimate/estimateGrounding.ts",
+      "rule": "R20",
+      "match": "This project already has a",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/scopeQuestions.ts",
+      "rule": "R20",
+      "match": "THIS CONTRACTOR'S OWN COST HISTORY",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/judges/narrateVerdict.ts",
+      "rule": "R20",
+      "match": "Use ONLY the numbers below",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/instantBid.ts",
+      "rule": "R20",
+      "match": "a rate this contractor SET THEMSELVES",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/bidHistoryFacts.ts",
+      "rule": "R20",
+      "match": "Mid-small ($50K–$200K)",
+      "reason": "compact number range (VOICE 4) in a size-bucket fact line sent to the model"
+    },
+    {
+      "file": "utils/bidHistoryFacts.ts",
+      "rule": "R20",
+      "match": "Mid ($200K–$500K)",
+      "reason": "compact number range (VOICE 4) in a size-bucket fact line sent to the model"
+    },
+    {
+      "file": "utils/bidHistoryFacts.ts",
+      "rule": "R20",
+      "match": "Large ($500K–$2M)",
+      "reason": "compact number range (VOICE 4) in a size-bucket fact line sent to the model"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "Your record",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "AI estimate",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "low confidence",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "medium confidence",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/automation/leadTimeLibrary.ts",
+      "rule": "R15",
+      "match": "high confidence",
+      "reason": "one field of a lead-time chip that carries a number (\"25d lead · Your record · medium confidence · 18–34d …\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/(tabs)/discover/bids.tsx",
+      "rule": "R15",
+      "match": "Near me",
+      "reason": "quoted verbatim by the iOS location purpose string in app.json (validate-location-consent); changing it needs a native build"
+    },
+    {
+      "file": "app/cost-xray.tsx",
+      "rule": "R15",
+      "match": "your job history",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/cost-xray.tsx",
+      "rule": "R15",
+      "match": "the rate you set yourself",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/cost-xray.tsx",
+      "rule": "R15",
+      "match": "a catalog allowance",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/auto-bids.tsx",
+      "rule": "R15",
+      "match": "priced from what your past jobs cost",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/auto-bids.tsx",
+      "rule": "R15",
+      "match": "priced off their posted budget",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "utils/scopeGaps.ts",
+      "rule": "R15",
+      "match": "your scope notes",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "utils/buildingScopeTriggers.ts",
+      "rule": "R15",
+      "match": "your scope notes",
+      "reason": "printed mid-sentence, after other words on the same line (VOICE 3: only a standalone string starts with a capital)"
+    },
+    {
+      "file": "app/estimate-confidence.tsx",
+      "rule": "R15",
+      "match": "No history ·",
+      "reason": "a label that carries a number (\"No history · 3 lines\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/area-takeoff.tsx",
+      "rule": "R15",
+      "match": "Add to",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/estimate-wizard.tsx",
+      "rule": "R15",
+      "match": "Saved to",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/(tabs)/materials/[category].tsx",
+      "rule": "R15",
+      "match": "Bulk at",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/cost-seed.tsx",
+      "rule": "R15",
+      "match": "Your Rate ($ per",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/selections.tsx",
+      "rule": "R15",
+      "match": "Draft a Change Order for the",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/buyout-package.tsx",
+      "rule": "R15",
+      "match": "Re-Write It from the",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/prequal-manager.tsx",
+      "rule": "R15",
+      "match": "Send Renewal to",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/punch-list.tsx",
+      "rule": "R21",
+      "match": "Punch List & Closeout",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE's 'Punch List and Closeout'"
+    },
+    {
+      "file": "app/punch-pin.tsx",
+      "rule": "R21",
+      "match": "Punch List & Closeout",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE's 'Punch List and Closeout'"
+    },
+    {
+      "file": "app/punch-walk.tsx",
+      "rule": "R21",
+      "match": "Punch List & Closeout",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE's 'Punch List and Closeout'"
+    },
+    {
+      "file": "app/punch-walk.tsx",
+      "rule": "R21",
+      "match": "Doors & Hardware",
+      "reason": "a `case` label matched against the SubTrade value saved on subs; the chip prints the t() value beside it, which says \"and\""
+    },
+    {
+      "file": "app/invoice.tsx",
+      "rule": "R15",
+      "match": "Update the Saved Figure to",
+      "reason": "the button label continues with the amount (\"Update the Saved Figure to $1,200\"), so \"to\" is a middle word"
+    },
+    {
+      "file": "components/AIEquipmentAdvice.tsx",
+      "rule": "R15",
+      "match": "Measured from",
+      "reason": "the opening words of a sentence that continues through JSX expressions (\"Measured from 4 utilization entries over 12 days, at your $350/day rate.\")"
+    },
+    {
+      "file": "components/punch/PlanPinStep.tsx",
+      "rule": "R23",
+      "match": "← back",
+      "reason": "a keyboard legend: the Left Arrow key itself (VOICE 4, keyboard legends stay)"
+    },
+    {
+      "file": "utils/punchGcCore.ts",
+      "rule": "R20",
+      "match": "Rejected — needs rework",
+      "reason": "a stored value code matches: the sub portal's GENERIC_REJECT_RE and the punch_sub_portal_v2 migration read this exact note as \"no reason given\""
+    },
+    {
+      "file": "utils/voiceActionParser.ts",
+      "rule": "R20",
+      "match": "No project context — pick the most likely action kind",
+      "reason": "a line of the AI prompt, never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/voiceCommandParser.ts",
+      "rule": "R20",
+      "match": "% complete, status:",
+      "reason": "a line of the AI prompt (the task list given to the model), never shown to a person"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "No crew scheduled",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Holiday / closure",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Waiting on inspection",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Waiting on materials",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Waiting on an answer",
+      "reason": "NO_WORK_REASONS `label` is the English id (React key and testID no-work-chip-<label>), never printed: the chip prints `shown`, which is Title Case"
+    },
+    {
+      "file": "utils/voiceDFRParser.ts",
+      "rule": "R20",
+      "match": "SITE PHOTOS TAKEN TODAY",
+      "reason": "a block of the AI prompt, never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "app/invoice.tsx",
+      "rule": "R15",
+      "match": "Dictate this invoice",
+      "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
+    },
+    {
+      "file": "app/punch-list.tsx",
+      "rule": "R15",
+      "match": "Describe the punch item",
+      "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
+    },
+    {
+      "file": "app/punch-walk.tsx",
+      "rule": "R15",
+      "match": "Capture a punch item",
+      "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
+    },
+    {
+      "file": "app/daily-report.tsx",
+      "rule": "R15",
+      "match": "Dictate today's report",
+      "reason": "the VoiceCaptureModal `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it orphans a dictation waiting on the phone. It stays as typed until the caller passes a stable queueKey"
+    },
+    {
+      "file": "app/budget-dashboard.tsx",
+      "rule": "R20",
+      "match": "Actual Cost (money paid OUT",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "app/budget-dashboard.tsx",
+      "rule": "R20",
+      "match": "Actual Cost: NOT AVAILABLE",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "app/qbo-review.tsx",
+      "rule": "R15",
+      "match": "Looks like the receipt you scanned",
+      "reason": "the opening words of a sentence that continues through JSX expressions"
+    },
+    {
+      "file": "app/change-order.tsx",
+      "rule": "R15",
+      "match": "Dictate this change order",
+      "reason": "the InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (voiceContextKey)"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R15",
+      "match": "Estimate (differs from the signed contract)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R15",
+      "match": "Carried forward (signed contract not checked)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R21",
+      "match": "at variable rates &mdash; see Column I on G703",
+      "reason": "a line of the pay app PDF (G702 cover): a money document, not restyled"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R20",
+      "match": "<!DOCTYPE html>",
+      "reason": "the pay app PDF template (G702/G703): form line text and empty-field dashes on a money document, not restyled"
+    },
+    {
+      "file": "utils/aiaBilling.ts",
+      "rule": "R21",
+      "match": "<!DOCTYPE html>",
+      "reason": "the pay app PDF template (G702/G703): \"Total Completed &amp; Stored to Date\" is the form's own line text"
+    },
+    {
+      "file": "utils/paymentPrediction.ts",
+      "rule": "R20",
+      "match": "Call Acme LLC about invoice #12",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/copilot/scheduleBuilder/buildAnswersPrompt.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/copilot/scheduleBuilder/buildAnswersPrompt.ts",
+      "rule": "R22",
+      "match": "e.g. rough-in inspection before cover",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/copilot/schedule/scheduleGaps.ts",
+      "rule": "R20",
+      "match": "PHASING: trades may overlap across areas",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/financialReportPdf.ts",
+      "rule": "R20",
+      "match": "<span class=\"num\">—</span>",
+      "reason": "a lone dash in an empty table cell means \"no value\" (VOICE 4)"
+    },
+    {
+      "file": "utils/exportSchedulePdf.ts",
+      "rule": "R20",
+      "match": "<td>—</td><td>—</td>",
+      "reason": "a lone dash in an empty table cell means \"no value\" (VOICE 4)"
+    },
+    {
+      "file": "utils/jobCostEngine.ts",
+      "rule": "R15",
+      "match": "Over by",
+      "reason": "the words before a value on one line (\"Over by $1,200\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "utils/jobCostEngine.ts",
+      "rule": "R15",
+      "match": "Under by",
+      "reason": "the words before a value on one line (\"Over by $1,200\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "utils/pace/stampActuals.ts",
+      "rule": "R15",
+      "match": "on time",
+      "reason": "one value of a chip whose other values carry a number (\"+3d late\", \"started +2d\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/profitLeak/rfiScopePrompt.ts",
+      "rule": "R20",
+      "match": "is in scope — never flag it",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/profitLeak/leakPrompt.ts",
+      "rule": "R20",
+      "match": "is in scope — never flag it",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/profitLeak/scopeSummary.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/bidLeveling.ts",
+      "rule": "R20",
+      "match": "it EXCLUDES that the package needs",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/bidLevelingEngine.ts",
+      "rule": "R20",
+      "match": "SELF-REPORTED",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/bidLevelingEngine.ts",
+      "rule": "R20",
+      "match": "No cost-book data available",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/scheduleAI.ts",
+      "rule": "R20",
+      "match": " — qty ",
+      "reason": "text sent to the model, not read by a person; rewording it would change AI behaviour"
+    },
+    {
+      "file": "utils/retainageSource.ts",
+      "rule": "R15",
+      "match": "set on this invoice",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/retainageSource.ts",
+      "rule": "R15",
+      "match": "carried from earlier billing (check your contract)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/retainageSource.ts",
+      "rule": "R15",
+      "match": "not on file (retainage not held)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/brain/accuracyReport.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "sentences that state how accurate MAGE has been: left as typed for a founder decision (lane 2 report)"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R20",
+      "match": "[warranty period — set before signing]",
+      "reason": "contract clause placeholder: printed in the contract, matched by hasWarrantyPlaceholder and the portal page, never restyled"
+    },
+    {
+      "file": "utils/tax1099Export.ts",
+      "rule": "R20",
+      "match": "Commitment Paid To Date (undated — NOT counted)",
+      "reason": "a CSV column header a CPA maps into their template: field names another system reads do not change"
+    },
+    {
+      "file": "utils/aiaForms.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/aiaForms.ts",
+      "rule": "R21",
+      "match": "printed name & title",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/aiaForms.ts",
+      "rule": "R22",
+      "match": "e.g. G704",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/lienWaiverForms.ts",
+      "rule": "R15",
+      "match": "Check Payable to",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/lienWaiverForms.ts",
+      "rule": "R15",
+      "match": "State of Georgia, County of",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/lienWaiverForms.ts",
+      "rule": "R20",
+      "match": "—",
+      "reason": "legal document text (closeout forms, subcontract, statutory waiver forms): a copy pass does not restyle it"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "Signed contract",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "Estimate (no signed contract yet)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "Estimate (signed contract not checked)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "As saved (signed contract not checked)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/projectFinancials.ts",
+      "rule": "R15",
+      "match": "Estimate (signed contract has no amount)",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Linked estimate: grand total (priced)",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Reconstructed from a change order’s contract snapshot",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Target budget you entered in project setup",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "GMP cap you entered in project setup",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Legacy estimate: grand total",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Linked estimate: base total (cost before markup)",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Signed subcontracts and POs, including CO revisions",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "No source on file (enter this figure yourself)",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "utils/wip.ts",
+      "rule": "R15",
+      "match": "Cost-to-date you entered, synced across your devices",
+      "reason": "a provenance caption printed after a figure in a sentence (\"Cost-to-date $1,200: <caption>.\") and on the WIP export: sentence case, VOICE 3"
+    },
+    {
+      "file": "app/schedule-review.tsx",
+      "rule": "R15",
+      "match": "Paced from your history ·",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "components/schedule/AIAssistantPanel.tsx",
+      "rule": "R15",
+      "match": "Paced from your history ·",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/last-planner.tsx",
+      "rule": "R15",
+      "match": "PPC this week ·",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "components/schedule/PaceChip.tsx",
+      "rule": "R15",
+      "match": "Set from your",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "components/schedule/SubUpdatesPanel.tsx",
+      "rule": "R15",
+      "match": "Sub updates ·",
+      "reason": "a label that carries a number (\"Paced from your history · 3 trades\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/aia-pay-app.tsx",
+      "rule": "R15",
+      "match": "Installed this period: move",
+      "reason": "a button sentence that carries an amount (\"Installed this period: move $1,200 from stored into this period\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/shared-schedule.tsx",
+      "rule": "R15",
+      "match": "No Tasks Assigned to",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/change-order.tsx",
+      "rule": "R15",
+      "match": "Declined by",
+      "reason": "the words before a value on one line (\"Add to {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/aia-pay-app.tsx",
+      "rule": "R15",
+      "match": "State of",
+      "reason": "the notary block of the pay app, as the form prints it (\"State of ____\"): the words before a value, not restyled"
+    },
+    {
+      "file": "app/aia-pay-app.tsx",
+      "rule": "R15",
+      "match": "County of",
+      "reason": "the notary block of the pay app, as the form prints it (\"County of ____\"): the words before a value, not restyled"
+    },
+    {
+      "file": "app/schedule-pro.tsx",
+      "rule": "R15",
+      "match": "actual start",
+      "reason": "printed mid-sentence, after other words on the same line (\"Not saved: actual start.\"), VOICE 3"
+    },
+    {
+      "file": "app/schedule-pro.tsx",
+      "rule": "R15",
+      "match": "actual finish",
+      "reason": "printed mid-sentence, after other words on the same line (\"Not saved: actual start.\"), VOICE 3"
+    },
+    {
+      "file": "components/schedule/mobile/MobileScheduleScreen.tsx",
+      "rule": "R15",
+      "match": "actual start",
+      "reason": "printed mid-sentence, after other words on the same line (\"Not saved: actual start.\"), VOICE 3"
+    },
+    {
+      "file": "components/schedule/mobile/MobileScheduleScreen.tsx",
+      "rule": "R15",
+      "match": "actual finish",
+      "reason": "printed mid-sentence, after other words on the same line (\"Not saved: actual start.\"), VOICE 3"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R15",
+      "match": "Deposit (signing)",
+      "reason": "LEGACY_SEED_SCHEDULE: isLegacySeedSchedule matches these labels, case and all, against milestones saved on projects"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R15",
+      "match": "Rough-in / framing complete",
+      "reason": "LEGACY_SEED_SCHEDULE: isLegacySeedSchedule matches these labels, case and all, against milestones saved on projects"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R15",
+      "match": "Finishes complete",
+      "reason": "LEGACY_SEED_SCHEDULE: isLegacySeedSchedule matches these labels, case and all, against milestones saved on projects"
+    },
+    {
+      "file": "utils/paymentTerms.ts",
+      "rule": "R15",
+      "match": "Substantial completion",
+      "reason": "LEGACY_SEED_SCHEDULE: isLegacySeedSchedule matches these labels, case and all, against milestones saved on projects"
+    },
+    {
+      "file": "utils/billingFlowCore.ts",
+      "rule": "R15",
+      "match": "Billed as work is completed",
+      "reason": "the contract wording for a progress row: validate-billing-flow holds it equal to milestoneDueText (PAYMENT_STAGE_COPY detail), which prints on the contract"
+    },
+    {
+      "file": "app/last-planner.tsx",
+      "rule": "R15",
+      "match": "Next week",
+      "reason": "a label that carries a date (\"Next week · Mar 9 to 15\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/aia-pay-app.tsx",
+      "rule": "R15",
+      "match": "D From Previous",
+      "reason": "a column letter and then the header: \"From\" is the header's first word, so it takes a capital"
+    },
+    {
+      "file": "app/client-view.tsx",
+      "rule": "R15",
+      "match": "Last updated",
+      "reason": "a label that carries a time (\"Last updated 3:38 PM\"): sentence case, VOICE 3"
+    },
+    {
+      "file": "app/plans.tsx",
+      "rule": "R15",
+      "match": "Title block reads",
+      "reason": "the opening words of a sentence that continues through a JSX expression (\"Title block reads A-201. Use it?\")"
+    },
+    {
+      "file": "app/sub-portal-setup.tsx",
+      "rule": "R15",
+      "match": "Share with",
+      "reason": "the words before a value on one line (\"Share with {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/sub-portal-setup.tsx",
+      "rule": "R15",
+      "match": "Invoices from",
+      "reason": "the words before a value on one line (\"Share with {name}\"): the last word is mid-label, so it stays small"
+    },
+    {
+      "file": "app/submittal.tsx",
+      "rule": "R21",
+      "match": "RFIs & Submittals",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE, which says \"and\""
+    },
+    {
+      "file": "app/submittal.tsx",
+      "rule": "R15",
+      "match": "Dictate this submittal",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/(tabs)/construction-ai/index.tsx",
+      "rule": "R15",
+      "match": "Describe the work",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/oac-meeting.tsx",
+      "rule": "R15",
+      "match": "Capture meeting discussion",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/permits.tsx",
+      "rule": "R21",
+      "match": "Permits & Inspections",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE, which says \"and\""
+    },
+    {
+      "file": "app/rfi.tsx",
+      "rule": "R21",
+      "match": "RFIs & Submittals",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE, which says \"and\""
+    },
+    {
+      "file": "app/rfi.tsx",
+      "rule": "R15",
+      "match": "Dictate this RFI",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/rfi.tsx",
+      "rule": "R15",
+      "match": "Record the answer",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "app/warranties.tsx",
+      "rule": "R15",
+      "match": "with an open claim",
+      "reason": "printed mid-sentence, after a count (\"2 with an open claim\"): only a standalone string starts with a capital (VOICE 3)"
+    },
+    {
+      "file": "app/warranties.tsx",
+      "rule": "R15",
+      "match": "missing an end date",
+      "reason": "printed mid-sentence, after a count (\"2 with an open claim\"): only a standalone string starts with a capital (VOICE 3)"
+    },
+    {
+      "file": "components/tutorial/TutorialHost.tsx",
+      "rule": "R21",
+      "match": "Punch List & Closeout",
+      "reason": "a Paywall `feature` KEY (FEATURE_PITCH / FEATURE_TITLE lookup and an analytics property), never printed: the heading prints FEATURE_TITLE, which says \"and\""
+    },
+    {
+      "file": "components/plans/AskPlansPanel.tsx",
+      "rule": "R15",
+      "match": "Title block reads",
+      "reason": "the opening words of a sentence that continues through a JSX expression (\"Title block reads A-201. Use it?\")"
+    },
+    {
+      "file": "components/brain/AskConversation.tsx",
+      "rule": "R15",
+      "match": "Ask by voice",
+      "reason": "the VoiceCaptureModal / VoiceRecorder / InlineVoiceFill `title`: besides the sheet heading it is hashed, case and all, into the offline dictation queue key (utils/audioTranscribeCore voiceContextKey), so recasing it would orphan a waiting dictation"
+    },
+    {
+      "file": "utils/closeoutPacketGenerator.ts",
+      "rule": "R21",
+      "match": "wght@500;600;700;800&display=swap",
+      "reason": "the \"&\" is a query-string separator in the Google Fonts URL of the handoff packet HTML, not copy"
+    },
+    {
+      "file": "utils/codeThread/context.ts",
+      "rule": "R20",
+      "match": "- Estimate lines (name — quantity unit, category), first 0",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/inspectionPrep.ts",
+      "rule": "R22",
+      "match": "when the answer changes the list (e.g. \"Any basement bedrooms?\" Yes / No",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/planSheetBatchCore.ts",
+      "rule": "R20",
+      "match": "0 — Page 0",
+      "reason": "a stored sheet name and the prefix code matches saved sheets on (`${base} — page N`): changing it orphans pages already imported"
+    },
+    {
+      "file": "utils/planSheetBatchCore.ts",
+      "rule": "R20",
+      "match": "0 — page ",
+      "reason": "a stored sheet name and the prefix code matches saved sheets on (`${base} — page N`): changing it orphans pages already imported"
+    },
+    {
+      "file": "utils/tutorial/learn/laneB.ts",
+      "rule": "R20",
+      "match": "-block numbers (NOT the Ask sheet — it has the askPlans layer)",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneB.ts",
+      "rule": "R20",
+      "match": "the question row — its mount completes the open-the-",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneB.ts",
+      "rule": "R20",
+      "match": "TAKEOFF_RESULT in the real review — no upload, no AI call, no meter c",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneB.ts",
+      "rule": "R20",
+      "match": "ows samplePlanAnswer(SAMPLE_PLAN) — no search, no AI call",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/fixturesB.ts",
+      "rule": "R15",
+      "match": "not read (sample counts)",
+      "reason": "a scale value printed after \"Scale:\" on the takeoff review, not a standalone label"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "schedule-back-to-job — the from=job link to the sample h",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "utton when his crew list is empty — the card says to add crew first",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "punch-item-<id> — the run's own item (opens the edi",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "the compose box (sample run only) — never presses Continue",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R20",
+      "match": "LE (line + Hall), sample run only — he taps Save",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneC.ts",
+      "rule": "R21",
+      "match": "Riverbend Drywall & Acoustical Ceilings of Northern N",
+      "reason": "a made-up company's own name in a sizing fixture (VOICE 4: another organization's name keeps its \"&\")"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "(handleSaveDraft → saveDraftFrom) — never Sign & send",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R21",
+      "match": "aft → saveDraftFrom) — never Sign & send",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R23",
+      "match": "bar's Save draft (handleSaveDraft → saveDraftFrom) — never Sign & sen",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "Sign & send — LOOK ONLY, never a do step; refus",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R21",
+      "match": "Sign & send — LOOK ONLY, never a do step",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "aia-edit-draft — a SAVED period opens read-only (r",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "Schedule of values (G703) section — cards on phone, aia-g703 grid on ",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "ar's Save to project (handleSave) — never Generate PDF / the certify ",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "e Architect's certificate section — LOOK ONLY, never aia-save-certifi",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "binder-deliver (finalized only) — LOOK ONLY; refused on a sample",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": ", the finalize slide (draft only) — LOOK ONLY",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneD.ts",
+      "rule": "R20",
+      "match": "n's own setPeriodTo (sample only) — never presses Save",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "wizard-save-sample — 'Save to the sample job' (a fixtu",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "wizard-open-sample-job — after the sample save, back to th",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "add-co-item-btn ('Custom' — opens the add-line sheet)",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "save-co-draft ('Save to Project') — never send-co-btn",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R21",
+      "match": "the Overhead & profit row (ticket-markup); rates",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "ticket-save-unsigned ('Save') — never ticket-get-signature / tick",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "he scope answer (sample run only) — never presses Generate",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/learn/laneA.ts",
+      "rule": "R20",
+      "match": "eet prefilled with CO_SAMPLE.line — the user taps Add",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "work-performed-input — fallback when the preview card is",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "walk-pin-marker — its mount completes the drop-pin ",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "oiceCaptureModal open (modalOpen) — its pageSheet covers the dfr-voic",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "r, all locations (NOT PlanPinStep — it has the planPin layer)",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/registry.ts",
+      "rule": "R20",
+      "match": "PLE_NOTE.parsed, {metered:false}) — no AI call, no meter change",
+      "reason": "a developer note on a tutorial anchor (the registry `note` / `what` field), never printed"
+    },
+    {
+      "file": "utils/tutorial/defs/index.ts",
+      "rule": "R20",
+      "match": "Sample — Sarah's Place",
+      "reason": "the sample project name: the 'Sample — ' prefix is matched by the app and exempted by the server"
+    },
+    {
+      "file": "utils/tutorial/defs/index.ts",
+      "rule": "R20",
+      "match": "Sample — Residential Build",
+      "reason": "the sample project name: the 'Sample — ' prefix is matched by the app and exempted by the server"
+    },
+    {
+      "file": "utils/learn/quizBank.ts",
+      "rule": "R21",
+      "match": "(c.kind === 'plan' && !!c.ref)",
+      "reason": "a `mustContain` pin: a literal quoted from another file (code or that file's own string), held equal by validate-skill-quiz-bank"
+    },
+    {
+      "file": "utils/learn/quizBank.ts",
+      "rule": "R23",
+      "match": "withConfirmedImpactDays(() => handleSave('draft'))",
+      "reason": "a `mustContain` pin: a literal quoted from another file (code or that file's own string), held equal by validate-skill-quiz-bank"
+    },
+    {
+      "file": "utils/learn/quizBank.ts",
+      "rule": "R21",
+      "match": " a change order. What does Revise & re-issue do?",
+      "reason": "a skills-check question or choice: changing it needs a quizVersion bump and a regenerated server key (gen-skill-quiz-key), so it waits for the server pass"
+    },
+    {
+      "file": "utils/learn/quizBank.ts",
+      "rule": "R21",
+      "match": "Sign & send",
+      "reason": "a skills-check question or choice: changing it needs a quizVersion bump and a regenerated server key (gen-skill-quiz-key), so it waits for the server pass"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "log the end of the day — crew on site, work done, weather,",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "a change the owner wants — added scope and cost",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "log a warranty on installed work — roof, HVAC, appliance, etc.",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "a job hazard analysis / JSA — hazards + controls for a task",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/intentTable.ts",
+      "rule": "R20",
+      "match": "log a building/trade permit — pulled, approved, or expiring",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/copilot/types.ts",
+      "rule": "R20",
+      "match": "REPLACES the draft — an op you leave out is not applie",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/plans/planAnswer.ts",
+      "rule": "R22",
+      "match": "(e.g. \"Sheet S-201\"). If the answer is ",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/plans/planAnswer.ts",
+      "rule": "R20",
+      "match": "exed plans and suggest rephrasing — do NOT invent an answer.",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/codeCard/echoCheck.ts",
+      "rule": "R20",
+      "match": "(^|[^A-Za-z0-9.$])0(?:[s,:;(–—-]{0,3}[\"“„«‘]|[s,:;(–—-]{1,3}'(?",
+      "reason": "a regular expression (the dash is inside a character class), not copy"
+    },
+    {
+      "file": "utils/constructionNews.ts",
+      "rule": "R21",
+      "match": "Materials & prices",
+      "reason": "a news topic KEY: must equal NEWS_TOPICS in supabase/functions/construction-news/core.ts (validator-checked); it changes with the server pass"
+    },
+    {
+      "file": "utils/constructionNews.ts",
+      "rule": "R21",
+      "match": "Labor & safety",
+      "reason": "a news topic KEY: must equal NEWS_TOPICS in supabase/functions/construction-news/core.ts (validator-checked); it changes with the server pass"
+    },
+    {
+      "file": "utils/constructionNews.ts",
+      "rule": "R21",
+      "match": "Codes & policy",
+      "reason": "a news topic KEY: must equal NEWS_TOPICS in supabase/functions/construction-news/core.ts (validator-checked); it changes with the server pass"
+    },
+    {
+      "file": "utils/constructionNews.ts",
+      "rule": "R21",
+      "match": "Equipment & tech",
+      "reason": "a news topic KEY: must equal NEWS_TOPICS in supabase/functions/construction-news/core.ts (validator-checked); it changes with the server pass"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Finish — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Supplier — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Warranty — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Supplier — materials",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Trade — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Contact — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Maintenance — 0",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/buildHomePassport.ts",
+      "rule": "R20",
+      "match": "Photo — 00",
+      "reason": "a record reference (\"Warranty — Trane HVAC\") that the Ask Your Home prompt tells the model to cite in exactly this form; changing it changes the citations"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "That's not in your home's records — ask your contractor.",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "'s not in this building's records — ask your contractor.",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "t or property manager understands — no contractor jargon",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "a homeowner understands — no contractor jargon",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R22",
+      "match": "nce in parentheses for each fact, e.g. ",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/passport/askHomePrompt.ts",
+      "rule": "R20",
+      "match": "(Warranty — Trane HVAC). If the records do no",
+      "reason": "the Ask Your Home prompt and its fixed refusal sentence, which the model is told to reply word for word; not restyled"
+    },
+    {
+      "file": "utils/rfiLatency.ts",
+      "rule": "R20",
+      "match": " — 0 blew past their due date",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R15",
+      "match": "fire / egress",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R15",
+      "match": "zoning / site",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "0 — 0 0 \"0\" on 0 and wrote: \"0\"",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "No 0 inspection called yet with 0 — 0 inspection0 on file there, none",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "ctions of an item already counted — 0 distinct inspection0.",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "han 0 DISTINCT called inspections — too few to say anything about a p",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "s fewer than 0 called inspections — too few to say anything about a p",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "hat the inspectors actually wrote — the 0 most recent of 0 notes, ver",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": "your jobs with this authority (0) — a note from one job is not a find",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": " — 0 distinct item0, 0 re-inspection",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": " — the inspector's note is in the an",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/permitInspectionFacts.ts",
+      "rule": "R20",
+      "match": " 0 matched by place name — one may be a same-named town.",
+      "reason": "a fact line rendered once for the prompt and the chip together (file header): grounding the model reads, with the inspector note verbatim; a copy pass does not reword it"
+    },
+    {
+      "file": "utils/codeAmendments.ts",
+      "rule": "R20",
+      "match": "human pass 2026-09-13 — curl + pdftotext -layout of 19 NY",
+      "reason": "provenance metadata (`readBy`: who read the register and how), never printed"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "y California's own writing either — the Commission describes it as a ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "n years, so none are claimed here — but it DOES publish separately-ti",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "option. No NEC edition is claimed — the state reaches it through the ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "oes not enforce the IECC directly — it writes the Washington State En",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R21",
+      "match": "rately by the Department of Labor & Industries (WAC 296-46B), and the",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "Statewide code — local jurisdictions enforce it ra",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "municipalities adopt on top of it — ask the city or town which of the",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "ctrical edition is a cycle behind — the 2020 National Electrical Code",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "reference, effective 1 March 2024 — the year in its name is the Ohio ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "nstruction Code on 17 August 2026 — a very recent turnover, and the s",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "ative Regulation Review Committee — confirm which code your permit da",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "esidential fact sheet era implies — the two chapters move independent",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": ". OSFM still lists the 2018 codes — in effect since 1 January 2019 — ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R21",
+      "match": "eattle Department of Construction & Inspections (SDCI)",
+      "reason": "another organization's own name (VOICE 4), also sent to the model as the authority having jurisdiction and held by validate-code-jurisdiction"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "cal and plumbing codes from IAPMO — the 2021 Uniform Mechanical Code ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "on Code took effect 1 August 2025 — a full cycle ahead of most large ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "Regulatory and Economic Resources — Construction, Permitting and Buil",
+      "reason": "another organization's own name (VOICE 4), also sent to the model as the authority having jurisdiction and held by validate-code-jurisdiction"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "ding-envelope products before use — windows, exterior glazing, wall c",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "are not on any model-code edition — they are Municipal Code chapters ",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": " / 23.00) on top of the base code — MAGE could NOT verify which one B",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "8797, the 2025 triennial adoption — passed 12 December 2025, approved",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": ". This is still the code in force — the 2024 DC Construction Codes, b",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "lumbing and mechanical from IAPMO — the 2024 Uniform Plumbing Code an",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "C, IPC, IEBC, IFGC, IFC and ISPSC — but the energy code stayed on the",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": " been in force since 13 June 2022 — but the city's \"Know the Code\" pa",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R21",
+      "match": "timore City Department of Housing & Community Development (DHCD), Per",
+      "reason": "another organization's own name (VOICE 4), also sent to the model as the authority having jurisdiction and held by validate-code-jurisdiction"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "refused by iccViewerUrl — not a bare volume id",
+      "reason": "a verdict reason printed by scripts/verify-code-sources.ts for the maintainer, never shown in the app"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "HTTP 0 — this volume id does not resolve; ",
+      "reason": "a verdict reason printed by scripts/verify-code-sources.ts for the maintainer, never shown in the app"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "generic fallback title — this id does not resolve to a vol",
+      "reason": "a verdict reason printed by scripts/verify-code-sources.ts for the maintainer, never shown in the app"
+    },
+    {
+      "file": "utils/codeJurisdiction.ts",
+      "rule": "R20",
+      "match": "This is the STATE adoption — MAGE has no city-level record for",
+      "reason": "an adoption-record `notes` / fact line: grounding sent to the model as \"Jurisdiction note: …\" (groundingFactsFor), pinned phrase by phrase by validate-code-jurisdiction; rewording it changes what the AI is told"
+    },
+    {
+      "file": "utils/rfiHoldTime.ts",
+      "rule": "R20",
+      "match": "the landlord or building engineer — counted on neither side, because ",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/codeAckCore.ts",
+      "rule": "R15",
+      "match": "Before you rely on a code answer",
+      "reason": "the one-time code-answer acknowledgement: its title, body and button are pinned word for word (__tests__/guards/code-ack.test.ts) and a style pass leaves the notice as written"
+    },
+    {
+      "file": "utils/permitOffices.ts",
+      "rule": "R21",
+      "match": "Town of Huntington Building & Housing Division",
+      "reason": "another organization's own name (VOICE 4)"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "MAGE ID PROPOSAL — THE DOCUMENT YOU ARE ACCEPTING",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "scope: 0 — 0",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "allowance: 0 — 0",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "payment: 0 — 0 — 0",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/portalSnapshot.ts",
+      "rule": "R20",
+      "match": "payment: 0 — 0",
+      "reason": "a line of the canonical proposal text the client accepts (hashed and stored with the acceptance); a legal record, not restyled"
+    },
+    {
+      "file": "utils/subCompliance.ts",
+      "rule": "R20",
+      "match": "vidence of a missing track record — do not read them as one.",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/subCompliance.ts",
+      "rule": "R20",
+      "match": " commitments on record in MAGE ID — there is no track record here yet",
+      "reason": "text sent to the model (a prompt or grounding line), never shown to a person; a copy pass does not change what the model is told"
+    },
+    {
+      "file": "utils/pushPermissionAsk.ts",
+      "rule": "R20",
+      "match": "permission is already granted — register the token silently",
+      "reason": "an internal `because` reason for logs and tests, never shown"
+    },
+    {
+      "file": "utils/plans/specBookRange.ts",
+      "rule": "R15",
+      "match": "No pages were read",
+      "reason": "a coverage sentence printed in line with the others (\"Read pages 1–24 of 212\"), pinned by validate-spec-book-coverage; not a standalone label"
+    },
+    {
+      "file": "utils/retainageSource.ts",
+      "rule": "R15",
+      "match": "from your contract",
+      "reason": "a caption beside a figure (VOICE 3: helper text is sentence case), printed after other words on the same line; validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Linked to this change order",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Taken in the evidence window",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Names this change order",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Tagged to a task this change order moves",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Photo an included RFI was raised from",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Evidence on a linked delay event",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "From a field ticket on this change order",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Created from a field ticket",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Schedule moved for this change order",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Marked approved",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Portal decision applied",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Declined in the client portal",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Approved in the client portal",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Declined by the client in the portal",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/coProofPacket.ts",
+      "rule": "R15",
+      "match": "Signed by the client in the portal",
+      "reason": "an audit-trail or evidence caption in the proof packet, printed after a date or beside a photo (VOICE 3: a caption is sentence case); validators pin the exact text"
+    },
+    {
+      "file": "utils/jobFacts/buildJobFacts.ts",
+      "rule": "R15",
+      "match": "Created from a field ticket",
+      "reason": "an audit-trail line on the job facts page, printed after a date (VOICE 3: a caption is sentence case); held equal to utils/coProofPacket.ts"
+    },
+    {
+      "file": "utils/jobFacts/buildJobFacts.ts",
+      "rule": "R15",
+      "match": "Schedule moved for this change order",
+      "reason": "an audit-trail line on the job facts page, printed after a date (VOICE 3: a caption is sentence case); held equal to utils/coProofPacket.ts"
+    },
+    {
+      "file": "utils/jobFacts/buildJobFacts.ts",
+      "rule": "R15",
+      "match": "Marked approved",
+      "reason": "an audit-trail line on the job facts page, printed after a date (VOICE 3: a caption is sentence case); held equal to utils/coProofPacket.ts"
+    },
+    {
+      "file": "utils/jobFacts/buildJobFacts.ts",
+      "rule": "R15",
+      "match": "Portal decision applied",
+      "reason": "an audit-trail line on the job facts page, printed after a date (VOICE 3: a caption is sentence case); held equal to utils/coProofPacket.ts"
+    },
+    {
+      "file": "utils/jobFacts/buildJobFacts.ts",
+      "rule": "R15",
+      "match": "Declined in the client portal",
+      "reason": "an audit-trail line on the job facts page, printed after a date (VOICE 3: a caption is sentence case); held equal to utils/coProofPacket.ts"
+    },
+    {
+      "file": "utils/jobFacts/buildJobFacts.ts",
+      "rule": "R15",
+      "match": "Approved in the client portal",
+      "reason": "an audit-trail line on the job facts page, printed after a date (VOICE 3: a caption is sentence case); held equal to utils/coProofPacket.ts"
+    },
+    {
+      "file": "utils/jobFacts/buildJobFacts.ts",
+      "rule": "R15",
+      "match": "Declined by the client in the portal",
+      "reason": "an audit-trail line on the job facts page, printed after a date (VOICE 3: a caption is sentence case); held equal to utils/coProofPacket.ts"
+    },
+    {
+      "file": "utils/jobFacts/buildJobFacts.ts",
+      "rule": "R15",
+      "match": "Signed by the client in the portal",
+      "reason": "an audit-trail line on the job facts page, printed after a date (VOICE 3: a caption is sentence case); held equal to utils/coProofPacket.ts"
+    },
+    {
+      "file": "utils/buildingAccess.ts",
+      "rule": "R15",
+      "match": "system shutdown",
+      "reason": "a fragment printed mid-sentence (the rule line names the thing in lower case)"
+    },
+    {
+      "file": "utils/buildingAccess.ts",
+      "rule": "R15",
+      "match": "hot work permit",
+      "reason": "a fragment printed mid-sentence (the rule line names the thing in lower case)"
+    },
+    {
+      "file": "utils/buildingAccess.ts",
+      "rule": "R15",
+      "match": "after-hours work",
+      "reason": "a fragment printed mid-sentence (the rule line names the thing in lower case)"
+    },
+    {
+      "file": "utils/buildingAccess.ts",
+      "rule": "R15",
+      "match": "loading dock",
+      "reason": "a fragment printed mid-sentence (the rule line names the thing in lower case)"
+    },
+    {
+      "file": "utils/buildingAccess.ts",
+      "rule": "R15",
+      "match": "freight elevator",
+      "reason": "a fragment printed mid-sentence (the rule line names the thing in lower case)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "work orders",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "managed properties",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "safety incidents",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "time entries",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "T&M field tickets",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "commitments / POs",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "AIA-style pay apps",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "photo records",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "punch items",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "daily reports",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "utils/dataExport.ts",
+      "rule": "R15",
+      "match": "change orders",
+      "reason": "a noun printed after a count in a sentence (12 daily reports)"
+    },
+    {
+      "file": "app/(tabs)/discover/index.tsx",
+      "rule": "R15",
+      "match": "One-tap Friday payouts to all your subs",
+      "reason": "a Discover promo card (payouts): left exactly as typed for a founder decision (docs/copy-style-remaining.md)"
+    },
+    {
+      "file": "app/(tabs)/discover/index.tsx",
+      "rule": "R20",
+      "match": "The $20K threshold reverted under OBBBA",
+      "reason": "a Discover promo card (payouts): left exactly as typed for a founder decision"
+    },
+    {
+      "file": "app/(tabs)/discover/index.tsx",
+      "rule": "R15",
+      "match": "Lien waivers at point-of-payment",
+      "reason": "a Discover promo card (lien waivers and escrow): left exactly as typed for a founder decision"
+    },
+    {
+      "file": "app/(tabs)/discover/index.tsx",
+      "rule": "R20",
+      "match": "Bank-held escrow optional for big jobs",
+      "reason": "a Discover promo card (lien waivers and escrow): left exactly as typed for a founder decision"
+    },
+    {
+      "file": "app/(tabs)/discover/index.tsx",
+      "rule": "R21",
+      "match": "E-sign conditional & unconditional waivers",
+      "reason": "a Discover promo card (lien waivers and escrow): left exactly as typed for a founder decision"
+    },
+    {
+      "file": "app/(tabs)/discover/index.tsx",
+      "rule": "R15",
+      "match": "Finance a truck or new equipment",
+      "reason": "a Discover promo card (equipment financing): left exactly as typed for a founder decision"
+    },
+    {
+      "file": "utils/demoSeed.ts",
+      "rule": "R20",
+      "match": "Sample — ",
+      "reason": "the 'Sample — ' project-name prefix is stored on projects and matched by isSampleProject and the server (lane 4 kept the same prefix in utils/sampleGuard)"
+    },
+    {
+      "file": "components/SquareFootEstimator.tsx",
+      "rule": "R15",
+      "match": "per SF",
+      "reason": "a unit caption that finishes a price (\"$185 per SF\"), lower case by VOICE 3"
+    },
+    {
+      "file": "components/DemoSeedPickerModal.tsx",
+      "rule": "R20",
+      "match": "Sample — ",
+      "reason": "code: strips the stored 'Sample — ' project-name prefix"
+    },
+    {
+      "file": "components/DemoSeedPickerModal.tsx",
+      "rule": "R20",
+      "match": "Each name starts with",
+      "reason": "quotes the stored 'Sample —' project-name prefix exactly as the user sees it on the tile"
+    },
+    {
+      "file": "components/NextStepHero.tsx",
+      "rule": "R20",
+      "match": "Sample — ",
+      "reason": "code: matches the stored 'Sample — ' project-name prefix"
+    },
+    {
+      "file": "components/desktop/webDocument.ts",
+      "rule": "R21",
+      "match": "window.matchMedia",
+      "reason": "JavaScript source in a string (the theme bootstrap script), not copy"
+    },
+    {
+      "file": "components/PDFPreSendSheet.tsx",
+      "rule": "R20",
+      "match": "0 - ",
+      "reason": "a default PDF file name: the spaced hyphen is the file-name separator, not punctuation in a sentence"
+    },
+    {
+      "file": "utils/followUp/rules.ts",
+      "rule": "R15",
+      "match": "has started with no signed commitment",
+      "reason": "a card title that is a sentence built around a task name in quotes (VOICE 3: a label that is really a sentence stays a sentence)"
+    },
+    {
+      "file": "utils/projectCap.ts",
+      "rule": "R20",
+      "match": "Sample — ",
+      "reason": "the stored 'Sample — ' project-name prefix, matched by code and by the server"
+    },
+    {
+      "file": "utils/oneMind/buildReadinessBlock.ts",
+      "rule": "R20",
+      "match": "so everything reads ready",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy"
+    },
+    {
+      "file": "utils/oneMind/buildReadinessBlock.ts",
+      "rule": "R20",
+      "match": "Clear these to protect the start dates",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy"
+    },
+    {
+      "file": "utils/groundingChip.ts",
+      "rule": "R20",
+      "match": "self-reported, no closed job yet",
+      "reason": "a grounding line sent to the model with the estimate prompt, not copy"
+    },
+    {
+      "file": "utils/pdfDesign.ts",
+      "rule": "R20",
+      "match": "The signature above attests to the work performed",
+      "reason": "the T&M ticket attestation printed above the signature: legal text, not restyled"
+    },
+    {
+      "file": "utils/tradeInference.ts",
+      "rule": "R21",
+      "match": "Doors & Hardware",
+      "reason": "a trade value saved on punch items and matched by code (lane 3 kept the same value in app/punch-walk.tsx)"
+    },
+    {
+      "file": "utils/aiService.ts",
+      "rule": "R20",
+      "match": "Not recorded — the weather is UNKNOWN",
+      "reason": "prompt text sent to the model, not copy"
+    },
+    {
+      "file": "utils/aiService.ts",
+      "rule": "R20",
+      "match": "SELF-REPORTED — the GC set this rate",
+      "reason": "prompt text sent to the model, not copy"
+    },
+    {
+      "file": "utils/aiService.ts",
+      "rule": "R20",
+      "match": "STARTED FROM A RATE THE GC SET",
+      "reason": "prompt text sent to the model, not copy"
+    },
+    {
+      "file": "utils/aiService.ts",
+      "rule": "R20",
+      "match": "this schedule has no start date",
+      "reason": "prompt text sent to the model, not copy"
+    },
+    {
+      "file": "utils/syncLedger.ts",
+      "rule": "R20",
+      "match": "Free plan allows 1 project — upgrade, or delete a job first",
+      "reason": "a refusal reason saved on queued records on the device and compared as text (reason === FREE_PLAN_PROJECT_CAP_REASON); changing it would orphan records refused before the update"
+    },
+    {
+      "file": "utils/syncLedger.ts",
+      "rule": "R20",
+      "match": "This job has safety records — it was not deleted",
+      "reason": "a refusal reason saved on queued records on the device and compared as text; changing it would orphan records refused before the update"
+    },
+    {
+      "file": "utils/offlineQueue.ts",
+      "rule": "R20",
+      "match": "Free plan allows 1 project — upgrade, or delete a job first",
+      "reason": "the fallback copy of syncLedger FREE_PLAN_PROJECT_CAP_REASON, saved on queued records and compared as text"
+    },
+    {
+      "file": "utils/offlineQueue.ts",
+      "rule": "R20",
+      "match": "This job has safety records — it was not deleted",
+      "reason": "the fallback copy of syncLedger SAFETY_RECORDS_DELETE_REASON, saved on queued records and compared as text"
+    },
+    {
+      "file": "utils/pdfGenerator.ts",
+      "rule": "R23",
+      "match": "critical-arrow",
+      "reason": "a drawn arrow between critical-path chips in the schedule PDF (a graphic in its own span, not copy)"
+    },
+    {
+      "file": "utils/portfolio/factLines.ts",
+      "rule": "R21",
+      "match": "PIPELINE & CAPACITY",
+      "reason": "a fact-block domain name sent to the model and cited back as [PIPELINE], not copy"
+    },
+    {
+      "file": "utils/laborSamples.ts",
+      "rule": "R20",
+      "match": "Labor — ",
+      "reason": "the 'Labor — ' prefix saved on estimate line descriptions and matched by code"
+    },
+    {
+      "file": "utils/noticeClock.ts",
+      "rule": "R20",
+      "match": "It is not legal advice",
+      "reason": "the notice-clock legal disclaimer, left word for word"
+    },
+    {
+      "file": "utils/aiConsentCore.ts",
+      "rule": "R23",
+      "match": "Settings → AI features",
+      "reason": "AI consent and its off notice: consent text is not restyled, and validate-ai-consent holds it equal to the server's sentence"
+    },
+    {
+      "file": "utils/aiConsentCore.ts",
+      "rule": "R23",
+      "match": "Settings → Connect Claude",
+      "reason": "AI consent text (the revoke line), not restyled"
+    },
+    {
+      "file": "utils/oneMind/factBlocks.ts",
+      "rule": "R20",
+      "match": "Driver — ",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy: rewording it changes what the AI answers"
+    },
+    {
+      "file": "utils/oneMind/factBlocks.ts",
+      "rule": "R20",
+      "match": "NOT a whole-job health reading",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy: rewording it changes what the AI answers"
+    },
+    {
+      "file": "utils/oneMind/factBlocks.ts",
+      "rule": "R20",
+      "match": " bid — ",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy: rewording it changes what the AI answers"
+    },
+    {
+      "file": "utils/oneMind/factBlocks.ts",
+      "rule": "R20",
+      "match": "with a margin basis are not listed here",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy: rewording it changes what the AI answers"
+    },
+    {
+      "file": "utils/oneMind/factBlocks.ts",
+      "rule": "R20",
+      "match": "It gates ",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy: rewording it changes what the AI answers"
+    },
+    {
+      "file": "utils/oneMind/factBlocks.ts",
+      "rule": "R20",
+      "match": "Cash flow forecast is not set up yet",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy: rewording it changes what the AI answers"
+    },
+    {
+      "file": "utils/oneMind/factBlocks.ts",
+      "rule": "R20",
+      "match": "is billed but held to closeout",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy: rewording it changes what the AI answers"
+    },
+    {
+      "file": "utils/oneMind/factBlocks.ts",
+      "rule": "R20",
+      "match": "do not assert it is overdue either",
+      "reason": "a fact line sent to the model (Ask MAGE grounding), not copy: rewording it changes what the AI answers"
+    },
+    {
+      "file": "utils/oneMind/composePrompt.ts",
+      "rule": "R20",
+      "match": "ONLY the fact blocks below",
+      "reason": "prompt text sent to the model, not copy"
+    },
+    {
+      "file": "utils/oneMind/composePrompt.ts",
+      "rule": "R22",
+      "match": "in square brackets, e.g.",
+      "reason": "prompt text sent to the model, not copy"
+    },
+    {
+      "file": "utils/oneMind/composePrompt.ts",
+      "rule": "R20",
+      "match": "of the sentence each supports",
+      "reason": "prompt text sent to the model, not copy"
+    },
+    {
+      "file": "utils/aiService.ts",
+      "rule": "R20",
+      "match": "MEASURED ESTIMATING BIAS",
+      "reason": "prompt text sent to the model, not copy"
+    },
+    {
+      "file": "utils/aiService.ts",
+      "rule": "R20",
+      "match": "THIS CONTRACTOR'S OWN RATES",
+      "reason": "prompt text sent to the model, not copy"
+    },
+    {
+      "file": "utils/pdfDesign.ts",
+      "rule": "R21",
+      "match": "fonts.googleapis.com",
+      "reason": "a font URL inside the PDF's HTML head, not copy"
+    },
+    {
+      "file": "utils/emailLayout.ts",
+      "rule": "R21",
+      "match": "fonts.googleapis.com",
+      "reason": "a font URL inside the email's HTML head, not copy"
+    },
+    {
+      "file": "utils/csiMasterFormat.ts",
+      "rule": "R20",
+      "match": "Div 0 — ",
+      "reason": "the division label is also printed into the profit-leak scope summary sent to the model (utils/profitLeak/scopeSummary.ts); validate-profit-leak pins it"
+    },
+    {
+      "file": "utils/buildingRecord.ts",
+      "rule": "R20",
+      "match": " active 0 — 0, as of",
+      "reason": "a building-record line that is printed on the card and also sent to the model in the record prompt block; validate-building-record and validate-baltimore-ai hold every output byte-identical to a recorded baseline"
+    },
+    {
+      "file": "utils/buildingRecord.ts",
+      "rule": "R20",
+      "match": "issued, unexpired DOB NOW",
+      "reason": "a building-record line that is printed on the card and also sent to the model in the record prompt block; validate-building-record and validate-baltimore-ai hold every output byte-identical to a recorded baseline"
+    },
+    {
+      "file": "utils/buildingRecord.ts",
+      "rule": "R20",
+      "match": "ask your expeditor before you price",
+      "reason": "a building-record line that is printed on the card and also sent to the model in the record prompt block; validate-building-record and validate-baltimore-ai hold every output byte-identical to a recorded baseline"
+    },
+    {
+      "file": "utils/buildingRecord.ts",
+      "rule": "R20",
+      "match": "has no reports in the NJ Construction Permit Data",
+      "reason": "a building-record line that is printed on the card and also sent to the model in the record prompt block; validate-building-record and validate-baltimore-ai hold every output byte-identical to a recorded baseline"
+    },
+    {
+      "file": "utils/buildingRecord.ts",
+      "rule": "R20",
+      "match": "That report is over a year old",
+      "reason": "a building-record line that is printed on the card and also sent to the model in the record prompt block; validate-building-record and validate-baltimore-ai hold every output byte-identical to a recorded baseline"
+    },
+    {
+      "file": "utils/buildingRecord.ts",
+      "rule": "R20",
+      "match": "Couldn't read 0 — not checked",
+      "reason": "a building-record line that is printed on the card and also sent to the model in the record prompt block; validate-building-record and validate-baltimore-ai hold every output byte-identical to a recorded baseline"
+    },
+    {
+      "file": "utils/departmentQuestion.ts",
+      "rule": "R20",
+      "match": "DOB filings not checked",
+      "reason": "the drafted-question recipient line, part of the outputs validate-baltimore-ai holds byte-identical to its recorded baseline (the same text is sent to the model)"
+    },
+    {
+      "file": "utils/departmentQuestion.ts",
+      "rule": "R20",
+      "match": "No DOB NOW filing listed for this building",
+      "reason": "the drafted-question recipient line, part of the outputs validate-baltimore-ai holds byte-identical to its recorded baseline (the same text is sent to the model)"
+    },
+    {
+      "file": "utils/departmentQuestion.ts",
+      "rule": "R20",
+      "match": "matches this job's permit number",
+      "reason": "the drafted-question recipient line, part of the outputs validate-baltimore-ai holds byte-identical to its recorded baseline (the same text is sent to the model)"
+    },
+    {
+      "file": "utils/departmentQuestion.ts",
+      "rule": "R20",
+      "match": "This job has no permit number in MAGE",
+      "reason": "the drafted-question recipient line, part of the outputs validate-baltimore-ai holds byte-identical to its recorded baseline (the same text is sent to the model)"
+    },
+    {
+      "file": "utils/departmentQuestion.ts",
+      "rule": "R20",
+      "match": "MAGE read only DOB's latest filings",
+      "reason": "the drafted-question recipient line, part of the outputs validate-baltimore-ai holds byte-identical to its recorded baseline (the same text is sent to the model)"
+    },
+    {
+      "file": "utils/departmentQuestion.ts",
+      "rule": "R20",
+      "match": "DOB publishes no applicant on this filing",
+      "reason": "the drafted-question recipient line, part of the outputs validate-baltimore-ai holds byte-identical to its recorded baseline (the same text is sent to the model)"
+    },
+    {
+      "file": "components/summary/NeedsYou.tsx",
+      "rule": "R15",
+      "match": "See all",
+      "reason": "a label that carries a count (\"See all 9\"): sentence case by VOICE 3; the JSX is left as two children so the tree does not move"
     }
   ]
 }

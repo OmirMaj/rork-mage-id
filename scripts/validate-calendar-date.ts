@@ -1607,6 +1607,7 @@ console.log('\nno day key is derived from the UTC text of an instant (DAY RULE):
     // Day-GRID arithmetic on a bare calendar day: the Date is built at UTC
     // midnight/noon from 'YYYY-MM-DD' and read back in UTC, so no zone enters.
     { file: 'utils/portalOwnerCore.ts', line: 'return new Date(dayMs(calendarDate) + offsetDays * DAY_MS).toISOString().slice(0, 10);', reason: 'UTC day grid: dayMs() parses the bare day at UTC, so the UTC read-back is the same calendar' },
+    { file: 'utils/weatherService.ts', line: "return Number.isFinite(wall.getTime()) ? wall.toISOString().slice(0, 10) : '';", reason: 'wall-clock grid: the instant is shifted by the reading\'s stored UTC offset first, so the UTC read-back IS the day where the weather was read' },
     { file: 'utils/copilot/dateMath.ts', line: 'return out.toISOString().slice(0, 10);', reason: 'UTC day grid: built with Date.UTC from a bare day\'s components' },
     { file: 'app/aia-pay-app.tsx', line: '? new Date(new Date(priorAIA.periodTo).getTime() + 86400000).toISOString().slice(0, 10)', reason: 'UTC day grid: periodTo is a bare \'YYYY-MM-DD\' (parsed at UTC midnight) plus one day' },
     // The JOBSITE's day, not the device's and not UTC: the instant is shifted
@@ -1622,6 +1623,7 @@ console.log('\nno day key is derived from the UTC text of an instant (DAY RULE):
   ];
   const UTC_PARTS_ALLOWED: Record<string, string> = {
     'utils/aiRateLimiterCore.ts': 'when the server\'s UTC-day and UTC-month AI caps reset',
+    'utils/proofPack/html.ts': 'prints a stored instant in UTC, labelled "UTC", on a document read in any time zone; never "now"',
     'utils/weekClose/composeWeekClose.ts': 'the next run of the weekly digest cron, which is scheduled in UTC',
     'utils/weatherService.ts': 'the jobsite\'s midday, on an instant already shifted by the site offset',
     'utils/lastPlanner.ts': 'the UTC day grid for stored week keys (toMonday is grid-only; "now" comes from localWeekStart)',

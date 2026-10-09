@@ -237,7 +237,7 @@ ok('the award screen says the contractor will send the portal link, to the email
 ok('both award alerts name only what award_rfp carried (built from the RFP header)',
   /select\('id,user_id,title,status,awarded_response_id,photo_urls,drawing_urls'\)/.test(review) && /supabase\.rpc\('get_rfp_private'/.test(review)
   && (review.match(/awardCarriedItems\(rfp \?\? \{\}/g) ?? []).length >= 2
-&& /'Project awarded',\s*`\$\{company\} has been notified\. \$\{carried\.charAt\(0\)/.test(review)
+&& /'Project Awarded',\s*`\$\{company\} has been notified\. \$\{carried\.charAt\(0\)/.test(review)
   && !/your address, photos, any drawings/i.test(review));
 const carriedNone = joinItems(awardCarriedItems({ address_line: '', photo_urls: [], drawing_urls: null }, null));
 ok('no street address, no photos, no drawings, no price → only "your city" is claimed',
@@ -274,7 +274,7 @@ ok('the Tools card no longer promises "price history" and says it is a sample',
   !!toolsRow && !/price history/i.test(toolsRow) && /These suppliers are not real/.test(toolsRow), toolsRow.trim());
 const side = code(read('components/DesktopSidebar.tsx'));
 const sideRow = side.split('\n').find(l => /feature: 'marketplace'/.test(l)) ?? '';
-ok('the sidebar row is labelled a demo', /label: 'Supplier catalog \(demo\)'/.test(sideRow), sideRow.trim());
+ok('the sidebar row is labelled a demo', /label: 'Supplier Catalog \(Demo\)'/.test(sideRow), sideRow.trim());
 
 const companies = code(read('app/(tabs)/discover/companies.tsx'));
 ok('Companies no longer calls Google rows firms "publishing public profiles"',
@@ -366,14 +366,14 @@ console.log('\nPhase 0 — the geocoder hit is labelled as a map hit, never as v
     ok(`${f}: no shield or "verified" wherever the address flag is shown`, bad.length === 0, bad[0]);
   }
   const detail = code(read('app/rfp-detail.tsx'));
-  ok('rfp-detail says Address found on map / Address not on map',
-    detail.includes('Address found on map') && detail.includes('Address not on map')
+  ok('rfp-detail says Address Found on Map / Address Not on Map',
+    detail.includes('Address Found on Map') && detail.includes('Address Not on Map')
     && !/address verified/i.test(detail) && !/unverified address/i.test(detail));
   const postSrc = code(read('app/post-rfp.tsx'));
   // The button itself keeps the word "Verify": the iOS location purpose
   // string in app.json names it, and changing that needs a native build
   // (validate-location-consent pins the pair). What it produces is honest.
-  ok('post-rfp: the lookup result says "Address found on map" with a map pin, never "Verified ·"',
+  ok('post-rfp: the lookup result says "Address Found on Map" with a map pin, never "Verified ·"',
     /<MapPin size=\{13\}[^>]*\/>\s*<Text style=\{styles\.verifiedText\} numberOfLines=\{1\}>\s*Address found on map ·/.test(postSrc)
     && !/Verified ·/.test(postSrc));
   ok('post-rfp: the review row hint is "Found on map"', /hint=\{addressVerified \? 'Found on map' : undefined\}/.test(postSrc));
@@ -382,7 +382,7 @@ console.log('\nPhase 0 — the geocoder hit is labelled as a map hit, never as v
   for (const f of ['app/nearby-rfps.tsx', 'app/(tabs)/mage-id-bids/index.tsx']) {
     const src = code(read(f));
     ok(`${f}: the icon-only dot is labelled for screen readers`,
-      /accessibilityLabel="Address found on map"/.test(src) && /accessibilityLabel="Address not found on map"/.test(src));
+      /accessibilityLabel="Address Found on Map"/.test(src) && /accessibilityLabel="Address Not Found on Map"/.test(src));
   }
   ok('mage-id-bids: the location-unknown hint no longer says "verified address"',
     !/verified address/i.test(code(read('app/(tabs)/mage-id-bids/index.tsx'))));

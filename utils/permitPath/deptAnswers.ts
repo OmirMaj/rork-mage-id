@@ -343,7 +343,7 @@ export function saidByLabel(answer: Pick<SavedDeptAnswer, 'saidByName' | 'saidBy
 export const CHANNEL_LABELS: Readonly<Record<AnswerChannel, string>> = {
   phone: 'Phone',
   email: 'Email',
-  counter: 'At the counter',
+  counter: 'At the Counter',
   website: 'Website',
   letter: 'Letter',
   other: 'Other',

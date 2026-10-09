@@ -60,7 +60,7 @@ console.log('\ndailyLogCompletion — English unchanged, Spanish whole sentences
   const oldEmpty = (c: DailyLogCompletion) => {
     if (!c.hasRecord || c.emptyDayFilings === 0) return null;
     const n = c.emptyDayFilings;
-    return `${n} of those ${n === 1 ? 'days was' : 'days were'} logged with no work on site. Those count — a filed day with nothing on it still keeps the record unbroken.`;
+    return `${n} of those ${n === 1 ? 'days was' : 'days were'} logged with no work on site. Those count: a filed day with nothing on it still keeps the record unbroken.`;
   };
   const oldGap = (c: DailyLogCompletion) => {
     if (!c.hasRecord || c.missedDays === 0) return null;
@@ -159,8 +159,8 @@ const DFR = read('app/daily-report.tsx');
     P.dfrCaseNotYoursReason({ caseVisible: false, caseDeleted: false, isOwner: false, savedHadIncident: true, filedByUserId: 'gc', viewerId: 'fm', authorPossessive: 'the project owner’s' }),
   ]);
   ok('with no translator every pure helper answers English (their own validators read this)',
-    enOut.includes('Published — tap to take it down') && enOut.includes('The project owner decides what the client sees.')
-    && enOut.includes('Checking your role on this job…') && enOut.includes('Pick a destination')
+    enOut.includes('Published. Tap to take it down.') && enOut.includes('The project owner decides what the client sees.')
+    && enOut.includes('Checking your role on this job…') && enOut.includes('Pick a Destination')
     && enOut.includes('This project has no client portal') && enOut.includes('Filed by the project owner')
     && enOut.includes('This case is in the project owner’s injury log'), enOut.slice(0, 300));
 
@@ -226,20 +226,20 @@ console.log('\napp/daily-report.tsx — incident chips and whole sentences (fix 
   ok('the no-project picker and the voice upgrade eyebrow are keyed (no raw English prop)',
     /toolName=\{t\('field\.dfr\.picker\.toolName', 'Daily Reports'\)\}/.test(code)
     && /message=\{t\('field\.dfr\.picker\.message', 'Daily reports log weather, crew and progress on one project\.'\)\}/.test(code)
-    && /featureLabel=\{t\('field\.dfr\.voiceCaptureFeature', 'Voice capture'\)\}/.test(code)
+    && /featureLabel=\{t\('field\.dfr\.voiceCaptureFeature', 'Voice Capture'\)\}/.test(code)
     && !/daily field reports?|\bDFRs\b/i.test(Object.values(en).map((v) => JSON.stringify(v)).join(' ')));
   const fragments = Object.entries(en).filter(([k, v]) => k.startsWith('field.dfr.') && /^\s/.test(typeof v === 'string' ? v : Object.values(v)[0]));
   ok('no field.dfr key is a suffix fragment (none starts with a space)', fragments.length === 0, fragments.map(([k]) => k));
   ok('the three former suffixes are whole sentences per case',
     en['field.dfr.progress.filledReady'] === '{done} of {total} filled · ready to send'
-    && en['field.dfr.incident.caseFiledCounted'] === 'Case filed — edit people, actions and photos in Incidents · counted on the OSHA 300'
+    && en['field.dfr.incident.caseFiledCounted'] === 'Case filed. Edit people, actions and photos in Incidents · counted on the OSHA 300'
     && JSON.stringify(en['field.dfr.incident.restrictedWithDays']) === JSON.stringify({ one: 'Restricted work / transfer ({count} day entered)', other: 'Restricted work / transfer ({count} days entered)' })
     && !/readySuffix|countedSuffix|restrictedDaysEntered/.test(code));
   // The English children of those three stay the pre-fix tree, behind displayLang === 'en'.
   ok('English keeps its children: " · ready to send", " · counted on the OSHA 300" and " (n day(s) entered)" only in the English branch',
     /progressMeta\.isReady && displayLang === 'en' \? ' · ready to send' : ''/.test(code)
-    && /: <>\{'Case filed — edit people, actions and photos in Incidents'\}\{counted \? ' · counted on the OSHA 300' : ''\}<\/>\)\)\(isRecordableCase\(linkedIncident\)\)\}/.test(code)
-    && /: <>\{'Restricted work \/ transfer'\}\{incidentClassInput\.daysRestricted \? ` \(\$\{incidentClassInput\.daysRestricted\} day\$\{incidentClassInput\.daysRestricted === 1 \? '' : 's'\} entered\)` : ''\}<\/>/.test(code));
+    && /: <>\{'Case filed. Edit people, actions and photos in Incidents'\}\{counted \? ' · counted on the OSHA 300' : ''\}<\/>\)\)\(isRecordableCase\(linkedIncident\)\)\}/.test(code)
+    && /: <>\{'Restricted Work \/ Transfer'\}\{incidentClassInput\.daysRestricted \? ` \(\$\{incidentClassInput\.daysRestricted\} day\$\{incidentClassInput\.daysRestricted === 1 \? '' : 's'\} entered\)` : ''\}<\/>/.test(code));
   // The English literal tree must equal what the old tn produced, for every count.
   const oldTn = (n: number) => (n === 1 ? ` (${n} day entered)` : ` (${n} days entered)`);
   const newLit = (n: number) => ` (${n} day${n === 1 ? '' : 's'} entered)`;

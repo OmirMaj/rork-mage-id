@@ -14,7 +14,7 @@ const isPriority = (v: unknown): v is PunchItemPriority => typeof v === 'string'
 
 export const punchCapability: CopilotCapability<PunchDraft, PunchApplied> = {
   id: 'punch',
-  label: 'Add a punch item',
+  label: 'Add a Punch Item',
   aiFeature: 'voiceCapture',
   maxQuestions: 2,
   askThreshold: 0.4,

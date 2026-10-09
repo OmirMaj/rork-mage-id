@@ -48,7 +48,7 @@ exports[`ProjectLevelCard — The Level on the project hub golden: full reading,
           }
         }
       >
-        Project health
+        Project Health
       </Text>
       <View
         style={
@@ -300,7 +300,7 @@ exports[`ProjectLevelCard — The Level on the project hub golden: full reading,
           }
         }
       >
-        Project health
+        Project Health
       </Text>
       <View
         style={
@@ -554,7 +554,7 @@ exports[`ProjectLevelCard — The Level on the project hub golden: full reading,
           }
         }
       >
-        Project health
+        Project Health
       </Text>
       <View
         style={

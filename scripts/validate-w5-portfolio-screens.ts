@@ -7,7 +7,7 @@
 //            Copy / Share / Preview are blocked with the reason while the
 //            page is off, and every one of them turns the flag on and copies the
 //            photos to the public bucket BEFORE the link leaves the app.
-//   #78      a "Show street address" switch (off by default) with the exact
+//   #78      a "Show Street Address" switch (off by default) with the exact
 //            line that prints.
 //   #77      the photo section says how many photos haven't uploaded and were
 //            left out. Share with un-uploaded photos asks first.
@@ -75,7 +75,7 @@ console.log('\napp/public-profile-setup.tsx');
   ok('owner gate: only the job owner publishes; the reason is shown and every control is blocked',
     /const isOwner = ownsForPortfolio\(project, ownerId\);/.test(src)
     && /!isOwner\s*\?\s*OWNER_ONLY_REASON/.test(src)
-    && raw.includes(`"Project pages are published by the job's owner — ask them to publish it."`)
+    && raw.includes(`"Project pages are published by the job's owner. Ask them to publish it."`)
     && /disabled=\{!!publishBlocked\}/.test(src)
     && /const outBlocked: string \| null = publishBlocked\s*\?\?/.test(src)
     && /testID="public-profile-publish-blocked">\{publishBlocked\}/.test(src)
@@ -97,7 +97,7 @@ console.log('\napp/public-profile-setup.tsx');
   ok('prepare: a flag write that did not land, or a page that would read "taken down", stops with the reason',
     /if \(flag !== 'synced'\) \{[\s\S]*?return \{\s*ok: false,/.test(prep)
     && /if \(!live\) return \{ ok: false, reason: NOT_ON_SERVER_REASON \};/.test(prep)
-    && /hasn't synced yet — publish once it has/.test(raw));
+    && /hasn't synced yet\. Publish once it has/.test(raw));
   ok('prepare waits for the server flag read (a page taken down elsewhere is not turned back on)',
     /if \(serverCheck !== 'done' && !touchedRef\.current\) return;/.test(src)
     && /setServerCheck\(state === 'unknown' \? 'unknown' : 'done'\)/.test(src));
@@ -115,7 +115,7 @@ console.log('\napp/public-profile-setup.tsx');
   ok('runOut starts copy / share / preview synchronously (no await in it)',
     !/\bawait\b/.test(run) && /void copyToClipboard\(url\)\.then/.test(run) && /void shareText\(\{/.test(run) && /openPreview\(url\);/.test(run));
   ok('native still asks first: un-uploaded photos ("Share without them"), copies left out, a long link',
-    /plan\.notUploaded\.length/.test(out) && out.includes("'Share without them'") && /if \(left > 0\)/.test(out) && /if \(tooLong\)/.test(out));
+    /plan\.notUploaded\.length/.test(out) && out.includes("'Share Without Them'") && /if \(left > 0\)/.test(out) && /if \(tooLong\)/.test(out));
   ok('web shows the long-link warning inline', /const tooLong = publicUrl\.length > PORTFOLIO_URL_WARN_LENGTH;/.test(src) && /testID="public-profile-link-long"/.test(src));
   ok('Copy / Share / Preview are disabled with a visible reason while blocked or preparing',
     (src.match(/disabled=\{!!outBlocked\}/g) ?? []).length === 3
@@ -140,7 +140,7 @@ console.log('\napp/public-profile-setup.tsx');
     /WebBrowser\.openBrowserAsync\(url\)/.test(prev) && /Linking\.openURL\(url\)/.test(prev)
     && /Copy the link and open it in Safari/.test(prev) && /Haptics\.selectionAsync\(\)/.test(prev)
     && /w\.open\(url, '_blank'\)/.test(prev) && /tab\.opener = null/.test(prev)
-    && /if \(!tab\) \{\s*showAlert\('Could not open preview'/.test(prev));
+    && /if \(!tab\) \{\s*showAlert\('Could Not Open Preview'/.test(prev));
   ok('#177: the web branch of openPreview opens before any await',
     prev.indexOf("if (Platform.OS === 'web')") >= 0 && !/await/.test(prev.slice(0, prev.indexOf('void Haptics.selectionAsync()'))));
   ok('#177: the web-only no-op handler is gone', !/Platform\.OS === 'web' && \(window/.test(src)
@@ -154,7 +154,7 @@ console.log('\napp/company-profile.tsx');
   ok('#133: usePreventRemove holds him on the screen while text is unsaved',
     /import \{ usePreventRemove \} from '@react-navigation\/native';/.test(src)
     && /usePreventRemove\(dirty, \(\{ data \}\) =>/.test(src)
-    && /'Keep editing'/.test(src) && /navigation\.dispatch\(data\.action\)/.test(src)
+    && /'Keep Editing'/.test(src) && /navigation\.dispatch\(data\.action\)/.test(src)
     && /handleSave\(\); navigation\.dispatch\(data\.action\)/.test(src));
   ok('#133: a blur exit (web sidebar / another tab) asks through a focus-effect cleanup',
     /useFocusEffect\(\s*useCallback\(\(\) => \{[\s\S]*?return \(\) => \{[\s\S]*?if \(!guard\.dirty \|\| leavingRef\.current\) return;/.test(src));

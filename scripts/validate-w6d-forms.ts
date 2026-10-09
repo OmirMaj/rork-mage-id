@@ -210,7 +210,7 @@ const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s
   ok('settings: the SettingsSection ids are the 22 of utils/settingsSections',
     eq([...sectionIds].sort(), [...S.SETTINGS_SECTION_IDS].sort()));
   ok('settings: 22 closing tags', (st.match(/<\/SettingsSection>/g) ?? []).length === 22);
-  for (const [header, id] of [['Estimate defaults', 'estimate-defaults'], ['PDF naming', 'pdf-naming'], ['Your costs', 'your-costs'], ['Supplier marketplace', 'supplier-marketplace']] as const) {
+  for (const [header, id] of [['Estimate Defaults', 'estimate-defaults'], ['PDF Naming', 'pdf-naming'], ['Your Costs', 'your-costs'], ['Supplier Marketplace', 'supplier-marketplace']] as const) {
     const at = st.indexOf(`<Text style={styles.sectionHeader}>${header}</Text>`);
     const open = st.lastIndexOf(OPEN, at);
     const sec = st.indexOf(`<SettingsSection id="${id}">`, open);

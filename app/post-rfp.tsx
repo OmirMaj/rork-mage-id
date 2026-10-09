@@ -69,16 +69,16 @@ type WizardStep = 'details' | 'scope' | 'budget' | 'review';
 type WorkType   = 'renovation' | 'addition' | 'new_build' | 'other';
 
 const STEPS: { id: WizardStep; label: string; icon: React.ComponentType<any> }[] = [
-  { id: 'details', label: 'Project details', icon: MapPin },
+  { id: 'details', label: 'Project Details', icon: MapPin },
   { id: 'scope',   label: 'Scope',           icon: ClipboardCheck },
-  { id: 'budget',  label: 'Budget and timing', icon: Clock },
-  { id: 'review',  label: 'Review and post',   icon: Check },
+  { id: 'budget',  label: 'Budget and Timing', icon: Clock },
+  { id: 'review',  label: 'Review and Post',   icon: Check },
 ];
 
 const WORK_TYPES: { id: WorkType; label: string; icon: React.ComponentType<any> }[] = [
   { id: 'renovation', label: 'Renovation', icon: Home },
   { id: 'addition',   label: 'Addition',   icon: LayoutGrid },
-  { id: 'new_build',  label: 'New build',  icon: Building2 },
+  { id: 'new_build',  label: 'New Build',  icon: Building2 },
   { id: 'other',      label: 'Other',      icon: MoreHorizontal },
 ];
 
@@ -241,7 +241,7 @@ export default function PostRfpScreen() {
   const verifyAddress = useCallback(async () => {
     setError(null);
     if (!address.trim()) {
-      showAlert('Add the address', 'Enter the property address before looking it up on the map.');
+      showAlert('Add the Address', 'Enter the property address before looking it up on the map.');
       return;
     }
     if (Platform.OS === 'web') {
@@ -249,14 +249,14 @@ export default function PostRfpScreen() {
       // submission without coordinates — contractors can still see the
       // address text, they just won't get distance-based matching.
       setAddressVerified(false);
-      showAlert('Heads up', 'Finding the address on the map only works in the iOS/Android app. You can still post; nearby-contractor matching may be less precise.');
+      showAlert('Heads Up', 'Finding the address on the map only works in the iOS/Android app. You can still post; nearby-contractor matching may be less precise.');
       return;
     }
     try {
       setGeocoding(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        showAlert('Permission needed', 'Location permission is needed to find the address on the map. You can still post without it.');
+        showAlert('Permission Needed', 'Location permission is needed to find the address on the map. You can still post without it.');
         return;
       }
       const results = await Location.geocodeAsync(address.trim());
@@ -268,7 +268,7 @@ export default function PostRfpScreen() {
       } else {
         setAddressVerified(false);
         setLatLng(null);
-        showAlert('Address not found', 'That address wasn\'t found on the map. Check it. Contractors won\'t see your post nearby without a map location.');
+        showAlert('Address Not Found', 'That address wasn\'t found on the map. Check it. Contractors won\'t see your post nearby without a map location.');
       }
     } catch (e) {
       console.warn('[post-rfp] geocode failed', e);
@@ -281,7 +281,7 @@ export default function PostRfpScreen() {
   const pickPhotos = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      showAlert('Permission needed', 'Photo library access is required to attach project photos.');
+      showAlert('Permission Needed', 'Photo library access is required to attach project photos.');
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -335,7 +335,7 @@ export default function PostRfpScreen() {
   // mount is a follow-up.
   const saveDraft = useCallback(async () => {
     if (!user?.id) {
-      showAlert('Sign in needed', 'Sign in to save drafts so you can come back to them later.');
+      showAlert('Sign In Needed', 'Sign in to save drafts so you can come back to them later.');
       return;
     }
     try {
@@ -348,10 +348,10 @@ export default function PostRfpScreen() {
       };
       await AsyncStorage.setItem(DRAFT_PREFIX + user.id, JSON.stringify(payload));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert('Draft saved', 'You can pick this back up next time you open Post a project.');
+      showAlert('Draft Saved', 'You can pick this back up next time you open Post a project.');
     } catch (e) {
       console.warn('[post-rfp] saveDraft failed', e);
-      showAlert('Couldn\'t save draft', 'Try again in a moment.');
+      showAlert('Couldn\'t Save Draft', 'Try again in a moment.');
     } finally {
       setSavingDraft(false);
     }
@@ -446,9 +446,9 @@ export default function PostRfpScreen() {
       // My RFPs shows it; this sentence comes from the same module the fan-out
       // matches with (audit round 2, #8).
       showAlert(
-        'Project posted',
+        'Project Posted',
         postedAlertBody(cityState.city, verifiedOnly, RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED),
-        [{ text: 'See my RFPs', onPress: () => router.replace('/my-rfps' as never) }],
+        [{ text: 'See My RFPs', onPress: () => router.replace('/my-rfps' as never) }],
       );
     } catch (e) {
       console.warn('[post-rfp] submit failed', e);
@@ -632,7 +632,7 @@ export default function PostRfpScreen() {
           activeOpacity={0.7}
           style={styles.draftBtn}
         >
-          <Text style={styles.draftTitle}>Save draft</Text>
+          <Text style={styles.draftTitle}>Save Draft</Text>
           <Text style={styles.draftHint}>We&apos;ll save your progress</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -649,7 +649,7 @@ export default function PostRfpScreen() {
           ) : (
             <>
               <Text style={styles.continueBtnText}>
-                {isLastStep ? 'Post project' : 'Continue'}
+                {isLastStep ? 'Post Project' : 'Continue'}
               </Text>
               <ArrowRight size={17} color="#FFF" strokeWidth={2.6} />
             </>
@@ -687,13 +687,13 @@ function DetailsStep({
   return (
     <>
       <FadeRise delay={0}>
-        <Text style={styles.stepHeading}>Start with the basics</Text>
+        <Text style={styles.stepHeading}>Start with the Basics</Text>
       </FadeRise>
 
       {/* Address */}
       <FadeRise delay={60}>
         <View style={styles.card}>
-          <CardHead icon={MapPin} title="Project address" subtitle={SERVICE_AREA_SETUP_ENABLED ? 'We use it to alert contractors who work in your area.' : 'Kept with your post and handed to the contractor you award.'} styles={styles} themeColors={themeColors} />
+          <CardHead icon={MapPin} title="Project Address" subtitle={SERVICE_AREA_SETUP_ENABLED ? 'We use it to alert contractors who work in your area.' : 'Kept with your post and handed to the contractor you award.'} styles={styles} themeColors={themeColors} />
           <View style={styles.inputRow}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
@@ -768,12 +768,12 @@ function DetailsStep({
       {/* Description */}
       <FadeRise delay={180}>
         <View style={styles.card}>
-          <CardHead icon={FileText} title="Tell us about your project" subtitle="The more details you add, the more accurate your bids." styles={styles} themeColors={themeColors} />
+          <CardHead icon={FileText} title="Tell Us About Your Project" subtitle="More detail helps contractors price your job." styles={styles} themeColors={themeColors} />
           <TextInput
             style={[styles.input, styles.inputMultiline]}
             value={description}
             onChangeText={setDescription}
-            placeholder="e.g. Kitchen remodel, 2 bathrooms, open layout"
+            placeholder="Kitchen remodel, 2 bathrooms, open layout"
             placeholderTextColor={themeColors.textMuted}
             multiline
             numberOfLines={5}
@@ -787,13 +787,13 @@ function DetailsStep({
       {/* Photos */}
       <FadeRise delay={240}>
         <View style={styles.card}>
-          <CardHead icon={ImageIcon} title="Add photos (recommended)" subtitle="Photos help contractors understand your project." styles={styles} themeColors={themeColors} />
+          <CardHead icon={ImageIcon} title="Add Photos (Recommended)" subtitle="Photos help contractors understand your project." styles={styles} themeColors={themeColors} />
           <View style={styles.photoGrid}>
             <TouchableOpacity style={styles.uploadTile} onPress={pickPhotos} activeOpacity={0.8}>
               <View style={styles.uploadIconWrap}>
                 <Plus size={16} color={themeColors.accent} strokeWidth={2.6} />
               </View>
-              <Text style={styles.uploadText}>Upload photos</Text>
+              <Text style={styles.uploadText}>Upload Photos</Text>
             </TouchableOpacity>
             {photos.map(p => (
               <View key={p.uri} style={styles.photoTile}>
@@ -802,7 +802,7 @@ function DetailsStep({
                   style={styles.photoRemove}
                   onPress={() => removeAttachment(p.uri)}
                   accessibilityRole="button"
-                  accessibilityLabel="Remove photo"
+                  accessibilityLabel="Remove Photo"
                 >
                   <X size={11} color={themeColors.text} strokeWidth={2.6} />
                 </TouchableOpacity>
@@ -813,7 +813,7 @@ function DetailsStep({
             <MageAIMark size={13} color={themeColors.accent} />
             <Text style={styles.proTipText}>
               <Text style={styles.proTipBold}>Pro tip: </Text>
-              Add at least 3 photos for better, more accurate bids.
+              Add at least 3 photos so contractors can see the job.
             </Text>
           </View>
         </View>
@@ -838,12 +838,12 @@ function ScopeStep({
 
       <FadeRise delay={60}>
         <View style={styles.card}>
-          <CardHead icon={ClipboardCheck} title="Additional scope" subtitle="Materials, finishes, must-haves, or constraints contractors should know about." styles={styles} themeColors={themeColors} />
+          <CardHead icon={ClipboardCheck} title="Additional Scope" subtitle="Materials, finishes, must-haves, or constraints contractors should know about." styles={styles} themeColors={themeColors} />
           <TextInput
             style={[styles.input, styles.inputMultiline]}
             value={extraScope}
             onChangeText={setExtraScope}
-            placeholder="e.g. Quartz counters, hardwood refinish, weekend work OK"
+            placeholder="Quartz counters, hardwood refinish, weekend work OK"
             placeholderTextColor={themeColors.textMuted}
             multiline
             numberOfLines={4}
@@ -854,13 +854,13 @@ function ScopeStep({
 
       <FadeRise delay={120}>
         <View style={styles.card}>
-          <CardHead icon={FileText} title="Drawings or plans (optional)" subtitle="Architect plans, sketches, inspiration shots. PDF or images." styles={styles} themeColors={themeColors} />
+          <CardHead icon={FileText} title="Drawings or Plans (Optional)" subtitle="Architect plans, sketches, inspiration shots. PDF or images." styles={styles} themeColors={themeColors} />
           <View style={styles.photoGrid}>
             <TouchableOpacity style={styles.uploadTile} onPress={pickDrawings} activeOpacity={0.8}>
               <View style={styles.uploadIconWrap}>
                 <Plus size={16} color={themeColors.accent} strokeWidth={2.6} />
               </View>
-              <Text style={styles.uploadText}>Add file</Text>
+              <Text style={styles.uploadText}>Add File</Text>
             </TouchableOpacity>
             {drawings.map(d => (
               <View key={d.uri} style={styles.photoTile}>
@@ -872,7 +872,7 @@ function ScopeStep({
                   style={styles.photoRemove}
                   onPress={() => removeAttachment(d.uri)}
                   accessibilityRole="button"
-                  accessibilityLabel="Remove file"
+                  accessibilityLabel="Remove File"
                 >
                   <X size={11} color={themeColors.text} strokeWidth={2.6} />
                 </TouchableOpacity>
@@ -900,12 +900,12 @@ function BudgetStep({
   return (
     <>
       <FadeRise delay={0}>
-        <Text style={styles.stepHeading}>Budget and timing</Text>
+        <Text style={styles.stepHeading}>Budget and Timing</Text>
       </FadeRise>
 
       <FadeRise delay={60}>
         <View style={styles.card}>
-          <CardHead icon={DollarSign} title="Budget range" subtitle="A range filters out wildly off-target bids. Leave blank if you're not sure." styles={styles} themeColors={themeColors} />
+          <CardHead icon={DollarSign} title="Budget Range" subtitle="A range filters out wildly off-target bids. Leave blank if you're not sure." styles={styles} themeColors={themeColors} />
           <View style={styles.budgetRow}>
             <View style={styles.budgetField}>
               <DollarSign size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -933,14 +933,14 @@ function BudgetStep({
       <FadeRise delay={120}>
         <View style={styles.card}>
           <CardHead icon={Calendar} title="Timing" subtitle="When do you want work to start, and when should bids be in?" styles={styles} themeColors={themeColors} />
-          <Text style={styles.label}>Desired start</Text>
+          <Text style={styles.label}>Desired Start</Text>
           <TextInput
             style={styles.input}
             value={desiredStart} onChangeText={setDesiredStart}
-            placeholder="e.g. Mid-July or 2026-08-15"
+            placeholder="Mid-July or 2026-08-15"
             placeholderTextColor={themeColors.textMuted}
           />
-          <Text style={[styles.label, { marginTop: 14 }]}>Bid deadline</Text>
+          <Text style={[styles.label, { marginTop: 14 }]}>Bid Deadline</Text>
           <TextInput
             style={styles.input}
             value={deadline} onChangeText={setDeadline}
@@ -969,9 +969,9 @@ function BudgetStep({
                 strangers could not bid on their job, which was untrue. Until
                 the WITH CHECK predicate exists server-side, the promise here
                 is scoped to what actually happens: notification targeting. */}
-            <Text style={styles.verifyToggleTitle}>Notify verified pros only</Text>
+            <Text style={styles.verifyToggleTitle}>Notify Only Contractors With a License on File</Text>
             <Text style={styles.verifyToggleSub}>
-              We only alert contractors with a current license on file. Fewer bids, higher quality.
+              We only alert contractors who have given MAGE ID a license number. MAGE ID does not check that number with the state.
             </Text>
             {/* Audit round 2, #8: licenses are self-added and contractor_licenses
                 is select-own under RLS, so this screen cannot count them — and
@@ -1012,7 +1012,7 @@ function ReviewStep({
   return (
     <>
       <FadeRise delay={0}>
-        <Text style={styles.stepHeading}>Review and post</Text>
+        <Text style={styles.stepHeading}>Review and Post</Text>
       </FadeRise>
 
       <FadeRise delay={60}>
@@ -1026,7 +1026,7 @@ function ReviewStep({
 
       <FadeRise delay={120}>
         <View style={styles.card}>
-          <ReviewRow label="Extra scope" value={extraScope || '—'} multiline onEdit={() => jumpTo('scope')} styles={styles} />
+          <ReviewRow label="Extra Scope" value={extraScope || '—'} multiline onEdit={() => jumpTo('scope')} styles={styles} />
           <ReviewRow label="Drawings"    value={`${drawingCount} file${drawingCount === 1 ? '' : 's'}`} onEdit={() => jumpTo('scope')} styles={styles} />
         </View>
       </FadeRise>

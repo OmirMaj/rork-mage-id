@@ -177,7 +177,7 @@ export function useJurisdictionAnswers(key: string | null): UseJurisdictionAnswe
         t('office.permitPath.save.deleteTitle', 'Delete this answer?'),
         t('office.permitPath.save.deleteBody', 'It comes off every route in this town. You can save it again.'),
         [
-          { text: t('office.permitPath.save.keep', 'Keep it'), style: 'cancel', onPress: () => resolve(false) },
+          { text: t('office.permitPath.save.keep', 'Keep It'), style: 'cancel', onPress: () => resolve(false) },
           { text: t('office.permitPath.save.delete', 'Delete'), style: 'destructive', onPress: () => resolve(true) },
         ],
         { cancelable: true, onDismiss: () => resolve(false) },

@@ -120,7 +120,7 @@ const KIND_LABEL: Record<EntityKind, string> = {
   permit: 'Permits',
   equipment: 'Equipment',
   subcontractor: 'Subcontractors',
-  commitment: 'Contracts & POs',
+  commitment: 'Contracts and POs',
   planSheet: 'Plan Sheets',
   commEvent: 'Activity',
   portalMessage: 'Messages',
@@ -448,20 +448,20 @@ export default function UniversalSearch() {
             <View>
               {/* MAGE Brain — the surface does more than navigate: ask, speak, help. */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>Ask and capture</Text>
+                <Text style={styles.sectionHeader}>Ask and Capture</Text>
               </View>
               <TouchableOpacity style={styles.brainActionRow} onPress={handleAskMage} activeOpacity={0.7} testID="brain-action-ask">
                 <View style={styles.brainActionIcon}><MageAIMark size={18} color={themeColors.accent} /></View>
                 <View style={styles.brainActionBody}>
-                  <Text style={styles.brainActionText}>Ask MAGE anything</Text>
-                  <Text style={styles.brainActionSub}>Your projects, costs, schedule — answered</Text>
+                  <Text style={styles.brainActionText}>Ask MAGE Anything</Text>
+                  <Text style={styles.brainActionSub}>Your projects, costs and schedule, answered</Text>
                 </View>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.brainActionRow} onPress={handleVoice} activeOpacity={0.7} testID="brain-action-voice">
                 <View style={styles.brainActionIcon}><Mic size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
                 <View style={styles.brainActionBody}>
-                  <Text style={styles.brainActionText}>Voice capture</Text>
+                  <Text style={styles.brainActionText}>Voice Capture</Text>
                   <Text style={styles.brainActionSub}>Speak a log, a punch item, an update</Text>
                 </View>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -469,12 +469,12 @@ export default function UniversalSearch() {
               <TouchableOpacity style={styles.brainActionRow} onPress={handleHelp} activeOpacity={0.7} testID="brain-action-help">
                 <View style={styles.brainActionIcon}><HelpCircle size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
                 <View style={styles.brainActionBody}>
-                  <Text style={styles.brainActionText}>Help and tips</Text>
+                  <Text style={styles.brainActionText}>Help and Tips</Text>
                 </View>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>Go to</Text>
+                <Text style={styles.sectionHeader}>Go To</Text>
               </View>
               {popularEntries.map(e => renderFeatureRow(
                 e,
@@ -506,7 +506,7 @@ export default function UniversalSearch() {
                 </View>
               ) : (
                 <Text style={styles.hintText}>
-                  Type what you need — a screen, a tool, or anything in your
+                  Type what you need: a screen, a tool, or anything in your
                   projects. Trade terms work: “gantt”, “g702”, “osha”.
                 </Text>
               )}
@@ -516,7 +516,7 @@ export default function UniversalSearch() {
           {/* No results */}
           {showNoResults ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Nothing by that name</Text>
+              <Text style={styles.emptyTitle}>Nothing by That Name</Text>
               <Text style={styles.emptyBody}>
                 Try a trade term like “gantt”, “punch” or “g702”, or the name of
                 a project, an invoice or an RFI.
@@ -529,7 +529,7 @@ export default function UniversalSearch() {
             <View style={styles.group}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeader}>
-                  Go to · {featureHits.length}
+                  Go To · {featureHits.length}
                 </Text>
               </View>
               {featureHits.map(h => renderFeatureRow(h.entry, h.locked, h.requiredTier))}

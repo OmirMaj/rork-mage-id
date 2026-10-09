@@ -245,8 +245,8 @@ console.log('\nb) planG703CellEdit');
   const table: [string, unknown, unknown][] = [
     ['blank This period is $0 (MoneyField parity)', planG703CellEdit(L, 'thisPeriod', '', E), { kind: 'patch', patch: { thisPeriod: 0 } }],
     ['blank Stored is $0', planG703CellEdit(L, 'stored', '   ', E), { kind: 'patch', patch: { materialsPresentlyStored: 0 } }],
-    ['"abc" is refused with the figure the line still bills', planG703CellEdit(L, 'thisPeriod', 'abc', E), { kind: 'invalid', reason: '"abc" is not an amount — this line still bills $250.00' }],
-    ['"abc" in Stored quotes Stored', planG703CellEdit(L, 'stored', 'abc', E), { kind: 'invalid', reason: '"abc" is not an amount — this line still bills $40.00' }],
+    ['"abc" is refused with the figure the line still bills', planG703CellEdit(L, 'thisPeriod', 'abc', E), { kind: 'invalid', reason: '"abc" is not an amount. This line still bills $250.00' }],
+    ['"abc" in Stored quotes Stored', planG703CellEdit(L, 'stored', 'abc', E), { kind: 'invalid', reason: '"abc" is not an amount. This line still bills $40.00' }],
     ['"(250)" is the accountant\'s negative', planG703CellEdit(L, 'thisPeriod', '(250)', E), { kind: 'patch', patch: { thisPeriod: -250 } }],
     ['"1,234.567" is rounded to the cent at entry', planG703CellEdit(L, 'thisPeriod', '1,234.567', E), { kind: 'patch', patch: { thisPeriod: 1234.57 } }],
     ['"$4,500" is 4500', planG703CellEdit(L, 'stored', '$4,500', E), { kind: 'patch', patch: { materialsPresentlyStored: 4500 } }],
@@ -254,10 +254,10 @@ console.log('\nb) planG703CellEdit');
     ['Scheduled while editing the SOV', planG703CellEdit(L, 'scheduled', '12000.005', S), { kind: 'patch', patch: { scheduledValue: 12000.01 } }],
     ['percent 101 is refused', planG703CellEdit(L, 'percent', '101', E), { kind: 'invalid', reason: 'Percent complete is 0–100.' }],
     ['percent -1 is refused', planG703CellEdit(L, 'percent', '-1', E), { kind: 'invalid', reason: 'Percent complete is 0–100.' }],
-    ['percent on C ≤ 0 is refused (a deductive CO line)', planG703CellEdit(neg, 'percent', '50', E), { kind: 'invalid', reason: 'Percent needs a positive scheduled value — type This period instead.' }],
-    ['percent on C = 0 is refused', planG703CellEdit({ ...L, scheduledValue: 0 }, 'percent', '50', E), { kind: 'invalid', reason: 'Percent needs a positive scheduled value — type This period instead.' }],
+    ['percent on C ≤ 0 is refused (a deductive CO line)', planG703CellEdit(neg, 'percent', '50', E), { kind: 'invalid', reason: 'Percent needs a positive scheduled value. Type This Period instead.' }],
+    ['percent on C = 0 is refused', planG703CellEdit({ ...L, scheduledValue: 0 }, 'percent', '50', E), { kind: 'invalid', reason: 'Percent needs a positive scheduled value. Type This Period instead.' }],
     ['percent blank is nothing yet', planG703CellEdit(L, 'percent', '', E), { kind: 'ignore' }],
-    ['percent "x" is refused', planG703CellEdit(L, 'percent', 'x', E), { kind: 'invalid', reason: '"x" is not a percent — type a number from 0 to 100.' }],
+    ['percent "x" is refused', planG703CellEdit(L, 'percent', 'x', E), { kind: 'invalid', reason: '"x" is not a percent. Type a number from 0 to 100.' }],
     ['percent "62.5%" applies 62.5', planG703CellEdit(L, 'percent', '62.5%', E), { kind: 'percent', percent: 62.5 }],
     ['percent 100 is allowed', planG703CellEdit(L, 'percent', '100', E), { kind: 'percent', percent: 100 }],
     ['itemNo when not editing the SOV is ignored', planG703CellEdit(L, 'itemNo', '3.1', E), { kind: 'ignore' }],
@@ -280,11 +280,11 @@ console.log('\nc) g703DraftBlocker, g703PastePlan, widths');
   eq('valid drafts, no blocker', g703DraftBlocker({ 'a:thisPeriod': '120.5', 'b:percent': '40' }, lines), null);
   eq('an invalid draft names the line and the column',
     g703DraftBlocker({ 'b:stored': '12,5o' }, lines),
-    { title: 'Line 2 · Stored', message: '"12,5o" is not an amount — this line still bills $0.00' });
+    { title: 'Line 2 · Stored', message: '"12,5o" is not an amount. This line still bills $0.00' });
   eq('the first invalid draft in LINE order wins',
-    g703DraftBlocker({ 'c:percent': '10', 'a:thisPeriod': 'x' }, lines)?.title, 'Line 1 · This period');
+    g703DraftBlocker({ 'c:percent': '10', 'a:thisPeriod': 'x' }, lines)?.title, 'Line 1 · This Period');
   eq('a percent on a deductive line blocks, named',
-    g703DraftBlocker({ 'c:percent': '10' }, lines), { title: 'Line 3 · % complete', message: 'Percent needs a positive scheduled value — type This period instead.' });
+    g703DraftBlocker({ 'c:percent': '10' }, lines), { title: 'Line 3 · % Complete', message: 'Percent needs a positive scheduled value. Type This Period instead.' });
 
   eq('paste at This period: E then F, one merged patch per line, the past-end row counted',
     g703PastePlan(lines, [['10', '20'], ['30', 'x'], ['40'], ['50']], { rowKey: 'a', colKey: 'thisPeriod' }, { sovEditing: false }),
@@ -370,7 +370,7 @@ if (W3) {
   eq('coUnnamedLineBlocker: every line named → null', W3.coUnnamedLineBlocker([{ name: 'A' }, { name: 'B' }]), null);
   eq('coUnnamedLineBlocker names the first blank line',
     W3.coUnnamedLineBlocker([{ name: 'A' }, { name: '   ' }, { name: '' }]),
-    { title: 'Line 2 has no name', message: 'Name every line before saving — it prints on the change order.' });
+    { title: 'Line 2 has no name', message: 'Name every line before saving. It prints on the change order.' });
 
   let seq = 0;
   const pasted = W3.coLinesFromPaste([
@@ -485,8 +485,8 @@ function moneyCalls(span: string): string[] {
   ok(`the G702 KPI strip is in cents: all ${kpiMoney.length} formatMoney calls pass 2 decimals`,
     kpiMoney.length === 9 && kpiMoney.every((c) => /, 2\)$/.test(c)), kpiMoney.filter((c) => !/, 2\)$/.test(c)).join(' | '));
   ok('…it is desktop-only: {isDesktop ? (<KpiStrip … ) : null}', /\{isDesktop \? \(\s*<KpiStrip/.test(aia));
-  const coverAt = aia.indexOf('Summary (G702 cover)');
-  const coverEnd = aia.indexOf('</View>', aia.indexOf('<Row label="Balance to finish"', coverAt));
+  const coverAt = aia.indexOf('Summary (G702 Cover)');
+  const coverEnd = aia.indexOf('</View>', aia.indexOf('<Row label="Balance to Finish"', coverAt));
   const cover = coverAt < 0 || coverEnd < 0 ? '' : aia.slice(coverAt, coverEnd);
   const coverMoney = moneyCalls(cover);
   ok(`the G702 summary card prints cents on every platform (founder default 2): ${coverMoney.length} formatMoney calls, all with 2`,
@@ -506,7 +506,7 @@ function moneyCalls(span: string): string[] {
 {
   const D8: Record<string, { headline: string; body: string }> = {
     'aia-factoring-cta': {
-      headline: 'Advances on certified pay apps',
+      headline: 'Advances on Certified Pay Apps',
       body: 'Pay-app money waits with the owner until they certify and release it. We are looking at a factoring partner that could advance part of a certified amount. No partner is signed yet, so there are no rates or timelines to show.',
     },
     'aia-lienwaiver-cta': {

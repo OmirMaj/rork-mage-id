@@ -106,12 +106,12 @@ assert(gap(run(['Water heater']), 'water-heater-expansion')?.state === 'gap', "a
 assert(!gap(run(['Bedroom addition framing'], { jobKind: 'commercial' }), 'smoke-co-sleeping'), "jobKind 'commercial' never fires smoke-co-sleeping");
 assert(!!gap(run(['Restroom'], { jobKind: 'commercial' }), 'accessible-restroom') && !gap(run(['Restroom']), 'accessible-restroom'), "a 'Restroom' line fires accessible-restroom only under commercial");
 {
-  const r = run(['Roof replacement'], { address: { state: 'FL' } });
+  const r = run(['Roof Replacement'], { address: { state: 'FL' } });
   const g = gap(r, 'reroof-ice-barrier');
   assert(g?.state === 'suppressed' && g.suppressedReason === "doesn't usually apply in FL", `state FL suppresses reroof-ice-barrier, with the reason (${g?.suppressedReason})`);
   assert(r.totalCents === 0, 'a suppressed rule never counts');
-  const u = gap(run(['Roof replacement']), 'reroof-ice-barrier');
-  assert(u?.state === 'gap' && u.jurisdictionNote === 'Depends on your location — no state on file', 'no state → shown with the location note');
+  const u = gap(run(['Roof Replacement']), 'reroof-ice-barrier');
+  assert(u?.state === 'gap' && u.jurisdictionNote === 'Depends on your location, no state on file', 'no state → shown with the location note');
 }
 {
   const chi = gap(run(['Panel upgrade'], { address: { city: 'Chicago', state: 'IL' } }), 'service-surge');
@@ -119,7 +119,7 @@ assert(!!gap(run(['Restroom'], { jobKind: 'commercial' }), 'accessible-restroom'
   const wa = gap(run(['Panel upgrade'], { address: { state: 'WA' } }), 'service-surge');
   assert(wa?.state === 'gap' && wa.jurisdictionNote === null, 'a 2023 NEC row (WA) shows it, no note');
   const pa = gap(run(['Panel upgrade'], { address: { state: 'PA' } }), 'service-surge');
-  assert(pa?.state === 'gap' && pa.jurisdictionNote === 'Depends on your NEC edition — not on file for this jurisdiction', 'no NEC on file (PA) shows it with the Depends-on-your-NEC-edition note');
+  assert(pa?.state === 'gap' && pa.jurisdictionNote === 'Depends on your NEC edition, not on file for this jurisdiction', 'no NEC on file (PA) shows it with the Depends-on-your-NEC-edition note');
 }
 {
   const g = gap(run(['Bedroom addition framing'], { address: { city: 'New York', state: 'NY' } }), 'smoke-co-sleeping');

@@ -81,7 +81,7 @@ export async function invokeWithTimeout<T = unknown>(
     // aborted means our timer fired — map it to the retry-friendly message
     // instead of a wording that reads like a connectivity bug.
     if (result.error && controller.signal.aborted) {
-      return { data: null, error: { message: 'Took too long — try again.' } };
+      return { data: null, error: { message: 'Took too long. Try again.' } };
     }
     return result;
   } catch (e: unknown) {
@@ -95,7 +95,7 @@ export async function invokeWithTimeout<T = unknown>(
     if (isAbort) {
       return {
         data: null,
-        error: { message: 'Took too long — try again.' },
+        error: { message: 'Took too long. Try again.' },
       };
     }
     // Re-surface unexpected errors in the same shape as the supabase client.

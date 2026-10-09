@@ -41,7 +41,7 @@ export function useSidebarRail(): SidebarRailState {
 export const SIDEBAR_RAIL_COMBO = 'mod+backslash';
 
 const RAIL_BINDINGS = [
-  { combo: SIDEBAR_RAIL_COMBO, label: 'Collapse sidebar', group: 'Navigation', handler: toggleSidebarRail },
+  { combo: SIDEBAR_RAIL_COMBO, label: 'Collapse Sidebar', group: 'Navigation', handler: toggleSidebarRail },
 ];
 
 export function useSidebarRailRouteSync(): void {

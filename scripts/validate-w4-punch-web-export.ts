@@ -169,7 +169,7 @@ console.log('\nC. the turned sheet');
   // the turned box closes would sit on the unturned wrapper — on the wrong spot.
   ok('the markers are INSIDE the turned box (they turn with the sheet)',
     /<div class="pe-plan-rot" style="[^"]*"><object class="pe-plan-obj"[^>]*>[\s\S]*?<\/object>(<div class="pe-pin[^"]*" style="[^"]*"><div class="pe-pin-head">[^<]*<\/div><div class="pe-pin-tail"><\/div><\/div>){3}<\/div><\/div><\/div><div class="pe-legend">/.test(sec));
-  ok('the page says the sheet is turned and which way', sec.includes('sheet turned to fit the page — top of the sheet is on the right'));
+  ok('the page says the sheet is turned and which way', sec.includes('sheet turned to fit the page, top of the sheet is on the right'));
   const rule = /\.pe-plan-rot \{([^}]*)\}/.exec(PUNCH_EXPORT_CSS)?.[1] ?? '';
   ok('turn = rotate(90deg) translateY(-100%) about the top-left corner (with the -webkit- twin)',
     /transform-origin:\s*0 0/.test(rule) && /(^|[^-])transform:\s*rotate\(90deg\) translateY\(-100%\)/.test(rule) && /-webkit-transform:\s*rotate\(90deg\) translateY\(-100%\)/.test(rule));
@@ -199,7 +199,7 @@ console.log('\nD. the plan page on web');
   ok(`web portrait cap ${PUNCH_EXPORT_WEB_PLAN_MAX_H_PX}px in CSS, the native 700px kept`,
     new RegExp(`\\.pe-plan-web \\.pe-plan-obj \\{ max-height: ${PUNCH_EXPORT_WEB_PLAN_MAX_H_PX}px; \\}`).test(PUNCH_EXPORT_CSS) && PUNCH_EXPORT_WEB_PLAN_MAX_H_PX > PUNCH_EXPORT_PLAN_MAX_H_PX);
   ok('the figure (caption + sheet) never splits across pages', /\.pe-plan-fig \{[^}]*break-inside:\s*avoid/.test(PUNCH_EXPORT_CSS) && h.includes('<div class="pe-plan-fig">'));
-  ok('the caption carries the revision', h.includes('Plan — A-101 · Floor Plan · Rev 2'));
+  ok('the caption carries the revision', h.includes('Plan: A-101 · Floor Plan · Rev 2'));
   // Integration round 1: the caption is IN the legend table's thead (so it
   // travels with the rows), not a lone heading that printed by itself at the
   // bottom of a full landscape plan page.
@@ -222,7 +222,7 @@ console.log('\nE. the per-item close-up');
   const hw = html(mw, webA, 'web');
   const card = cardOf(hw, 2);
   ok('web card: the close-up with the item number on it and its sheet — pin caption',
-    card.includes('<object class="pe-crop-obj" data="data:image/jpeg;base64,/9j/CROP"') && card.includes('<div class="pe-cpin-head">2</div>') && card.includes('A-101 · Floor Plan — pin 2'));
+    card.includes('<object class="pe-crop-obj" data="data:image/jpeg;base64,/9j/CROP"') && card.includes('<div class="pe-cpin-head">2</div>') && card.includes('A-101 · Floor Plan · pin 2'));
   ok('the crop marker sits at the crop\'s pin (vertical as a width-based margin)', card.includes('<div class="pe-cpin" style="left:50.000%;top:0;margin-top:40.000%">'));
   // WebKit (the iOS print engine) mis-resolves a percentage top/height of an
   // absolute box inside a table cell — printed, the window slid a room up and

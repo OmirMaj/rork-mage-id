@@ -107,7 +107,7 @@ if (B) {
   ok('a collaborator stamp still blocks even if ownership were claimed', g({ role: null, isError: true, stampedRole: 'editor', ownedLocally: true }) === 'collaborator');
   ok('coOwnedLocally needs BOTH ids and a match', B.coOwnedLocally('u1', 'u1') && !B.coOwnedLocally(undefined, 'u1') && !B.coOwnedLocally('u1', undefined) && !B.coOwnedLocally('u1', 'u2') && !B.coOwnedLocally('', ''));
   const field = B.coRoleBlockedCopy('collaborator', 'field');
-  ok('a field seat is told the GC writes COs, and to send it as a field issue', /Your GC creates change orders/.test(field.title) && /field issue/.test(field.body) && field.canFileReport);
+  ok('a field seat is told the GC writes COs, and to send it as a field issue', /Your GC Creates Change Orders/.test(field.title) && /field issue/.test(field.body) && field.canFileReport);
   ok('…a viewer is told the seat is view-only, with no daily-report action', !B.coRoleBlockedCopy('collaborator', 'viewer').canFileReport);
   ok('the error and no-access states say why', /try again/i.test(B.coRoleBlockedCopy('error', null).body) && /not shared/.test(B.coRoleBlockedCopy('no_access', null).body));
 }
@@ -172,7 +172,7 @@ if (B) {
   ok('else from the newest portal decline, with "Note: " stripped', viaTrail?.who === 'Dana' && viaTrail?.reason === 'Wait for spring');
   ok('no reason → null reason (the card says "No reason given")', B.coDeclineLine({ status: 'rejected', auditTrail: [{ action: 'declined_via_portal', actor: 'D', timestamp: 't' }] })?.reason === null);
   ok('not rejected → nothing', B.coDeclineLine({ status: 'approved', approvers: [{ role: 'Client', status: 'rejected' }] }) === null);
-  ok('the card renders it with a calendar-day date, and his own field is "Reason for change"',
+  ok('the card renders it with a calendar-day date, and his own field is "Reason for Change"',
     /Declined by \{declineLine\.who\}/.test(CODE) && /formatCalendarDay\(calendarDayOf\(declineLine\.when\)/.test(CODE) && /No reason given\./.test(CODE)
     && /Reason for change: \{existingCO\.reason\}/.test(CODE) && !/>Reason: \{existingCO\.reason\}/.test(CODE));
 }
@@ -211,9 +211,9 @@ if (B) {
 console.log('\n#127 "+ your N% markup" only where it is applied');
 if (B) {
   const atCost = B.coEstimatePickBasis({ unitCost: 80, unitSell: 80, markupPct: 0 }, 20, money);
-  ok('an at-cost line (unitSell set, markup 0) never claims his markup', !/your 20% markup/.test(atCost) && /at your cost — no markup on the signed estimate/.test(atCost), atCost);
-  ok('…nor with a null per-line markup', !/markup —/.test(B.coEstimatePickBasis({ unitCost: 80, unitSell: 80, markupPct: null }, 20, money)));
-  ok('a signed-rate line keeps its text', /\+ 25% — the rate on the signed estimate/.test(B.coEstimatePickBasis({ unitCost: 80, unitSell: 100, markupPct: 25 }, 20, money)));
+  ok('an at-cost line (unitSell set, markup 0) never claims his markup', !/your 20% markup/.test(atCost) && /at your cost\. No markup on the signed estimate/.test(atCost), atCost);
+  ok('…nor with a null per-line markup', !/% markup\. This line/.test(B.coEstimatePickBasis({ unitCost: 80, unitSell: 80, markupPct: null }, 20, money)));
+  ok('a signed-rate line keeps its text', /\+ 25%, the rate on the signed estimate/.test(B.coEstimatePickBasis({ unitCost: 80, unitSell: 100, markupPct: 25 }, 20, money)));
   ok('a legacy cost-only line (unitSell null) says his markup, where it IS applied', /your 20% markup/.test(B.coEstimatePickBasis({ unitCost: 80, unitSell: null, markupPct: null }, 20, money)));
   ok('the picker renders coEstimatePickBasis', /coEstimatePickBasis\(item, /.test(CODE));
 }
@@ -235,7 +235,7 @@ if (B) {
     /onPress=\{\(\) => withConfirmedImpactDays\(\(\) => handleSave\('draft'\)\)\}/.test(CODE)
     && /withConfirmedImpactDays\(\(\) => setShowSendRecipient\(true\)\)/.test(CODE)
     && /withConfirmedImpactDays\(\(\) => showAlert\(\s*'Issue as a construction change directive\?'/.test(CODE));
-  ok('the confirm asks "The client signs +N days — keep it?"', /The client signs \+\$\{days\} day\$\{plural\} — keep it\?/.test(CODE));
+  ok('the confirm asks "The client signs +N days — keep it?"', /The client signs \+\$\{days\} day\$\{plural\}\. Keep it\?/.test(CODE));
 }
 
 // ── #129 the contract rows are the AIA G701 rows ───────────────────────────
@@ -254,7 +254,7 @@ console.log('\n#129 Original contract sum / prior approved COs / contract prior 
 }
 {
   ok('the card labels are the G701 rows, not "Original Contract"',
-    /Original contract sum/.test(CODE) && /Net change by prior approved COs/.test(CODE) && /Contract sum prior to this CO/.test(CODE)
+    /Original Contract Sum/.test(CODE) && /Net Change by Prior Approved COs/.test(CODE) && /Contract Sum Prior to This CO/.test(CODE)
     && !/>Original Contract</.test(CODE));
   ok('the old "every other approved CO" filter is gone', !/c\.status === 'approved' && c\.id !== coId\)/.test(CODE)
     // wave 4 #141: computed against the server-confirmed number once known.
@@ -292,7 +292,7 @@ if (B) {
   ok('persistCO freezes the tax for any non-draft save, at the frozen rate first',
     /nextStatus !== 'draft'\s*\?\s*coTaxFreeze\(committedAmount, existingFrozenTaxRate \?\? liveTaxRatePct\)/.test(persist));
   ok('…and writes it on both the update and the new CO', (persist.match(/\.\.\.frozen,/g) ?? []).length === 2);
-  ok('"Mark submitted" freezes it too', /next === 'submitted' && existingFrozenTaxRate == null\s*\?\s*coTaxFreeze\(existingCO\.changeAmount, liveTaxRatePct\)/.test(CODE));
+  ok('"Mark Submitted" freezes it too', /next === 'submitted' && existingFrozenTaxRate == null\s*\?\s*coTaxFreeze\(existingCO\.changeAmount, liveTaxRatePct\)/.test(CODE));
   ok('the screen reads the frozen rate over live settings', /const taxRatePct = existingFrozenTaxRate \?\? liveTaxRatePct;/.test(CODE));
   ok('the note no longer promises an approved total the email never showed', !/shown here so the total you approve matches what gets invoiced/.test(CODE));
   ok('the email options carry the frozen tax', /taxAmount: sendTax\.taxAmount,/.test(CODE) && /totalWithTax: sendTax\.totalWithTax,/.test(CODE));

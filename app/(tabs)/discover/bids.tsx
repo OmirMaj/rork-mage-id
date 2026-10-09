@@ -158,9 +158,9 @@ function formatCurrency(amount: number | null | undefined): string {
 }
 
 function getDeadlineInfo(deadline: string | null | undefined): { text: string; color: string; bgColor: string; sortableMs: number } {
-  if (!deadline) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER };
+  if (!deadline) return { text: 'No Deadline', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER };
   const ms = new Date(deadline).getTime() - Date.now();
-  if (isNaN(ms)) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER };
+  if (isNaN(ms)) return { text: 'No Deadline', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER };
   if (ms <= 0) return { text: 'Expired', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER - 1 };
   const days = Math.floor(ms / (1000 * 60 * 60 * 24));
   if (days < 3) return { text: `${days}d ${Math.floor((ms % 86_400_000) / 3_600_000)}h left`, color: '#D32F2F', bgColor: Colors.errorLight, sortableMs: ms };
@@ -173,7 +173,7 @@ function getDeadlineInfo(deadline: string | null | undefined): { text: string; c
  *  codes that exist for federal cataloguing — strip them so the human
  *  reads the actual subject. */
 function cleanTitle(t: string | null | undefined): string {
-  if (!t) return 'Untitled bid';
+  if (!t) return 'Untitled Bid';
   return t.replace(/^[A-Z]--\s*/, '').replace(/\s+/g, ' ').trim();
 }
 
@@ -529,7 +529,7 @@ export default function CachedBidsScreen() {
             <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>Public bids</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Public Bids</Text>
             <Text style={styles.headerSubtitle}>
               {filteredCount === totalCount
                 ? `${totalCount.toLocaleString()} active`
@@ -729,7 +729,7 @@ export default function CachedBidsScreen() {
         <TouchableOpacity style={[styles.modalOverlay, fSort.overlay]} activeOpacity={1} onPress={() => setShowSortDropdown(false)}>
           <View style={[styles.dropdownModal, fSort.card]}>
             <View style={styles.dropdownHeader}>
-              <Text style={styles.dropdownTitle}>Sort by</Text>
+              <Text style={styles.dropdownTitle}>Sort By</Text>
               <TouchableOpacity onPress={() => setShowSortDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -758,7 +758,7 @@ export default function CachedBidsScreen() {
         <TouchableOpacity style={[styles.modalOverlay, fAside.overlay]} activeOpacity={1} onPress={() => setShowSetAsideDropdown(false)}>
           <View style={[styles.dropdownModal, fAside.card]}>
             <View style={styles.dropdownHeader}>
-              <Text style={styles.dropdownTitle}>Set-aside type</Text>
+              <Text style={styles.dropdownTitle}>Set-Aside Type</Text>
               <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -767,7 +767,7 @@ export default function CachedBidsScreen() {
               style={[styles.dropdownItem, !selectedSetAside && styles.dropdownItemActive]}
               onPress={() => handleSetAsideSelect(undefined)}
             >
-              <Text style={[styles.dropdownItemText, !selectedSetAside && styles.dropdownItemTextActive]}>All types</Text>
+              <Text style={[styles.dropdownItemText, !selectedSetAside && styles.dropdownItemTextActive]}>All Types</Text>
               {!selectedSetAside && <View style={styles.dropdownCheck} />}
             </TouchableOpacity>
             {SET_ASIDE_TYPES.filter((s) => s.label !== 'No Set-Aside').map((sa) => (
@@ -784,7 +784,7 @@ export default function CachedBidsScreen() {
               style={[styles.dropdownItem, selectedSetAside === 'Open / No Set-Aside' && styles.dropdownItemActive]}
               onPress={() => handleSetAsideSelect(selectedSetAside === 'Open / No Set-Aside' ? undefined : 'Open / No Set-Aside')}
             >
-              <Text style={[styles.dropdownItemText, selectedSetAside === 'Open / No Set-Aside' && styles.dropdownItemTextActive]}>Open / No set-aside</Text>
+              <Text style={[styles.dropdownItemText, selectedSetAside === 'Open / No Set-Aside' && styles.dropdownItemTextActive]}>Open / No Set-Aside</Text>
               {selectedSetAside === 'Open / No Set-Aside' && <View style={styles.dropdownCheck} />}
             </TouchableOpacity>
           </View>
@@ -794,7 +794,7 @@ export default function CachedBidsScreen() {
       {bidsQueryError ? (
         <View style={styles.loadingContainer}>
           <AlertCircle size={40} color="#D32F2F" strokeWidth={1.75} />
-          <Text style={styles.emptyTitle}>Couldn't load bids</Text>
+          <Text style={styles.emptyTitle}>Couldn't Load Bids</Text>
           <Text style={styles.emptySubtitle}>{describeError(bidsQueryError, { action: 'load the bids feed' }).body}</Text>
           <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Retry</Text>
@@ -818,7 +818,7 @@ export default function CachedBidsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>No bids match these filters</Text>
+              <Text style={styles.emptyTitle}>No Bids Match These Filters</Text>
               <Text style={styles.emptySubtitle}>
                 {locationMode === 'nearby' && !location
                   // The button above is status-dependent — after a denial it
@@ -830,7 +830,7 @@ export default function CachedBidsScreen() {
                     : "The SAM.gov feed hasn't loaded any bids yet. Pull to refresh."}
               </Text>
               <TouchableOpacity onPress={clearAllFilters} style={styles.retryButton}>
-                <Text style={styles.retryButtonText}>Clear all filters</Text>
+                <Text style={styles.retryButtonText}>Clear All Filters</Text>
               </TouchableOpacity>
             </View>
           }

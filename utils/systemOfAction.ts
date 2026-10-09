@@ -191,12 +191,12 @@ export function buildChaseList(opts: {
         projectId: r.projectId,
         projectName: nameById.get(r.projectId) ?? 'Project',
         title: draftLabel,
-        waitingOn: 'you — not sent yet',
+        waitingOn: 'you (not sent yet)',
         daysOverdue: d,
         severity: severityFor(d),
         nudge:
           `${draftLabel} has never been sent, and you needed the answer ${d} day${d === 1 ? '' : 's'} ago. ` +
-          `Nobody is late but you — open it and send it.`,
+          `Nobody is late but you. Open it and send it.`,
         route: { pathname: '/rfi', params: { projectId: r.projectId, rfiId: r.id } },
       });
       continue;
@@ -220,7 +220,7 @@ export function buildChaseList(opts: {
       severity: severityFor(d),
       nudge:
         `Following up on ${label}, which was due ${d} day${d === 1 ? '' : 's'} ago. ` +
-        `We need an answer to keep the schedule on track — can you respond today?`,
+        `We need an answer to keep the schedule on track. Can you respond today?`,
       route: { pathname: '/rfi', params: { projectId: r.projectId, rfiId: r.id } },
     });
   }
@@ -253,12 +253,12 @@ export function buildChaseList(opts: {
         projectId: s.projectId,
         projectName: nameById.get(s.projectId) ?? 'Project',
         title: label,
-        waitingOn: 'you — not sent yet',
+        waitingOn: 'you (not sent yet)',
         daysOverdue: d,
         severity: severityFor(d),
         nudge:
           `${label} has not been sent for review yet, and it was needed ${d} day${d === 1 ? '' : 's'} ago. ` +
-          `Nobody is late but you — attach the product data and send it.`,
+          `Nobody is late but you. Attach the product data and send it.`,
         route: { pathname: '/submittal', params: { projectId: s.projectId, submittalId: s.id } },
       });
       continue;
@@ -275,7 +275,7 @@ export function buildChaseList(opts: {
       severity: severityFor(d),
       nudge:
         `${label} has been awaiting review for ${d} day${d === 1 ? '' : 's'} past the required date. ` +
-        `Material orders are held until it's returned — please review or advise.`,
+        `Material orders are held until it's returned. Please review or advise.`,
       route: { pathname: '/submittal', params: { projectId: s.projectId, submittalId: s.id } },
     });
   }
@@ -306,7 +306,7 @@ export function buildChaseList(opts: {
       severity: severityFor(Math.max(0, overdue)),
       nudge:
         `Checking in on ${label}, sent ${d} day${d === 1 ? '' : 's'} ago. ` +
-        `We can't schedule this work until it's approved — let us know if you have questions.`,
+        `We can't schedule this work until it's approved. Let us know if you have questions.`,
       route: { pathname: '/change-order', params: { projectId: co.projectId, coId: co.id } },
       consequence,
     });
@@ -333,7 +333,7 @@ export function buildChaseList(opts: {
       nudge:
         `Following up on ${d.description} for ${nameById.get(d.projectId) ?? 'our project'}, ` +
         `due ${d.expectedDate} and now ${late} day${late === 1 ? '' : 's'} out. ` +
-        `We have crew scheduled against it — can you confirm a delivery date today?`,
+        `We have crew scheduled against it. Can you confirm a delivery date today?`,
       route: { pathname: '/deliveries', params: { projectId: d.projectId } },
     });
   }
@@ -361,7 +361,7 @@ export function buildChaseList(opts: {
         daysOverdue: q.reportedDaysSince,
         severity: severityFor(q.reportedDaysSince),
         nudge:
-          `Checking in on ${q.tradeKey} at ${nameById.get(projectId) ?? 'our project'} — ` +
+          `Checking in on ${q.tradeKey} at ${nameById.get(projectId) ?? 'our project'}: ` +
           `our daily reports show your crew last on site ${q.lastSeen}. ` +
           `Can you confirm when they're back so we can sequence the follow-on trades?`,
         route: { pathname: '/daily-report', params: { projectId } },
@@ -429,7 +429,7 @@ export function buildChaseList(opts: {
       daysOverdue: late,
       severity: severityFor(late),
       nudge:
-        `Checking in on the ${sel.category} selection — it was due ${dueLabel}. ` +
+        `Checking in on the ${sel.category} selection. It was due ${dueLabel}. ` +
         `We need it to keep the schedule on track${task ? ` for ${task.title}` : ''}.`,
       route: { pathname: '/selections', params: { projectId: sel.projectId } },
       consequence: consequenceFor(ctx, task, task ? 'matched_by_name' : 'no_task', today).text,

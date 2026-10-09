@@ -91,7 +91,7 @@ function SectionHeader({
       <Text style={styles.sectionLabel}>{label}</Text>
       {onPress && (
         <TouchableOpacity onPress={onPress} hitSlop={8} style={styles.sectionDrillIn}>
-          <Text style={styles.sectionDrillInText}>See all</Text>
+          <Text style={styles.sectionDrillInText}>See All</Text>
           <ChevronRight size={12} color={t.accent} />
         </TouchableOpacity>
       )}
@@ -129,7 +129,7 @@ function ColdStartNote({ text, styles }: { text: string; styles: ReturnType<type
 export function typeComparisonColdStart(closedWithBasis: number): string {
   return closedWithBasis < 2
     ? `Margin by project type needs 2 closed projects of the same type. You have ${closedWithBasis} closed with both a contract and costs on it.`
-    : `Your ${closedWithBasis} closed jobs are each a different type — a type needs 2 before MAGE compares its margin.`;
+    : `Your ${closedWithBasis} closed jobs are each a different type. A type needs 2 before MAGE compares its margin.`;
 }
 
 // ── Inner screen ──────────────────────────────────────────────────────────
@@ -208,7 +208,7 @@ function BusinessInner() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Your business',
+          title: 'Your Business',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
               <ChevronLeft size={22} color={t.text} />
@@ -228,7 +228,7 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={Target}
-              label="Track record"
+              label="Track Record"
               onPress={() => router.push('/track-record')}
               styles={styles}
               t={t}
@@ -238,7 +238,7 @@ function BusinessInner() {
               what happened once the project closed.
             </Text>
             <TouchableOpacity style={styles.seeAllRow} onPress={() => router.push('/track-record')}>
-              <Text style={styles.seeAllText}>Open track record</Text>
+              <Text style={styles.seeAllText}>Open Track Record</Text>
               <ChevronRight size={14} color={t.accent} />
             </TouchableOpacity>
           </View>
@@ -247,7 +247,7 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={TrendingUp}
-              label="Margin by project type"
+              label="Margin by Project Type"
               onPress={() => router.push('/portfolio-margin')}
               styles={styles}
               t={t}
@@ -286,7 +286,7 @@ function BusinessInner() {
             )}
             <Text style={styles.definitionNote}>{typeProfit.definitionNote}</Text>
             <TouchableOpacity style={styles.seeAllRow} onPress={() => router.push('/portfolio-margin')}>
-              <Text style={styles.seeAllText}>Per-project view</Text>
+              <Text style={styles.seeAllText}>Per-Project View</Text>
               <ChevronRight size={14} color={t.accent} />
             </TouchableOpacity>
           </View>
@@ -295,7 +295,7 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={BarChart3}
-              label="Pipeline vs capacity"
+              label="Pipeline vs Capacity"
               styles={styles}
               t={t}
             />
@@ -303,7 +303,7 @@ function BusinessInner() {
             {/* Win rates */}
             <View style={styles.twoColumn}>
               <View style={styles.kpiCard}>
-                <Text style={styles.kpiLabel}>CRM win rate</Text>
+                <Text style={styles.kpiLabel}>CRM Win Rate</Text>
                 {pipeline.winRates.crm !== null ? (
                   <Text style={styles.kpiValue}>{fmtPct(pipeline.winRates.crm)}</Text>
                 ) : (
@@ -317,7 +317,7 @@ function BusinessInner() {
                 )}
               </View>
               <View style={styles.kpiCard}>
-                <Text style={styles.kpiLabel}>Bid win rate</Text>
+                <Text style={styles.kpiLabel}>Bid Win Rate</Text>
                 {pipeline.winRates.outbound !== null ? (
                   <Text style={styles.kpiValue}>{fmtPct(pipeline.winRates.outbound)}</Text>
                 ) : (
@@ -332,7 +332,7 @@ function BusinessInner() {
             {/* Pipeline numbers */}
             {pipeline.leadCount > 0 && (
               <View style={styles.metricRow}>
-                <Text style={styles.metricLabel}>Active pipeline</Text>
+                <Text style={styles.metricLabel}>Active Pipeline</Text>
                 <View style={styles.metricRight}>
                   <Text style={styles.metricValue}>{fmtMoney(pipeline.leadPipeline$)}</Text>
                   <Text style={styles.metricSub}>{pipeline.leadCount} lead{pipeline.leadCount === 1 ? '' : 's'}</Text>
@@ -341,7 +341,7 @@ function BusinessInner() {
             )}
             {pipeline.pendingBidsCount > 0 && (
               <View style={styles.metricRow}>
-                <Text style={styles.metricLabel}>Pending bids</Text>
+                <Text style={styles.metricLabel}>Pending Bids</Text>
                 <View style={styles.metricRight}>
                   <Text style={styles.metricValue}>{fmtMoney(pipeline.pendingBids$)}</Text>
                   <Text style={styles.metricSub}>{pipeline.pendingBidsCount} bid{pipeline.pendingBidsCount === 1 ? '' : 's'}</Text>
@@ -350,7 +350,7 @@ function BusinessInner() {
             )}
             {pipeline.expectedInflow$ > 0 && (
               <View style={styles.metricRow}>
-                <Text style={styles.metricLabel}>Expected inflow</Text>
+                <Text style={styles.metricLabel}>Expected Inflow</Text>
                 <View style={styles.metricRight}>
                   <Text style={[styles.metricValue, { color: t.success }]}>{fmtMoney(pipeline.expectedInflow$)}</Text>
                   <Text style={styles.metricSub}>Pipeline × win rate</Text>
@@ -361,7 +361,7 @@ function BusinessInner() {
             {/* Backlog */}
             {pipeline.backlog.remainingToBill$ > 0 && (
               <View style={styles.metricRow}>
-                <Text style={styles.metricLabel}>Remaining to bill</Text>
+                <Text style={styles.metricLabel}>Remaining to Bill</Text>
                 <View style={styles.metricRight}>
                   <Text style={styles.metricValue}>{fmtMoney(pipeline.backlog.remainingToBill$)}</Text>
                   {pipeline.backlog.horizonDate && (
@@ -380,7 +380,7 @@ function BusinessInner() {
                 the three windows, so there was nothing to divide by. The
                 windows are 28 CALENDAR-day blocks counted forward from now
                 (utils/portfolio/pipelineHorizon.ts), not working days. */}
-            <Text style={styles.subSectionLabel}>Crew load</Text>
+            <Text style={styles.subSectionLabel}>Crew Load</Text>
             {!loadMeasurable ? (
               <ColdStartNote
                 text={pipeline.backlog.horizonDate === null
@@ -414,7 +414,7 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={Users}
-              label="Client book"
+              label="Client Book"
               styles={styles}
               t={t}
             />
@@ -468,13 +468,13 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={CloudRain}
-              label="Weather impact"
+              label="Weather Impact"
               styles={styles}
               t={t}
             />
             {seasonality.noData ? (
               <ColdStartNote
-                text={`Weather patterns build from your daily reports — ${seasonality.reportCount} filed so far.`}
+                text={`Weather patterns build from your daily reports. ${seasonality.reportCount} filed so far.`}
                 styles={styles}
               />
             ) : (

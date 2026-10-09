@@ -44,7 +44,7 @@ export function buildMailtoUrl(opts: MailtoOpts): string {
  */
 export function mailSignOff(senderName?: string): string[] {
   if (senderName) {
-    return ['', `Thanks,`, senderName, '', '— Sent from MAGE ID'];
+    return ['', `Thanks,`, senderName, '', 'Sent from MAGE ID'];
   }
-  return ['', '— Sent from MAGE ID'];
+  return ['', 'Sent from MAGE ID'];
 }

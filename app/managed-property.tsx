@@ -198,7 +198,7 @@ export default function ManagedPropertyScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{property.name}</Text>
-        <TouchableOpacity onPress={openEdit} hitSlop={8} accessibilityLabel="Edit property">
+        <TouchableOpacity onPress={openEdit} hitSlop={8} accessibilityLabel="Edit Property">
           <Pencil size={18} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
@@ -228,7 +228,7 @@ export default function ManagedPropertyScreen() {
 
         {/* Work orders */}
         <View style={styles.woHeadRow}>
-          <Text style={styles.sectionTitle}>Work orders</Text>
+          <Text style={styles.sectionTitle}>Work Orders</Text>
           <TouchableOpacity style={styles.addWoBtn} onPress={() => setWoOpen(true)} activeOpacity={0.85} testID="add-work-order">
             <Plus size={15} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.addWoBtnText}>New</Text>
@@ -254,7 +254,7 @@ export default function ManagedPropertyScreen() {
 
         <TouchableOpacity style={styles.deleteRow} onPress={handleDelete} activeOpacity={0.7}>
           <Trash2 size={15} color={themeColors.danger} strokeWidth={1.75} />
-          <Text style={styles.deleteRowText}>Delete property</Text>
+          <Text style={styles.deleteRowText}>Delete Property</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -264,16 +264,16 @@ export default function ManagedPropertyScreen() {
           <View style={[styles.modalSheet, fEdit.card]}>
             {fEdit.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Edit property</Text>
+              <Text style={styles.modalTitle}>Edit Property</Text>
               <TouchableOpacity onPress={() => setEditOpen(false)} hitSlop={8}><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Field label="Name"><TextInput style={styles.input} value={eName} onChangeText={setEName} placeholderTextColor={themeColors.textMuted} /></Field>
               <Field label="Address"><TextInput style={styles.input} value={eAddress} onChangeText={setEAddress} placeholderTextColor={themeColors.textMuted} /></Field>
               <Field label="Type"><TextInput style={styles.input} value={eType} onChangeText={setEType} placeholderTextColor={themeColors.textMuted} /></Field>
-              <Field label="Owner / client"><TextInput style={styles.input} value={eOwner} onChangeText={setEOwner} placeholderTextColor={themeColors.textMuted} /></Field>
-              <Field label="Owner phone"><TextInput style={styles.input} value={eOwnerPhone} onChangeText={setEOwnerPhone} keyboardType="phone-pad" placeholderTextColor={themeColors.textMuted} /></Field>
-              <Field label="Owner email">
+              <Field label="Owner / Client"><TextInput style={styles.input} value={eOwner} onChangeText={setEOwner} placeholderTextColor={themeColors.textMuted} /></Field>
+              <Field label="Owner Phone"><TextInput style={styles.input} value={eOwnerPhone} onChangeText={setEOwnerPhone} keyboardType="phone-pad" placeholderTextColor={themeColors.textMuted} /></Field>
+              <Field label="Owner Email">
                 <TextInput style={styles.input} value={eOwnerEmail} onChangeText={setEOwnerEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="owner@example.com" placeholderTextColor={themeColors.textMuted} testID="pm-owner-email" />
               </Field>
               <Text style={styles.fieldHint}>For your own contact list. MAGE does not email the owner or give them access to anything.</Text>
@@ -300,7 +300,7 @@ export default function ManagedPropertyScreen() {
             {fWo.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={styles.modalHeadIcon}><Wrench size={15} color="#FFF" strokeWidth={1.75} /></View>
-              <Text style={styles.modalTitle}>New work order</Text>
+              <Text style={styles.modalTitle}>New Work Order</Text>
               <TouchableOpacity onPress={() => { setWoOpen(false); resetWoDraft(); }} hitSlop={8}><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -330,13 +330,13 @@ export default function ManagedPropertyScreen() {
                   })}
                 </View>
               </Field>
-              <Field label="Budget (optional)">
+              <Field label="Budget (Optional)">
                 <TextInput style={styles.input} value={woBudget} onChangeText={setWoBudget} placeholder="$500" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
               </Field>
             </ScrollView>
             <TouchableOpacity style={[styles.modalCta, !woTitle.trim() && styles.modalCtaDisabled]} onPress={handleAddWo} disabled={!woTitle.trim()} activeOpacity={0.85} testID="wo-submit">
               <Plus size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.modalCtaText}>Create work order</Text>
+              <Text style={styles.modalCtaText}>Create Work Order</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

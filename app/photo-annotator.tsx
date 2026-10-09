@@ -115,9 +115,9 @@ function AnnotatorAccessWall({ state, requiredTier, onRetry }: {
             : "You don't have access to this project's photos. Ask the project owner to invite you."}
       </Text>
       {state === 'error' && (
-        <Button label="Try again" variant="primary" onPress={onRetry} testID="photo-access-retry" />
+        <Button label="Try Again" variant="primary" onPress={onRetry} testID="photo-access-retry" />
       )}
-      <Button label="Go back" variant="secondary" onPress={goBack} testID="photo-access-back" />
+      <Button label="Go Back" variant="secondary" onPress={goBack} testID="photo-access-back" />
     </View>
   );
 }
@@ -195,12 +195,12 @@ function PhotoAnnotatorGate() {
       <Text style={styles.emptyText}>
         {state === 'loading'
           ? 'Loading this photo…'
-          : 'This photo isn\'t on this device — it was deleted or hasn\'t synced here. Nothing was opened in its place.'}
+          : 'This photo isn\'t on this device. It was deleted or hasn\'t synced here. Nothing was opened in its place.'}
       </Text>
       {state === 'missing' && (
-        <Button label="Try again" variant="primary" onPress={retryRemoteReads} testID="photo-open-retry" />
+        <Button label="Try Again" variant="primary" onPress={retryRemoteReads} testID="photo-open-retry" />
       )}
-      <Button label="Go back" variant="secondary" onPress={goBack} testID="photo-open-back" />
+      <Button label="Go Back" variant="secondary" onPress={goBack} testID="photo-open-back" />
     </View>
   );
 }
@@ -334,7 +334,7 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
   const handleSave = useCallback(() => {
     // LS-5: belt and braces — the button is off for a viewer, and so is this.
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert("Can't Save", writeBlock);
       return;
     }
     updateProjectPhoto(photo.id, { markup: markups });
@@ -344,7 +344,7 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
     // into a "thing I escalated." If the user just wants to save and
     // go, the Done option preserves the old behavior.
     showAlert(
-      'Markup saved',
+      'Markup Saved',
       'Use this photo for an RFI or a punch item?',
       [
         { text: 'Close', style: 'cancel', onPress: goBack },
@@ -358,7 +358,7 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
           },
         },
         {
-          text: 'Add to punch list',
+          text: 'Add to Punch List',
           onPress: () => {
             router.replace({
               pathname: '/punch-list' as any,
@@ -536,7 +536,7 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
           </TouchableOpacity>
           <TouchableOpacity onPress={handleClear} disabled={!markups.length} style={[styles.actionBtn, !markups.length && styles.actionDisabled]}>
             <Trash2 size={16} color={markups.length ? themeColors.danger : themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={[styles.actionText, { color: markups.length ? themeColors.danger : themeColors.textMuted }]}>Clear all</Text>
+            <Text style={[styles.actionText, { color: markups.length ? themeColors.danger : themeColors.textMuted }]}>Clear All</Text>
           </TouchableOpacity>
         </View>
 

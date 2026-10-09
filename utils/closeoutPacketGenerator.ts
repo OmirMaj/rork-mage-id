@@ -12,17 +12,18 @@ import { formatMoney as formatMoneyDecimals } from '@/utils/formatters';
 import { calendarDayOf, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { openPrintWindowOrThrow } from '@/utils/platformFile';
 import { PDF_PALETTE as P, PDF_FONT_DISPLAY } from '@/utils/pdfDesign';
+import { withRecipientNotice } from '@/utils/recipientNotice';
 
 // Labels printed on the packet come from maps, never from the raw enum.
 const PROJECT_STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft', estimated: 'Estimated', in_progress: 'In progress', completed: 'Completed', closed: 'Closed',
+  draft: 'Draft', estimated: 'Estimated', in_progress: 'In Progress', completed: 'Completed', closed: 'Closed',
 };
 const INVOICE_STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft', sent: 'Sent', partially_paid: 'Partially paid', paid: 'Paid', overdue: 'Overdue',
+  draft: 'Draft', sent: 'Sent', partially_paid: 'Partially Paid', paid: 'Paid', overdue: 'Overdue',
 };
 const INVOICE_TYPE_LABEL: Record<string, string> = { full: 'Full', progress: 'Progress' };
 const PUNCH_STATUS_LABEL: Record<string, string> = {
-  open: 'Open', in_progress: 'In progress', ready_for_review: 'Ready for review', closed: 'Closed',
+  open: 'Open', in_progress: 'In Progress', ready_for_review: 'Ready for Review', closed: 'Closed',
 };
 const QUALITY_LABEL: Record<string, string> = {
   economy: 'Economy', standard: 'Standard', premium: 'Premium', luxury: 'Luxury',
@@ -381,7 +382,7 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
   // a paid pill and the "all verified closed" note also carry a check glyph so
   // the state is not told by hue alone. Invoice "sent" is still awaiting
   // payment, so it wears the warning family, not the brand.
-  return `<!DOCTYPE html>
+  return withRecipientNotice(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
@@ -451,9 +452,9 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
     <div class="disclaimer-title">Important</div>
     This handoff packet is provided for the owner&apos;s reference. Warranty terms, product specifications, and maintenance schedules originate with the manufacturer or installer named for each item. The contractor disclaims any warranty beyond what is stated in the original construction contract or in the items themselves. Verify all amounts and dates against your own records before relying on them.
   </div>
-  <div class="footer">${escapeHtml(company)} &middot; Built with <span style="color:#0B0D10;font-weight:700">MAGE ID</span> &middot; mageid.app &middot; ${formatDate(new Date().toISOString())}</div>
+  <div class="footer">${escapeHtml(company)} &middot; ${formatDate(new Date().toISOString())}</div>
 </body>
-</html>`;
+</html>`, branding.companyName);
 }
 
 export async function generateCloseoutPacketUri(data: CloseoutPacketData): Promise<string | null> {

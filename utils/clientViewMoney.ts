@@ -109,8 +109,8 @@ export function clientViewMoneyFigures(input: {
     const duePct = (due / barTotal) * 100;
     segments = [
       { key: 'paid', label: 'Paid', amount: paid, pct: paidPct },
-      { key: 'due', label: 'Due now', amount: due, pct: duePct },
-      { key: 'retention', label: 'Retainage held', amount: held, pct: Math.max(0, 100 - paidPct - duePct) },
+      { key: 'due', label: 'Due Now', amount: due, pct: duePct },
+      { key: 'retention', label: 'Retainage Held', amount: held, pct: Math.max(0, 100 - paidPct - duePct) },
     ];
   }
 

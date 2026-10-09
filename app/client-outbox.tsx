@@ -299,10 +299,10 @@ export default function ClientOutboxScreen() {
         items: sendable.map(d => ({ kind: d.kind, itemId: d.itemId })),
         projectId,
       });
-      showAlert('Sent to your client', `${sent} ${sent === 1 ? 'item' : 'items'} sent.${heldLine ? ` ${heldLine}` : ''}`);
+      showAlert('Sent to Your Client', `${sent} ${sent === 1 ? 'item' : 'items'} sent.${heldLine ? ` ${heldLine}` : ''}`);
     } catch (e) {
       console.warn('[ClientOutbox] send failed:', rawErrorMessage(e));
-      showAlert("Couldn't send to your client", describeError(e, { action: 'send these drafts', keptLocally: true }).body);
+      showAlert("Couldn't Send to Your Client", describeError(e, { action: 'send these drafts', keptLocally: true }).body);
     } finally {
       setBusy(false);
     }
@@ -373,7 +373,7 @@ export default function ClientOutboxScreen() {
           <ChevronLeft size={22} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.title} numberOfLines={1}>Client outbox</Text>
+          <Text style={styles.title} numberOfLines={1}>Client Outbox</Text>
           {projectName ? <Text style={styles.projectName} numberOfLines={1}>{projectName}</Text> : null}
         </View>
         <View style={{ width: 34 }} />
@@ -383,7 +383,7 @@ export default function ClientOutboxScreen() {
         <Text style={styles.sectionLabel}>{`Drafts · ${drafts.length}`}</Text>
         {drafts.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Nothing in your outbox</Text>
+            <Text style={styles.emptyTitle}>Nothing in Your Outbox</Text>
             <Text style={styles.emptySub}>
               {"New change orders, invoices, RFIs and submittals start as drafts. Drafts you haven't sent appear here."}
             </Text>

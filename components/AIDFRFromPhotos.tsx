@@ -83,7 +83,7 @@ export default React.memo(function AIDFRFromPhotos({
       // normal, and the narrative stays blank — no way to tell a dropped signal
       // from a tier cap from a dead feature (audit 2026-09-07, ai-features).
       console.warn('[AIDFRFromPhotos] generation failed', err);
-      setError(aiConsentErrorText(err) ?? describeError(err, { action: 'draft from those photos', title: t('field.dfr.aiPhotos.errorTitle', "Couldn't draft from the photos") }).body);
+      setError(aiConsentErrorText(err) ?? describeError(err, { action: 'draft from those photos', title: t('field.dfr.aiPhotos.errorTitle', "Couldn't Draft from the Photos") }).body);
     } finally {
       setLoading(false);
     }
@@ -100,7 +100,7 @@ export default React.memo(function AIDFRFromPhotos({
           <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>{t('field.dfr.aiPhotos.title', "Draft from today's photos")}</Text>
+          <Text style={styles.title}>{t('field.dfr.aiPhotos.title', "Draft from Today's Photos")}</Text>
           <Text style={styles.subtitle}>
             {t('field.dfr.aiPhotos.subtitle', 'Pick the photos to include. MAGE drafts the work narrative from them.')}
           </Text>
@@ -162,7 +162,7 @@ export default React.memo(function AIDFRFromPhotos({
           {loading
             ? t('field.dfr.aiPhotos.drafting', 'Drafting from photos…')
             : error
-              ? t('field.dfr.aiPhotos.tryAgain', 'Try again')
+              ? t('field.dfr.aiPhotos.tryAgain', 'Try Again')
               : tn('field.dfr.aiPhotos.draftFrom', selected.size, { one: 'Draft from {count} photo', other: 'Draft from {count} photos' })}
         </Text>
       </TouchableOpacity>

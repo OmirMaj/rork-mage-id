@@ -12,7 +12,7 @@ export const EN: EnCatalog = {
   "common.moment.chipEmailNotSent": "Signed · Email not sent",
   "common.moment.chipSentAwaiting": "Sent · awaiting {to}",
   "common.moment.clear": "Clear",
-  "common.moment.counterSignNote": "They counter-sign from their portal link. The contract is binding when they sign.",
+  "common.moment.counterSignNote": "They counter-sign from their portal link. The contract is signed by both parties when they do.",
   "common.moment.done": "Done",
   "common.moment.earlierPending": "An earlier change to this record hasn't sent yet. Try again in a moment.",
   "common.moment.earlierUnsaved": "An earlier change to this record is under Not saved. Retry it first.",

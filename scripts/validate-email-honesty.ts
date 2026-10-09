@@ -147,9 +147,9 @@ const realHtml = wrapEmailHtml({
     emailQuote('Second progress billing, 60% complete.') +
     emailStatCard(
       emailStatRow('Project', 'Maple St Kitchen') +
-      emailStatRow('Due date', 'March 3, 2026') +
+      emailStatRow('Due Date', 'March 3, 2026') +
       emailStatRow('Terms', 'Net 30') +
-      emailStatRow('Amount due', fmtMoney(8400), { emphasize: true }),
+      emailStatRow('Amount Due', fmtMoney(8400), { emphasize: true }),
     ),
   cta: { label: 'Pay securely · $8,400.00', href: 'https://pay.stripe.com/abc123' },
   companyName: 'Acme Builders',
@@ -162,7 +162,7 @@ const realMailto = decodeURIComponent(
 );
 ok('a real invoice email fits in a mailto: without being trimmed',
   !realMailto.includes('trimmed'), `${realMailto.length} chars`);
-ok('the real draft still carries the amount due', realMailto.includes('Amount due'));
+ok('the real draft still carries the amount due', realMailto.includes('Amount Due'));
 ok('the real draft still carries the Stripe pay link',
   realMailto.includes('https://pay.stripe.com/abc123'), realMailto);
 ok('the real draft still carries the payment terms', realMailto.includes('Net 30'));
@@ -198,14 +198,14 @@ ok('the web fallback does not use window.open (popup-blocked after the await)',
 ok('handleSendPDF still asks generateInvoicePDFUri for a URI',
   screenSrc.includes('const pdfUri = await generateInvoicePDFUri('));
 ok('a null pdfUri is confirmed with the user before sending',
-  /if \(!pdfUri\) \{[\s\S]{0,400}?PDF could not be attached/.test(screenSrc),
+  /if \(!pdfUri\) \{[\s\S]{0,400}?PDF could not be attached\./.test(screenSrc),
   'the send must stop and ask, not quietly drop the document');
 ok('the confirmation resolves on dismiss (or the await never settles)',
   /if \(!pdfUri\) \{[\s\S]{0,1600}?onDismiss: \(\) => resolve\(false\)/.test(screenSrc));
 ok('a dropped attachment changes the success copy',
   /const pdfMissing = !pdfUri \|\| \(result\.attachmentsDropped \?\? 0\) > 0/.test(screenSrc));
 ok('the flat "Email Sent" toast is now conditional on the PDF being attached',
-  /pdfMissing \? '[^']*without the PDF' : 'Email Sent'/.test(screenSrc));
+  /pdfMissing \? '[^']*Without the PDF' : 'Email Sent'/.test(screenSrc));
 ok('composer_opened is not reported as a send',
   /result\.outcome === 'composer_opened'/.test(screenSrc));
 ok('sendViaResend counts attachments it could not encode',
@@ -236,7 +236,7 @@ ok('estimate: the PDF is generated BEFORE the email body is built',
   && estSend.indexOf('await generateEstimatePDFUri(') < estSend.indexOf('buildEstimateEmailHtml('),
   'the body\'s first line depends on whether there is a PDF, so the PDF must exist first');
 ok('estimate: a null pdfUri is confirmed with the user before sending',
-  /if \(!pdfUri\) \{[\s\S]{0,400}?PDF could not be attached/.test(estSend));
+  /if \(!pdfUri\) \{[\s\S]{0,400}?PDF could not be attached\./.test(estSend));
 ok('estimate: the confirmation resolves on dismiss',
   /if \(!pdfUri\) \{[\s\S]{0,1600}?onDismiss: \(\) => resolve\(false\)/.test(estSend));
 ok('estimate: the body is told whether a PDF is attached',
@@ -245,10 +245,10 @@ ok('estimate: the body is told whether a PDF is attached',
 ok('estimate: a dropped attachment changes the success copy',
   /const pdfMissing = !pdfUri \|\| \(result\.attachmentsDropped \?\? 0\) > 0/.test(estSend));
 ok('estimate: the flat "Email Sent" toast is conditional on the PDF',
-  /pdfMissing \? '[^']*without the PDF' : 'Email sent'/.test(estSend)
+  /pdfMissing \? '[^']*Without the PDF' : 'Email Sent'/.test(estSend)
   && !/showAlert\('Email sent'/i.test(estSend));
 ok('estimate: composer_opened says the draft is not sent',
-  /result\.outcome === 'composer_opened'[\s\S]{0,400}?Draft opened — not sent yet/.test(estSend));
+  /result\.outcome === 'composer_opened'[\s\S]{0,400}?Draft Opened, Not Sent Yet/.test(estSend));
 ok('estimate: Share PDF is only offered when there is a PDF to share',
   !/pdfUri \?\? await generateEstimatePDFUri/.test(estSend)
   && /pdfUri\s*\?\s*\[[\s\S]{0,200}?'Share PDF'/.test(estSend),

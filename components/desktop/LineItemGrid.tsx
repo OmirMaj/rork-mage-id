@@ -133,7 +133,7 @@ export function LineItemGrid<R>(props: LineItemGridProps<R>) {
 }
 
 function DesktopLineItemGrid<R>({
-  rows, rowKey, columns, onChangeCell, onAddRow, onDeleteRow, onPasteRows, rowWarning, addLabel = 'Add line',
+  rows, rowKey, columns, onChangeCell, onAddRow, onDeleteRow, onPasteRows, rowWarning, addLabel = 'Add Line',
   deleteBlockedReason, style, testID,
   readOnly = false, rowsEditable = true, isCellEditable, onCellBlur, footerTotals, footerLabel,
 }: LineItemGridProps<R>) {
@@ -196,7 +196,7 @@ function DesktopLineItemGrid<R>({
     if (!row) return;
     const blocked = deleteBlockedReason?.(row);
     if (blocked) {
-      showAlert("Can't delete this line", blocked);
+      showAlert("Can't Delete This Line", blocked);
       return;
     }
     pendingFocus.current = { row: Math.max(0, r - 1), col: colIndex };

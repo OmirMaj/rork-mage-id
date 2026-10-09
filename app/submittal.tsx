@@ -192,10 +192,10 @@ function getStatusColor(t: ThemeColors, status: SubmittalStatus): string {
 
 const STATUS_LABELS: Record<SubmittalStatus, string> = {
   pending: 'Pending',
-  in_review: 'In review',
+  in_review: 'In Review',
   approved: 'Approved',
-  approved_as_noted: 'Approved as noted',
-  revise_resubmit: 'Revise and resubmit',
+  approved_as_noted: 'Approved as Noted',
+  revise_resubmit: 'Revise and Resubmit',
   rejected: 'Rejected',
 };
 
@@ -207,7 +207,7 @@ const STATUS_LABELS: Record<SubmittalStatus, string> = {
 // the visual since the project moves forward either way.
 const SUBMITTAL_PIPELINE_STAGES: PipelineStage<SubmittalStatus>[] = [
   { key: 'pending', label: 'Pending' },
-  { key: 'in_review', label: 'In review' },
+  { key: 'in_review', label: 'In Review' },
   { key: 'approved', label: 'Approved', terminal: true },
 ];
 
@@ -280,7 +280,7 @@ function SubmittalGateView({ state, message, onRetry }: {
       ) : (
         <View style={styles.gateCard}>
           <Text style={styles.gateText}>{message}</Text>
-          {onRetry ? <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="submittal-gate-retry" /> : null}
+          {onRetry ? <Button label="Try Again" variant="secondary" size="sm" onPress={onRetry} testID="submittal-gate-retry" /> : null}
         </View>
       )}
     </View>
@@ -425,7 +425,7 @@ function SubmittalForm() {
   const numberInfo = useServerRecordNumber('submittals', existingSubmittal?.id, existingSubmittal?.number);
   const numberLabel = existingSubmittal
     ? recordNumberLabel('Submittal', numberInfo.state, numberInfo.number, existingSubmittal.number)
-    : 'Approval before order';
+    : 'Approval Before Order';
   const numberHold = existingSubmittal ? numberHoldReason('submittal', numberInfo.state) : null;
   // #58: every send (reviewer email, client portal) is off while there are
   // unsaved edits — Send never saves; see sendBlockReason.
@@ -463,11 +463,11 @@ function SubmittalForm() {
     // LS-5: every update path (Save changes, Cmd+S, Update) comes through
     // here; a viewer seat's update would be refused by RLS.
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert("Can't Save", writeBlock);
       return null;
     }
     if (!title.trim()) {
-      showAlert('Add a title', 'Enter a title.');
+      showAlert('Add a Title', 'Enter a title.');
       return null;
     }
     const base = opened ?? existingSubmittal;
@@ -509,7 +509,7 @@ function SubmittalForm() {
       'Discard your changes?',
       "Your edits to this submittal aren't saved yet.",
       [
-        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Keep Editing', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: () => { allowLeave.current = true; navigation.dispatch(e.data.action); } },
       ],
     );
@@ -535,7 +535,7 @@ function SubmittalForm() {
   /** Upload a picked file and add it to the saved record. */
   const attachFile = useCallback(async (file: { uri: string; name: string; contentType: string; ext: string }) => {
     if (!existingSubmittal) return;
-    if (uploadBlock) { showAlert("Can't attach", uploadBlock); return; }
+    if (uploadBlock) { showAlert("Can't Attach", uploadBlock); return; }
     setUploading(true);
     try {
       // What is already on the package, so a file that fits alone but not
@@ -554,7 +554,7 @@ function SubmittalForm() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       if (err instanceof AttachmentTooLargeError) {
-        showAlert('Too large to email', err.message);
+        showAlert('Too Large to Email', err.message);
         return;
       }
       console.warn('[Submittal] attach failed', err);
@@ -575,7 +575,7 @@ function SubmittalForm() {
   const handleAttachPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      showAlert('Permission needed', 'Allow photo library access to attach a photo.');
+      showAlert('Permission Needed', 'Allow photo library access to attach a photo.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -596,7 +596,7 @@ function SubmittalForm() {
    *  unlinking is reversible, deleting a document is not. */
   const handleRemoveAttachment = useCallback((entry: string) => {
     if (!existingSubmittal) return;
-    if (uploadBlock) { showAlert("Can't change attachments", uploadBlock); return; }
+    if (uploadBlock) { showAlert("Can't Change Attachments", uploadBlock); return; }
     showAlert('Remove this file?', `${attachmentDisplayName(entry)} will no longer go out with this submittal.`, [
       { text: 'Keep', style: 'cancel' },
       {
@@ -608,12 +608,12 @@ function SubmittalForm() {
 
   const handleSharePDF = useCallback(async () => {
     if (!project || !existingSubmittal) {
-      showAlert('Save the submittal first', 'Save it, then export.');
+      showAlert('Save the Submittal First', 'Save it, then export.');
       return;
     }
     // #148: the transmittal prints the number — the server's, or it waits.
     if (numberInfo.state !== 'confirmed' || typeof numberInfo.number !== 'number') {
-      showAlert('Not ready yet', numberHold ?? 'This submittal has no confirmed number yet.');
+      showAlert('Not Ready Yet', numberHold ?? 'This submittal has no confirmed number yet.');
       return;
     }
     const saved = persistForm();
@@ -626,19 +626,19 @@ function SubmittalForm() {
       nailIt(`Submittal #${doc.number} shared`);
     } catch (err) {
       console.error('[Submittal] Share PDF failed:', err);
-      showAlert('Couldn’t share the PDF', pdfFailureMessage(err, 'The submittal PDF couldn’t be generated. Try again.'));
+      showAlert('Couldn’t Share the PDF', pdfFailureMessage(err, 'The submittal PDF couldn’t be generated. Try again.'));
     }
   }, [project, existingSubmittal, settings, numberInfo.state, numberInfo.number, numberHold, persistForm]);
 
   const handleSendEmail = useCallback(async () => {
     if (!project || !existingSubmittal) return;
     if (!emailRecipient.trim()) {
-      showAlert('Add the reviewer’s email', 'Enter the reviewer email.');
+      showAlert('Add the Reviewer’s Email', 'Enter the reviewer email.');
       return;
     }
     // #148: the email prints the number, so it waits for the server's.
     if (numberInfo.state !== 'confirmed' || typeof numberInfo.number !== 'number') {
-      showAlert('Not sent yet', numberHold ?? 'This submittal has no confirmed number yet.');
+      showAlert('Not Sent Yet', numberHold ?? 'This submittal has no confirmed number yet.');
       return;
     }
     const subNumber = numberInfo.number;
@@ -646,14 +646,14 @@ function SubmittalForm() {
     // below rebuilds the record from this render's list — so Send never saves
     // (a save here would be undone by that second write). It refuses instead.
     if (isDirty) {
-      showAlert('Save first', sendBlockReason({ isDirty, numberHold: null }) ?? '');
+      showAlert('Save First', sendBlockReason({ isDirty, numberHold: null }) ?? '');
       return;
     }
     const sent = existingSubmittal;
     // #57: the package is the point. No product data → blocked with the
     // reason, unless he ticked "send without it" for this send.
     if (packageGate.blocked) {
-      showAlert('Nothing to review yet', packageGate.blocked);
+      showAlert('Nothing to Review Yet', packageGate.blocked);
       return;
     }
     setSending(true);
@@ -669,14 +669,14 @@ function SubmittalForm() {
         sizes: await storedAttachmentSizes(sent.attachments ?? []), coverSheet: coverSheetAvailable,
       });
       if (sizeBlock) {
-        showAlert('Too large to email', sizeBlock);
+        showAlert('Too Large to Email', sizeBlock);
         return;
       }
       const resolved = await resolveAttachmentsForSend(sent.attachments ?? []);
       if (resolved.unresolved.length > 0) {
         showAlert(
-          'Not sent',
-          `${resolved.unresolved.join(', ')} couldn't be prepared for the email. Check your connection and try again — nothing was sent.`,
+          'Not Sent',
+          `${resolved.unresolved.join(', ')} couldn't be prepared for the email. Check your connection and try again. Nothing was sent.`,
         );
         return;
       }
@@ -686,7 +686,7 @@ function SubmittalForm() {
       if (!coverUri && resolved.uris.length === 0 && coverSheetAvailable) {
         // He confirmed "cover sheet only", and the cover could not be made:
         // the email would carry nothing, so it does not go.
-        showAlert('Not sent', "The cover sheet PDF couldn't be made on this device, so there is nothing to attach. Nothing was sent.");
+        showAlert('Not Sent', "The cover sheet PDF couldn't be made on this device, so there is nothing to attach. Nothing was sent.");
         return;
       }
       const files = [...(coverUri ? [coverUri] : []), ...resolved.uris];
@@ -731,11 +731,11 @@ function SubmittalForm() {
         if (result.error === 'cancelled') return;
         const tooLarge = attachmentsTooLargeMessage(result.error);
         if (tooLarge) {
-          showAlert('Too large to email', tooLarge);
+          showAlert('Too Large to Email', tooLarge);
         } else {
           const own = ownSentence(result.error);
           const copy = describeError(result.error, { action: 'send the submittal' });
-          showAlert(own ? 'Couldn’t send' : copy.title, own ?? copy.body);
+          showAlert(own ? 'Couldn’t Send' : copy.title, own ?? copy.body);
         }
         return;
       }
@@ -744,7 +744,7 @@ function SubmittalForm() {
       const outcome = submittalSendOutcome({ requested: files.length, dropped: result.attachmentsDropped ?? 0 });
       if (!outcome.recordCycle) {
         setShowEmailSend(false);
-        showAlert('Sent with missing files', outcome.warning ?? '');
+        showAlert('Sent with Missing Files', outcome.warning ?? '');
         return;
       }
       // A send starts a review cycle so the status reads "out for review".
@@ -766,7 +766,7 @@ function SubmittalForm() {
       setEmailMessage('');
       setSendWithoutProductData(false);
       if (cycle.append) nailIt(`Submittal sent to ${emailRecipientName.trim() || emailRecipient.trim()}`);
-      else showAlert('Re-sent', `Sent to ${emailRecipientName.trim() || emailRecipient.trim()}. Cycle ${cycle.cycleNumber} is still out for review, so no new cycle was added — the reviewer's answer through the reply link closes it.`);
+      else showAlert('Re-sent', `Sent to ${emailRecipientName.trim() || emailRecipient.trim()}. Cycle ${cycle.cycleNumber} is still out for review, so no new cycle was added. The reviewer's answer through the reply link closes it.`);
     } catch (err) {
       console.error('[Submittal] Email send failed:', err);
       const copy = describeError(err, { action: 'send the submittal' });
@@ -797,7 +797,7 @@ function SubmittalForm() {
   const takeScheduleDate = useCallback(() => {
     // LS-5: taking the date is a submittals UPDATE, which RLS refuses a viewer.
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert("Can't Save", writeBlock);
       return;
     }
     if (!existingSubmittal || !scheduleSource?.live.requiredDate) return;
@@ -808,11 +808,11 @@ function SubmittalForm() {
   const handleSave = useCallback(() => {
     // LS-5: belt and braces — the button is off for a viewer, and so is this.
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert("Can't Save", writeBlock);
       return;
     }
     if (!title.trim()) {
-      showAlert('Add a title', 'Enter a title.');
+      showAlert('Add a Title', 'Enter a title.');
       return;
     }
 
@@ -858,12 +858,12 @@ function SubmittalForm() {
   const handleAddCycle = useCallback(() => {
     if (!existingSubmittal) return;
     if (writeBlock) {
-      showAlert("Can't save", writeBlock);
+      showAlert("Can't Save", writeBlock);
       return;
     }
     if (openCycle) {
       if (newCycleStatus === 'in_review') {
-        showAlert('Pick the stamp', `Cycle ${openCycleNo} is still in review. Pick the stamp the reviewer returned it with.`);
+        showAlert('Pick the Stamp', `Cycle ${openCycleNo} is still in review. Pick the stamp the reviewer returned it with.`);
         return;
       }
       // The open cycle's reviewer; asked for only when that cycle has none
@@ -873,7 +873,7 @@ function SubmittalForm() {
         reviewer: closeReviewer, status: newCycleStatus, sentDay: calendarDayOf(openCycle.sentDate) ?? '', returnDay: newCycleReturned,
       });
       if (closeProblem) {
-        showAlert('Check this cycle', closeProblem);
+        showAlert('Check This Cycle', closeProblem);
         return;
       }
       void addReviewCycle(existingSubmittal.id, {
@@ -895,7 +895,7 @@ function SubmittalForm() {
       reviewer: newReviewer, status: newCycleStatus, sentDay: newCycleSent, returnDay: newCycleReturned,
     });
     if (problem) {
-      showAlert('Check this cycle', problem);
+      showAlert('Check This Cycle', problem);
       return;
     }
 
@@ -924,7 +924,7 @@ function SubmittalForm() {
   const fTask = useSheetFrame('dialog', { visible: showTaskPicker, animationType: 'fade' });
   const fEmail = useSheetFrame('form', { visible: showEmailSend, animationType: 'slide' });
   useSheetPrimaryHotkey(showEmailSend, sending || !!packageGate.blocked ? null : () => void handleSendEmail(), { saveKey: false });
-  usePrimaryAction(existingSubmittal ? handleSaveInPlace : handleSave, { label: 'Save submittal', enabled: isDesktop });
+  usePrimaryAction(existingSubmittal ? handleSaveInPlace : handleSave, { label: 'Save Submittal', enabled: isDesktop });
 
   if (!project && !existingSubmittal) {
     return (
@@ -959,7 +959,7 @@ function SubmittalForm() {
         {!existingSubmittal && (
           <FeatureHeader
             eyebrow="Submittal"
-            title="Get a stamp before you order"
+            title="Get a Stamp Before You Order"
             subtitle="Send the architect a product spec for review. They stamp it approved, approved as noted or rejected, and you keep the stamp on file before you cut a PO."
             explainer={{
               term: 'Submittal',
@@ -994,7 +994,7 @@ function SubmittalForm() {
         <InlineVoiceFill
           title="Dictate this submittal"
           contextLine={project?.name ? `for ${project.name}` : undefined}
-          buttonLabel={existingSubmittal ? 'Add detail by voice' : 'Fill submittal by voice'}
+          buttonLabel={existingSubmittal ? 'Add Detail by Voice' : 'Fill Submittal by Voice'}
           suggestions={[
             'Door hardware schedule, spec section 08 71 00, submitted by Acme Doors',
             'Light fixture cut sheets for the kitchen, need by Friday',
@@ -1020,16 +1020,16 @@ function SubmittalForm() {
           testID="submittal-title"
         />
 
-        <Text style={styles.fieldLabel}>Spec section</Text>
+        <Text style={styles.fieldLabel}>Spec Section</Text>
         <TextInput
           style={[styles.input, isDesktop && styles.inputSmDesktop]}
           value={specSection}
           onChangeText={setSpecSection}
-          placeholder="e.g. 03300 - Cast-in-Place Concrete"
+          placeholder="03300 Cast-in-Place Concrete"
           placeholderTextColor={themeColors.textMuted}
         />
 
-        <Text style={styles.fieldLabel}>Submitted by</Text>
+        <Text style={styles.fieldLabel}>Submitted By</Text>
         <TextInput
           style={[styles.input, isDesktop && styles.inputMdDesktop]}
           value={submittedBy}
@@ -1038,7 +1038,7 @@ function SubmittalForm() {
           placeholderTextColor={themeColors.textMuted}
         />
 
-        <Text style={styles.fieldLabel}>Required date</Text>
+        <Text style={styles.fieldLabel}>Required Date</Text>
         <TouchableOpacity
           style={[styles.pickerBtn, isDesktop && desktopField('sm')]}
           onPress={() => setShowDatePicker(true)}
@@ -1050,14 +1050,14 @@ function SubmittalForm() {
             style={[styles.pickerBtnText, !requiredDate && { color: themeColors.textMuted }]}
             numberOfLines={1}
           >
-            {requiredDate ? formatRequiredDateLabel(requiredDate) : 'Select a date'}
+            {requiredDate ? formatRequiredDateLabel(requiredDate) : 'Select a Date'}
           </Text>
         </TouchableOpacity>
         <DatePickerModal
           visible={showDatePicker}
           value={requiredDate}
           allowFuture
-          title="Required date"
+          title="Required Date"
           onClose={() => setShowDatePicker(false)}
           // Stored as the calendar day he picked (#150) — the same shape the
           // schedule-derived dates use, read by every day-aware reader.
@@ -1077,7 +1077,7 @@ function SubmittalForm() {
               ) : (
                 <View style={{ flex: 1, gap: 6 }} testID="submittal-required-moved">
                   <Text style={styles.cycleHint}>
-                    {`Schedule moved: was ${formatCalendarDay(scheduleSource.stored)}, now ${formatCalendarDay(scheduleSource.live.requiredDate)} — "${linkedTask.title}" starts ${formatCalendarDay(scheduleSource.live.taskStart ?? '')}, less ${leadWords} estimated lead (AI).`}
+                    {`Schedule moved: was ${formatCalendarDay(scheduleSource.stored)}, now ${formatCalendarDay(scheduleSource.live.requiredDate)}. "${linkedTask.title}" starts ${formatCalendarDay(scheduleSource.live.taskStart ?? '')}, less ${leadWords} estimated lead (AI).`}
                   </Text>
                   <Button
                     label={`Update to ${formatCalendarDay(scheduleSource.live.requiredDate)}`}
@@ -1089,23 +1089,23 @@ function SubmittalForm() {
               )
             ) : <View style={{ flex: 1 }} />}
             <TouchableOpacity onPress={() => setRequiredDate('')} accessibilityRole="button" testID="submittal-required-clear">
-              <Text style={styles.cycleHint}>Clear date</Text>
+              <Text style={styles.cycleHint}>Clear Date</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <Text style={styles.cycleHint} testID="submittal-required-empty">
-            No required date yet — set one, or it stays off the chase list.
+            No required date yet. Set one, or it stays off the chase list.
           </Text>
         )}
         {existingSubmittal && typeof existingSubmittal.leadDays === 'number' ? (
-          <Text style={styles.cycleHint}>{`Lead time: ${existingSubmittal.leadDays} days — estimated lead (AI) from the spec book.`}</Text>
+          <Text style={styles.cycleHint}>{`Lead time: ${existingSubmittal.leadDays} days, estimated lead (AI) from the spec book.`}</Text>
         ) : null}
 
         {/* #57: the product data IS the submittal. Files upload to the
             project's documents and ride on the reviewer email. */}
         {existingSubmittal ? (
           <View style={styles.attachSection} testID="submittal-attachments">
-            <Text style={styles.fieldLabel}>Product data & shop drawings</Text>
+            <Text style={styles.fieldLabel}>Product Data and Shop Drawings</Text>
             {productData.length === 0 ? (
               <Text style={styles.cycleHint}>Nothing attached yet. Attach the cut sheet, shop drawing or sample photo the architect is reviewing.</Text>
             ) : productData.map(entry => (
@@ -1140,7 +1140,7 @@ function SubmittalForm() {
                 testID="submittal-attach-photo"
               >
                 <ImageIcon size={15} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.pickerBtnText} numberOfLines={1}>Attach photo</Text>
+                <Text style={styles.pickerBtnText} numberOfLines={1}>Attach Photo</Text>
               </TouchableOpacity>
             </View>
             {uploading ? <ActivityIndicator size="small" color={themeColors.accent} style={{ marginTop: 8 }} /> : null}
@@ -1153,7 +1153,7 @@ function SubmittalForm() {
 
         {existingSubmittal && existingSubmittal.reviewCycles.length > 0 && (
           <View style={styles.timelineSection}>
-            <Text style={styles.sectionTitle}>Review cycles</Text>
+            <Text style={styles.sectionTitle}>Review Cycles</Text>
             {existingSubmittal.reviewCycles.map((cycle, idx) => (
               <View key={idx} style={styles.timelineItem}>
                 <View style={styles.timelineLine}>
@@ -1172,7 +1172,7 @@ function SubmittalForm() {
                   <Text style={styles.cycleDetail}>Reviewer: {cycle.reviewer}</Text>
                   {/* #147: a portal answer with no send on file has no Sent day —
                       say so rather than print a made-up one. */}
-                  <Text style={styles.cycleDetail}>Sent: {cycleDayLabel(cycle.sentDate) ?? 'Not recorded'}</Text>
+                  <Text style={styles.cycleDetail}>Sent: {cycleDayLabel(cycle.sentDate) ?? 'Not Recorded'}</Text>
                   {!!cycle.returnDate && <Text style={styles.cycleDetail}>Returned: {cycleDayLabel(cycle.returnDate) ?? cycle.returnDate}</Text>}
                   {cycle.comments && <Text style={styles.cycleComments}>{cycle.comments}</Text>}
                 </View>
@@ -1188,12 +1188,12 @@ function SubmittalForm() {
                 // #147: the open cycle is closed in place, never doubled.
                 <TouchableOpacity style={styles.addCycleBtn} onPress={() => setShowAddCycle(true)} activeOpacity={0.7} testID="submittal-close-cycle">
                   <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.addCycleBtnText}>Log the reviewer's answer · Cycle {openCycleNo}</Text>
+                  <Text style={styles.addCycleBtnText}>Log the Reviewer's Answer · Cycle {openCycleNo}</Text>
                 </TouchableOpacity>
               ) : (
               <TouchableOpacity style={styles.addCycleBtn} onPress={() => setShowAddCycle(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.addCycleBtnText}>Add review cycle</Text>
+                <Text style={styles.addCycleBtnText}>Add Review Cycle</Text>
               </TouchableOpacity>
               )
             ) : (
@@ -1216,7 +1216,7 @@ function SubmittalForm() {
                   </>
                 ) : (
                   <>
-                    <Text style={styles.sectionTitle}>New review cycle · Cycle {existingSubmittal.reviewCycles.reduce((m, c) => Math.max(m, c.cycleNumber || 0), 0) + 1}</Text>
+                    <Text style={styles.sectionTitle}>New Review Cycle · Cycle {existingSubmittal.reviewCycles.reduce((m, c) => Math.max(m, c.cycleNumber || 0), 0) + 1}</Text>
                     <TextInput
                       style={styles.input}
                       value={newReviewer}
@@ -1244,20 +1244,20 @@ function SubmittalForm() {
                   <TouchableOpacity style={[styles.pickerBtn, { flex: 1 }]} onPress={() => setCycleDatePicker('sent')} activeOpacity={0.7} testID="submittal-cycle-sent">
                     <CalendarDays size={15} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={[styles.pickerBtnText, !newCycleSent && { color: themeColors.textMuted }]} numberOfLines={1}>
-                      {newCycleSent ? `Sent ${formatCalendarDay(newCycleSent)}` : 'Sent (optional)'}
+                      {newCycleSent ? `Sent ${formatCalendarDay(newCycleSent)}` : 'Sent (Optional)'}
                     </Text>
                   </TouchableOpacity>
                   )}
                   <TouchableOpacity style={[styles.pickerBtn, { flex: 1 }]} onPress={() => setCycleDatePicker('returned')} activeOpacity={0.7} testID="submittal-cycle-returned">
                     <CalendarDays size={15} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={[styles.pickerBtnText, !newCycleReturned && { color: themeColors.textMuted }]} numberOfLines={1}>
-                      {newCycleReturned ? `Returned ${formatCalendarDay(newCycleReturned)}` : newCycleStatus === 'in_review' ? 'Returned (not yet)' : 'Returned *'}
+                      {newCycleReturned ? `Returned ${formatCalendarDay(newCycleReturned)}` : newCycleStatus === 'in_review' ? 'Returned (Not Yet)' : 'Returned *'}
                     </Text>
                   </TouchableOpacity>
                 </View>
                 {(newCycleSent || newCycleReturned) ? (
                   <TouchableOpacity onPress={() => { setNewCycleSent(''); setNewCycleReturned(''); }} accessibilityRole="button">
-                    <Text style={styles.cycleHint}>Clear dates</Text>
+                    <Text style={styles.cycleHint}>Clear Dates</Text>
                   </TouchableOpacity>
                 ) : null}
                 <DatePickerModal
@@ -1266,7 +1266,7 @@ function SubmittalForm() {
                     const d = cycleDatePicker === 'sent' ? newCycleSent : newCycleReturned;
                     return d ? (parseCalendarDay(d)?.toISOString() ?? '') : '';
                   })()}
-                  title={cycleDatePicker === 'sent' ? 'Sent to reviewer' : 'Returned by reviewer'}
+                  title={cycleDatePicker === 'sent' ? 'Sent to Reviewer' : 'Returned by Reviewer'}
                   onClose={() => setCycleDatePicker(null)}
                   onChange={(iso) => {
                     const day = calendarDayOf(iso) ?? todayCalendarDay();
@@ -1283,7 +1283,7 @@ function SubmittalForm() {
                   textAlignVertical="top"
                 />
                 <TouchableOpacity style={styles.addCycleSubmit} onPress={handleAddCycle} activeOpacity={0.85} testID="submittal-cycle-submit">
-                  <Text style={styles.addCycleSubmitText}>{openCycle ? `Close cycle ${openCycleNo}` : 'Add cycle'}</Text>
+                  <Text style={styles.addCycleSubmitText}>{openCycle ? `Close cycle ${openCycleNo}` : 'Add Cycle'}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1292,11 +1292,11 @@ function SubmittalForm() {
 
         {scheduleTasks.length > 0 && (
           <>
-            <Text style={styles.fieldLabel}>Linked schedule task</Text>
+            <Text style={styles.fieldLabel}>Linked Schedule Task</Text>
             <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
               <Link2 size={15} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.pickerBtnText} numberOfLines={1}>
-                {linkedTask ? linkedTask.title : linkedTaskId ? 'Linked task is no longer on the schedule — tap to relink' : 'None — tap to link a task'}
+                {linkedTask ? linkedTask.title : linkedTaskId ? 'Linked task is no longer on the schedule. Tap to relink.' : 'None. Tap to Link a Task.'}
               </Text>
               <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -1328,7 +1328,7 @@ function SubmittalForm() {
         {existingSubmittal && isDirty && (
           <TouchableOpacity style={[styles.addCycleBtn, !!writeBlock && { opacity: 0.5 }]} onPress={handleSaveInPlace} disabled={writeBlock ? true : undefined} accessibilityState={writeBlock ? { disabled: true } : undefined} activeOpacity={0.85} testID="submittal-save-in-place">
             <Save size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.addCycleBtnText}>Save changes</Text>
+            <Text style={styles.addCycleBtnText}>Save Changes</Text>
           </TouchableOpacity>
         )}
 
@@ -1336,7 +1336,7 @@ function SubmittalForm() {
         {writeBlock ? <Text style={styles.cycleHint} testID="submittal-save-viewer">{writeBlock}</Text> : null}
         <TouchableOpacity style={[styles.saveBtn, isDesktop && desktopCta, !!writeBlock && { opacity: 0.5 }]} onPress={handleSave} disabled={writeBlock ? true : undefined} accessibilityState={writeBlock ? { disabled: true } : undefined} activeOpacity={0.85} testID="submittal-save">
           <Save size={18} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update submittal' : 'Create submittal'}</Text>
+          <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update Submittal' : 'Create Submittal'}</Text>
         </TouchableOpacity>
 
         {/* Share + Email actions only appear once the submittal exists.
@@ -1358,7 +1358,7 @@ function SubmittalForm() {
               accessibilityState={{ disabled: !!sendBlock }}
             >
               <Send size={16} color="#fff" strokeWidth={1.75} />
-              <Text style={[styles.exportBtnText, { color: '#fff' }]}>Send to reviewer</Text>
+              <Text style={[styles.exportBtnText, { color: '#fff' }]}>Send to Reviewer</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1372,7 +1372,7 @@ function SubmittalForm() {
         <Pressable style={[styles.modalOverlay, fTask.overlay]} onPress={() => setShowTaskPicker(false)}>
           <Pressable style={[styles.taskPickerCard, fTask.card]} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
-              <Text style={styles.taskPickerTitle}>Link schedule task</Text>
+              <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>
@@ -1401,21 +1401,21 @@ function SubmittalForm() {
           <Pressable style={[styles.modalOverlay, fEmail.overlay]} onPress={() => setShowEmailSend(false)}>
             <Pressable style={[styles.emailModalCard, fEmail.card]} onPress={() => undefined}>
               <View style={styles.emailModalHeader}>
-                <Text style={styles.emailModalTitle}>Send submittal</Text>
+                <Text style={styles.emailModalTitle}>Send Submittal</Text>
                 <TouchableOpacity onPress={() => setShowEmailSend(false)} testID="submittal-email-close" accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.emailFieldLabel}>Reviewer name</Text>
+              <Text style={styles.emailFieldLabel}>Reviewer Name</Text>
               <TextInput
                 style={styles.emailInput}
                 value={emailRecipientName}
                 onChangeText={setEmailRecipientName}
-                placeholder="e.g. Architect of Record"
+                placeholder="Architect of Record"
                 placeholderTextColor={themeColors.textMuted}
                 testID="submittal-email-name"
               />
-              <Text style={styles.emailFieldLabel}>Reviewer email *</Text>
+              <Text style={styles.emailFieldLabel}>Reviewer Email *</Text>
               <TextInput
                 style={styles.emailInput}
                 value={emailRecipient}
@@ -1426,7 +1426,7 @@ function SubmittalForm() {
                 autoCapitalize="none"
                 testID="submittal-email-recipient"
               />
-              <Text style={styles.emailFieldLabel}>Message (optional)</Text>
+              <Text style={styles.emailFieldLabel}>Message (Optional)</Text>
               <TextInput
                 style={[styles.emailInput, { minHeight: 80, textAlignVertical: 'top' }]}
                 value={emailMessage}
@@ -1452,7 +1452,7 @@ function SubmittalForm() {
               ) : null}
               {resendCycle ? (
                 <Text style={styles.cycleHint} testID="submittal-resend-note">
-                  {`Cycle ${resendCycle} is still out for review, so this goes as a reminder for that round — no new cycle is added.`}
+                  {`Cycle ${resendCycle} is still out for review, so this goes as a reminder for that round. No new cycle is added.`}
                 </Text>
               ) : null}
               <TouchableOpacity

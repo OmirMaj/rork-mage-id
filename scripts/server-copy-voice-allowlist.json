@@ -1,0 +1,120 @@
+{
+  "_comment": "Strings in a converted server or portal file that scripts/validate-server-copy-voice.ts leaves as typed. One of \"text\" (the whole string as the guard reads it) or \"contains\". An entry that matches nothing fails the guard.",
+  "entries": [
+    {
+      "file": "marketing/lien-waiver/index.html",
+      "text": "Slide along the line to sign this waiver",
+      "reason": "signing instruction on the waiver slide: text beside a signature, not restyled"
+    },
+    {
+      "file": "marketing/lien-waiver/index.html",
+      "contains": "waiver says you give up those rights whether or not the money has arrived",
+      "reason": "the warning a claimant reads before signing a lien waiver (what an unconditional waiver gives up): legal text, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Slide along the line to sign",
+      "reason": "signing instruction on the contract slide (the signing moments block, English only, states a legal effect): not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Photo added",
+      "reason": "an activity feed line: a past-tense event, written like a toast (VOICE.md §3), not a label"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Daily report",
+      "reason": "an activity feed line: the entry is named like the other feed events (\"Invoice sent\", \"Change order approved\"), in sentence case"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "[warranty period — set before signing]",
+      "reason": "the contract clause placeholder: matched by code here and in utils/paymentTerms.ts, printed in the contract"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "calendar days — on or before",
+      "reason": "contract clause text printed on the signing page (\"N calendar days — on or before DATE\"): what the client signs, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Contract sum to date",
+      "reason": "a pay application form line (G702-style cover summary): form language, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Total completed & stored",
+      "reason": "a pay application form line (G702-style cover summary): form language, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Total earned less retainage",
+      "reason": "a pay application form line (G702-style cover summary): form language, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Less previous certificates",
+      "reason": "a pay application form line (G702-style cover summary): form language, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Current payment due",
+      "reason": "a pay application form line (G702-style cover summary): form language, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Balance to finish",
+      "reason": "a pay application form line (G702-style cover summary): form language, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "contains": "Total completed & stored</span>",
+      "reason": "a pay application form line (G702-style cover summary): form language, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "contains": "check with yours before you submit.",
+      "reason": "the AIA trademark notice: legal text, not restyled"
+    },
+    {
+      "file": "marketing/portal/index.html",
+      "text": "Visit mageid.app",
+      "reason": "a web address is typed as it is; Title Case would write \"Mageid.app\""
+    },
+    {
+      "file": "marketing/unsubscribe/index.html",
+      "contains": "You'll still receive critical account or contract emails",
+      "reason": "the unsubscribe confirmation says which emails still arrive and why (legal reasons): unsubscribe text, not restyled"
+    },
+    {
+      "file": "supabase/functions/_shared/email.ts",
+      "contains": "UNSUB_SECRET is not set",
+      "reason": "an operator error thrown when a server secret is missing: never shown to a client"
+    },
+    {
+      "file": "supabase/functions/_shared/email.ts",
+      "contains": "Powered by <a href=",
+      "reason": "the email footer (sender line, unsubscribe link, \"Powered by\" line): CAN-SPAM footer, not restyled"
+    },
+    {
+      "file": "supabase/functions/daily-digest/index.ts",
+      "text": "sbGet 0 → 0: 0",
+      "reason": "an operator error (failed database read) that goes to the function log, never to a person"
+    },
+    {
+      "file": "supabase/functions/notify/index.ts",
+      "text": "sbGet 0 → 0: 0",
+      "reason": "an operator error (failed database read) that goes to the function log, never to a person"
+    },
+    {
+      "file": "supabase/functions/notify/index.ts",
+      "text": "sbInsert 0 → 0: 0",
+      "reason": "an operator error (failed database write) that goes to the function log, never to a person"
+    },
+    {
+      "file": "supabase/functions/homeowner-weekly-digest/index.ts",
+      "text": "rate limiter unavailable — try again in a moment",
+      "reason": "a 503 error body for the scheduled caller, not client copy; error bodies were not part of this pass"
+    }
+  ]
+}

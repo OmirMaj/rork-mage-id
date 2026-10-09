@@ -293,7 +293,7 @@ export function restoreOutcome(
   if (result instanceof RestoreUnavailableError
     || (result instanceof Error && result.name === 'RestoreUnavailableError')) {
     return {
-      title: 'Restore is in the mobile app',
+      title: 'Restore is in the mobile app.',
       body: 'Purchases are restored in the MAGE ID iPhone or Android app. Open it, sign in with this account, and tap Restore on the plans screen.',
       leave: false,
     };
@@ -301,16 +301,16 @@ export function restoreOutcome(
   if (typeof result === 'string' && result in TIER_RANK) {
     const t = result as SubscriptionTier;
     if (TIER_RANK[t] > 0) {
-      return { title: `Restored — you're on ${TIER_LABEL[t]}`, body: 'Your plan is active on this account.', leave: true };
+      return { title: `Restored. You're on ${TIER_LABEL[t]}.`, body: 'Your plan is active on this account.', leave: true };
     }
     return {
-      title: 'Nothing to restore',
+      title: 'Nothing to Restore',
       body: `No active subscription found for this ${storeName} account.`,
       leave: false,
     };
   }
   return {
-    title: 'Couldn’t restore purchases',
+    title: 'Couldn’t Restore Purchases',
     body: `Could not reach the ${storeName} to restore your purchases. Check your connection and try again.`,
     leave: false,
   };
@@ -734,6 +734,59 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     [tier, customerInfoQuery.data],
   );
 
+  // WEBCANCEL (2026-10-09): what Manage Subscription needs from RevenueCat's
+  // customer info, read here so no screen reaches into the SDK object.
+  //   planStore      the store of the active entitlement behind the tier
+  //                  ('APP_STORE', 'PLAY_STORE', 'RC_BILLING', …) or null;
+  //   managementURL  RevenueCat's page for the active subscription. The SDK
+  //                  types it `string | null`: null with no active
+  //                  subscription, and null when RevenueCat is not configured;
+  //   planRenewal    willRenew + expirationDate of that entitlement, as
+  //                  reported. Nothing is computed from them here.
+  const planStore: string | null = useMemo(
+    () => storeOfActiveEntitlement(customerInfoQuery.data ?? null, tier),
+    [tier, customerInfoQuery.data],
+  );
+  const managementURL: string | null = customerInfoQuery.data?.managementURL ?? null;
+  const planRenewal = useMemo((): { willRenew: boolean; expirationDate: string | null } | null => {
+    const e = customerInfoQuery.data?.entitlements?.active?.[tier];
+    if (!e || e.isActive === false) return null;
+    return { willRenew: e.willRenew, expirationDate: e.expirationDate ?? null };
+  }, [tier, customerInfoQuery.data]);
+
+  /**
+   * Re-read the customer info from RevenueCat. Called when the customer comes
+   * back from the store's or the web billing page, so the plan and the date in
+   * Settings are what the store says now. It reports; it never assumes a
+   * cancellation happened. `invalidateCustomerInfoCache` does not exist in the
+   * web SDK (it throws "not supported"), where every read goes to the server.
+   */
+  const refreshCustomerInfo = useCallback(async (): Promise<void> => {
+    if (!rcConfigured) return;
+    try { await Purchases.invalidateCustomerInfoCache(); } catch { /* web: not supported, and not needed */ }
+    await queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
+    if (userId) void queryClient.invalidateQueries({ queryKey: ['subscription-supabase', userId] });
+  }, [queryClient, userId]);
+
+  /**
+   * Apple's own subscription sheet, shown over the app (iPhone only; the web
+   * SDK throws "not supported" and Android has no such sheet). Resolves true
+   * when the sheet was shown and has been closed, false when it could not be
+   * shown, so the caller can fall back to the App Store link. The method has
+   * been in react-native-purchases since before this app's first build, so it
+   * needs no new native code; a build without it lands in the catch.
+   */
+  const showStoreManageSheet = useCallback(async (): Promise<boolean> => {
+    if (!rcConfigured || Platform.OS !== 'ios') return false;
+    try {
+      await Purchases.showManageSubscriptions();
+      return true;
+    } catch (err) {
+      console.log('[RC] showManageSubscriptions failed, falling back to the App Store link:', err);
+      return false;
+    }
+  }, []);
+
   // Tier helpers. `isProOrAbove` is the most common gate (paid users), so it
   // includes business + enterprise too. `isBusinessOrAbove` is for features
   // that require business tier as a minimum.
@@ -745,6 +798,11 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   return useMemo(() => ({
     tier,
     planSource,
+    planStore,
+    managementURL,
+    planRenewal,
+    refreshCustomerInfo,
+    showStoreManageSheet,
     isProOrAbove,
     isBusinessTier,
     isEnterpriseTier,
@@ -768,7 +826,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       },
     } : {},
   }), [
-    tier, planSource, isProOrAbove, isBusinessTier, isEnterpriseTier, isLoading,
+    tier, planSource, planStore, managementURL, planRenewal, refreshCustomerInfo, showStoreManageSheet,
+    isProOrAbove, isBusinessTier, isEnterpriseTier, isLoading,
     purchasePro, purchaseBusiness, purchaseEnterprise, restorePurchases,
     proPackage, proAnnualPackage, businessPackage, businessAnnualPackage,
     enterprisePackage, enterpriseAnnualPackage,

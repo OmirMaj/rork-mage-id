@@ -186,8 +186,8 @@ ok('photo links are minted at export time from storagePath, skipping queued phot
 ok('web: "Downloaded N files to your browser\'s Downloads", not "Tap a file below"',
   /if \(Platform\.OS === 'web'\) \{[\s\S]{0,400}Downloaded \$\{result\.deliveredFileCount\} file/.test(screen));
 const settings = read('app/(tabs)/settings/index.tsx');
-ok('Settings YOUR DATA subtext drops "every" and says photo records (links valid 24h)',
-  !/Export every project/.test(settings) && /photo records \(links valid 24h\)/.test(settings));
+ok('Settings YOUR DATA subtext drops "every" and says photo records, with links that work for 24 hours',
+  !/Export every project/.test(settings) && /photo records to JSON or CSV\. Download links work for 24 hours\./.test(settings));
 const who = read('marketing/who-built-this.html');
 ok('who-built-this: photo records (links valid 24h), no "every project … photo"',
   /photo records \(links valid 24h/.test(who) && !/containing every project/.test(who) && !/with everything<\/h2>/.test(who));

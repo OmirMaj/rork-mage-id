@@ -287,25 +287,25 @@ function triageSummary(r: {
 }): string {
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const lines = [
-    r.punch > 0 ? `• ${plural(r.punch, 'punch item', 'punch items')} — in the project's Punch List` : null,
-    r.rfi > 0 ? `• ${plural(r.rfi, 'RFI', 'RFIs')} — in the project's RFIs, open and not sent yet` : null,
-    r.dfrObservations > 0 ? `• ${plural(r.dfrObservations, 'observation', 'observations')} — in today's draft daily report` : null,
-    r.progress > 0 ? `• ${plural(r.progress, 'progress photo', 'progress photos')} — in the project's Photos` : null,
+    r.punch > 0 ? `• ${plural(r.punch, 'punch item', 'punch items')} in the project's Punch List` : null,
+    r.rfi > 0 ? `• ${plural(r.rfi, 'RFI', 'RFIs')} in the project's RFIs, open and not sent yet` : null,
+    r.dfrObservations > 0 ? `• ${plural(r.dfrObservations, 'observation', 'observations')} in today's draft daily report` : null,
+    r.progress > 0 ? `• ${plural(r.progress, 'progress photo', 'progress photos')} in the project's Photos` : null,
   ].filter(Boolean) as string[];
-  if (lines.length === 0) return 'Nothing to apply — every entry was discarded or classified as noise.';
+  if (lines.length === 0) return 'Nothing to apply. Every entry was discarded or classified as noise.';
   const refiled = r.punchRefiled > 0
-    ? `\n\n${plural(r.punchRefiled, 'punch finding was', 'punch findings were')} filed as daily-report observations — Punch List is on Business.`
+    ? `\n\n${plural(r.punchRefiled, 'punch finding was', 'punch findings were')} filed as daily-report observations. Punch list is on Business.`
     : '';
   return `${lines.join('\n')}${refiled}`;
 }
 // <<< photo-triage-apply
 
 const CLASS_META: Record<AiTriageClass, { label: string; icon: React.FC<{ size: number; color: string }>; helper: string }> = {
-  punch:    { label: 'Punch list',  icon: ClipboardList, helper: 'Becomes a punch item' },
+  punch:    { label: 'Punch List',  icon: ClipboardList, helper: 'Becomes a punch item' },
   rfi:      { label: 'RFI',         icon: MessageSquare, helper: 'Becomes an open RFI' },
-  dfr:      { label: 'Daily report', icon: FileText,      helper: 'Goes into today\'s DFR' },
+  dfr:      { label: 'Daily Report', icon: FileText,      helper: 'Goes into today\'s daily report' },
   progress: { label: 'Progress',    icon: ImageIcon,     helper: 'Saved as a progress photo' },
-  noise:    { label: 'Skip',        icon: Trash2,        helper: 'Blurry / accidental — discard' },
+  noise:    { label: 'Skip',        icon: Trash2,        helper: 'Blurry or accidental. Discard.' },
 };
 
 function classColor(t: ThemeColors, cls: AiTriageClass): string {
@@ -384,7 +384,7 @@ function PhotoTriageInner() {
   const handlePickFromCameraRoll = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      showAlert('Photo access needed', 'Grant photo access in Settings.');
+      showAlert('Photo Access Needed', 'Grant photo access in Settings.');
       return;
     }
     const remaining = 12 - pickedPhotos.length;
@@ -405,7 +405,7 @@ function PhotoTriageInner() {
 
   const handleTakePhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) { showAlert('Camera access needed'); return; }
+    if (!perm.granted) { showAlert('Camera Access Needed'); return; }
     if (pickedPhotos.length >= 12) { showAlert('12 photos at most'); return; }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (result.canceled || !result.assets[0]) return;
@@ -414,7 +414,7 @@ function PhotoTriageInner() {
 
   // ── Run triage ─────────────────────────────────────────────────
   const handleAnalyze = useCallback(async () => {
-    if (pickedPhotos.length === 0) { showAlert('Pick at least one photo first'); return; }
+    if (pickedPhotos.length === 0) { showAlert('Pick at Least One Photo First'); return; }
     const limit = await checkAILimit(tier, 'smart', 'photoAnalysis');
     if (!limit.allowed) {
       showAILimitAlert({ limit, router, monthly: true });
@@ -476,7 +476,7 @@ function PhotoTriageInner() {
   }, [reviewEntries]);
 
   const handleApply = useCallback(async () => {
-    if (!project) { showAlert('No project selected'); return; }
+    if (!project) { showAlert('No Project Selected'); return; }
     if (applying || applied) return;
     setApplying(true);
 
@@ -570,7 +570,7 @@ function PhotoTriageInner() {
       setApplied(true);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Triage applied',
+        'Triage Applied',
         triageSummary({
           punch: records.punchItems.length,
           rfi: records.rfis.length,
@@ -599,11 +599,11 @@ function PhotoTriageInner() {
     // Punch List, so the chip explains instead of moving the entry.
     if (cls === 'punch' && !canPunch) {
       showAlert(
-        'Punch list is on Business',
+        'Punch list is on Business.',
         'Your plan includes photo triage but not the punch list. Findings left in Punch are filed as observations in today\'s daily report. Move one to RFI or Daily report, or discard it.',
         [
           { text: 'OK', style: 'cancel' },
-          { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+          { text: 'See Plans', onPress: () => router.push('/paywall' as never) },
         ],
       );
       return;
@@ -619,17 +619,17 @@ function PhotoTriageInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
-        <Stack.Screen options={{ title: 'Photo triage' }} />
+        <Stack.Screen options={{ title: 'Photo Triage' }} />
         <EmptyState
           icon={<Camera size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="No project to triage yet"
+          title="No Project to Triage Yet"
           message="Photo triage sorts field photos on a project into punch items, RFIs and progress shots. To run a batch:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Photo triage inside the project tile grid.',
             'Pick or take photos. MAGE sorts them into punch items, RFIs and daily report notes.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -643,7 +643,7 @@ function PhotoTriageInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'Photo triage',
+          title: 'Photo Triage',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -658,7 +658,7 @@ function PhotoTriageInner() {
               <View style={styles.heroIconWrap}>
                 <MageAIMark size={20} color={themeColors.accent} />
               </View>
-              <Text style={styles.heroTitle}>One walk, every record</Text>
+              <Text style={styles.heroTitle}>One Walk, Every Record</Text>
               <Text style={styles.heroBody}>
                 Take photos as you walk the jobsite. MAGE sorts them into punch list, RFI, daily report and progress shots, and you approve each one. Up to 12 photos per batch.
               </Text>
@@ -679,7 +679,7 @@ function PhotoTriageInner() {
             {/* Project gallery */}
             {projectPhotos.length > 0 && (
               <View style={styles.gallerySection}>
-                <Text style={styles.sectionTitle}>From this project ({projectPhotos.length})</Text>
+                <Text style={styles.sectionTitle}>From This Project ({projectPhotos.length})</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
                   {projectPhotos.slice(0, 30).map(p => {
                     const picked = pickedPhotos.find(pp => pp.id === p.id);
@@ -742,7 +742,7 @@ function PhotoTriageInner() {
                 : (
                   <>
                     <MageAIMark size={16} color="#FFF" />
-                    <Text style={styles.analyzeText}>Sort photos</Text>
+                    <Text style={styles.analyzeText}>Sort Photos</Text>
                   </>
                 )}
             </TouchableOpacity>
@@ -782,7 +782,7 @@ function PhotoTriageInner() {
                   </View>
                   <Text style={styles.bucketHelper}>
                     {cls === 'punch' && !canPunch
-                      ? 'Punch list is on Business — these will be filed as observations in today\'s daily report. Move one to RFI or Daily report, or discard it.'
+                      ? 'Punch list is on Business. These will be filed as observations in today\'s daily report. Move one to RFI or Daily Report, or discard it.'
                       : meta.helper}
                   </Text>
 
@@ -814,7 +814,7 @@ function PhotoTriageInner() {
                                   locked && styles.classChipLocked,
                                 ]}
                                 activeOpacity={0.7}
-                                accessibilityLabel={locked ? 'Punch list is on Business' : CLASS_META[c].label}
+                                accessibilityLabel={locked ? 'Punch List Is on Business' : CLASS_META[c].label}
                                 accessibilityState={{ disabled: locked, selected: e.editedClassification === c }}
                               >
                                 {locked && (
@@ -852,7 +852,7 @@ function PhotoTriageInner() {
             >
               {applying
                 ? <ActivityIndicator color="#FFF" />
-                : <Text style={styles.applyText}>{applied ? 'Applied' : 'Apply triage'}</Text>}
+                : <Text style={styles.applyText}>{applied ? 'Applied' : 'Apply Triage'}</Text>}
             </TouchableOpacity>
           </>
         )}

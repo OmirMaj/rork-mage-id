@@ -75,7 +75,7 @@ export default function SubProfileScreen() {
     try {
       await shareText({ message: text });
     } catch {
-      showAlert('Couldn’t share your profile', 'Try again.');
+      showAlert('Couldn’t Share Your Profile', 'Try again.');
     }
   };
 
@@ -94,7 +94,7 @@ export default function SubProfileScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <HardHat size={15} color={t.accent} strokeWidth={2} />
-          <Text style={styles.headerTitle} numberOfLines={1}>Your work profile</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Your Work Profile</Text>
         </View>
         <View style={styles.backBtn} />
       </View>

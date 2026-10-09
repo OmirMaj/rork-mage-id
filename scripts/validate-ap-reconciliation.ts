@@ -49,7 +49,7 @@ check('unpaid has no label', reconciliationLabel({ status: 'submitted' }) === nu
 // --- the bug this fixes: paid with nothing recorded -------------------------
 check('paid with no detail is unreconciled', reconciliationState({ status: 'paid' }) === 'unreconciled');
 check('paid with no detail needs reconciliation', needsReconciliation({ status: 'paid' }));
-check('unreconciled label is honest', reconciliationLabel({ status: 'paid' }) === 'No payment detail');
+check('unreconciled label is honest', reconciliationLabel({ status: 'paid' }) === 'No Payment Detail');
 
 // --- partial records --------------------------------------------------------
 check('check with no date is partial',
@@ -59,7 +59,7 @@ check('check with no number is partial',
 check('ach with no trace is partial',
   reconciliationState({ status: 'paid', paymentMethod: 'ach', paidOn: '2026-03-03' }) === 'partial');
 check('partial label reads "Missing detail"',
-  reconciliationLabel({ status: 'paid', paymentMethod: 'check', paidOn: '2026-03-03' }) === 'Missing detail');
+  reconciliationLabel({ status: 'paid', paymentMethod: 'check', paidOn: '2026-03-03' }) === 'Missing Detail');
 check('whitespace-only reference does not count',
   reconciliationState({ status: 'paid', paymentMethod: 'check', paymentReference: '   ', paidOn: '2026-03-03' }) === 'partial');
 

@@ -292,7 +292,7 @@ describe('lane DC — Summary at 1512 (desktop)', () => {
     await summaryAt('ios', 1512, 945, true);
     const rows = screen.queryAllByTestId(/^summary-needs-a\d+$/);
     expect(rows).toHaveLength(6);
-    expect(screen.getByText('See all 9 →')).toBeTruthy();
+    expect(screen.getByText('See all 9')).toBeTruthy();
   });
 
   it('the phone (390) still lists every NeedsYou row and keeps the Tools button', async () => {
@@ -360,6 +360,6 @@ describe('lane DC — F7: /summary is never blank on a cold desktop mount', () =
     await pump();
     expect(tree.getPathname()).toBe('/summary');
     expect(screen.getByTestId('summary-today')).toBeTruthy();
-    expect(screen.queryByText('No projects yet')).toBeNull();
+    expect(screen.queryByText('No Projects Yet')).toBeNull();
   });
 });

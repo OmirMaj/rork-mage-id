@@ -990,7 +990,7 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
   const clientSrc = read('utils/buildingRecordClient.ts');
   ok('39. the MD client: one helper with the LITERAL invoke, parseMdBuildingRecordResponse(data), one fixed network sentence',
     /async function invokeMd\(req: MdBuildingRecordRequest\)/.test(clientSrc) && /parseMdBuildingRecordResponse\(data\)/.test(clientSrc)
-    && clientSrc.includes('export const MD_BUILDING_RECORD_NETWORK_ERROR = "Couldn\'t reach the Baltimore lookup — nothing was checked.";'));
+    && clientSrc.includes('export const MD_BUILDING_RECORD_NETWORK_ERROR = "Couldn\'t reach the Baltimore lookup. Nothing was checked.";'));
 
   // ── 40. the function + the card + the NYC strings ──
   ok('40. md.ts is pure (no Deno, no import at all)', !/\bDeno\./.test(mdSrcText) && !/^\s*import\s/m.test(mdSrcText));

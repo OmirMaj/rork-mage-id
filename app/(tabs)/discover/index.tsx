@@ -26,7 +26,7 @@ import { HIRE_ENABLED } from '@/contexts/HireContext';
 // MAGE has no right to store or show them (contentfix-specs/RIGHTS-VERDICT.md).
 // Every door below is gated on COMPANIES_DIRECTORY_ENABLED; the route itself
 // redirects to Discover.
-import { RFP_BROWSE_ENABLED, COMPANIES_DIRECTORY_ENABLED } from '@/constants/featureFlags';
+import { RFP_BROWSE_ENABLED, COMPANIES_DIRECTORY_ENABLED, DISCOVER_WAITLIST_CARDS_ENABLED } from '@/constants/featureFlags';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 interface BidSource {
@@ -41,7 +41,7 @@ interface BidSource {
 const LIVE_BID_SOURCES: BidSource[] = [
   {
     name: 'SAM.gov',
-    description: 'Federal contract opportunities — all US government bids',
+    description: 'Federal contract opportunities: all US government bids',
     url: 'https://sam.gov/search/?index=opp&sort=-modifiedDate&page=1&pageSize=25',
     color: Colors.infoDark,
     type: 'Federal',
@@ -56,7 +56,7 @@ const LIVE_BID_SOURCES: BidSource[] = [
   },
   {
     name: 'NYC PASSPort',
-    description: 'New York City procurement portal — municipal bids',
+    description: 'New York City procurement portal: municipal bids',
     url: 'https://passport.cityofnewyork.us/page.aspx/en/rfp/request_browse_public',
     color: Colors.warningDark,
     type: 'Municipal',
@@ -84,7 +84,7 @@ const LIVE_BID_SOURCES: BidSource[] = [
   },
   {
     name: 'NYC SBS M/WBE',
-    description: 'NYC Small Business Services — certified M/WBE opportunities',
+    description: 'NYC Small Business Services: certified M/WBE opportunities',
     url: 'https://www1.nyc.gov/nycbusiness/mwbe',
     color: '#FF6F00',
     type: 'MWBE',
@@ -114,9 +114,9 @@ interface TabDef {
 const TABS: TabDef[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'tools', label: 'Tools', icon: Wrench },
-  { id: 'bids', label: 'Public bids', icon: Gavel },
+  { id: 'bids', label: 'Public Bids', icon: Gavel },
   { id: 'companies', label: 'Companies', icon: Building2 },
-  { id: 'hire', label: 'Direct hire', icon: Briefcase },
+  { id: 'hire', label: 'Direct Hire', icon: Briefcase },
   { id: 'estimate', label: 'Estimator', icon: MageAIMark },
   { id: 'schedule', label: 'Schedule', icon: CalendarDays },
   // No Materials pill: the standalone browser is redundant now that the
@@ -268,10 +268,10 @@ export default function DiscoverScreen() {
             onPress={() => navigateTo('/post-bid')}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Post bid"
+            accessibilityLabel="Post Bid"
           >
             <ToolGlyph Icon={Plus} />
-            <Text style={styles.quickActionLabel}>Post bid</Text>
+            <Text style={styles.quickActionLabel}>Post Bid</Text>
           </TouchableOpacity>
           {HIRE_ENABLED && (
             <TouchableOpacity
@@ -279,10 +279,10 @@ export default function DiscoverScreen() {
               onPress={() => navigateTo('/post-job')}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel="Post job"
+              accessibilityLabel="Post Job"
             >
               <ToolGlyph Icon={Plus} />
-              <Text style={styles.quickActionLabel}>Post job</Text>
+              <Text style={styles.quickActionLabel}>Post Job</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -290,7 +290,7 @@ export default function DiscoverScreen() {
             onPress={() => navigateTo('/(tabs)/settings')}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="My profile"
+            accessibilityLabel="My Profile"
           >
             {/* Runtime audit 2026-09-06, VIS-20: this tile shipped a
                   magnifying glass over the label "My Profile", so it read as
@@ -299,7 +299,7 @@ export default function DiscoverScreen() {
                   past it. UserCircle is the icon Settings itself uses for the
                   profile row this tile opens. */}
               <ToolGlyph Icon={UserCircle} />
-            <Text style={styles.quickActionLabel}>My profile</Text>
+            <Text style={styles.quickActionLabel}>My Profile</Text>
           </TouchableOpacity>
         </View>
 
@@ -310,7 +310,7 @@ export default function DiscoverScreen() {
         <View style={styles.sectionHeaderRow}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.accent }]} />
           <View>
-            <Text style={styles.sectionLabel}>Manage work</Text>
+            <Text style={styles.sectionLabel}>Manage Work</Text>
             <Text style={styles.sectionHint}>Approvals, cash flow, permits, compliance and 14 more</Text>
           </View>
         </View>
@@ -325,7 +325,7 @@ export default function DiscoverScreen() {
         <View style={styles.sectionHeaderRow}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
           <View>
-            <Text style={styles.sectionLabel}>Smart tools</Text>
+            <Text style={styles.sectionLabel}>Smart Tools</Text>
             <Text style={styles.sectionHint}>AI estimates, schedules, code checks and pricing</Text>
           </View>
         </View>
@@ -350,7 +350,7 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={CalendarDays}
-          title="Schedule maker"
+          title="Schedule Maker"
           subtitle="Build a schedule with AI or from a template"
           onPress={() => navigateTo('/(tabs)/discover/schedule')}
         />
@@ -364,7 +364,7 @@ export default function DiscoverScreen() {
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
           <View>
-            <Text style={styles.sectionLabel}>MAGE ID marketplace</Text>
+            <Text style={styles.sectionLabel}>MAGE ID Marketplace</Text>
             {/* NAV-03 (runtime audit 2026-09-06): Discover was selling the half
                 of the marketplace that is switched off. RFP_BROWSE_ENABLED is
                 false, so there is no BROWSE — nothing is fetched, and "Browse
@@ -403,7 +403,7 @@ export default function DiscoverScreen() {
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.info }]} />
           <View>
-            <Text style={styles.sectionLabel}>Online jobs and bids</Text>
+            <Text style={styles.sectionLabel}>Online Jobs and Bids</Text>
             <Text style={styles.sectionHint}>{COMPANIES_DIRECTORY_ENABLED ? 'Government contracts, private bids and company listings' : 'Government contracts and private bids'}</Text>
           </View>
         </View>
@@ -414,7 +414,7 @@ export default function DiscoverScreen() {
             screen shows the real count; these cards just route there. */}
         <NavigationCard
           icon={Gavel}
-          title="Public bids"
+          title="Public Bids"
           subtitle="Government and private bid opportunities"
           onPress={() => navigateTo('/(tabs)/discover/bids')}
         />
@@ -431,7 +431,7 @@ export default function DiscoverScreen() {
         {HIRE_ENABLED && (
           <NavigationCard
             icon={Briefcase}
-            title="Job listings"
+            title="Job Listings"
             subtitle="Construction jobs and direct hire openings"
             onPress={() => navigateTo('/(tabs)/discover/hire')}
           />
@@ -442,7 +442,7 @@ export default function DiscoverScreen() {
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.accent }]} />
           <View>
-            <Text style={styles.sectionLabel}>Live bid databases</Text>
+            <Text style={styles.sectionLabel}>Live Bid Databases</Text>
             <Text style={styles.sectionHint}>Government and private bid portals, updated daily</Text>
           </View>
         </View>
@@ -467,7 +467,7 @@ export default function DiscoverScreen() {
               <Text style={styles.bidSourceDesc} numberOfLines={2}>{source.description}</Text>
               <View style={styles.bidSourceFooter}>
                 <ExternalLink size={12} color={source.color} strokeWidth={1.75} />
-                <Text style={[styles.bidSourceLink, { color: source.color }]}>Open portal</Text>
+                <Text style={[styles.bidSourceLink, { color: source.color }]}>Open Portal</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -476,7 +476,7 @@ export default function DiscoverScreen() {
         <View style={styles.tipCard}>
           <View style={styles.tipHeader}>
             <Award size={16} color={Colors.primary} strokeWidth={1.75} />
-            <Text style={styles.tipTitle}>Pro tip</Text>
+            <Text style={styles.tipTitle}>Pro Tip</Text>
           </View>
           <Text style={styles.tipText}>
             Register your company certifications (MWBE, DBE, etc.) in the Companies section to get matched with bids that require your qualifications.
@@ -489,10 +489,12 @@ export default function DiscoverScreen() {
             evidence for the partner pitches (Wisetack, altLINE,
             Coterie, Track1099, etc.). See docs/audits/2026-05-14-
             billion-dollar-strategy.md for the full thesis. */}
+        {DISCOVER_WAITLIST_CARDS_ENABLED ? (
+        <>
         <View style={[styles.sectionHeaderRow, { marginTop: 24, alignItems: 'flex-start' }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.success, marginTop: 2 }]} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.sectionLabel}>Earn more with MAGE</Text>
+            <Text style={styles.sectionLabel}>Earn More with MAGE</Text>
             <Text style={styles.sectionHint}>Payments, financing and referral products. Join the waitlist.</Text>
           </View>
         </View>
@@ -529,9 +531,11 @@ export default function DiscoverScreen() {
           icon={Truck}
           headline="Finance a truck or new equipment"
           body="When you outgrow rentals: financing for trucks, lifts, scaffold and tools through partner lenders. No application fee."
-          footer="Lower priority per the strategy doc — added for completeness"
+          footer="Not available yet. Tap to be told when it is."
           testID="discover-equipment-cta"
         />
+        </>
+        ) : null}
 
       </ScrollView>
     </View>

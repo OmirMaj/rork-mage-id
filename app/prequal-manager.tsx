@@ -199,12 +199,12 @@ function buildPrequalRenewal(existing: PrequalPacket, token: string, email: stri
  */
 /** Every packet status as words, for the detail line (never the raw value). */
 const PREQUAL_STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft', invited: 'Invited', in_progress: 'In progress', submitted: 'Submitted',
-  approved: 'Approved', needs_changes: 'Needs changes', rejected: 'Rejected', expired: 'Expired',
+  draft: 'Draft', invited: 'Invited', in_progress: 'In Progress', submitted: 'Submitted',
+  approved: 'Approved', needs_changes: 'Needs Changes', rejected: 'Rejected', expired: 'Expired',
 };
 
 const PREQUAL_SIDE_BRANCH_LABEL: Record<string, string> = {
-  needs_changes: 'Needs changes',
+  needs_changes: 'Needs Changes',
   rejected: 'Rejected',
   expired: 'Expired',
 };
@@ -441,13 +441,13 @@ function PrequalManagerInner() {
       mailto: `mailto:${email}?subject=${subject}&body=${body}`,
       link,
       ready: {
-        title: 'Invite ready to send',
+        title: 'Invite Ready to Send',
         nativeBody: `Your mail app opened with the link to ${email}. It is not sent until you tap Send there.`,
-        webBody: `Your mail app should open with the link to ${email}. Nothing is sent until you tap Send there. If no mail app opened, copy the link and send it yourself — a text message works.`,
+        webBody: `Your mail app should open with the link to ${email}. Nothing is sent until you tap Send there. If no mail app opened, copy the link and send it yourself. A text message works.`,
       },
       failed: {
-        title: 'Invite saved, not emailed',
-        body: `No mail app opened, so ${email} has not been sent anything. Copy the link and send it yourself — a text message works.`,
+        title: 'Invite Saved, Not Emailed',
+        body: `No mail app opened, so ${email} has not been sent anything. Copy the link and send it yourself. A text message works.`,
       },
     });
   }, [getPrequalPacketForSub, upsertPrequalPacket, signOff]);
@@ -465,7 +465,7 @@ function PrequalManagerInner() {
     const what = kind === 'needs_changes' ? 'needs changes' : 'was not approved';
     if (!to || !link) {
       showAlert(
-        'Saved, but the sub hasn’t been told',
+        'Saved, but the sub hasn’t been told.',
         !to
           ? `The packet is marked "${what}", but there is no email on it. Tell ${sub?.companyName ?? 'the sub'} yourself, or send a renewal with their address.`
           : `The packet is marked "${what}", but it has no link to send. Send a renewal to give the sub a working link.`,
@@ -473,8 +473,8 @@ function PrequalManagerInner() {
       return;
     }
     const subject = encodeURIComponent(kind === 'needs_changes'
-      ? `Prequalification — changes needed${sub ? ` (${sub.companyName})` : ''}`
-      : `Prequalification — not approved${sub ? ` (${sub.companyName})` : ''}`);
+      ? `Prequalification: changes needed${sub ? ` (${sub.companyName})` : ''}`
+      : `Prequalification: not approved${sub ? ` (${sub.companyName})` : ''}`);
     const body = encodeURIComponent(
       `Hi ${sub?.contactName || 'there'},\n\n`
       + (kind === 'needs_changes'
@@ -482,7 +482,7 @@ function PrequalManagerInner() {
         : 'We reviewed your prequalification packet and are not able to approve it at this time:\n\n')
       + `${note}\n\n`
       + (kind === 'needs_changes'
-        ? `Update your answers and resubmit here — no login needed: ${link}\n\n`
+        ? `Update your answers and resubmit here, no login needed: ${link}\n\n`
         : `Your packet and this note are here: ${link}\n\n`)
       + signOff,
     );
@@ -490,12 +490,12 @@ function PrequalManagerInner() {
       mailto: `mailto:${to}?subject=${subject}&body=${body}`,
       link,
       ready: {
-        title: 'Status saved · email ready to send',
+        title: 'Status Saved · Email Ready to Send',
         nativeBody: `Your mail app opened with the note to ${to}. It is not sent until you tap Send there. The sub also sees the note when they open their link.`,
         webBody: `Your mail app should open with the note to ${to}. Nothing is sent until you tap Send there. If no mail app opened, copy the link and send it with your note. The sub also sees the note when they open their link.`,
       },
       failed: {
-        title: 'Status saved, not emailed',
+        title: 'Status Saved, Not Emailed',
         body: `No mail app opened, so ${to} has not been told. Copy the link and send it with your note, or use Resend note from this packet.`,
       },
     });
@@ -532,7 +532,7 @@ function PrequalManagerInner() {
       : `The sub's COI expiry (${formatPacketDate(risk.coi) ?? risk.coi}) is ${risk.today ? 'today' : 'already past'}, so this approval would lapse right away. Ask for a current certificate first.`;
     showAlert('Approve with this COI date?', warning, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Approve anyway', onPress: commit },
+      { text: 'Approve Anyway', onPress: commit },
     ]);
   }, [writePrequalReview, setReviewingPacket]);
 
@@ -571,7 +571,7 @@ function PrequalManagerInner() {
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Send renewal',
+          text: 'Send Renewal',
           onPress: () => {
             const now = new Date().toISOString();
             const token = generatePrequalToken();
@@ -582,8 +582,8 @@ function PrequalManagerInner() {
             const subject = encodeURIComponent(`Prequalification renewal for ${name}`);
             const body = encodeURIComponent(
               `Hi ${sub?.contactName || 'there'},\n\n`
-              + 'It is time to renew your subcontractor prequalification with us. Your previous answers are already filled in — '
-              + 'update anything that changed (insurance dates especially) and resubmit. No login needed.\n\n'
+              + 'It is time to renew your subcontractor prequalification with us. Your previous answers are already filled in. '
+              + 'Update anything that changed (insurance dates especially) and resubmit. No login needed.\n\n'
               + `Start here: ${link}\n\n`
               + `The link in any earlier email no longer works.\n\n${signOff}`,
             );
@@ -591,12 +591,12 @@ function PrequalManagerInner() {
               mailto: `mailto:${email}?subject=${subject}&body=${body}`,
               link,
               ready: {
-                title: 'Renewal ready to send',
+                title: 'Renewal Ready to Send',
                 nativeBody: `Your mail app opened with the new link to ${email}. It is not sent until you tap Send there.`,
                 webBody: `Your mail app should open with the new link to ${email}. Nothing is sent until you tap Send there. If no mail app opened, copy the new link and send it yourself.`,
               },
               failed: {
-                title: 'Renewal saved, not emailed',
+                title: 'Renewal Saved, Not Emailed',
                 body: `No mail app opened, so ${email} has not been told. Copy the new link and send it yourself.`,
               },
             });
@@ -616,7 +616,7 @@ function PrequalManagerInner() {
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Prequal and COI · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Sub compliance</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Sub Compliance</Text>
         </View>
       </View>
 
@@ -631,14 +631,14 @@ function PrequalManagerInner() {
           <Stat label="Approved" value={counts.approved} color={themeColors.success} />
           <Stat label="Pending" value={counts.pending} color={themeColors.info} />
           <Stat label="Issues" value={counts.issues} color={Colors.warningLabel} />
-          <Stat label="No packet" value={counts.none} color={themeColors.textSecondary} />
+          <Stat label="No Packet" value={counts.none} color={themeColors.textSecondary} />
         </View>
 
         <View style={styles.banner}>
           <ShieldCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.bannerText}>
-            OSHA{"\u2019"}s Multi-Employer Citation Policy treats the GC as a controlling employer —
-            expired COIs can cost $16,550 per instance.
+            OSHA{"\u2019"}s Multi-Employer Citation Policy treats the GC as a controlling employer.
+            Expired COIs can cost $16,550 per instance.
           </Text>
         </View>
 
@@ -647,7 +647,7 @@ function PrequalManagerInner() {
           <View style={styles.renewCard}>
             <View style={styles.renewHeader}>
               <Clock size={14} color={Colors.warningLabel} strokeWidth={1.75} />
-              <Text style={styles.renewTitle}>Renewals needed</Text>
+              <Text style={styles.renewTitle}>Renewals Needed</Text>
             </View>
             {/* #32: a list you can act on — each row opens the renewal sheet.
                 It used to be text only, and the review modal it did not open
@@ -663,7 +663,7 @@ function PrequalManagerInner() {
                 <Text style={styles.renewItem}>
                   • {r.sub.companyName} — {r.bucket === 'expired' ? 'expired' : `renews within ${r.bucket}`}
                 </Text>
-                <Text style={styles.renewAction}>Send renewal</Text>
+                <Text style={styles.renewAction}>Send Renewal</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -676,7 +676,7 @@ function PrequalManagerInner() {
           <RevenueEarlyAccessCard
             eventKey="revenue.insurance.coi_requote"
             icon={Scale}
-            headline="Renewal quotes for expiring sub insurance"
+            headline="Renewal Quotes for Expiring Sub Insurance"
             body="We are working on requesting renewal quotes for a sub's expiring coverage, pre-filled from the COI on file. No insurer or broker is signed up yet."
             footer="Not available yet. Tap to be told when it is."
             testID="coi-requote-cta"
@@ -723,7 +723,7 @@ function PrequalManagerInner() {
         )}
 
         <Text style={styles.footerNote}>
-          Subs fill out their packet via a magic link — no login required. Auto-review flags
+          Subs fill out their packet via a magic link, no login required. Auto-review flags
           any criterion failure; manual approval is always available.
         </Text>
       </ScrollView>
@@ -789,7 +789,7 @@ function StatusBadge({ status, bucket }: { status?: PrequalStatus; bucket?: stri
   const styles = useThemedStyles(makeStyles);
   let Icon = ShieldAlert;
   let color = themeColors.textSecondary;
-  let label = 'No packet';
+  let label = 'No Packet';
 
   if (!status) {
     // default
@@ -831,7 +831,7 @@ function InviteModal({ sub, renewal, onClose, onSend }: {
   const fInvite = useSheetFrame('form', { visible: !!sub, animationType: 'slide' });
   const send = () => {
     if (!email.trim() || !email.includes('@')) {
-      showAlert('Email needed', 'Enter the sub\'s email address.');
+      showAlert('Email Needed', 'Enter the sub\'s email address.');
       return;
     }
     onSend(email.trim());
@@ -844,7 +844,7 @@ function InviteModal({ sub, renewal, onClose, onSend }: {
       <View style={[styles.modalOverlay, fInvite.overlay]}>
         <View style={[styles.modalCard, fInvite.card]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{renewal ? 'Send renewal to' : 'Invite'} {sub?.companyName ?? 'sub'}</Text>
+            <Text style={styles.modalTitle}>{renewal ? 'Send Renewal to' : 'Invite'} {sub?.companyName ?? 'sub'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
           <View style={{ padding: 16 }}>
@@ -872,7 +872,7 @@ function InviteModal({ sub, renewal, onClose, onSend }: {
               style={styles.btnPrimary}
             >
               <Send size={16} color={'#FFFFFF'} strokeWidth={1.75} />
-              <Text style={styles.btnPrimaryText}>{renewal ? 'Send renewal' : 'Send invite'}</Text>
+              <Text style={styles.btnPrimaryText}>{renewal ? 'Send Renewal' : 'Send Invite'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -959,7 +959,7 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
                   <View style={styles.sideBranchBadge}>
                     <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={2} />
                     <Text style={styles.sideBranchText}>
-                      {PREQUAL_SIDE_BRANCH_LABEL[packet.status] ?? packet.status} — not on the normal path
+                      {PREQUAL_SIDE_BRANCH_LABEL[packet.status] ?? packet.status}, not on the normal path
                     </Text>
                   </View>
                 )}
@@ -1007,7 +1007,7 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
                 <View style={styles.staleNote} testID="prequal-review-cached">
                   <AlertTriangle size={13} color={Colors.warningLabel} strokeWidth={1.75} />
                   <Text style={styles.staleNoteText}>
-                    Couldn{"\u2019"}t reach the server — this may be out of date{cachedReadAt ? ` (last read ${cachedReadAt})` : ''}. The sub may have submitted since.
+                    Couldn{"\u2019"}t reach the server. This may be out of date{cachedReadAt ? ` (last read ${cachedReadAt})` : ''}. The sub may have submitted since.
                   </Text>
                 </View>
               )}
@@ -1016,7 +1016,7 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
               {(packet.status === 'needs_changes' || packet.status === 'rejected') && (
                 <TouchableOpacity style={styles.copyLinkRow} onPress={() => onResendNote(packet)} accessibilityRole="button">
                   <Mail size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.copyLinkText}>Resend note to the sub</Text>
+                  <Text style={styles.copyLinkText}>Resend Note to the Sub</Text>
                 </TouchableOpacity>
               )}
 
@@ -1024,7 +1024,7 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
               {renewable && (
                 <TouchableOpacity style={styles.copyLinkRow} onPress={() => onRenew(packet)} disabled={checking} accessibilityRole="button" accessibilityState={{ disabled: checking }}>
                   <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.copyLinkText}>Send renewal</Text>
+                  <Text style={styles.copyLinkText}>Send Renewal</Text>
                 </TouchableOpacity>
               )}
 
@@ -1036,18 +1036,18 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
                     const link = prequalInviteUrl(packet.inviteToken ?? '');
                     const ok = await copyToClipboard(link);
                     showAlert(
-                      ok ? 'Link copied' : 'Couldn’t copy the link',
+                      ok ? 'Link Copied' : 'Couldn’t Copy the Link',
                       ok ? 'The invite link is on your clipboard.' : 'Try again.',
                     );
                   }}
                 >
                   <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.copyLinkText}>Copy invite link</Text>
+                  <Text style={styles.copyLinkText}>Copy Invite Link</Text>
                 </TouchableOpacity>
               )}
 
               {/* Findings */}
-              <Text style={styles.sectionLabel}>Auto-review findings</Text>
+              <Text style={styles.sectionLabel}>Auto-Review Findings</Text>
               {review?.findings.map(f => (
                 <View key={f.criterion} style={styles.findingRow}>
                   {f.passed
@@ -1061,27 +1061,27 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
               ))}
 
               {/* Packet details */}
-              <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Packet details</Text>
-              <DetailLine label="Status" value={PREQUAL_STATUS_LABEL[packet.status] ?? 'Not set'} />
+              <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Packet Details</Text>
+              <DetailLine label="Status" value={PREQUAL_STATUS_LABEL[packet.status] ?? 'Not Set'} />
               {invitedOn && <DetailLine label="Invited" value={invitedOn} />}
               {submittedOn && <DetailLine label="Submitted" value={submittedOn} />}
-              <DetailLine label="CGL per occurrence" value={packet.insurance.cglPerOccurrence ? `$${packet.insurance.cglPerOccurrence.toLocaleString()}` : '—'} />
-              <DetailLine label="CGL aggregate" value={packet.insurance.cglAggregate ? `$${packet.insurance.cglAggregate.toLocaleString()}` : '—'} />
-              <DetailLine label="Workers’ comp" value={packet.insurance.workersCompActive ? `Active · ${packet.insurance.workersCompCarrier ?? '—'}` : 'Not confirmed'} />
+              <DetailLine label="CGL per Occurrence" value={packet.insurance.cglPerOccurrence ? `$${packet.insurance.cglPerOccurrence.toLocaleString()}` : '—'} />
+              <DetailLine label="CGL Aggregate" value={packet.insurance.cglAggregate ? `$${packet.insurance.cglAggregate.toLocaleString()}` : '—'} />
+              <DetailLine label="Workers’ Comp" value={packet.insurance.workersCompActive ? `Active · ${packet.insurance.workersCompCarrier ?? '—'}` : 'Not Confirmed'} />
               <DetailLine label="CG 20 10" value={packet.insurance.hasCG2010 ? 'Attested' : 'Missing'} />
               <DetailLine label="CG 20 37" value={packet.insurance.hasCG2037 ? 'Attested' : 'Missing'} />
-              <DetailLine label="COI expiry" value={coiExpiryDisplay} />
-              <DetailLine label="W-9" value={packet.w9OnFile ? 'On file' : 'Missing'} />
+              <DetailLine label="COI Expiry" value={coiExpiryDisplay} />
+              <DetailLine label="W-9" value={packet.w9OnFile ? 'On File' : 'Missing'} />
               <DetailLine label="Licenses" value={`${packet.licenses.length} on file`} />
-              <DetailLine label="Years in business" value={String(packet.financials.yearsInBusiness ?? '—')} />
+              <DetailLine label="Years in Business" value={String(packet.financials.yearsInBusiness ?? '—')} />
 
               {/* Reviewer note */}
-              <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Reviewer note (optional)</Text>
+              <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Reviewer Note (Optional)</Text>
               <TextInput
                 style={[styles.input, { minHeight: 80, textAlignVertical: 'top' }]}
                 value={note}
                 onChangeText={setNote}
-                placeholder="e.g. Waiting on CG 20 10 endorsement from carrier, ETA next week."
+                placeholder="Waiting on CG 20 10 endorsement from carrier, ETA next week."
                 multiline
               />
             </View>
@@ -1107,7 +1107,7 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
               accessibilityState={{ disabled: checking }}
             >
               <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
-              <Text style={[styles.btnGhostText, { color: Colors.warningLabel }]}>Needs changes</Text>
+              <Text style={[styles.btnGhostText, { color: Colors.warningLabel }]}>Needs Changes</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.btnPrimary, { flex: 1 }, checking && styles.btnDisabled]}

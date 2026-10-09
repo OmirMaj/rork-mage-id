@@ -91,7 +91,7 @@ eq('bulkMaterials → skipped with a count and the reason', S.skipped.find((s) =
   { code: 'bulk', reason: AI_SKIP_REASON.bulk, count: 2 });
 ok('no bulk material becomes a row', !S.rows.some((r) => r.section === 'bulk'));
 eq('the bulk line reads in words', aiSkippedLine(S.skipped.find((s) => s.code === 'bulk')!),
-  '2 bulk materials use units this panel doesn’t measure (CY, tons…) — see AI Takeoff');
+  '2 bulk materials use units this panel doesn’t measure (CY, tons…). See AI Takeoff.');
 eq('8 rows offered (the 0 LF wall and both bulk rows are not)', S.rows.length, 8);
 
 // overrides / rejected
@@ -148,7 +148,7 @@ eq('trade resolved from his book (partition → Drywall|LF)', c1.trade, 'Drywall
 eq('a door keys Doors|EA even when its description says "paint"', conditionFromSuggestion(by('doors:d1')!, DB, [], 'c2', NOW_ISO).trade, 'Doors');
 eq('a water closet keys Plumbing|EA', conditionFromSuggestion(by('fixture:x1')!, DB, [], 'c3', NOW_ISO).trade, 'Plumbing');
 const noMatch = conditionFromSuggestion(by('windows:n1')!, DB, [], 'c4', NOW_ISO);
-eq('no book match → a null trade (the row says "No rate yet — set one")', [noMatch.trade, noMatch.rateOverride], [null, null]);
+eq('no book match → a null trade (the row says "No rate yet. Set one.")', [noMatch.trade, noMatch.rateOverride], [null, null]);
 eq('heightFt is null off linear', conditionFromSuggestion(by('floor:f1')!, DB, [], 'c5', NOW_ISO).heightFt, null);
 ok('a colour is picked', typeof c1.color === 'string' && c1.color.startsWith('#'));
 eq('takenSuggestionKeys = dismissed ∪ accepted aiRead keys',

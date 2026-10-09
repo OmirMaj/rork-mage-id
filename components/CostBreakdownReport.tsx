@@ -152,7 +152,7 @@ const CostBreakdownReport = React.memo(function CostBreakdownReport({
 
   return (
     <View style={s.container}>
-      <Text style={s.sectionTitle}>Cost report</Text>
+      <Text style={s.sectionTitle}>Cost Report</Text>
 
       <View style={s.barContainer}>
         <View style={s.barTrack}>
@@ -218,7 +218,7 @@ const CostBreakdownReport = React.memo(function CostBreakdownReport({
         </View>
         <View style={s.metricCard}>
           <Clock size={14} color={t.info} strokeWidth={1.75} />
-          <Text style={s.metricLabel}>Labor hrs</Text>
+          <Text style={s.metricLabel}>Labor Hrs</Text>
           <Text style={s.metricValue}>{totals.laborHours.toFixed(0)}</Text>
         </View>
         {locationFactor !== 1 && (

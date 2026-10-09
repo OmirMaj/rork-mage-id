@@ -88,7 +88,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
             <DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tileLabel}>Planned vs. earned</Text>
+            <Text style={styles.tileLabel}>Planned vs. Earned</Text>
             <Text style={styles.tileSub}>
               {formatMoneyCompact(snapshot.totalEarnedValue)} earned · {formatMoneyCompact(snapshot.totalPlannedValue)} planned
             </Text>
@@ -108,7 +108,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
           <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fEv.card]}>
             {fEv.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Money on the schedule</Text>
+              <Text style={styles.modalTitle}>Money on the Schedule</Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -121,11 +121,11 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
             {/* KPI tiles */}
             <View style={styles.kpiRow}>
               <View style={styles.kpiCol}>
-                <Text style={styles.kpiLabel}>Total budget</Text>
+                <Text style={styles.kpiLabel}>Total Budget</Text>
                 <Text style={styles.kpiValue}>{formatMoneyCompact(snapshot.totalBudget)}</Text>
               </View>
               <View style={styles.kpiCol}>
-                <Text style={styles.kpiLabel}>Planned by today</Text>
+                <Text style={styles.kpiLabel}>Planned by Today</Text>
                 <Text style={styles.kpiValue}>{formatMoneyCompact(snapshot.totalPlannedValue)}</Text>
               </View>
               <View style={styles.kpiCol}>
@@ -143,18 +143,18 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
                   <SpiIcon size={14} color={TONE_COLOR[spiTone]} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.indexLabel}>Schedule performance</Text>
+                  <Text style={styles.indexLabel}>Schedule Performance</Text>
                   <Text style={[styles.indexValue, { color: TONE_COLOR[spiTone] }]}>
                     SPI {snapshot.spi.toFixed(2)}
                   </Text>
                   <Text style={styles.indexHint}>
                     {snapshot.spi >= 1
-                      ? 'Ahead of plan'
+                      ? 'Ahead of Plan'
                       : snapshot.spi >= 0.95
-                        ? 'On pace'
+                        ? 'On Pace'
                         : snapshot.spi >= 0.85
-                          ? 'Slightly behind'
-                          : 'Significantly behind'}
+                          ? 'Slightly Behind'
+                          : 'Significantly Behind'}
                   </Text>
                 </View>
               </View>
@@ -165,12 +165,12 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
                     <CpiIcon size={14} color={TONE_COLOR[cpiTone]} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.indexLabel}>Cost performance</Text>
+                    <Text style={styles.indexLabel}>Cost Performance</Text>
                     <Text style={[styles.indexValue, { color: TONE_COLOR[cpiTone] }]}>
                       CPI {snapshot.cpi.toFixed(2)}
                     </Text>
                     <Text style={styles.indexHint}>
-                      {snapshot.cpi >= 1 ? 'Under budget' : snapshot.cpi >= 0.95 ? 'On budget' : 'Over budget'}
+                      {snapshot.cpi >= 1 ? 'Under Budget' : snapshot.cpi >= 0.95 ? 'On Budget' : 'Over Budget'}
                     </Text>
                   </View>
                 </View>
@@ -178,7 +178,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
             </View>
 
             {/* Per-task list, biggest budget first */}
-            <Text style={styles.listHead}>Cost per task</Text>
+            <Text style={styles.listHead}>Cost per Task</Text>
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
               {tasks
                 .map(task => ({ task, load: snapshot.perTask.get(task.id) }))

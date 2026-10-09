@@ -78,7 +78,7 @@ export default function SubPortalsListScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'Sub portals' }} />
+      <Stack.Screen options={{ title: 'Sub Portals' }} />
       {/* THE BACK IS DRAWN IN THE BODY (audit 2026-09-23 #149). The root stack
           hides this screen's header (app/_layout.tsx: headerShown: false), so
           the headerLeft chevron that used to be declared here never rendered
@@ -96,9 +96,9 @@ export default function SubPortalsListScreen() {
         >
           <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.title}>Sub portals</Text>
+        <Text style={styles.title}>Sub Portals</Text>
         <Text style={styles.subtitle}>
-          One self-serve link per sub per project — they review scope, submit invoices, and track payment without asking you for updates.
+          One self-serve link per sub per project. They review scope, submit invoices, and track payment without asking you for updates.
         </Text>
       </View>
 
@@ -129,7 +129,7 @@ export default function SubPortalsListScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Inbox size={32} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No commitments yet</Text>
+            <Text style={styles.emptyTitle}>No Commitments Yet</Text>
             <Text style={styles.emptyBody}>Add a sub commitment to a project. It links the sub to the project and powers their portal.</Text>
           </View>
         }

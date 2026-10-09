@@ -83,7 +83,7 @@ assert(
 // ── 2. The three estimate screens specifically (the reported defect) ──────
 assert(pathToDocumentTitle('/estimate') === 'Estimate', "/estimate → 'Estimate'");
 assert(pathToDocumentTitle('/estimate/full') === 'Estimator', "/estimate/full → 'Estimator'");
-assert(pathToDocumentTitle('/estimate/review') === 'Estimate review', "/estimate/review → 'Estimate review'");
+assert(pathToDocumentTitle('/estimate/review') === 'Estimate Review', "/estimate/review → 'Estimate review'");
 
 // ── 3. Group segments are stripped wherever they appear ──────────────────
 assert(pathToDocumentTitle('/(tabs)/estimate') === 'Estimate', '/(tabs)/estimate strips the group');
@@ -92,7 +92,7 @@ assert(pathToDocumentTitle('/(tabs)/(home)') === 'Projects', '/(tabs)/(home) →
 assert(pathToDocumentTitle('/(tabs)/settings') === 'Settings', '/(tabs)/settings strips the group');
 
 // ── 4. Query/hash are stripped ───────────────────────────────────────────
-assert(pathToDocumentTitle('/estimate/review?id=7') === 'Estimate review', 'query string stripped');
+assert(pathToDocumentTitle('/estimate/review?id=7') === 'Estimate Review', 'query string stripped');
 assert(pathToDocumentTitle('/estimate#top') === 'Estimate', 'hash stripped');
 
 // ── 5. Detail routes inherit the parent label ────────────────────────────
@@ -105,7 +105,7 @@ assert(pathToDocumentTitle('/estimate/anything-new') === 'Estimate', 'unmapped e
 // ── 5b. Construction News (wave 4, founder request F3) ───────────────────
 // A root-stack route, so section 1 does not enumerate it. Pinned by name: the
 // label is the one the Stack header, the Tools tile and the sidebar row use.
-assert(pathToDocumentTitle('/construction-news') === 'Construction news', "/construction-news → 'Construction news'");
+assert(pathToDocumentTitle('/construction-news') === 'Construction News', "/construction-news → 'Construction news'");
 
 // ── 6. Unknown routes still return null — the fallback must stay honest ──
 // app/_layout.tsx renders plain "MAGE ID" for null. Inventing a label from the

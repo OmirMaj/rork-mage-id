@@ -43,7 +43,7 @@ export interface ScopeSourceItem {
 
 /** Suffix on an allowance line. Spelled out rather than abbreviated: "ALLOW"
  *  means nothing to a sub reading an email on a phone. */
-const ALLOWANCE_NOTE = ' (allowance — awarding this package firms this price)';
+const ALLOWANCE_NOTE = ' (allowance: awarding this package firms this price)';
 
 /**
  * One line per item: `• 3/4" PEX supply — 420 LF`.
@@ -83,14 +83,14 @@ export function estimateItemsToScope(items: readonly ScopeSourceItem[]): string 
   if (lines.length === 0) return '';
   const allowances = (items ?? []).filter(i => i.isAllowance).length;
   const out = [
-    'Scope of work — price the following:',
+    'Scope of work. Price the following:',
     '',
     ...lines,
   ];
   if (allowances > 0) {
     out.push(
       '',
-      `${allowances} line${allowances === 1 ? ' is an allowance' : 's are allowances'} — carried as a placeholder in the estimate. Awarding this package converts ${allowances === 1 ? 'it' : 'them'} to a firm price, so price ${allowances === 1 ? 'it' : 'them'} as work you are committing to.`,
+      `${allowances} line${allowances === 1 ? ' is an allowance' : 's are allowances'}, carried as a placeholder in the estimate. Awarding this package converts ${allowances === 1 ? 'it' : 'them'} to a firm price, so price ${allowances === 1 ? 'it' : 'them'} as work you are committing to.`,
     );
   }
   out.push(

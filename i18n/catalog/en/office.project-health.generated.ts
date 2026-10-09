@@ -9,5 +9,5 @@ export const EN: EnCatalog = {
   "office.projectHealth.legend.colour": "The color is margin risk.",
   "office.projectHealth.legend.empty": "A gray, hollow level means there is not enough data yet.",
   "office.projectHealth.legend.listed": "Open punch, late RFIs and late tasks are listed, not drawn.",
-  "office.projectHealth.title": "Project health",
+  "office.projectHealth.title": "Project Health",
 };

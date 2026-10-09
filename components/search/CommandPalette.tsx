@@ -282,7 +282,7 @@ export default function CommandPalette({
           style={StyleSheet.absoluteFill}
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Close search"
+          accessibilityLabel="Close Search"
           testID="command-palette-scrim"
         />
         <View

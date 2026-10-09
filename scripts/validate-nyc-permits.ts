@@ -125,7 +125,7 @@ console.log('\nthe client:');
   const src = read('utils/buildingRecordClient.ts');
   ok("invokes the LITERAL functions.invoke('building-record'", /functions\.invoke\(\s*'building-record'/.test(src));
   ok('never reads .message (no raw error text returned)', !/\.message\b/.test(src));
-  ok('every failure is the fixed network sentence', /code: 'network'/.test(src) && /nothing was checked/.test(src));
+  ok('every failure is the fixed network sentence', /code: 'network'/.test(src) && /Nothing was checked/.test(src));
   ok('parses through parseBuildingRecordResponse', /parseBuildingRecordResponse\(data\)/.test(src));
 }
 
@@ -169,7 +169,7 @@ console.log('\napp/permits.tsx:');
     /\{formProject && formIsNyc && form\.permitNumber\.trim\(\) \? \(\(\) => \{/.test(pm));
   ok('a failed dataset reads "not checked"', /`\$\{name\}: not checked`/.test(region));
   ok('each match is printed verbatim with its as-of day', /\$\{m\.datasetName\} \(as of \$\{/.test(region) && /'\$\{m\.statusText\}'/.test(region));
-  ok('objections name the applicant of record', region.includes('DOB shows objections issued — your applicant of record answers them.'));
+  ok('objections name the applicant of record', region.includes('DOB shows objections issued. Your applicant of record answers them.'));
   const runDob = pm.slice(pm.indexOf('const runDobCheck = useCallback('), pm.indexOf('const handleSave = useCallback('));
   ok('runDobCheck only looks up (no permit write)', runDobCheck(runDob));
 

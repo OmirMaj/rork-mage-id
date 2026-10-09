@@ -129,14 +129,14 @@ function aiReadLine(row: PanelRow, filter: PanelFilter, drawnAnywhere: ReadonlyS
   if (!ai) return null;
   const was = row.totals.aiReadQty != null ? `${fmtQty(row.totals.aiReadQty)} ${ai.unit}` : null;
   if (row.totals.source === 'ai_read') {
-    return `AI read — not measured · ${ai.citation} · ${CONF_WORD[ai.confidence]} confidence · draw it to measure`;
+    return `AI read, not measured · ${ai.citation} · ${CONF_WORD[ai.confidence]} confidence · draw it to measure`;
   }
   if (row.totals.source === 'measured' && was) return `Measured · AI read was ${was}`;
   // Only while nothing is drawn anywhere: drawn on another sheet, All sheets
   // shows it measured and the AI number no longer counts.
   if (row.totals.source === 'none' && was && filter === 'sheet' && row.totals.unmeasuredCount === 0
     && !drawnAnywhere.has(row.condition.id)) {
-    return `AI read ${was} is for the whole plan set — see All sheets`;
+    return `AI read ${was} is for the whole plan set. See All Sheets.`;
   }
   return null;
 }
@@ -168,7 +168,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
                 accessibilityState={{ selected: on }}
                 testID={`takeoffws-filter-${f}`}
               >
-                <Text style={[styles.segText, on && styles.segTextOn]}>{f === 'sheet' ? 'This sheet' : 'All sheets'}</Text>
+                <Text style={[styles.segText, on && styles.segTextOn]}>{f === 'sheet' ? 'This sheet' : 'All Sheets'}</Text>
               </Pressable>
             );
           })}
@@ -183,7 +183,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
           placeholder="Filter conditions  /"
           placeholderTextColor={t.textMuted}
           style={styles.filterInput}
-          accessibilityLabel="Filter conditions"
+          accessibilityLabel="Filter Conditions"
           autoCorrect={false}
           autoCapitalize="none"
           testID="takeoffws-filter-input"
@@ -193,7 +193,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
       <ScrollView style={styles.list}>
         {p.rows.length === 0 && p.starters.length > 0 ? (
           <View style={styles.starters} testID="takeoffws-starters">
-            <Text style={styles.startersLabel}>Start with</Text>
+            <Text style={styles.startersLabel}>Start With</Text>
             <View style={styles.starterWrap}>
               {p.starters.map((s) => (
                 <Pressable
@@ -212,7 +212,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
           </View>
         ) : null}
         {p.rows.length === 0 ? (
-          <Text style={styles.emptyLine} testID="takeoffws-panel-empty">No conditions yet — press N or pick a tool to start one.</Text>
+          <Text style={styles.emptyLine} testID="takeoffws-panel-empty">No conditions yet. Press N or pick a tool to start one.</Text>
         ) : null}
         {p.rows.length > 0 && shown.length === 0 ? (
           <Text style={styles.emptyLine} testID="takeoffws-filter-empty">{`No conditions match “${q}”`}</Text>
@@ -226,7 +226,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
           const measured = hasQty(row);
           const aiLine = aiReadLine(row, p.filter, p.drawnAnywhere);
           const unmeasured = row.totals.unmeasuredCount > 0
-            ? `${row.totals.unmeasuredCount} not measured — set the scale on ${row.totals.unmeasuredSheetIds.map(p.sheetLabel).join(', ')}`
+            ? `${row.totals.unmeasuredCount} not measured. Set the scale on ${row.totals.unmeasuredSheetIds.map(p.sheetLabel).join(', ')}`
             : null;
           return (
             <View key={c.id} style={[styles.rowWrap, active && styles.rowActive]} testID={`takeoffws-row-${c.id}`}>
@@ -263,7 +263,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
               </View>
               {unpriced ? (
                 <TouchableOpacity onPress={() => p.onEdit(c.id)} style={styles.subline} accessibilityRole="button" testID={`takeoffws-norate-${c.id}`}>
-                  <Text style={styles.norate}>No rate yet — set one</Text>
+                  <Text style={styles.norate}>No rate yet. Set one.</Text>
                 </TouchableOpacity>
               ) : null}
               {unmeasured ? (
@@ -288,7 +288,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
                       ? <Text style={styles.detailText}>Your rate (typed)</Text>
                       : null}
                   <TouchableOpacity onPress={() => p.onEdit(c.id)} accessibilityRole="button" testID={`takeoffws-edit-${c.id}`}>
-                    <Text style={styles.link}>Edit condition</Text>
+                    <Text style={styles.link}>Edit Condition</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -331,7 +331,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
         })}
         <TouchableOpacity onPress={p.onNew} style={styles.newRow} accessibilityRole="button" testID="takeoffws-new-condition">
           <Plus size={14} color={t.textSecondary} strokeWidth={1.75} />
-          <Text style={styles.newText}>New condition (N)</Text>
+          <Text style={styles.newText}>New Condition (N)</Text>
         </TouchableOpacity>
         {/* seam:ai-section */}
         <AiSuggestionsSection {...p.ai} rows={aiRows} totalRows={p.ai.rows.length} />
@@ -340,7 +340,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
       <View style={styles.footer}>
         <Text style={styles.cost} testID="takeoffws-cost-line">{p.costLine}</Text>
         {p.markupLine ? <Text style={styles.muted}>{p.markupLine}</Text> : null}
-        <EstimateJobPicker label="Push to" jobs={p.jobs} selectedId={p.projectId ?? undefined} onPick={p.onPickJob} testID="takeoffws-push-to" />
+        <EstimateJobPicker label="Push To" jobs={p.jobs} selectedId={p.projectId ?? undefined} onPick={p.onPickJob} testID="takeoffws-push-to" />
         <Text style={styles.muted} testID="takeoffws-save-line">{p.saveLine}</Text>
         {p.conflict ? (
           <View style={styles.conflict} testID="takeoffws-conflict">
@@ -348,7 +348,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
             <View style={styles.conflictActions}>
               {p.conflict.hasBackup ? (
                 <TouchableOpacity onPress={p.conflict.restore} accessibilityRole="button" testID="takeoffws-conflict-restore">
-                  <Text style={styles.link}>Restore this browser’s copy</Text>
+                  <Text style={styles.link}>Restore This Browser’s Copy</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity onPress={p.conflict.dismiss} accessibilityRole="button" testID="takeoffws-conflict-dismiss">
@@ -375,7 +375,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
             <Text style={styles.resultText}>
               {p.result.line}
               {' · '}
-              <Text style={styles.link} onPress={p.onOpenEstimate} accessibilityRole="link">Open estimate</Text>
+              <Text style={styles.link} onPress={p.onOpenEstimate} accessibilityRole="link">Open Estimate</Text>
             </Text>
             <Text style={styles.muted}>{p.result.counts}</Text>
           </View>

@@ -24,7 +24,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription, restoreOutcome, PLAN_UNAVAILABLE_MESSAGE } from '@/contexts/SubscriptionContext';
 import {
-  autoRenewText, plansLoadFailedText, purchaseFailureKind, soldPeriod, storePlanState,
+  autoRenewText, renewalFactsText, plansLoadFailedText, purchaseFailureKind, soldPeriod, storePlanState,
   StorePlansUnavailable, useRetryStorePlans,
 } from '@/components/Paywall';
 import {
@@ -33,7 +33,7 @@ import {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
+import { readSignupIntent, clearSignupIntent, SIGNUP_TRIAL_BADGE_ENABLED } from '@/utils/signupIntent';
 import { useProjects } from '@/contexts/ProjectContext';
 import { INCLUDED_ADMIN_SEATS } from '@/utils/seatModel';
 import { nativeDriver, reducedMotion, useSwapFade } from '@/components/ui/motion';
@@ -83,29 +83,29 @@ interface Feature {
 
 const FEATURES: Feature[] = [
   {
-    title: 'AI cost estimator',
+    title: 'AI Cost Estimator',
     description: 'Turn a scope description into a line-item estimate.',
     Icon: Calculator,
   },
   {
-    title: 'Schedule builder',
+    title: 'Schedule Builder',
     description: 'Generate critical-path Gantt schedules with crew and phase logic.',
     Icon: CalendarDays,
   },
   {
-    title: 'AI takeoff',
+    title: 'AI Takeoff',
     description: 'Turn a plan PDF into linear- and square-foot quantities.',
     Icon: FileText,
   },
   {
-    title: 'AI photo triage',
+    title: 'AI Photo Triage',
     // #41: punch items are Business (punch_list_closeout); this screen sells
     // Pro first, so it must not promise them.
     description: 'Sort jobsite photos into RFIs, daily-report notes and progress shots.',
     Icon: ClipboardList,
   },
   {
-    title: 'Voice-to-report',
+    title: 'Voice-to-Report',
     description: 'Dictate updates and MAGE drafts the daily report.',
     Icon: Mic,
   },
@@ -277,7 +277,7 @@ export default function OnboardingPaywallScreen() {
         setSelectedPlan('business');
       }
       // trial framing — surface badge near CTA if trialDays > 0
-      if (intent.trialDays > 0) {
+      if (SIGNUP_TRIAL_BADGE_ENABLED && intent.trialDays > 0) {
         setIntentTrialDays(intent.trialDays);
       }
       await clearSignupIntent();
@@ -361,7 +361,7 @@ export default function OnboardingPaywallScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       showAlert(
-        "You're on " + (activePlan === 'pro' ? 'Pro' : 'Business'),
+        `You're on ${activePlan === 'pro' ? 'Pro' : 'Business'}.`,
         'Every ' + (activePlan === 'pro' ? 'Pro' : 'Business') + ' feature is on for your account.',
       );
       void leaveToNextScreen();
@@ -377,11 +377,11 @@ export default function OnboardingPaywallScreen() {
       const rawMessage = err instanceof Error ? err.message : '';
       const planSellable = activePlan === 'pro' ? !!(proPackage || proAnnualPackage) : !!(businessPackage || businessAnnualPackage);
       if (purchaseFailureKind(rawMessage, planSellable) === 'unavailable') {
-        showAlert("Couldn't complete purchase", PLAN_UNAVAILABLE_MESSAGE);
+        showAlert("Couldn't Complete Purchase", PLAN_UNAVAILABLE_MESSAGE);
         return;
       }
       showAlert(
-        "Couldn't complete purchase",
+        "Couldn't Complete Purchase",
         "The purchase didn't go through. Try again, or tap Restore if you already paid.",
       );
     }
@@ -465,7 +465,7 @@ export default function OnboardingPaywallScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.hero}>Every tool for the jobsite</Text>
+        <Text style={styles.hero}>Every Tool for the Jobsite</Text>
 
         {/* Feature list with vertical gradient rail */}
         <View style={styles.featureBlock}>
@@ -645,6 +645,9 @@ export default function OnboardingPaywallScreen() {
           </View>
         )}
 
+        {/* Price, period, renewal and how to cancel, ABOVE the buy button. */}
+        <Text style={styles.renewalFacts} testID="onboarding-paywall-renewal-facts">{renewalFactsText(Platform.OS, intentTrialDays)}</Text>
+
         <TouchableOpacity
           style={[styles.cta, (isPurchasing || isLoading) && styles.ctaDisabled]}
           onPress={handlePurchase}
@@ -671,14 +674,14 @@ export default function OnboardingPaywallScreen() {
           accessibilityRole="button"
           testID="onboarding-paywall-decline"
         >
-          <Text style={styles.declineLabel}>Continue on the free plan</Text>
+          <Text style={styles.declineLabel}>Continue on the Free Plan</Text>
         </TouchableOpacity>
 
         {/* App Review 3.1.2 (audit 2026-10 #5): on the phone, cancelling is
             done in the store account, not this app's Settings — the same
             auto-renew sentence as the other two purchase screens. */}
         <Text style={styles.reassurance}>
-          {Platform.OS === 'web' ? 'Cancel anytime in Settings. No hidden fees.' : autoRenewText(Platform.OS)}
+          {Platform.OS === 'web' ? '' : autoRenewText(Platform.OS)}
         </Text>
 
         <View style={styles.legalRow}>
@@ -1091,6 +1094,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: t.textSecondary,
+  },
+  renewalFacts: {
+    fontSize: Type.footnote.fontSize,
+    color: t.text,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 12,
   },
   reassurance: {
     fontSize: Type.caption2.fontSize,

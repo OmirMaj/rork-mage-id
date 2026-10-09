@@ -163,7 +163,7 @@ console.log('\n#7 the root navigator survives a sign-in:');
   const goSignup = SIGNUP.slice(at(SIGNUP, 'const goAfterOAuth = useCallback('), at(SIGNUP, '}, [router, inviteToken]);', at(SIGNUP, 'const goAfterOAuth')));
   ok('signup.goAfterOAuth wraps its replace in its own try/catch',
     /try \{\s*router\.replace\(postSignInHref\(inviteToken, '\/\(tabs\)\/\(home\)'\) as never\);\s*\} catch \(navErr\) \{/.test(goSignup));
-  const oauthNav = [...SIGNUP.matchAll(/const signedIn = await signInWith(Google|Apple)\(\);[\s\S]*?goAfterOAuth\(\);/g)].length;
+  const oauthNav = [...SIGNUP.matchAll(/const signedIn = await signInWith(Google|Apple)\('signup'\);[\s\S]*?goAfterOAuth\(\);/g)].length;
   ok('both OAuth sign-ups navigate only through goAfterOAuth', oauthNav === 2, `found ${oauthNav}`);
   ok('no bare post-sign-in router.replace left in signup\'s OAuth handlers',
     !/Haptics\.NotificationFeedbackType\.Success\);\s*\}\s*router\.replace\(/.test(SIGNUP));
@@ -374,7 +374,7 @@ ok('signup\'s watcher closes the confirm modal before navigating',
   }
   ok('signInElsewhereAction: no route token → none', tabA.signInElsewhereAction({ routeToken: 'nope', accountMeta: {}, sharedOriginTabs: true }) === 'none');
   ok('the confirm modal has the "confirmed elsewhere" state and signup passes it',
-    /if \(confirmedElsewhere\) \{[\s\S]*?Email confirmed[\s\S]*?Your invite opened in the tab the confirmation link opened/.test(MODAL)
+    /if \(confirmedElsewhere\) \{[\s\S]*?Email Confirmed[\s\S]*?Your invite opened in the tab the confirmation link opened/.test(MODAL)
     && /confirmedElsewhere=\{confirmedElsewhere\}/.test(SIGNUP));
 }
 

@@ -122,35 +122,35 @@ function getDefaultSections(type: PDFDocumentType, hasBulkSavings = false): PDFS
       // budget minus his awarded buyout, his savings rather than a discount in
       // the client's price, so it reaches a client document only if he opts in.
       return hasBulkSavings
-        ? [{ id: 'bulk_savings', label: 'Bulk savings breakdown', enabled: false }]
+        ? [{ id: 'bulk_savings', label: 'Bulk Savings Breakdown', enabled: false }]
         : [];
     }
     case 'invoice':
       return [
-        { id: 'line_items', label: 'Line items', enabled: true },
-        { id: 'payment_terms', label: 'Payment terms', enabled: true },
-        { id: 'tax_breakdown', label: 'Tax breakdown', enabled: true },
-        { id: 'branding', label: 'Company branding', enabled: true },
+        { id: 'line_items', label: 'Line Items', enabled: true },
+        { id: 'payment_terms', label: 'Payment Terms', enabled: true },
+        { id: 'tax_breakdown', label: 'Tax Breakdown', enabled: true },
+        { id: 'branding', label: 'Company Branding', enabled: true },
       ];
     case 'change_order':
       return [
-        { id: 'original_scope', label: 'Original scope', enabled: true },
-        { id: 'changes', label: 'Changes and line items', enabled: true },
-        { id: 'new_total', label: 'New contract total', enabled: true },
-        { id: 'approval_status', label: 'Approval status', enabled: true },
+        { id: 'original_scope', label: 'Original Scope', enabled: true },
+        { id: 'changes', label: 'Changes and Line Items', enabled: true },
+        { id: 'new_total', label: 'New Contract Total', enabled: true },
+        { id: 'approval_status', label: 'Approval Status', enabled: true },
       ];
     case 'daily_report':
       return [
-        { id: 'weather', label: 'Weather conditions', enabled: true },
-        { id: 'manpower', label: 'Manpower log', enabled: true },
-        { id: 'work_performed', label: 'Work performed', enabled: true },
-        { id: 'issues', label: 'Issues and delays', enabled: true },
+        { id: 'weather', label: 'Weather Conditions', enabled: true },
+        { id: 'manpower', label: 'Manpower Log', enabled: true },
+        { id: 'work_performed', label: 'Work Performed', enabled: true },
+        { id: 'issues', label: 'Issues and Delays', enabled: true },
         { id: 'photos', label: 'Photos', enabled: true },
       ];
     default:
       return [
-        { id: 'full_content', label: 'Full content', enabled: true },
-        { id: 'branding', label: 'Company branding', enabled: true },
+        { id: 'full_content', label: 'Full Content', enabled: true },
+        { id: 'branding', label: 'Company Branding', enabled: true },
       ];
   }
 }
@@ -213,7 +213,7 @@ export default function PDFPreSendSheet({
 
   const handleSend = useCallback((method: 'share' | 'email') => {
     if (!fileName.trim()) {
-      showAlert('Add a file name', 'Enter a file name.');
+      showAlert('Add a File Name', 'Enter a file name.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -262,7 +262,7 @@ export default function PDFPreSendSheet({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <Text style={styles.fieldLabel}>File name</Text>
+              <Text style={styles.fieldLabel}>File Name</Text>
               <View style={styles.fileNameRow}>
                 <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <TextInput
@@ -309,7 +309,7 @@ export default function PDFPreSendSheet({
                 )}
                   {sections.some(sec => sec.id === 'bulk_savings') && (
                     <Text style={styles.sectionsNote} testID="pdf-bulk-savings-note">
-                      Bulk Savings is your budget minus your awarded buyout — your savings, not a discount in the client&apos;s price. It prints on the client&apos;s PDF only if you switch it on.
+                      Bulk Savings is your budget minus your awarded buyout: your savings, not a discount in the client&apos;s price. It prints on the client&apos;s PDF only if you switch it on.
                     </Text>
                   )}
                 </>
@@ -325,7 +325,7 @@ export default function PDFPreSendSheet({
                   </View>
                   <TouchableOpacity
                     onPress={() => { setRecipient(''); setRecipientName(''); }}
-                    style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Clear recipient">
+                    style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Clear Recipient">
                     <X size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
@@ -352,11 +352,11 @@ export default function PDFPreSendSheet({
                   testID="pdf-pick-contact-btn"
                 >
                   <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.pickContactText}>Pick from contacts</Text>
+                  <Text style={styles.pickContactText}>Pick from Contacts</Text>
                 </TouchableOpacity>
               ) : null}
 
-              <Text style={styles.fieldLabel}>Message (optional)</Text>
+              <Text style={styles.fieldLabel}>Message (Optional)</Text>
               <TextInput
                 style={styles.messageInput}
                 value={message}
@@ -404,7 +404,7 @@ export default function PDFPreSendSheet({
           visible={showContactPicker}
           onClose={() => setShowContactPicker(false)}
           contacts={contacts}
-          title="Pick a recipient"
+          title="Pick a Recipient"
           onSelect={(contact) => {
             const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
             setRecipient(contact.email);

@@ -3,90 +3,90 @@
 exports[`UX lane B — TodayView on the classic tab (820 tablet branch) Today view 1`] = `
 {
   "lines": 2179,
-  "sha256": "fb253463b8e0fb21e52e387ea7602da88adc0c11661308d762e7d4afa34d1de9",
+  "sha256": "0015adbf94b2e8c7c8d40b0f391ddb7db5b60f7d6e21f2e6452560bfd4288403",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) construction-ai (Tools entry) 1`] = `
 {
   "lines": 831,
-  "sha256": "d053903192b83fe9f3d7b7de4c0b7d57bf9f3f1d7a976cbe23077dd475dfd8aa",
+  "sha256": "a0056f1ae7ece2ee10e2ee35eb0fb139230fc909bd9021518458f8d8052271fa",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) construction-ai (from the job) 1`] = `
 {
   "lines": 839,
-  "sha256": "894b2d9baeb5d4fdbb8360fb1319fa961639fca10ea4a9568b026426cbc44263",
+  "sha256": "c45397e387e13b69c168df599c003ffdfb8528173924f7da3a589d5155b00469",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) deliveries 1`] = `
 {
   "lines": 899,
-  "sha256": "1b3fc92ad33898828e0b4feed10a20516758762e70ac1c1c7a240148b6f561dc",
+  "sha256": "5dbc1c29f08f457934d37f4b7194ff47bd32e47c0c1a7f936c0d6c817516ef4b",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) project-detail (code checks card) 1`] = `
 {
   "lines": 1611,
-  "sha256": "c84e3f10b3d37de5baec9a1b285f73fe3474b3abf0264d24f7ffb1465a9e8738",
+  "sha256": "f3286479372f82f14b0d52a6e2d07e09bef36dff70513eecb3a662adcc90f5ef",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) punch-list 1`] = `
 {
   "lines": 1617,
-  "sha256": "9b65d5a000ab737b5b6c9862202bb4ee23a6f494d7c67c1d3af6c89258e2bd2f",
+  "sha256": "2611a5ecb3e00026e9bc96d57098276985565cb0d96d14185c8d4c313cbcfd64",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (answered rfi-1) 1`] = `
 {
   "lines": 847,
-  "sha256": "057daeb17b5fc42c490176b8f2704657398df660e3aa5fc1af860e69afe722f0",
+  "sha256": "c05b050075a12ed06247c46440073a89d8f1271e65b6e19a3a22c4a95a638e9c",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (new) 1`] = `
 {
   "lines": 746,
-  "sha256": "d6807784ed5cf546f395461e612efe7f752df0772799e31c8cebaa2690e3ce9c",
+  "sha256": "1a64fd66d6378bac03ce4352c2af2cff5f6af1edf691e9d28eebd12ba8e08f73",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (open rfi-2) 1`] = `
 {
   "lines": 863,
-  "sha256": "0f7eee89bdb252c61ae20f8d9003856a1d16e11c9038ff81da074761d019bb1d",
+  "sha256": "0b8b61aec0699412fc0770ae46da51638257a6138abd10b6106c9b4283064d77",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) scan 1`] = `
 {
   "lines": 351,
-  "sha256": "fec07945cd71114ae2096fec4cb3fd7b01309fc306f73cda9a19c8ae67d6f775",
+  "sha256": "86e384cfe07e6027461f644f76ac7fa8adc1dc05fff07f54a5e68f3079d0b9a3",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) time-tracking (no job) 1`] = `
 {
   "lines": 641,
-  "sha256": "842c432794362345d439c0d947e0e5daa939a6c3f1a95489efc75baade1bde32",
+  "sha256": "9c8c9f0144c7545e57ca00e2814349977786938a78bf00a7e8b1c0213796dbf6",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) time-tracking 1`] = `
 {
   "lines": 666,
-  "sha256": "8f76a2819eda57e62ff189a2559836c47840c4160c6bb017cac993ff0d04ac6b",
+  "sha256": "7d0d814e7b89dd071c29905b0b7283d609a87cb8a5c2f0e2302b57ba2c8ef991",
 }
 `;
 
 exports[`UX lane B — the phone golden (390 x 844 iOS) tomorrow-lineup 1`] = `
 {
   "lines": 316,
-  "sha256": "cff1612c27900923353c3af7bb33c1d84532d3fcc7ee6a3b970c9d322b16f657",
+  "sha256": "959ca4da915b4177f9049ab59d0ed62caa4e6e3a57adb3140abab25cb5a2ce71",
 }
 `;

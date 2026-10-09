@@ -317,23 +317,42 @@ async function main(): Promise<void> {
   const notif = strip(read('app/notifications-settings.tsx'));
   ok('the digest location card classifies with classifyProjectLocation', /classifyProjectLocation\(p\)/.test(notif));
 
-  // Wave 6d (Z2) pinned the daily report's live wttr.in read. Content rights
-  // (2026-10-02) retired that read: wttr.in publishes no terms or data license
-  // and every call sent it the jobsite address. The report now takes weather
-  // the super typed or dictated, and it never names a place it did not read.
+  // Wave 6d (Z2) pinned the daily report's read from a free hobby service.
+  // Content rights (2026-10-02) retired it: no terms, no data license, and
+  // every call sent it the jobsite address. Lane DFRWEATHER (2026-10-06) fills
+  // today's weather again from the licensed source: OpenWeather's CURRENT
+  // conditions, only through utils/weatherService.ts, for a report dated today,
+  // never simulated, never over typed weather, with OpenWeather's credit.
+  // scripts/validate-dfr-weather.ts runs the read and plants a mutation per rule.
   const dfr = strip(read('app/daily-report.tsx'));
-  ok('daily-report reads no weather from the network (no wttr.in, no fetchWeather, no weather fetch)',
-    !/wttr\.in/.test(dfr) && !/\bfetchWeather\b/.test(dfr) && !/\bfetch\([^)]*weather/i.test(dfr) && !/fetchForecast|getWeatherForecast/.test(dfr));
+  ok('daily-report: no unlicensed weather source and no request of its own (the screen never calls fetch for weather)',
+    !/wttr/i.test(read('app/daily-report.tsx')) && !/\bfetch\(\s*[`'"]https?:/.test(dfr) && !/\bfetch\([^)]*weather/i.test(dfr)
+    && !/functions\.invoke\('weather-forecast'/.test(dfr));
+  ok('daily-report: its only network weather read is readLiveWeatherForDailyReport (utils/weatherService.ts)',
+    (dfr.match(/readLiveWeatherForDailyReport\(/g) ?? []).length === 1
+    && /readLiveWeatherForDailyReport,?[^;]*\} from '@\/utils\/weatherService';/.test(dfr.replace(/\s+/g, ' ')));
+  ok('daily-report: never a simulated day or a forecast slot',
+    !/getSimulatedForecast|getForecastWithFallback|getOpenWeatherForecast|fetchForecast|getWeatherForecast|condenseToDaily/.test(dfr));
+  ok('daily-report: the read is for today only (the calendar-day guard), unattended only on a report not yet saved',
+    /if \(!reportIsToday\) \{ autoWeatherDayRef\.current = null; return; \}\s*if \(isSavedReport \|\| !project\) return;/.test(dfr)
+    && /reportDay: requestedDay,\s*today: \(\) => todayCalendarDay\(\),/.test(dfr));
+  ok('daily-report: the place asked about is the jobsite the weather service resolves (text plus saved coordinates)',
+    /location: \{ city: project\?\.location, latitude: project\?\.locationLatitude, longitude: project\?\.locationLongitude \},/.test(dfr));
   ok('daily-report: every typed weather field marks the value as typed (isManual: true)',
     (['temperature', 'conditions', 'wind'] as const).every((f) =>
       new RegExp(`setWeather\\(prev => \\(\\{ \\.\\.\\.prev, ${f}: v, isManual: true \\}\\)\\)`).test(dfr)));
   ok('daily-report: dictated weather is marked as the super\'s own account (isManual: true), never a reading',
     /setWeather\(\{ \.\.\.parsed\.weather, isManual: true \}\)/.test(dfr) && !/isManual: false/.test(dfr));
-  ok('daily-report names no place on the provenance chip (it read none; never the typed text)',
-    /weatherProvenanceLine\(\{[\s\S]{0,400}location: '',?/.test(dfr)
-    && !/weatherProvenanceLine\(\{[\s\S]{0,400}location: project\?\.location/.test(dfr));
-  ok('daily-report: the backfill clear only touches an app-read value on an unsaved, non-today report',
-    /if \(reportIsToday \|\| existingReport\) return;\s*if \(weather\.isManual\) return;/.test(dfr));
+  ok('daily-report: typed weather is never overwritten by an unattended read',
+    /const personsWords = !autoReadMayWrite\(weatherRef\.current, weatherTouchedRef\.current\);\s*if \(auto && personsWords\) return;/.test(dfr));
+  ok('daily-report: the provenance line names the stored source and time, never a place or the typed text',
+    /weatherProvenanceKind\(\{[\s\S]{0,400}source: weather\.source,/.test(dfr)
+    && !/weatherProvenanceKind\(\{[\s\S]{0,600}project\?\.location/.test(dfr));
+  ok('daily-report: OpenWeather\'s credit accompanies a reading the app took, and only that',
+    dfr.includes('<WeatherCredit days={weatherFromOpenWeather ? DFR_CREDIT_LIVE : DFR_CREDIT_NONE}')
+    && /const weatherFromOpenWeather = isOpenWeatherReading\(weather\);/.test(dfr));
+  ok('daily-report: the misdated clear only touches an app reading on an unsaved report',
+    /if \(existingReport\) return;\s*if \(!appWeatherIsMisdated\(weather, calendarDayOf\(reportDate\), carryLabelDay\)\) return;/.test(dfr));
 
   const fn = read('supabase/functions/weather-forecast/index.ts');
   const fnCode = strip(fn);
@@ -341,6 +360,10 @@ async function main(): Promise<void> {
   ok('weather-forecast is rate-limited per user', /rateLimitCount\(`weather-forecast:user:\$\{auth\.userId\}`\)/.test(fnCode));
   ok('weather-forecast uses the server secret, never a client var', /Deno\.env\.get\('OPENWEATHER_API_KEY'\)/.test(fnCode) && !/EXPO_PUBLIC/.test(fnCode));
   ok('weather-forecast never returns the upstream URL (it carries the key)', !/json\([^)]*\burl\b/.test(fnCode) && !/appid.*json\(/.test(fnCode));
+  ok('weather-forecast answers current conditions from OpenWeather too, behind the same sign-in check and hourly ceiling',
+    /const OPENWEATHER_CURRENT_ENDPOINT = 'https:\/\/api\.openweathermap\.org\/data\/2\.5\/weather';/.test(fnCode)
+    && (fnCode.match(/requireTier\(/g) ?? []).length === 1 && (fnCode.match(/rateLimitCount\(/g) ?? []).length === 1
+    && fnCode.indexOf('rateLimitCount(') < fnCode.indexOf("if (kind === 'current') {"));
   const cfg = read('supabase/config.toml');
   ok('config.toml pins weather-forecast verify_jwt = true', /\[functions\.weather-forecast\]\s*\nverify_jwt = true/.test(cfg));
 

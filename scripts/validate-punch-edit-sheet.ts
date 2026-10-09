@@ -61,12 +61,12 @@ check('an item with no creator mapped is "not yours" unless you own the job',
 check('signed out never deletes a creator-less item', !api.punchDeleteAllowed({}, undefined, false));
 check('the row trash is gated and says why when blocked',
   /onPress=\{\(\) => \(canDelete \? actions\.onDelete\(item\) : actions\.onDeleteBlocked\(\)\)\}/.test(src)
-  && /onDeleteBlocked: \(\) => showAlert\(t\('field\.punch\.cantDeleteThisItem', 'Can’t delete this item'\), punchDeleteBlockedReason\(\)\)/.test(src)
+  && /onDeleteBlocked: \(\) => showAlert\(t\('field\.punch\.cantDeleteThisItem', 'Can’t Delete This Item'\), punchDeleteBlockedReason\(\)\)/.test(src)
   && /function punchDeleteBlockedReason\(\): string \{\s*return t\('field\.punch\.deleteBlockedReason', 'Only the person who added this item or the project owner can delete it\.'\);/.test(src));
 check('bulk delete sends only the deletable rows and explains the rest',
   /const ids = selectedItems\.filter\(canDeleteItem\)\.map\(i => i\.id\);/.test(src)
   && /deletePunchItems\(ids\);/.test(src) && /added by someone else and will stay/.test(src)
-  && /if \(n === 0\) \{\s*showAlert\(t\('field\.punch\.cantDeleteTheseItems', 'Can’t delete these items'\), punchDeleteBlockedReason\(\)\);/.test(src));
+  && /if \(n === 0\) \{\s*showAlert\(t\('field\.punch\.cantDeleteTheseItems', 'Can’t Delete These Items'\), punchDeleteBlockedReason\(\)\);/.test(src));
 check('every create path on the list stamps createdByUserId (form, template, photo walk)',
   (src.match(/\.\.\.\(user\?\.id \? \{ createdByUserId: user\.id \} : \{\}\),/g) ?? []).length === 3);
 
@@ -88,8 +88,8 @@ check('a DatePickerModal stores the calendar day (calendarDayOf), with Clear',
   /<DatePickerModal[\s\S]{0,800}onChange=\{\(iso\) => setDueDate\(calendarDayOf\(iso\) \?\? ''\)\}/.test(src)
   && /onPress=\{\(\) => setDueDate\(''\)\}[^\n]*testID="punch-due-clear"/.test(src));
 check('save refuses an unreadable due date with the reason',
-  /if \(dueDate\.trim\(\) && !parseCalendarDay\(dueDate\.trim\(\)\.slice\(0, 10\)\)\) \{\s*showAlert\(t\('field\.punch\.dueDateNotUnderstood', 'Due date not understood'\)/.test(src));
-check('a stored free-text date reads "not a date, not tracked"', /not a date, not tracked\. Edit to pick one\./.test(src));
+  /if \(dueDate\.trim\(\) && !parseCalendarDay\(dueDate\.trim\(\)\.slice\(0, 10\)\)\) \{\s*showAlert\(t\('field\.punch\.dueDateNotUnderstood', 'Due Date Not Understood'\)/.test(src));
+check('a stored free-text date reads "not a date, not tracked"', /is not a date, so it is not tracked\. Edit to pick one\./.test(src));
 
 console.log('\n#19 the edit sheet can clear and type a sub:');
 check('Unassigned and Other… chips exist', /testID="punch-sub-unassigned"/.test(src) && /testID="punch-sub-other"/.test(src));

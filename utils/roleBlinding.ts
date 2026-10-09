@@ -64,7 +64,7 @@ export const ROLE_DESCRIPTIONS: Record<NonNullable<ProjectRole>, string> = {
   // yet — the legacy estimate columns on `projects` are still readable by any
   // accepted collaborator until the phase-2 drop runs (it waits on an OTA that
   // stops ProjectContext dual-writing them). The picker states what is true.
-  field: 'Schedule & field work — costs and margins hidden in the app',
+  field: 'Schedule and field work. Costs and margins hidden in the app',
 };
 
 /**
@@ -75,4 +75,4 @@ export const ROLE_DESCRIPTIONS: Record<NonNullable<ProjectRole>, string> = {
  * PostgREST read with a field user's token returns no estimate.
  */
 export const FIELD_ROLE_SCOPE_NOTE =
-  'Costs are hidden in the app, not yet withheld by the server — someone reading the database directly could still see an older copy of the estimate.';
+  'Costs are hidden in the app, not yet withheld by the server. Someone reading the database directly could still see an older copy of the estimate.';

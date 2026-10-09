@@ -79,9 +79,9 @@ const CAPABILITIES: Record<EntityKind, EntityActionId[]> = {
 
 const ACTION_META: Record<EntityActionId, Omit<EntityAction, 'id'>> = {
   open:         { label: 'Open',          icon: 'ExternalLink' },
-  copyLink:     { label: 'Copy link',     icon: 'Link' },
+  copyLink:     { label: 'Copy Link',     icon: 'Link' },
   share:        { label: 'Share',         icon: 'Share2' },
-  markComplete: { label: 'Mark complete', icon: 'CheckCircle2' },
+  markComplete: { label: 'Mark Complete', icon: 'CheckCircle2' },
   duplicate:    { label: 'Duplicate',     icon: 'Copy' },
   delete:       { label: 'Delete',        icon: 'Trash2', destructive: true },
 };

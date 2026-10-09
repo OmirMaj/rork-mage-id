@@ -124,7 +124,7 @@ export const RAIL_WIDTH = 300;
 /** RT-R1: shown instead of "All caught up" when the probe could not reach
  *  MAGE — identical wording to components/home/BrainWatchCard. */
 const UNREACHABLE_LINE =
-  `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+  `Couldn't reach MAGE. Showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}.`;
 
 interface Props {
   width?: number;
@@ -184,11 +184,11 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
   /** A locked plan: say what unlocks it, never a dead button. */
   const explainLocked = useCallback((what: string) => {
     showAlert(
-      `${what} is on the Pro plan`,
+      `${what} is on the Pro plan.`,
       `Upgrade to send invoice reminders from here. The row still opens the record.`,
       [
-        { text: 'Not now', style: 'cancel' },
-        { text: 'See plans', onPress: () => router.push('/paywall') },
+        { text: 'Not Now', style: 'cancel' },
+        { text: 'See Plans', onPress: () => router.push('/paywall') },
       ],
     );
   }, [router]);
@@ -212,7 +212,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
         locked,
         run: locked ? () => explainLocked('Sending invoice reminders') : async () => {
           const inv = invoices.find(i => i.id === a.invoiceId);
-          if (!inv) { showAlert('Invoice not on this device', 'Open it from the invoice list to check it, then try again.'); return; }
+          if (!inv) { showAlert('Invoice Not on This Device', 'Open it from the invoice list to check it, then try again.'); return; }
           setBusyId(item.id);
           try {
             const lastMs = inv.dunningLastSentAt ? Date.parse(inv.dunningLastSentAt) : null;
@@ -251,7 +251,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
             const chase = buildChaseList({ rfis: [rfi], submittals: [], changeOrders: [], projects: project ? [project] : [], nowMs: Date.now() })
               .find(c => c.id === rfi.id);
             const message = chase?.nudge
-              ?? `Following up on RFI #${rfi.number} (${rfi.subject}) for ${project?.name ?? 'the project'} — we still need your answer to keep work moving.`;
+              ?? `Following up on RFI #${rfi.number} (${rfi.subject}) for ${project?.name ?? 'the project'}. We still need your answer to keep work moving.`;
             const via = await sendNudge(
               {
                 message,
@@ -278,7 +278,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
           const chase = buildChaseList({ rfis: [], submittals: [sub], changeOrders: [], projects: project ? [project] : [], nowMs: Date.now() })
             .find(c => c.id === sub.id);
           const message = chase?.nudge
-            ?? `Following up on submittal #${sub.number} (${sub.title}) for ${project?.name ?? 'the project'} — can you send back your review?`;
+            ?? `Following up on submittal #${sub.number} (${sub.title}) for ${project?.name ?? 'the project'}. Can you send back your review?`;
           const via = await sendNudge(
             {
               message,
@@ -316,7 +316,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
         <View style={styles.headerRow}>
           {variant === 'dock'
             ? <Text style={styles.dockLead}>Needs you now</Text>
-            : <Text style={styles.headerTitle}>Action required</Text>}
+            : <Text style={styles.headerTitle}>Action Required</Text>}
           {items.length > 0 ? (
             <View style={styles.countPill}>
               <Text style={styles.countPillText}>{items.length}</Text>
@@ -341,8 +341,8 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
               <View style={styles.emptyIconWrap}>
                 <CheckCircle2 size={22} color={colors.success} strokeWidth={1.8} />
               </View>
-              <Text style={styles.emptyTitle}>All caught up</Text>
-              <Text style={styles.emptySubtitle}>Nothing overdue on schedules, invoices, permits or certs.</Text>
+              <Text style={styles.emptyTitle}>All Caught Up</Text>
+              <Text style={styles.emptySubtitle}>Nothing overdue on schedules, invoices, permits or certificates.</Text>
             </View>
           )
         ) : (
@@ -365,7 +365,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
                 testID="rail-see-all"
                 {...(seeAllPress ? { onPress: seeAllPress } : null)}
               >
-                <Text style={styles.moreText}>See all {items.length}</Text>
+                <Text style={styles.moreText}>See All {items.length}</Text>
               </RowLink>
             )}
           </View>
@@ -554,7 +554,7 @@ function RailSection({ title, total, view, testID, styles, onSeeAll, children }:
             testID={`${testID}-see-all`}
             {...(onSeeAll ? { onPress: onSeeAll } : null)}
           >
-            <Text style={styles.moreText}>See all {total}</Text>
+            <Text style={styles.moreText}>See All {total}</Text>
           </RowLink>
         ) : null}
       </View>

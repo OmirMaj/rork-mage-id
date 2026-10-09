@@ -150,7 +150,7 @@ function SafetyToolboxInner() {
       // A recorded signature is immutable — signed attendees can't be pulled
       // off the sheet. Unsigned rows are still free to remove.
       if (prev[idx]?.signedAt) {
-        showAlert(t('safety.toolbox.signedInAndLocked', 'Signed in and locked'), t('safety.toolbox.aSignedAttendeeIs', "A signed attendee is part of the record and can't be removed."));
+        showAlert(t('safety.toolbox.signedInAndLocked', 'Signed In and Locked'), t('safety.toolbox.aSignedAttendeeIs', "A signed attendee is part of the record and can't be removed."));
         return prev;
       }
       return prev.filter((_, i) => i !== idx);
@@ -163,7 +163,7 @@ function SafetyToolboxInner() {
       // Signing is append-only: once signed, it stays signed. Only an unsigned
       // attendee can be signed in.
       if (a.signedAt) {
-        showAlert(t('safety.toolbox.signedInAndLocked', 'Signed in and locked'), t('safety.toolbox.aSignatureCantBe', "A signature can't be undone once recorded."));
+        showAlert(t('safety.toolbox.signedInAndLocked', 'Signed In and Locked'), t('safety.toolbox.aSignatureCantBe', "A signature can't be undone once recorded."));
         return a;
       }
       return { ...a, signedAt: new Date().toISOString() };
@@ -178,9 +178,9 @@ function SafetyToolboxInner() {
     if (a && !a.signedAt && a.subId) {
       const warn = lapsedCertConfirmText(a.name, certFlagsForWorker(certifications, a.subId, today));
       if (warn) {
-        showAlert(t('safety.toolbox.certificationLapsed', 'Certification lapsed'), warn, [
+        showAlert(t('safety.toolbox.certificationLapsed', 'Certification Lapsed'), warn, [
           { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
-          { text: t('safety.toolbox.signInAnyway', 'Sign in anyway'), style: 'destructive', onPress: () => signAttendee(idx) },
+          { text: t('safety.toolbox.signInAnyway', 'Sign In Anyway'), style: 'destructive', onPress: () => signAttendee(idx) },
         ]);
         return;
       }
@@ -201,13 +201,13 @@ function SafetyToolboxInner() {
 
   const handleSave = useCallback(() => {
     const blocked = safetyWriteBlockedReason(seat);
-    if (blocked) { showAlert(t('safety.toolbox.viewOnly', 'View only'), blocked); return; }
+    if (blocked) { showAlert(t('safety.toolbox.viewOnly', 'View Only'), blocked); return; }
     const tp = topic.trim();
-    if (!tp) { showAlert(t('safety.toolbox.missingTopic', 'Missing topic'), t('safety.toolbox.whatWasTheTalk', 'What was the talk about?')); return; }
+    if (!tp) { showAlert(t('safety.toolbox.missingTopic', 'Missing Topic'), t('safety.toolbox.whatWasTheTalk', 'What was the talk about?')); return; }
     // A typed '9/18' used to save as-is (audit #168); a sign-in sheet's date
     // is evidence, so only a real day is filed.
     const dateProblem = safetyDateProblem(date, t('safety.toolbox.dateLabel', 'Talk date'));
-    if (dateProblem) { showAlert(t('safety.toolbox.checkTheDate', 'Check the date'), dateProblem); return; }
+    if (dateProblem) { showAlert(t('safety.toolbox.checkTheDate', 'Check the Date'), dateProblem); return; }
     const now = new Date().toISOString();
     if (editingTalk) {
       updateToolboxTalk(editingTalk.id, { topic: tp, date, presenter: presenter.trim(), notes: notes.trim(), attendees });
@@ -224,13 +224,13 @@ function SafetyToolboxInner() {
 
   const handleDelete = useCallback((id: string) => {
     const blocked = safetyDeleteBlockedReason(seat);
-    if (blocked) { showAlert(t('safety.toolbox.cantDelete', "Can't delete"), blocked); return; }
+    if (blocked) { showAlert(t('safety.toolbox.cantDelete', "Can't Delete"), blocked); return; }
     const talk = items.find(x => x.id === id);
     if (talk && talk.attendees.some(a => !!a.signedAt)) {
-      showAlert(t('safety.toolbox.signedAndLocked', 'Signed and locked'), t('safety.toolbox.aToolboxTalkWith', "A toolbox talk with signed attendees is part of the safety record and can't be deleted."));
+      showAlert(t('safety.toolbox.signedAndLocked', 'Signed and Locked'), t('safety.toolbox.aToolboxTalkWith', "A toolbox talk with signed attendees is part of the safety record and can't be deleted."));
       return;
     }
-    showAlert(t('safety.toolbox.deleteToolboxTalk', 'Delete toolbox talk'), t('safety.toolbox.deleteThisToolboxTalk', 'Delete this toolbox talk?'), [
+    showAlert(t('safety.toolbox.deleteToolboxTalk', 'Delete Toolbox Talk'), t('safety.toolbox.deleteThisToolboxTalk', 'Delete this toolbox talk?'), [
       { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
       { text: t('common.action.delete', 'Delete'), style: 'destructive', onPress: () => deleteToolboxTalk(id) },
     ]);
@@ -244,10 +244,10 @@ function SafetyToolboxInner() {
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: t('safety.toolbox.screenTitle', 'Toolbox talks') }} />
+        <Stack.Screen options={{ title: t('safety.toolbox.screenTitle', 'Toolbox Talks') }} />
         <EmptyState
           icon={<Megaphone size={36} color={themeColors.accent} strokeWidth={1.75} />}
-          title={t('safety.toolbox.openAProjectFirst', 'Open a project first')}
+          title={t('safety.toolbox.openAProjectFirst', 'Open a Project First')}
           message={t('safety.toolbox.toolboxTalksAreTied', 'Toolbox talks are tied to a project so each one carries its topic, presenter, and attendee sign-ins. To start one:')}
           steps={[
             t('safety.openSafetyStep', 'Open Safety (Tools, or the sidebar) and pick the project you are on.'),
@@ -256,7 +256,7 @@ function SafetyToolboxInner() {
           // Safety's own project picker, not Home: the "Safety tile inside the
           // project tile grid" these steps used to promise did not exist, so
           // this door led nowhere (audit #81).
-          actionLabel={t('safety.toolbox.pickAProject', 'Pick a project')}
+          actionLabel={t('safety.toolbox.pickAProject', 'Pick a Project')}
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -265,7 +265,7 @@ function SafetyToolboxInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: t('safety.toolbox.titleWithProject', 'Toolbox talks — {name}', { name: project.name }) }} />
+      <Stack.Screen options={{ title: t('safety.toolbox.titleWithProject', 'Toolbox Talks · {name}', { name: project.name }) }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {/* Audit #121: an invited crew seat reads only the talks he filed
             (20260919130000); the GC's are not shown to him. */}
@@ -311,9 +311,9 @@ function SafetyToolboxInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<Megaphone size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={isCrewSeat ? crewEmptyTitle('toolbox') : t('safety.toolbox.noToolboxTalksYet', 'No toolbox talks yet')}
+              title={isCrewSeat ? crewEmptyTitle('toolbox') : t('safety.toolbox.noToolboxTalksYet', 'No Toolbox Talks Yet')}
               message={t('safety.toolbox.logThePreShift', 'Log the pre-shift safety huddle: the topic, who presented and who signed in.')}
-              actionLabel={t('safety.toolbox.addFirstTalk', 'Add first talk')}
+              actionLabel={t('safety.toolbox.addFirstTalk', 'Add First Talk')}
               onAction={openNew}
             />
           </View>
@@ -326,12 +326,12 @@ function SafetyToolboxInner() {
           testID="add-toolbox-voice"
         >
           <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-          <Text style={styles.addItemBtnText}>{t('safety.toolbox.writeOneByVoice', 'Write one by voice')}</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.toolbox.writeOneByVoice', 'Write One by Voice')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-toolbox">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>{t('safety.toolbox.addToolboxTalk', 'Add toolbox talk')}</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.toolbox.addToolboxTalk', 'Add Toolbox Talk')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -345,7 +345,7 @@ function SafetyToolboxInner() {
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.back', 'Back')} style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={[styles.formTitle, { flex: 1 }]}>{isLocked ? t('safety.toolbox.signedTalk', 'Signed talk') : editingTalk ? t('safety.toolbox.editTalk', 'Edit talk') : t('safety.toolbox.newToolboxTalk', 'New toolbox talk')}</Text>
+                  <Text style={[styles.formTitle, { flex: 1 }]}>{isLocked ? t('safety.toolbox.signedTalk', 'Signed Talk') : editingTalk ? t('safety.toolbox.editTalk', 'Edit Talk') : t('safety.toolbox.newToolboxTalk', 'New Toolbox Talk')}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -361,12 +361,12 @@ function SafetyToolboxInner() {
                 ) : null}
 
                 <Text style={styles.fieldLabel}>{t('safety.toolbox.topic', 'Topic *')}</Text>
-                <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={topic} onChangeText={setTopic} editable={!isLocked} placeholder={t('safety.toolbox.eGLadderSafety', 'e.g. Ladder safety')} placeholderTextColor={themeColors.textMuted} testID="toolbox-topic-input" />
+                <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={topic} onChangeText={setTopic} editable={!isLocked} placeholder={t('safety.toolbox.eGLadderSafety', 'Ladder safety')} placeholderTextColor={themeColors.textMuted} testID="toolbox-topic-input" />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>{t('safety.toolbox.presenter', 'Presenter')}</Text>
-                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={presenter} onChangeText={setPresenter} editable={!isLocked} placeholder={t('safety.toolbox.eGForeman', 'e.g. Foreman')} placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={presenter} onChangeText={setPresenter} editable={!isLocked} placeholder={t('safety.toolbox.eGForeman', 'Foreman')} placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>{t('safety.toolbox.date', 'Date')}</Text>
@@ -422,7 +422,7 @@ function SafetyToolboxInner() {
                     onSubmitEditing={addAttendee}
                     returnKeyType="done"
                   />
-                  <TouchableOpacity style={styles.attendeeAddBtn} onPress={addAttendee} accessibilityRole="button" accessibilityLabel={t('safety.toolbox.addAttendee', 'Add attendee')}>
+                  <TouchableOpacity style={styles.attendeeAddBtn} onPress={addAttendee} accessibilityRole="button" accessibilityLabel={t('safety.toolbox.addAttendee', 'Add Attendee')}>
                     <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
@@ -445,7 +445,7 @@ function SafetyToolboxInner() {
                       style={[styles.signToggle, a.signedAt ? { backgroundColor: themeColors.successSoft } : null]}
                       onPress={() => toggleAttendeeSigned(idx)}
                       accessibilityRole="button"
-                      accessibilityLabel={a.signedAt ? t('safety.toolbox.signed', 'Signed') : t('safety.toolbox.markSigned', 'Mark signed')}
+                      accessibilityLabel={a.signedAt ? t('safety.toolbox.signed', 'Signed') : t('safety.toolbox.markSigned', 'Mark Signed')}
                     >
                       {a.signedAt
                         ? <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
@@ -454,7 +454,7 @@ function SafetyToolboxInner() {
                         {a.signedAt ? t('safety.toolbox.signed', 'Signed') : t('safety.toolbox.sign', 'Sign')}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => removeAttendee(idx)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('safety.toolbox.removeAttendee', 'Remove attendee')}>
+                    <TouchableOpacity onPress={() => removeAttendee(idx)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('safety.toolbox.removeAttendee', 'Remove Attendee')}>
                       <X size={16} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
@@ -466,7 +466,7 @@ function SafetyToolboxInner() {
                     <Text style={styles.cancelBtnText}>{t('common.action.cancel', 'Cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-toolbox">
-                    <Text style={styles.saveBtnText}>{editingTalk ? t('safety.toolbox.update', 'Update') : t('safety.toolbox.addTalk', 'Add talk')}</Text>
+                    <Text style={styles.saveBtnText}>{editingTalk ? t('safety.toolbox.update', 'Update') : t('safety.toolbox.addTalk', 'Add Talk')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

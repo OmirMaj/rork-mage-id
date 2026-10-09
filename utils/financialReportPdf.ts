@@ -40,7 +40,7 @@ function costBasisNote(rows: { costAtCompletion?: WipEstimatedCost; costToDate?:
 
 function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   const meta = [
-    { label: 'Report type', value: 'Work in progress (WIP)' },
+    { label: 'Report Type', value: 'Work in Progress (WIP)' },
     { label: 'Generated',   value: fmtDate(report.asOf) },
     { label: 'Projects',    value: String(report.rows.length) },
   ];
@@ -149,10 +149,10 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
       { header: 'Contract',          align: 'right', width: '6%' },
       { header: 'Approved COs',      align: 'right', width: '6%' },
       { header: 'Revised',           align: 'right', width: '6%' },
-      { header: 'Cost to date',      align: 'right', width: '6%' },
-      { header: 'Est. final cost',   align: 'right', width: '6%' },
-      { header: 'Cost to complete',  align: 'right', width: '6%' },
-      { header: '% complete',        align: 'right', width: '5%' },
+      { header: 'Cost to Date',      align: 'right', width: '6%' },
+      { header: 'Est. Final Cost',   align: 'right', width: '6%' },
+      { header: 'Cost to Complete',  align: 'right', width: '6%' },
+      { header: '% Complete',        align: 'right', width: '5%' },
       { header: 'Earned rev.',       align: 'right', width: '7%' },
       { header: 'Billed',            align: 'right', width: '7%' },
       { header: 'Paid',              align: 'right', width: '6%' },
@@ -169,8 +169,8 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Financial report',
-      title:   'Work in progress',
+      eyebrow: 'Financial Report',
+      title:   'Work in Progress',
       subtitle: 'WIP across active projects.',
       meta,
     })}
@@ -179,11 +179,11 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
       <strong style="color:${PDF_PALETTE.ink}">Methodology.</strong>
       Revised Contract = Original Contract + Approved Change Orders.
       % Complete = Cost to Date ÷ Estimated Final Cost. On a job with no cost recorded yet it is 0%,
-      which means UNMEASURED, not "not started" — this schedule recognises revenue on cost only, and
+      which means UNMEASURED, not "not started". This schedule recognises revenue on cost only, and
       never substitutes schedule progress for it.
       Estimated Final Cost = the greatest of your estimate's cost before markup (grown by the cost of
       approved change orders), the total you have signed in subcontracts and POs, and the cost you
-      have already paid out — a job cannot finish for less than what it has already cost. Where a
+      have already paid out. A job cannot finish for less than what it has already cost. Where a
       cost to complete has been entered on a job in the WIP schedule, that replaces the forecast
       outright: Estimated Final Cost = Cost to Date + Cost to Complete, and every percentage, earned
       revenue and margin figure on that row is measured against it.
@@ -194,7 +194,7 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
       would report a book that is $300,000 over on one job and $300,000 under on another as exactly
       on billing.
       Retainage is money the owner is holding out of the billings shown and is a receivable, not
-      revenue. Paid is CASH collected against issued invoices — it is tax-inclusive, unlike every
+      revenue. Paid is CASH collected against issued invoices. It is tax-inclusive, unlike every
       contract figure on this schedule, so it is disclosed here and never compared against them or
       used in any figure derived from them.
       Projected Profit = Revised Contract − Estimated Final Cost.
@@ -244,7 +244,7 @@ function buildProfitHtml(
   noCostBasisRevenue = 0,
 ): string {
   const meta = [
-    { label: 'Report type', value: 'Profit and margin' },
+    { label: 'Report Type', value: 'Profit and Margin' },
     { label: 'Generated',   value: fmtDate(new Date().toISOString()) },
     { label: 'Projects',    value: String(rows.length) },
   ];
@@ -284,7 +284,7 @@ function buildProfitHtml(
   // Suppressing a figure without saying it was suppressed is its own quiet lie.
   const noBasisHtml = noCostBasisCount > 0
     ? `<div style="margin-top:14px;padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2};line-height:1.6">
-        <strong style="color:${PDF_PALETTE.ink}">No cost basis — ${noCostBasisCount} project${noCostBasisCount === 1 ? '' : 's'} totalling ${fmtMoney(noCostBasisRevenue)}.</strong>
+        <strong style="color:${PDF_PALETTE.ink}">No cost basis: ${noCostBasisCount} project${noCostBasisCount === 1 ? '' : 's'} totalling ${fmtMoney(noCostBasisRevenue)}.</strong>
         ${noCostBasisCount === 1 ? 'It carries' : 'They carry'} a contract value with no cost estimate, no signed subcontract or PO, and nothing spent.
         A contract with no cost basis has no measurable margin, so ${noCostBasisCount === 1 ? 'it is' : 'they are'} shown with an em dash and excluded from the
         portfolio profit and margin above rather than reported at 100%.
@@ -306,8 +306,8 @@ function buildProfitHtml(
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Financial report',
-      title:   'Profit by project',
+      eyebrow: 'Financial Report',
+      title:   'Profit by Project',
       subtitle: 'Running margin across the active portfolio.',
       meta,
     })}
@@ -350,11 +350,11 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
   const collectible = report.rows.filter(r => r.outstanding > 0.5).length;
   const retainageOnly = report.rows.length - collectible;
   const meta = [
-    { label: 'Report type', value: 'A/R aging' },
+    { label: 'Report Type', value: 'A/R aging' },
     { label: 'Generated',   value: fmtDate(report.asOf) },
     // Collectible rows only — a retainage-only row owes nothing today.
-    { label: 'Open invoices', value: String(collectible) },
-    ...(retainageOnly > 0 ? [{ label: 'Retainage only', value: String(retainageOnly) }] : []),
+    { label: 'Open Invoices', value: String(collectible) },
+    ...(retainageOnly > 0 ? [{ label: 'Retainage Only', value: String(retainageOnly) }] : []),
   ];
 
   const bucketSummary = `
@@ -427,9 +427,9 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
           { header: 'Invoice', width: '17%' },
           { header: 'Issued',         align: 'right', width: '11%' },
           { header: 'Due',            align: 'right', width: '11%' },
-          { header: 'Total due',      align: 'right', width: '13%' },
+          { header: 'Total Due',      align: 'right', width: '13%' },
           { header: 'Paid',           align: 'right', width: '12%' },
-          { header: 'Retainage held', align: 'right', width: '12%' },
+          { header: 'Retainage Held', align: 'right', width: '12%' },
           { header: 'Outstanding',    align: 'right', width: '13%' },
           { header: 'Bucket',         align: 'right', width: '11%' },
         ],
@@ -439,8 +439,8 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Financial report',
-      title:   'Accounts receivable aging',
+      eyebrow: 'Financial Report',
+      title:   'Accounts Receivable Aging',
       subtitle: 'Open invoices bucketed by days past due.',
       meta,
     })}
@@ -503,7 +503,7 @@ export async function shareProfitReport(
   await shareHtml(
     buildProfitHtml(rows, totalRevenue, totalProfit, weightedMargin, branding,
       noCostBasisCount, noCostBasisRevenue),
-    'Profit report',
+    'Profit Report',
   );
 }
 

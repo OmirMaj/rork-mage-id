@@ -139,7 +139,7 @@ export default function CopilotHubScreen() {
     try {
       const clip = (await Clipboard.getStringAsync())?.trim() ?? '';
       if (!clip) {
-        showAlert('Nothing copied', 'Copy an email (or any note) first, then tap Paste an email.');
+        showAlert('Nothing Copied', 'Copy an email (or any note) first, then tap Paste an email.');
         return;
       }
       setText(clip);
@@ -147,7 +147,7 @@ export default function CopilotHubScreen() {
       setQueue([]);
       setSchedulePick(null);
     } catch {
-      showAlert('Could not read the clipboard', 'Paste the text into the box instead.');
+      showAlert('Could Not Read the Clipboard', 'Paste the text into the box instead.');
     } finally {
       setPasting(false);
     }
@@ -180,7 +180,7 @@ export default function CopilotHubScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <Text style={styles.eyebrow}>Say what you need</Text>
+        <Text style={styles.eyebrow}>Say What You Need</Text>
         <Text style={styles.question}>What do you need done?</Text>
         <Text style={styles.hint}>“Log today’s report”  ·  “Client wants a heat pump”  ·  “RFI on the beam size”</Text>
         {!!forJob && <Text style={styles.forJob} numberOfLines={1} testID="copilot-hub-job">For {forJob}</Text>}
@@ -198,7 +198,7 @@ export default function CopilotHubScreen() {
         >
           <ClipboardPaste size={16} color={colors.accent} strokeWidth={1.75} />
           <Text style={styles.pasteBtnText}>
-            {pasting ? 'Reading clipboard…' : 'Paste an email'}
+            {pasting ? 'Reading clipboard…' : 'Paste an Email'}
           </Text>
         </TouchableOpacity>
 
@@ -241,7 +241,7 @@ export default function CopilotHubScreen() {
             <View style={styles.cardIcon}><MageAIMark size={18} color={colors.accent} accentColor={colors.accent} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardLabel}>Ask MAGE</Text>
-              <Text style={styles.queueSub} numberOfLines={1}>Sounds like a question — get an answer from your data</Text>
+              <Text style={styles.queueSub} numberOfLines={1}>Sounds like a question. Get an answer from your data.</Text>
             </View>
             <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
           </TouchableOpacity>
@@ -264,7 +264,7 @@ export default function CopilotHubScreen() {
                 <View style={styles.cardIcon}><CalendarClock size={18} color={colors.accent} strokeWidth={2} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardLabel} numberOfLines={1}>{c.name}</Text>
-                  <Text style={styles.queueSub} numberOfLines={1}>{schedulePick.then === 'view' ? 'Open this schedule' : `${SCHEDULE_EDIT_INTENT.label} · you review the change before it saves`}</Text>
+                  <Text style={styles.queueSub} numberOfLines={1}>{schedulePick.then === 'view' ? 'Open This Schedule' : `${SCHEDULE_EDIT_INTENT.label} · you review the change before it saves`}</Text>
                 </View>
                 <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
               </TouchableOpacity>
@@ -301,7 +301,7 @@ export default function CopilotHubScreen() {
           </View>
         )}
 
-        <Text style={styles.orLabel}>Or pick one</Text>
+        <Text style={styles.orLabel}>Or Pick One</Text>
         <View style={styles.grid}>
           {INTENTS.map((i) => {
             const Icon = ICONS[i.id] ?? ClipboardList;

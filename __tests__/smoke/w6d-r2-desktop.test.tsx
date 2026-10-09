@@ -183,7 +183,7 @@ function phoneStatCards(json: unknown): Record<string, number> {
     if (j.type === 'View' && kids.length === 2 && kids.every((k) => k.type === 'Text')) {
       const n = textOf(kids[0]);
       const label = textOf(kids[1]);
-      if (/^\d+$/.test(n) && ['Compliant', 'Expiring', 'Expired', 'No docs'].includes(label)) out[label] = Number(n);
+      if (/^\d+$/.test(n) && ['Compliant', 'Expiring', 'Expired', 'No Docs'].includes(label)) out[label] = Number(n);
     }
   });
   return out;
@@ -224,8 +224,8 @@ describe('lane R2 — Subs register, desktop web 1512', () => {
     cards = phoneStatCards(phone.toJSON());
     // Whatever day the app's clock reads, the four cards are all there (the
     // seeds cover a clear, a dated and an undated sub).
-    expect(Object.keys(cards).sort()).toEqual(['Compliant', 'Expired', 'Expiring', 'No docs']);
-    expect(cards.Compliant + cards.Expiring + cards.Expired + cards['No docs']).toBe(3);
+    expect(Object.keys(cards).sort()).toEqual(['Compliant', 'Expired', 'Expiring', 'No Docs']);
+    expect(cards.Compliant + cards.Expiring + cards.Expired + cards['No Docs']).toBe(3);
   });
 
   it("the chip counts equal the phone's stat cards", async () => {
@@ -235,7 +235,7 @@ describe('lane R2 — Subs register, desktop web 1512', () => {
     expect(chipCount('subs-register-chip-compliant')).toBe(cards.Compliant);
     expect(chipCount('subs-register-chip-expiring')).toBe(cards.Expiring);
     expect(chipCount('subs-register-chip-expired')).toBe(cards.Expired);
-    expect(chipCount('subs-register-chip-unknown')).toBe(cards['No docs']);
+    expect(chipCount('subs-register-chip-unknown')).toBe(cards['No Docs']);
     expect(chipCount('subs-register-chip-trade:Electrical')).toBe(1);
   });
 
@@ -251,7 +251,7 @@ describe('lane R2 — Subs register, desktop web 1512', () => {
     const marks: string[] = [];
     walk(tree.toJSON(), (j) => {
       if (j.props?.testID === 'sub-detail-scorecard') marks.push('scorecard');
-      if (j.type === 'Text' && textOf(j) === 'Evaluate this sub') marks.push('ai');
+      if (j.type === 'Text' && textOf(j) === 'Evaluate This Sub') marks.push('ai');
     });
     expect(marks).toEqual(['scorecard', 'ai']);
   });
@@ -279,7 +279,7 @@ describe('lane R2 — Subs register, desktop web 1512', () => {
       await act(async () => { fireEvent.press(screen.getByTestId(`subs-register-table-row-${S1}-check`)); });
       await pump(2);
       await act(async () => { fireEvent.press(screen.getByText('Delete')); });
-      expect(spy).toHaveBeenCalledWith('Delete', 'Delete subs one at a time — each is checked for payments on record so the 1099 export keeps his TIN and address.');
+      expect(spy).toHaveBeenCalledWith('Delete', 'Delete subs one at a time. Each is checked for payments on record so the 1099 export keeps their TIN and address.');
       expect(screen.getByTestId(`subs-register-table-row-${S1}`)).toBeTruthy();
     } finally {
       spy.mockRestore();
@@ -295,7 +295,7 @@ describe('lane R2 — Subs register, desktop web 1512', () => {
       await act(async () => { fireEvent.press(screen.getByTestId('subs-register-csv')); });
       expect(spy).toHaveBeenCalledTimes(1);
       expect(spy.mock.calls[0][0]).toBe(`subs-${localDay(new Date())}.csv`);
-      expect(String(spy.mock.calls[0][1]).split(/\r?\n/)[0]).toContain('Company,Trade,Compliance,COI expiry');
+      expect(String(spy.mock.calls[0][1]).split(/\r?\n/)[0]).toContain('Company,Trade,Compliance,COI Expiry');
     } finally {
       spy.mockRestore();
     }
@@ -309,7 +309,7 @@ describe('lane R2 — COI Vault register, desktop web 1512', () => {
     const tree = await desk('/coi-vault');
     expect(screen.getByTestId('coi-vault-register')).toBeTruthy();
     expect(screen.queryByTestId(`coi-sub-${S1}`)).toBeNull();
-    expect(screen.queryByText('Make sure your subs are insured')).toBeNull();
+    expect(screen.queryByText('Make Sure Your Subs Are Insured')).toBeNull();
     expect(flat(screen.getByTestId(`coi-vault-register-table-row-${S1}`).props.style).minHeight).toBe(36);
     // S2 (10 days) before S1 (2027), and S3 (no expiry) last.
     const rows = testIdsInOrder(tree.toJSON()).filter((id) => /^coi-vault-register-table-row-sub-r2-\d$/.test(id));
@@ -346,8 +346,8 @@ describe('lane R2 — COI Vault register, desktop web 1512', () => {
     expect(screen.getByTestId('coi-vault-record-strip')).toBeTruthy();
     expect(screen.getAllByTestId('coi-upload')).toHaveLength(1);
     expect(screen.getAllByTestId('coi-coverages')).toHaveLength(1);
-    expect(screen.queryByText('All subs')).toBeNull();
-    expect(screen.getAllByText('Action required').length).toBeGreaterThan(0);
+    expect(screen.queryByText('All Subs')).toBeNull();
+    expect(screen.getAllByText('Action Required').length).toBeGreaterThan(0);
   });
 
   it('an unsaved coverage row holds the record: another row asks "Discard changes?" first', async () => {
@@ -388,8 +388,8 @@ describe('lane R2 — COI Vault register, desktop web 1512', () => {
       await desk('/coi-vault');
       await act(async () => { fireEvent.press(screen.getByTestId(`coi-vault-register-table-row-${S1}-check`)); });
       await pump(2);
-      await act(async () => { fireEvent.press(screen.getByText('Request renewal')); });
-      expect(spy).toHaveBeenCalledWith('Request renewal', 'MAGE ID can’t send a renewal request to a sub yet — you get an email 30, 14 and 7 days before a COI lapses, and on the day it does. Call or email the sub from Subs.');
+      await act(async () => { fireEvent.press(screen.getByText('Request Renewal')); });
+      expect(spy).toHaveBeenCalledWith('Request Renewal', 'MAGE ID can’t send a renewal request to a sub yet. You get an email 30, 14 and 7 days before a COI lapses, and on the day it does. Call or email the sub from Subs.');
     } finally {
       spy.mockRestore();
     }

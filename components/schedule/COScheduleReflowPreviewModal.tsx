@@ -136,11 +136,11 @@ export function COScheduleReflowPreviewModal(props: {
   const dayWord = `${plan.impactDays} day${plan.impactDays === 1 ? '' : 's'}`;
   // The primary button never over-promises: it names exactly what will happen.
   const confirmLabel = intent === 'place'
-    ? (isReady ? `Apply ${dayWord}` : 'Pick a task first')
+    ? (isReady ? `Apply ${dayWord}` : 'Pick a Task First')
     : isReady
-      ? `Approve & move ${dayWord}`
+      ? `Approve and Move ${dayWord}`
       : plan.status === 'no_anchor'
-        ? 'Approve without moving dates'
+        ? 'Approve Without Moving Dates'
         : `Approve CO #${changeOrder.number}`;
   // In `place` mode there is no money decision left to make, so a confirm that
   // cannot move anything would be a button that does nothing.
@@ -184,7 +184,7 @@ export function COScheduleReflowPreviewModal(props: {
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>
               {intent === 'place'
-                ? `CO #${changeOrder.number} — place ${dayWord}`
+                ? `CO #${changeOrder.number}: place ${dayWord}`
                 : `Approve CO #${changeOrder.number}`}
             </Text>
             <TouchableOpacity
@@ -213,21 +213,21 @@ export function COScheduleReflowPreviewModal(props: {
                 <View style={styles.anchorCard}>
                   <View style={styles.anchorHead}>
                     <CalendarClock size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.anchorLabel}>Absorbs the added days</Text>
+                    <Text style={styles.anchorLabel}>Absorbs the Added Days</Text>
                   </View>
                   <Text style={styles.anchorTitle} numberOfLines={2}>{plan.anchorTaskTitle}</Text>
                   <Text style={styles.anchorMeta}>
-                    {plan.anchorDurationBefore}d → {plan.anchorDurationAfter}d · {describeAnchorReason(plan.anchorReason)}
+                    {plan.anchorDurationBefore}d to {plan.anchorDurationAfter}d · {describeAnchorReason(plan.anchorReason)}
                   </Text>
                   {plan.candidates.length > 1 && (
                     <TouchableOpacity
                       onPress={() => setShowPicker(v => !v)}
                       style={styles.changeAnchorBtn}
                       accessibilityRole="button"
-                      accessibilityLabel="Choose a different task"
+                      accessibilityLabel="Choose a Different Task"
                     >
                       <Text style={styles.changeAnchorText}>
-                        {showPicker ? 'Keep this task' : 'Choose a different task'}
+                        {showPicker ? 'Keep This Task' : 'Choose a Different Task'}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -275,7 +275,7 @@ export function COScheduleReflowPreviewModal(props: {
 
             {isReady && plan.shifts.length > 0 && (
               <View style={styles.listBlock}>
-                <Text style={styles.pickerLabel}>What moves</Text>
+                <Text style={styles.pickerLabel}>What Moves</Text>
                 {plan.shifts.map(shift => (
                   <View key={shift.id} style={styles.shiftRow}>
                     <Text style={styles.shiftTitle} numberOfLines={1}>{shift.title}</Text>
@@ -292,7 +292,7 @@ export function COScheduleReflowPreviewModal(props: {
 
             {isReady && (plan.becameCritical.length > 0 || plan.noLongerCritical.length > 0) && (
               <View style={styles.listBlock}>
-                <Text style={styles.pickerLabel}>Critical path changes</Text>
+                <Text style={styles.pickerLabel}>Critical Path Changes</Text>
                 {plan.becameCritical.map(t => (
                   <View key={`c-${t.id}`} style={styles.flipRow}>
                     <ArrowRight size={12} color={themeColors.danger} strokeWidth={2} />

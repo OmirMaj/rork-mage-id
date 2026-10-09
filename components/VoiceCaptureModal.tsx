@@ -292,7 +292,7 @@ export default function VoiceCaptureModal({
       const { Audio } = require('expo-av');
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) {
-        setErrorMsg(t('field.chrome.micDenied', 'Microphone permission denied. Open Settings → MAGE ID → Microphone to enable it.'));
+        setErrorMsg(t('field.chrome.micDenied', 'Microphone permission denied. Open Settings > MAGE ID > Microphone to enable it.'));
         setStep('error');
         return;
       }
@@ -397,7 +397,7 @@ export default function VoiceCaptureModal({
         // The server heard the upload and found no words. Queueing it would
         // just get the same empty answer on every retry, so this one really is
         // a re-record — unlike the failure below.
-        setErrorMsg(t('field.chrome.noSpeech', "Didn't catch any speech. Try again — speak a bit louder or closer to the mic."));
+        setErrorMsg(t('field.chrome.noSpeech', "Didn't catch any speech. Try again, and speak a bit louder or closer to the mic."));
         setStep('error');
         return;
       }
@@ -492,7 +492,7 @@ export default function VoiceCaptureModal({
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{titleProp ?? t('field.chrome.voiceDictation', 'Voice dictation')}</Text>
+            <Text style={styles.title}>{titleProp ?? t('field.chrome.voiceDictation', 'Voice Dictation')}</Text>
             {!!contextLine && <Text style={styles.contextLine}>{contextLine}</Text>}
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('field.chrome.close', 'Close')}><X size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -514,9 +514,9 @@ export default function VoiceCaptureModal({
                   onPress={() => { void applyReadyClip(); }}
                   style={styles.readyBtn}
                   accessibilityRole="button"
-                  accessibilityLabel={t('field.chrome.useSavedDictation', 'Use the dictation you saved offline')}
+                  accessibilityLabel={t('field.chrome.useSavedDictation', 'Use the Dictation You Saved Offline')}
                 >
-                  <Text style={styles.readyBtnText}>{t('field.chrome.useIt', 'Use it')}</Text>
+                  <Text style={styles.readyBtnText}>{t('field.chrome.useIt', 'Use It')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -535,9 +535,9 @@ export default function VoiceCaptureModal({
                   disabled={draining}
                   style={[styles.pendingBtn, draining && { opacity: 0.6 }]}
                   accessibilityRole="button"
-                  accessibilityLabel={t('field.chrome.transcribeSavedDictation', 'Transcribe the dictation saved on this phone')}
+                  accessibilityLabel={t('field.chrome.transcribeSavedDictation', 'Transcribe the Dictation Saved on This Phone')}
                 >
-                  <Text style={styles.pendingBtnText}>{draining ? t('field.chrome.trying', 'Trying…') : t('field.chrome.transcribeNow', 'Transcribe now')}</Text>
+                  <Text style={styles.pendingBtnText}>{draining ? t('field.chrome.trying', 'Trying…') : t('field.chrome.transcribeNow', 'Transcribe Now')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -551,7 +551,7 @@ export default function VoiceCaptureModal({
             <View style={styles.suggestionsCard}>
               <View style={styles.suggestionsHeaderRow}>
                 <MageAIMark size={16} color={themeColors.accent} />
-                <Text style={styles.suggestionsHeader}>{t('field.chrome.trySaying', 'Try saying')}</Text>
+                <Text style={styles.suggestionsHeader}>{t('field.chrome.trySaying', 'Try Saying')}</Text>
               </View>
               <Text style={styles.suggestionItemHero}>
                 “{suggestions[rotatingIdx % suggestions.length]}”
@@ -579,7 +579,7 @@ export default function VoiceCaptureModal({
               gets skipped. */}
           {topicChecklist && topicChecklist.length > 0 && (
             <View style={styles.checklistCard}>
-              <Text style={styles.checklistHeader}>{t('field.chrome.coverAll', 'Cover all of these')}</Text>
+              <Text style={styles.checklistHeader}>{t('field.chrome.coverAll', 'Cover All of These')}</Text>
               {topicChecklist.map((topic, i) => (
                 <View key={i} style={styles.checklistRow}>
                   <View style={styles.checklistBullet}>
@@ -628,12 +628,12 @@ export default function VoiceCaptureModal({
               {isTranscribing
                 ? t('field.chrome.transcribing', 'Transcribing your audio…')
                 : isRecording
-                  ? t('field.chrome.recordingTapFinish', 'Recording — tap to finish')
+                  ? t('field.chrome.recordingTapFinish', 'Recording. Tap to finish.')
                   : isSaved
-                    ? t('field.chrome.savedTapAnother', 'Saved — tap to record another')
+                    ? t('field.chrome.savedTapAnother', 'Saved. Tap to record another.')
                     : step === 'error'
-                      ? t('field.chrome.tapToTryAgain', 'Tap to try again')
-                      : t('field.chrome.tapToStart', 'Tap to start recording')}
+                      ? t('field.chrome.tapToTryAgain', 'Tap to Try Again')
+                      : t('field.chrome.tapToStart', 'Tap to Start Recording')}
             </Text>
 
             {!!savedMsg && (

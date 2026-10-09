@@ -92,8 +92,8 @@ export function scopeGapUnitWord(unit: string): string {
   }
 }
 
-export const NO_STATE_NOTE = 'Depends on your location — no state on file';
-export const NO_NEC_NOTE = 'Depends on your NEC edition — not on file for this jurisdiction';
+export const NO_STATE_NOTE = 'Depends on your location, no state on file';
+export const NO_NEC_NOTE = 'Depends on your NEC edition, not on file for this jurisdiction';
 
 function yearOf(edition: string | undefined): number | null {
   const m = /(19|20)\d{2}/.exec(edition ?? '');
@@ -156,7 +156,7 @@ export function evaluateScopeGaps(input: ScopeGapsInput): ScopeGapsResult {
       else if (year < rule.editionGate.minYear) suppressedReason = `your adopted NEC ${year} predates this`;
     }
     if (!suppressedReason && !jurisdictionNote && known && !adopted.some(c => c.family === rule.family)) {
-      jurisdictionNote = `${authority}'s adoption record doesn't list the ${rule.family}; its own code has its own version of this — confirm with your AHJ`;
+      jurisdictionNote = `${authority}'s adoption record doesn't list the ${rule.family}; its own code has its own version of this. Confirm with your AHJ.`;
     }
 
     // Coverage (a remembered dismissal overrides it).

@@ -231,7 +231,7 @@ export const UNDATED_SCHEDULE_CTA = 'Set start date';
  * that bar twice and drifted between the two copies within a day of the fix.
  */
 export const UNDATED_SCHEDULE_PREVIEW_NOTE =
-  'Not set — dates below are a preview drawn from today';
+  'Not set. Dates below are a preview drawn from today';
 
 /**
  * What an undated schedule CAN honestly say about a task: its working-day
@@ -1032,7 +1032,7 @@ export function pacedScheduleVerdict(input: PacedVerdictInput): PacedVerdict {
   });
 
   const hasFinish = input.finishDateLabel.trim().length > 0 && input.finishDateLabel.trim() !== '—';
-  const finishClause = hasFinish ? ` — finishing about ${input.finishDateLabel}` : '';
+  const finishClause = hasFinish ? `, finishing about ${input.finishDateLabel}` : '';
   const pct = Math.max(0, Math.min(100, Math.round(input.pctComplete)));
 
   // A baseline outranks pace, and a pace read of "fine" adds nothing to say.
@@ -1045,7 +1045,7 @@ export function pacedScheduleVerdict(input: PacedVerdictInput): PacedVerdict {
     : `Slipping behind pace${finishClause}`;
   // Say what the claim rests on. There is no baseline here, so "behind plan"
   // would be a comparison against a plan that was never captured.
-  const basis = `${pct}% of the work is done against the time elapsed — no baseline locked, so this is pace, not slip.`;
+  const basis = `${pct}% of the work is done against the time elapsed. No baseline locked, so this is pace, not slip.`;
   return { tone, headline, detail: base.detail ? `${base.detail} ${basis}` : basis };
 }
 
@@ -1082,14 +1082,14 @@ export type BaselineReasonCode =
   | 'other';
 
 export const BASELINE_REASON_LABELS: Record<BaselineReasonCode, string> = {
-  as_bid: 'As-bid baseline',
-  permit_delay: 'Permit delay',
-  scope_change: 'Scope change',
+  as_bid: 'As-Bid Baseline',
+  permit_delay: 'Permit Delay',
+  scope_change: 'Scope Change',
   weather: 'Weather',
-  client_direction: 'Client direction',
-  sub_unavailability: 'Sub unavailable',
-  design_revision: 'Design revision',
-  material_delay: 'Material delay',
+  client_direction: 'Client Direction',
+  sub_unavailability: 'Sub Unavailable',
+  design_revision: 'Design Revision',
+  material_delay: 'Material Delay',
   other: 'Other',
 };
 

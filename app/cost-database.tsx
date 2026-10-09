@@ -75,7 +75,7 @@ function notRateEvidenceNote(samples: CostSample[]): string {
   const pkg = samples.some(s => s.excludedReason === 'package_allocation');
   const parts: string[] = [];
   if (co) {
-    parts.push('A change order added scope after the bid, so the extra dollars sit over the original quantity — that number is not what a unit costs, so it is shown but never averaged.');
+    parts.push('A change order added scope after the bid, so the extra dollars sit over the original quantity. That number is not what a unit costs, so it is shown but never averaged.');
   }
   if (pkg) {
     parts.push('This sub was bought out as one package across several estimate lines. Splitting that price back across the lines just reproduces your own estimate, so it teaches no unit rate.');
@@ -212,8 +212,8 @@ function CostDatabaseInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Cost history · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Your prices</Text>
+          <Text style={styles.headerEyebrow}>Cost History · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Your Prices</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -221,16 +221,16 @@ function CostDatabaseInner() {
       {db.entries.length === 0 && awaiting.length === 0 ? (
         <EmptyState
           icon={<MageCostDb size={36} color={t.accent} />}
-          title="No price history yet"
+          title="No Price History Yet"
           message="Your cost history learns what work costs from every project you close, so it starts empty. To fill it sooner:"
           steps={[
             'Seed the rates you already know by pasting a trade, unit and price list.',
             'Close projects that had a cost estimate; commitments linked to estimate lines (buyout does this) become samples.',
             'Every closed project corrects what you seeded. A measured rate always beats a stated one.',
           ]}
-          actionLabel="Seed your rates"
+          actionLabel="Seed Your Rates"
           onAction={() => router.push('/cost-seed' as any)}
-          secondaryLabel="Open projects"
+          secondaryLabel="Open Projects"
           onSecondaryAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
@@ -243,7 +243,7 @@ function CostDatabaseInner() {
           <View style={styles.publicIndexCard}>
             <View style={styles.publicIndexTop}>
               <Globe size={15} color={t.accent} strokeWidth={2} />
-              <Text style={styles.publicIndexTitle}>Public price index</Text>
+              <Text style={styles.publicIndexTitle}>Public Price Index</Text>
               <Switch
                 value={publicOptIn === true}
                 onValueChange={(v) => { void onTogglePublicIndex(v); }}
@@ -290,14 +290,14 @@ function CostDatabaseInner() {
               onPress={() => router.push('/estimate-scorecard')}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel="Open estimate scorecard"
+              accessibilityLabel="Open Estimate Scorecard"
               testID="cost-db-accuracy-kpi"
             >
-              <Text style={styles.kpiLabel}>Bid accuracy</Text>
+              <Text style={styles.kpiLabel}>Bid Accuracy</Text>
               <Text style={[styles.kpiValue, { color: db.overallBidAccuracy !== null && db.overallBidAccuracy < 0.85 ? t.accentHot : t.text }]}>
                 {db.overallBidAccuracy !== null ? `${Math.round(db.overallBidAccuracy * 100)}%` : '—'}
               </Text>
-              <Text style={[styles.kpiSub, { color: t.accent }]}>See what it costs you</Text>
+              <Text style={[styles.kpiSub, { color: t.accent }]}>See What It Costs You</Text>
             </TouchableOpacity>
           </View>
 
@@ -306,7 +306,7 @@ function CostDatabaseInner() {
             <View style={styles.accuracySection}>
               <View style={styles.accuracySectionHeader}>
                 <MageAIMark size={14} color={t.accent} />
-                <Text style={styles.accuracySectionTitle}>Prediction accuracy</Text>
+                <Text style={styles.accuracySectionTitle}>Prediction Accuracy</Text>
               </View>
               {accuracyReport.hasEnoughData ? (
                 accuracyReport.rows.map(row => (
@@ -333,7 +333,7 @@ function CostDatabaseInner() {
 
           {missingSums.length > 0 && (
             <View style={styles.gapCard} testID="cost-db-missing-contract-sum">
-              <Text style={styles.gapTitle}>Payments that taught nothing</Text>
+              <Text style={styles.gapTitle}>Payments That Taught Nothing</Text>
               <Text style={styles.gapBody}>{missingContractSumNotice(missingSums)}</Text>
               {missingSums.slice(0, 4).map(r => (
                 <Text key={r.commitmentId} style={styles.gapRow} numberOfLines={1}>
@@ -346,7 +346,7 @@ function CostDatabaseInner() {
             </View>
           )}
 
-          <Text style={styles.sectionTitle}>By trade · unit</Text>
+          <Text style={styles.sectionTitle}>By Trade · Unit</Text>
           {db.entries.map(e => {
             const isOpen = expanded.has(e.key);
             const cc = confColor(e.confidence);
@@ -393,7 +393,7 @@ function CostDatabaseInner() {
                     </Text>
                     {e.provenance === 'seeded' ? (
                       <View style={styles.seedBadge}>
-                        <Text style={styles.seedBadgeText}>Your rate · not yet measured</Text>
+                        <Text style={styles.seedBadgeText}>Your Rate · Not Measured Yet</Text>
                       </View>
                     ) : null}
                     {bench ? (
@@ -437,15 +437,15 @@ function CostDatabaseInner() {
                 {isOpen && (
                   <View style={styles.detail}>
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Your actual rate</Text>
+                      <Text style={styles.detailLabel}>Your Actual Rate</Text>
                       <Text style={styles.detailVal}>{formatRate(e.personalRate)}/{e.unit}</Text>
                     </View>
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Last bid assumption</Text>
+                      <Text style={styles.detailLabel}>Last Bid Assumption</Text>
                       <Text style={styles.detailVal}>{formatRate(e.baseline)}/{e.unit}</Text>
                     </View>
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Suggested next bid</Text>
+                      <Text style={styles.detailLabel}>Suggested Next Bid</Text>
                       <Text style={[styles.detailVal, { color: t.accent }]}>{formatRate(e.suggestedRate)}/{e.unit}</Text>
                     </View>
                     {/* WHEN. lastSeen was computed and read by nothing, so a
@@ -455,7 +455,7 @@ function CostDatabaseInner() {
                         sheet is not a date we measured anything. */}
                     {measuredMonth(e.lastSeen) ? (
                       <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Last measured</Text>
+                        <Text style={styles.detailLabel}>Last Measured</Text>
                         <Text style={styles.detailVal}>{measuredMonth(e.lastSeen)}</Text>
                       </View>
                     ) : null}
@@ -476,7 +476,7 @@ function CostDatabaseInner() {
                     {e.excludedSampleCount && e.excludedSampleCount > 0 ? (
                       <Text style={styles.excludedNote}>
                         A project that came in far off your usual is kept here for the record but left
-                        out of the learned rate, so one bad week (weather, a typo) can&rsquo;t skew
+                        out of the learned rate, so one bad week (weather, a typo) can’t skew
                         your next bid.
                       </Text>
                     ) : null}
@@ -501,7 +501,7 @@ function CostDatabaseInner() {
 
           {awaiting.length > 0 ? (
             <View style={styles.awaitingSection}>
-              <Text style={styles.sectionTitle}>Read, but not priced</Text>
+              <Text style={styles.sectionTitle}>Read, but Not Priced</Text>
               {awaiting.map(e => {
                 // SAMPLES ARE NOT JOBS. A package buyout split across two
                 // estimate lines of ONE closed job produces two samples, and
@@ -523,8 +523,8 @@ function CostDatabaseInner() {
 
           <Text style={styles.note}>
             Suggested rate blends your most recent bid assumption toward your measured actuals
-            as you close more projects (more samples, more weight on measured cost). &ldquo;Paid&rdquo; samples are
-            payments that settled the sub contract; &ldquo;signed&rdquo; samples are the committed sub/PO
+            as you close more projects (more samples, more weight on measured cost). “Paid” samples are
+            payments that settled the sub contract; “signed” samples are the committed sub/PO
             amount on a closed project, which is what that scope cost you even before the check clears.
             A part-paid contract is never read as a finished cost.
           </Text>

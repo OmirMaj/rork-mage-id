@@ -183,7 +183,7 @@ async function main() {
   const guardAt = save.indexOf('if (reportId && !existingReport) {');
   const firstWrite = Math.min(...['updateDailyReport(', 'addDailyReport(', 'addIncident(', 'updateIncident('].map(w => { const i = save.indexOf(w); return i < 0 ? Infinity : i; }));
   ok('handleSave refuses a named report it does not hold — before any write', guardAt > 0 && guardAt < firstWrite, `guard ${guardAt}, first write ${firstWrite}`);
-  ok('…and says why', /showAlert\(t\('field\.dfr\.notSaved', 'Not saved'\),/.test(save.slice(guardAt, guardAt + 400)));
+  ok('…and says why', /showAlert\(t\('field\.dfr\.notSaved', 'Not Saved'\),/.test(save.slice(guardAt, guardAt + 400)));
   const sentAt = save.indexOf("if (status === 'draft' && !silent && savedRecord?.status === 'sent') {");
   ok('handleSave refuses a draft save over a submitted report, before any write', sentAt > 0 && sentAt < firstWrite);
   const back = callbackBody(dfrCode, 'handleBack');
@@ -255,7 +255,7 @@ async function main() {
     for (const email of ['failed', 'composer_opened'] as Outcome[]) {
       for (const write of writes) {
         const r = co.coSendReport({ number: 7, email, emailError: 'Not sent. We opened a draft in your email app — review it and press Send there.', status: 'draft', write, recipient: 'Dana' });
-        ok(`email ${email} / write ${write}: says NOT sent and never "emailed"`, /NOT sent/.test(r.message) && !/emailed/.test(r.message) && r.title === 'Email not sent', r.message);
+        ok(`email ${email} / write ${write}: says NOT sent and never "emailed"`, /NOT sent/.test(r.message) && !/emailed/.test(r.message) && r.title === 'Email Not Sent', r.message);
         if (write === 'failed') ok(`email ${email} / write failed: does not claim MAGE saved it`, /could not save it/.test(r.message) && /on this device only/.test(r.message) && !/is saved/.test(r.message), r.message);
         // Integration round 1: 'failed' also covers a server error / outage and
         // a failed enqueue, so the message must not name a cause as fact, and
@@ -272,15 +272,15 @@ async function main() {
       }
     }
     const sentFailed = co.coSendReport({ number: 7, email: 'sent', status: 'submitted', write: 'failed', recipient: 'Dana' });
-    ok('sent but the write failed: title and body say it is not saved', sentFailed.title === 'Sent — not saved to MAGE' && /could not save it/.test(sentFailed.message));
+    ok('sent but the write failed: title and body say it is not saved', sentFailed.title === 'Sent, Not Saved to MAGE' && /could not save it/.test(sentFailed.message));
     const sentOk = co.coSendReport({ number: 7, email: 'sent', status: 'submitted', write: 'synced', recipient: 'Dana' });
     ok('sent and synced: "emailed to Dana … It is saved."', /emailed to Dana/.test(sentOk.message) && /It is saved\./.test(sentOk.message));
     // Integration round 3: the off-screen close label read "Sent — close" for
     // every outcome, including an email that never went out.
     ok('the off-screen close label says "Sent" only for a real send, and flags a failed save',
-      co.coSendFinishedLabel('sent', 'synced') === 'Sent — close' && co.coSendFinishedLabel('sent', 'queued') === 'Sent — close'
-        && co.coSendFinishedLabel('sent', 'failed') === 'Sent, not saved — close'
-        && (['failed', 'composer_opened'] as Outcome[]).every(e => writes.every(w => !/^Sent/.test(co.coSendFinishedLabel(e, w)) && /Not sent/.test(co.coSendFinishedLabel(e, w)))));
+      co.coSendFinishedLabel('sent', 'synced') === 'Close (Sent)' && co.coSendFinishedLabel('sent', 'queued') === 'Close (Sent)'
+        && co.coSendFinishedLabel('sent', 'failed') === 'Close (Sent, Not Saved)'
+        && (['failed', 'composer_opened'] as Outcome[]).every(e => writes.every(w => !/^Close \(Sent/.test(co.coSendFinishedLabel(e, w)) && /Not Sent/.test(co.coSendFinishedLabel(e, w)))));
     ok('no doubled full stop after a reason that ends in one', !/\.\./.test(co.coSendReport({ number: 7, email: 'composer_opened', emailError: 'Saved to your Drafts — it has not been sent yet.', status: 'draft', write: 'synced', recipient: '' }).message));
   }
   const send = callbackBody(coCode, 'handleConfirmSend');
@@ -320,7 +320,7 @@ async function main() {
   ok('handleSave and the Send & Save button refuse while a send is in flight', /const handleSave = useCallback\([^)]*\) => \{\s*if \(sendingRef\.current\) return;/.test(coCode)
     && /const handleSendPress = useCallback\(\(\) => \{\s*if \(sendingRef\.current\) return;/.test(coCode));
   ok('…and the controls are disabled and say "Sending…"', /label="Save to Project"[\s\S]{0,160}disabled=\{sendInFlight\}/.test(coCode)
-    && /label=\{sendInFlight \? 'Sending…' : 'Send & Save'\}[\s\S]{0,120}disabled=\{sendInFlight\}/.test(coCode)
+    && /label=\{sendInFlight \? 'Sending…' : 'Send and Save'\}[\s\S]{0,120}disabled=\{sendInFlight\}/.test(coCode)
     && /onPress=\{handleConfirmSend\} disabled=\{sendInFlight\}/.test(coCode));
   ok('the write outcome is awaited (with a timeout) before the report', /await Promise\.race<RecordWriteOutcome \| 'pending'>\(\[/.test(send) && /coSendReport\(\{/.test(send));
   ok('the old false claim is gone', !/Change order saved but email could not be sent/.test(COSRC));
@@ -410,7 +410,7 @@ async function main() {
   ok('a failed read renders "Couldn\'t load this job\'s contract" with Retry, ahead of the editor',
     failRender > 0 && failRender < conCode.indexOf('if (loading || !contract) {') && /testID="contract-load-retry"/.test(conCode) && /setLoadSeq\(n => n \+ 1\)/.test(conCode));
   ok('the load-failed screen has a working exit (useSafeBack) beside Retry',
-    /const goBack = useSafeBack\(\);/.test(conCode) && /testID="contract-load-retry"\s*\/>\s*<Button label="Go back" variant="secondary" onPress=\{goBack\}/.test(conCode));
+    /const goBack = useSafeBack\(\);/.test(conCode) && /testID="contract-load-retry"\s*\/>\s*<Button label="Go Back" variant="secondary" onPress=\{goBack\}/.test(conCode));
   ok('no contract write in the screen bypasses the duplicate check', !/\bsaveContract\(/.test(conCode) && (conCode.match(/saveContractDetailed\(/g) ?? []).length === 2);
   // The focus re-check is REPLAYED, not pattern-matched: review round 1 found
   // its deps keyed on the `contract` object, so each read's setContract re-ran
@@ -489,7 +489,7 @@ async function main() {
     ok('a lead the list does not hold yet waits for the fresh read (no blank form)', st({}) === 'loading');
     ok('a cached hit before this account\'s list lands still waits', st({ found: true, leadsLoaded: false }) === 'loading');
     ok('the loaded lead opens the form', st({ found: true }) === 'editor');
-    ok('still absent after the fresh read → "Lead not found", never a form', st({ refreshSettled: true }) === 'missing');
+    ok('still absent after the fresh read → "Lead Not Found", never a form', st({ refreshSettled: true }) === 'missing');
     ok('arriving after the fresh read → the form', st({ found: true, refreshSettled: true }) === 'editor');
   }
   const LEAD = read('app/lead-detail.tsx');
@@ -497,8 +497,8 @@ async function main() {
   const leadGateBody = LEAD_CODE.slice(LEAD_CODE.indexOf('export default function LeadDetailScreen'), LEAD_CODE.indexOf('function LeadDetailEditor'));
   ok('the default export is the gate: leadsLoaded + a fresh read + keyed editor', /leadsLoaded/.test(leadGateBody) && /refreshLeads\(\)/.test(leadGateBody)
     && /leadOpenState\(/.test(leadGateBody) && /<LeadDetailEditor key=\{found\?\.id \?\? 'new'\} \/>/.test(leadGateBody));
-  ok('the gate states "Lead not found" with Try again and Go back', /Lead not found/.test(leadGateBody) && /lead-open-retry/.test(leadGateBody) && /lead-open-back/.test(leadGateBody));
-  ok('Save refuses when the named lead has gone (no silent no-op)', /if \(!isNew && !existing\) \{\s*showAlert\('Not saved'/.test(callbackBody(LEAD_CODE, 'saveAndExit')));
+  ok('the gate states "Lead Not Found" with Try again and Go back', /Lead Not Found/.test(leadGateBody) && /lead-open-retry/.test(leadGateBody) && /lead-open-back/.test(leadGateBody));
+  ok('Save refuses when the named lead has gone (no silent no-op)', /if \(!isNew && !existing\) \{\s*showAlert\('Not Saved'/.test(callbackBody(LEAD_CODE, 'saveAndExit')));
   const PC = stripComments(read('contexts/ProjectContext.tsx'));
   ok('ProjectContext: leadsLoaded is keyed by account, and false while auth resolves', /setLeadsLoadedFor\(userId \?\? ''\)/.test(PC) && /const leadsLoaded = !authLoading && leadsLoadedFor === \(userId \?\? ''\);/.test(PC));
   ok('ProjectContext: refreshLeads refetches THIS account\'s leads', /const refreshLeads = useCallback\(async \(\) => \{\s*await queryClient\.refetchQueries\(\{ queryKey: \['leads', userId\] \}\);/.test(PC));

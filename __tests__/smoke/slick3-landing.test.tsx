@@ -204,7 +204,9 @@ describe('slick3 landing golden — at rest nothing changes (390 × 844 iOS)', (
     expect(tree.getPathname()).toBe('/discover');
     expect(tree.queryByTestId('companies-use-location')).toBeNull();
     expect(tree.queryByTestId('companies-location-notice')).toBeNull();
-    expect(tree.getByTestId('discover-equipment-cta')).toBeTruthy();
+    // The four waitlist cards are off (DISCOVER_WAITLIST_CARDS_ENABLED): the
+    // overview is recognised by its own content, and no card is drawn.
+    expect(tree.queryByTestId('discover-equipment-cta')).toBeNull();
   });
 
   it('(c) discover/hire', async () => {

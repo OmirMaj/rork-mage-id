@@ -111,8 +111,8 @@ const flaky = applyPendingDelivery([pend('a')], 'a', { emailed: false, reason: '
 ok('unreachable → kept for the next flush, not given up', flaky.gaveUp === false && flaky.attempts === 1);
 ok('a 5xx is retryable; a refusal is not', isRetryableNotifyReason('http_503') && !isRetryableNotifyReason('email_send_failed') && !isRetryableNotifyReason('unknown_event'));
 ok('the unsubscribed sentence names the address and the fix',
-  /x@y\.com unsubscribed from invitation emails — text them the link/.test(notEmailedSentence('x@y.com', 'suppressed_unsubscribed')));
-ok('any other refusal says to copy the link', /Could not hand the email off .*copy the link/.test(notEmailedSentence('x@y.com', 'email_send_failed')));
+  /x@y\.com unsubscribed from invitation emails\. Text them the link/.test(notEmailedSentence('x@y.com', 'suppressed_unsubscribed')));
+ok('any other refusal says to copy the link', /Could not hand the email off .*Copy the link/.test(notEmailedSentence('x@y.com', 'email_send_failed')));
 
 // ── B. executed: bidInvites + notifyClient against stubs ─────────────────────
 console.info('\nB. executed: the send, the upload, the email (stubbed storage / queue / fetch)');
@@ -269,7 +269,7 @@ ok('splitAlreadyInvited runs on the merged list', /splitAlreadyInvited\(recipien
 ok('a pending invite is not chased and has no copy button (its link is dead until upload)',
   (pkgScreen.match(/remindableInvites\(invites\.filter\(i => !i\.localOnly\)/g) ?? []).length === 2
   && /state !== 'responded' && !inv\.localOnly &&/.test(pkgScreen));
-ok('the row says it is on this phone', /On this phone — will email when it uploads/.test(pkgScreen));
+ok('the row says it is on this phone', /On this phone. Will email when it uploads./.test(pkgScreen));
 ok('the queued alert says the email goes out once it uploads', /The email goes out once/.test(pkgScreen));
 ok('an unsubscribed sub is named in the send and chase alerts', (pkgScreen.match(/notEmailedSentence\(/g) ?? []).length >= 2);
 ok('the not-emailed row marker is shown', /NOT_EMAILED_ROW/.test(pkgScreen));

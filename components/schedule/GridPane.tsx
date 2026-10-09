@@ -98,12 +98,12 @@ const FROZEN_KEYS: ColumnKey[] = ['rowNum', 'wbs', 'name'];
 const COLUMNS: ColumnDef[] = [
   { key: 'rowNum',       label: '#',              width: 40,  align: 'center', kind: 'readonly' },
   { key: 'wbs',          label: 'WBS',            width: 70,  align: 'left',   kind: 'readonly' },
-  { key: 'name',         label: 'Task name',      width: 240, align: 'left',   kind: 'text' },
+  { key: 'name',         label: 'Task Name',      width: 240, align: 'left',   kind: 'text' },
   { key: 'duration',     label: 'Dur.',           width: 62,  align: 'right',  kind: 'number' },
   { key: 'start',        label: 'Start',          width: 88,  align: 'left',   kind: 'readonly' },
   { key: 'finish',       label: 'Finish',         width: 88,  align: 'left',   kind: 'readonly' },
   { key: 'float',        label: 'Float',          width: 96,  align: 'left',   kind: 'readonly' },
-  { key: 'deadline',     label: 'Due by',         width: 110, align: 'left',   kind: 'custom' },
+  { key: 'deadline',     label: 'Due By',         width: 110, align: 'left',   kind: 'custom' },
   { key: 'predecessors', label: 'Predecessors',   width: 140, align: 'left',   kind: 'custom' },
   { key: 'crew',         label: 'Crew',           width: 140, align: 'left',   kind: 'text' },
   { key: 'status',       label: 'Status',         width: 110, align: 'center', kind: 'custom' },
@@ -548,12 +548,12 @@ export default function GridPane({
   const rowActions = useCallback((task: ScheduleTask): RowMenuAction[] => [
     { key: 'indent',  label: 'Indent',  onPress: () => onOutline?.(task.id, 'indent') },
     { key: 'outdent', label: 'Outdent', onPress: () => onOutline?.(task.id, 'outdent') },
-    { key: 'up',      label: 'Move up',   onPress: () => onReorder?.(task.id, -1) },
-    { key: 'down',    label: 'Move down', onPress: () => onReorder?.(task.id, 1) },
-    { key: 'ms',      label: task.isMilestone ? 'Unmark milestone' : 'Convert to milestone', onPress: () => onEdit(task.id, { isMilestone: !task.isMilestone }) },
-    { key: 'done',    label: 'Mark complete', onPress: () => onEdit(task.id, { status: 'done', progress: 100 }) },
-    { key: 'insert-above', label: 'Insert task above', onPress: () => insertRelativeTo(task, 0) },
-    { key: 'insert-below', label: 'Insert task below', onPress: () => insertRelativeTo(task, 1) },
+    { key: 'up',      label: 'Move Up',   onPress: () => onReorder?.(task.id, -1) },
+    { key: 'down',    label: 'Move Down', onPress: () => onReorder?.(task.id, 1) },
+    { key: 'ms',      label: task.isMilestone ? 'Unmark Milestone' : 'Convert to Milestone', onPress: () => onEdit(task.id, { isMilestone: !task.isMilestone }) },
+    { key: 'done',    label: 'Mark Complete', onPress: () => onEdit(task.id, { status: 'done', progress: 100 }) },
+    { key: 'insert-above', label: 'Insert Task Above', onPress: () => insertRelativeTo(task, 0) },
+    { key: 'insert-below', label: 'Insert Task Below', onPress: () => insertRelativeTo(task, 1) },
     { key: 'del',     label: 'Delete', destructive: true, onPress: () => onDeleteTask(task.id) },
   ], [onOutline, onReorder, onEdit, onDeleteTask, insertRelativeTo]);
 
@@ -1378,7 +1378,7 @@ export default function GridPane({
     if (Platform.OS === 'web') {
       if (window.confirm?.(confirmMsg)) go();
     } else {
-      showAlert('Delete tasks', confirmMsg, [
+      showAlert('Delete Tasks', confirmMsg, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: go },
       ]);
@@ -1572,13 +1572,13 @@ export default function GridPane({
           {onBulkAskAI && (
             <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnAI]} onPress={runBulkAskAI} activeOpacity={0.7}>
               <MageAIMark size={12} color="#fff" />
-              <Text style={[styles.bulkBtnText, { color: '#fff' }]}>Describe a change</Text>
+              <Text style={[styles.bulkBtnText, { color: '#fff' }]}>Describe a Change</Text>
             </TouchableOpacity>
           )}
           {onBulkShiftDays && (
             <TouchableOpacity style={styles.bulkBtn} onPress={runBulkShiftDays} activeOpacity={0.7}>
               <CalendarRange size={12} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.bulkBtnText}>Shift days</Text>
+              <Text style={styles.bulkBtnText}>Shift Days</Text>
             </TouchableOpacity>
           )}
           {onBulkSetPhase && (
@@ -1887,14 +1887,14 @@ function MiniDonut({ progress, status }: { progress: number; status?: 'not_start
 // ---------------------------------------------------------------------------
 
 const ANCHOR_OPTIONS: { value: AnchorType; label: string; help: string }[] = [
-  { value: 'none', label: 'No anchor', help: 'CPM decides. Task floats with its predecessors.' },
-  { value: 'start-no-earlier', label: 'Start no earlier than', help: 'Task may start on or after the anchor date.' },
-  { value: 'start-no-later', label: 'Start no later than', help: 'Task must start on or before the anchor date.' },
-  { value: 'finish-no-earlier', label: 'Finish no earlier than', help: 'Task may finish on or after the anchor date.' },
-  { value: 'finish-no-later', label: 'Finish no later than', help: 'Task must finish on or before the anchor date.' },
-  { value: 'must-start-on', label: 'Must start on', help: 'Hard pin — task starts exactly on this date.' },
-  { value: 'must-finish-on', label: 'Must finish on', help: 'Hard pin — task finishes exactly on this date.' },
-  { value: 'as-late-as-possible', label: 'As late as possible', help: 'Push task to its late-start without slipping the project.' },
+  { value: 'none', label: 'No Anchor', help: 'CPM decides. Task floats with its predecessors.' },
+  { value: 'start-no-earlier', label: 'Start No Earlier Than', help: 'Task may start on or after the anchor date.' },
+  { value: 'start-no-later', label: 'Start No Later Than', help: 'Task must start on or before the anchor date.' },
+  { value: 'finish-no-earlier', label: 'Finish No Earlier Than', help: 'Task may finish on or after the anchor date.' },
+  { value: 'finish-no-later', label: 'Finish No Later Than', help: 'Task must finish on or before the anchor date.' },
+  { value: 'must-start-on', label: 'Must Start On', help: 'Hard pin. Task starts exactly on this date.' },
+  { value: 'must-finish-on', label: 'Must Finish On', help: 'Hard pin. Task finishes exactly on this date.' },
+  { value: 'as-late-as-possible', label: 'As Late as Possible', help: 'Push task to its late-start without slipping the project.' },
 ];
 
 interface AnchorPickerModalProps {
@@ -1974,7 +1974,7 @@ function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
           </ScrollView>
           {needsDate && (
             <View style={anchorStyles.dateRow}>
-              <Text style={anchorStyles.dateLabel}>Anchor date</Text>
+              <Text style={anchorStyles.dateLabel}>Anchor Date</Text>
               {Platform.OS === 'web' ? (
                 // Native HTML date input — clean picker, no extra deps.
                 React.createElement('input' as any, {

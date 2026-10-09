@@ -30,9 +30,9 @@ import type { NjParcelCandidate } from '@/utils/buildingRecord';
 const COMPACT_LINES = 3;
 
 function checkedLabel(iso: string | null | undefined): string {
-  if (!iso) return 'Checked — date unknown';
+  if (!iso) return 'Checked, date unknown';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'Checked — date unknown';
+  if (Number.isNaN(d.getTime())) return 'Checked, date unknown';
   const day = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   return `Checked ${day}, ${time}`;
@@ -50,8 +50,8 @@ function muniLabel(name: string | null, code: string): string {
 export function njCandidateText(c: NjParcelCandidate): string {
   const lot = `Block ${c.block} Lot ${c.lot}${c.qualifier ? ` Qual ${c.qualifier}` : ''}`;
   const base = `${lot} · ${c.propLoc ?? 'street address not published'} · ${muniLabel(c.muniName, c.muniCode)}`;
-  if (c.match === 'nearby') return `${base} (near the address — confirm it's your lot)`;
-  if (c.match === 'approximate') return `${base} (from the map pin — confirm)`;
+  if (c.match === 'nearby') return `${base} (near the address, confirm it's your lot)`;
+  if (c.match === 'approximate') return `${base} (from the map pin, confirm)`;
   return base;
 }
 
@@ -93,7 +93,7 @@ export function NjBuildingRecordCard({
           <Text style={styles.muted}>
             Permits and certificates from the NJ Construction Permit Data. You confirm the tax lot first.
           </Text>
-          <Button label="Look up this lot" onPress={nj.lookup} variant="secondary" size="sm" testID="njrecord-lookup" />
+          <Button label="Look Up This Lot" onPress={nj.lookup} variant="secondary" size="sm" testID="njrecord-lookup" />
         </View>
       );
       break;
@@ -143,10 +143,10 @@ export function NjBuildingRecordCard({
               style={styles.linkBtn}
               onPress={() => setShowAll(true)}
               accessibilityRole="button"
-              accessibilityLabel="Show all state permit record lines"
+              accessibilityLabel="Show All State Permit Record Lines"
               testID="njrecord-show-all"
             >
-              <Text style={styles.link}>Show all</Text>
+              <Text style={styles.link}>Show All</Text>
             </TouchableOpacity>
           ) : null}
           {rec ? (
@@ -154,7 +154,7 @@ export function NjBuildingRecordCard({
               style={styles.linkBtn}
               onPress={() => openUrl(rec.links.dataset)}
               accessibilityRole="link"
-              accessibilityLabel="Open the NJ Construction Permit Data page"
+              accessibilityLabel="Open the NJ Construction Permit Data Page"
               testID="njrecord-dataset"
             >
               <Text style={styles.link}>NJ Construction Permit Data</Text>
@@ -162,8 +162,8 @@ export function NjBuildingRecordCard({
           ) : null}
           <View style={styles.footer}>
             <Text style={styles.muted} testID="njrecord-checked">{checkedLabel(rec?.fetchedAt)}</Text>
-            <TouchableOpacity style={styles.linkBtn} onPress={nj.changeLot} accessibilityRole="button" accessibilityLabel="Change tax lot" testID="njrecord-change">
-              <Text style={styles.link}>Change lot</Text>
+            <TouchableOpacity style={styles.linkBtn} onPress={nj.changeLot} accessibilityRole="button" accessibilityLabel="Change Tax Lot" testID="njrecord-change">
+              <Text style={styles.link}>Change Lot</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -185,7 +185,7 @@ export function NjBuildingRecordCard({
   return (
     <Card radius="card" pad={14} style={compact ? styles.wrapCompact : styles.wrap} testID="njrecord-card">
       <View style={styles.eyebrowRow}>
-        <EyebrowLabel tone="neutral">NJ state permit record</EyebrowLabel>
+        <EyebrowLabel tone="neutral">NJ State Permit Record</EyebrowLabel>
         {nj.confirmed && nj.phase !== 'confirm' ? (
           <Text style={styles.lotTag} numberOfLines={1}>{`Block ${nj.confirmed.block} Lot ${nj.confirmed.lot}`}</Text>
         ) : null}

@@ -38,13 +38,13 @@ exports[`lane V1 — the phone is unchanged (golden, 390 wide) SidePanel phone b
 exports[`lane V1 — the phone is unchanged (golden, 390 wide) VoiceCaptureModal, visible — ios 390, dark 1`] = `
 {
   "lines": 66,
-  "sha256": "febce1470069edab9ea617cb82c2cd6de96ed3f623beec0de03903e8d06c35c9",
+  "sha256": "4833961ce77b6ae21d49c59bcabb3de2f757e558e3493df8273cb1b80bad47ba",
 }
 `;
 
 exports[`lane V1 — the phone is unchanged (golden, 390 wide) VoiceCaptureModal, visible — ios 390, light 1`] = `
 {
   "lines": 66,
-  "sha256": "6ee366821edbc8d38f17448ac97b1432ddb5420181bb5ae33b4ef95a23944301",
+  "sha256": "6e48454ec6ad8966e0b1b38837bae229b7acca516a79b32cba2e57aa13eb1278",
 }
 `;

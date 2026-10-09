@@ -90,7 +90,7 @@ export function checkSubBid(commitment: Commitment, project: Project, costDb: Co
     if (amount < LOW_BAND * expected) {
       return {
         verdict: 'low', basis, expected, gap, variancePct,
-        detail: `${who}: ${fmtUSD(amount)} — ${basisNoun} totals ${fmtUSD(expected)} (${pct}% under). Confirm the full scope is included before counting the savings.`,
+        detail: `${who}: ${fmtUSD(amount)}. ${basisNoun} totals ${fmtUSD(expected)} (${pct}% under). Confirm the full scope is included before counting the savings.`,
       };
     }
     if (amount > HIGH_BAND * expected) {

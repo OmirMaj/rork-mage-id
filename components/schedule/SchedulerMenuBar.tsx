@@ -32,17 +32,17 @@ const MENUS: { key: string; label: string; items: Item[] }[] = [
   { key: 'plan', label: 'Plan', items: [
     { label: 'Timeline', view: 'timeline' }, { label: 'List', view: 'list' }, { label: 'Board', view: 'board' },
     { label: '', divider: true },
-    { label: 'Add task', action: 'onAddTask' }, { label: 'Import', action: 'onImport' },
+    { label: 'Add Task', action: 'onAddTask' }, { label: 'Import', action: 'onImport' },
     { label: 'Re-plan', action: 'onReflow' }, { label: 'Closures', action: 'onClosures' },
   ]},
   { key: 'track', label: 'Track', items: [
     { label: 'Overview', view: 'overview' }, { label: 'Workload', view: 'workload' }, { label: 'Calendar', view: 'calendar' },
     { label: '', divider: true },
-    { label: 'Critical path', action: 'onCriticalPath' }, { label: 'Fix overloads', action: 'onLevelResources' }, { label: 'History', action: 'onHistory' }, { label: 'Baseline', action: 'onBaseline' }, { label: 'Weather re-plan', action: 'onWeather' },
+    { label: 'Critical Path', action: 'onCriticalPath' }, { label: 'Fix Overloads', action: 'onLevelResources' }, { label: 'History', action: 'onHistory' }, { label: 'Baseline', action: 'onBaseline' }, { label: 'Weather Re-Plan', action: 'onWeather' },
   ]},
   { key: 'share', label: 'Share', items: [
-    { label: 'Export', action: 'onExport' }, { label: 'Share link', action: 'onShare' }, { label: 'AI assist', action: 'onAI' },
-    { label: 'Today & lookahead (classic)', action: 'openClassic', onlyIfPresent: true },
+    { label: 'Export', action: 'onExport' }, { label: 'Share Link', action: 'onShare' }, { label: 'AI Assist', action: 'onAI' },
+    { label: 'Today and Lookahead (Classic)', action: 'openClassic', onlyIfPresent: true },
   ]},
 ];
 
@@ -132,7 +132,7 @@ export function SchedulerMenuBar({ active, onSelectView, actions, actionsOnly, i
               <Text style={[styles.menuLabel, isActiveGroup && styles.menuLabelActive]}>{menu.label} ▾</Text>
             </Pressable>
             <Modal visible={open === menu.key} transparent animationType="fade" onRequestClose={() => setOpen(null)}>
-              <Pressable style={styles.backdrop} onPress={() => setOpen(null)} accessibilityRole="button" accessibilityLabel="Close menu" />
+              <Pressable style={styles.backdrop} onPress={() => setOpen(null)} accessibilityRole="button" accessibilityLabel="Close Menu" />
               <View
                 style={[styles.dropdown, placed ? { top: placed.top, left: placed.left } : styles.dropdownUnplaced]}
                 accessibilityRole="menu"

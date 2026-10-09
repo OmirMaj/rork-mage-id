@@ -221,7 +221,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate, 
     return (
       <View style={styles.empty}>
         <Users size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-        <Text style={styles.emptyTitle}>No resources yet</Text>
+        <Text style={styles.emptyTitle}>No Resources Yet</Text>
         <Text style={styles.emptyText}>
           Assign a crew name or add resources in project settings to see the lane view.
         </Text>

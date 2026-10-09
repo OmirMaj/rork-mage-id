@@ -125,8 +125,8 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
             <Text style={styles.avatarText}>{company.name ? company.name.charAt(0) : '?'}</Text>
           </View>
           <View style={styles.cardTopInfo}>
-            <Text style={styles.companyName} numberOfLines={1}>{company.name ?? 'Unnamed business'}</Text>
-            <Text style={styles.specialtyText}>{company.trade_specialty ?? 'Specialty not listed'}</Text>
+            <Text style={styles.companyName} numberOfLines={1}>{company.name ?? 'Unnamed Business'}</Text>
+            <Text style={styles.specialtyText}>{company.trade_specialty ?? 'Specialty Not Listed'}</Text>
             <Text style={styles.sourceText}>Public business listing (Google) · not a MAGE ID member</Text>
           </View>
         </View>
@@ -140,7 +140,7 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
 
         <View style={styles.addressRow}>
           <MapPin size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
-          <Text style={styles.addressText} numberOfLines={2}>{formattedAddress || 'Address not available'}</Text>
+          <Text style={styles.addressText} numberOfLines={2}>{formattedAddress || 'Address Not Available'}</Text>
         </View>
 
         <View style={styles.cardFooter}>
@@ -355,12 +355,12 @@ function CachedCompaniesScreen() {
       {companiesQueryError ? (
         <View style={styles.emptyContainer}>
           <AlertCircle size={40} color={themeColors.warningLabel} strokeWidth={1.75} />
-          <Text style={styles.emptyTitle}>Couldn&apos;t load companies</Text>
+          <Text style={styles.emptyTitle}>Couldn&apos;t Load Companies</Text>
           <Text style={styles.emptySubtitle}>
             {describeError(companiesQueryError, { action: 'load companies' }).body}
           </Text>
           <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Try again</Text>
+            <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       ) : loading ? (
@@ -381,7 +381,7 @@ function CachedCompaniesScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>No companies match yet</Text>
+              <Text style={styles.emptyTitle}>No Companies Match Yet</Text>
               <Text style={styles.emptySubtitle}>
                 These are public business listings from Google for nine large metros, not MAGE ID members. Try a wider radius or clear the specialty filter.
               </Text>

@@ -168,11 +168,11 @@ function StripLine({ notice, styles, t, onDismiss, pager, testIDPrefix }: {
       ) : null}
       {pager ? (
         <View style={styles.pager}>
-          <Pressable onPress={pager.prev} accessibilityRole="button" accessibilityLabel="Previous notice" hitSlop={6} testID={testIDPrefix ? `${testIDPrefix}-prev` : undefined}>
+          <Pressable onPress={pager.prev} accessibilityRole="button" accessibilityLabel="Previous Notice" hitSlop={6} testID={testIDPrefix ? `${testIDPrefix}-prev` : undefined}>
             <ChevronLeft {...Tokens.iconSize.small} color={t.textSecondary} />
           </Pressable>
           <Text style={styles.pagerText}>{pager.at + 1} of {pager.total}</Text>
-          <Pressable onPress={pager.next} accessibilityRole="button" accessibilityLabel="Next notice" hitSlop={6} testID={testIDPrefix ? `${testIDPrefix}-next` : undefined}>
+          <Pressable onPress={pager.next} accessibilityRole="button" accessibilityLabel="Next Notice" hitSlop={6} testID={testIDPrefix ? `${testIDPrefix}-next` : undefined}>
             <ChevronRight {...Tokens.iconSize.small} color={t.textSecondary} />
           </Pressable>
         </View>

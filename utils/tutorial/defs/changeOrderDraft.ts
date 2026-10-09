@@ -26,7 +26,7 @@ function coTotalCents(ctx: CopyCtx): number | null {
 export const changeOrderDraft: TutorialDef = {
   id: 'change-order-draft',
   version: 1,
-  title: 'Write a change order',
+  title: 'Write a Change Order',
   seconds: 40,
   endsWith: 'A draft change order with its price and days',
   group: 'money',
@@ -85,7 +85,7 @@ export const changeOrderDraft: TutorialDef = {
       gesture: 'tap',
       until: { signal: 'co.saved' },
       success: {
-        title: 'Change order saved as a draft',
+        title: 'Change Order Saved as a Draft',
         sub: ctx => {
           const parts: string[] = [];
           const t = coTotalCents(ctx);
@@ -122,9 +122,9 @@ export const changeOrderDraft: TutorialDef = {
     pathname: '/change-order',
     projectParam: 'projectId',
     params: { new: '1' },
-    realJobLabel: name => `Write a change order on ${name} →`,
+    realJobLabel: name => `Write a change order on ${name}`,
     feature: 'change_orders_invoicing',
-    paywallLabel: 'Change orders come with Pro — see plans',
+    paywallLabel: 'Change orders come with Pro. See Plans',
     roles: ['owner', 'editor'],
   },
 };

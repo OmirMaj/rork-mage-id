@@ -881,7 +881,7 @@ function partC() {
   }
   const settings = stripComments(read('app/(tabs)/settings/index.tsx'));
   ok('Settings → AI features: On/Off from the stored answer, Off → decline',
-    /<Text style=\{styles\.rowLabel\}>AI features<\/Text>/.test(settings)
+    /<Text style=\{styles\.rowLabel\}>AI Features<\/Text>/.test(settings)
     && /\{aiConsentState === 'granted' \? 'On' : 'Off'\}/.test(settings)
     && /if \(!on\) \{ void declineAiConsent\(\); return; \}/.test(settings)
     && /subscribeAiConsent\(setAiConsentState\)/.test(settings));
@@ -913,7 +913,7 @@ function partC() {
     || (readsAccountAnswer('portal-ask-home') && /Ask Your Home/.test(AI_CONSENT_OFF_ROW) && /follow the answer saved on your account/.test(AI_CONSENT_OFF_ROW)));
   ok('the Off row no longer says the server "still uses AI" (the server now obeys the account)', !/still uses AI on our server/.test(AI_CONSENT_OFF_ROW));
   ok('…and that switch exists where the row says: "Send weekly recap" on the Client portal screen',
-    /title: 'Client portal'/.test(read('app/client-portal-setup.tsx')) && /<Text style=\{styles\.toggleLabel\}>Send weekly recap<\/Text>/.test(read('app/client-portal-setup.tsx')));
+    /title: 'Client Portal'/.test(read('app/client-portal-setup.tsx')) && /<Text style=\{styles\.toggleLabel\}>Send Weekly Recap<\/Text>/.test(read('app/client-portal-setup.tsx')));
   const blanket = files.filter((f) => !f.startsWith('utils/aiConsent') && /Nothing is sent to an AI provider|Nothing is sent until you allow/.test(stripComments(read(f))));
   ok('no screen says a blanket "Nothing is sent to an AI provider" / "Nothing is sent until you allow"',
     blanket.length === 0 && !/Nothing is sent to an AI provider/.test(AI_CONSENT_OFF_ROW), blanket.join(', '));
@@ -1464,7 +1464,7 @@ function partC5(files: string[]) {
     && describeError(new Error(AI_CONSENT_OFF_MESSAGE), { action: 'x' }).body === AI_CONSENT_OFF_MESSAGE);
   const other = describeError(plain, { action: 'run the risk forecast' });
   ok('describeError(any other failure): unchanged copy, and never the raw text',
-    other.title === "That didn't go through" && other.body.startsWith("MAGE couldn't run the risk forecast.") && !other.body.includes('Gemini 503'));
+    other.title === "That didn't go through." && other.body.startsWith("MAGE couldn't run the risk forecast.") && !other.body.includes('Gemini 503'));
   const untyped: string[] = [];
   let typedThrows = 0;
   for (const [file, code] of codeOf) {

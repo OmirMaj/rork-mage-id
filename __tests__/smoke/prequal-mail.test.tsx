@@ -57,7 +57,7 @@ describe('composeMailOrOfferLink', () => {
     expect(a.title).toBe('Invite ready to send');
     expect(a.body).toBe(args.ready.webBody);
     expect(a.body).not.toMatch(/mail app opened with/);
-    const copy = a.buttons.find(b => b.text === 'Copy link');
+    const copy = a.buttons.find(b => b.text === 'Copy Link');
     expect(copy).toBeTruthy();
     copy!.onPress!();
     expect(mockCopy).toHaveBeenCalledWith(LINK);
@@ -69,7 +69,7 @@ describe('composeMailOrOfferLink', () => {
     await composeMailOrOfferLink(args);
     const a = lastAlert();
     expect(a.body).toBe(args.ready.nativeBody);
-    expect(a.buttons.map(b => b.text)).toEqual(['Done', 'Copy link']);
+    expect(a.buttons.map(b => b.text)).toEqual(['Done', 'Copy Link']);
   });
 
   it('a rejected open says nothing went out and offers the link', async () => {
@@ -79,7 +79,7 @@ describe('composeMailOrOfferLink', () => {
     expect(mockShowAlert).toHaveBeenCalledTimes(1);
     const a = lastAlert();
     expect(a.title).toBe('Invite saved — no email went out');
-    expect(a.buttons.map(b => b.text)).toEqual(['Close', 'Copy link']);
+    expect(a.buttons.map(b => b.text)).toEqual(['Close', 'Copy Link']);
     a.buttons[1].onPress!();
     expect(mockCopy).toHaveBeenCalledWith(LINK);
   });

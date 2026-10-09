@@ -131,7 +131,7 @@ export default function FilterChipRow<T extends string = string>({
             testID={`${testID ?? 'chip'}-more`}
           >
             <Text numberOfLines={1} style={[styles.label, { color: colors.textSecondary }]}>
-              {expanded ? 'Show fewer' : `${hidden} more`}
+              {expanded ? 'Show Fewer' : `${hidden} more`}
             </Text>
           </TouchableOpacity>
         )}

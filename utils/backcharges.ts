@@ -126,10 +126,10 @@ export function amountFromHours(hours: number, rateCents: number): number {
     throw new BackchargeHoursError('hours', 'Hours must be more than zero.');
   }
   if (hours > MAX_BACKCHARGE_HOURS) {
-    throw new BackchargeHoursError('hours', `That is more than ${MAX_BACKCHARGE_HOURS} hours — type the amount instead.`);
+    throw new BackchargeHoursError('hours', `That is more than ${MAX_BACKCHARGE_HOURS} hours. Type the amount instead.`);
   }
   if (!Number.isInteger(rateCents) || rateCents <= 0) {
-    throw new BackchargeHoursError('rate', 'No labor rate on file — type the amount.');
+    throw new BackchargeHoursError('rate', 'No labor rate on file. Type the amount.');
   }
   return Math.round(hours * rateCents);
 }
@@ -238,8 +238,8 @@ export function backchargeNotice(a: { subName: string; projectName: string; comp
 
 // ── A backcharge from a punch item ─────────────────────────────────────────
 
-export const BACKCHARGE_NEEDS_SUB = 'Assign this punch item to a sub first — a backcharge comes off a sub’s bill.';
-export const BACKCHARGE_AMBIGUOUS_SUB = 'More than one sub has that name — pick the sub on the punch item first.';
+export const BACKCHARGE_NEEDS_SUB = 'Assign this punch item to a sub first. A backcharge comes off a sub’s bill.';
+export const BACKCHARGE_AMBIGUOUS_SUB = 'More than one sub has that name. Pick the sub on the punch item first.';
 export const BACKCHARGE_SEAT_CHECKING = 'Checking your access to this project…';
 export const BACKCHARGE_SEAT_FIELD = 'Backcharges are money, and your role on this project doesn’t include costs.';
 export const BACKCHARGE_SEAT_VIEWER = 'You have view-only access to this project.';

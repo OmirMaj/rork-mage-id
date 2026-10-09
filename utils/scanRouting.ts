@@ -31,12 +31,12 @@ export function resolveDestination(docType: ScanDocType): ScanDestination {
 export function defaultTitleFor(docType: ScanDocType, fields: Record<string, unknown>): string {
   const s = (k: string) => (typeof fields[k] === 'string' ? (fields[k] as string) : '');
   switch (docType) {
-    case 'invoice': return s('vendor') ? `Invoice — ${s('vendor')}` : 'Invoice';
+    case 'invoice': return s('vendor') ? `Invoice · ${s('vendor')}` : 'Invoice';
     case 'permit': return s('permitNumber') ? `Permit ${s('permitNumber')}` : 'Permit';
-    case 'insurance_coi': return s('insured') ? `COI — ${s('insured')}` : 'Certificate of Insurance';
+    case 'insurance_coi': return s('insured') ? `COI · ${s('insured')}` : 'Certificate of Insurance';
     case 'business_card': return s('name') || s('company') || 'Business Card';
-    case 'delivery_ticket': return s('supplier') ? `Delivery — ${s('supplier')}` : 'Delivery Ticket';
-    case 'warranty': return s('product') ? `Warranty — ${s('product')}` : 'Warranty';
+    case 'delivery_ticket': return s('supplier') ? `Delivery · ${s('supplier')}` : 'Delivery Ticket';
+    case 'warranty': return s('product') ? `Warranty · ${s('product')}` : 'Warranty';
     case 'equipment_nameplate': return [s('make'), s('model')].filter(Boolean).join(' ') || 'Equipment';
     case 'material_tag': return s('product') || s('sku') || 'Material';
     default: return humanizeEnum(docType);
@@ -173,12 +173,12 @@ export function scanOwnerOnlyGate(
   return {
     state: 'blocked',
     reason: recordKind === 'warranty'
-      ? "Warranties are kept on the project owner's account — ask them to log it. This scan files as an image only."
+      ? "Warranties are kept on the project owner's account. Ask them to log it. This scan files as an image only."
       : recordKind === 'permit'
-        ? 'Permits are managed by the project owner — this scan files as an image only.'
+        ? 'Permits are managed by the project owner. This scan files as an image only.'
         : recordKind === 'cost'
-          ? "Bills are booked on the project owner's account — job costing only counts theirs. Ask them to log it; this scan files as an image only."
-          : "COIs are kept on the project owner's sub records — ask them to file it. This scan files as an image only.",
+          ? "Bills are booked on the project owner's account, and job costing only counts theirs. Ask them to log it. This scan files as an image only."
+          : "COIs are kept on the project owner's sub records. Ask them to file it. This scan files as an image only.",
   };
 }
 
@@ -202,7 +202,7 @@ export function materialReceiptOwnerGate(
   }
   return {
     state: 'blocked',
-    reason: "Bills are booked on the project owner's account — job costing only counts theirs. Ask them to log this receipt.",
+    reason: "Bills are booked on the project owner's account, and job costing only counts theirs. Ask them to log this receipt.",
   };
 }
 
@@ -217,13 +217,13 @@ export function scanFolderLabel(key: string): string {
  * the card showed were thrown away (#162).
  */
 export function scanFiledMessage(kind: ScanRecordKind, folder: string, pages: number): string {
-  const where = `Project Files › ${scanFolderLabel(folder)}`;
+  const where = `Project Files > ${scanFolderLabel(folder)}`;
   const saved = pages > 1 ? `Saved all ${pages} pages to ${where}` : `Saved the image to ${where}`;
   switch (kind) {
     case 'cost': return `${saved} and logged the bill as a cost entry.`;
     case 'contact': return `${saved} and created the contact.`;
     case 'sub_compliance': return `${saved} and filed the COI on the sub.`;
-    case 'permit': return `${saved} and added the permit to the Permits list. The scan doesn't read the fee or the application date — add them there.`;
+    case 'permit': return `${saved} and added the permit to the Permits list. The scan doesn't read the fee or the application date. Add them there.`;
     case 'warranty': return `${saved} and added the warranty.`;
     case 'file_only': return `${saved}. The fields it read are not saved as a record.`;
   }
@@ -272,7 +272,7 @@ export function scanPayloadTooLarge(captures: readonly { base64: string }[]): st
   }
   if (total <= SCAN_MAX_BYTES_TOTAL && largest <= SCAN_MAX_BYTES_PER_IMAGE) return null;
   const mb = (Math.max(total, largest) / 1024 / 1024).toFixed(1);
-  return `Scan payload too large (${mb} MB). Remove a page or retake — up to ~8 MB per scan.`;
+  return `Scan payload too large (${mb} MB). Remove a page or retake. A scan holds up to about 8 MB.`;
 }
 
 // ── COI → sub (#33) ───────────────────────────────────────────────────────
@@ -369,7 +369,7 @@ export function buildScanPermit(
   const expires = scanCalendarDay(fields.expiresDate);
   const address = str(fields.address);
   const notes = [
-    `Filed from Scan Anything — Project Files › Permits › ${ctx.fileName}.`,
+    `Filed from Scan Anything. Project Files > Permits > ${ctx.fileName}.`,
     address ? `Job address on the permit: ${address}.` : '',
     'Fee not read from the scan.',
   ].filter(Boolean).join(' ');
@@ -439,12 +439,12 @@ export function buildScanWarranty(
   const endRead = scanCalendarDay(fields.endDate);
   const termMonths = warrantyMonthsFromTerm(fields.term);
   if (!start) {
-    return { ok: false, reason: 'To add a warranty, Start Date must read as a date (YYYY-MM-DD) — edit it above, or it files as an image only.' };
+    return { ok: false, reason: 'To add a warranty, Start Date must read as a date (YYYY-MM-DD). Edit it above, or it files as an image only.' };
   }
   const end = endRead ?? (termMonths ? addCalendarMonths(start, termMonths) : null);
   const months = termMonths ?? (end ? monthsBetween(start, end) : null);
   if (!end || !months || end <= start) {
-    return { ok: false, reason: 'To add a warranty, End Date (YYYY-MM-DD) or a term like "10 years" must be readable — edit it above, or it files as an image only.' };
+    return { ok: false, reason: 'To add a warranty, End Date (YYYY-MM-DD) or a term like "10 years" must be readable. Edit it above, or it files as an image only.' };
   }
   const product = str(fields.product);
   const term = str(fields.term);
@@ -460,7 +460,7 @@ export function buildScanWarranty(
       durationMonths: months,
       endDate: end,
       description: [
-        `Filed from Scan Anything — Project Files › Closeout › ${ctx.fileName}.`,
+        `Filed from Scan Anything. Project Files > Closeout > ${ctx.fileName}.`,
         term ? `Term as printed: ${term}.` : '',
       ].filter(Boolean).join(' '),
     },

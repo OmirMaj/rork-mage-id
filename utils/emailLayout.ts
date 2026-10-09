@@ -30,6 +30,7 @@
 // and user-composed emails must look identical in the inbox.
 
 import { growthLink } from './growthLink';
+import { RECIPIENT_NOTICE_MARK, recipientNoticeText } from '@/utils/recipientNotice';
 
 const INK = '#0B0D10';
 const BRAND = '#2F6B3A';
@@ -321,11 +322,11 @@ const GROWTH_BADGE_URL = growthLink('email');
 function brandLineHtml(growthBadge?: boolean): string {
   if (growthBadge) {
     return `<p style="margin:0;font-family:${FONT_STACK};font-size:12px;color:${STONE};line-height:1.6;">
-        Built with <a href="${GROWTH_BADGE_URL}" style="color:${BRAND};font-weight:800;text-decoration:none;">MAGE ID</a> — project management for contractors. <a href="${GROWTH_BADGE_URL}" style="color:${INK};font-weight:700;text-decoration:underline;">Run your projects free →</a>
+        Built with <a href="${GROWTH_BADGE_URL}" style="color:${BRAND};font-weight:800;text-decoration:none;">MAGE ID</a>, project management for contractors. <a href="${GROWTH_BADGE_URL}" style="color:${INK};font-weight:700;text-decoration:underline;">Run your projects free</a>
       </p>`;
   }
   return `<p style="margin:0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;">
-        Powered by <a href="${PORTAL_BASE_URL}" style="color:${INK};font-weight:700;text-decoration:none;">MAGE ID</a> — the operating system for general contractors.
+        Powered by <a href="${PORTAL_BASE_URL}" style="color:${INK};font-weight:700;text-decoration:none;">MAGE ID</a>, the operating system for general contractors.
       </p>`;
 }
 
@@ -365,9 +366,16 @@ function footerHtml(opts: {
       ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(prefsUrl)}" style="${linkStyle}">Manage email preferences</a></p>`
       : '';
 
+  // The Notice To Recipients (utils/recipientNotice.ts): an email sent in a
+  // company's name is that company's message. Body size, ink colour.
+  const noticeLine = opts.sender?.name
+    ? `<p ${RECIPIENT_NOTICE_MARK}="1" style="margin:0 0 10px;font-family:${FONT_STACK};font-size:13px;color:${INK};line-height:1.5;">${escapeHtml(recipientNoticeText(opts.sender.name))}</p>`
+    : '';
+
   return `
     <tr><td style="padding:22px 32px 28px;background:#FAFAF7;border-top:1px solid ${HAIRLINE};">
       ${senderLine}
+      ${noticeLine}
       ${brandLineHtml(opts.growthBadge)}
       ${unsubLine}
     </td></tr>`;

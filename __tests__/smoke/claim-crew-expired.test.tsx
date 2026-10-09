@@ -38,7 +38,7 @@ describe('claim-crew with an expired magic link', () => {
     );
     await waitFor(() => expect(screen.getByText(/This sign-in link has expired or was already used\. Your invite is still good\./)).toBeTruthy());
     expect(screen.queryByText('Confirming your profile…')).toBeNull();
-    expect(screen.getByText('Go to app')).toBeTruthy();
+    expect(screen.getByText('Go to App')).toBeTruthy();
     await act(async () => { fireEvent.press(screen.getByTestId('claim-sign-in')); });
     await waitFor(() => expect(r.getPathname()).toBe('/login'));
     const stash = await AsyncStorage.getItem('mageid_pending_deeplink');
@@ -53,7 +53,7 @@ describe('claim-crew with an expired magic link', () => {
       { initialUrl: `/claim-crew?token=${TOKEN}`, wrapper: Wrapper },
     );
     expect(screen.getByText('Confirming your profile…')).toBeTruthy();
-    expect(screen.getByText('Go to app')).toBeTruthy();
+    expect(screen.getByText('Go to App')).toBeTruthy();
     await act(async () => { jest.advanceTimersByTime(8100); });
     expect(screen.getByText(/This sign-in link has expired or was already used/)).toBeTruthy();
     jest.useRealTimers();

@@ -174,7 +174,7 @@ function PlanViewerGate({ gate, role, onRetry }: { gate: PlanGate; role: PlanRol
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Plan sheet</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Plan Sheet</Text>
       </View>
       <View style={styles.gateBox} testID={`plan-viewer-gate-${gate}`}>
         {gate === 'loading' ? (
@@ -182,7 +182,7 @@ function PlanViewerGate({ gate, role, onRetry }: { gate: PlanGate; role: PlanRol
         ) : gate === 'error' ? (
           <>
             <Text style={styles.gateText}>Couldn&apos;t check your access to this project. Check your connection and try again.</Text>
-            <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="plan-viewer-role-retry" />
+            <Button label="Try Again" variant="secondary" size="sm" onPress={onRetry} testID="plan-viewer-role-retry" />
           </>
         ) : (
           <Text style={styles.gateText}>You don&apos;t have access to this project&apos;s plans. Ask the project owner to invite you.</Text>
@@ -277,16 +277,16 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   const markupBlock = planControlBlock(seatRole, 'markup', roleStatus);
   // A failed role read's refusal says "tap Try again" — the alert carries it.
   const retryButtons = useMemo(() => (seatRole === null && innerRoleState.isError
-    ? [{ text: 'Cancel', style: 'cancel' as const }, { text: 'Try again', onPress: innerRoleState.refetch }]
+    ? [{ text: 'Cancel', style: 'cancel' as const }, { text: 'Try Again', onPress: innerRoleState.refetch }]
     : undefined), [seatRole, innerRoleState.isError, innerRoleState.refetch]);
   const refuseMarkup = useCallback((): boolean => {
     if (!markupBlock) return false;
-    showAlert(seatRole === null ? 'Not available yet' : 'View only', markupBlock, retryButtons);
+    showAlert(seatRole === null ? 'Not Available Yet' : 'View Only', markupBlock, retryButtons);
     return true;
   }, [markupBlock, seatRole, retryButtons]);
   const compareRevisions = useCallback((oldSheetId: string, newSheetId: string) => {
     if (!sheet) return;
-    if (compareBlock) { showAlert('Compare not available', compareBlock, retryButtons); return; }
+    if (compareBlock) { showAlert('Compare Not Available', compareBlock, retryButtons); return; }
     router.push({ pathname: '/compare-drawings' as never, params: { projectId: sheet.projectId, oldSheetId, newSheetId } as never });
   }, [sheet, router, compareBlock, retryButtons]);
 
@@ -332,13 +332,13 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   const saveSheetNumber = useCallback(() => {
     if (!sheet || numberDraft === null) return;
     const plan = planRenumber(sheet, numberDraft, projectSheets);
-    if (plan.kind === 'invalid') { showAlert('That is not a sheet number', plan.reason); return; }
+    if (plan.kind === 'invalid') { showAlert('That is not a sheet number.', plan.reason); return; }
     setNumberDraft(null);
     if (plan.kind === 'noop') return;
     patchQueue.current = [...plan.patches];
     drainPatches();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (plan.message) showAlert('Revision updated', plan.message);
+    if (plan.message) showAlert('Revision Updated', plan.message);
   }, [sheet, numberDraft, projectSheets, drainPatches]);
 
   const [mode, setMode] = useState<Mode>('pin');
@@ -583,7 +583,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             const dy = (next[1].y - next[0].y) * imgLayout.h;
             const px = Math.sqrt(dx * dx + dy * dy);
             if (px < MIN_CALIBRATION_PX) {
-              showAlert('Points too close', 'Tap two points that are further apart — the longer the reference, the more accurate the scale.');
+              showAlert('Points Too Close', 'Tap two points that are further apart. The longer the reference, the more accurate the scale.');
               return [];
             }
             setCalibrationInput({ distanceFt: '', visible: true });
@@ -653,12 +653,12 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   const confirmCalibration = useCallback(() => {
     if (!sheet || pointBuffer.length !== 2 || !calibrationInput) return;
     if (!imageFrameKnown) {
-      showAlert('Scale not saved', CALIBRATE_FRAME_UNKNOWN_COPY);
+      showAlert('Scale Not Saved', CALIBRATE_FRAME_UNKNOWN_COPY);
       return;
     }
     const ft = Number(calibrationInput.distanceFt.replace(/[^0-9.]/g, ''));
     if (!Number.isFinite(ft) || ft <= 0) {
-      showAlert('Enter a distance', 'Type the real-world distance between the two points, in feet.');
+      showAlert('Enter a Distance', 'Type the real-world distance between the two points, in feet.');
       return;
     }
     upsertPlanCalibration({
@@ -727,8 +727,8 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   // Page scope with the typing guard on: an arrow typed in a field is the
   // field's, and an open sheet (a framed Modal's dialog scope) masks both.
   useHotkeys([
-    { combo: 'arrowup', handler: () => { const id = adjacentSheetId(rail, sheet?.id ?? '', -1); if (id) openSheet(id); }, label: 'Previous sheet', group: 'Plans' },
-    { combo: 'arrowdown', handler: () => { const id = adjacentSheetId(rail, sheet?.id ?? '', 1); if (id) openSheet(id); }, label: 'Next sheet', group: 'Plans' },
+    { combo: 'arrowup', handler: () => { const id = adjacentSheetId(rail, sheet?.id ?? '', -1); if (id) openSheet(id); }, label: 'Previous Sheet', group: 'Plans' },
+    { combo: 'arrowdown', handler: () => { const id = adjacentSheetId(rail, sheet?.id ?? '', 1); if (id) openSheet(id); }, label: 'Next Sheet', group: 'Plans' },
   ], { scope: 'page', enabled: isDesktopWeb && rail.length > 1 });
 
   // The sheet-number and scale sheets take the Sheet.tsx frame (a centred
@@ -746,7 +746,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Sheet not found</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Sheet Not Found</Text>
         </View>
       </View>
     );
@@ -769,13 +769,13 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         // unknown he would tap two points and type a distance, only
         // for confirmCalibration to refuse it.
         if (refuseMarkup()) return;
-        if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
-        switchMode('calibrate'); showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY);
+        if (!imageFrameKnown) { showAlert('Can\'t Calibrate Yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
+        switchMode('calibrate'); showAlert('Re-Check Scale', PLAN_SCALE_RECHECK_COPY);
       }}
       accessibilityRole="button"
-      accessibilityLabel="Re-check scale"
+      accessibilityLabel="Re-Check Scale"
     >
-      <Text style={[styles.modePillText, { color: Colors.warning }]}>Re-check scale</Text>
+      <Text style={[styles.modePillText, { color: Colors.warning }]}>Re-Check Scale</Text>
     </TouchableOpacity>
   ) : null;
 
@@ -941,7 +941,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
                 },
               ]}
               onPress={() => setSelectedPinId(pin.id)}
-              hitSlop={8} accessibilityRole="button" accessibilityLabel="View location">
+              hitSlop={8} accessibilityRole="button" accessibilityLabel="View Location">
               <MapPin size={14} color={themeColors.surface} strokeWidth={2.5} />
             </TouchableOpacity>
           ))}
@@ -992,10 +992,10 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
           ? (scaleFtPerPx
             ? (pointBuffer.length === 0 ? 'Tap the start of your measurement.' :
                pointBuffer.length === 1 ? 'Tap the end point.' :
-               measuredFt != null ? `${measuredFt.toFixed(1)} ft — tap again to re-measure.` : 'Measuring\u2026')
-            : (scaleNeedsRecheck ? PLAN_SCALE_RECHECK_COPY : 'Calibrate the sheet first \u2014 tap Calibrate.'))
-          : (pointBuffer.length === 0 ? 'Tap one end of a known reference (e.g. a dimensioned wall).' :
-             pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it \u2014 enter the distance.')}
+               measuredFt != null ? `${measuredFt.toFixed(1)} ft. Tap again to re-measure.` : 'Measuring\u2026')
+            : (scaleNeedsRecheck ? PLAN_SCALE_RECHECK_COPY : 'Calibrate the sheet first. Tap Calibrate.'))
+          : (pointBuffer.length === 0 ? 'Tap one end of a known reference, such as a dimensioned wall.' :
+             pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it. Enter the distance.')}
       </Text>
       <TouchableOpacity onPress={() => { setPointBuffer([]); setMode('pin'); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
         <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
@@ -1032,14 +1032,14 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             // No scale yet: Measure would route him into Calibrate, which
             // writes the sheet's scale — a viewer is told why instead.
             if (refuseMarkup()) return;
-            if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
+            if (!imageFrameKnown) { showAlert('Can\'t Calibrate Yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
             switchMode('calibrate');
             if (scaleNeedsRecheck) {
-              showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY);
+              showAlert('Re-Check Scale', PLAN_SCALE_RECHECK_COPY);
             } else {
               showAlert(
-                'Set sheet scale first',
-                'Tap two points a known distance apart (e.g. a door = 3 ft). Measuring turns on once the scale is set.',
+                'Set Sheet Scale First',
+                'Tap two points a known distance apart (a door is 3 ft). Measuring turns on once the scale is set.',
                 [{ text: 'OK' }],
               );
             }
@@ -1062,7 +1062,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         onPress={() => {
           // Blocked, and says why: see markupBlock and imageFrameKnown.
           if (refuseMarkup()) return;
-          if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
+          if (!imageFrameKnown) { showAlert('Can\'t Calibrate Yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
           switchMode('calibrate');
         }}
       >
@@ -1078,7 +1078,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
       <TouchableOpacity style={[toolBtnBase, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]} accessibilityHint={markupBlock ?? undefined} onPress={() => {
         if (markups.length === 0) return;
         if (refuseMarkup()) return;
-        showAlert('Clear markup', 'Remove all strokes on this sheet?', [
+        showAlert('Clear Markup', 'Remove all strokes on this sheet?', [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Clear', style: 'destructive', onPress: () => markups.forEach(m => deletePlanMarkup(m.id)) },
         ]);
@@ -1104,12 +1104,12 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
           <TouchableOpacity
             onPress={() => { if (refuseMarkup()) return; setNumberDraft(sheet.sheetNumber ?? ''); }}
             accessibilityRole="button"
-            accessibilityLabel={sheet.sheetNumber ? `Sheet number ${sheet.sheetNumber}. Tap to change.` : 'Add a sheet number'}
+            accessibilityLabel={sheet.sheetNumber ? `Sheet number ${sheet.sheetNumber}. Tap to change.` : 'Add a Sheet Number'}
             testID="plan-viewer-sheet-number"
             hitSlop={6}
           >
             <Text style={[styles.headerEyebrow, !sheet.sheetNumber && { color: themeColors.accent }]}>
-              {sheet.sheetNumber ? sheet.sheetNumber : '+ Add sheet number'}
+              {sheet.sheetNumber ? sheet.sheetNumber : '+ Add Sheet Number'}
             </Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>{sheet.name}</Text>
@@ -1123,7 +1123,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             onPress={toggleRail}
             style={styles.headerBtn}
             accessibilityRole="button"
-            accessibilityLabel={railOpen ? 'Hide sheet list' : 'Show sheet list'}
+            accessibilityLabel={railOpen ? 'Hide Sheet List' : 'Show Sheet List'}
             testID="plan-viewer-rail-toggle"
           >
             {railOpen
@@ -1140,7 +1140,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
           style={styles.headerBtn}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="Ask your plans"
+          accessibilityLabel="Ask Your Plans"
           testID="plan-viewer-ask-btn"
         >
           <MageAIMark size={20} color={themeColors.accent} />
@@ -1170,10 +1170,10 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
               onPress={goToCurrentSheet}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Open the current revision"
+              accessibilityLabel="Open the Current Revision"
               testID="plan-viewer-open-current"
             >
-              <Text style={styles.staleBannerBtnText}>Open current revision</Text>
+              <Text style={styles.staleBannerBtnText}>Open Current Revision</Text>
               <ArrowRight size={15} color={Colors.textOnAccent} strokeWidth={2} />
             </TouchableOpacity>
           ) : null}
@@ -1184,17 +1184,17 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
               accessibilityHint={compareBlock ?? undefined}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Compare this sheet with the current revision"
+              accessibilityLabel="Compare This Sheet with the Current Revision"
               testID="plan-viewer-compare-current"
             >
-              <Text style={styles.revCompareBtnText}>Compare with the current revision</Text>
+              <Text style={styles.revCompareBtnText}>Compare with the Current Revision</Text>
             </TouchableOpacity>
           ) : null}
         </View>
       ) : !sheet.superseded && previousSheet ? (
         <View style={styles.revRow} testID="plan-viewer-revision-row">
           <Text style={styles.revRowText}>
-            Rev {sheet.revision ?? 1}{sheet.sheetNumber ? ` of ${sheet.sheetNumber}` : ''} — replaced Rev {previousSheet.revision ?? 1}
+            Rev {sheet.revision ?? 1}{sheet.sheetNumber ? ` of ${sheet.sheetNumber}` : ''}, replaced Rev {previousSheet.revision ?? 1}
           </Text>
           <TouchableOpacity
             style={[styles.revCompareBtn, compareBlock ? styles.blockedBtn : null]}
@@ -1260,7 +1260,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         onAddPhoto={async () => {
           if (!selectedPin || refuseMarkup()) return;
           const perm = await ImagePicker.requestCameraPermissionsAsync();
-          if (perm.status !== 'granted') { showAlert('Permission needed', 'Camera access is required.'); return; }
+          if (perm.status !== 'granted') { showAlert('Permission Needed', 'Camera access is required.'); return; }
           const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
           if (result.canceled || !result.assets?.[0]) return;
           const uri = result.assets[0].uri;
@@ -1295,7 +1295,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.modalTitle}>Sheet number</Text>
+                <Text style={styles.modalTitle}>Sheet Number</Text>
               </View>
               <TouchableOpacity onPress={() => setNumberDraft(null)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
@@ -1317,7 +1317,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             />
             <TouchableOpacity style={[styles.primaryBtn, { marginTop: 10 }]} onPress={saveSheetNumber} testID="plan-viewer-sheet-number-save">
               <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-              <Text style={styles.primaryBtnText}>Save sheet number</Text>
+              <Text style={styles.primaryBtnText}>Save Sheet Number</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1336,7 +1336,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ruler size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.modalTitle}>Set scale</Text>
+                <Text style={styles.modalTitle}>Set Scale</Text>
               </View>
               <TouchableOpacity onPress={() => { setCalibrationInput(null); setPointBuffer([]); }} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
@@ -1358,7 +1358,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             </View>
             <TouchableOpacity style={[styles.primaryBtn, { marginTop: 10 }]} onPress={confirmCalibration}>
               <Check size={16} color={'#FFFFFF'} strokeWidth={1.75} />
-              <Text style={styles.primaryBtnText}>Set scale</Text>
+              <Text style={styles.primaryBtnText}>Set Scale</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1424,7 +1424,7 @@ function PinDetailModal({
                 <MapPin size={12} color={themeColors.surface} strokeWidth={1.75} />
               </View>
               <Text style={styles.modalTitle}>
-                {view === 'main' ? 'Pin' : view === 'photo' ? 'Link a photo' : view === 'rfi' ? 'Link an existing RFI' : 'Link a punch item'}
+                {view === 'main' ? 'Pin' : view === 'photo' ? 'Link a Photo' : view === 'rfi' ? 'Link an Existing RFI' : 'Link a Punch Item'}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -1441,7 +1441,7 @@ function PinDetailModal({
                 value={draftLabel}
                 onChangeText={setDraftLabel}
                 onBlur={saveLabel}
-                placeholder={"Optional \u2014 e.g. \u201Ccracked tile\u201D"}
+                placeholder={"Cracked tile (optional)"}
                 style={styles.input}
                 multiline
               />
@@ -1452,17 +1452,17 @@ function PinDetailModal({
                   onPress={onAddPhoto}
                 >
                   <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.linkCellTitle}>Take photo</Text>
-                  <Text style={styles.linkCellSub}>Shoot & pin it here</Text>
+                  <Text style={styles.linkCellTitle}>Take Photo</Text>
+                  <Text style={styles.linkCellSub}>Shoot and pin it here</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.linkCell} onPress={() => setView('photo')}>
                   <ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.linkCellTitle}>Existing photo</Text>
+                  <Text style={styles.linkCellTitle}>Existing Photo</Text>
                   <Text style={styles.linkCellSub}>Link one already on file</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.linkCell} onPress={() => setView('punch')}>
                   <ClipboardList size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.linkCellTitle}>Link punch</Text>
+                  <Text style={styles.linkCellTitle}>Link Punch</Text>
                   <Text style={styles.linkCellSub}>Link to open punch</Text>
                 </TouchableOpacity>
               </View>
@@ -1473,7 +1473,7 @@ function PinDetailModal({
               {!linkedPunch ? (
                 <TouchableOpacity style={styles.createPunchBtn} onPress={() => onCreatePunch(draftLabel)} activeOpacity={0.85} testID="pin-create-punch">
                   <ClipboardList size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.createPunchBtnText}>Create punch item here</Text>
+                  <Text style={styles.createPunchBtnText}>Create Punch Item Here</Text>
                   <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               ) : null}
@@ -1489,7 +1489,7 @@ function PinDetailModal({
                 <>
                   <TouchableOpacity style={styles.rfiBtn} onPress={onRaiseRfi} activeOpacity={0.85} accessibilityRole="button" testID="pin-raise-rfi">
                     <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.rfiBtnText}>Raise RFI from this location</Text>
+                    <Text style={styles.rfiBtnText}>Raise RFI from This Location</Text>
                     <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
                   </TouchableOpacity>
                   {/* #95: an RFI raised from a photo or the RFI screen goes on
@@ -1499,7 +1499,7 @@ function PinDetailModal({
                     <Text style={styles.linkedText} numberOfLines={1}>
                       {linkableRfis.length > 0
                         ? `Link an existing RFI (${linkableRfis.length} open)`
-                        : 'Link an existing RFI \u2014 none open without a pin'}
+                        : 'Link an existing RFI (none open without a pin)'}
                     </Text>
                     <ChevronRight size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -1509,7 +1509,7 @@ function PinDetailModal({
               {linkedPhoto && (
                 <View style={styles.linkedRow}>
                   <Image source={{ uri: linkedPhoto.uri }} style={styles.linkedThumb} />
-                  <Text style={styles.linkedText}>Photo linked</Text>
+                  <Text style={styles.linkedText}>Photo Linked</Text>
                   <TouchableOpacity onPress={() => onUpdate({ linkedPhotoId: undefined, kind: 'note' })} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -1526,13 +1526,13 @@ function PinDetailModal({
               )}
 
               <TouchableOpacity style={styles.deleteBtn} onPress={() => {
-                showAlert('Delete pin', 'Remove this pin?', [
+                showAlert('Delete Pin', 'Remove this pin?', [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Delete', style: 'destructive', onPress: onDelete },
                 ]);
               }}>
                 <Trash2 size={15} color={themeColors.danger} strokeWidth={1.75} />
-                <Text style={styles.deleteBtnText}>Delete pin</Text>
+                <Text style={styles.deleteBtnText}>Delete Pin</Text>
               </TouchableOpacity>
             </>
           )}
@@ -1584,7 +1584,7 @@ function PhotoPicker({ photos, onPick, onBack }: {
       ) : (
         <ChipRail contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
           {photos.map(p => (
-            <TouchableOpacity key={p.id} onPress={() => onPick(p.id)} style={styles.photoTile} accessibilityRole="button" accessibilityLabel="Add image">
+            <TouchableOpacity key={p.id} onPress={() => onPick(p.id)} style={styles.photoTile} accessibilityRole="button" accessibilityLabel="Add Image">
               <Image source={{ uri: p.uri }} style={styles.photoTileImg} />
             </TouchableOpacity>
           ))}

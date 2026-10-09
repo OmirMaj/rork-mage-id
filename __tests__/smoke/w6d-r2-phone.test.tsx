@@ -290,7 +290,7 @@ describe('lane R2 — the phone is unchanged (golden)', () => {
     const tree = await mountAt('ios', 390, 844, '/subs');
     await act(async () => { fireEvent.press(screen.getByTestId('add-sub')); });
     await pump(3);
-    expect(screen.getAllByText('Add sub').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Add Sub').length).toBeGreaterThan(0);
     expect(fingerprint('subs add open', tree.toJSON())).toMatchSnapshot();
   });
 });

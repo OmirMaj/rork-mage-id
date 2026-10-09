@@ -115,7 +115,7 @@ export interface PurchaseOrderDoc {
  */
 export const PURCHASE_ORDER_TERMS: readonly string[] = [
   'Reference this PO number on every packing slip, delivery ticket and invoice. An invoice that does not name it cannot be matched and will be returned.',
-  'Deliver to the ship-to address above. Deliveries are received against this order — quantities and condition are recorded at the tailgate, and short or damaged loads are noted on the receipt.',
+  'Deliver to the ship-to address above. Deliveries are received against this order. Quantities and condition are recorded at the tailgate, and short or damaged loads are noted on the receipt.',
   'The order total above is the agreed price for the scope described. Any change to scope, quantity or price requires a written change order before the material ships; material delivered against a verbal change is delivered at the vendor\'s risk.',
   'Amounts are stated exclusive of sales tax. Invoice tax as required by law in the delivery jurisdiction, as a separate line, and reference this PO number.',
   'Invoices are matched to this order and to the delivery receipt before payment.',
@@ -239,8 +239,8 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
     subtitle: doc.scope || undefined,
     meta: [
       { label: 'Issued', value: poDay(doc.issueDate) },
-      { label: 'Required by', value: doc.requiredBy ? poDay(doc.requiredBy) : 'Not scheduled' },
-      { label: 'Order total', value: fmtMoney(doc.orderTotal, { decimals: 2 }) },
+      { label: 'Required By', value: doc.requiredBy ? poDay(doc.requiredBy) : 'Not scheduled' },
+      { label: 'Order Total', value: fmtMoney(doc.orderTotal, { decimals: 2 }) },
     ],
   });
 
@@ -259,7 +259,7 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
 
   const partiesHtml = `
     <table style="width:100%;border-collapse:separate;border-spacing:8px 0;margin-bottom:18px;table-layout:fixed">
-      <tr>${partyCell('Vendor', vendorBody)}${partyCell('Ship to', shipToBody)}</tr>
+      <tr>${partyCell('Vendor', vendorBody)}${partyCell('Ship To', shipToBody)}</tr>
     </table>`;
 
   // A PO with linked estimate lines prints them priced. One without prints the
@@ -271,7 +271,7 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
           { header: 'Description', align: 'left', width: '44%' },
           { header: 'Qty', align: 'right' },
           { header: 'Unit', align: 'left' },
-          { header: 'Unit price', align: 'right' },
+          { header: 'Unit Price', align: 'right' },
           { header: 'Extended', align: 'right' },
         ],
         doc.lines.map(l => [
@@ -292,8 +292,8 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
 
   const totalsHtml = `
     <div class="no-break" style="background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline2};border-radius:14px;padding:18px 20px;margin-top:4px">
-      ${doc.lines.length > 0 ? row('Line item subtotal (at cost)', fmtMoney(doc.lineSubtotal, { decimals: 2 })) : ''}
-      ${row('Sales tax', 'Not itemised — see terms', true)}
+      ${doc.lines.length > 0 ? row('Line Item Subtotal (At Cost)', fmtMoney(doc.lineSubtotal, { decimals: 2 })) : ''}
+      ${row('Sales Tax', 'Not itemised, see terms', true)}
       <div style="height:1.5px;background:${PDF_PALETTE.ink};margin:8px 0"></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
         <span style="font-family:${PDF_FONT_DISPLAY};font-size:16px;font-weight:700">Order total</span>
@@ -308,7 +308,7 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
       <div style="margin-top:5px;font-size:11.5px;color:${PDF_PALETTE.text2}">${escHtml(doc.requiredByNote)}</div>
     </div>`;
 
-  const termsHtml = pdfSectionHeader('Terms of this order') + `
+  const termsHtml = pdfSectionHeader('Terms of This Order') + `
     <ol style="margin:0 0 18px 18px;padding:0;font-size:12px;line-height:1.65;color:${PDF_PALETTE.text2}">
       ${PURCHASE_ORDER_TERMS.map(t => `<li style="margin-bottom:6px">${escHtml(t)}</li>`).join('')}
     </ol>`;
@@ -325,7 +325,7 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
     : '';
 
   return pdfShell({
-    title: `Purchase Order ${doc.poNumber} — ${doc.projectName}`,
+    title: `Purchase Order ${doc.poNumber}: ${doc.projectName}`,
     branding,
     bodyHtml:
       headerHtml + titleHtml + partiesHtml + linesHtml + totalsHtml +
@@ -356,7 +356,7 @@ export async function sharePurchaseOrderPDF(
 ): Promise<void> {
   const doc = buildPurchaseOrderDoc(commitment, project, subcontractors, deliveries);
   const html = buildPurchaseOrderHtml(doc, branding);
-  const title = `Purchase Order ${doc.poNumber} — ${doc.projectName}`;
+  const title = `Purchase Order ${doc.poNumber}: ${doc.projectName}`;
 
   // Web (audit 2026-09-23 #147): a blocked pop-up used to return normally,
   // so Issue PO did nothing and said nothing, and print() ran before the logo

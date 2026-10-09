@@ -91,7 +91,7 @@ export const SECTION_TITLES: Readonly<Record<string, string>> = {
   materials: 'Materials',
   labor: 'Labor',
   summary: 'Cost Summary',
-  notes: 'Tips & Notes',
+  notes: 'Tips and Notes',
   collaborators: 'Team',
   changeOrders: 'Change Orders',
   invoices: 'Invoices',
@@ -104,7 +104,7 @@ export const SECTION_TITLES: Readonly<Record<string, string>> = {
   clientPortal: 'Client Portal',
   communications: 'Communications',
   aiReport: 'AI Project Report',
-  subsPay: 'Subs & pay',
+  subsPay: 'Subs and Pay',
 };
 
 /** '' for an unknown key or none — exactly what the phone ternary printed. */
@@ -514,7 +514,7 @@ export function buildKpiCells(pulse: ProjectPulse, ctx: KpiContext): KpiCell[] {
   const finish = finishLabel(pulse.forecastFinish);
   cells.push({
     key: 'progress',
-    label: '% complete',
+    label: '% Complete',
     value: p.hasSchedule ? `${p.pct}%` : null,
     sub: p.hasSchedule ? (finish ? `Finish ${finish}` : 'No start date set') : null,
     blockedReason: p.hasSchedule ? null : KPI_NO_SCHEDULE,

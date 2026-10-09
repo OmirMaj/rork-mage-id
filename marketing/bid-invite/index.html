@@ -8,7 +8,7 @@
 <!-- T6.6: this page carries its access token in ?t=. No Referer leaves it, so
      no link here (the growth link included) can hand the token to another site. -->
 <meta name="referrer" content="no-referrer" />
-<title>Invitation to Bid — MAGE ID</title>
+<title>Invitation to Bid · MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,700;1,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
@@ -89,7 +89,7 @@
   .scope-empty { color: var(--text-muted); font-style: italic; font-size: 14px; }
 
   .field { margin-bottom: 16px; }
-  .label { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-2); margin-bottom: 6px; }
+  .label { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-2); margin-bottom: 6px; }
   .hint { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
   input[type="text"], textarea {
     width: 100%; padding: 13px 14px; font-family: inherit; font-size: 15px;
@@ -137,12 +137,18 @@
 </style>
 </head>
 <body>
+<a class="mg-skip" href="#root">Skip to Main Content</a>
+<aside class="mg-notice" data-recipient-notice="1" aria-label="About This Page" style="box-sizing:border-box;padding:12px 16px;background:#F4F5F2;color:#0B0D10;font-size:14px;line-height:1.5;border-bottom:1px solid #C9CDC6;text-align:left">
+  <p style="margin:0 auto;max-width:960px;color:#0B0D10">Prepared by <span data-notice-company>your contractor</span> using MAGE ID software. MAGE ID did not prepare, review or check this document and makes no statement to the reader about its contents.</p>
+  <p style="margin:4px auto 0;max-width:960px;color:#0B0D10">This page is run by MAGE ID for <span data-notice-company>your contractor</span>. <a href="https://mageid.app/terms" style="color:#1F4D29;font-weight:600">Terms of Service</a> · <a href="https://mageid.app/privacy" style="color:#1F4D29;font-weight:600">Privacy Policy</a></p>
+</aside>
+<script src="/protect-notice.js?v=2026-10-09"></script>
 
 <div id="root">
   <div class="state-wrap" id="boot">
     <div class="state-card">
       <div class="state-badge badge-wait">…</div>
-      <h1>Opening your invitation</h1>
+      <h1>Opening Your Invitation</h1>
       <p>One moment.</p>
     </div>
   </div>
@@ -157,7 +163,7 @@
       <div class="state-badge badge-error">!</div>
       <h1>This page needs JavaScript</h1>
       <p>Your browser has JavaScript turned off, so the invitation can't load. Open the same link in Safari or Chrome and it will work.</p>
-      <p>If you'd rather not, just email your price, what it includes and what it excludes straight back to the contractor — they can enter it on their side.</p>
+      <p>If you'd rather not, just email your price, what it includes and what it excludes straight back to the contractor. They can enter it on their side.</p>
     </div>
   </div>
 </noscript>
@@ -243,7 +249,7 @@
 
   var DEAD_LINK = [
     'Bid links stop working 30 days after they go out, and a contractor can withdraw one at any time.',
-    'Ask them to send a fresh link — it takes them one tap. Nothing you typed here was lost on their end, because nothing was sent.'
+    'Ask them to send a fresh link. It takes them one tap. Nothing you typed here was lost on their end, because nothing was sent.'
   ];
 
   function showDeadLink() {
@@ -253,13 +259,13 @@
   function showAlreadyIn(extra) {
     showState('ok', 'Your bid is already in', [
       extra || 'You have already sent your number for this package, and the contractor has it.',
-      'This link files one bid and one only. If a number has moved, call them — they can update it on their side.'
+      'This link files one bid and one only. If a number has moved, call them. They can update it on their side.'
     ]);
   }
 
   function showUnreachable() {
     showState('error', 'We could not reach the server', [
-      'Nothing was sent. Check your signal and open the link again — your bid has not gone anywhere.'
+      'Nothing was sent. Check your signal and open the link again. Your bid has not gone anywhere.'
     ]);
   }
 
@@ -311,7 +317,7 @@
 
   function renderInvite() {
     var greeting = SCOPE.sub_name
-      ? 'Hi ' + SCOPE.sub_name + ' — you are invited to bid'
+      ? 'Hi ' + SCOPE.sub_name + ', you are invited to bid'
       : 'You are invited to bid';
     var chips = [];
     if (SCOPE.csi_division) chips.push('CSI ' + SCOPE.csi_division);
@@ -323,7 +329,7 @@
     var dueHtml = due
       ? '<div class="hero-due' + (due.past ? ' past' : '') + '">' +
           (due.past
-            ? 'Bids were due ' + esc(due.label) + ' — check with the contractor it is still open'
+            ? 'Bids were due ' + esc(due.label) + '. Check with the contractor it is still open.'
             : 'Bids due ' + esc(due.label)) +
         '</div>'
       : '';
@@ -331,7 +337,7 @@
     root.innerHTML =
       '<header class="hero"><div class="hero-inner">' +
         '<div class="brand-row"><div class="brand-mark">M</div><span class="brand-name">MAGE ID</span></div>' +
-        '<div class="hero-eyebrow">Invitation to bid</div>' +
+        '<div class="hero-eyebrow">Invitation to Bid</div>' +
         '<h1>' + esc(greeting) + ' on <em>' + esc(SCOPE.package_name || 'this package') + '</em></h1>' +
         '<div class="hero-meta">' + chips.map(function (c) { return '<span class="chip">' + esc(c) + '</span>'; }).join('') + '</div>' +
         dueHtml +
@@ -339,53 +345,53 @@
 
       '<main class="container">' +
         '<section class="card">' +
-          '<h2>The scope</h2>' +
+          '<h2>The Scope</h2>' +
           '<div class="sub">This is what the contractor is asking you to price.</div>' +
           (SCOPE.scope_description
             ? '<div class="scope-body">' + esc(SCOPE.scope_description) + '</div>'
-            : '<div class="scope-empty">The contractor did not write out a scope for this package. Call them before you price it — do not guess.</div>') +
+            : '<div class="scope-empty">The contractor did not write out a scope for this package. Call them before you price it. Do not guess.</div>') +
         '</section>' +
 
         '<section class="card">' +
-          '<h2>Your bid</h2>' +
+          '<h2>Your Bid</h2>' +
           '<div class="sub">Goes straight to the contractor. No account, no password, nothing to install.</div>' +
 
           '<div class="field">' +
-            '<div class="label">Your company</div>' +
-            '<input id="f-vendor" type="text" placeholder="e.g. Ace Mechanical" />' +
+            '<label class="label" for="f-vendor">Your Company</label>' +
+            '<input id="f-vendor" type="text" placeholder="Ace Mechanical" />' +
           '</div>' +
 
           '<div class="field">' +
-            '<div class="label">Your price for this scope</div>' +
+            '<label class="label" for="f-amount">Your Price for This Scope</label>' +
             '<div class="amount-wrap"><span class="dollar">$</span>' +
             '<input id="f-amount" type="text" inputmode="decimal" placeholder="0" /></div>' +
             '<div class="hint">Your total to the contractor for the scope above.</div>' +
           '</div>' +
 
           '<div class="field">' +
-            '<div class="label">What your price includes</div>' +
-            '<textarea id="f-includes" placeholder="Materials, labor, permits, cleanup — whatever is covered."></textarea>' +
+            '<label class="label" for="f-includes">What Your Price Includes</label>' +
+            '<textarea id="f-includes" placeholder="Materials, labor, permits, cleanup: whatever is covered."></textarea>' +
           '</div>' +
 
           '<div class="field">' +
-            '<div class="label">What it excludes</div>' +
+            '<label class="label" for="f-excludes">What It Excludes</label>' +
             '<textarea id="f-excludes" placeholder="Fixtures by owner, dump fees, patching…"></textarea>' +
             '<div class="hint">Worth spelling out. The contractor compares bids after adding back what each one leaves out, so a clear exclusion protects your number instead of costing you the job.</div>' +
           '</div>' +
 
           '<div class="field">' +
-            '<div class="label">Terms</div>' +
+            '<label class="label" for="f-terms">Terms</label>' +
             '<input id="f-terms" type="text" placeholder="Net 30, 10% deposit, can start 4/15…" />' +
           '</div>' +
 
           '<div class="field">' +
-            '<div class="label">Anything else</div>' +
+            '<label class="label" for="f-notes">Anything Else</label>' +
             '<textarea id="f-notes" placeholder="Lead times, alternates, questions."></textarea>' +
           '</div>' +
 
           '<div class="form-status" id="form-status"></div>' +
-          '<button class="btn" id="submit-btn" type="button">Send my bid</button>' +
-          '<div class="hint" style="text-align:center;margin-top:10px">This link is yours — anyone who has it can file a bid under your name, so please don\'t forward it.</div>' +
+          '<button class="btn" id="submit-btn" type="button">Send My Bid</button>' +
+          '<div class="hint" style="text-align:center;margin-top:10px">This link is yours. Anyone who has it can file a bid under your name, so don\'t forward it.</div>' +
         '</section>' +
 
         '<div class="footer"><a href="https://mageid.app/?ref=bid_invite&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Built with MAGE ID</a></div>' +
@@ -427,7 +433,7 @@
       return;
     }
     if (amount >= 1000000000) {
-      statusEl.textContent = 'That amount is too large to file — check the number.';
+      statusEl.textContent = 'That amount is too large to file. Check the number.';
       return;
     }
 
@@ -463,15 +469,15 @@
         return;
       }
       btn.disabled = false;
-      btn.textContent = 'Send my bid';
-      statusEl.textContent = 'That did not send. Nothing was filed — try once more, and if it still fails, email your bid to the contractor directly.';
+      btn.textContent = 'Send My Bid';
+      statusEl.textContent = 'That did not send. Nothing was filed. Try once more, and if it still fails, email your bid to the contractor directly.';
     });
   }
 
   // ── Boot ─────────────────────────────────────────────────────────────────
   if (!TOKEN) {
     showState('error', 'This link is missing its invitation code', [
-      'Open the link straight from the contractor\'s email or text rather than retyping it — the code is the long part at the end.',
+      'Open the link straight from the contractor\'s email or text rather than retyping it. The code is the long part at the end.',
       'If it still will not open, ask them to resend it.'
     ]);
     return;

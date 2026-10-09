@@ -96,6 +96,7 @@ import { formatMoney, displayText, parseLenientNumber } from '@/utils/formatters
 import { canViewFinancials, isFinancialsBlinded, ROLE_LABELS } from '@/utils/roleBlinding';
 import { pricingRoleFor } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
+import { markEstimateSent } from '@/utils/firstJobStore';
 import { getEffectiveInvoiceStatus, getDaysPastDue, contractSumBasis, savedChangeOrderOriginalSum, coSavedBaseHold, coPriorApprovedChanges } from '@/utils/projectFinancials';
 import { invoiceOutstanding, invoiceIsSettled, roundCents } from '@/utils/invoiceBilling'; // MONEY-F5
 import { computeARAgingReport } from '@/utils/financialReports';
@@ -119,6 +120,8 @@ import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert, showPrompt } from '@/utils/alert';
 import { daysUntilCalendarDay, dayOrInstantDate, calendarDayOf, toCalendarDayString } from '@/utils/calendarDate';
+import { isOpenWeatherReading } from '@/utils/weatherService';
+import { WeatherCredit } from '@/components/schedule/SimulatedWeatherNotice';
 import { pdfFailureMessage } from '@/utils/platformFile';
 // Wave 6c, lane E — the desktop workspace (see the render's `isDesktop ?`).
 import { tileGridColumns, useIsDesktopWeb } from '@/components/ui/desktop';
@@ -149,6 +152,8 @@ import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useProjectPulse } from '@/hooks/useProjectPulse';
 import { ProjectWorkspaceHeader } from '@/components/project/ProjectWorkspaceHeader';
 import { ProjectPeopleBlock, ProjectPeopleStack } from '@/components/whoson';
+import { ScanRoomOwnerRow } from '@/components/roomScan/ScanRoomOwnerRow';
+import { LivingModelEntryRow } from '@/components/livingModel/LivingModelEntryRow';
 import { ProjectKpiStrip } from '@/components/project/ProjectKpiStrip';
 import { ProjectLevelCard } from '@/components/level/ProjectLevelCard';
 import { ProjectOverviewColumns } from '@/components/project/ProjectOverviewColumns';
@@ -169,12 +174,12 @@ import {
 } from '@/utils/dailyLogCompletion';
 
 const ESTIMATE_REASON_LABEL: Record<EstimateChangeReason, string> = {
-  manual: 'Manual save',
-  sent_to_client: 'Sent to client',
-  converted_to_contract: 'Converted to contract',
-  pre_overwrite: 'Before re-estimate',
+  manual: 'Manual Save',
+  sent_to_client: 'Sent to Client',
+  converted_to_contract: 'Converted to Contract',
+  pre_overwrite: 'Before Re-Estimate',
   restore: 'Restored',
-  xray: 'Cost X-Ray scan',
+  xray: 'Cost X-Ray Scan',
 };
 
 // Enable LayoutAnimation on Android (no-op on iOS — already enabled).
@@ -200,13 +205,13 @@ function createId(_prefix: string): string {
 // common cases. Mirrors the PERMISSION_TOGGLES list on client-portal-setup;
 // the dedicated screen still exists for passcode / language / welcome msg.
 const PORTAL_INLINE_TOGGLES: { key: 'showSchedule' | 'showBudgetSummary' | 'showInvoices' | 'showChangeOrders' | 'showPhotos' | 'showDailyReports' | 'showPunchList' | 'showRFIs' | 'showDocuments'; label: string }[] = [
-  { key: 'showSchedule',      label: 'Project schedule' },
+  { key: 'showSchedule',      label: 'Project Schedule' },
   { key: 'showInvoices',      label: 'Invoices' },
-  { key: 'showChangeOrders',  label: 'Change orders' },
-  { key: 'showPhotos',        label: 'Site photos' },
-  { key: 'showBudgetSummary', label: 'Budget summary' },
-  { key: 'showDailyReports',  label: 'Daily reports' },
-  { key: 'showPunchList',     label: 'Punch list' },
+  { key: 'showChangeOrders',  label: 'Change Orders' },
+  { key: 'showPhotos',        label: 'Site Photos' },
+  { key: 'showBudgetSummary', label: 'Budget Summary' },
+  { key: 'showDailyReports',  label: 'Daily Reports' },
+  { key: 'showPunchList',     label: 'Punch List' },
   { key: 'showRFIs',          label: 'RFIs' },
   { key: 'showDocuments',     label: 'Documents' },
 ];
@@ -307,8 +312,8 @@ function hubPermissions(role: 'owner' | 'editor' | 'viewer' | 'field' | null): {
     canLeave: role === 'editor' || role === 'viewer' || role === 'field',
     editBlockedReason:
       role === 'owner' || role === 'editor' ? null
-      : role === 'viewer' ? 'You have view-only access to this job — only the project owner or an editor can change its details.'
-      : role === 'field' ? 'Field access runs the work on this job — only the project owner or an editor can change its details.'
+      : role === 'viewer' ? 'You have view-only access to this job. Only the project owner or an editor can change its details.'
+      : role === 'field' ? 'Field access runs the work on this job. Only the project owner or an editor can change its details.'
       : "Your access to this job hasn't been confirmed on this device yet, so its details can't be changed here. Check your signal and reopen the job.",
   };
 }
@@ -539,11 +544,11 @@ export default function ProjectDetailScreen() {
         // signature, or already 'signed'.
         if (contract) {
           if (contract.status === 'signed') next.contract = { label: 'Signed', tone: 'success' };
-          else if (contract.status === 'sent') next.contract = { label: 'Awaiting signature', tone: 'pending' };
+          else if (contract.status === 'sent') next.contract = { label: 'Awaiting Signature', tone: 'pending' };
           else if (contract.status === 'void') next.contract = { label: 'Void', tone: 'danger' };
           else next.contract = { label: 'Draft', tone: 'neutral' };
         } else {
-          next.contract = { label: 'Not drafted', tone: 'neutral' };
+          next.contract = { label: 'Not Drafted', tone: 'neutral' };
         }
         // Selections \u2014 "X of Y picked" or "no allowances yet".
         if (sels.length > 0) {
@@ -555,12 +560,12 @@ export default function ProjectDetailScreen() {
         // Closeout binder
         if (binder) {
           if (binder.status === 'sent') next.closeoutBinder = { label: 'Delivered', tone: 'success' };
-          else if (binder.status === 'finalized') next.closeoutBinder = { label: 'Ready to deliver', tone: 'pending' };
+          else if (binder.status === 'finalized') next.closeoutBinder = { label: 'Ready to Deliver', tone: 'pending' };
           else next.closeoutBinder = { label: 'Draft', tone: 'neutral' };
         }
         // Lien waivers
         if (!waivers.ok) {
-          next.lienWaivers = { label: 'Couldn\u2019t check', tone: 'neutral' };
+          next.lienWaivers = { label: 'Couldn\u2019t Check', tone: 'neutral' };
         } else if (waivers.waivers.length > 0) {
           const open = waivers.waivers.filter(w => w.status === 'requested').length;
           next.lienWaivers = open === 0
@@ -649,7 +654,7 @@ export default function ProjectDetailScreen() {
   useEffect(() => {
     const isSet = !!project?.scope && (project.scope.scope ?? '').trim().length > 0;
     if (!isSet) {
-      setTileBadges(prev => ({ ...prev, scope: { label: 'Not set', tone: 'neutral' } }));
+      setTileBadges(prev => ({ ...prev, scope: { label: 'Not Set', tone: 'neutral' } }));
     } else {
       setTileBadges(prev => { const { scope: _s, ...rest } = prev; return rest; });
     }
@@ -853,7 +858,7 @@ export default function ProjectDetailScreen() {
     && !proposalBlockReason(project, portalBadgeContract ?? undefined);
   useEffect(() => {
     if (portalTermsNeeded) {
-      setTileBadges(prev => ({ ...prev, clientPortal: { label: 'Terms needed', tone: 'pending' } }));
+      setTileBadges(prev => ({ ...prev, clientPortal: { label: 'Terms Needed', tone: 'pending' } }));
     } else {
       setTileBadges(prev => { const { clientPortal: _c, ...rest } = prev; return rest; });
     }
@@ -873,7 +878,7 @@ export default function ProjectDetailScreen() {
       (a) => {
         // A FIRST stamp: the proposal has none, so it cannot have been accepted.
         const next = nextProposalStamp({ existing: cp.proposalPaymentTerms, split: a.split, acceptance: 'none', nowIso: new Date().toISOString() });
-        if ('refused' in next) { showAlert('Payment terms', next.refused); return; }
+        if ('refused' in next) { showAlert('Payment Terms', next.refused); return; }
         updateProject(id, {
           clientPortal: { ...cp, proposalApprovalEnabled: cp.proposalApprovalEnabled, proposalPaymentTerms: next.stamp },
         });
@@ -1077,7 +1082,7 @@ export default function ProjectDetailScreen() {
   }, [changeOrders, project, approvalContract, coApproveRowContract]);
   /** Says why, and offers the screen where "Save to Project" is. */
   const refuseCoApprove = useCallback((co: ChangeOrder, hold: string) => {
-    showAlert('Not yet', hold, [
+    showAlert('Not Yet', hold, [
       { text: 'Cancel', style: 'cancel' },
       { text: `Open CO #${co.number}`, onPress: () => navigateFromTile({ pathname: '/change-order', params: { projectId: id, coId: co.id } }) },
     ]);
@@ -1123,7 +1128,7 @@ export default function ProjectDetailScreen() {
   // bottom button, the ?edit=1 deep link — comes through here.
   const requestEdit = useCallback(() => {
     if (hubPerms.editBlockedReason) {
-      showAlert("You can't edit this job", hubPerms.editBlockedReason);
+      showAlert("You can't edit this job.", hubPerms.editBlockedReason);
       return;
     }
     openEditModal();
@@ -1212,7 +1217,7 @@ export default function ProjectDetailScreen() {
         `This regresses "${project.name}" to an earlier stage. Downstream stages will be treated as incomplete and some later-stage tools may be hidden.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Move back', style: 'destructive', onPress: apply },
+          { text: 'Move Back', style: 'destructive', onPress: apply },
         ],
       );
     } else {
@@ -1244,7 +1249,7 @@ export default function ProjectDetailScreen() {
     if (isFinancialsBlinded(role)) return { hidden: true, lockedReason: null };
     if (!canViewFinancials(role)) return { hidden: false, lockedReason: "Your access to this job hasn't been confirmed on this device yet, so its contract terms stay hidden until it loads. Check your signal and reopen the job." };
     if (project.myRole === 'viewer') return { hidden: false, lockedReason: 'You have view-only access to this job, so its contract terms can only be changed by the owner or an editor.' };
-    if (project.financialsLoaded === false) return { hidden: false, lockedReason: "This job's money didn't load from the server on this device, so contract terms are locked here until it does — saving now could overwrite terms you haven't seen." };
+    if (project.financialsLoaded === false) return { hidden: false, lockedReason: "This job's money didn't load from the server on this device, so contract terms are locked here until it does. Saving now could overwrite terms you haven't seen." };
     return { hidden: false, lockedReason: null };
   }, [project, authUser?.id]);
 
@@ -1312,7 +1317,7 @@ export default function ProjectDetailScreen() {
     if (!contractAccess.hidden && !contractAccess.lockedReason) {
       const built = buildContractPatch();
       if ('error' in built) {
-        showAlert('Check the contract terms', built.error);
+        showAlert('Check the Contract Terms', built.error);
         return;
       }
       contractPatch = built.patch;
@@ -1320,14 +1325,14 @@ export default function ProjectDetailScreen() {
     // Q6: Other needs his words — checked before anything is written.
     const typeBlock = projectTypeBlockReason(editType, editTypeOther);
     if (typeBlock) {
-      showAlert('Describe the project', typeBlock);
+      showAlert('Describe the Project', typeBlock);
       return;
     }
     // D4: a typed client email / phone that cannot be used is said, not dropped.
     const clientTyped = { name: editClientName, phone: editClientPhone, email: editClientEmail };
     const clientProblem = clientFieldsProblem(clientTyped);
     if (clientProblem) {
-      showAlert('Check the client details', clientProblem);
+      showAlert('Check the Client Details', clientProblem);
       return;
     }
     const client = editedPrimaryContact(project?.primaryContact, clientTyped);
@@ -1372,6 +1377,12 @@ export default function ProjectDetailScreen() {
           }
         : project;
       await generateAndSharePDF(projectForPdf, branding, 'share');
+      // Your First Job: this share leaves nothing saved on the project, so it
+      // leaves a local mark. markEstimateSent writes it only for a job he
+      // owns that is not a sample: a job shared with him is the GC's work.
+      // (The share sheet does not say whether he sent or closed it, so a
+      // closed sheet still counts here.)
+      void markEstimateSent(project);
     } catch (e) {
       console.error('[ProjectDetail] PDF share error:', e);
       showAlert('Error', pdfFailureMessage(e, 'Failed to generate PDF. Please try again.'));
@@ -1422,15 +1433,15 @@ export default function ProjectDetailScreen() {
       // which this used to send him to. It reaches this device once that
       // write has synced and the job is re-read.
       showAlert(
-        'Secure link on its way',
-        "The key that lets your client approve and sign is created on the server when the portal is turned on. It reaches this device once that change has synced — reopen this job in a moment and copy again. If you're offline, it arrives when you're back online.",
+        'Secure Link on Its Way',
+        "The key that lets your client approve and sign is created on the server when the portal is turned on. It reaches this device once that change has synced. Reopen this job in a moment and copy again. If you're offline, it arrives when you're back online.",
       );
       return;
     }
     const ok = await (await import('@/utils/clipboard')).copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showAlert(
-      ok ? 'Copied' : 'Copy failed',
+      ok ? 'Copied' : 'Copy Failed',
       ok ? 'Portal link copied to clipboard.' : 'Could not copy the link. Long-press the URL above to select it manually.',
     );
   }, [portalLink, portalEntitled, openPortalPaywall]);
@@ -1440,7 +1451,7 @@ export default function ProjectDetailScreen() {
     setShowShareModal(false);
 
     const subject = branding.companyName
-      ? `${branding.companyName} - Estimate: ${project.name}`
+      ? `${branding.companyName} Estimate: ${project.name}`
       : `Estimate: ${project.name}`;
 
     // Mirror the same patched-project pattern used by handleSharePDF so the
@@ -1457,7 +1468,7 @@ export default function ProjectDetailScreen() {
     const body = buildEstimateTextForEmail(projectForEmail, branding);
     const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     Linking.openURL(mailtoUrl).catch(() => {
-      showAlert('Unable to open email', 'Please check your email app is configured.');
+      showAlert('Unable to Open Email', 'Please check your email app is configured.');
     });
   }, [project, branding, showBulkSavings, totalBulkSavings]);
 
@@ -1489,7 +1500,7 @@ export default function ProjectDetailScreen() {
       ? `sms:&body=${encodeURIComponent(body)}`
       : `sms:?body=${encodeURIComponent(body)}`;
     Linking.openURL(url).catch(() => {
-      showAlert('Unable to open messages', 'Please check your messaging app.');
+      showAlert('Unable to Open Messages', 'Please check your messaging app.');
     });
   }, [project, branding]);
 
@@ -1535,8 +1546,8 @@ export default function ProjectDetailScreen() {
       const waiting = projectRFIs.filter(r => insertStillQueued(queue, 'rfis', r.id)).length;
       if (waiting > 0) {
         showAlert(
-          'RFI log not ready',
-          `RFI numbers are assigned when an RFI reaches the server — ${waiting} RFI${waiting === 1 ? ' is' : 's are'} still waiting to sync. Try again once you're back online.`,
+          'RFI Log Not Ready',
+          `RFI numbers are assigned when an RFI reaches the server, and ${waiting} RFI${waiting === 1 ? ' is' : 's are'} still waiting to sync. Try again once you're back online.`,
         );
         return;
       }
@@ -1594,8 +1605,8 @@ export default function ProjectDetailScreen() {
     };
     if (warn.length > 0) {
       showAlert(
-        'Generate Closeout Packet?',
-        `Heads up — this project still has ${warn.join(' and ')}. Generate anyway?`,
+        'Generate closeout packet?',
+        `Heads up: this project still has ${warn.join(' and ')}. Generate anyway?`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Generate', onPress: () => { void proceed(); } },
@@ -1651,7 +1662,7 @@ export default function ProjectDetailScreen() {
         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const result = await exportProjectAccountingCsv({ format, project, invoices: projectInvoices });
         if (result.rowCount === 0) {
-          showAlert('Nothing to export', 'No billable invoices on this project yet (draft invoices are excluded).');
+          showAlert('Nothing to Export', 'No billable invoices on this project yet (draft invoices are excluded).');
           return;
         }
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1661,7 +1672,7 @@ export default function ProjectDetailScreen() {
         showAlert('Error', 'Could not export the accounting CSV. Please try again.');
       }
     };
-    showAlert('Export to accounting', 'Choose the format your bookkeeper imports.', [
+    showAlert('Export to Accounting', 'Choose the format your bookkeeper imports.', [
       { text: 'QuickBooks Online', onPress: () => { void run('quickbooks'); } },
       { text: 'Xero', onPress: () => { void run('xero'); } },
       { text: 'Cancel', style: 'cancel' },
@@ -1732,14 +1743,14 @@ export default function ProjectDetailScreen() {
         .catch(() => {/* stampPhotoLocation already swallows; belt and braces */});
     } catch (err) {
       console.log('[project-detail] Photo capture error:', err);
-      showAlert('Could not add photo', 'Something went wrong capturing that photo. Please try again.');
+      showAlert('Could Not Add Photo', 'Something went wrong capturing that photo. Please try again.');
     }
   }, [project, addProjectPhoto, updateProjectPhoto]);
 
   const handleSharePhotoTimeline = useCallback(async () => {
     if (!project) return;
     if (projectPhotos.length === 0) {
-      showAlert('Photo timeline', 'No photos to share yet. Take some jobsite photos first.');
+      showAlert('Photo Timeline', 'No photos to share yet. Take some jobsite photos first.');
       return;
     }
     // #62 / #164 (CONTRACT 11): a v2 share carries photo ids, not URLs —
@@ -1752,9 +1763,9 @@ export default function ProjectDetailScreen() {
     );
     if (payload.photos.length === 0) {
       showAlert(
-        'Photo timeline',
+        'Photo Timeline',
         droppedWithdrawn > 0 && droppedLocal === 0
-          ? 'These photos are drafted or recalled in the client portal — send them first.'
+          ? 'These photos are drafted or recalled in the client portal. Send them first.'
           : droppedLocal > 0
             ? 'These photos haven’t synced yet. Wait until the offline-sync pill shows "Synced," then try again.'
             : 'No shareable photos found.',
@@ -1771,9 +1782,9 @@ export default function ProjectDetailScreen() {
     if (droppedWithdrawn > 0) extras.push(`${droppedWithdrawn} withdrawn from the client portal`);
     const detail = extras.length > 0 ? `\n\n${extras.join(' · ')}` : '';
     if (ok) {
-      showAlert('Photo timeline copied', `Link copied to clipboard. Paste it into a text, email, or client portal. The link keeps working — photos load fresh each time it is opened.${detail}`);
+      showAlert('Photo Timeline Copied', `Link copied to clipboard. Paste it into a text, email, or client portal. The link keeps working, and photos load fresh each time it is opened.${detail}`);
     } else {
-      showAlert('Photo timeline link', `${url}${detail}`);
+      showAlert('Photo Timeline Link', `${url}${detail}`);
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [project, projectPhotos, settings?.branding?.companyName]);
@@ -1781,7 +1792,7 @@ export default function ProjectDetailScreen() {
 
   // Set the instant a delete is confirmed so the render between
   // deleteProject(id) (project becomes null) and router.back() completing
-  // shows the loading state, not a "Project not found" flash.
+  // shows the loading state, not a "Project Not Found" flash.
   const deletingRef = useRef(false);
   // #61 (wave 5, CONTRACT 22): what the job's safety log holds, as this device
   // knows it. The incident count is passed to deleteProject so the refusal is
@@ -1827,10 +1838,10 @@ export default function ProjectDetailScreen() {
 
   const showDeleteRefusal = useCallback((reason: string, offerClose: boolean) => {
     showAlert(
-      offerClose ? 'Keep this job — mark it closed' : "Couldn't delete this job",
+      offerClose ? 'Keep this job and mark it closed?' : "Couldn't Delete This Job",
       reason,
       offerClose
-        ? [{ text: 'Cancel', style: 'cancel' }, { text: 'Mark closed', onPress: markJobClosed }]
+        ? [{ text: 'Cancel', style: 'cancel' }, { text: 'Mark Closed', onPress: markJobClosed }]
         : [{ text: 'OK' }],
     );
   }, [markJobClosed]);
@@ -1841,7 +1852,7 @@ export default function ProjectDetailScreen() {
     // record — and the job came back on the next load.
     if (!hubPerms.canDelete) {
       showAlert(
-        "You can't delete this job",
+        "You can't delete this job.",
         hubPerms.canLeave
           ? 'Only the project owner can delete it. You can leave it instead.'
           : "Your access to this job hasn't been confirmed on this device yet. Check your signal and reopen the job.",
@@ -1860,7 +1871,7 @@ export default function ProjectDetailScreen() {
     const { knownIncidents, safetyLine } = deleteSafety;
     showAlert(
       `Delete ${name}?`,
-      `This permanently removes ${name} and everything in it: invoices, change orders, daily reports, punch items, photos, RFIs, submittals, permits, COIs, warranties, OAC meetings, field tickets, and its safety records (JHAs, toolbox talks, hazards). A job with injury or near-miss records can't be deleted — close it instead. This cannot be undone.${safetyLine}`,
+      `This permanently removes ${name} and everything in it: invoices, change orders, daily reports, punch items, photos, RFIs, submittals, permits, COIs, warranties, OAC meetings, field tickets, and its safety records (JHAs, toolbox talks, hazards). A job with injury or near-miss records can't be deleted. Close it instead. This cannot be undone.${safetyLine}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1947,7 +1958,7 @@ export default function ProjectDetailScreen() {
       const failure = leaveFailureMessage({ reached, serverError, ok });
       if (failure) {
         setLeaving(false);
-        showAlert("Couldn't leave this project", failure);
+        showAlert("Couldn't Leave This Project", failure);
         return;
       }
       // Confirmed by the server. Take the job off this device AS ONE HE
@@ -1965,7 +1976,7 @@ export default function ProjectDetailScreen() {
       // #8/#128: the sweep reports how many unsent changes went with the job.
       const dropped = forgot.ok ? await (forgot.dropped ?? Promise.resolve(0)).catch(() => 0) : 0;
       setLeaving(false);
-      showAlert('You left the project', leftProjectMessage(name, forgot.ok, dropped));
+      showAlert('You left the project.', leftProjectMessage(name, forgot.ok, dropped));
       safeBack();
     };
     void (async () => {
@@ -1979,9 +1990,9 @@ export default function ProjectDetailScreen() {
       showAlert(copy.title, copy.message, [
         { text: 'Cancel', style: 'cancel' },
         // "Sync first" re-runs the drain and asks again with the new count.
-        ...(copy.offerSyncFirst ? [{ text: 'Sync first', onPress: () => { handleLeaveRef.current(); } }] : []),
+        ...(copy.offerSyncFirst ? [{ text: 'Sync First', onPress: () => { handleLeaveRef.current(); } }] : []),
         // Refused lines go only through Retry / Discard on the sheet.
-        ...(copy.offerOpenNotSaved ? [{ text: 'Open Not saved', onPress: () => { requestSyncSheet(); } }] : []),
+        ...(copy.offerOpenNotSaved ? [{ text: 'Open Not Saved', onPress: () => { requestSyncSheet(); } }] : []),
         {
           text: copy.leaveLabel,
           style: 'destructive' as const,
@@ -2025,7 +2036,7 @@ export default function ProjectDetailScreen() {
     // Older / demo shapes (utils/demoSeed onboarding projects) store tax as
     // `taxAmount` and carry a `markupAmount` EstimateBreakdown has no field
     // for. Read both, so the breakdown labels them instead of lumping $106,900
-    // of markup and tax into "Other / unreconciled".
+    // of markup and tax into "Other / Unreconciled".
     const legacy = estimate as unknown as { taxAmount?: number; markupAmount?: number };
     const tax = estimate.tax ?? legacy.taxAmount ?? 0;
     const markup = legacy.markupAmount != null && Number.isFinite(legacy.markupAmount) ? legacy.markupAmount : 0;
@@ -2068,7 +2079,7 @@ export default function ProjectDetailScreen() {
     const rows = [
       { label: 'Materials', value: estimate.materialTotal, pct: totalBreakdown.materialPct, color: themeColors.success, icon: Package },
       { label: 'Labor', value: estimate.laborTotal, pct: totalBreakdown.laborPct, color: themeColors.info, icon: Users },
-      { label: 'Permits & Fees', value: estimate.permits, pct: totalBreakdown.permitPct, color: themeColors.accent, icon: Shield },
+      { label: 'Permits and Fees', value: estimate.permits, pct: totalBreakdown.permitPct, color: themeColors.accent, icon: Shield },
       { label: 'Overhead', value: estimate.overhead, pct: totalBreakdown.overheadPct, color: '#AF52DE', icon: Layers },
     ];
     const maxPct = Math.max(...rows.map(r => r.pct));
@@ -2156,7 +2167,7 @@ export default function ProjectDetailScreen() {
           {[
             { label: 'Materials Subtotal', value: estimate.materialTotal },
             { label: 'Labor Subtotal', value: estimate.laborTotal },
-            { label: 'Permits & Fees', value: estimate.permits },
+            { label: 'Permits and Fees', value: estimate.permits },
             { label: 'Overhead', value: estimate.overhead },
           ].map((item, idx) => (
             <View key={idx}>
@@ -2200,11 +2211,11 @@ export default function ProjectDetailScreen() {
           {showBulkSavings ? (
             <>
               <View style={detailStyles.breakdownRow} testID="cost-breakdown-buyout-savings">
-                <Text style={[detailStyles.breakdownLabel, { color: themeColors.success }]}>- Buyout savings (awarded packages)</Text>
+                <Text style={[detailStyles.breakdownLabel, { color: themeColors.success }]}>- Buyout Savings (Awarded Packages)</Text>
                 <Text style={[detailStyles.breakdownValue, { color: themeColors.success }]}>-{formatMoney(totalBulkSavings)}</Text>
               </View>
               <View style={detailStyles.breakdownRow}>
-                <Text style={detailStyles.breakdownLabelBold}>Total after buyout savings</Text>
+                <Text style={detailStyles.breakdownLabelBold}>Total After Buyout Savings</Text>
                 <Text style={detailStyles.breakdownValueBold}>{formatMoney(Math.round(((estimate.grandTotal ?? 0) - totalBulkSavings) * 100) / 100)}</Text>
               </View>
             </>
@@ -2388,7 +2399,7 @@ export default function ProjectDetailScreen() {
   const headerRight = useCallback(
     () => (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-        <TouchableOpacity onPress={() => router.push({ pathname: '/scan' as any, params: { projectId: id } })} style={{ padding: 6 }} activeOpacity={0.7} testID="project-scan-btn" accessibilityRole="button" accessibilityLabel="Scan a document"><ScanLine size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push({ pathname: '/scan' as any, params: { projectId: id } })} style={{ padding: 6 }} activeOpacity={0.7} testID="project-scan-btn" accessibilityRole="button" accessibilityLabel="Scan a Document"><ScanLine size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
         <TouchableOpacity onPress={requestEdit} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel={hubPerms.editBlockedReason ? `Edit, unavailable. ${hubPerms.editBlockedReason}` : 'Edit'}><Pencil size={20} color={hubPerms.editBlockedReason ? themeColors.textMuted : themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
       </View>
     ),
@@ -2406,7 +2417,7 @@ export default function ProjectDetailScreen() {
         activeOpacity={0.7}
         testID="project-header-home"
         accessibilityRole="button"
-        accessibilityLabel="Back to your projects"
+        accessibilityLabel="Back to Your Projects"
       >
         <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
       </TouchableOpacity>
@@ -2423,7 +2434,7 @@ export default function ProjectDetailScreen() {
   if (!project) {
     // Distinguish "still hydrating" (or mid-delete) from "genuinely missing".
     // getProject(id) returns null in every case, so without this a valid
-    // project deep-linked on a cold start flashed "Project not found" for a
+    // project deep-linked on a cold start flashed "Project Not Found" for a
     // frame before the store loaded — and again briefly right after a delete.
     // #111/#130: and while the list is re-reading — a job he just joined (or
     // a link to one just shared) arrives with that refetch; "not found" is
@@ -2435,7 +2446,7 @@ export default function ProjectDetailScreen() {
       return (
         <>
           <Stack.Screen options={{ title: 'Loading…' }} />
-          <CraneLoader label="Loading projects" />
+          <CraneLoader label="Loading Projects" />
         </>
       );
     }
@@ -2458,7 +2469,7 @@ export default function ProjectDetailScreen() {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Not Found' }} />
-        <Text style={styles.notFoundText}>Project not found</Text>
+        <Text style={styles.notFoundText}>Project Not Found</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Text style={styles.backBtnText}>Go Back</Text>
         </TouchableOpacity>
@@ -2517,7 +2528,7 @@ export default function ProjectDetailScreen() {
     // tablet, and on desktop a Money-column row (after Invoices, in the
     // group's tileKeys order) that opens the side panel (PANEL_SECTION_KEYS).
     // Owner-only everywhere (hubTileVisible / showSubsPay).
-    { key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, count: subsPayRowList.length as number | null },
+    { key: 'subsPay' as SectionKey, label: 'Subs and Pay', icon: HandCoins, count: subsPayRowList.length as number | null },
     { key: 'dailyReports', label: 'Daily Reports', icon: MageDailyReport, count: dailyReports.length },
     // T&M ticket — extra work signed for on site. The badge counts
     // SIGNED-BUT-UNBILLED tickets, because that number is money the GC
@@ -2539,7 +2550,7 @@ export default function ProjectDetailScreen() {
     ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: MageMargin, count: null as number | null }] : []),
     { key: 'photos', label: 'Photos', icon: Camera, count: projectPhotos.length },
     { key: 'plans', label: 'Plans', icon: MagePlans, count: projectPlans.length },
-    { key: 'clientPortal', label: 'Client portal', icon: Globe, count: null as number | null },
+    { key: 'clientPortal', label: 'Client Portal', icon: Globe, count: null as number | null },
     { key: 'communications', label: 'Communications', icon: Mail, count: commEvents.length },
     { key: 'activity', label: 'Activity', icon: Activity, count: null as number | null },
     { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, count: null as number | null },
@@ -2549,7 +2560,7 @@ export default function ProjectDetailScreen() {
     { key: 'field', label: 'Field Ops', sheet: 'F', icon: HardHat, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'safety', 'punchList', 'photos', 'plans', 'schedule'] },
     { key: 'money', label: 'Money', sheet: 'M', icon: DollarSign, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'subsPay', 'lienWaivers', 'closeoutBinder', 'handover'] },
     { key: 'docs', label: 'Documentation', sheet: 'D', icon: FolderOpen, tileKeys: ['rfis', 'submittals', 'permits', 'permitPath', 'projectFiles', 'scope', 'jobFacts', 'activity', 'calendar'] },
-    { key: 'people', label: 'People & Communication', sheet: 'P', icon: Users, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
+    { key: 'people', label: 'People and Communication', sheet: 'P', icon: Users, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
   ];
 
   // #92: the tiles follow the role. Money (and Financial Health) only
@@ -2575,7 +2586,7 @@ export default function ProjectDetailScreen() {
             >
               <ShoppingCart size={20} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>
-                Estimate Items — {formatMoney(linkedEstimate.grandTotal, 2)}
+                Estimate Items: {formatMoney(linkedEstimate.grandTotal, 2)}
               </Text>
               {expanded.linkedEstimate ? (
                 <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -2619,7 +2630,7 @@ export default function ProjectDetailScreen() {
                         {item.usesBulk && (
                           <View style={styles.bulkBadge}>
                             <TrendingDown size={10} color={themeColors.success} strokeWidth={1.75} />
-                            <Text style={styles.bulkBadgeText}>Bulk rate</Text>
+                            <Text style={styles.bulkBadgeText}>Bulk Rate</Text>
                           </View>
                         )}
                       </View>
@@ -2721,7 +2732,7 @@ export default function ProjectDetailScreen() {
                   <Text style={styles.revSectionTitle}>Revisions</Text>
                   {versions.length === 0 && (
                     <Text style={styles.revEmptyText}>
-                      No revisions yet — saved automatically when you re-estimate or send to a client.
+                      No revisions yet. One is saved automatically when you re-estimate or send to a client.
                     </Text>
                   )}
                   {versions.map((rev) => (
@@ -2769,7 +2780,7 @@ export default function ProjectDetailScreen() {
                 // The snapshot is a project write: a seat whose writes would
                 // not land (#92) is told why instead of losing it silently.
                 if (hubPerms.editBlockedReason) {
-                  showAlert("You can't start a proposal on this project", hubPerms.editBlockedReason);
+                  showAlert("You can't start a proposal on this project.", hubPerms.editBlockedReason);
                   return;
                 }
                 const patch = snapshotPatch(project, 'manual');
@@ -2786,7 +2797,7 @@ export default function ProjectDetailScreen() {
               };
               const handleFromOlder = () => {
                 showAlert(
-                  'From an older revision',
+                  'From an Older Revision',
                   'Choose the revision to base the proposal on:',
                   [
                     ...older.map(rev => ({
@@ -2810,7 +2821,7 @@ export default function ProjectDetailScreen() {
                     testID="create-proposal-btn"
                   >
                     <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.revSaveBtnText}>Create proposal</Text>
+                    <Text style={styles.revSaveBtnText}>Create Proposal</Text>
                   </TouchableOpacity>
                   {older.length > 0 ? (
                     <TouchableOpacity
@@ -2821,7 +2832,7 @@ export default function ProjectDetailScreen() {
                       testID="create-proposal-older-btn"
                     >
                       <Layers size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
-                      <Text style={styles.crossLinkText}>From an older revision</Text>
+                      <Text style={styles.crossLinkText}>From an Older Revision</Text>
                       <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ) : null}
@@ -2857,7 +2868,7 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.scheduleMetricValue}>{project.schedule.totalDurationDays} days</Text>
                   </View>
                   <View style={styles.scheduleMetric}>
-                    <Text style={styles.scheduleMetricLabel}>Critical path</Text>
+                    <Text style={styles.scheduleMetricLabel}>Critical Path</Text>
                     <Text style={styles.scheduleMetricValue}>{project.schedule.criticalPathDays} days</Text>
                   </View>
                   <View style={styles.scheduleMetric}>
@@ -2940,7 +2951,7 @@ export default function ProjectDetailScreen() {
                       the bid mark at components/DesktopSidebar.tsx:98; five
                       different glyphs meant "put this out to bid". */}
                   <Gavel size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.crossLinkText}>Post this project for bids</Text>
+                  <Text style={styles.crossLinkText}>Post This Project for Bids</Text>
                   <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
@@ -2958,7 +2969,7 @@ export default function ProjectDetailScreen() {
               >
                 <Package size={20} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.sectionTitle}>
-                  Materials — {formatMoney(estimate.materialTotal)}
+                  Materials: {formatMoney(estimate.materialTotal)}
                 </Text>
                 {expanded.materials ? (
                   <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -3009,7 +3020,7 @@ export default function ProjectDetailScreen() {
               >
                 <Users size={20} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.sectionTitle}>
-                  Labor — {formatMoney(estimate.laborTotal)}
+                  Labor: {formatMoney(estimate.laborTotal)}
                 </Text>
                 {expanded.labor ? (
                   <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -3114,7 +3125,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                 >
                   <MageAIMark size={20} color={themeColors.accent} />
-                  <Text style={styles.sectionTitle}>Tips & Notes</Text>
+                  <Text style={styles.sectionTitle}>Tips and Notes</Text>
                   {expanded.notes ? (
                     <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                   ) : (
@@ -3186,7 +3197,7 @@ export default function ProjectDetailScreen() {
                       <Crown size={14} color={"#FFFFFF"} strokeWidth={1.75} />
                     </View>
                     <View style={styles.collabInfo}>
-                      <Text style={styles.collabName}>Project owner</Text>
+                      <Text style={styles.collabName}>Project Owner</Text>
                     </View>
                     <View style={[styles.collabRoleBadge, { backgroundColor: themeColors.line }]}>
                       <Text style={[styles.collabRoleText, { color: themeColors.textSecondary }]}>Owner</Text>
@@ -3383,7 +3394,7 @@ export default function ProjectDetailScreen() {
                 testID="add-change-order-voice-btn"
               >
                 <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-                <Text style={styles.coAddBtnText}>Draft by voice</Text>
+                <Text style={styles.coAddBtnText}>Draft by Voice</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
@@ -3461,7 +3472,7 @@ export default function ProjectDetailScreen() {
                   testID="invoices-accounting-export"
                 >
                   <Share2 size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.photoShareBtnText}>Export to accounting (CSV)</Text>
+                  <Text style={styles.photoShareBtnText}>Export to Accounting (CSV)</Text>
                   <Text style={styles.photoShareBtnHint}>QuickBooks · Xero</Text>
                 </TouchableOpacity>
               )}
@@ -3574,7 +3585,7 @@ export default function ProjectDetailScreen() {
                 testID="add-invoice-voice-btn"
               >
                 <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Bill by voice</Text>
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Bill by Voice</Text>
               </TouchableOpacity>
               <View style={styles.invBtnRow}>
                 {/* Quick Invoice — skips bill-from-estimate entirely.
@@ -3746,6 +3757,9 @@ export default function ProjectDetailScreen() {
                   </View>
                 ));
               })()}
+              {/* OpenWeather's credit, when a row above shows conditions the
+                  app read from it. Typed weather carries none. */}
+              <WeatherCredit days={dailyReports.some(dr => isOpenWeatherReading(dr.weather)) ? [{ source: 'live' }] : []} />
               {/* Log by voice — MAGE Copilot: dictate the day, it confirms
                   today's critical-path progress + writes the full report. */}
               <TouchableOpacity
@@ -3755,7 +3769,7 @@ export default function ProjectDetailScreen() {
                 testID="add-daily-report-voice-btn"
               >
                 <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-                <Text style={styles.coAddBtnText}>Log by voice</Text>
+                <Text style={styles.coAddBtnText}>Log by Voice</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
@@ -3837,7 +3851,7 @@ export default function ProjectDetailScreen() {
                 testID="add-punch-voice-btn"
               >
                 <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Add by voice</Text>
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Add by Voice</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
@@ -3861,7 +3875,7 @@ export default function ProjectDetailScreen() {
                   testID="add-warranty-voice-btn"
                 >
                   <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log a warranty by voice</Text>
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log a Warranty by Voice</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.coAddBtn}
@@ -3999,7 +4013,7 @@ export default function ProjectDetailScreen() {
                 testID="add-rfi-voice-btn"
               >
                 <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Raise by voice</Text>
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Raise by Voice</Text>
               </TouchableOpacity>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
@@ -4084,7 +4098,7 @@ export default function ProjectDetailScreen() {
                 testID="add-submittal-voice-btn"
               >
                 <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log by voice</Text>
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log by Voice</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
@@ -4101,10 +4115,10 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="extract-submittals-btn"
                 accessibilityRole="button"
-                accessibilityLabel={`Extract from spec book with AI${lockSpecExtract ? ', locked, upgrade required' : ''}`}
+                accessibilityLabel={`Extract from Spec Book with AI${lockSpecExtract ? ', locked, upgrade required' : ''}`}
               >
                 <MageAIMark size={16} color={themeColors.accent} />
-                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Extract from spec book (AI)</Text>
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Extract from Spec Book (AI)</Text>
                 {lockSpecExtract && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
               </TouchableOpacity>
             </View>
@@ -4151,10 +4165,10 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-generative-setup"
                   accessibilityRole="button"
-                  accessibilityLabel={`Set up project from estimate${lockJobCosting ? ', locked, upgrade required' : ''}`}
+                  accessibilityLabel={`Set Up Project from Estimate${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <MageAIMark size={16} color={themeColors.accent} />
-                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Set up project from estimate</Text>
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Set Up Project from Estimate</Text>
                   {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -4190,7 +4204,7 @@ export default function ProjectDetailScreen() {
                   accessibilityLabel={`Living Estimate, margin at completion${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <Activity size={16} color={themeColors.info} strokeWidth={1.75} />
-                  <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>Living Estimate · margin at completion</Text>
+                  <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>Living Estimate · Margin at Completion</Text>
                   {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -4226,7 +4240,7 @@ export default function ProjectDetailScreen() {
                   accessibilityLabel={`Estimate Accuracy, bid vs actual${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <Scale size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Accuracy · bid vs actual</Text>
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Accuracy · Bid vs Actual</Text>
                   {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -4238,7 +4252,7 @@ export default function ProjectDetailScreen() {
                   accessibilityLabel={`Estimate Confidence, price check${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <ShieldCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Confidence · price check</Text>
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Confidence · Price Check</Text>
                   {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -4250,7 +4264,7 @@ export default function ProjectDetailScreen() {
                   accessibilityLabel={`Visual Takeoff, trace to priced line${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <PenTool size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Visual Takeoff · trace → priced line</Text>
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Visual Takeoff · Trace to Priced Line</Text>
                   {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -4262,7 +4276,7 @@ export default function ProjectDetailScreen() {
                   accessibilityLabel={`Project Memory, ask this job's history${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <MageAIMark size={16} color={themeColors.accent} />
-                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Project Memory · ask this job&apos;s history</Text>
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Project Memory · Ask This Job&apos;s History</Text>
                   {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
               </View>
@@ -4297,7 +4311,7 @@ export default function ProjectDetailScreen() {
                   onPress={() => { void handleCapturePhoto('camera'); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Take a photo"
+                  accessibilityLabel="Take a Photo"
                   testID="photos-take-photo"
                 >
                   <Camera size={16} color={themeColors.surface} strokeWidth={2} />
@@ -4308,7 +4322,7 @@ export default function ProjectDetailScreen() {
                   onPress={() => { void handleCapturePhoto('library'); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Add photos from library"
+                  accessibilityLabel="Add Photos from Library"
                   testID="photos-add-library"
                 >
                   <ImagePlus size={16} color={themeColors.accent} strokeWidth={2} />
@@ -4316,7 +4330,7 @@ export default function ProjectDetailScreen() {
                 </TouchableOpacity>
               </View>
               {projectPhotos.length === 0 && (
-                <Text style={styles.coEmptyText}>No photos yet. Tap Take Photo to capture the jobsite — photos from daily reports show up here too.</Text>
+                <Text style={styles.coEmptyText}>No photos yet. Tap Take Photo to capture the jobsite. Photos from daily reports show up here too.</Text>
               )}
               {projectPhotos.length > 0 && (
                 <TouchableOpacity
@@ -4324,11 +4338,11 @@ export default function ProjectDetailScreen() {
                   onPress={() => { void handleSharePhotoTimeline(); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Share photo timeline link"
+                  accessibilityLabel="Share Photo Timeline Link"
                   testID="photos-share-timeline"
                 >
                   <Share2 size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.photoShareBtnText}>Share read-only timeline</Text>
+                  <Text style={styles.photoShareBtnText}>Share Read-Only Timeline</Text>
                   <Text style={styles.photoShareBtnHint}>{projectPhotos.length > PHOTO_SHARE_MAX ? `${PHOTO_SHARE_MAX} most recent` : 'No login needed'}</Text>
                 </TouchableOpacity>
               )}
@@ -4414,7 +4428,7 @@ export default function ProjectDetailScreen() {
                         onPress={() => setPhotoGroupByDate(v => !v)}
                         activeOpacity={0.8}
                         accessibilityRole="button"
-                        accessibilityLabel={photoGroupByDate ? 'Switch to grid view' : 'Group photos by date'}
+                        accessibilityLabel={photoGroupByDate ? 'Switch to Grid View' : 'Group Photos by Date'}
                         testID="photos-group-toggle"
                       >
                         {photoGroupByDate ? (
@@ -4422,7 +4436,7 @@ export default function ProjectDetailScreen() {
                         ) : (
                           <Layers size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                         )}
-                        <Text style={styles.photoGroupToggleText}>{photoGroupByDate ? 'By date' : 'Grid'}</Text>
+                        <Text style={styles.photoGroupToggleText}>{photoGroupByDate ? 'By Date' : 'Grid'}</Text>
                       </TouchableOpacity>
                     </View>
                     {searched.length === 0 ? (
@@ -4460,7 +4474,7 @@ export default function ProjectDetailScreen() {
             testID="client-portal-section"
           >
             <Globe size={20} color={themeColors.info} strokeWidth={1.75} />
-            <Text style={styles.sectionTitle}>Client portal</Text>
+            <Text style={styles.sectionTitle}>Client Portal</Text>
             {expanded.clientPortal ? (
               <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
@@ -4488,7 +4502,7 @@ export default function ProjectDetailScreen() {
                       onPress={handleCopyPortalLink}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      accessibilityLabel="Copy portal link"
+                      accessibilityLabel="Copy Portal Link"
                     >
                       <Link size={12} color={themeColors.info} strokeWidth={1.75} />
                       {/* PORTAL-07: print the link Copy hands out — token
@@ -4496,10 +4510,10 @@ export default function ProjectDetailScreen() {
                           middle elided so a screenshot does not leak the key. */}
                       <Text style={styles.portalLinkText} numberOfLines={1}>
                         {!portalEntitled
-                          ? 'Client portal is a Pro feature — upgrade to share the link'
+                          ? 'The client portal is on the Pro plan. Upgrade to share the link.'
                           : portalLink
                             ? maskPortalLinkToken(portalLink.replace(/^https:\/\//, ''))
-                            : 'Secure link on its way — syncing'}
+                            : 'Secure Link on Its Way (Syncing)'}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.portalCopyBtn} onPress={handleCopyPortalLink} accessibilityRole="button" accessibilityLabel={portalEntitled ? 'Copy' : 'Copy, locked, Client portal is a Pro feature'}>
@@ -4536,7 +4550,7 @@ export default function ProjectDetailScreen() {
                       <Button
                         label={portalTerms.state === 'unconfirmed' && portalTerms.action === 'use-profile'
                           ? `Use ${splitLabel(portalTerms.profileSplit)}`
-                          : 'Set your payment terms'}
+                          : 'Set Your Payment Terms'}
                         variant="secondary" size="sm"
                         onPress={confirmPortalProposalTerms}
                         testID="portal-terms-confirm"
@@ -4548,7 +4562,7 @@ export default function ProjectDetailScreen() {
                       single key on project.clientPortal — same call shape
                       as on the dedicated setup screen. */}
                   <View style={styles.portalTogglesLabelRow}>
-                    <Text style={styles.portalTogglesLabel}>What clients can see</Text>
+                    <Text style={styles.portalTogglesLabel}>What Clients Can See</Text>
                   </View>
                   <View style={styles.portalTogglesCard}>
                     {PORTAL_INLINE_TOGGLES.map((row, idx) => {
@@ -4604,7 +4618,7 @@ export default function ProjectDetailScreen() {
                     onPress={() => (portalEntitled ? navigateFromTile({ pathname: '/client-messages', params: { id } }) : openPortalPaywall())}
                     activeOpacity={0.8}
                     accessibilityRole="button"
-                    accessibilityLabel={portalEntitled ? 'Open messages' : 'Messages, locked, Client portal is a Pro feature'}
+                    accessibilityLabel={portalEntitled ? 'Open Messages' : 'Messages, locked, Client portal is a Pro feature'}
                   >
                     <MessageSquare size={14} color={portalEntitled ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.portalMessagesText}>Messages</Text>
@@ -4624,7 +4638,7 @@ export default function ProjectDetailScreen() {
                     testID="portal-advanced-link"
                   >
                     <Text style={styles.portalAdvancedLinkText}>
-                      {portalEntitled ? 'Advanced settings (passcode, language, welcome) ›' : 'Advanced settings — Pro'}
+                      {portalEntitled ? 'Advanced Settings (Passcode, Language, Welcome) ›' : 'Advanced Settings (Pro)'}
                     </Text>
                   </TouchableOpacity>
                 </>
@@ -4651,7 +4665,7 @@ export default function ProjectDetailScreen() {
                   testID="portal-enable-btn"
                   onPress={() => {
                     // PORTALFIX: a sample never gets a portal — refused before any write, with the reason.
-                    if (isSampleProject(project)) { showAlert('Sample job', SAMPLE_PORTAL_REASON); return; }
+                    if (isSampleProject(project)) { showAlert('Sample Job', SAMPLE_PORTAL_REASON); return; }
                     updateProject(id ?? '', {
                       clientPortal: {
                         enabled: true,
@@ -4888,6 +4902,8 @@ export default function ProjectDetailScreen() {
                 <Text style={styles.quickActionLabel}>Forecast</Text>
               </TouchableOpacity>
             </TileGrid>
+            {/* The Living Model, owner preview (the desktop workspace's copy of the one row). */}
+            <LivingModelEntryRow projectId={project.id} />
             <ProjectOverviewColumns
               projectId={project.id}
               pulse={pulse}
@@ -4994,17 +5010,17 @@ export default function ProjectDetailScreen() {
           const photoLock = canAccessProject('photo_documentation') ? null : tileLockReason('photos', hubRole, requiredTierFor('photo_documentation'));
           const voiceLock = projectRecordWriteBlock(hubRole ?? undefined);
           const actions: { key: string; label: string; Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>; lock: string | null; onPress: () => void }[] = [
-            { key: 'daily-report', label: 'Daily report', Icon: ClipboardList, lock: null, onPress: () => router.push(routeHref('/daily-report', { projectId: project.id })) },
+            { key: 'daily-report', label: 'Daily Report', Icon: ClipboardList, lock: null, onPress: () => router.push(routeHref('/daily-report', { projectId: project.id })) },
             { key: 'photo', label: 'Photo', Icon: Camera, lock: photoLock, onPress: () => router.push(photoTriageHref(project.id)) },
-            { key: 'punch', label: 'Punch item', Icon: CheckSquare, lock: punchLock, onPress: () => router.push(punchListNewHref(project.id)) },
-            { key: 'clock-in', label: 'Clock in', Icon: Clock, lock: clockLock, onPress: () => router.push(clockInHref(project.id)) },
+            { key: 'punch', label: 'Punch Item', Icon: CheckSquare, lock: punchLock, onPress: () => router.push(punchListNewHref(project.id)) },
+            { key: 'clock-in', label: 'Clock In', Icon: Clock, lock: clockLock, onPress: () => router.push(clockInHref(project.id)) },
             // W1 UXDOORS: Voice files to THIS job. A viewer cannot file a
             // record here, so the door says why instead of recording a note
             // the server would refuse.
             ...(Platform.OS !== 'web' ? [{
               key: 'voice', label: 'Voice', Icon: Mic, lock: voiceLock,
               onPress: () => {
-                if (voiceLock) { showAlert("Can't record here", voiceLock); return; }
+                if (voiceLock) { showAlert("Can't Record Here", voiceLock); return; }
                 openVoice({ projectId: project.id, autoStart: true });
               },
             }] : []),
@@ -5060,6 +5076,12 @@ export default function ProjectDetailScreen() {
               <ProjectPeopleStack variant="hero" projectId={project.id} inviteNudge={!project.clientPortal?.enabled} onOpen={() => openSection('collaborators')} />
             </View>
           </View>
+          {/* Scan The Room, owner preview: renders nothing for anyone but the
+              owner while SCAN_ROOM_ENABLED is false (utils/roomScan/allowed). */}
+          <ScanRoomOwnerRow projectId={project.id} />
+          {/* The Living Model, owner preview: renders nothing for anyone but the
+              owner while LIVING_MODEL_ENABLED is false (utils/livingModel/allowed). */}
+          <LivingModelEntryRow projectId={project.id} />
 
           {hasAnyEstimate && (
             <View style={styles.heroStats}>
@@ -5265,8 +5287,8 @@ export default function ProjectDetailScreen() {
             <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.copilotHubTitle}>Ask MAGE to do anything</Text>
-            <Text style={styles.copilotHubSub}>Say it — daily report, RFI, change order, estimate…</Text>
+            <Text style={styles.copilotHubTitle}>Ask MAGE to Do Anything</Text>
+            <Text style={styles.copilotHubSub}>Say it: daily report, RFI, change order, estimate…</Text>
           </View>
           <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -5455,18 +5477,18 @@ export default function ProjectDetailScreen() {
             // The office row's create doors move too, so a live job with no
             // schedule or no estimate can still start one (same testIDs).
             field: [
-              ...(!project.schedule ? [{ key: 'build-schedule', label: 'Build schedule', Icon: CalendarDays, testID: 'project-create-schedule-btn', onPress: buildSchedule }] : []),
-              { key: 'this-week', label: 'This week', Icon: CalendarDays, testID: 'project-weekly-snapshot-btn', onPress: () => router.push(routeHref('/weekly-snapshot', { projectId: project.id })) },
-              { key: 'lineup', label: "Tomorrow's lineup", Icon: CalendarClock, testID: 'project-lineup-btn', lock: lineupLock, onPress: () => router.push(tomorrowLineupHref(project.id)) },
+              ...(!project.schedule ? [{ key: 'build-schedule', label: 'Build Schedule', Icon: CalendarDays, testID: 'project-create-schedule-btn', onPress: buildSchedule }] : []),
+              { key: 'this-week', label: 'This Week', Icon: CalendarDays, testID: 'project-weekly-snapshot-btn', onPress: () => router.push(routeHref('/weekly-snapshot', { projectId: project.id })) },
+              { key: 'lineup', label: "Tomorrow's Lineup", Icon: CalendarClock, testID: 'project-lineup-btn', lock: lineupLock, onPress: () => router.push(tomorrowLineupHref(project.id)) },
             ],
             money: hubPerms.showMoney ? [
               // The office row's one-tap door into the estimate editor moves
               // too: Estimate when the job has one, Create estimate when not.
               ...(hasAnyEstimate
                 ? [{ key: 'view-estimate', label: 'Estimate', Icon: Receipt, testID: 'project-view-estimate-btn', onPress: () => router.replace(estimateFromJobHref(project.id)) }]
-                : [{ key: 'create-estimate', label: 'Create estimate', Icon: Receipt, testID: 'project-create-estimate-btn', onPress: () => router.push(routeHref('/estimate-wizard', { projectId: project.id })) }]),
-              { key: 'cash-flow', label: 'Cash flow', Icon: Wallet, testID: 'project-cash-flow-btn', onPress: () => router.push(routeHref('/cash-flow', { projectId: project.id })) },
-              { key: 'forecast', label: 'Payment forecast', Icon: TrendingDown, testID: 'project-payment-forecast-btn', onPress: () => router.push(routeHref('/payment-predictions', { projectId: project.id })) },
+                : [{ key: 'create-estimate', label: 'Create Estimate', Icon: Receipt, testID: 'project-create-estimate-btn', onPress: () => router.push(routeHref('/estimate-wizard', { projectId: project.id })) }]),
+              { key: 'cash-flow', label: 'Cash Flow', Icon: Wallet, testID: 'project-cash-flow-btn', onPress: () => router.push(routeHref('/cash-flow', { projectId: project.id })) },
+              { key: 'forecast', label: 'Payment Forecast', Icon: TrendingDown, testID: 'project-payment-forecast-btn', onPress: () => router.push(routeHref('/payment-predictions', { projectId: project.id })) },
             ] : [],
           } : {};
 
@@ -5634,7 +5656,7 @@ export default function ProjectDetailScreen() {
           accessibilityState={{ disabled: !!hubPerms.editBlockedReason }}
         >
           <Pencil size={18} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.editButtonText}>Edit project</Text>
+          <Text style={styles.editButtonText}>Edit Project</Text>
         </TouchableOpacity>
         {hubPerms.editBlockedReason ? (
           <Text style={[styles.contractHint, { marginHorizontal: 20, marginTop: 6 }]} testID="edit-project-blocked-reason">
@@ -5657,7 +5679,7 @@ export default function ProjectDetailScreen() {
             accessibilityRole="button"
           >
             <ArrowDownRight size={18} color={themeColors.dangerLabel} strokeWidth={1.75} />
-            <Text style={styles.deleteButtonText}>{leaving ? 'Leaving…' : checkingLeave ? 'Sending unsynced changes…' : 'Leave project'}</Text>
+            <Text style={styles.deleteButtonText}>{leaving ? 'Leaving…' : checkingLeave ? 'Sending unsynced changes…' : 'Leave Project'}</Text>
           </TouchableOpacity>
         ) : null}
         </>
@@ -5800,7 +5822,7 @@ export default function ProjectDetailScreen() {
                 {revDetailView === 'delta' && (
                   <View style={[styles.summaryCard, { marginHorizontal: 20 }]}>
                     {!diff && (
-                      <Text style={styles.revEmptyText}>First revision — no prior to compare.</Text>
+                      <Text style={styles.revEmptyText}>First revision. Nothing earlier to compare.</Text>
                     )}
                     {diff && diff.categories.length === 0 && (
                       <Text style={styles.revEmptyText}>No line-item changes from the previous revision.</Text>
@@ -5854,8 +5876,8 @@ export default function ProjectDetailScreen() {
                   style={styles.revRestoreBtn}
                   onPress={() => {
                     showAlert(
-                      `Restore Rev ${selectedRevision.revNumber}?`,
-                      'Your current estimate is saved as a revision first. Existing contracts/invoices are not changed — regenerate them if needed.',
+                      `Restore revision ${selectedRevision.revNumber}?`,
+                      'Your current estimate is saved as a revision first. Existing contracts/invoices are not changed. Regenerate them if needed.',
                       [
                         { text: 'Cancel', style: 'cancel' },
                         {
@@ -5877,7 +5899,7 @@ export default function ProjectDetailScreen() {
                   testID="restore-revision-btn"
                 >
                   <Repeat size={16} color={'#FFFFFF'} strokeWidth={1.75} />
-                  <Text style={styles.revRestoreBtnText}>Restore this revision</Text>
+                  <Text style={styles.revRestoreBtnText}>Restore This Revision</Text>
                 </TouchableOpacity>
               </ScrollView>
             </View>
@@ -5965,7 +5987,7 @@ export default function ProjectDetailScreen() {
             >
               <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }, fEdit.card]}>
                 <View style={styles.inviteModalHeader}>
-                  <Text style={styles.inviteModalTitle}>Edit project</Text>
+                  <Text style={styles.inviteModalTitle}>Edit Project</Text>
                   <TouchableOpacity onPress={() => setShowEditModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -6007,7 +6029,7 @@ export default function ProjectDetailScreen() {
                   style={styles.inviteInput}
                   value={editSquareFootage}
                   onChangeText={setEditSquareFootage}
-                  placeholder="e.g. 2000"
+                  placeholder="2,000"
                   placeholderTextColor={themeColors.textMuted}
                   keyboardType="numeric"
                   testID="edit-sqft-input"
@@ -6016,18 +6038,18 @@ export default function ProjectDetailScreen() {
                 {/* D4: the client, entered once on the job. The contract email,
                     the CO approver, the portal invite and a new invoice's
                     bill-to are seeded from it (Lane C). Optional. */}
-                <Text style={styles.inviteFieldLabel}>Client name</Text>
+                <Text style={styles.inviteFieldLabel}>Client Name</Text>
                 <TextInput
                   style={styles.inviteInput}
                   value={editClientName}
                   onChangeText={setEditClientName}
-                  placeholder="e.g. Tom Reyes"
+                  placeholder="Tom Reyes"
                   placeholderTextColor={themeColors.textMuted}
                   autoCapitalize="words"
                   textContentType="name"
                   testID="edit-client-name-input"
                 />
-                <Text style={styles.inviteFieldLabel}>Client phone</Text>
+                <Text style={styles.inviteFieldLabel}>Client Phone</Text>
                 <TextInput
                   style={styles.inviteInput}
                   value={editClientPhone}
@@ -6038,7 +6060,7 @@ export default function ProjectDetailScreen() {
                   textContentType="telephoneNumber"
                   testID="edit-client-phone-input"
                 />
-                <Text style={styles.inviteFieldLabel}>Client email</Text>
+                <Text style={styles.inviteFieldLabel}>Client Email</Text>
                 <TextInput
                   style={styles.inviteInput}
                   value={editClientEmail}
@@ -6067,12 +6089,12 @@ export default function ProjectDetailScreen() {
                 </View>
                 {editType === 'other' ? (
                   <>
-                    <Text style={styles.inviteFieldLabel}>Describe the project</Text>
+                    <Text style={styles.inviteFieldLabel}>Describe the Project</Text>
                     <TextInput
                       style={styles.inviteInput}
                       value={editTypeOther}
                       onChangeText={setEditTypeOther}
-                      placeholder="e.g. Whole-house repipe"
+                      placeholder="Whole-house repipe"
                       placeholderTextColor={themeColors.textMuted}
                       maxLength={PROJECT_TYPE_OTHER_MAX}
                       testID="edit-type-other-input"
@@ -6102,7 +6124,7 @@ export default function ProjectDetailScreen() {
                           </View>
                         )}
 
-                        <Text style={styles.inviteFieldLabel}>Contract type</Text>
+                        <Text style={styles.inviteFieldLabel}>Contract Type</Text>
                         <View style={styles.editTypeGrid}>
                           <TouchableOpacity
                             style={[styles.editTypeChip, editContractMode === undefined && styles.editTypeChipActive]}
@@ -6111,7 +6133,7 @@ export default function ProjectDetailScreen() {
                             accessibilityRole="button"
                             accessibilityState={{ selected: editContractMode === undefined }}
                           >
-                            <Text style={[styles.editTypeChipLabel, editContractMode === undefined && styles.editTypeChipLabelActive]}>Not set</Text>
+                            <Text style={[styles.editTypeChipLabel, editContractMode === undefined && styles.editTypeChipLabelActive]}>Not Set</Text>
                           </TouchableOpacity>
                           {CONTRACT_MODES.map(mode => (
                             <TouchableOpacity
@@ -6130,7 +6152,7 @@ export default function ProjectDetailScreen() {
 
                         {editContractMode === 'gmp' && (
                           <>
-                            <Text style={styles.inviteFieldLabel}>GMP cap ($)</Text>
+                            <Text style={styles.inviteFieldLabel}>GMP Cap ($)</Text>
                             <TextInput
                               style={styles.inviteInput}
                               value={editGmpCap}
@@ -6141,14 +6163,14 @@ export default function ProjectDetailScreen() {
                               testID="edit-gmp-cap-input"
                             />
                             <Text style={styles.contractHint}>
-                              Your WIP report falls back to this as the contract value when nothing more specific — a pay application, a target budget — is on file.
+                              Your WIP report falls back to this as the contract value when nothing more specific (a pay application or a target budget) is on file.
                             </Text>
                           </>
                         )}
 
                         {feeApplies && (
                           <>
-                            <Text style={styles.inviteFieldLabel}>Your fee</Text>
+                            <Text style={styles.inviteFieldLabel}>Your Fee</Text>
                             <View style={styles.editTypeGrid}>
                               {(['percent', 'amount'] as const).map(kind => (
                                 <TouchableOpacity
@@ -6160,7 +6182,7 @@ export default function ProjectDetailScreen() {
                                   accessibilityState={{ selected: editFeeKind === kind }}
                                 >
                                   <Text style={[styles.editTypeChipLabel, editFeeKind === kind && styles.editTypeChipLabelActive]}>
-                                    {kind === 'percent' ? '% of cost' : 'Flat $'}
+                                    {kind === 'percent' ? '% of Cost' : 'Flat $'}
                                   </Text>
                                 </TouchableOpacity>
                               ))}
@@ -6169,7 +6191,7 @@ export default function ProjectDetailScreen() {
                               style={styles.inviteInput}
                               value={editFee}
                               onChangeText={setEditFee}
-                              placeholder={editFeeKind === 'percent' ? 'e.g. 15' : 'e.g. 25000'}
+                              placeholder={editFeeKind === 'percent' ? '15' : '25,000'}
                               placeholderTextColor={themeColors.textMuted}
                               keyboardType="decimal-pad"
                               testID="edit-fee-input"
@@ -6358,14 +6380,14 @@ export default function ProjectDetailScreen() {
               testID="photo-lightbox-markup"
             >
               <Pencil size={14} color={Colors.textOnAccent} strokeWidth={1.75} />
-              <Text style={styles.lightboxMarkupBtnText}>{(lightboxPhoto.markup?.length ?? 0) > 0 ? 'Edit markup' : 'Add markup'}</Text>
+              <Text style={styles.lightboxMarkupBtnText}>{(lightboxPhoto.markup?.length ?? 0) > 0 ? 'Edit Markup' : 'Add Markup'}</Text>
             </TouchableOpacity>
           )}
           {lightboxPhoto && (
             <TouchableOpacity
               testID="codelook-open-lightbox"
               accessibilityRole="button"
-              accessibilityLabel="Photo code check"
+              accessibilityLabel="Photo Code Check"
               style={styles.lightboxCodeLookBtn}
               onPress={() => {
                 const target = { photoUri: lightboxPhoto.uri, sourcePhotoId: lightboxPhoto.id };
@@ -6377,7 +6399,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.85}
             >
               <ScanSearch size={14} color={themeColors.surface} strokeWidth={1.75} />
-              <Text style={styles.lightboxMarkupBtnText} numberOfLines={1}>Photo code check</Text>
+              <Text style={styles.lightboxMarkupBtnText} numberOfLines={1}>Photo Code Check</Text>
             </TouchableOpacity>
           )}
           {lightboxPhoto && project && (

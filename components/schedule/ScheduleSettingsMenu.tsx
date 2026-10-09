@@ -78,13 +78,13 @@ export default function ScheduleSettingsMenu({
         <TouchableOpacity activeOpacity={1} style={[styles.card, frame.card]} onPress={() => {}}>
           <View style={styles.header}>
             <Settings size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.title}>Schedule settings</Text>
+            <Text style={styles.title}>Schedule Settings</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Critical slack threshold</Text>
+              <Text style={styles.label}>Critical Slack Threshold</Text>
               <Text style={styles.help}>
                 Tasks with total float ≤ this many days glow as critical. Set to 0 for strict CPM.
               </Text>
@@ -118,7 +118,7 @@ export default function ScheduleSettingsMenu({
 
           <View style={[styles.row, { marginTop: 18 }]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Working days per week</Text>
+              <Text style={styles.label}>Working Days per Week</Text>
               <Text style={styles.help}>
                 5 skips Sat/Sun automatically. 7 counts every calendar day.
               </Text>
@@ -139,7 +139,7 @@ export default function ScheduleSettingsMenu({
 
           <View style={[styles.row, { marginTop: 18 }]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Schedule start date</Text>
+              <Text style={styles.label}>Schedule Start Date</Text>
               <Text style={styles.help}>
                 {startText
                   ? 'Day 1 of the schedule. Task days are dated from here.'
@@ -152,11 +152,11 @@ export default function ScheduleSettingsMenu({
               activeOpacity={0.7}
               testID="settings-start-date"
               accessibilityRole="button"
-              accessibilityLabel={startText ? `Start date: ${startText}` : 'Set start date'}
+              accessibilityLabel={startText ? `Start date: ${startText}` : 'Set Start Date'}
             >
               <CalendarDays size={14} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={[styles.dateTapText, !startText && { color: themeColors.textSecondary }]}>
-                {startText || 'Not set'}
+                {startText || 'Not Set'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -169,7 +169,7 @@ export default function ScheduleSettingsMenu({
               setStartText(iso.slice(0, 10));
               setDatePickerOpen(false);
             }}
-            title="Schedule start date"
+            title="Schedule Start Date"
             allowFuture
           />
 

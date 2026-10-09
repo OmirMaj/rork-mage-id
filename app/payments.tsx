@@ -233,8 +233,8 @@ export function derivePayments(
       const when = entryDate(entry, inv.issueDate);
       const reversal = isReversal(entry);
       const suffix = reversal
-        ? (entry.kind === 'dispute' ? ' — chargeback' : ' — refund')
-        : provider === 'card' ? ' — card recorded by hand' : '';
+        ? (entry.kind === 'dispute' ? ', chargeback' : ', refund')
+        : provider === 'card' ? ', card recorded by hand' : '';
       rows.push({
         id: entry.id ?? `${inv.id}-${when}-${amount}`,
         invoiceId: inv.id,
@@ -284,8 +284,8 @@ export function derivePayments(
         // declines we'll pick up via webhook later.
         status: 'pending',
         description: hasStripeLink
-          ? `Invoice #${inv.number} — Stripe link sent`
-          : `Invoice #${inv.number} — awaiting payment`,
+          ? `Invoice #${inv.number} · Stripe link sent`
+          : `Invoice #${inv.number} · awaiting payment`,
         createdAt: inv.issueDate,
       });
     }
@@ -570,7 +570,7 @@ export default function PaymentsScreen() {
       ? ` It's the oldest of ${outstanding.length} outstanding invoices.`
       : '';
     showAlert(
-      'Collect oldest unpaid',
+      'Collect Oldest Unpaid',
       `Opening ${targetLabel} so you can send a pay link or record payment.${othersNote}`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -601,8 +601,8 @@ export default function PaymentsScreen() {
   const explainRemindLocked = useCallback(() => {
     const copy = remindLockedCopy(requiredTierFor('change_orders_invoicing'));
     showAlert(copy.title, copy.message, [
-      { text: 'Not now', style: 'cancel' },
-      { text: 'See plans', onPress: () => router.push('/paywall') },
+      { text: 'Not Now', style: 'cancel' },
+      { text: 'See Plans', onPress: () => router.push('/paywall') },
     ]);
   }, [requiredTierFor]);
   const [remindState, setRemindState] = useState<Record<string, { busy?: boolean; outcome?: RemindOutcome }>>({});
@@ -660,7 +660,7 @@ export default function PaymentsScreen() {
             }
             const notSent = rows.length - sent;
             if (notSent === 0) nailIt(`${sent} reminder${sent === 1 ? '' : 's'} sent`);
-            else showAlert(`${sent} of ${rows.length} sent`, `${notSent} did not go out — each row below says why.`);
+            else showAlert(`${sent} of ${rows.length} sent`, `${notSent} did not go out. Each row below says why.`);
           })();
         },
       },
@@ -694,7 +694,7 @@ export default function PaymentsScreen() {
         label: 'Pending',
         value: formatMoney(stats.pending, 2),
         sub: !ar.reconciles
-          ? 'A/R buckets differ from Pending — see Reports'
+          ? 'A/R buckets differ from Pending. See Reports'
           : stats.pendingRetentionHeld > 0
             ? `Excludes ${formatMoney(stats.pendingRetentionHeld, 2)} retention held`
             : 'Owed to you now',
@@ -705,7 +705,7 @@ export default function PaymentsScreen() {
       aged('d31_60', '31–60'),
       aged('d61_90', '61–90', 'warn'),
       aged('d90p', '90+', 'bad'),
-      { key: 'fees', label: 'Est. fees', value: formatMoney(stats.totalFees, 2), sub: feeScheduleLabel(tier), financial: true },
+      { key: 'fees', label: 'Est. Fees', value: formatMoney(stats.totalFees, 2), sub: feeScheduleLabel(tier), financial: true },
     ];
   }, [ar, stats, tier]);
 
@@ -718,7 +718,7 @@ export default function PaymentsScreen() {
     { key: 'job', label: 'Job', flex: 1, minWidth: 160, sortValue: p => p.projectName, value: p => p.projectName },
     { key: 'payer', label: 'Payer', width: 160, hideBelow: 1100, sortValue: p => p.clientName, value: p => p.clientName },
     {
-      key: 'applied', label: 'Applied to', width: 104,
+      key: 'applied', label: 'Applied To', width: 104,
       value: p => paymentAppliedLabel(p, invoiceNumberById),
       sortValue: p => (p.invoiceId ? invoiceNumberById.get(p.invoiceId) ?? null : null),
     },
@@ -763,14 +763,14 @@ export default function PaymentsScreen() {
     <View style={{ minHeight: 360 }}>
       <EmptyState
         icon={<CreditCard size={32} color={themeColors.accent} strokeWidth={1.75} />}
-        title="No payments yet"
+        title="No Payments Yet"
         message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
         steps={[
           'Open a project and create an invoice with a Stripe pay link.',
-          'Send the invoice — the client taps Pay or you mark a check received.',
+          'Send the invoice. The client taps Pay or you mark a check received.',
           'Payments, fees, and provider details land on this screen automatically.',
         ]}
-        actionLabel="Open projects"
+        actionLabel="Open Projects"
         onAction={() => router.push(routeHref('/(tabs)/(home)'))}
       />
     </View>
@@ -828,7 +828,7 @@ export default function PaymentsScreen() {
             <View style={styles.feeRow}>
               <View style={styles.feeItem}>
                 <View style={styles.feeItemText}>
-                  <Text style={styles.feeItemLabel}>Est. fees on payments MAGE processed</Text>
+                  <Text style={styles.feeItemLabel}>Est. Fees on Payments MAGE Processed</Text>
                   <Text style={styles.feeItemSub}>{feeScheduleLabel(tier)}</Text>
                 </View>
                 <Text style={styles.feeItemValue}>{formatMoney(stats.totalFees, 2)}</Text>
@@ -856,14 +856,14 @@ export default function PaymentsScreen() {
           onPress={handleSendInvoice}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel="Collect oldest unpaid"
+          accessibilityLabel="Collect Oldest Unpaid"
           // It opens an invoice; it does not send anything. Say so, because the
           // hint is the only place a screen-reader user learns that before tapping.
           accessibilityHint="Opens your oldest outstanding invoice so you can send a pay link or record payment"
           testID="payments-collect-oldest"
         >
           <Send size={18} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.sendButtonText}>Collect oldest unpaid</Text>
+          <Text style={styles.sendButtonText}>Collect Oldest Unpaid</Text>
         </TouchableOpacity>
 
         {overdueRows.length > 0 && (
@@ -960,14 +960,14 @@ export default function PaymentsScreen() {
               <View style={{ minHeight: 360 }}>
                 <EmptyState
                   icon={<CreditCard size={32} color={themeColors.accent} strokeWidth={1.75} />}
-                  title="No payments yet"
+                  title="No Payments Yet"
                   message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
                   steps={[
                     'Open a project and create an invoice with a Stripe pay link.',
-                    'Send the invoice — the client taps Pay or you mark a check received.',
+                    'Send the invoice. The client taps Pay or you mark a check received.',
                     'Payments, fees, and provider details land on this screen automatically.',
                   ]}
-                  actionLabel="Open projects"
+                  actionLabel="Open Projects"
                   onAction={() => router.push('/(tabs)/(home)' as any)}
                 />
               </View>

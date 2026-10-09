@@ -11,7 +11,7 @@ export const CONSTRUCTION_FACTS: readonly string[] = [
   'Divide cost by (1 minus your margin) to hit the margin you actually want.',
   'Contingency isn\'t padding. It covers the unknowns you can\'t line-item yet.',
   'The tighter your scope, the smaller your contingency needs to be.',
-  'A clear scope of work wins more bids than the lowest price.',
+  'A clear scope of work tells the client what the price covers.',
   'Bid the scope, not the drawing. What\'s missing costs more than what\'s shown.',
   'Unit pricing beats lump sums when quantities can change on you.',
   'Take off twice, price once. A missed quantity is a missed dollar.',

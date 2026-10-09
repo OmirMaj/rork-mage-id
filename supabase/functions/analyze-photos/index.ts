@@ -406,7 +406,7 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: 'Either photos[] (inline base64) or photoUrls[] required' }, 400);
   }
   const inputCount = usingInline ? body.photos!.length : body.photoUrls!.length;
-  if (body.task === 'codeLook' && inputCount !== 1) return jsonResponse({ success: false, error: 'Photo code check reads one photo at a time.', code: 'one_photo' }, 400);
+  if (body.task === 'codeLook' && inputCount !== 1) return jsonResponse({ success: false, error: 'Photo Code Check reads one photo at a time.', code: 'one_photo' }, 400);
   if (inputCount > 12) {
     return jsonResponse({ success: false, error: 'Max 12 photos per call (cost / latency control)' }, 400);
   }
@@ -494,7 +494,7 @@ serve(async (req) => {
     return jsonResponse({
       success: false,
       error: meterKey === 'code_look'
-        ? `Monthly photo code check limit reached (${cap} on ${auth.tier}). Resets on the 1st.`
+        ? `Monthly Photo Code Check limit reached (${cap} on ${auth.tier}). Resets on the 1st.`
         : `Monthly photo-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
       code: 'monthly_cap_reached',
       used, cap,
@@ -761,7 +761,7 @@ Return JSON only — no preamble.`;
     // utils/codeLook.normalizeCodeLook re-normalises on the client; here the
     // caps, the enums and the shape. Rows with no `what` are dropped.
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return jsonResponse({ success: false, error: 'The photo code check came back unreadable. Try again.' }, 500);
+      return jsonResponse({ success: false, error: 'The Photo Code Check came back unreadable. Try again.' }, 500);
     }
     const o = parsed as Record<string, unknown>;
     const cut = (v: unknown, n: number) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim().slice(0, n) : '');

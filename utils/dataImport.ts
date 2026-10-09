@@ -30,9 +30,9 @@ export const IMPORTABLE_COLLECTIONS: { key: ImportableKey; label: string }[] = [
 /** Collections an export may contain that v1 doesn't import yet (shown to the user). */
 export const DEFERRED_COLLECTIONS: { key: keyof DataExportPayload; label: string }[] = [
   { key: 'invoices', label: 'Invoices' },
-  { key: 'changeOrders', label: 'Change orders' },
-  { key: 'dailyReports', label: 'Daily reports' },
-  { key: 'punchItems', label: 'Punch items' },
+  { key: 'changeOrders', label: 'Change Orders' },
+  { key: 'dailyReports', label: 'Daily Reports' },
+  { key: 'punchItems', label: 'Punch Items' },
   { key: 'photos', label: 'Photos' },
   { key: 'rfis', label: 'RFIs' },
   { key: 'submittals', label: 'Submittals' },

@@ -135,27 +135,27 @@ interface PreviewCard {
 const PREVIEW_CARDS: PreviewCard[] = [
   {
     Icon: MageAIMark,
-    title: 'Win more work with instant bids',
+    title: 'Send an Instant Bid',
     body: 'Tap a client request and get a good, better and best proposal with financing, ready to send.',
   },
   {
     Icon: Ruler,
-    title: 'AI takeoffs from a PDF',
+    title: 'AI Takeoffs from a PDF',
     body: 'Drop in plans. Get walls, doors and finishes, then turn them into sub bid packages.',
   },
   {
     Icon: TrendingUp,
-    title: 'Every project sharpens your next bid',
-    body: 'MAGE learns your costs as you build. Each finished project makes the next estimate more accurate.',
+    title: 'Every Project Feeds Your Next Bid',
+    body: 'MAGE keeps your costs as you build. Each finished project adds its actual costs to your next estimate.',
   },
   {
     Icon: Mic,
-    title: 'Voice on the jobsite',
+    title: 'Voice on the Jobsite',
     body: 'Tap once and talk. MAGE drafts your daily report, the RFI and the change order. Works offline.',
   },
   {
     Icon: Check,
-    title: 'Your turn',
+    title: 'Your Turn',
     // The sample path is now learn-by-doing, not a look-around: the first
     // tutorial (utils/tutorial/defs/dailyReportVoice) files today's report on
     // the sample by voice, so the copy promises exactly that and its time.
@@ -423,7 +423,7 @@ export default function OnboardingScreen() {
       seedingRef.current = false;
       setSeedingSample(false);
       console.warn('[onboarding] sample seed failed', err);
-      showAlert("Couldn't build the sample project", 'Try again, or start with a real bid.');
+      showAlert("Couldn't Build the Sample Project", 'Try again, or start with a real bid.');
       return;
     }
 
@@ -628,11 +628,11 @@ export default function OnboardingScreen() {
                 authGroundStyles.cta,
                 pressed && { opacity: 0.92 },
               ]}
-              accessibilityLabel="Get started with MAGE ID"
+              accessibilityLabel="Get Started with MAGE ID"
               accessibilityRole="button"
               testID="onboarding-cta"
             >
-              <Text style={authGroundStyles.ctaText}>Get started</Text>
+              <Text style={authGroundStyles.ctaText}>Get Started</Text>
               <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
             </Pressable>
           </Animated.View>
@@ -650,7 +650,7 @@ export default function OnboardingScreen() {
           <View style={{ flex: 1 }} />
 
           <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-            <Text style={styles.eyebrowDot}>●</Text>  What you&apos;re getting
+            <Text style={styles.eyebrowDot}>●</Text>  What You&apos;re Getting
           </Animated.Text>
 
           <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
@@ -713,10 +713,10 @@ export default function OnboardingScreen() {
                       disabled={seedingSample}
                       style={({ pressed }) => [styles.ctaPrimary, styles.ctaWide, pressed && { opacity: 0.92 }]}
                       accessibilityRole="button"
-                      accessibilityLabel={isLast ? 'Price a real bid' : 'Next'}
+                      accessibilityLabel={isLast ? 'Price a Real Bid' : 'Next'}
                       testID="onboarding-preview-next"
                     >
-                      <Text style={styles.ctaPrimaryText}>{isLast ? 'Price a real bid' : 'Next'}</Text>
+                      <Text style={styles.ctaPrimaryText}>{isLast ? 'Price a Real Bid' : 'Next'}</Text>
                       <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
                     </Pressable>
 
@@ -732,12 +732,12 @@ export default function OnboardingScreen() {
                           pressed && { opacity: 0.82 },
                         ]}
                         accessibilityRole="button"
-                        accessibilityLabel="Try it on a sample project"
+                        accessibilityLabel="Try It on a Sample Project"
                         accessibilityState={{ busy: seedingSample, disabled: seedingSample }}
                         testID="onboarding-tour-sample"
                       >
                         <Text style={styles.ctaSecondaryText}>
-                          {seedingSample ? 'Building the sample project…' : 'Try it on a sample project'}
+                          {seedingSample ? 'Building the sample project…' : 'Try It on a Sample Project'}
                         </Text>
                       </Pressable>
                     )}
@@ -773,7 +773,7 @@ export default function OnboardingScreen() {
             <View style={{ flex: 1 }} />
 
             <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-              <Text style={styles.eyebrowDot}>●</Text>  Priced from your numbers
+              <Text style={styles.eyebrowDot}>●</Text>  Priced from Your Numbers
             </Animated.Text>
 
             <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
@@ -786,14 +786,14 @@ export default function OnboardingScreen() {
               <Animated.View style={{ opacity: bodyOpacity }}>
                 <Text style={styles.lede}>
                   Paste what you charge today. Your first estimate uses your rates, and every
-                  project you close makes them sharper.
+                  project you close adds its actual costs to them.
                 </Text>
-                <Text style={styles.fieldLabel}>Your company name</Text>
+                <Text style={styles.fieldLabel}>Your Company Name</Text>
                 <TextInput
                   style={styles.nameInput}
                   value={companyName}
                   onChangeText={setCompanyName}
-                  placeholder="e.g. Harlow Building Co."
+                  placeholder="Harlow Building Co."
                   placeholderTextColor={BRAND.fog}
                   autoCapitalize="words"
                   autoCorrect={false}
@@ -808,7 +808,7 @@ export default function OnboardingScreen() {
                   style={styles.pasteInput}
                   value={rateBlob}
                   onChangeText={(v) => { setRateBlob(v); setRateHint(null); }}
-                  placeholder={'Framing, SF, $12.50\nDrywall hang & finish, SF, 3.20\nElectrical rough-in, EA, $145'}
+                  placeholder={'Framing, SF, $12.50\nDrywall hang and finish, SF, 3.20\nElectrical rough-in, EA, $145'}
                   placeholderTextColor={BRAND.fog}
                   multiline
                   autoCapitalize="none"
@@ -826,11 +826,11 @@ export default function OnboardingScreen() {
                     !rateBlob.trim() && { opacity: 0.5 },
                     pressed && { opacity: 0.92 },
                   ]}
-                  accessibilityLabel="Review the rates before adding them"
+                  accessibilityLabel="Review the Rates Before Adding Them"
                   accessibilityRole="button"
                   testID="onboarding-rates-review"
                 >
-                  <Text style={styles.ctaPrimaryText}>Review rates</Text>
+                  <Text style={styles.ctaPrimaryText}>Review Rates</Text>
                   <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
                 </Pressable>
                 <TouchableOpacity
@@ -840,7 +840,7 @@ export default function OnboardingScreen() {
                   testID="onboarding-rates-skip"
                 >
                   <Text style={styles.signInText}>
-                    <Text style={styles.signInLink}>I&apos;ll add rates later</Text>
+                    <Text style={styles.signInLink}>Add Rates Later</Text>
                   </Text>
                 </TouchableOpacity>
               </Animated.View>
@@ -869,7 +869,7 @@ export default function OnboardingScreen() {
                   </View>
                   {rateReview.rejected.length > 0 && (
                     <Text style={styles.rateHint}>
-                      {rateReview.rejected.length} line{rateReview.rejected.length === 1 ? '' : 's'} skipped —
+                      {rateReview.rejected.length} line{rateReview.rejected.length === 1 ? '' : 's'} skipped:
                       {' '}{rateReview.rejected[0].reason}
                     </Text>
                   )}
@@ -889,7 +889,7 @@ export default function OnboardingScreen() {
                   accessibilityRole="button"
                   testID="onboarding-rates-commit"
                 >
-                  <Text style={styles.ctaPrimaryText}>Price your first bid</Text>
+                  <Text style={styles.ctaPrimaryText}>Price Your First Bid</Text>
                 </Pressable>
                 <TouchableOpacity
                   onPress={() => setRateReview(null)}
@@ -897,7 +897,7 @@ export default function OnboardingScreen() {
                   style={styles.rateSkip}
                 >
                   <Text style={styles.signInText}>
-                    <Text style={styles.signInLink}>Back to edit</Text>
+                    <Text style={styles.signInLink}>Back to Edit</Text>
                   </Text>
                 </TouchableOpacity>
               </Animated.View>

@@ -39,7 +39,7 @@ export default function PunchPhotoViewer({ visible, uri, markup, caption, onClos
             onPress={onClose}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             accessibilityRole="button"
-            accessibilityLabel={t('field.punchWalk.photo.closePhoto', 'Close photo')}
+            accessibilityLabel={t('field.punchWalk.photo.closePhoto', 'Close Photo')}
             testID="pin-queue-photo-close"
           >
             <X size={22} color={ON_BACKDROP} strokeWidth={1.75} />

@@ -96,7 +96,7 @@ export const WARRANTY_REASON: Record<'ask' | 'edit', string> = {
 
 export const TERMS_FOOTNOTE = 'Saved as your terms. Change them any time in Settings or Company Profile.';
 export const WARRANTY_FOOTNOTE = 'Saved as your warranty. Change it any time in Settings or Company Profile.';
-export const IDENTITY_FOOTNOTE = 'Saved to your company profile — the next bid goes straight out.';
+export const IDENTITY_FOOTNOTE = 'Saved to your company profile. The next bid goes straight out.';
 export const THIS_JOB_FOOTNOTE: Record<AskDocumentNoun, string> = {
   contract: '“Just this contract” saves the answer on this contract only.',
   proposal: '“Just this proposal” saves the answer on this proposal only.',
@@ -137,7 +137,7 @@ export function askStepCopy(
     return {
       title: gap?.title ?? 'This prints on the homeowner’s copy',
       reason: gap?.reason ?? '',
-      primaryLabel: isLast ? 'Save and send' : 'Next',
+      primaryLabel: isLast ? 'Save and Send' : 'Next',
       footnote: IDENTITY_FOOTNOTE,
       stepLabel,
     };
@@ -146,7 +146,7 @@ export function askStepCopy(
     return {
       title: ASK_TERMS_TITLE,
       reason: purpose === 'contract' && noun === 'proposal' ? CONTRACT_PROPOSAL_TERMS_REASON : TERMS_REASON[purpose],
-      primaryLabel: purpose === 'edit' ? 'Save' : 'Use on every job',
+      primaryLabel: purpose === 'edit' ? 'Save' : 'Use on Every Job',
       secondaryLabel,
       footnote: purpose === 'edit' ? '' : secondaryLabel ? `${TERMS_FOOTNOTE} ${THIS_JOB_FOOTNOTE[noun]}` : TERMS_FOOTNOTE,
       stepLabel,
@@ -187,7 +187,7 @@ export function termsLiveLine(
   const v = validatePaymentSplit(input);
   if (!v.ok) return { kind: 'hint', text: v.reason };
   if (total == null || !Number.isFinite(total) || total <= 0) {
-    return { kind: 'amounts', text: `${splitLabel(v.split)} — deposit / progress / final` };
+    return { kind: 'amounts', text: `${splitLabel(v.split)}: deposit / progress / final` };
   }
   const a = stageAmounts(total, v.split);
   return {
@@ -354,17 +354,17 @@ export function confirmationFor(input: {
 }): string {
   const { question, scope, firstTime, split, months, unconfirmedPortalCount, documentNoun } = input;
   if (question === 'identity') return 'Saved to your company profile';
-  if (scope === 'this_job') return `On this ${documentNoun} only — your next job will ask again`;
+  if (scope === 'this_job') return `On this ${documentNoun} only. Your next job will ask again`;
   if (question === 'terms') {
     if (!split) return 'Saved as your terms';
     const label = splitLabel(split);
-    if (!firstTime) return `Saved — new proposals and contracts say ${label}; sent ones keep theirs`;
+    if (!firstTime) return `Saved. New proposals and contracts say ${label}; sent ones keep theirs`;
     return unconfirmedPortalCount === 0
-      ? `Saved as your terms — proposal, portal and contract now all say ${label}`
-      : `Saved as your terms — new proposals and contracts say ${label}`;
+      ? `Saved as your terms. Proposal, portal and contract now all say ${label}`
+      : `Saved as your terms. New proposals and contracts say ${label}`;
   }
   if (months == null) return 'Saved as your warranty';
-  return `Saved — new contracts warrant your work for ${warrantyShortLabel(months)}`;
+  return `Saved. New contracts warrant your work for ${warrantyShortLabel(months)}`;
 }
 
 /** What ONE step of the sheet did, recorded by the hook at the press that
@@ -409,12 +409,12 @@ export function confirmationForSheet(facts: AskedSheetFacts, documentNoun: AskDo
   // Adjective form — "a 2-year warranty", not "a 2 years warranty".
   const period = warranty.months % 12 === 0 ? `${warranty.months / 12}-year` : `${warranty.months}-month`;
   if (terms.scope === 'this_job' && warranty.scope === 'this_job') {
-    return `On this ${documentNoun} only — your next job will ask again`;
+    return `On this ${documentNoun} only. Your next job will ask again`;
   }
   if (terms.scope === 'this_job') return `Terms on this ${documentNoun} only · ${period} warranty saved as yours`;
   if (warranty.scope === 'this_job') return `Saved your terms (${label}) · warranty on this ${documentNoun} only`;
   // Both saved. A changed answer never reaches documents already sent.
   return terms.firstTime && warranty.firstTime
-    ? `Saved as yours — ${label} and a ${period} warranty on new documents`
-    : `Saved — new documents: ${label}, ${period} warranty; sent ones keep theirs`;
+    ? `Saved as yours: ${label} and a ${period} warranty on new documents`
+    : `Saved. New documents: ${label}, ${period} warranty; sent ones keep theirs`;
 }

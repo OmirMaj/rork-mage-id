@@ -43,7 +43,7 @@ console.log('\nthe editor sheet and the Copilot column (wide web window):');
   ok('the keyboard cannot cover the follow-up box (KeyboardAvoidingView on iOS)',
     /<KeyboardAvoidingView style=\{styles\.overlay\} behavior=\{Platform\.OS === 'ios' \? 'padding' : undefined\}>/.test(panel));
   ok('"use Undo in the toolbar" only where the host has one',
-    /hasToolbarUndo\s*\?\s*'The schedule changed since — use Undo in the toolbar instead\.'/.test(panel));
+    /hasToolbarUndo\s*\?\s*'The schedule changed since. Use Undo in the toolbar instead\.'/.test(panel));
 
   const shell = code('components/copilot/CopilotShell.tsx');
   ok('/copilot: topbar, body and actionbar share one 720 column',
@@ -119,7 +119,7 @@ console.log('\nthe capability reports a refused write:');
 {
   const cap = code('utils/copilot/scheduleEdit/scheduleEditCapability.ts');
   ok('commitRefused → nothing landed, every line "Not saved — …"',
-    /if \(commitRefused\(wrote\)\) \{[\s\S]*landed: \[\], notLanded: \[\.\.\.why, \.\.\.lines\.map\(l => `Not saved — \$\{l\}`\)/.test(cap));
+    /if \(commitRefused\(wrote\)\) \{[\s\S]*landed: \[\], notLanded: \[\.\.\.why, \.\.\.lines\.map\(l => `Not saved: \$\{l\}`\)/.test(cap));
   const types = code('utils/copilot/types.ts');
   ok('false or a reason string = refused', /export const commitRefused = \(o: CommitOutcome\): boolean => o === false \|\| typeof o === 'string';/.test(types));
 }

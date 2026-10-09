@@ -115,7 +115,7 @@ export function buildProjectEvents(input: BuildProjectEventsInput): IcsEvent[] {
     const iso = icsInvoiceDueDay(inv.dueDate);
     if (!iso) continue;
     const amountRemaining = invoiceOutstanding(inv); // MONEY-F5: net of held retention
-    const label = amountRemaining > 0 ? ` — ${formatMoney(amountRemaining)} due` : '';
+    const label = amountRemaining > 0 ? ` · ${formatMoney(amountRemaining)} due` : '';
     events.push({
       uid: `mageid-invoice-${inv.id}@mageid.app`,
       kind: 'invoiceDue',

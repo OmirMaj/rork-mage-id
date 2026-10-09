@@ -235,7 +235,7 @@ async function main() {
   ok('a $0 CO prints no amount in push/subject and says "No cost change"', /const coAmount = coNoCost \? null : fmtMoneyCents\(payload\.co_amount\)/.test(CO_CASE) && /coNoCost \? emailStatRow\('Amount', 'No cost change'\)/.test(CO_CASE));
   ok('the CO row is read scoped to the project as well as the id', /change_orders\?id=eq\.\$\{coId\}&project_id=eq\.\$\{projectCtx\.id\}/.test(CO_CASE));
   ok('the integer number is converted with String()', /payload\.co_number = String\(co\.number\)/.test(CO_CASE));
-  ok('amount / new total land in the stored payload', /payload\.co_amount = /.test(CO_CASE) && /New contract total/.test(CO_CASE));
+  ok('amount / new total land in the stored payload', /payload\.co_amount = /.test(CO_CASE) && /New Contract Total/.test(CO_CASE));
   ok('a decline quotes the homeowner\'s reason', /!isApproved && note \? emailQuote\(note\)/.test(CO_CASE));
   ok('no CO is ever named by a uuid slice', !/coId\.slice\(0, 8\)/.test(NOTIFY));
   ok('the project name is written into the stored payload', /if \(projectCtx\.id\) payload\.project_name = projectCtx\.name;/.test(NOTIFY));

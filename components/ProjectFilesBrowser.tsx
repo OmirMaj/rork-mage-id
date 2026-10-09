@@ -71,7 +71,7 @@ const UPLOAD_AUTHORED: ReadonlySet<string> = new Set([
 ]);
 
 /** The read-failure sentence, shared by the grid banner and the folder view. */
-const LOAD_FAILED = "Couldn't load files — no signal or the server didn't answer.";
+const LOAD_FAILED = "Couldn't load files. No signal, or the server didn't answer.";
 /** Why Delete is disabled below the editor role (storage RLS
  *  project_docs_delete requires 'editor'; the owner always passes). */
 const DELETE_NEEDS_EDITOR = 'Only the job owner or an editor can delete project files.';
@@ -169,7 +169,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       // times its size — a large plan set could take an older iPhone down,
       // only to be refused by uploadProjectFile's same check afterwards).
       if (typeof asset.size === 'number' && asset.size > PROJECT_FILE_MAX_BYTES) {
-        showAlert('File too large', PROJECT_FILE_TOO_LARGE);
+        showAlert('File Too Large', PROJECT_FILE_TOO_LARGE);
         return;
       }
 
@@ -200,7 +200,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       console.warn('[ProjectFilesBrowser] upload failed', rawErrorMessage(err));
       // Authored sentences from uploadProjectFile already say what to do; pass them through.
       const msg = err instanceof Error ? err.message : '';
-      if (UPLOAD_AUTHORED.has(msg) || err instanceof ProjectFileEmptyError) { showAlert('Upload failed', msg); return; }
+      if (UPLOAD_AUTHORED.has(msg) || err instanceof ProjectFileEmptyError) { showAlert('Upload Failed', msg); return; }
       const copy = describeError(err, { action: 'upload the file' });
       showAlert(copy.title, copy.body);
     } finally {
@@ -218,13 +218,13 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
     } catch (err) {
       console.warn('[ProjectFilesBrowser] open failed', rawErrorMessage(err));
       const noLink = err instanceof Error && err.message === OPEN_DOCUMENT_NO_LINK;
-      showAlert("Couldn't open the file", noLink ? OPEN_DOCUMENT_NO_LINK : describeError(err, { action: 'open the file' }).body);
+      showAlert("Couldn't Open the File", noLink ? OPEN_DOCUMENT_NO_LINK : describeError(err, { action: 'open the file' }).body);
     }
   }, []);
 
   const handleDelete = useCallback((file: ProjectFile) => {
     if (!canDelete) {
-      showAlert('Can\'t delete', DELETE_NEEDS_EDITOR);
+      showAlert('Can\'t Delete', DELETE_NEEDS_EDITOR);
       return;
     }
     showAlert(
@@ -243,7 +243,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
             } catch (err) {
               console.warn('[ProjectFilesBrowser] delete failed', rawErrorMessage(err));
               const msg = err instanceof Error ? err.message : '';
-              if (msg === PROJECT_FILE_DELETE_REFUSED || msg === PROJECT_FILE_DELETE_UNCONFIRMED) { showAlert('Delete failed', msg); return; }
+              if (msg === PROJECT_FILE_DELETE_REFUSED || msg === PROJECT_FILE_DELETE_UNCONFIRMED) { showAlert('Delete Failed', msg); return; }
               const copy = describeError(err, { action: 'delete the file' });
               showAlert(copy.title, copy.body);
             }
@@ -288,7 +288,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
         ) : filesFailed ? (
           <View style={styles.emptyFolder} testID="project-files-folder-failed">
             <WifiOff size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyFolderTitle}>Couldn&apos;t load this folder</Text>
+            <Text style={styles.emptyFolderTitle}>Couldn’t Load This Folder</Text>
             <Text style={styles.emptyFolderBody}>{LOAD_FAILED} Files already uploaded are still on the server.</Text>
             <TouchableOpacity
               style={[styles.uploadBtn, { marginTop: 16, paddingHorizontal: 18, paddingVertical: 12 }]}
@@ -303,7 +303,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
         ) : files.length === 0 ? (
           <View style={styles.emptyFolder}>
             <FolderOpen size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyFolderTitle}>No files in this folder yet</Text>
+            <Text style={styles.emptyFolderTitle}>No Files in This Folder Yet</Text>
             <Text style={styles.emptyFolderBody}>
               Upload contracts, signed PDFs, photos or anything else for this project.
               Files here are private to people on this project. To get one to the client or a sub, open it and send it.
@@ -317,7 +317,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
               {uploading
                 ? <ActivityIndicator size="small" color={themeColors.surface} />
                 : <Upload size={14} color={themeColors.surface} strokeWidth={1.75} />}
-              <Text style={styles.uploadBtnText}>{uploading ? 'Uploading…' : 'Upload first file'}</Text>
+              <Text style={styles.uploadBtnText}>{uploading ? 'Uploading…' : 'Upload First File'}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -370,7 +370,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       {projectName && (
         <Text style={styles.projectName}>{projectName}</Text>
       )}
-      <Text style={styles.gridTitle}>Project files</Text>
+      <Text style={styles.gridTitle}>Project Files</Text>
       <Text style={styles.gridSub}>
         Files for this project, private to the people on it. Saved daily
         reports land here, plus anything you upload: contracts, signed PDFs,
@@ -380,7 +380,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
         <View style={styles.failBanner} testID="project-files-load-failed">
           <WifiOff size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
           <Text style={styles.failBannerText}>{LOAD_FAILED}</Text>
-          <TouchableOpacity onPress={() => void refreshCounts()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retry loading files">
+          <TouchableOpacity onPress={() => void refreshCounts()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retry Loading Files">
             <Text style={styles.failBannerRetry}>Retry</Text>
           </TouchableOpacity>
         </View>

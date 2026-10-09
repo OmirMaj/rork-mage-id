@@ -128,7 +128,7 @@ describe('schedule editor — what landed, and Undo, on every host', () => {
     expect(hostTasks).toHaveLength(TASKS.length);
     expect(r.getByText(REFUSAL)).toBeTruthy();
     expect(r.getByText('Nothing changed.')).toBeTruthy();
-    expect(r.getByText('Not saved — Added Drywall hang (4d) after Rough-in inspection')).toBeTruthy();
+    expect(r.getByText('Not saved: Added Drywall hang (4d) after Rough-in inspection')).toBeTruthy();
     expect(r.queryByText(/^Added /)).toBeNull();
     expect(r.queryByTestId('copilot-undo')).toBeNull();
   });

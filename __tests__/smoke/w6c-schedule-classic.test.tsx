@@ -488,10 +488,10 @@ describe('lane DC — the classic tab at 1512 (desktop)', () => {
     expect(JSON.parse(m?.props.accessibilityHint ?? '{}').visible).toBe(true);
     expect(screen.getAllByText('Rough-in electrical').length).toBeGreaterThan(0);
     expect(screen.getByTestId('schedule-detail-progress')).toBeTruthy();
-    fireEvent.press(screen.getAllByText('Edit task')[0]);
+    fireEvent.press(screen.getAllByText('Edit Task')[0]);
     await pump(2);
     // The Edit Task card: the ancestor of its title with the frame's cap.
-    let node: { props: { style?: unknown }; parent: unknown } | null = screen.getAllByText('Edit task').map((t) => t as unknown as { props: { style?: unknown }; parent: unknown }).pop() ?? null;
+    let node: { props: { style?: unknown }; parent: unknown } | null = screen.getAllByText('Edit Task').map((t) => t as unknown as { props: { style?: unknown }; parent: unknown }).pop() ?? null;
     let card: { props: { style?: unknown } } | null = null;
     while (node) { if (flatOf(node).maxWidth === 560) { card = node; break; } node = node.parent as typeof node; }
     expect(card).not.toBeNull();

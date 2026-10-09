@@ -135,7 +135,7 @@ export default function DiscoverScheduleTool() {
           location: '',
           squareFootage: 2200,
           quality: 'standard',
-          description: 'Demo schedule — 35 tasks, 6 phases, realistic dependencies.',
+          description: 'Demo schedule: 35 tasks, 6 phases, realistic dependencies.',
           createdAt: now,
           updatedAt: now,
           estimate: null,
@@ -167,7 +167,7 @@ export default function DiscoverScheduleTool() {
 
   return (
     <View style={s.container}>
-      <Stack.Screen options={{ headerShown: true, title: 'Schedule builder' }} />
+      <Stack.Screen options={{ headerShown: true, title: 'Schedule Builder' }} />
       <ScrollView
         {...fabScroll}
         contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
@@ -186,7 +186,7 @@ export default function DiscoverScheduleTool() {
         {/* Existing schedules — unchanged from before. */}
         {projectsWithSchedules.length > 0 && (
           <View style={s.existingSection}>
-            <Text style={s.sectionTitle}>Existing schedules</Text>
+            <Text style={s.sectionTitle}>Existing Schedules</Text>
             {projectsWithSchedules.map(project => (
               <TouchableOpacity
                 key={project.id}

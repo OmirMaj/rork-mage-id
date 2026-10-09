@@ -259,7 +259,7 @@ export default function ReportsScreen() {
 
   const handleSharePdf = useCallback(async () => {
     if (tab === 'wip' && !wipUnlocked) return; // WIP export is Business-gated
-    if (nothingToExport) { showAlert('Nothing to report yet', blockedReason); return; }
+    if (nothingToExport) { showAlert('Nothing to Report Yet', blockedReason); return; }
     setGenerating(true);
     try {
       if (tab === 'wip') {
@@ -277,7 +277,7 @@ export default function ReportsScreen() {
       // WindowOrThrow, #147) instead of doing nothing and buzzing "done", and
       // pdfFailureMessage lets that one sentence — "allow pop-ups" — through
       // while any other failure keeps this screen's own wording.
-      showAlert('Couldn’t generate PDF', pdfFailureMessage(err, 'Couldn’t generate the PDF. Try again.'));
+      showAlert('Couldn’t Generate PDF', pdfFailureMessage(err, 'Couldn’t generate the PDF. Try again.'));
     } finally {
       setGenerating(false);
     }
@@ -285,7 +285,7 @@ export default function ReportsScreen() {
 
   const handleCopyCsv = useCallback(async () => {
     if (tab === 'wip' && !wipUnlocked) return; // WIP CSV is Business-gated
-    if (nothingToExport) { showAlert('Nothing to report yet', blockedReason); return; }
+    if (nothingToExport) { showAlert('Nothing to Report Yet', blockedReason); return; }
     const csv = tab === 'wip' ? wipReportToCSV(wip)
               : tab === 'aging' ? arAgingReportToCSV(aging)
               : ''; // profit doesn't ship a CSV — it's tiny + the PDF is the deliverable
@@ -319,7 +319,7 @@ export default function ReportsScreen() {
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      ok ? 'CSV copied' : 'Couldn’t export CSV',
+      ok ? 'CSV Copied' : 'Couldn’t Export CSV',
       ok
         ? "This device couldn't hand over a file, so the schedule is on your clipboard. Paste it "
           + 'into Excel, QuickBooks or Sage.'
@@ -365,8 +365,8 @@ export default function ReportsScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Financial reports</Text>
-          <Text style={styles.title}>Reports for your bank</Text>
+          <Text style={styles.eyebrow}>Financial Reports</Text>
+          <Text style={styles.title}>Reports for Your Bank</Text>
         </View>
         {isDesktop && <ToolbarActions actions={toolbar} testID="reports-toolbar" />}
       </View>
@@ -375,7 +375,7 @@ export default function ReportsScreen() {
       <View style={[styles.tabRow, isDesktop && segmentedDesktop.container]}>
         <TabBtn label="WIP"      icon={ClipboardList} active={tab === 'wip'}    onPress={() => setTab('wip')} />
         <TabBtn label="Profit"   icon={TrendingUp}    active={tab === 'profit'} onPress={() => setTab('profit')} />
-        <TabBtn label="A/R aging" icon={AlertTriangle} active={tab === 'aging'}  onPress={() => setTab('aging')} />
+        <TabBtn label="A/R Aging" icon={AlertTriangle} active={tab === 'aging'}  onPress={() => setTab('aging')} />
       </View>
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
@@ -388,9 +388,9 @@ export default function ReportsScreen() {
           <View style={styles.reportsHeroIcon}>
             <TrendingUp size={26} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.reportsHeroTitle}>Reports for your bank</Text>
+          <Text style={styles.reportsHeroTitle}>Reports for Your Bank</Text>
           <Text style={styles.reportsHeroSub}>
-            WIP, profit margin, and A/R aging — auto-compiled across every project. Export to CSV or PDF in one tap.
+            WIP, profit margin, and A/R aging, compiled across every project. Export to CSV or PDF in one tap.
           </Text>
         </View>
         )}
@@ -469,7 +469,7 @@ export default function ReportsScreen() {
             <>
               <FileDown size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.actionBtnPrimaryText}>
-                {Platform.OS === 'web' ? 'Open PDF preview' : 'Download & share PDF'}
+                {Platform.OS === 'web' ? 'Open PDF Preview' : 'Download and Share PDF'}
               </Text>
             </>
           )}
@@ -512,7 +512,7 @@ function reportExclusionLine(
       + `(${shared === 1 ? 'its' : 'their'} contract, not yours)`);
   }
   if (unsigned > 0) {
-    parts.push(`${unsigned} unsigned bid${unsigned === 1 ? '' : 's'} (${formatMoney(unsignedContract, 2)}) — `
+    parts.push(`${unsigned} unsigned bid${unsigned === 1 ? '' : 's'} (${formatMoney(unsignedContract, 2)}): `
       + 'pipeline, not backlog. A bid joins once it is invoiced, billed on a pay app, has an approved '
       + 'change order or a signed subcontract, or has cost recorded against it');
   }
@@ -533,15 +533,15 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
   // the visible rows. A margin cell goes through marginCellText only.
   const wipColumns: DataTableColumn<WIPReportRow>[] = [
     { key: 'job', label: 'Project', flex: 1, minWidth: 180, sortValue: (r) => r.projectName, value: (r) => r.projectName },
-    { key: 'contract', label: 'Revised contract', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).contract, value: (r) => formatMoney(reportsWipCells(r).contract) },
-    { key: 'estFinal', label: 'Est. final cost', width: 110, numeric: true, hideBelow: 1050, sortValue: (r) => reportsWipCells(r).estFinal, value: (r) => formatMoney(reportsWipCells(r).estFinal) },
+    { key: 'contract', label: 'Revised Contract', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).contract, value: (r) => formatMoney(reportsWipCells(r).contract) },
+    { key: 'estFinal', label: 'Est. Final Cost', width: 110, numeric: true, hideBelow: 1050, sortValue: (r) => reportsWipCells(r).estFinal, value: (r) => formatMoney(reportsWipCells(r).estFinal) },
     {
-      key: 'costToDate', label: 'Cost to date', width: 110, numeric: true,
+      key: 'costToDate', label: 'Cost to Date', width: 110, numeric: true,
       sortValue: (r) => reportsWipCells(r).costToDate,
       // Unknown prints '—' (the table's own unknown cell), never $0.
       value: (r) => { const c = reportsWipCells(r).costToDate; return c == null ? null : formatMoney(c); },
     },
-    { key: 'pct', label: '% complete', width: 64, numeric: true, sortValue: (r) => reportsWipCells(r).pctComplete, value: (r) => `${reportsWipCells(r).pctComplete.toFixed(0)}%` },
+    { key: 'pct', label: '% Complete', width: 64, numeric: true, sortValue: (r) => reportsWipCells(r).pctComplete, value: (r) => `${reportsWipCells(r).pctComplete.toFixed(0)}%` },
     { key: 'earned', label: 'Earned', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).earned, value: (r) => formatMoney(reportsWipCells(r).earned) },
     { key: 'billed', label: 'Billed', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).billed, value: (r) => formatMoney(reportsWipCells(r).billed) },
     {
@@ -551,7 +551,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
         const b = reportsWipCells(r).billing;
         return (
           <Text style={[styles.tableCellText, b.kind === 'even' && { color: themeColors.textMuted }]} numberOfLines={1}>
-            {b.kind === 'over' ? `Over ${formatMoney(b.amount)}` : b.kind === 'under' ? `Under ${formatMoney(b.amount)}` : 'On earned value'}
+            {b.kind === 'over' ? `Over ${formatMoney(b.amount)}` : b.kind === 'under' ? `Under ${formatMoney(b.amount)}` : 'On Earned Value'}
           </Text>
         );
       },
@@ -563,7 +563,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
       render: (r) => {
         const m = reportsWipCells(r).margin;
         return m == null
-          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>No cost basis</Text>
+          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>No Cost Basis</Text>
           : <Text style={[styles.tableCellText, marginTextTone(m, themeColors)]} numberOfLines={1}>{marginCellText(m)}</Text>;
       },
     },
@@ -572,7 +572,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
   if (report.rows.length === 0) {
     return (
       <>
-        <EmptyState icon={ClipboardList} title="No active projects" body="The WIP report covers your own signed, active projects. Add or activate a project to fill it in." />
+        <EmptyState icon={ClipboardList} title="No Active Projects" body="The WIP report covers your own signed, active projects. Add or activate a project to fill it in." />
         {exclusion ? <Text style={styles.basisLine} testID="wip-excluded">{exclusion}</Text> : null}
       </>
     );
@@ -582,12 +582,12 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
       {/* Portfolio header */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryHead}>
-          <Text style={styles.summaryEyebrow}>WIP TOTAL — {report.rows.length} project{report.rows.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.summaryEyebrow}>WIP Total · {report.rows.length} project{report.rows.length === 1 ? '' : 's'}</Text>
         </View>
         <TileGrid preset="kpi" phoneStyle={styles.summaryGrid}>
-          <SummaryStat label="Revised contract" value={formatMoney(report.totals.revisedContract)} accent={themeColors.text} />
+          <SummaryStat label="Revised Contract" value={formatMoney(report.totals.revisedContract)} accent={themeColors.text} />
           <SummaryStat label="Billed"            value={formatMoney(report.totals.billedToDate)} accent={themeColors.text} />
-          <SummaryStat label="Retainage held"    value={formatMoney(report.totals.retainageHeld)} accent={Colors.warning} />
+          <SummaryStat label="Retainage Held"    value={formatMoney(report.totals.retainageHeld)} accent={Colors.warning} />
           {/* MEASURABLE, not the whole book (F14, adversarial review
               2026-09-11). `projectedProfit` sums every row INCLUDING jobs that
               carry a contract and no cost at all — a target budget or a GMP cap
@@ -598,7 +598,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
               measurable subset. Two numbers for one book, on one screen, is the
               exact defect this whole area exists to close. */}
           <SummaryStat
-            label="Projected profit"
+            label="Projected Profit"
             value={formatMoney(report.totals.measurableProjectedProfit)}
             accent={report.totals.measurableProjectedProfit >= 0 ? themeColors.success : themeColors.danger}
           />
@@ -643,7 +643,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
             <View style={styles.tableCellEnd}>
               {wipFoot.overbilled > 0 ? <Text style={styles.tableFootText}>{`Over ${formatMoney(wipFoot.overbilled)}`}</Text> : null}
               {wipFoot.unbilled > 0 ? <Text style={styles.tableFootText}>{`Under ${formatMoney(wipFoot.unbilled)}`}</Text> : null}
-              {wipFoot.overbilled > 0 || wipFoot.unbilled > 0 ? null : <Text style={[styles.tableFootText, { color: themeColors.textMuted }]}>On earned value</Text>}
+              {wipFoot.overbilled > 0 || wipFoot.unbilled > 0 ? null : <Text style={[styles.tableFootText, { color: themeColors.textMuted }]}>On Earned Value</Text>}
             </View>
           ),
           retainage: formatMoney(wipFoot.retainageHeld),
@@ -669,7 +669,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
               </View>
             ) : (
               <View style={[styles.marginPill, styles.marginPillNone]}>
-                <Text style={[styles.marginPillText, styles.marginPillNoneText]}>No cost basis</Text>
+                <Text style={[styles.marginPillText, styles.marginPillNoneText]}>No Cost Basis</Text>
               </View>
             )}
           </View>
@@ -683,11 +683,11 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
                 completion, so a reader could see the ratio and neither of the
                 two numbers it came from, and `unbilled` — the figure a lender
                 reads first — reached the CSV and never this grid. */}
-            <KV k="Cost to date"    v={r.costToDate == null ? '—' : formatMoney(r.costToDate)} />
-            <KV k="Est. final cost" v={formatMoney(r.estimatedFinalCost)} />
-            <KV k="Cost to complete" v={wipRowCostToComplete(r) == null ? '—' : formatMoney(wipRowCostToComplete(r) as number)} />
+            <KV k="Cost to Date"    v={r.costToDate == null ? '—' : formatMoney(r.costToDate)} />
+            <KV k="Est. Final Cost" v={formatMoney(r.estimatedFinalCost)} />
+            <KV k="Cost to Complete" v={wipRowCostToComplete(r) == null ? '—' : formatMoney(wipRowCostToComplete(r) as number)} />
             <KV k="% Complete"      v={`${r.percentComplete.toFixed(0)}%`} />
-            <KV k="Earned revenue"  v={formatMoney(wipRowEarned(r))} />
+            <KV k="Earned Revenue"  v={formatMoney(wipRowEarned(r))} />
             <KV k="Billed"          v={formatMoney(r.billedToDate)} />
             <KV k="Paid"            v={formatMoney(r.paidToDate)} />
             {/* One signed line rather than two, so a job that is exactly on
@@ -700,7 +700,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
                 muted={wipRowOverbilled(r) === 0 && r.unbilled === 0} />
             <KV k="Retainage"       v={formatMoney(r.retainageHeld)} muted={r.retainageHeld === 0} />
             {wipReportRowHasCostBasis(r) ? (
-              <KV k="Projected profit"
+              <KV k="Projected Profit"
                   v={formatMoney(r.projectedProfit)}
                   tone={r.projectedProfit >= 0 ? 'good' : 'bad'}
                   bold />
@@ -747,10 +747,10 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
       ),
     },
     { key: 'revenue', label: 'Revenue', width: 110, numeric: true, sortValue: (r) => profitCells(r).revenue, value: (r) => formatMoney(profitCells(r).revenue) },
-    { key: 'costToDate', label: 'Cost to date', width: 110, numeric: true, sortValue: (r) => profitCells(r).costToDate, value: (r) => formatMoney(profitCells(r).costToDate) },
-    { key: 'estFinal', label: 'Est. final cost', width: 110, numeric: true, sortValue: (r) => profitCells(r).estFinal, value: (r) => formatMoney(profitCells(r).estFinal) },
+    { key: 'costToDate', label: 'Cost to Date', width: 110, numeric: true, sortValue: (r) => profitCells(r).costToDate, value: (r) => formatMoney(profitCells(r).costToDate) },
+    { key: 'estFinal', label: 'Est. Final Cost', width: 110, numeric: true, sortValue: (r) => profitCells(r).estFinal, value: (r) => formatMoney(profitCells(r).estFinal) },
     {
-      key: 'projectedProfit', label: 'Projected profit', width: 120, numeric: true,
+      key: 'projectedProfit', label: 'Projected Profit', width: 120, numeric: true,
       sortValue: (r) => profitCells(r).profit,
       render: (r) => {
         const p = profitCells(r).profit;
@@ -765,7 +765,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
       render: (r) => {
         const m = profitCells(r).margin;
         return m == null
-          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>No cost basis</Text>
+          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>No Cost Basis</Text>
           : <Text style={[styles.tableCellText, marginTextTone(m, themeColors)]} numberOfLines={1}>{marginCellText(m)}</Text>;
       },
     },
@@ -775,7 +775,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
   if (profit.rows.length === 0) {
     return (
       <>
-        <EmptyState icon={TrendingUp} title="No projects yet" body="Live margins across your own signed projects show here. Add a project to see them." />
+        <EmptyState icon={TrendingUp} title="No Projects Yet" body="Live margins across your own signed projects show here. Add a project to see them." />
         {exclusion ? <Text style={styles.basisLine} testID="profit-excluded">{exclusion}</Text> : null}
       </>
     );
@@ -783,7 +783,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
   return (
     <>
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryEyebrow}>Running portfolio margin</Text>
+        <Text style={styles.summaryEyebrow}>Running Portfolio Margin</Text>
         <View style={styles.profitHero}>
           <Text style={styles.profitHeroAmount}>{formatMoney(profit.totalProfit)}</Text>
           <Text style={[styles.profitHeroPct, marginTextTone(profit.weightedMargin, themeColors)]}>
@@ -793,7 +793,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
         <Text style={styles.profitHeroSub}>
           on {formatMoney(profit.measurableRevenue)} of revised contract value
           {profit.noCostBasisCount > 0
-            ? ` — ${profit.noCostBasisCount} project${profit.noCostBasisCount === 1 ? '' : 's'} worth `
+            ? `. ${profit.noCostBasisCount} project${profit.noCostBasisCount === 1 ? '' : 's'} worth `
               + `${formatMoney(profit.noCostBasisRevenue)} excluded, because a contract with no cost `
               + 'estimate, no signed commitment and nothing spent has no measurable margin'
             : ''}
@@ -838,7 +838,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
               </View>
             ) : (
               <View style={[styles.marginPill, styles.marginPillNone]}>
-                <Text style={[styles.marginPillText, styles.marginPillNoneText]}>No cost basis</Text>
+                <Text style={[styles.marginPillText, styles.marginPillNoneText]}>No Cost Basis</Text>
               </View>
             )}
           </View>
@@ -902,7 +902,7 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
         );
       },
     },
-    { key: 'daysPastDue', label: 'Days past due', width: 72, numeric: true, sortValue: (r) => agingCells(r).daysPastDue, value: (r) => agingCells(r).daysPastDue },
+    { key: 'daysPastDue', label: 'Days Past Due', width: 72, numeric: true, sortValue: (r) => agingCells(r).daysPastDue, value: (r) => agingCells(r).daysPastDue },
     {
       key: 'bucket', label: 'Bucket', width: 110,
       render: (r) => {
@@ -925,10 +925,10 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
     const collected = anyIssued;
     return <EmptyState
       icon={collected ? CheckCircle2 : FileText}
-      title={collected ? 'Nothing outstanding' : 'No invoices yet'}
+      title={collected ? 'Nothing Outstanding' : 'No Invoices Yet'}
       body={collected
-        ? 'Every invoice you have sent is collected in full — nothing is aging.'
-        : 'A/R aging buckets the invoices a client still owes you. Issue one from a project and it lands here the day it is sent — a draft owes you nothing, so it is not counted.'}
+        ? 'Every invoice you have sent is collected in full. Nothing is aging.'
+        : 'A/R aging buckets the invoices a client still owes you. Issue one from a project and it lands here the day it is sent. A draft owes you nothing, so it is not counted.'}
       tone={collected ? 'good' : undefined}
     />;
   }
@@ -947,13 +947,13 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
     <>
       <View style={styles.summaryCard}>
         <Text style={styles.summaryEyebrow}>
-          OUTSTANDING — {collectible} invoice{collectible === 1 ? '' : 's'}
+          Outstanding · {collectible} invoice{collectible === 1 ? '' : 's'}
           {retainageOnly > 0 ? ` · ${retainageOnly} retainage-only` : ''}
         </Text>
         <Text style={styles.agingHeroAmount}>{formatMoney(report.totals.totalOutstanding)}</Text>
         {report.totals.retainageHeld > 0.5 ? (
           <Text style={styles.agingHeroSub} testID="aging-retainage-held">
-            {`Plus ${formatMoney(report.totals.retainageHeld)} retainage held until closeout — a receivable, not aged.`}
+            {`Plus ${formatMoney(report.totals.retainageHeld)} retainage held until closeout: a receivable, not aged.`}
           </Text>
         ) : null}
         <View style={styles.bucketRow}>
@@ -1010,7 +1010,7 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
               <Text style={styles.rowTitle}>#{r.invoiceNumber} · {r.projectName}</Text>
               <View style={[styles.bucketPill, bucketStyle]}>
                 <Text style={styles.bucketPillText}>
-                  {isRetainageOnly ? 'Retainage only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`}
+                  {isRetainageOnly ? 'Retainage Only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`}
                 </Text>
               </View>
               <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1018,11 +1018,11 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
             <View style={styles.kvGrid}>
               <KV k="Issued"       v={new Date(r.issueDate).toLocaleDateString()} />
               <KV k="Due"          v={new Date(r.dueDate).toLocaleDateString()} />
-              <KV k="Total due"    v={formatMoney(r.totalDue)} />
+              <KV k="Total Due"    v={formatMoney(r.totalDue)} />
               <KV k="Paid"         v={formatMoney(r.amountPaid)} />
               {/* Total − Paid − Retainage held = Outstanding: the row foots, the
                   way the CSV and the PDF foot. */}
-              <KV k="Retainage held" v={formatMoney(r.retainageHeld)} muted={r.retainageHeld <= 0.5} />
+              <KV k="Retainage Held" v={formatMoney(r.retainageHeld)} muted={r.retainageHeld <= 0.5} />
               <KV k="Outstanding"  v={formatMoney(r.outstanding)} bold
                   tone={outstandingLate ? 'bad' : undefined} muted={isRetainageOnly} />
             </View>

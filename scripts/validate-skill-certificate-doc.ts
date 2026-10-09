@@ -24,7 +24,7 @@
 //       hangs only off the 'removed' answer.
 //   (f) SkillsProfileRow renders nothing when signed out, before any data
 //       hook runs; Settings mounts it exactly once, between the profile hero
-//       and the "Account type" header.
+//       and the "Account Type" header.
 //   (g) the certificates screen never shows the empty state for a failed read,
 //       and its two-up grid uses a fixed flexBasis, not a percentage.
 //   Every source rule is then fed planted mutations, each of which must fail.
@@ -139,7 +139,7 @@ export function checkHelpers(): string[] {
   const missing = topicsNotEarned(certs).map(t => t.id);
   if (missing.length !== 13 || missing.includes('punch-walk') || !missing.includes('invoice-to-self')) p.push(`topicsNotEarned wrong: ${missing.join(', ')}`);
   const share = certificateShareText(cert(), CO, URL_OK);
-  if (share !== `MAGE ID skills: Change orders — Dana Ruiz. ${CERT_NAME_NOTE} Check it at ${URL_OK}`) p.push(`share text (must carry CERT_NAME_NOTE after the name): ${share}`);
+  if (share !== `MAGE ID skills: Change orders, Dana Ruiz. ${CERT_NAME_NOTE} Check it at ${URL_OK}`) p.push(`share text (must carry CERT_NAME_NOTE after the name): ${share}`);
   const a11y = certificateA11yLabel(cert(), CO, 'October 1, 2026');
   if (a11y !== 'MAGE ID skills: Change orders. Awarded to Dana Ruiz, October 1, 2026. Covers using the MAGE ID app only.') p.push(`a11y label: ${a11y}`);
   return p;
@@ -220,8 +220,8 @@ export function checkRow(row: string, settings: string): string[] {
   if (uses.length !== 1) p.push(`Settings mounts <SkillsProfileRow /> ${uses.length} times`);
   const hero = s.indexOf('testID="profile-hero-tap"');
   const at = s.indexOf('<SkillsProfileRow');
-  const acct = s.indexOf('<Text style={styles.sectionHeader}>Account type</Text>');
-  if (!(hero >= 0 && at > hero && acct > at)) p.push('the row is not between the profile hero and the "Account type" header');
+  const acct = s.indexOf('<Text style={styles.sectionHeader}>Account Type</Text>');
+  if (!(hero >= 0 && at > hero && acct > at)) p.push('the row is not between the profile hero and the "Account Type" header');
   if (!/import \{ SkillsProfileRow \} from '@\/components\/learn\/SkillsProfileRow';/.test(s)) p.push('Settings does not import SkillsProfileRow');
   return p;
 }
@@ -237,7 +237,7 @@ export function checkScreen(screen: string): string[] {
   if (/flexBasis:\s*'\d+%'|width:\s*'(?:4\d|50)%'/.test(code)) p.push('a percentage tile');
   if (!/maxWidth: \(gridWidth - 12\) \/ 2/.test(code) || !/\[styles\.cardTwoUp, halfColumn\]/.test(code)) p.push('a lone last card can stretch across the column (no half-column maxWidth)');
   if (!/retryPendingAwards\(awardSkillCertificate\)/.test(code) || !/useFocusEffect\(/.test(code)) p.push('pending awards are not retried on focus');
-  if (!/'Passed, not issued yet'/.test(code)) p.push('a pending pass is not labelled "Passed, not issued yet"');
+  if (!/'Passed, Not Issued Yet'/.test(code)) p.push('a pending pass is not labelled "Passed, Not Issued Yet"');
   if (!/BRAIN_FAB_CLEARANCE/.test(code)) p.push('no BRAIN_FAB_CLEARANCE bottom padding');
   return p;
 }

@@ -6,7 +6,7 @@ import type { EnCatalog } from '../../types';
 
 export const EN: EnCatalog = {
   "money.coProof.busy": "Building the packet…",
-  "money.coProof.button": "Proof packet",
+  "money.coProof.button": "Proof Packet",
   "money.coProof.failBody": "Couldn't build the proof packet. Try again.",
-  "money.coProof.failTitle": "Could not make the packet",
+  "money.coProof.failTitle": "Could Not Make the Packet",
 };

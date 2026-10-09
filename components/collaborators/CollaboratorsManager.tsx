@@ -390,9 +390,9 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
 
   const onInvite = useCallback(() => {
     if (!validEmail) return;
-    if (inviteBlocked) { showAlert("Can't send the invite yet", inviteBlocked); return; }
+    if (inviteBlocked) { showAlert("Can't Send the Invite Yet", inviteBlocked); return; }
     // The client first: no role makes this invite safe (see the header).
-    if (clientReason) { showAlert("This is the project's client", clientReason); return; }
+    if (clientReason) { showAlert("This is the project's client.", clientReason); return; }
     // Someone already active on this job is never re-invited: the invite
     // resets his row to 'pending' and he loses the project until he accepts
     // again. Point at the row's role picker instead.
@@ -400,7 +400,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     const active = collaborators.find((c) => c.status === 'accepted' && c.email.trim().toLowerCase() === typed);
     if (active) {
       showAlert(
-        'Already on this project',
+        'Already on This Project',
         `${active.email} is already here as ${ROLE_LABELS[active.role] ?? active.role}. To change what they can see, use the role buttons on their row below. Sending a new invite would lock them out until they accept it again.`,
       );
       return;
@@ -413,11 +413,11 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     // request we know will fail.
     if (!seatPreview.allowed) {
       showAlert(
-        'Your team is full',
+        'Your team is full.',
         `${seatPreview.message}\n\nField team members don't count toward it. If they only need the schedule, daily reports, photos and RFIs, invite them as Field.`,
         [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'See plans', onPress: () => router.push('/paywall') },
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'See Plans', onPress: () => router.push('/paywall') },
         ],
       );
       return;
@@ -440,7 +440,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     // exactly the surprise that makes people distrust per-seat pricing.
     if (seatPreview.bills) {
       showAlert(
-        'This adds a paid team member',
+        'This adds a paid team member.',
         `${seatPreview.message}\n\nField access stays free. If they only need the schedule, daily reports and photos, invite them as Field instead.`,
         [
           { text: 'Cancel', style: 'cancel' },
@@ -464,7 +464,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
           onSuccess: () => { void seats.refetch(); },
           onError: (err) => {
             console.warn('[Collaborators] role change failed:', rawErrorMessage(err));
-            showAlert("Couldn't change the role", describeError(err, { action: 'change the role' }).body);
+            showAlert("Couldn't Change the Role", describeError(err, { action: 'change the role' }).body);
           },
         },
       );
@@ -476,14 +476,14 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     if (isBillableSeat(next) && !isBillableSeat(c.role)) {
       if (!canAccess('schedule_collaboration')) {
         showAlert(
-          `${label} access is on the Pro plan`,
+          `${label} access is on the Pro plan.`,
           `Editors and viewers count toward your team, which starts on Pro. ${c.email} can stay on Field for free, with the schedule, daily reports, photos and RFIs.`,
         );
         return;
       }
       const preview = seats.preview(next, c.email);
       if (!preview.allowed) {
-        showAlert('Your team is full', `${preview.message}\n\n${c.email} can stay on Field, which doesn't count toward your team.`);
+        showAlert('Your team is full.', `${preview.message}\n\n${c.email} can stay on Field, which doesn't count toward your team.`);
         return;
       }
       if (preview.bills) seatLine = `\n\n${preview.message}`;
@@ -548,7 +548,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
         setRowCopiedId(c.id);
         setTimeout(() => setRowCopiedId((cur) => (cur === c.id ? null : cur)), 1500);
       },
-      onError: (err) => showAlert("Couldn't get the invite link", describeError(err, { action: 'get the invite link' }).body),
+      onError: (err) => showAlert("Couldn't Get the Invite Link", describeError(err, { action: 'get the invite link' }).body),
     });
   }, [getLink]);
 
@@ -557,7 +557,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
       {/* Invite form — owner only */}
       {isOwner ? (
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.line }]}>
-          <Text style={[styles.cardTitle, { color: t.text }]}>Invite a team member</Text>
+          <Text style={[styles.cardTitle, { color: t.text }]}>Invite a Team Member</Text>
 
           {/* Account-wide seat state. Field seats are shown alongside so the
               free-forever crew allowance is visible, not buried in pricing. */}
@@ -638,7 +638,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
             testID="collab-invite"
           >
             {invite.isPending ? <ActivityIndicator color="#FFF" /> : <UserPlus size={16} color="#FFF" strokeWidth={2} />}
-            <Text style={styles.inviteBtnText}>Send invite</Text>
+            <Text style={styles.inviteBtnText}>Send Invite</Text>
           </TouchableOpacity>
           {/* #129: a blocked control says why. */}
           {inviteBlocked ? (
@@ -659,7 +659,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
           {invite.isError ? <Text style={[styles.errText, { color: t.danger }]}>{(classifyError(invite.error) === 'unknown' ? readerSentence(rawErrorMessage(invite.error)) : null) ?? describeError(invite.error, { action: 'send the invite' }).body}</Text> : null}
           {(clientReason || serverClientRefusal) ? (
             onOpenClientPortal ? (
-              <Button label="Open the client portal" size="sm" variant="secondary" onPress={onOpenClientPortal} testID="collab-open-client-portal" />
+              <Button label="Open the Client Portal" size="sm" variant="secondary" onPress={onOpenClientPortal} testID="collab-open-client-portal" />
             ) : (
               <Text style={[styles.roleHint, { color: t.textSecondary }]} testID="collab-client-portal-hint">
                 Invite them from the Client portal tile on this project.
@@ -683,7 +683,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
             <TouchableOpacity onPress={copyLink} style={[styles.linkRow, { backgroundColor: t.accentSoft }]} accessibilityRole="button">
               {copied ? <Check size={14} color={t.success} strokeWidth={2} /> : <Copy size={14} color={t.accent} strokeWidth={2} />}
               <Text style={[styles.linkText, { color: t.accent }]} numberOfLines={1}>
-                {copied ? 'Link copied' : 'Copy invite link'}
+                {copied ? 'Link Copied' : 'Copy Invite Link'}
               </Text>
             </TouchableOpacity>
           ) : null}
@@ -703,7 +703,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
           ) : null}
         </View>
       ) : view === 'empty' ? (
-        <Text style={[styles.empty, { color: t.textMuted }]}>No team members yet{isOwner ? '. Invite your first above.' : '.'}</Text>
+        <Text style={[styles.empty, { color: t.textMuted }]}>{isOwner ? 'No team members yet. Invite your first above.' : 'No team members yet.'}</Text>
       ) : (
         collaborators.map((c) => (
           <View key={c.id} style={[styles.row, { borderColor: t.line }]}>
@@ -764,7 +764,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
                 hitSlop={10}
                 style={styles.rowIconBtn}
                 accessibilityRole="button"
-                accessibilityLabel={rowCopiedId === c.id ? 'Invite link copied' : `Copy invite link for ${c.email}`}
+                accessibilityLabel={rowCopiedId === c.id ? 'Invite Link Copied' : `Copy invite link for ${c.email}`}
                 accessibilityHint="Copies the same link the email carried; it does not send a new one"
                 testID={`collab-copy-link-${c.id}`}
               >

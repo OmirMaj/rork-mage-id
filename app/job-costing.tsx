@@ -74,11 +74,11 @@ import { jobCostFooter, jobCostPhaseCells, pctSpentText } from '@/utils/dashboar
 
 // Permit types print as words, not the stored enum.
 const PERMIT_TYPE_LABEL: Record<string, string> = {
-  building: 'Building permit', electrical: 'Electrical permit', plumbing: 'Plumbing permit',
-  mechanical: 'Mechanical permit', demolition: 'Demolition permit', grading: 'Grading permit',
-  fire: 'Fire permit', occupancy: 'Certificate of occupancy', special_inspection: 'Special inspection',
-  hot_work: 'Hot work permit', shutdown: 'Shutdown', after_hours: 'After-hours permit',
-  landlord_approval: 'Landlord approval', elevator_dock: 'Elevator and dock booking', other: 'Permit',
+  building: 'Building Permit', electrical: 'Electrical Permit', plumbing: 'Plumbing Permit',
+  mechanical: 'Mechanical Permit', demolition: 'Demolition Permit', grading: 'Grading Permit',
+  fire: 'Fire Permit', occupancy: 'Certificate of Occupancy', special_inspection: 'Special Inspection',
+  hot_work: 'Hot Work Permit', shutdown: 'Shutdown', after_hours: 'After-Hours Permit',
+  landlord_approval: 'Landlord Approval', elevator_dock: 'Elevator and Dock Booking', other: 'Permit',
 };
 
 export default function JobCostingScreen() {
@@ -248,7 +248,7 @@ function JobCostingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       // CONTRACT 25 (#147): PO_PDF_WINDOW_BLOCKED_MESSAGE passes through.
-      showAlert('Couldn’t build the PO', pdfFailureMessage(e, "Couldn't build the PO. Try again."));
+      showAlert('Couldn’t Build the PO', pdfFailureMessage(e, "Couldn't build the PO. Try again."));
     } finally {
       setIssuingPo(null);
     }
@@ -273,7 +273,7 @@ function JobCostingInner() {
             without ToolHeader the picker runs under the notch and has no back
             affordance. */}
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="Job costing · MAGE ID" title="Job costing" />
+        <ToolHeader eyebrow="Job Costing · MAGE ID" title="Job Costing" />
         <ToolProjectPicker
           toolName="job costing"
           message="Job costing rolls up commitments, receipts, crew hours and change orders for one project at a time."
@@ -304,7 +304,7 @@ function JobCostingInner() {
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.headerEyebrow}>Job costing · MAGE ID</Text>
+            <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
             <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
           </View>
           <View style={styles.headerBtn} />
@@ -317,7 +317,7 @@ function JobCostingInner() {
               <Text style={styles.stateHint}>You may be offline. Costs stay hidden until your role on this project is confirmed.</Text>
               <TouchableOpacity style={styles.retryBtn} onPress={refetchRole} accessibilityRole="button" testID="job-costing-role-retry">
                 <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.retryBtnText}>Try again</Text>
+                <Text style={styles.retryBtnText}>Try Again</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -340,7 +340,7 @@ function JobCostingInner() {
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.headerEyebrow}>Job costing · MAGE ID</Text>
+            <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
             <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
           </View>
           <View style={styles.headerBtn} />
@@ -379,7 +379,7 @@ function JobCostingInner() {
             icon={FileSignature}
           />
           <KpiCard
-            label="Actual paid"
+            label="Actual Paid"
             value={formatMoney(summary.actual)}
             subtitle={`${summary.spendPercent.toFixed(0)}% of budget`}
             accent={themeColors.text}
@@ -416,7 +416,7 @@ function JobCostingInner() {
             <Text style={styles.bannerTitle}>{unpricedLaborLine(summary.unpricedLaborHours)}</Text>
             <Text style={styles.bannerSub}>
               {summary.unpricedTrades.length > 0 ? `No rate for: ${summary.unpricedTrades.map(t => (t === 'general' ? 'general labor' : t)).join(', ')}. ` : ''}
-              Set labor rates in Time Tracking →
+              Set Labor Rates in Time Tracking
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -457,7 +457,7 @@ function JobCostingInner() {
                 tell that the excluded scope has been bought. Say so rather
                 than calling it "still to buy" forever. */}
             <Text style={styles.warningItem}>
-              The AI's estimate at award. It does not update when you buy that scope — once you add its PO here, this list is history only.
+              The AI's estimate at award. It does not update when you buy that scope. Once you add its PO here, this list is history only.
             </Text>
           </View>
         )}
@@ -480,7 +480,7 @@ function JobCostingInner() {
                 strokeWidth={1.75}
               />
               <Text style={bidCheck.verdict === 'low' ? styles.warningTitle : styles.warningTitleAmber}>
-                {bidCheck.verdict === 'low' ? 'Bid looks low — check the scope' : 'Bid looks high'}
+                {bidCheck.verdict === 'low' ? 'Bid Looks Low: Check the Scope' : 'Bid Looks High'}
               </Text>
               <TouchableOpacity onPress={() => setBidCheck(null)} hitSlop={8} style={{ marginLeft: 'auto' }} accessibilityRole="button" accessibilityLabel="Dismiss">
                 <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -523,7 +523,7 @@ function JobCostingInner() {
         {/* Biggest variances call-out */}
         {summary.biggestVariances.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Biggest variances</Text>
+            <Text style={styles.sectionTitle}>Biggest Variances</Text>
             {/* JOBCOST-PHASE-1 (audit 2026-09-11). The headline takes the
                 uncommitted floor ONCE over the whole job, so spend the
                 estimate never priced is absorbed by budget that has not been
@@ -536,7 +536,7 @@ function JobCostingInner() {
               <Text style={styles.varianceAbsorbed} testID="absorbed-variance">
                 {formatMoney(summary.absorbedVariance)} of what these rows show is spend your
                 estimate did not price. The headline above absorbs it into budget you have not
-                committed yet, so it is not counted as an overrun — it will be if the rest of the
+                committed yet, so it is not counted as an overrun. It will be if the rest of the
                 job commits in full.
               </Text>
             )}
@@ -545,7 +545,7 @@ function JobCostingInner() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.varianceName}>{p.phase}</Text>
                   <Text style={styles.varianceSub}>
-                    {formatMoney(p.budget)} budgeted → {formatMoney(p.projectedFinal)} projected
+                    {formatMoney(p.budget)} budgeted, {formatMoney(p.projectedFinal)} projected
                   </Text>
                 </View>
                 <Text style={[styles.varianceDelta, {
@@ -564,9 +564,9 @@ function JobCostingInner() {
     <>
         {/* Per-phase stacked bars */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>By phase</Text>
+          <Text style={styles.sectionTitle}>By Phase</Text>
           {summary.byPhase.length === 0 ? (
-            <Text style={styles.emptyText}>No phases yet — add a commitment or estimate items.</Text>
+            <Text style={styles.emptyText}>No phases yet. Add a commitment or estimate items.</Text>
           ) : (
             summary.byPhase.map(p => (
               <PhaseBar key={p.phase} line={p} onPress={() => setSelectedPhase(p)} />
@@ -582,7 +582,7 @@ function JobCostingInner() {
           <View style={[styles.section, styles.warningSection]}>
             <View style={styles.warningHeader}>
               <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
-              <Text style={styles.warningTitle}>Over-committed against budget</Text>
+              <Text style={styles.warningTitle}>Over-Committed Against Budget</Text>
             </View>
             {summary.overcommittedCommitments.map(c => (
               <Text key={c.id} style={styles.warningItem}>
@@ -604,7 +604,7 @@ function JobCostingInner() {
           </View>
           {projectCommitments.some(c => c.type === 'purchase_order') && (
             <Text style={styles.footerNote}>
-              Tap the download icon on a purchase order to issue it as a PDF — vendor, ship-to,
+              Tap the download icon on a purchase order to issue it as a PDF: vendor, ship-to,
               line items, order total and required-by date, ready to send.
             </Text>
           )}
@@ -618,7 +618,7 @@ function JobCostingInner() {
                 Log signed subcontracts and POs here. They drive your cost-to-complete.
               </Text>
               <TouchableOpacity style={styles.emptyCta} onPress={() => setShowAdd(true)}>
-                <Text style={styles.emptyCtaText}>Add first commitment</Text>
+                <Text style={styles.emptyCtaText}>Add First Commitment</Text>
               </TouchableOpacity>
             </View>
     </>
@@ -637,7 +637,7 @@ function JobCostingInner() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.commitmentTitle} numberOfLines={1}>
-            {c.description || '(no description)'}
+            {c.description || '(No Description)'}
           </Text>
           <Text style={styles.commitmentSub} numberOfLines={1}>
             {vendorLabel} · {c.type === 'subcontract' ? 'Subcontract' : 'PO'}
@@ -662,7 +662,7 @@ function JobCostingInner() {
               : <FileDown size={14} color={themeColors.accent} strokeWidth={1.75} />}
           </TouchableOpacity>
         )}
-        <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete commitment">
+        <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete Commitment">
           <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -708,7 +708,7 @@ function JobCostingInner() {
   const kpiCells: KpiCell[] = [
     { key: 'budget', label: 'Budget', value: formatMoney(summary.budget), sub: `${project.linkedEstimate?.items.length ?? 0} line items` },
     { key: 'committed', label: 'Committed', value: formatMoney(summary.committed), sub: `${summary.commitmentCoverage.toFixed(0)}% of budget` },
-    { key: 'actual', label: 'Actual paid', value: formatMoney(summary.actual), sub: `${summary.spendPercent.toFixed(0)}% of budget` },
+    { key: 'actual', label: 'Actual Paid', value: formatMoney(summary.actual), sub: `${summary.spendPercent.toFixed(0)}% of budget` },
     {
       key: 'variance',
       label: v.label,
@@ -750,7 +750,7 @@ function JobCostingInner() {
   const phaseFooter = jobCostFooter(summary);
   const phaseTable = (
     <View style={isDesktopWeb && styles.tableBlockDesktop}>
-      <Text style={styles.sectionTitle}>By phase</Text>
+      <Text style={styles.sectionTitle}>By Phase</Text>
       <DataTable
         tableId="jobcost-phases"
         testID="jobcost-phases"
@@ -760,9 +760,9 @@ function JobCostingInner() {
         onRowOpen={setSelectedPhase}
         renderCard={p => <PhaseBar key={p.phase} line={p} onPress={() => setSelectedPhase(p)} />}
         defaultSort={{ key: 'variance', dir: 'desc' }}
-        emptyState={<Text style={styles.emptyText}>No phases yet — add a commitment or estimate items.</Text>}
+        emptyState={<Text style={styles.emptyText}>No phases yet. Add a commitment or estimate items.</Text>}
         footerTotals={{
-          phase: 'Project total',
+          phase: 'Project Total',
           budget: formatMoney(phaseFooter.budget),
           committed: formatMoney(phaseFooter.committed),
           actual: formatMoney(phaseFooter.actual),
@@ -778,7 +778,7 @@ function JobCostingInner() {
       />
       {phaseFooter.absorbed > 1 ? (
         <Text style={styles.varianceAbsorbed} testID="jobcost-table-absorbed">
-          {`${formatMoney(phaseFooter.absorbed)} of the phase rows' spend is absorbed into uncommitted budget in the job total above — see Biggest variances.`}
+          {`${formatMoney(phaseFooter.absorbed)} of the phase rows' spend is absorbed into uncommitted budget in the job total above. See Biggest Variances.`}
         </Text>
       ) : null}
     </View>
@@ -819,7 +819,7 @@ function JobCostingInner() {
             hitSlop={8}
             style={styles.deleteBtn}
             accessibilityRole="button"
-            accessibilityLabel="Delete commitment"
+            accessibilityLabel="Delete Commitment"
           >
             <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -859,10 +859,10 @@ function JobCostingInner() {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Job costing · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add commitment">
+        <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add Commitment">
           <Plus size={18} color={'#FFFFFF'} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
@@ -996,7 +996,7 @@ function phaseStatusColors(line: JobCostLine, themeColors: ThemeColors): { fill:
   const label = line.status === 'over' ? 'Over'
     : line.status === 'warning' ? 'Watch'
     : line.status === 'unbudgeted' ? 'Unbudgeted'
-    : 'On track';
+    : 'On Track';
   return { fill, ink, mark, label };
 }
 
@@ -1159,7 +1159,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
   const handleSave = () => {
     const amt = Number(amount) || 0;
     if (!description.trim() || amt <= 0) {
-      showAlert('Add a description and amount', 'Enter a description and an amount.');
+      showAlert('Add a Description and Amount', 'Enter a description and an amount.');
       return;
     }
     const now = new Date().toISOString();
@@ -1237,7 +1237,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
       >
         <View style={[styles.modalCard, f.card]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{existing ? 'Edit commitment' : 'New commitment'}</Text>
+            <Text style={styles.modalTitle}>{existing ? 'Edit Commitment' : 'New Commitment'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
@@ -1250,7 +1250,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
                   style={[styles.segBtn, isDesktop && segmentedDesktop.segment, type === t && styles.segBtnActive]}
                 >
                   <Text style={[styles.segBtnText, type === t && styles.segBtnTextActive]}>
-                    {t === 'subcontract' ? 'Subcontract' : 'Purchase order'}
+                    {t === 'subcontract' ? 'Subcontract' : 'Purchase Order'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1270,11 +1270,11 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
                 keyboardType="decimal-pad" placeholder="45000" />
             </Field>
 
-            <Field label="Phase (optional)">
+            <Field label="Phase (Optional)">
               <TextInput style={styles.input} value={phase} onChangeText={setPhase} placeholder="Electrical" />
             </Field>
 
-            <Field label="Signed date">
+            <Field label="Signed Date">
               <TextInput style={styles.input} value={signedDate} onChangeText={setSignedDate}
                 placeholder="YYYY-MM-DD" />
             </Field>
@@ -1297,7 +1297,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
                 </View>
               </Field>
             ) : (
-              <Field label="Vendor name">
+              <Field label="Vendor Name">
                 <TextInput style={styles.input} value={vendorName} onChangeText={setVendorName}
                   placeholder="Acme Supply Co." />
               </Field>
@@ -1310,7 +1310,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
             </TouchableOpacity>
             <TouchableOpacity onPress={handleSave} style={styles.btnPrimary}>
               <Check size={16} color={'#FFFFFF'} strokeWidth={1.75} />
-              <Text style={styles.btnPrimaryText}>{existing ? 'Save commitment' : 'Add commitment'}</Text>
+              <Text style={styles.btnPrimaryText}>{existing ? 'Save Commitment' : 'Add Commitment'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1469,7 +1469,7 @@ function buildPhaseDrill(
     if (!rec) continue;
     receiptRows.push({
       id,
-      title: rec.vendor || 'Supplier receipt',
+      title: rec.vendor || 'Supplier Receipt',
       detail: [rec.documentNumber, shortDate(rec.receiptDate ?? rec.createdAt)].filter(Boolean).join(' · '),
       onPress: open.receipts,
     });
@@ -1621,8 +1621,8 @@ function PhaseDetailModal({ line, summary, records, projectId, onClose, onOpenCo
           <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 16 }}>
             <DetailRow label="Budget" value={formatMoneyFull(line.budget)} />
             <DetailRow label="Committed" value={formatMoneyFull(line.committed)} />
-            <DetailRow label="Actual paid" value={formatMoneyFull(line.actual)} />
-            <DetailRow label="Projected final" value={formatMoneyFull(line.projectedFinal)} bold />
+            <DetailRow label="Actual Paid" value={formatMoneyFull(line.actual)} />
+            <DetailRow label="Projected Final" value={formatMoneyFull(line.projectedFinal)} bold />
             <View style={styles.detailDivider} />
             <DetailRow
               label="Variance"
@@ -1634,7 +1634,7 @@ function PhaseDetailModal({ line, summary, records, projectId, onClose, onOpenCo
 
             {groups.length === 0 ? (
               <Text style={styles.detailNote} testID="phase-drill-empty">
-                Nothing has landed on this phase yet — it is showing its estimate budget alone.
+                Nothing has landed on this phase yet. It is showing its estimate budget alone.
               </Text>
             ) : (
               groups.map(g => (

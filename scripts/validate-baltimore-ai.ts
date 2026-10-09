@@ -1,4 +1,4 @@
-// scripts/validate-baltimore-ai.ts — Construction AI and "Draft a question"
+// scripts/validate-baltimore-ai.ts — Construction AI and "Draft a Question"
 // for Baltimore City and Baltimore County (lane AIDRAFT, 2026-09-28).
 //
 // What this guard pins:
@@ -17,7 +17,7 @@
 //      Baltimore filing lines say "not checked" when nothing was read, never
 //      describe a City permit's status, never name a person; no string built
 //      for a job outside NYC contains "DOB".
-//   4. DepartmentCard: NYC's "DOB NOW portal" / "on nyc.gov" defaults are
+//   4. DepartmentCard: NYC's "DOB NOW Portal" / "on nyc.gov" defaults are
 //      unchanged, and the place-lookup re-resolve runs for Maryland only.
 //   5. DraftQuestionButton: validate-code-check-honesty section 8 still holds
 //      (copied here so a failure names this lane), the Maryland branch sits
@@ -650,10 +650,10 @@ const routeMd = (dept: BuildingDepartment, side: 'baltimore_city' | 'baltimore_c
 console.log('\n4. DepartmentCard');
 {
   const card = read('components/buildingRecord/DepartmentCard.tsx');
-  ok('the portal link falls back to "DOB NOW portal" (NYC unchanged)', card.includes("{d.portalLabel ?? 'DOB NOW portal'}"));
+  ok('the portal link falls back to "DOB NOW portal" (NYC unchanged)', card.includes("{d.portalLabel ?? 'DOB NOW Portal'}"));
   ok('the source line falls back to "nyc.gov" (NYC unchanged)', card.includes("Checked {d.checkedOn} on {d.sourceLabel ?? 'nyc.gov'}"));
   ok('no other hard-coded "DOB NOW portal" / "on nyc.gov" text',
-    (card.match(/DOB NOW portal/g) ?? []).length === 1 && (card.match(/nyc\.gov/g) ?? []).length === 1);
+    (card.match(/DOB NOW Portal/g) ?? []).length === 1 && (card.match(/nyc\.gov/g) ?? []).length === 1);
   ok('path 1 resolves through jurisdictionQueryForProject',
     card.includes('const resolved = resolveCodeJurisdiction(jurisdictionQueryForProject(project));') && !/jobsiteAddressForProject\(/.test(card));
   const lookup = card.slice(card.indexOf('function PermitOfficeLookup('), card.indexOf('function PermitOfficeBody('));

@@ -64,7 +64,7 @@ interface Props {
 }
 
 export default function CodeCheckLoader({
-  eyebrow = 'Code check',
+  eyebrow = 'Code Check',
   // AI-F3: the default headline must not imply a code lookup — the Code
   // Check recalls; nothing is read. (The permit roadmap passes its own.)
   headline = 'Recalling the code that likely governs this project',
@@ -204,7 +204,7 @@ export default function CodeCheckLoader({
       <View style={styles.steps}>
         {real ? null : (
           <Text style={[Type.footnoteEmphasized, styles.stepsHeader, { color: t.textSecondary }]} testID="code-check-steps-header">
-            What MAGE checks
+            What MAGE Checks
           </Text>
         )}
         {steps.map((s, i) => (
@@ -214,7 +214,7 @@ export default function CodeCheckLoader({
 
       {rotating ? (
         <View style={styles.factWrap}>
-          <Text style={[styles.factLabel, { color: t.textMuted }]}>While you wait</Text>
+          <Text style={[styles.factLabel, { color: t.textMuted }]}>While You Wait</Text>
           <Text style={[styles.factText, { color: t.textSecondary }]}>{facts![factIdx]}</Text>
         </View>
       ) : null}

@@ -175,8 +175,8 @@ console.log('\n#104 / #122 — a failed ledger read is not an empty ledger:');
     /fetchOpenPredictionsDedupedResult\(\['leak_flag'\]\)/.test(code) && /fetchResolvedPredictionsResult\(\['leak_flag'\]\)/.test(code));
   ok('…keeps the previous rows on failure (setRows only on success)',
     /if \(!open\.ok \|\| !resolved\.ok\) \{[\s\S]*?setLoadError\([\s\S]*?return;\s*\}/.test(code));
-  ok('…shows the failure, not "No profit leak scans yet", when it has nothing',
-    /Couldn't load your profit leak scans/.test(code) && /!loadError && rows\.length === 0/.test(code));
+  ok('…shows the failure, not "No Profit Leak Scans Yet", when it has nothing',
+    /Couldn't Load Your Profit Leak Scans/.test(code) && /!loadError && rows\.length === 0/.test(code));
   ok('…with a Retry that drops the read cache before reloading',
     /invalidatePredictionCache\(\);\s*try \{ await load\(\); \}/.test(code) && /testID="leak-history-retry"/.test(code));
   ok('…and a pull-to-refresh', /<RefreshControl refreshing=\{refreshing\} onRefresh=\{reload\}/.test(code));

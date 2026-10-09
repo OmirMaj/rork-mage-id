@@ -52,9 +52,9 @@ async function handleOneShot(project: Project): Promise<void> {
       return;
     }
     if (result.eventCount === 0) {
-      showAlert('Nothing to export', 'This schedule has no tasks yet.');
+      showAlert('Nothing to Export', 'This schedule has no tasks yet.');
     }
   } catch (e) {
-    showAlert('Export failed', String(e));
+    showAlert('Export Failed', String(e));
   }
 }

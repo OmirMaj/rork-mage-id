@@ -31,7 +31,7 @@ export function cleanProjectTypeOther(raw: unknown): string {
 /** Ids that live in the column but not in the ProjectType union. award_rfp
  *  writes 'awarded_rfp' server-side (utils/autoBid.ts PROJECT_TYPE_TO_BID_CATEGORY). */
 const OFF_UNION_LABELS: Readonly<Record<string, string>> = {
-  awarded_rfp: 'Awarded bid',
+  awarded_rfp: 'Awarded Bid',
 };
 
 const titleCaseId = (id: string) =>

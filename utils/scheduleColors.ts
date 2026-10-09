@@ -101,7 +101,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   done: 'Done',
   in_progress: 'Active',
   on_hold: 'Hold',
-  not_started: 'To do',
+  not_started: 'To Do',
 };
 
 export function statusLabel(status: TaskStatus): string {

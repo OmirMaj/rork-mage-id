@@ -159,7 +159,7 @@ console.log('\n#51/#54 opening the item from a notification');
     /setActiveList\(step\.list\);[\s\S]{0,200}setFilterStatus\(step\.status\);[\s\S]{0,80}setFilterSub\(''\);/.test(list));
   ok('the old one-shot snapshot focus is gone', !/punchFocusFor\(item\)/.test(list) && !/setFilterStatus\(plan\.status\)/.test(list));
   ok('the banner has a real Refresh / Try again control (pull-to-refresh does nothing on web)',
-    /<Button\s+label=\{refreshState === 'offline' \? t\('field\.punch\.tryAgain', 'Try again'\) : t\('field\.punch\.refresh', 'Refresh'\)\}[\s\S]{0,120}onPress=\{retryFocus\}/.test(list)
+    /<Button\s+label=\{refreshState === 'offline' \? t\('field\.punch\.tryAgain', 'Try Again'\) : t\('field\.punch\.refresh', 'Refresh'\)\}[\s\S]{0,120}onPress=\{retryFocus\}/.test(list)
     && /const retryFocus = useCallback\(\(\) => setFocusNonce\(n => n \+ 1\), \[\]\);/.test(list)
     && /\}, \[focusItemId, queryClient, projectId, focusNonce, punchKey\]\);/.test(list));
   ok('no copy tells him to "pull down"', !/[Pp]ull down/.test(list));
@@ -237,12 +237,12 @@ console.log('\n#51 notify: which item, coalesced, the tap opens it');
   const T = new Function(`${js(blk('notify-format') + '\n' + blk('wave3-notify-text'))}\nreturn wave3NotifyText;`)() as (e: string, p: Record<string, unknown>, n: string) => Text;
   const t = T('punch_marked_ready', { sub_name: 'Rivera Drywall', description: 'Outlet cover cracked', location: 'Unit 4B', sub_note: 'Replaced, see closet side' }, 'Watermark 9F');
   ok('push names the item and the room', t?.pushBody === 'Rivera Drywall marked “Outlet cover cracked” (Unit 4B) ready for your review.', t?.pushBody);
-  ok('email rows: From / Item / Location / Sub’s note', JSON.stringify(t?.rows.map(r => r[0])) === JSON.stringify(['From', 'Item', 'Location', 'Sub’s note']), JSON.stringify(t?.rows));
+  ok('email rows: From / Item / Location / Sub’s note', JSON.stringify(t?.rows.map(r => r[0])) === JSON.stringify(['From', 'Item', 'Location', 'Sub’s Note']), JSON.stringify(t?.rows));
   ok('the subject names the item', /marked “Outlet cover cracked” ready · Watermark 9F/.test(t?.emailSubject ?? ''));
   const nr = T('punch_marked_ready', { sub_name: 'Rivera', description: 'x' }, 'J');
   ok('no room → "No room given" in the email, nothing invented in the push', nr?.rows.find(r => r[0] === 'Location')?.[1] === 'No room given' && !/\(/.test(nr?.pushBody ?? ''));
   const long = T('punch_marked_ready', { sub_name: 'R', description: 'a'.repeat(300), sub_note: 'b'.repeat(900) }, 'J');
-  ok('description and note are clipped', (long?.rows.find(r => r[0] === 'Item')?.[1].length ?? 999) <= 80 && (long?.rows.find(r => r[0] === 'Sub’s note')?.[1].length ?? 999) <= 200);
+  ok('description and note are clipped', (long?.rows.find(r => r[0] === 'Item')?.[1].length ?? 999) <= 80 && (long?.rows.find(r => r[0] === 'Sub’s Note')?.[1].length ?? 999) <= 200);
   const more = T('punch_marked_ready', { sub_name: 'Rivera', description: 'x', more_count: 11 }, 'J');
   ok('the next loud alert says "and N more"', /And 11 more from Rivera since the last alert/.test(more?.pushBody ?? '') && !!more?.rows.find(r => r[1] === '11 more'), more?.pushBody);
   const bare = T('punch_marked_ready', { sub_name: 'Rivera' }, 'J');

@@ -137,8 +137,8 @@ serve(async (req) => {
 
     const daysLeft = Math.max(0, Math.ceil((expMs - nowMs) / 86_400_000));
     const title = kind === "portal_link_expired"
-      ? `Client portal link expired — ${proj.name}`
-      : `Client portal link expires in ${daysLeft}d — ${proj.name}`;
+      ? `Client Portal Link Expired · ${proj.name}`
+      : `Client portal link expires in ${daysLeft}d · ${proj.name}`;
     // "Never expire" is retired (2026-09-16): the choices are now until
     // handover or 7 / 30 / 90 days. A handover link is closing because the job
     // was closed out, so the only way to keep it open is a fixed duration.

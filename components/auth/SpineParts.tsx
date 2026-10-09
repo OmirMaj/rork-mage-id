@@ -82,7 +82,7 @@ export function OnTrack({ compact = false }: { compact?: boolean }) {
   return (
     <View style={[styles.ok, compact && styles.okCompact]}>
       <View style={[styles.okDot, compact && styles.okDotCompact]} />
-      <Text style={[styles.okText, compact && styles.okTextCompact]}>On track</Text>
+      <Text style={[styles.okText, compact && styles.okTextCompact]}>On Track</Text>
     </View>
   );
 }

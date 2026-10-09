@@ -122,7 +122,7 @@ const TOUCH_KIND_LABEL: Record<LeadTouchKind, string> = {
   text: 'Text',
   email: 'Email',
   meeting: 'Meeting',
-  site_visit: 'Site visit',
+  site_visit: 'Site Visit',
   voicemail: 'Voicemail',
   note: 'Note',
 };
@@ -201,17 +201,17 @@ export default function LeadDetailScreen() {
         {state === 'loading' ? (
           <>
             <Text style={styles.openGateText}>Loading this lead…</Text>
-            <Button label="Go back" variant="secondary" onPress={goBack} testID="lead-open-loading-back" />
+            <Button label="Go Back" variant="secondary" onPress={goBack} testID="lead-open-loading-back" />
           </>
         ) : (
           <>
             <AlertTriangle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.openGateTitle}>Lead not found</Text>
+            <Text style={styles.openGateTitle}>Lead Not Found</Text>
             <Text style={styles.openGateText}>
               It may have been deleted, or it hasn&apos;t synced to this device yet. Nothing was opened in its place, so nothing can be overwritten.
             </Text>
-            <Button label="Try again" variant="primary" onPress={retry} testID="lead-open-retry" />
-            <Button label="Go back" variant="secondary" onPress={goBack} testID="lead-open-back" />
+            <Button label="Try Again" variant="primary" onPress={retry} testID="lead-open-retry" />
+            <Button label="Go Back" variant="secondary" onPress={goBack} testID="lead-open-back" />
           </>
         )}
       </View>
@@ -270,8 +270,8 @@ function LeadDetailEditor() {
       const copy = CONTACT_LOG_COPY[kind];
       const who = existingNameRef.current.trim() || 'this lead';
       showAlert(copy.title, `Adds it to ${who}'s activity and counts as your first response if it's the first one. Skip it if nobody picked up.`, [
-        { text: 'Not now', style: 'cancel' },
-        { text: 'Log it', onPress: () => addLeadTouch(leadIdNow, kind, copy.touch) },
+        { text: 'Not Now', style: 'cancel' },
+        { text: 'Log It', onPress: () => addLeadTouch(leadIdNow, kind, copy.touch) },
       ]);
     };
     const sub = AppState.addEventListener('change', (next) => {
@@ -368,11 +368,11 @@ function LeadDetailEditor() {
       // The gate only mounts this editor once the lead is loaded; if it has
       // gone since (deleted elsewhere), saving would write nothing and look
       // like it worked.
-      showAlert('Not saved', "This lead isn't on this device any more — it may have been deleted. Go back and open it again.");
+      showAlert('Not Saved', "This lead isn't on this device any more. It may have been deleted. Go back and open it again.");
       return;
     }
     if (!canSave) {
-      showAlert('Missing name', 'Add a name for this lead.');
+      showAlert('Missing Name', 'Add a name for this lead.');
       return;
     }
     const payload = buildPayload();
@@ -476,7 +476,7 @@ function LeadDetailEditor() {
 
   return (
     <>
-      <Stack.Screen options={{ title: isNew ? 'New lead' : existing?.name ?? 'Lead', headerLargeTitle: false }} />
+      <Stack.Screen options={{ title: isNew ? 'New Lead' : existing?.name ?? 'Lead', headerLargeTitle: false }} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView {...fabScroll} style={styles.root} contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }} keyboardShouldPersistTaps="handled">
           {/* Quick actions row */}
@@ -535,7 +535,7 @@ function LeadDetailEditor() {
                 <Text style={[styles.scoreCircleText, score >= 8 && styles.scoreCircleTextHot]}>{score}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.scoreCardTitle}>Fit score</Text>
+                <Text style={styles.scoreCardTitle}>Fit Score</Text>
                 <Text style={styles.scoreCardReason} numberOfLines={3}>{scoreReason || '—'}</Text>
               </View>
             </View>
@@ -557,9 +557,9 @@ function LeadDetailEditor() {
                   startedAt={existing.receivedAt ?? existing.createdAt}
                   onAdvance={(next) => setStageWithLossPrompt(next)}
                   advanceLabel={
-                    stage === 'new' ? 'Mark qualified'
-                    : stage === 'qualified' ? 'Move to proposal'
-                    : stage === 'proposal' ? 'Mark won'
+                    stage === 'new' ? 'Mark Qualified'
+                    : stage === 'qualified' ? 'Move to Proposal'
+                    : stage === 'proposal' ? 'Mark Won'
                     : undefined
                   }
                 />
@@ -581,14 +581,14 @@ function LeadDetailEditor() {
             {existing && stage !== 'won' && stage !== 'lost' && (
               <TouchableOpacity style={styles.proposalBtn} onPress={() => setShowProposal(true)} activeOpacity={0.85} testID="lead-draft-proposal">
                 <MageAIMark size={16} color="#FFF" />
-                <Text style={styles.proposalBtnText}>Draft instant bid proposal</Text>
+                <Text style={styles.proposalBtnText}>Draft Instant Bid Proposal</Text>
                 <MageAIMark size={13} color="#FFF" />
               </TouchableOpacity>
             )}
             {existing && stage === 'won' && !existing.convertedProjectId && (
               <TouchableOpacity style={styles.convertBtn} onPress={handleConvert} activeOpacity={0.85}>
                 <Briefcase size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.convertBtnText}>Convert to project</Text>
+                <Text style={styles.convertBtnText}>Convert to Project</Text>
                 <ArrowRight size={16} color="#FFF" strokeWidth={1.75} />
               </TouchableOpacity>
             )}
@@ -599,7 +599,7 @@ function LeadDetailEditor() {
                 activeOpacity={0.85}
               >
                 <Briefcase size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.convertedBtnText}>Open the project</Text>
+                <Text style={styles.convertedBtnText}>Open the Project</Text>
                 <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
@@ -608,9 +608,9 @@ function LeadDetailEditor() {
           {/* Voice fill */}
           <View style={styles.section}>
             <InlineVoiceFill
-              title={isNew ? 'Capture this lead' : 'Update this lead'}
+              title={isNew ? 'Capture This Lead' : 'Update This Lead'}
               contextLine={isNew ? 'Speak the way the client described it' : `for ${existing?.name}`}
-              buttonLabel={isNew ? 'Fill lead by voice' : 'Add detail by voice'}
+              buttonLabel={isNew ? 'Fill Lead by Voice' : 'Add Detail by Voice'}
               suggestions={[
                 'John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand budget, spring',
                 'Jane Garcia, jane@email.com, full bathroom renovation, referral from Bob, twenty-five thousand',
@@ -650,10 +650,10 @@ function LeadDetailEditor() {
             <Text style={styles.fieldLabel}>Address</Text>
             <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="123 Main St, City" placeholderTextColor={themeColors.textMuted} />
 
-            <Text style={styles.fieldLabel}>Project type</Text>
+            <Text style={styles.fieldLabel}>Project Type</Text>
             <TextInput style={styles.input} value={projectType} onChangeText={setProjectType} placeholder="Kitchen remodel, bathroom, ADU" placeholderTextColor={themeColors.textMuted} />
 
-            <Text style={styles.fieldLabel}>Scope notes</Text>
+            <Text style={styles.fieldLabel}>Scope Notes</Text>
             <TextInput style={[styles.input, styles.multilineInput]} value={scope} onChangeText={setScope} placeholder="Anything specific the client mentioned" placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
 
             {/* QUOTE-PERSIST-1 (audit 2026-09-07): what YOU quoted, beside what
@@ -677,7 +677,7 @@ function LeadDetailEditor() {
 
             {widgetBallpark && (
               <View style={styles.ballparkRow} testID="lead-widget-ballpark">
-                <Text style={styles.fieldLabel}>Widget ballpark shown to them</Text>
+                <Text style={styles.fieldLabel}>Widget Ballpark Shown to Them</Text>
                 <Text style={styles.ballparkRange}>
                   ${widgetBallpark.low.toLocaleString('en-US')}{'\u2013'}${widgetBallpark.high.toLocaleString('en-US')}
                 </Text>
@@ -689,11 +689,11 @@ function LeadDetailEditor() {
 
             <View style={styles.budgetRow}>
               <View style={{ flex: 1, marginRight: 6 }}>
-                <Text style={styles.fieldLabel}>Budget min (theirs)</Text>
+                <Text style={styles.fieldLabel}>Budget Min (Theirs)</Text>
                 <TextInput style={styles.input} value={budgetMin} onChangeText={setBudgetMin} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
               </View>
               <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={styles.fieldLabel}>Budget max (theirs)</Text>
+                <Text style={styles.fieldLabel}>Budget Max (Theirs)</Text>
                 <TextInput style={styles.input} value={budgetMax} onChangeText={setBudgetMax} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
               </View>
             </View>
@@ -775,7 +775,7 @@ function LeadDetailEditor() {
             activeOpacity={0.85}
           >
             <Save size={16} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.saveBtnText}>{isNew ? 'Save lead' : 'Save changes'}</Text>
+            <Text style={styles.saveBtnText}>{isNew ? 'Save Lead' : 'Save Changes'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -857,7 +857,7 @@ function LeadDetailEditor() {
                     setPendingLostStage(false);
                   }}
                 >
-                  <Text style={styles.lostModalSaveText}>Save reason</Text>
+                  <Text style={styles.lostModalSaveText}>Save Reason</Text>
                 </TouchableOpacity>
               </View>
             </View>

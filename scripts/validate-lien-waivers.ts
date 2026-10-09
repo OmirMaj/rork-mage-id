@@ -349,7 +349,7 @@ ok('the GC screen labels the paper path as a paper record',
   // matched the sentence inside the not-provisioned alert, so renaming the
   // button back to "Mark signed" — the exact misstatement this wave removed —
   // still passed.
-  /actionSecondaryText}>Record paper waiver</.test(screen)
+  /actionSecondaryText}>Record Paper Waiver</.test(screen)
   && /showPrompt\(\s*\n?\s*'Record a paper waiver'/.test(screen)
   && !/>Mark signed</.test(screen),
   'the button and its prompt must both say what is being recorded');
@@ -451,7 +451,7 @@ ok('the GC screen wires the request action to a press',
   // in the import line, and both survived the call being ripped out.
   /await requestLienWaiverSignature\(/.test(screen)
   && /onPress=\{onRequestSignature\}/.test(screen)
-  && /Request signature/.test(screen));
+  && /Request Signature/.test(screen));
 
 // BOTH files, not one. Netlify processes netlify.toml first and it ends in a
 // `/*` → /404.html catch-all, so a rewrite that lives in only one of the two is
@@ -471,7 +471,7 @@ ok('/lien-waiver/* is in netlify.toml as well',
 // F2. The sealed form identity reaches the sub
 //
 // `sign_form_meta` is the one column in this feature that nothing would notice
-// going wrong: the page falls back to a bare "Lien waiver" with no citation,
+// going wrong: the page falls back to a bare "Lien Waiver" with no citation,
 // and the document underneath still looks right. The build agent shipped the
 // column, the RPC that reads it and the page that renders it — and no writer.
 // So this section pins the WHOLE chain: the keys TypeScript writes, the keys
@@ -512,7 +512,7 @@ for (const key of sqlMetaKeys) {
 // this wave was killed in.
 ok('requestLienWaiverSignature seals sign_form_meta beside the document',
   /sign_form_meta:\s*formMeta/.test(engine) && /lienWaiverFormMeta\(/.test(engine),
-  'the sub sees a bare "Lien waiver" with no citation on a document whose whole point is the citation');
+  'the sub sees a bare "Lien Waiver" with no citation on a document whose whole point is the citation');
 ok('a database missing sign_form_meta is reported as not-provisioned, not as a bug',
   /sign_form_meta/.test(engine.slice(engine.indexOf('missingColumn'))) || /sign_form_meta[^\n]*\n[^\n]*missingColumn/.test(engine)
   || /missingColumn[\s\S]{0,300}sign_form_meta/.test(engine));

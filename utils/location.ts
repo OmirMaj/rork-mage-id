@@ -99,7 +99,7 @@ export function getDistanceMiles(lat1: number, lon1: number, lat2: number, lon2:
  */
 export type LocationPlatform = 'native' | 'web';
 
-/** Label for the "Use my location" control every live distance surface renders. */
+/** Label for the "Use My Location" control every live distance surface renders. */
 export function locationControlLabel(
   status: LocationStatus,
   hasLocation: boolean,
@@ -109,8 +109,8 @@ export function locationControlLabel(
   if (hasLocation) return 'Location set';
   if (status === 'denied') {
     return platform === 'web'
-      ? 'Location blocked — allow it in your browser'
-      : 'Location off — open Settings';
+      ? 'Location blocked. Allow it in your browser'
+      : 'Location off. Open Settings';
   }
   if (status === 'unavailable') return 'Location unavailable';
   return 'Use my location';

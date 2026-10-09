@@ -109,21 +109,21 @@ export const RFP_PAID_POST_ENABLED = false;
 export const CLIENT_SUBS_ENABLED = false;
 
 const PRO_BENEFITS = [
-  'Unlimited project posts',
-  'Side-by-side bid comparison',
-  'Direct messaging with bidders',
-  'Photo updates from your project',
-  'Milestone payment scheduling',
-  'Document storage (contracts, invoices)',
+  'Project Posts with No Per-Post Fee',
+  'Side-by-Side Bid Comparison',
+  'Direct Messaging with Bidders',
+  'Photo Updates from Your Project',
+  'Milestone Payment Scheduling',
+  'Document Storage (Contracts, Invoices)',
 ];
 
 const PM_BENEFITS = [
   'Everything in Pro, plus:',
-  'Multi-property dashboard',
-  'Team access for your staff',
-  'Bulk-post recurring maintenance projects',
-  'Aggregate spend reporting',
-  'Priority support',
+  'Multi-Property Dashboard',
+  'Team Access for Your Staff',
+  'Bulk-Post Recurring Maintenance Projects',
+  'Aggregate Spend Reporting',
+  'Priority Support',
 ];
 
 export default function ClientPaywall({ visible, mode, feature, onClose, onUnlocked }: ClientPaywallProps) {
@@ -175,13 +175,13 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
       } else {
         onClose();
         showAlert(
-          'Payment processing',
+          'Payment Processing',
           'If you completed payment, tap Post again in a moment to publish your project.',
         );
       }
     } catch (err) {
       console.warn('[ClientPaywall] pay-per-post failed:', err);
-      showAlert('Checkout unavailable', 'Couldn\'t start payment. Try again.');
+      showAlert('Checkout Unavailable', 'Couldn\'t start payment. Try again.');
     } finally {
       setBusy(null);
     }
@@ -225,8 +225,8 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>
               {mode === 'rfp-post'
-                ? 'To post your project'
-                : feature ? `To use ${feature}` : 'To manage your project'}
+                ? 'To Post Your Project'
+                : feature ? `To use ${feature}` : 'To Manage Your Project'}
             </Text>
           </View>
         </View>
@@ -237,14 +237,14 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
         >
           <Text style={styles.headline}>
             {mode === 'rfp-post'
-              ? (RFP_PAID_POST_ENABLED ? 'Pay per project, or go unlimited' : 'Post unlimited projects')
-              : 'Manage your project from one place'}
+              ? (RFP_PAID_POST_ENABLED ? 'Pay per Project, or Subscribe' : 'Post Projects on a Subscription')
+              : 'Manage Your Project from One Place'}
           </Text>
           <Text style={styles.lede}>
             {mode === 'rfp-post'
               ? (RFP_PAID_POST_ENABLED
-                  ? 'Post a single project for a one-time fee, or subscribe to post unlimited projects and manage them all from one dashboard.'
-                  : 'Subscribe to post unlimited projects and manage them all from one dashboard, with a free trial.')
+                  ? 'Post a single project for a one-time fee, or subscribe to post projects without the per-post fee and manage them all from one dashboard.'
+                  : 'Subscribe to post projects and manage them all from one dashboard, with a free trial.')
               : 'A subscription adds milestone payments, document storage and ongoing management for every project you award.'}
           </Text>
 
@@ -261,7 +261,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
                   <FileText size={18} color={themeColors.text} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.perPostTitle}>Pay per project</Text>
+                  <Text style={styles.perPostTitle}>Pay per Project</Text>
                   <Text style={styles.perPostSubtitle}>
                     Best for a single renovation or one-off project
                   </Text>
@@ -291,7 +291,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
           {mode === 'rfp-post' && RFP_PAID_POST_ENABLED && (
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Or subscribe</Text>
+              <Text style={styles.dividerText}>Or Subscribe</Text>
               <View style={styles.dividerLine} />
             </View>
           )}
@@ -303,7 +303,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
               feel safe to tap. */}
           <View style={[styles.subCard, styles.subCardFeatured]}>
             <View style={styles.subCardTag}>
-              <Text style={styles.subCardTagText}>Most popular</Text>
+              <Text style={styles.subCardTagText}>Most Popular</Text>
             </View>
             <View style={styles.subCardHead}>
               <View style={[styles.iconWrap, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
@@ -362,7 +362,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
                 <Briefcase size={18} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.subCardTitle}>Property manager</Text>
+                <Text style={styles.subCardTitle}>Property Manager</Text>
                 <Text style={styles.subCardSubtitle}>
                   For PMs, REITs, and multi-property owners
                 </Text>
@@ -412,7 +412,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
               Guideline 2.3.1. */}
           {CLIENT_SUBS_ENABLED && (
             <Text style={styles.disclosureText}>
-              Subscriptions auto-renew after the trial unless cancelled at least 24h
+              Subscriptions auto-renew after the trial unless cancelled at least 24 hours
               before renewal. Manage or cancel any time in Settings.
             </Text>
           )}

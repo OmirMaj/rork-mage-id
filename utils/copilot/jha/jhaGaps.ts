@@ -13,14 +13,14 @@ export interface JHADraft {
 }
 
 const TRADE_CHOICES: { label: string; value: string }[] = [
-  { label: 'Carpentry / framing', value: 'Carpentry' },
-  { label: 'Steel / structural', value: 'Structural steel' },
+  { label: 'Carpentry / Framing', value: 'Carpentry' },
+  { label: 'Steel / Structural', value: 'Structural steel' },
   { label: 'Concrete', value: 'Concrete' },
   { label: 'Electrical', value: 'Electrical' },
-  { label: 'Plumbing / mechanical', value: 'Plumbing' },
+  { label: 'Plumbing / Mechanical', value: 'Plumbing' },
   { label: 'Roofing', value: 'Roofing' },
-  { label: 'Excavation / earthwork', value: 'Excavation' },
-  { label: 'General labor', value: 'General' },
+  { label: 'Excavation / Earthwork', value: 'Excavation' },
+  { label: 'General Labor', value: 'General' },
 ];
 
 export function jhaGaps(draft: JHADraft, _grounding: Grounding): Gap[] {

@@ -14,20 +14,36 @@ import { openPrintWindowOrThrow } from './platformFile';
 import { coApprovalLine } from './coApproval';
 import { homeownerSignatureMethodLabel } from './contractSignatureCore';
 import { roundHalfAwayFromZero } from './formatters';
+import { dfrWeatherSourceLine } from './weatherService';
+import { OPENWEATHER_CREDIT } from './contentCredits';
+import { calendarDayOf as dfrCalendarDayOf } from './calendarDate';
+import { withRecipientNotice } from '@/utils/recipientNotice';
+
+/**
+ * The line under the weather figures of a printed daily report, for a reading
+ * the app took: where it came from and when ("From OpenWeather at 3:42 PM"),
+ * then OpenWeather's required credit. Empty for typed weather and for a record
+ * with no stored source, so those print exactly as before.
+ */
+export function dfrWeatherSourceHtml(dfr: Pick<DailyFieldReport, 'weather' | 'date'>): string {
+  const line = dfrWeatherSourceLine(dfr.weather, dfrCalendarDayOf(dfr.date));
+  if (!line) return '';
+  return `<p style="margin:-6px 0 14px;font-size:10px;color:${PDF_PALETTE.textMuted};">${escHtml(line)}. ${escHtml(OPENWEATHER_CREDIT)}.</p>`;
+}
 
 // Status labels printed on documents come from maps, never from the raw enum
 // (docs/VOICE.md: a humanized enum prints Title Case and whatever the row holds).
 const CO_STATUS_PDF_LABEL: Record<string, string> = {
-  draft: 'Draft', submitted: 'Submitted', under_review: 'Under review', approved: 'Approved',
+  draft: 'Draft', submitted: 'Submitted', under_review: 'Under Review', approved: 'Approved',
   rejected: 'Rejected', revised: 'Revised', void: 'Void',
 };
 const pdfCoStatusLabel = (s: string): string => CO_STATUS_PDF_LABEL[s] ?? 'Status not set';
 const PAYMENT_TERMS_PDF_LABEL: Record<string, string> = {
-  net_15: 'Net 15', net_30: 'Net 30', net_45: 'Net 45', due_on_receipt: 'Due on receipt',
+  net_15: 'Net 15', net_30: 'Net 30', net_45: 'Net 45', due_on_receipt: 'Due on Receipt',
 };
 const pdfPaymentTermsLabel = (t: string): string => PAYMENT_TERMS_PDF_LABEL[t] ?? 'Not set';
 const INCIDENT_SEVERITY_PDF_LABEL: Record<string, string> = {
-  near_miss: 'Near miss', minor: 'Minor', moderate: 'Moderate', major: 'Major', critical: 'Critical',
+  near_miss: 'Near Miss', minor: 'Minor', moderate: 'Moderate', major: 'Major', critical: 'Critical',
 };
 const pdfIncidentSeverityLabel = (s: string | undefined): string => (s && INCIDENT_SEVERITY_PDF_LABEL[s]) || 'Not recorded';
 const RFI_STATUS_PDF_LABEL: Record<string, string> = { open: 'Open', answered: 'Answered', closed: 'Closed', void: 'Void' };
@@ -108,20 +124,20 @@ function buildQuickEstimateHtml(
   });
 
   // ── HERO STATS — what a client wants to see in 3 seconds ──
-  // Replaced internal-facing labels ("Categories", "Line items") with the
+  // Replaced internal-facing labels ("Categories", "Line Items") with the
   // four metrics a homeowner and a contractor actually compare on:
   // total, cost-per-sqft, project size, timeline. "Line items: 23" tells
   // the client nothing useful.
   const heroStats: { label: string; value: string; accent?: 'brand' | 'success' | 'error' }[] = [
-    { label: 'Estimated total', value: fmtMoney(result.total, { decimals: 2 }), accent: 'brand' },
+    { label: 'Estimated Total', value: fmtMoney(result.total, { decimals: 2 }), accent: 'brand' },
   ];
-  if (costPerSqft > 0) heroStats.push({ label: 'Cost per sqft', value: fmtMoney(costPerSqft, { decimals: 0 }) });
-  if (sizeNum > 0) heroStats.push({ label: 'Project size', value: `${sizeNum.toLocaleString()} sqft` });
-  if (answers.timelineWeeks) heroStats.push({ label: 'Estimated timeline', value: `${answers.timelineWeeks} weeks` });
+  if (costPerSqft > 0) heroStats.push({ label: 'Cost per Sqft', value: fmtMoney(costPerSqft, { decimals: 0 }) });
+  if (sizeNum > 0) heroStats.push({ label: 'Project Size', value: `${sizeNum.toLocaleString()} sqft` });
+  if (answers.timelineWeeks) heroStats.push({ label: 'Estimated Timeline', value: `${answers.timelineWeeks} weeks` });
   // If we don't have size/timeline, fall back to quality + line item count
   // so the grid still has 4 cells.
   while (heroStats.length < 4) {
-    if (heroStats.length === 2) heroStats.push({ label: 'Quality tier', value: qualityLabel });
+    if (heroStats.length === 2) heroStats.push({ label: 'Quality Tier', value: qualityLabel });
     else if (heroStats.length === 3) heroStats.push({ label: 'Categories', value: String(categories.length) });
     else break;
   }
@@ -214,7 +230,7 @@ function buildQuickEstimateHtml(
           [
             { header: 'Item', width: '52%' },
             { header: 'Qty', align: 'right', width: '14%' },
-            { header: 'Unit cost', align: 'right', width: '17%' },
+            { header: 'Unit Cost', align: 'right', width: '17%' },
             { header: 'Total', align: 'right', width: '17%' },
           ],
           rows,
@@ -340,8 +356,8 @@ function buildQuickEstimateHtml(
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Construction estimate',
-      title: answers.projectType || 'Project estimate',
+      eyebrow: 'Construction Estimate',
+      title: answers.projectType || 'Project Estimate',
       meta: [], // moved into projectInfoBlock below for a more formal layout
     })}
     ${projectInfoBlock}
@@ -362,7 +378,7 @@ function buildQuickEstimateHtml(
   return pdfShell({
     bodyHtml,
     branding,
-    title: `Estimate ${estimateNumber} — ${answers.projectType || 'Construction'}`,
+    title: `Estimate ${estimateNumber}: ${answers.projectType || 'Construction'}`,
   });
 }
 
@@ -377,7 +393,7 @@ export async function shareQuickEstimatePDF(
   split: PaymentSplit,
 ): Promise<void> {
   const html = buildQuickEstimateHtml(result, answers, branding, split);
-  const title = `Quick estimate — ${answers.projectType || 'Construction'}`;
+  const title = `Quick estimate: ${answers.projectType || 'Construction'}`;
 
   if (Platform.OS === 'web') {
     // #124: throws when the browser blocks the window, so the wizard's catch
@@ -437,7 +453,7 @@ export function bulkSavingsNoteText(amount: number | undefined | null): string {
 }
 function bulkSavingsNoteHtml(amount: number | undefined | null): string {
   return (amount ?? 0) > 0
-    ? `<p class="summary-note" style="margin:8px 0 0;font-size:12px;color:#555">Buyout savings: ${formatCurrency(amount ?? 0)} — what the awarded subcontracts came in under budget. Not deducted from the estimate total above.</p>`
+    ? `<p class="summary-note" style="margin:8px 0 0;font-size:12px;color:#555">Buyout savings: ${formatCurrency(amount ?? 0)}, what the awarded subcontracts came in under budget. Not deducted from the estimate total above.</p>`
     : '';
 }
 
@@ -526,7 +542,7 @@ function buildEstimateHtml(
             <th style="text-align:left;width:35%">Item</th>
             <th>Category</th>
             <th>Qty</th>
-            <th>Unit price</th>
+            <th>Unit Price</th>
             <th style="text-align:right">Total</th>
           </tr>
         </thead>
@@ -730,7 +746,7 @@ function buildEstimateHtml(
         <div class="signature-date">Date: _______________</div>
       </div>`;
 
-  return `<!DOCTYPE html>
+  return withRecipientNotice(`<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -824,12 +840,12 @@ function buildEstimateHtml(
   ${scheduleHtml}
   ${signatureBlock}
   <div class="footer">
-    ${branding.companyName ? `Generated by ${escapeHtml(branding.companyName)}` : 'Generated by MAGE ID'} · ${now}
+    ${branding.companyName ? `${escapeHtml(branding.companyName)} · ` : ''}${now}
     ${branding.phone ? ` · ${escapeHtml(branding.phone)}` : ''}
     ${branding.email ? ` · ${escapeHtml(branding.email)}` : ''}
   </div>
 </body>
-</html>`;
+</html>`, branding.companyName);
 }
 
 export async function generateEstimatePDFUri(
@@ -924,7 +940,7 @@ export function buildChangeOrderBodyHtml(co: ChangeOrder, project: Project, bran
     meta: [
       { label: 'Date', value: now },
       { label: 'Status', value: D.escHtml(pdfCoStatusLabel(co.status)) },
-      ...(co.scheduleImpactDays ? [{ label: 'Schedule impact', value: `${co.scheduleImpactDays} day${co.scheduleImpactDays === 1 ? '' : 's'}` }] : []),
+      ...(co.scheduleImpactDays ? [{ label: 'Schedule Impact', value: `${co.scheduleImpactDays} day${co.scheduleImpactDays === 1 ? '' : 's'}` }] : []),
     ],
   });
   const statusBadge = `<div style="margin-bottom:18px">${D.pdfPill(pdfCoStatusLabel(co.status), pillKind)}</div>`;
@@ -939,12 +955,12 @@ export function buildChangeOrderBodyHtml(co: ChangeOrder, project: Project, bran
     `<span class="num">${D.fmtMoney(li.unitPrice, { decimals: 2 })}</span>`,
     `<span class="num" style="font-weight:700">${D.fmtMoney(li.total, { decimals: 2 })}</span>`,
   ]);
-  const tableHtml = D.pdfSectionHeader('Line items') + D.pdfTable(
+  const tableHtml = D.pdfSectionHeader('Line Items') + D.pdfTable(
     [
       { header: 'Item', align: 'left', width: '38%' },
       { header: 'Qty', align: 'right' },
       { header: 'Unit', align: 'left' },
-      { header: 'Unit price', align: 'right' },
+      { header: 'Unit Price', align: 'right' },
       { header: 'Total', align: 'right' },
     ],
     lineRows,
@@ -967,15 +983,15 @@ export function buildChangeOrderBodyHtml(co: ChangeOrder, project: Project, bran
   const prior = typeof frozen.priorApprovedChangesTotal === 'number' && Number.isFinite(frozen.priorApprovedChangesTotal)
     ? frozen.priorApprovedChangesTotal : null;
   const buildUp = prior != null
-    ? row('Original contract sum', money(co.originalContractValue - prior))
-      + (prior !== 0 ? row('Net change by prior approved COs', signed(prior)) : '')
-      + row('Contract sum prior to this CO', money(co.originalContractValue))
-    : row('Contract sum prior to this CO', money(co.originalContractValue));
+    ? row('Original Contract Sum', money(co.originalContractValue - prior))
+      + (prior !== 0 ? row('Net Change by Prior Approved COs', signed(prior)) : '')
+      + row('Contract Sum Prior to This CO', money(co.originalContractValue))
+    : row('Contract Sum Prior to This CO', money(co.originalContractValue));
   const taxAmount = typeof frozen.taxAmount === 'number' && Number.isFinite(frozen.taxAmount) ? frozen.taxAmount : 0;
   const hasTax = taxAmount !== 0;
   const taxRows = hasTax
-    ? row(`Sales tax${typeof frozen.taxRatePct === 'number' ? ` (${frozen.taxRatePct}%)` : ''}`, signed(taxAmount))
-      + `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;font-weight:700"><span>CO total incl. tax</span><span class="num">${signed(frozen.totalWithTax ?? co.changeAmount + taxAmount)}</span></div>`
+    ? row(`Sales Tax${typeof frozen.taxRatePct === 'number' ? ` (${frozen.taxRatePct}%)` : ''}`, signed(taxAmount))
+      + `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;font-weight:700"><span>CO Total Incl. Tax</span><span class="num">${signed(frozen.totalWithTax ?? co.changeAmount + taxAmount)}</span></div>`
     : '';
   // An increase is the owner's ATTENTION case, so it takes the warning ink;
   // a credit is good news and takes the success teal. Before the 2026-09-16
@@ -983,11 +999,11 @@ export function buildChangeOrderBodyHtml(co: ChangeOrder, project: Project, bran
   // and green is the brand now, so neither direction may be green.
   const totalsBlock = `<div class="no-break" style="background:${D.PDF_PALETTE.ground2};border:1px solid ${D.PDF_PALETTE.hairline2};border-radius:14px;padding:18px 20px;margin-top:18px">
     ${buildUp}
-    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:${co.changeAmount >= 0 ? D.PDF_PALETTE.warningInk : D.PDF_PALETTE.success};font-weight:600"><span>This change order${hasTax ? ' (pre-tax)' : ''}</span><span class="num">${signed(co.changeAmount)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:${co.changeAmount >= 0 ? D.PDF_PALETTE.warningInk : D.PDF_PALETTE.success};font-weight:600"><span>This Change Order${hasTax ? ' (Pre-Tax)' : ''}</span><span class="num">${signed(co.changeAmount)}</span></div>
     ${taxRows}
     <div style="height:1.5px;background:${D.PDF_PALETTE.ink};margin:8px 0"></div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
-      <span style="font-family:${PDF_FONT_DISPLAY};font-size:16px;font-weight:700">New contract total${hasTax ? ' (pre-tax)' : ''}</span>
+      <span style="font-family:${PDF_FONT_DISPLAY};font-size:16px;font-weight:700">New Contract Total${hasTax ? ' (Pre-Tax)' : ''}</span>
       <span class="num" style="font-family:${PDF_FONT_DISPLAY};font-size:22px;font-weight:700;color:${D.PDF_PALETTE.brand};letter-spacing:-0.012em">${money(co.newContractTotal)}</span>
     </div>
   </div>`;
@@ -1019,7 +1035,7 @@ function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: Compa
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const D = require('@/utils/pdfDesign') as typeof import('@/utils/pdfDesign');
   return D.pdfShell({
-    title: `Change order #${co.number} — ${project.name}`,
+    title: `Change order #${co.number}: ${project.name}`,
     branding,
     bodyHtml:
       D.pdfHeader(branding) + buildChangeOrderBodyHtml(co, project, branding) +
@@ -1074,7 +1090,7 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
       { header: 'Item', align: 'left', width: '38%' },
       { header: 'Qty', align: 'right' },
       { header: 'Unit', align: 'left' },
-      { header: 'Unit price', align: 'right' },
+      { header: 'Unit Price', align: 'right' },
       { header: 'Total', align: 'right' },
     ],
     lineRows,
@@ -1087,14 +1103,14 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
     row(`Tax (${inv.taxRate}%)`, D.fmtMoney(inv.taxAmount, { decimals: 2 })),
     // MONEY-F6: with retention, the gross is the contract value billed this
     // period; what the client pays now is the net figure printed as the total.
-    hasRetention ? row('Contract value billed this period', D.fmtMoney(inv.totalDue, { decimals: 2 })) : '',
+    hasRetention ? row('Contract Value Billed This Period', D.fmtMoney(inv.totalDue, { decimals: 2 })) : '',
     // Only while something is actually held — once fully released the line
     // read "Retainage held (10%) −$0.00", which is noise on a client document.
     hasRetention && retentionPending > 0
       ? row(`Retainage held${inv.retentionPercent ? ` (${inv.retentionPercent}%)` : ''}`, `−${D.fmtMoney(retentionPending, { decimals: 2 })}`)
       : '',
     hasRetention && retentionReleased > 0
-      ? row('Retainage released — now payable', D.fmtMoney(retentionReleased, { decimals: 2 }), D.PDF_PALETTE.success)
+      ? row('Retainage released, now payable', D.fmtMoney(retentionReleased, { decimals: 2 }), D.PDF_PALETTE.success)
       : '',
   ].filter(Boolean).join('');
   // Balance due is money still OWED — the warning ink, not the brand. Paid in
@@ -1104,13 +1120,13 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
     ${totalsRows}
     <div style="height:1.5px;background:${D.PDF_PALETTE.ink};margin:8px 0"></div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
-      <span style="font-family:${PDF_FONT_DISPLAY};font-size:16px;font-weight:700">${hasRetention ? 'Net payable this invoice' : 'Total due'}</span>
+      <span style="font-family:${PDF_FONT_DISPLAY};font-size:16px;font-weight:700">${hasRetention ? 'Net Payable This Invoice' : 'Total Due'}</span>
       <span class="num" style="font-family:${PDF_FONT_DISPLAY};font-size:24px;font-weight:700;color:${D.PDF_PALETTE.brand};letter-spacing:-0.012em">${D.fmtMoney(netPayable, { decimals: 2 })}</span>
     </div>
     ${inv.amountPaid > 0 ? `
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px;color:${D.PDF_PALETTE.success}"><span>Paid to date</span><span class="num">−${D.fmtMoney(inv.amountPaid, { decimals: 2 })}</span></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0 0;border-top:1px solid ${D.PDF_PALETTE.hairline2};margin-top:6px">
-        <span style="font-family:${PDF_FONT_DISPLAY};font-size:14px;font-weight:700;color:${balance > 0 ? D.PDF_PALETTE.text : D.PDF_PALETTE.success}">${balance > 0 ? 'Balance due' : '&#10003;&nbsp;Paid in full'}</span>
+        <span style="font-family:${PDF_FONT_DISPLAY};font-size:14px;font-weight:700;color:${balance > 0 ? D.PDF_PALETTE.text : D.PDF_PALETTE.success}">${balance > 0 ? 'Balance Due' : '&#10003;&nbsp;Paid in Full'}</span>
         <span class="num" style="font-family:${PDF_FONT_DISPLAY};font-size:18px;font-weight:700;color:${balance > 0 ? D.PDF_PALETTE.warningInk : D.PDF_PALETTE.success}">${D.fmtMoney(balance, { decimals: 2 })}</span>
       </div>
     ` : ''}
@@ -1124,7 +1140,7 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
     : '';
 
   return D.pdfShell({
-    title: `Invoice #${inv.number} — ${project.name}`,
+    title: `Invoice #${inv.number}: ${project.name}`,
     branding,
     bodyHtml: headerHtml + titleHtml + tableHtml + totalsBlock + notesHtml +
       D.pdfFooter(branding, `Invoice #${inv.number}`, D.PDF_DISCLAIMERS.invoice),
@@ -1291,14 +1307,14 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
 
   const headerHtml = D.pdfHeader(branding);
   const titleHtml = D.pdfTitle({
-    eyebrow: 'Daily field report',
+    eyebrow: 'Daily Field Report',
     title: project.name,
     subtitle: reportDate,
     meta: [
       { label: 'Location', value: project.location || '—' },
       { label: 'Crew', value: `${totalWorkers} on site` },
       { label: 'Man-hours', value: `${totalHours} hrs` },
-      ...(extras?.filedByName?.trim() ? [{ label: 'Filed by', value: extras.filedByName.trim() }] : []),
+      ...(extras?.filedByName?.trim() ? [{ label: 'Filed By', value: extras.filedByName.trim() }] : []),
     ],
   });
 
@@ -1309,7 +1325,7 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
     { label: 'Temperature', value: nr(dfr.weather?.temperature) },
     { label: 'Conditions', value: nr(dfr.weather?.conditions) },
     { label: 'Wind', value: nr(dfr.weather?.wind) },
-  ]);
+  ]) + dfrWeatherSourceHtml(dfr);
 
   const manpowerHtml = dfr.manpower.length > 0
     ? D.pdfSectionHeader('Manpower') + D.pdfTable(
@@ -1333,14 +1349,14 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
   const blockStyle = `background:${D.PDF_PALETTE.ground2};border:1px solid ${D.PDF_PALETTE.hairline2};border-radius:12px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:${D.PDF_PALETTE.text2};line-height:1.55;white-space:pre-wrap`;
   const issueStyle = `background:${D.PDF_PALETTE.errorTint};border:1px solid #f5c8bf;border-left:4px solid ${D.PDF_PALETTE.error};border-radius:12px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:${D.PDF_PALETTE.text};line-height:1.55;white-space:pre-wrap`;
 
-  const workHtml = D.pdfSectionHeader('Work performed') +
+  const workHtml = D.pdfSectionHeader('Work Performed') +
     `<div style="${blockStyle}">${dfr.workPerformed ? D.escHtml(dfr.workPerformed) : 'No narrative recorded.'}</div>`;
   const materialsHtml = dfr.materialsDelivered.length > 0
-    ? D.pdfSectionHeader('Materials delivered') +
+    ? D.pdfSectionHeader('Materials Delivered') +
       `<div style="${blockStyle}">${dfr.materialsDelivered.map(m => `&middot; ${D.escHtml(m)}`).join('<br/>')}</div>`
     : '';
   const issuesHtml = dfr.issuesAndDelays
-    ? D.pdfSectionHeader('Issues and delays') +
+    ? D.pdfSectionHeader('Issues and Delays') +
       `<div style="${issueStyle}">${D.escHtml(dfr.issuesAndDelays)}</div>`
     : '';
 
@@ -1379,7 +1395,7 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
     const frame = p.src
       ? `<div style="position:relative;width:100%;padding-top:100%;border-radius:10px;overflow:hidden;background:${D.PDF_PALETTE.hairline2}"><img src="${D.escHtml(p.src)}" alt="" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover"/>${dfrMarkupSvg(p.markup)}</div>`
       : `<div style="width:100%;padding:28px 12px;border-radius:10px;border:1px dashed ${D.PDF_PALETTE.hairline};font-size:11px;color:${D.PDF_PALETTE.textMuted};text-align:center;line-height:1.45">${p.notUploaded
-          ? 'Not uploaded yet — this photo is still only on the phone that took it.'
+          ? 'Not uploaded yet. This photo is still only on the phone that took it.'
           : 'This photo could not be loaded into the PDF. It is on the report in MAGE ID.'}</div>`;
     return `<td style="width:33.33%;padding:6px;vertical-align:top" class="no-break">${frame}<div style="font-size:10px;color:${D.PDF_PALETTE.textMuted};margin-top:4px">${D.escHtml(caption)}</div></td>`;
   };
@@ -1393,7 +1409,7 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
     ? D.pdfSectionHeader(`Photos (${photos.length})`)
       + (shown.length > 0 ? `<table style="width:100%;border-collapse:collapse;table-layout:fixed">${photoRows.join('')}</table>` : '')
       + (photos.length > shown.length
-        ? `<div style="${blockStyle}">${photos.length - shown.length} more photo${photos.length - shown.length === 1 ? '' : 's'} on this report in MAGE ID — not printed here.</div>`
+        ? `<div style="${blockStyle}">${photos.length - shown.length} more photo${photos.length - shown.length === 1 ? '' : 's'} on this report in MAGE ID, not printed here.</div>`
         : '')
       + (incidentCount > 0
         ? `<div style="${blockStyle}">${incidentCount} incident photo${incidentCount === 1 ? ' is' : 's are'} kept on the incident case, not printed on this report.</div>`
@@ -1521,7 +1537,7 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
     </div>`;
   }).join('');
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  return withRecipientNotice(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; color:#1a1a1a; padding:36px; font-size:11.5px; line-height:1.5; }
     .company-header { text-align:center; margin-bottom:24px; padding-bottom:18px; border-bottom:3px solid ${PDF_PALETTE.brand}; }
@@ -1587,7 +1603,7 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
     ${detailCards}
   `}
   <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}RFI log &middot; ${escapeHtml(project.name)} &middot; ${now}</div>
-</body></html>`;
+</body></html>`, branding.companyName);
 }
 
 export async function generateRFILogPDFUri(
@@ -1668,7 +1684,7 @@ function buildSignatureBlock(label: string, sig: ContractSignature | undefined):
   // The label promises the page photo; a paper record without one (not
   // reachable from the screen, which refuses it) must not claim it.
   const how = paper && !sig.evidencePath
-    ? 'Signed on paper — no photo of the signed page on file'
+    ? 'Signed on paper. No photo of the signed page on file'
     : homeownerSignatureMethodLabel(sig);
   return `
     <div style="border:1px solid ${PDF_PALETTE.hairline};padding:14px;border-radius:8px">
@@ -1686,11 +1702,11 @@ function sealStatement(homeowner: ContractSignature | undefined): string {
   if (homeowner?.method === 'paper') {
     return 'The owner signed a printed copy on paper. The contractor recorded that signature in MAGE ID, which sealed this record.';
   }
-  return 'This document was electronically signed and sealed via MAGE ID.';
+  return 'This document was electronically signed. The record was sealed in MAGE ID software.';
 }
 
 function buildContractHtml(contract: ProjectContract, project: Project, branding: CompanyBranding): string {
-  const title = `Contract — ${project.name}`;
+  const title = `Contract: ${project.name}`;
   const milestones = Array.isArray(contract.paymentSchedule) ? contract.paymentSchedule : [];
   const allowances = Array.isArray(contract.allowances) ? contract.allowances : [];
   const scopeText = contract.scopeText && contract.scopeText.trim() ? contract.scopeText : (project.description ?? '');
@@ -1773,7 +1789,7 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
   const timeline = contractTimeline(contract.startDate, contract.durationDays);
   const timelineHtml = !timeline ? '' : `
     <h2 style="font-family:${PDF_FONT_DISPLAY};font-size:18px;margin:24px 0 8px">Timeline</h2>
-    <div style="font-size:14px"><strong>${escHtml(timeline.startLabel)} — ${escHtml(timeline.completionLabel)}</strong> · ${escHtml(timeline.durationDays)} calendar days</div>
+    <div style="font-size:14px"><strong>${escHtml(timeline.startLabel)} to ${escHtml(timeline.completionLabel)}</strong> · ${escHtml(timeline.durationDays)} calendar days</div>
     <div style="font-size:13px;line-height:1.55;color:${PDF_PALETTE.text};margin-top:6px">${escHtml(contractTimelineSentence(timeline))}</div>`;
 
   const sealedAt = fmtDate(new Date().toISOString());
@@ -1793,11 +1809,11 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
     ${warrantyHtml}
     <h2 style="font-family:${PDF_FONT_DISPLAY};font-size:18px;margin:24px 0 8px">Signatures</h2>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
-      <div style="flex:1;min-width:260px">${buildSignatureBlock('General contractor', contract.gcSignature)}</div>
+      <div style="flex:1;min-width:260px">${buildSignatureBlock('General Contractor', contract.gcSignature)}</div>
       <div style="flex:1;min-width:260px">${buildSignatureBlock('Owner', contract.homeownerSignature)}</div>
     </div>
     <div style="margin-top:18px;padding:10px 12px;border:1px solid ${PDF_PALETTE.hairline};border-radius:6px;background:#FAFAF7;font-size:11px;color:${PDF_PALETTE.text2}">
-      ${escHtml(sealStatement(contract.homeownerSignature))} The cryptographic hash recorded with this contract makes any subsequent byte-level change detectable. Sealed at ${escHtml(sealedAt)}.
+      ${escHtml(sealStatement(contract.homeownerSignature))} A fingerprint of this file was stored when it was sealed. A different fingerprint means the file changed. Sealed at ${escHtml(sealedAt)}.
     </div>`;
 
   return pdfShell({ title, bodyHtml, branding });
@@ -2014,10 +2030,10 @@ function statusColor(status: string): string {
 
 const SUBMITTAL_STATUS_PDF_LABEL: Record<string, string> = {
   pending: 'Pending',
-  in_review: 'In review',
+  in_review: 'In Review',
   approved: 'Approved',
-  approved_as_noted: 'Approved as noted',
-  revise_resubmit: 'Revise and resubmit',
+  approved_as_noted: 'Approved as Noted',
+  revise_resubmit: 'Revise and Resubmit',
   rejected: 'Rejected',
 };
 
@@ -2049,7 +2065,7 @@ function buildSubmittalHtml(s: Submittal, project: Project, branding: CompanyBra
           ${c.comments ? `<tr><td></td><td colspan="4" style="font-style:italic;color:#444;font-size:12px;background:#fafafa;padding:8px 12px;border-left:3px solid ${statusColor(c.status)};">${escapeHtml(c.comments)}</td></tr>` : ''}
         `).join('');
 
-  return `
+  return withRecipientNotice(`
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" />
@@ -2117,7 +2133,7 @@ function buildSubmittalHtml(s: Submittal, project: Project, branding: CompanyBra
     ${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}Submittal #${s.number} &middot; ${escapeHtml(project.name)} &middot; ${now}
   </div>
 </body>
-</html>`;
+</html>`, branding.companyName);
 }
 
 export async function generateSubmittalPDFUri(
@@ -2170,7 +2186,7 @@ export function buildSubmittalEmailHtml(opts: {
   const fallbackIntro = attached
     ? 'Review the attached submittal and reply with your action code.'
     : 'Review the submittal details below and reply with your action code.';
-  return `
+  return withRecipientNotice(`
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -2204,7 +2220,7 @@ export function buildSubmittalEmailHtml(opts: {
           <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 12px;">
             <tr><td align="center">
               <a href="${escapeHtml(replyPortalUrl)}" target="_blank" style="display:inline-block;background:${PDF_PALETTE.brand};color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;padding:16px 32px;border-radius:12px;box-shadow:0 6px 18px rgba(47,107,58,0.35);letter-spacing:0.2px;">
-                Open review form &rarr;
+                Open Review Form
               </a>
             </td></tr>
             <tr><td align="center" style="padding-top:8px;">
@@ -2227,7 +2243,7 @@ export function buildSubmittalEmailHtml(opts: {
     </td></tr>
   </table>
 </body>
-</html>`;
+</html>`, opts.companyName);
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -2253,7 +2269,7 @@ function buildFieldTicketHtml(
 
   const headerHtml = pdfHeader(branding);
   const titleHtml = pdfTitle({
-    eyebrow: 'T&M ticket',
+    eyebrow: 'T&M Ticket',
     title: `${label} — ${project.name}`,
     subtitle: `Work performed ${worked}`,
     meta: [
@@ -2272,15 +2288,15 @@ function buildFieldTicketHtml(
   const blockStyle = `background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline2};border-radius:12px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:${PDF_PALETTE.text2};line-height:1.55;white-space:pre-wrap`;
   const reasonStyle = `background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline2};border-left:4px solid ${PDF_PALETTE.brand};border-radius:12px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:${PDF_PALETTE.text};line-height:1.55;white-space:pre-wrap`;
 
-  const workHtml = pdfSectionHeaderLocal('Work performed') +
+  const workHtml = pdfSectionHeaderLocal('Work Performed') +
     `<div style="${blockStyle}">${escHtml(ticket.workDescription) || 'Not recorded.'}</div>`;
-  const reasonHtml = pdfSectionHeaderLocal('Why this work is extra') +
+  const reasonHtml = pdfSectionHeaderLocal('Why This Work Is Extra') +
     `<div style="${reasonStyle}">${escHtml(ticket.reasonExtra) || 'Not recorded.'}</div>`;
 
   const laborHtml = (ticket.labor ?? []).length > 0
     ? pdfSectionHeaderLocal('Labor') + pdfTable(
         [
-          { header: 'Crew member', align: 'left', width: '34%' },
+          { header: 'Crew Member', align: 'left', width: '34%' },
           { header: 'Trade', align: 'left' },
           { header: 'Hours', align: 'right' },
           { header: 'Rate', align: 'right' },
@@ -2302,7 +2318,7 @@ function buildFieldTicketHtml(
           { header: 'Description', align: 'left', width: '48%' },
           { header: 'Qty', align: 'right' },
           { header: 'Unit', align: 'left' },
-          { header: 'Unit cost', align: 'right' },
+          { header: 'Unit Cost', align: 'right' },
           { header: 'Amount', align: 'right' },
         ],
         (ticket.materials ?? []).map(r => [
@@ -2336,12 +2352,12 @@ function buildFieldTicketHtml(
     `<tr><td style="padding:7px 8px;font-size:12px;color:${PDF_PALETTE.text2}${strong ? `;font-weight:700;color:${PDF_PALETTE.text}` : ''}">${escHtml(label2)}</td>
       <td class="num" style="padding:7px 8px;text-align:right;font-size:${strong ? '15px' : '12px'};${strong ? 'font-weight:800' : 'font-weight:600'}">${value}</td></tr>`;
 
-  const totalsHtml = pdfSectionHeaderLocal('Ticket total') +
+  const totalsHtml = pdfSectionHeaderLocal('Ticket Total') +
     `<table style="margin-bottom:18px;border:1px solid ${PDF_PALETTE.hairline};border-radius:12px;overflow:hidden">
       ${totalsRow('Labor', fmtMoney(totals.laborCost))}
       ${totalsRow('Materials', fmtMoney(totals.materialCost))}
       ${totalsRow('Equipment', fmtMoney(totals.equipmentCost))}
-      ${totals.markupAmount > 0 ? totalsRow(`Overhead & profit (${totals.markupPercent}%)`, fmtMoney(totals.markupAmount)) : ''}
+      ${totals.markupAmount > 0 ? totalsRow(`Overhead and profit (${totals.markupPercent}%)`, fmtMoney(totals.markupAmount)) : ''}
       ${totalsRow('Total', fmtMoney(totals.billableTotal), true)}
     </table>` +
     (totals.unpricedRowCount > 0
@@ -2360,7 +2376,7 @@ function buildFieldTicketHtml(
 
   // The signature block is the point of the whole document.
   const authHtml = auth
-    ? pdfSectionHeaderLocal('Authorized on site') +
+    ? pdfSectionHeaderLocal('Authorized on Site') +
       `<div style="border:1px solid ${PDF_PALETTE.hairline};padding:16px;border-radius:12px;margin-bottom:14px">
         <div style="font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:${PDF_PALETTE.text2};font-size:11px;margin-bottom:8px">${escHtml(C.authorizerRoleLabel(auth.role))}</div>
         ${auth.signaturePaths && auth.signaturePaths.length > 0
@@ -2371,7 +2387,7 @@ function buildFieldTicketHtml(
         <div style="font-size:12.5px;color:${PDF_PALETTE.text};margin-top:8px;font-weight:600">${escHtml(auth.name)}${auth.title ? ` — ${escHtml(auth.title)}` : ''}</div>
         <div style="font-size:11.5px;color:${PDF_PALETTE.text2};margin-top:2px">Signed ${escHtml(new Date(auth.signedAt).toLocaleString())}${auth.locationLabel ? ` · ${escHtml(auth.locationLabel)}` : ''}</div>
       </div>`
-    : pdfSectionHeaderLocal('Authorized on site') +
+    : pdfSectionHeaderLocal('Authorized on Site') +
       `<div style="border:1px dashed ${PDF_PALETTE.error};padding:16px;border-radius:12px;margin-bottom:14px;color:${PDF_PALETTE.error};font-size:13px;font-weight:600">
          Not signed. This ticket has not been authorized and is not billable.
        </div>`;

@@ -114,7 +114,7 @@ export function EstimateWizardDesktop({
   // Cmd/Ctrl+Enter only. NOT usePrimaryAction: that also binds Cmd+S, and a
   // Save shortcut must never spend a metered AI run (contract C10 / D5).
   useHotkeys(
-    [{ combo: 'mod+enter', handler: runGenerate, label: 'Generate estimate', group: 'This screen' }],
+    [{ combo: 'mod+enter', handler: runGenerate, label: 'Generate Estimate', group: 'This screen' }],
     { scope: 'page' },
   );
 
@@ -179,7 +179,7 @@ export function EstimateWizardDesktop({
         {railFits ? (
           <View style={styles.rail} testID="wizard-rail">
             <Card>
-              <Text style={styles.railHeading}>What MAGE will price</Text>
+              <Text style={styles.railHeading}>What MAGE Will Price</Text>
               {echoRows(answers).map((r) => (
                 <View key={r.key} style={styles.echoRow}>
                   <Text style={styles.echoLabel}>{r.label}</Text>

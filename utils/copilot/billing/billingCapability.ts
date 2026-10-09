@@ -14,7 +14,7 @@ export interface BillingApplied {
 
 export const billingCapability: CopilotCapability<BillingDraft, BillingApplied> = {
   id: 'invoice',
-  label: 'Bill the client',
+  label: 'Bill the Client',
   aiFeature: 'invoicePrediction',
   maxQuestions: 1,
   askThreshold: 0.4,
@@ -59,7 +59,7 @@ export const billingCapability: CopilotCapability<BillingDraft, BillingApplied> 
   }),
 
   apply: async (draft: BillingDraft, ctx: CopilotContext): Promise<BillingApplied> => {
-    if (!ctx.project?.linkedEstimate) throw new Error('Add an estimate first — billing draws against it.');
+    if (!ctx.project?.linkedEstimate) throw new Error('Add an estimate first. Billing draws against it.');
     const type = draft.billingType ?? 'progress';
     return { route: '/bill-from-estimate', projectId: ctx.projectId, params: { projectId: ctx.projectId, type } };
   },

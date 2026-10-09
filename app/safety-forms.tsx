@@ -148,7 +148,7 @@ function SafetyFormsInner() {
   }, [name, category, fields, editing, userId, addTemplate, updateTemplate, resetForm, t]);
 
   const handleDelete = useCallback((tpl: SafetyFormTemplate) => {
-    showAlert(t('safety.forms.deleteForm', 'Delete form'), t('safety.forms.delete', 'Delete "{name}"?', { name: tpl.name }), [
+    showAlert(t('safety.forms.deleteForm', 'Delete Form'), t('safety.forms.delete', 'Delete "{name}"?', { name: tpl.name }), [
       { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
       { text: t('common.action.delete', 'Delete'), style: 'destructive', onPress: () => deleteTemplate(tpl.id) },
     ]);
@@ -161,7 +161,7 @@ function SafetyFormsInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: t('safety.forms.formsLibrary', 'Forms library') }} />
+      <Stack.Screen options={{ title: t('safety.forms.formsLibrary', 'Forms Library') }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {templates.map((tpl) => (
           <TouchableOpacity key={tpl.id} style={styles.card} onPress={() => openEdit(tpl)} activeOpacity={0.85}>
@@ -181,9 +181,9 @@ function SafetyFormsInner() {
           <View style={{ minHeight: 340 }}>
             <EmptyState
               icon={<ClipboardList size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={t('safety.forms.noFormsYet', 'No forms yet')}
+              title={t('safety.forms.noFormsYet', 'No Forms Yet')}
               message={t('safety.forms.buildReusableChecklistsAnd', 'Build reusable checklists and forms, such as JHAs, inspection checklists or sign-off sheets. Add the fields once and reuse them on every project.')}
-              actionLabel={t('safety.forms.createFirstForm', 'Create first form')}
+              actionLabel={t('safety.forms.createFirstForm', 'Create First Form')}
               onAction={openNew}
             />
           </View>
@@ -191,7 +191,7 @@ function SafetyFormsInner() {
 
         <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-form">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>{t('safety.forms.addForm', 'Add form')}</Text>
+          <Text style={styles.addItemBtnText}>{t('safety.forms.addForm', 'Add Form')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -201,15 +201,15 @@ function SafetyFormsInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editing ? t('safety.forms.editForm', 'Edit form') : t('safety.forms.newForm', 'New form')}</Text>
+                  <Text style={styles.formTitle}>{editing ? t('safety.forms.editForm', 'Edit Form') : t('safety.forms.newForm', 'New Form')}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
                 <ScrollView style={{ maxHeight: 560 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                  <Text style={styles.fieldLabel}>{t('safety.forms.formName', 'Form name *')}</Text>
-                  <TextInput style={styles.input} value={name} onChangeText={setName} placeholder={t('safety.forms.eGDailyFall', 'e.g. Daily fall-protection checklist')} placeholderTextColor={themeColors.textMuted} testID="form-name-input" />
+                  <Text style={styles.fieldLabel}>{t('safety.forms.formName', 'Form Name *')}</Text>
+                  <TextInput style={styles.input} value={name} onChangeText={setName} placeholder={t('safety.forms.eGDailyFall', 'Daily fall-protection checklist')} placeholderTextColor={themeColors.textMuted} testID="form-name-input" />
 
                   <Text style={styles.fieldLabel}>{t('safety.forms.category', 'Category')}</Text>
                   <View style={styles.segmented}>
@@ -246,7 +246,7 @@ function SafetyFormsInner() {
                           onPress={() => reorderField(index, -1)}
                           disabled={index === 0}
                           accessibilityRole="button"
-                          accessibilityLabel={t('safety.forms.moveFieldUp', 'Move field up')}
+                          accessibilityLabel={t('safety.forms.moveFieldUp', 'Move Field Up')}
                         >
                           <ChevronUp size={16} color={index === 0 ? themeColors.textMuted : themeColors.textSecondary} strokeWidth={2} />
                         </TouchableOpacity>
@@ -255,7 +255,7 @@ function SafetyFormsInner() {
                           onPress={() => reorderField(index, 1)}
                           disabled={index === fields.length - 1}
                           accessibilityRole="button"
-                          accessibilityLabel={t('safety.forms.moveFieldDown', 'Move field down')}
+                          accessibilityLabel={t('safety.forms.moveFieldDown', 'Move Field Down')}
                         >
                           <ChevronDown size={16} color={index === fields.length - 1 ? themeColors.textMuted : themeColors.textSecondary} strokeWidth={2} />
                         </TouchableOpacity>
@@ -263,7 +263,7 @@ function SafetyFormsInner() {
                           style={styles.reorderBtn}
                           onPress={() => removeFieldRow(f.id)}
                           accessibilityRole="button"
-                          accessibilityLabel={t('safety.forms.deleteField', 'Delete field')}
+                          accessibilityLabel={t('safety.forms.deleteField', 'Delete Field')}
                         >
                           <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
                         </TouchableOpacity>
@@ -307,7 +307,7 @@ function SafetyFormsInner() {
 
                   <TouchableOpacity style={styles.addFieldBtn} onPress={addFieldRow} activeOpacity={0.7} testID="add-field">
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.addFieldBtnText}>{t('safety.forms.addField', 'Add field')}</Text>
+                    <Text style={styles.addFieldBtnText}>{t('safety.forms.addField', 'Add Field')}</Text>
                   </TouchableOpacity>
                 </ScrollView>
 

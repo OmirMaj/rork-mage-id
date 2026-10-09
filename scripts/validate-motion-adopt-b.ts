@@ -265,7 +265,7 @@ async function main() {
       /style=\{\[styles\.breakdownRow, i < 8 \? enter : null\]\}/.test(ac) && !/styles\.breakdownRow, enter\]/.test(ac));
     const totalAt = ac.indexOf('testID="estimate-breakdown-total"');
     const totalRow = totalAt >= 0 ? ac.slice(ac.lastIndexOf('<View', totalAt), ac.indexOf('</View>', totalAt)) : '';
-    ok('VB3 the "Line items" row has no accessibilityLabel (CountRoll speaks the final figure)', totalRow.length > 0 && !/accessibilityLabel/.test(totalRow) && /Line items/.test(totalRow));
+    ok('VB3 the "Line Items" row has no accessibilityLabel (CountRoll speaks the final figure)', totalRow.length > 0 && !/accessibilityLabel/.test(totalRow) && /Line Items/.test(totalRow));
   }
 
   // ── VB4 real data, real events ───────────────────────────────────────────

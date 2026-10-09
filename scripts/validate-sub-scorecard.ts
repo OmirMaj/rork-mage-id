@@ -126,7 +126,7 @@ console.log('\nrework attribution:');
   const rework = factor(cardFor(res, 's1'), 'rework_rate');
   expect('id match + name fallback (id wins; blank name unattributed)',
     { applicable: rework.applicable, detail: rework.detail },
-    { applicable: false, detail: 'Not enough linked data yet — 2 of 3 reviewed punch items needed' });
+    { applicable: false, detail: 'Not enough linked data yet: 2 of 3 reviewed punch items needed' });
 }
 
 console.log('\nrework denominator + scoring:');
@@ -167,7 +167,7 @@ console.log('\nrework denominator + scoring:');
   const res = computeSubScorecards({ subcontractors: [sub({})], commitments: [], punchItems: [] });
   expect('no punch items at all → honest empty detail',
     factor(cardFor(res, 's1'), 'rework_rate').detail,
-    'Not enough linked data yet — no punch items assigned to this sub');
+    'Not enough linked data yet: no punch items assigned to this sub');
 }
 
 console.log('\nschedule reliability:');
@@ -220,7 +220,7 @@ console.log('\nschedule reliability:');
   const sched = factor(cardFor(res, 's1'), 'schedule_reliability');
   expect('pace-book eligibility rules; 1 measured of 2 needed',
     { applicable: sched.applicable, detail: sched.detail },
-    { applicable: false, detail: 'Not enough linked data yet — 1 of 2 measured tasks needed' });
+    { applicable: false, detail: 'Not enough linked data yet: 1 of 2 measured tasks needed' });
 }
 {
   const res = computeSubScorecards({
@@ -230,7 +230,7 @@ console.log('\nschedule reliability:');
   });
   expect('linked but unmeasured tasks → as-built-dates detail',
     factor(cardFor(res, 's1'), 'schedule_reliability').detail,
-    'Not enough linked data yet — 2 assigned tasks without as-built dates');
+    'Not enough linked data yet: 2 assigned tasks without as-built dates');
 }
 
 console.log('\npaperwork-only + blend:');
@@ -252,7 +252,7 @@ console.log('\npaperwork-only + blend:');
   const res = computeSubScorecards({ subcontractors: [sub({})], commitments: [] });
   const card = cardFor(res, 's1');
   expect('no data anywhere → compliance-only grade with honest topDriver',
-    { score: card.score, prefixed: card.topDriver.startsWith('No job history yet — graded on paperwork only.') },
+    { score: card.score, prefixed: card.topDriver.startsWith('No job history yet. Graded on paperwork only.') },
     { score: 32, prefixed: true });
   expect('D7 factors omitted entirely → applicable:false, weight 0',
     card.factors.filter(f => f.key === 'rework_rate' || f.key === 'schedule_reliability')

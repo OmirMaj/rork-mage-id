@@ -278,8 +278,8 @@ function renderDigestHtml(opts: {
                ${b.weather.workable ? '' : ' · <strong>Not workable for weather-sensitive tasks</strong>'}
              </p>${OPENWEATHER_CREDIT_HTML}`
           : b.weatherMissing === 'unavailable'
-            ? `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">Weather for ${escapeHtml(b.weatherPlace ?? 'this job')} isn't available this morning — check the app later.</p>`
-            : `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">No weather — this job has no jobsite address. Add it in the app (open the job, tap Edit) to get the site forecast here.</p>`;
+            ? `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">Weather for ${escapeHtml(b.weatherPlace ?? 'this job')} isn't available this morning. Check the app later.</p>`
+            : `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">No weather: this job has no jobsite address. Add it in the app (open the job, tap Edit) to get the site forecast here.</p>`;
         // A closed day, a job that has not started and an undated schedule each
         // say what they are. None of them lists tasks: a list on a closed day
         // is how a sub gets called out to a locked site.
@@ -297,7 +297,7 @@ function renderDigestHtml(opts: {
           ? quietLine('Nothing scheduled today.') + milestoneLine
           : `<p style="margin:0 0 6px;color:${STONE};font-size:14px;line-height:1.5;">
                <strong style="color:${INK};">${b.todayTasks.length} task${b.todayTasks.length === 1 ? '' : 's'} today</strong>${b.criticalCount > 0 ? ` (${b.criticalCount} on critical path)` : ''}:
-               ${b.todayTasks.slice(0, 4).map(t => `<br/>• ${escapeHtml(t.title)}${t.crew ? ` — <span style="color:${FOG};">${escapeHtml(t.crew)}</span>` : ''}`).join('')}
+               ${b.todayTasks.slice(0, 4).map(t => `<br/>• ${escapeHtml(t.title)}${t.crew ? ` · <span style="color:${FOG};">${escapeHtml(t.crew)}</span>` : ''}`).join('')}
                ${b.todayTasks.length > 4 ? `<br/><span style="color:${FOG};">…and ${b.todayTasks.length - 4} more</span>` : ''}
              </p>${milestoneLine}`;
         const riskLine = b.weatherRiskTasks.length > 0
@@ -530,7 +530,7 @@ async function buildDigestForUser(
   const summary = briefings.length === 0
     ? 'No active projects today.'
     : `${briefings.length} project${briefings.length === 1 ? '' : 's'} active. ${totalTasksToday} task${totalTasksToday === 1 ? '' : 's'} today${(openRfisCount ?? 0) > 0 ? ` · ${openRfisCount} open RFI${openRfisCount === 1 ? '' : 's'}` : ''}.`;
-  const title = `${greeting.subjectPrefix} — ${todayDateLabel}`;
+  const title = `${greeting.subjectPrefix} · ${todayDateLabel}`;
 
   let emailStatus: string | null = null;
   let sent = false;

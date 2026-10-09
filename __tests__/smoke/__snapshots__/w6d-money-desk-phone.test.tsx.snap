@@ -3,69 +3,69 @@
 exports[`lane M2 golden — the phone (390 × 844 iOS) (f) /payments, populated 1`] = `
 {
   "lines": 547,
-  "sha256": "95760f7217991763b5d74019429118b7d698f51190d3e5c40d0628a5aa93f3bf",
+  "sha256": "78030985e6b4ac98ed901e3b9950199611d69bedae677d8e81b7ec22c0f8bebd",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (g) /payments, Pending then Completed 1`] = `
 {
   "lines": 454,
-  "sha256": "ea696080b3c2b55a84690806e76f5acc51e373fe1ecd262b165693dd1172dd70",
+  "sha256": "3a92af1a136e42dee5f0ed883c6e3e3954ad8db45303fea5102f5cce0d1d7a8f",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (g) /payments, Pending then Completed 2`] = `
 {
   "lines": 483,
-  "sha256": "c684b42fb9083dbc11ffc83d1d196bc6cfacde25693ed6c8387177607b4fa5e2",
+  "sha256": "f39b6d185a26fcfb3db8e607ec7cf165f6766c6eedcde4c500059b1c1fae5ee4",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (h) /payments, empty 1`] = `
 {
   "lines": 395,
-  "sha256": "23b637745ae9bcfb787834f0d844511051fa9f6bddf3de2ee0af1d24d890a020",
+  "sha256": "121c89523efec534c139fdd36364b3bd7f4296896a165afe9477e9ae8647be85",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (i) /lien-waivers, four waivers 1`] = `
 {
-  "lines": 736,
-  "sha256": "40bfb26ef98891c8001ef109c1dfe491150e9a835f9e8636a77209cd5e60e9dd",
+  "lines": 738,
+  "sha256": "401cf667019552e3086ffa680c1f679feccf9250325c989038cb3b9cfdc46652",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (j) /lien-waivers, a failed read with a cache (the stale banner) 1`] = `
 {
-  "lines": 623,
-  "sha256": "6c92c86ffd30d9d4031b06e2e5fa25da9d2a083a893bbc4556b0d7ce3d08d6d0",
+  "lines": 625,
+  "sha256": "2ade0234577e71779dea5682745658ac43301080377ff9df9ce8ce62d894cd46",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (k) /lien-waivers, a failed read without a cache 1`] = `
 {
-  "lines": 472,
-  "sha256": "0d9683ac207fa6599ca41e824f52408c5c24c769badbd788984263a9bb58beb0",
+  "lines": 474,
+  "sha256": "ed84a2c19fc59005d1fcd22d07e25481b26460bcdcfaebc9b8fd73b0116eb0de",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (l) /invoice, a draft with 3 lines 1`] = `
 {
   "lines": 1034,
-  "sha256": "6c53ec71300fcb36b771fcef2634abe22262f54e6ab859d2a0a63b7d5e2b593e",
+  "sha256": "d6fd94200971bc74af1a72c00e0e7fe96716f8d1c81d7ea5580c4c20a438f8b5",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (m) /invoice, sent with a pay link and a balance (the ONE intended delta) 1`] = `
 {
   "lines": 1047,
-  "sha256": "4a5193a994b4e00ec20845a120c9e76dd1e91d8f7e41e4c281f81fe2ba4e9b84",
+  "sha256": "ec04217683a3b540659cd8ebbf1052259add3d775403f8d5f3e4d614c846510a",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (pq) /prequal-manager, a packet renewing within 30 days (the coi-requote card; intended copy delta) 1`] = `
 {
   "lines": 481,
-  "sha256": "c8349f0f0c27bd6bf78a17e6a6bc6f7a39843485b83d53e26d7eb39e222d2c4a",
+  "sha256": "4bf0ebbf5af512cf1ed90c9d1aae7a309e78cb3aeae6de971e131348ca85f18b",
 }
 `;

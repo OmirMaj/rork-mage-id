@@ -59,10 +59,10 @@ interface BatchResultItem {
 }
 
 const QUICK_COMMANDS = [
-  { label: 'Update progress', template: 'Update [task] to [%] percent' },
-  { label: 'Mark complete', template: 'Mark [task] complete' },
-  { label: 'Log issue', template: 'Log issue: ' },
-  { label: 'Add note', template: 'Add note to [task]: ' },
+  { label: 'Update Progress', template: 'Update [task] to [%] percent' },
+  { label: 'Mark Complete', template: 'Mark [task] complete' },
+  { label: 'Log Issue', template: 'Log issue: ' },
+  { label: 'Add Note', template: 'Add note to [task]: ' },
   { label: "What's the status?", template: "What's the status of my project?" },
   { label: "What's next?", template: 'What tasks are coming up next?' },
 ];
@@ -333,7 +333,7 @@ export default function VoiceCommandModal({
         </View>
       </View>
 
-      <Text style={s.sectionLabel}>Quick commands</Text>
+      <Text style={s.sectionLabel}>Quick Commands</Text>
       <View style={s.chipsRow}>
         {QUICK_COMMANDS.map((cmd, i) => (
           <TouchableOpacity
@@ -389,7 +389,7 @@ export default function VoiceCommandModal({
         )}
         <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
           <Mic size={14} color="#fff" strokeWidth={1.75} />
-          <Text style={s.newCmdBtnText}>New command</Text>
+          <Text style={s.newCmdBtnText}>New Command</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -417,11 +417,11 @@ export default function VoiceCommandModal({
         {undoAction && (
           <TouchableOpacity style={s.undoBtn} onPress={handleUndo} activeOpacity={0.7}>
             <RotateCcw size={14} color={Colors.primary} strokeWidth={1.75} />
-            <Text style={s.undoBtnText}>Undo all</Text>
+            <Text style={s.undoBtnText}>Undo All</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
-          <Text style={s.newCmdBtnText}>New command</Text>
+          <Text style={s.newCmdBtnText}>New Command</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -432,7 +432,7 @@ export default function VoiceCommandModal({
       <View style={s.errorIcon}>
         <HelpCircle size={36} color={Colors.warningLabel} strokeWidth={1.75} />
       </View>
-      <Text style={s.stateTitle}>Didn't catch that</Text>
+      <Text style={s.stateTitle}>Didn't Catch That</Text>
       <Text style={s.stateMessage}>{resultMessage}</Text>
       <View style={s.helpSection}>
         <Text style={s.helpTitle}>Try something like:</Text>
@@ -442,7 +442,7 @@ export default function VoiceCommandModal({
       </View>
       <View style={s.actionRow}>
         <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
-          <Text style={s.newCmdBtnText}>Try again</Text>
+          <Text style={s.newCmdBtnText}>Try Again</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -503,7 +503,7 @@ export default function VoiceCommandModal({
             <View style={s.header}>
               <View style={s.headerLeft}>
                 <Mic size={18} color={Colors.primary} strokeWidth={1.75} />
-                <Text style={s.headerTitle}>Voice commands</Text>
+                <Text style={s.headerTitle}>Voice Commands</Text>
                 <View style={s.aiBadge}>
                   <MageAIMark size={9} color={Colors.primary} />
                   <Text style={s.aiBadgeText}>AI</Text>

@@ -144,7 +144,7 @@ describe('D1: "+ > Estimate" always asks, "+ New job" first', () => {
     const order = m.ids().filter(id => id === 'createmenu-new-job' || id.startsWith('createmenu-pick-project-'));
     expect(order).toEqual(['createmenu-new-job', 'createmenu-pick-project-p1', 'createmenu-pick-project-p2', 'createmenu-pick-project-p3']);
     expect(m.texts()).toContain('Estimate for Henderson');
-    expect(m.texts()).toContain('New project instead');
+    expect(m.texts()).toContain('New Project Instead');
     m.unmount();
   });
 
@@ -243,7 +243,7 @@ describe('D3: the menu knows the job', () => {
   it('"Progress draw" replaces "Progress Billing"', () => {
     mockWorld.projects = [HENDERSON];
     const m = mount();
-    expect(m.texts()).toContain('Progress draw');
+    expect(m.texts()).toContain('Progress Draw');
     expect(m.texts()).not.toContain('Progress Billing');
     m.unmount();
   });

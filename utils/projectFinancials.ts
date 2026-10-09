@@ -521,7 +521,7 @@ export function uncheckedContractSumSendNotice(
 ): { title: string; message: string } | null {
   if (basis !== 'estimate_unread' && basis !== 'saved_unread') return null;
   return {
-    title: 'Signed contract not checked',
+    title: 'Signed Contract Not Checked',
     message: `MAGE ID could not check the signed contract. This change order will show ${money(value)} as the original contract sum. Send anyway?`,
   };
 }

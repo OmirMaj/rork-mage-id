@@ -113,6 +113,7 @@ import { queuePhotoUpload, countQueuedPhotoUploadsForProject, discardQueuedPhoto
 import { deviceCopyForServerRow, type PriorDeviceCopy } from '@/utils/deviceLocalCopy';
 import { unsavedWriteIds, readSyncFailuresOrThrow, ownFailures, onUnsavedDiscarded, onUnsavedRetried, ownUnsavedWrites, noteUnsavedWrites, recordSyncFailures, labelForWrite, acknowledgeSyncFailures, isRecordRetrying } from '@/utils/syncLedger';
 import { resolvePhotoUrls, deleteProjectPhotoObject } from '@/utils/storage';
+import { isRfpAttachmentRef, resolveRfpAttachmentUrls } from '@/utils/rfpAttachmentUrls';
 import {
   carryDeviceLocalPlanSheetUris, durablePlanSheetValue, localPlanSheetValue,
   planSheetRowUris, resolvePlanSheetUrls,
@@ -421,9 +422,18 @@ function dfrPhotoRows(photos: DFRPhoto[] | undefined): DFRPhoto[] {
  * never blank out a photo the user took themselves.
  */
 async function buildPhotoUrlResolver(storedValues: (string | undefined)[]): Promise<(stored: string | undefined, localUri?: string) => { uri: string; storagePath?: string }> {
-  const paths = storedValues.filter((v): v is string => looksLikeStoragePath(v));
+  // A homeowner's posting photo carried onto the winner's project by award_rfp
+  // lives in the rfp-attachments bucket (a legacy public URL, or a bare path
+  // since that bucket went private) and is signed THERE, never treated as a
+  // project-photos path (utils/rfpAttachmentUrls).
+  const rfpRefs = storedValues.filter((v): v is string => isRfpAttachmentRef(v));
+  const rfpSigned = rfpRefs.length > 0 ? await resolveRfpAttachmentUrls(rfpRefs) : new Map<string, string>();
+  const paths = storedValues.filter((v): v is string => looksLikeStoragePath(v) && !isRfpAttachmentRef(v));
   const signed = paths.length > 0 ? await resolvePhotoUrls(paths) : new Map<string, string>();
   return (stored, localUri) => {
+    if (stored && isRfpAttachmentRef(stored)) {
+      return { uri: localUri || (rfpSigned.get(stored) ?? ''), storagePath: undefined };
+    }
     const storagePath = looksLikeStoragePath(stored) ? stored : undefined;
     if (localUri) return { uri: localUri, storagePath };
     if (storagePath) return { uri: signed.get(storagePath) ?? '', storagePath };
@@ -5971,7 +5981,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         // "place these days" preview applies them (#37).
         void sendLocalNotification(
           `CO #${nextCO.number} approved in the client portal`,
-          `${normalizeImpactDays(nextCO.scheduleImpactDays)} day${normalizeImpactDays(nextCO.scheduleImpactDays) === 1 ? '' : 's'} not on the schedule yet — review and place them.`,
+          `${normalizeImpactDays(nextCO.scheduleImpactDays)} day${normalizeImpactDays(nextCO.scheduleImpactDays) === 1 ? '' : 's'} not on the schedule yet. Review and place them.`,
           { changeOrderId: nextCO.id, projectId: nextCO.projectId },
         );
       }
@@ -6633,7 +6643,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         if (!sent.ok) {
           // Never silently: the report saved, the schedule did not, and only
           // he can decide what to do about it.
-          showAlert('Schedule not updated', `${sent.message} The daily report itself saved — its progress did not reach the schedule.`);
+          showAlert('Schedule Not Updated', `${sent.message} The daily report itself saved. Its progress did not reach the schedule.`);
           return;
         }
         // A task the server no longer has takes none of its patch, so neither
@@ -6641,7 +6651,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         // that only exists on this phone.
         const accepted = patches.filter((p) => !sent.missing.includes(p.id));
         if (sent.missing.length > 0) {
-          showAlert('Some progress did not save', `${sent.missing.length} task${sent.missing.length === 1 ? '' : 's'} this report reported on ${sent.missing.length === 1 ? 'is' : 'are'} no longer on the schedule. The rest of the progress saved.`);
+          showAlert('Some progress did not save.', `${sent.missing.length} task${sent.missing.length === 1 ? '' : 's'} this report reported on ${sent.missing.length === 1 ? 'is' : 'are'} no longer on the schedule. The rest of the progress saved.`);
         }
         // Patch the schedule as it is NOW, not as it was before the round trip.
         const live = projectsRef.current.find(p => p.id === proj.id)?.schedule ?? schedule;
@@ -9111,7 +9121,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
     const revert = (reason: string): ReviewCycleResult => {
       applyLocal(s => ({ ...s, reviewCycles: sub.reviewCycles, currentStatus: sub.currentStatus }));
-      showAlert('Review cycle not saved', reason);
+      showAlert('Review Cycle Not Saved', reason);
       return { ok: false, reason };
     };
     // #23 (wave 4): `enqueue` when the submittal's own INSERT (or an earlier
@@ -10682,7 +10692,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // arrives here too — and the server does not tell the loader who ended
     // the membership.
     const tell = (unsent: number) => toldIds.length > 0 && showAlert(
-      'No longer on a project',
+      'No Longer on a Project',
       `You no longer have access to ${which}. You left it, its owner removed you, or it was deleted, so it has left this phone.`
         + (unsent > 0 ? ` ${unsent} change${unsent === 1 ? '' : 's'} you had not synced for it could not be sent.` : ''),
     );

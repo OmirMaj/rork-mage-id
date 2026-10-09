@@ -72,7 +72,7 @@ export function contractTimeline(startDate?: string, durationDays?: number): Con
  * PDF. One sentence, one source, so the three cannot state different dates.
  */
 export function contractTimelineSentence(t: ContractTimeline): string {
-  return `Work commences on ${t.startLabel} and reaches substantial completion within ${t.durationDays} calendar days — on or before ${t.completionLabel}. Any change to this timeline requires a written Change Order signed by both parties.`;
+  return `Work commences on ${t.startLabel} and reaches substantial completion within ${t.durationDays} calendar days, on or before ${t.completionLabel}. Any change to this timeline requires a written Change Order signed by both parties.`;
 }
 
 export interface ContractTimelineSuggestion extends ContractTimeline {

@@ -404,7 +404,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     </p>
   ` : missingContactCount > 0 ? `
     <p style="margin:8px 2px 0;font-size:11px;color:${PDF_PALETTE.textMuted};font-style:italic">
-      ${missingContactCount} of ${tradeContacts.length} trades ${missingContactCount === 1 ? 'has' : 'have'} no phone or email on file — we never captured one. Contact us and we'll put you in touch.
+      ${missingContactCount} of ${tradeContacts.length} trades ${missingContactCount === 1 ? 'has' : 'have'} no phone or email on file because we never captured one. Contact us and we'll put you in touch.
     </p>
   ` : '';
 
@@ -439,10 +439,10 @@ export function buildBinderHtml(input: BuildBinderInput): string {
   // or an unescaped fallback reaching a client-facing PDF.
   const SUBMITTAL_STATUS_LABELS: Record<SubmittalStatus, string> = {
     pending: 'Pending',
-    in_review: 'In review',
+    in_review: 'In Review',
     approved: 'Approved',
-    approved_as_noted: 'Approved as noted',
-    revise_resubmit: 'Revise & resubmit',
+    approved_as_noted: 'Approved as Noted',
+    revise_resubmit: 'Revise and Resubmit',
     rejected: 'Rejected',
   };
   const projectSubmittals = (submittals ?? [])
@@ -527,13 +527,13 @@ export function buildBinderHtml(input: BuildBinderInput): string {
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Project closeout',
+      eyebrow: 'Project Closeout',
       title:   `${project.name} · Closeout binder`,
       subtitle: `Everything you need to maintain, troubleshoot and improve this project.`,
       meta: [
         { label: 'Address',     value: project.location ?? '—' },
         { label: 'Completion',  value: completionLabel(completionDate) },
-        { label: 'Built by',    value: branding.companyName ?? 'MAGE ID' },
+        { label: 'Built By',    value: branding.companyName ?? 'Contractor' },
       ],
     })}
     ${heroSection}

@@ -53,6 +53,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink';
 import { settleWithin } from '@/utils/projectRole';
 import { describeError } from '@/utils/errorCopy';
+import { AgreementNotice } from '@/components/ProtectNotices';
 
 const PENDING_KEY = 'mageid_pending_invite';
 type Status = 'idle' | 'accepting' | 'done' | 'error' | 'signin';
@@ -247,7 +248,7 @@ export default function AcceptInvite() {
                   <Text style={styles.btnText}>Setting up your account…</Text>
                 </View>
               ) : (
-                <Text style={styles.btnText}>{projectId ? 'Open the project' : 'Go to Home'}</Text>
+                <Text style={styles.btnText}>{projectId ? 'Open the Project' : 'Go to Home'}</Text>
               )}
             </TouchableOpacity>
           </>
@@ -255,13 +256,14 @@ export default function AcceptInvite() {
           <>
             <Text style={[styles.title, { color: t.text }]}>You're invited to a project</Text>
             <Text style={[styles.sub, { color: t.textSecondary }]}>Sign in or create a free account with the address this invite was sent to. You'll come straight back here to accept. If you lose this page, the invite also waits on your Home screen.</Text>
+            <AgreementNotice testID="accept-invite-agreement" style={{ marginBottom: 12 }} />
             <TouchableOpacity style={[styles.btn, { backgroundColor: t.accentFill }]} onPress={() => router.push(loginHrefForInvite(params.token) as never)} accessibilityRole="button">
-              <Text style={styles.btnText}>Sign in to accept</Text>
+              <Text style={styles.btnText}>Sign In to Accept</Text>
             </TouchableOpacity>
           </>
         ) : status === 'error' ? (
           <>
-            <Text style={[styles.title, { color: t.text }]}>Couldn't accept the invite</Text>
+            <Text style={[styles.title, { color: t.text }]}>Couldn't Accept the Invite</Text>
             <Text style={[styles.sub, { color: t.danger }]}>{error}</Text>
             {signedInAs ? (
               <TouchableOpacity
@@ -270,12 +272,12 @@ export default function AcceptInvite() {
                 accessibilityRole="button"
                 accessibilityHint="Copies the address to send to the person who invited you"
               >
-                <Text style={styles.btnText}>{copied ? 'Copied' : 'Copy my sign-in email'}</Text>
+                <Text style={styles.btnText}>{copied ? 'Copied' : 'Copy My Sign-In Email'}</Text>
               </TouchableOpacity>
             ) : null}
             {canRetryInvite(errCode) ? (
               <TouchableOpacity style={[styles.btn, { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line }]} onPress={() => setStatus('idle')} accessibilityRole="button">
-                <Text style={[styles.btnText, { color: t.text }]}>Try again</Text>
+                <Text style={[styles.btnText, { color: t.text }]}>Try Again</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
@@ -284,7 +286,7 @@ export default function AcceptInvite() {
               accessibilityRole="button"
               testID="accept-invite-home"
             >
-              <Text style={[styles.btnText, { color: t.text }]}>{isAuthenticated ? 'Go to Home' : 'Go to sign in'}</Text>
+              <Text style={[styles.btnText, { color: t.text }]}>{isAuthenticated ? 'Go to Home' : 'Go to Sign In'}</Text>
             </TouchableOpacity>
             {isAuthenticated && errCode !== 'invalid_or_used' && errCode !== 'is_client' ? (
               <Text style={[styles.sub, { color: t.textSecondary }]}>If you were sent a newer invite, it's waiting on your Home screen.</Text>

@@ -42,7 +42,7 @@ import {
 import type { CertificateOfInsurance, SavedAIAPayApp } from '@/types';
 
 /** The page's one-line sub-copy. No contracts: they are not in this feed. */
-export const DOCUMENTS_REGISTER_META = 'Your COIs, permits, submittals and AIA-style pay apps across your projects — in one feed. Click a row to open it where it lives.';
+export const DOCUMENTS_REGISTER_META = 'Your COIs, permits, submittals and AIA-style pay apps across your projects, in one feed. Click a row to open it where it lives.';
 
 const STATUS_TONE: Readonly<Record<DocumentTone, StatusTone>> = {
   danger: 'error',
@@ -92,11 +92,11 @@ export function DocumentsRegister({
       { key: 'waiting', label: 'Waiting', value: stats.pending, tone: stats.pending > 0 ? 'warn' : undefined },
       { key: 'done', label: 'Done', value: stats.done, tone: 'good' },
       { key: 'expired', label: 'Expired', value: stats.expired, tone: stats.expired > 0 ? 'bad' : undefined },
-      { key: 'expiring', label: 'Expiring ≤30 d', value: stats.expiringSoon, tone: stats.expiringSoon > 0 ? 'warn' : undefined },
+      { key: 'expiring', label: 'Expiring Within 30 Days', value: stats.expiringSoon, tone: stats.expiringSoon > 0 ? 'warn' : undefined },
     ];
     const risk = stats.coiFailed + stats.coiReview;
     if (risk > 0) {
-      out.push({ key: 'coi', label: 'COI at risk', value: risk, tone: 'bad', href: routeHref('/coi-vault'), testID: 'documents-register-coi-risk' });
+      out.push({ key: 'coi', label: 'COI at Risk', value: risk, tone: 'bad', href: routeHref('/coi-vault'), testID: 'documents-register-coi-risk' });
     }
     return out;
   }, [stats]);
@@ -135,12 +135,12 @@ export function DocumentsRegister({
   const emptyState = documents.length === 0 ? (
     <EmptyState
       icon={icon}
-      title="Nothing filed yet"
-      message="This screen collects documents — it does not create them. Each kind is filed on its own screen and shows up here automatically."
+      title="Nothing Filed Yet"
+      message="This screen collects documents. It does not create them. Each kind is filed on its own screen and shows up here automatically."
       steps={[
         'COIs: add a subcontractor certificate in the COI Vault.',
         'Permits: log an application on the Permits screen.',
-        'Submittals and pay apps: open a project — both are filed inside one.',
+        'Submittals and pay apps: open a project. Both are filed inside one.',
       ]}
       actionLabel="Open COI Vault"
       onAction={() => router.push(routeHref('/coi-vault'))}
@@ -150,9 +150,9 @@ export function DocumentsRegister({
   ) : (
     <EmptyState
       icon={icon}
-      title="Nothing under this filter"
-      message={`You have ${documents.length} document${documents.length === 1 ? '' : 's'}, but none are filed under "${chipLabel}". Nothing is missing — this is the filter, not the feed.`}
-      actionLabel="Show all"
+      title="Nothing Under This Filter"
+      message={`You have ${documents.length} document${documents.length === 1 ? '' : 's'}, but none are filed under "${chipLabel}". Nothing is missing. This is the filter, not the feed.`}
+      actionLabel="Show All"
       onAction={() => setSelectedFilter('all')}
     />
   );
@@ -161,7 +161,7 @@ export function DocumentsRegister({
     <Card testID="documents-register-files">
       <View style={styles.filesHead}>
         <FolderOpen size={16} color={t.accent} strokeWidth={1.75} />
-        <Text style={styles.filesHeading}>Uploaded files and scans</Text>
+        <Text style={styles.filesHeading}>Uploaded Files and Scans</Text>
       </View>
       <Text style={styles.filesBody}>
         Files you upload and documents filed by Scan anything are kept in each project&apos;s Files, not in this feed.

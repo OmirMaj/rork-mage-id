@@ -77,8 +77,8 @@ export function burstSummary(captured: number, stoppedBy: BurstStop, capLabel: s
   if (stoppedBy === 'permission') {
     return captured > 0
       ? tn('field.chrome.burst.permissionPartway', captured, {
-        one: 'Added {count} photo. Camera access was turned off partway through — turn it back on in Settings to keep shooting.',
-        other: 'Added {count} photos. Camera access was turned off partway through — turn it back on in Settings to keep shooting.',
+        one: 'Added {count} photo. Camera access was turned off partway through. Turn it back on in Settings to keep shooting.',
+        other: 'Added {count} photos. Camera access was turned off partway through. Turn it back on in Settings to keep shooting.',
       })
       : t('field.chrome.burst.permissionOff', 'Camera access is off. Turn it on in Settings to shoot a photo walk.');
   }
@@ -92,8 +92,8 @@ export function burstSummary(captured: number, stoppedBy: BurstStop, capLabel: s
   }
   if (stoppedBy === 'limit') {
     return tn('field.chrome.burst.limit', captured, {
-      one: 'Added {count} photo — that is the {capLabel} limit for this record. Anything else has to go somewhere else.',
-      other: 'Added {count} photos — that is the {capLabel} limit for this record. Anything else has to go somewhere else.',
+      one: 'Added {count} photo. That is the {capLabel} limit for this record. Anything else has to go somewhere else.',
+      other: 'Added {count} photos. That is the {capLabel} limit for this record. Anything else has to go somewhere else.',
     }, { capLabel });
   }
   // 'cancelled' — the user ended the walk, and every shot they took is on

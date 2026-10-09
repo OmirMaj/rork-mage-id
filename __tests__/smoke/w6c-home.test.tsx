@@ -4,7 +4,7 @@
  * The founder, on a 1512 × 945 MacBook: "the website app... really isn't
  * utilizing the space a computer screen gives you". Lane F puts a sortable
  * portfolio table first on the desktop Home, makes the action rail the one
- * attention list (with 'See all' to a real /attention page), and fixes the
+ * attention list (with 'See All' to a real /attention page), and fixes the
  * vanishing new job. Every one of those edits is `isDesktop && …`, a
  * `responsive.isDesktop ? <desktop/> : <today's JSX>` switch, a sheet frame
  * whose phone branch is null, or a 6b primitive whose phone branch returns
@@ -335,8 +335,8 @@ describe('lane F — /attention on the phone (390 iOS)', () => {
     await primeWorld('empty');
     const tree = await mountRouteChecked('/attention');
     await pump();
-    expect(screen.getByText('All caught up')).toBeTruthy();
-    expect(screen.getByText('Nothing overdue on schedules, invoices, permits or certs.')).toBeTruthy();
+    expect(screen.getByText('All Caught Up')).toBeTruthy();
+    expect(screen.getByText('Nothing overdue on schedules, invoices, permits or certificates.')).toBeTruthy();
     expect(fingerprint('attention-phone-empty', tree.toJSON())).toMatchSnapshot();
   });
 
@@ -479,7 +479,7 @@ describe('lane F — primitives at a phone width', () => {
     env('ios', 390, 844);
     const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', 'components', 'home', 'BrainWatchCard.tsx'), 'utf8') as string; // eslint-disable-line @typescript-eslint/no-require-imports
     // The phone branch is today's Text, byte for byte; the link is behind isDesktop.
-    expect(src).toMatch(/isDesktop \? \([\s\S]*?<RowLink[\s\S]*?\) : \(\s*<Text style=\{styles\.overflowHint\}>\s*\+\{items\.length - MAX_VISIBLE\} more — open each screen to review\s*<\/Text>\s*\)\)\}/);
+    expect(src).toMatch(/isDesktop \? \([\s\S]*?<RowLink[\s\S]*?\) : \(\s*<Text style=\{styles\.overflowHint\}>\s*\+\{items\.length - MAX_VISIBLE\} more\. Open each screen to review\.\s*<\/Text>\s*\)\)\}/);
   });
 });
 

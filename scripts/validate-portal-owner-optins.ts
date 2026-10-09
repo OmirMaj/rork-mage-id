@@ -322,7 +322,7 @@ console.log('\nwiring');
     const at = cb.indexOf('if (!indexStatus.ok) {');
     const failBlock = at < 0 ? '' : cb.slice(at, cb.indexOf('\n      }\n', at));
     ok('closeout binder: a failed index keeps the previous bake and says so',
-      /showAlert\(\s*'Ask Your Home not updated'/.test(failBlock) && /\n\s*return;\s*$/.test(failBlock)
+      /showAlert\(\s*'Ask Your Home Not Updated'/.test(failBlock) && /\n\s*return;\s*$/.test(failBlock)
       && at < cb.indexOf('await saveBakedPassport('), failBlock.slice(-120));
   }
   ok('closeout binder: the switch copy names only the surfaces each switch changes',
@@ -411,7 +411,7 @@ console.log('\nthe closeout-binder email promises only what is true');
   const n = read('supabase/functions/notify/index.ts');
   const block = n.slice(n.indexOf("case 'closeout_binder_sent': {"), n.indexOf('pushData:', n.indexOf("case 'closeout_binder_sent': {")));
   const said = code(block);
-  ok('found the homeowner email block', said.includes('Open my portal'));
+  ok('found the homeowner email block', said.includes('Open My Portal'));
   ok('it no longer promises a sub contact', !/sub contact/i.test(said));
   ok('it no longer says the portal does not expire', !/doesn't expire|does not expire|never expires/i.test(said));
   ok('it states the real rule: open until 30 days after the job is closed out',

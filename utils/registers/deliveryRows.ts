@@ -70,5 +70,5 @@ export const DELIVERY_CSV_COLUMNS: readonly RegisterCsvColumn<DeliveryRegisterRo
   { key: 'window', label: 'Window', csvValue: (r) => r.window },
   { key: 'po', label: 'PO', csvValue: (r) => r.po },
   { key: 'confirmed', label: 'Confirmed', csvValue: (r) => (r.confirmed ? 'Yes' : 'No') },
-  { key: 'building', label: 'Building access', csvValue: (r) => r.firstConflict?.message ?? null },
+  { key: 'building', label: 'Building Access', csvValue: (r) => r.firstConflict?.message ?? null },
 ];

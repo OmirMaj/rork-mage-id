@@ -187,14 +187,14 @@ export interface ScopeStep {
 }
 
 export const SCOPE_STEPS: ScopeStep[] = [
-  { key: 'projectType', title: 'What kind of project?', subtitle: "Pick the closest match — we'll refine in the next steps.", iconKey: 'building', kind: 'chips', optional: false },
-  { key: 'sizeSqft', title: 'How big is the project?', subtitle: 'Approximate square footage of the work area.', iconKey: 'home', kind: 'numeric', placeholder: 'e.g. 1500', optional: false },
-  { key: 'location', title: "Where's the job?", subtitle: 'City and state — we use this for regional pricing.', iconKey: 'building', kind: 'text', placeholder: 'e.g. Austin, TX', optional: false },
+  { key: 'projectType', title: 'What kind of project?', subtitle: "Pick the closest match. We'll refine in the next steps.", iconKey: 'building', kind: 'chips', optional: false },
+  { key: 'sizeSqft', title: 'How big is the project?', subtitle: 'Approximate square footage of the work area.', iconKey: 'home', kind: 'numeric', placeholder: '1500', optional: false },
+  { key: 'location', title: "Where's the job?", subtitle: 'City and state. We use this for regional pricing.', iconKey: 'building', kind: 'text', placeholder: 'Austin, TX', optional: false },
   { key: 'quality', title: 'What quality tier?', subtitle: 'Drives material selection and labor assumptions.', iconKey: 'sparkles', kind: 'qualityChips', optional: false },
-  { key: 'scope', title: "What's the scope?", subtitle: "A few sentences on what you're actually building.", iconKey: 'wrench', kind: 'textarea', placeholder: 'e.g. Gut kitchen, new cabinets and quartz counters, move the sink wall, add island with seating, replace floors.', lines: 5, optional: false },
-  { key: 'timelineWeeks', title: "What's the timeline?", subtitle: 'Expected duration in weeks — optional, skip if unsure.', iconKey: 'building', kind: 'numeric', placeholder: 'e.g. 8', optional: true },
-  { key: 'specialRequirements', title: 'Any special requirements?', subtitle: 'Permits, HOA, historic, accessibility, etc. Optional.', iconKey: 'sparkles', kind: 'textarea', placeholder: 'e.g. Historic district review, ADA bathroom.', lines: 4, optional: true },
-  { key: 'targetBudget', title: 'Target budget?', subtitle: 'Optional — helps the AI sanity-check the estimate.', iconKey: 'dollar', kind: 'numeric', placeholder: 'e.g. 75000', optional: true },
+  { key: 'scope', title: "What's the scope?", subtitle: "A few sentences on what you're actually building.", iconKey: 'wrench', kind: 'textarea', placeholder: 'Gut kitchen, new cabinets and quartz counters, move the sink wall, add island with seating, replace floors.', lines: 5, optional: false },
+  { key: 'timelineWeeks', title: "What's the timeline?", subtitle: 'Expected duration in weeks. Optional, skip if unsure.', iconKey: 'building', kind: 'numeric', placeholder: '8', optional: true },
+  { key: 'specialRequirements', title: 'Any special requirements?', subtitle: 'Permits, HOA, historic, accessibility, etc. Optional.', iconKey: 'sparkles', kind: 'textarea', placeholder: 'Historic district review, ADA bathroom.', lines: 4, optional: true },
+  { key: 'targetBudget', title: 'Target budget?', subtitle: 'Optional. Helps the AI sanity-check the estimate.', iconKey: 'dollar', kind: 'numeric', placeholder: '75000', optional: true },
 ];
 
 export const TOTAL_SCOPE_STEPS = SCOPE_STEPS.length;
@@ -232,10 +232,10 @@ export function stepBlockReason(stepIndex: number, a: WizardAnswers): string | n
   if (stepCanAdvance(stepIndex, a)) return null;
   switch (stepIndex) {
     case 0: return 'Pick a project type to continue, or tap Other and describe the job.';
-    case 1: return 'Enter the size with a number — e.g. 2500 or 2,500 sqft.';
-    case 2: return 'Enter a location — city and state is plenty.';
-    case 4: return 'Describe the scope in a few words — a short sentence is plenty.';
-    case 5: return 'Enter the timeline with a number of weeks — e.g. 6 or 6-8.';
+    case 1: return 'Enter the size with a number, like 2500 or 2,500 sqft.';
+    case 2: return 'Enter a location. City and state is plenty.';
+    case 4: return 'Describe the scope in a few words. A short sentence is plenty.';
+    case 5: return 'Enter the timeline with a number of weeks, like 6 or 6-8.';
     default: return 'Fill in this step to continue.';
   }
 }

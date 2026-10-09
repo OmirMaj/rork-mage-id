@@ -31,9 +31,9 @@ export const ZOLA_SEARCH_URL = 'https://zola.planning.nyc.gov/';
 const COMPACT_LINES = 3;
 
 function checkedLabel(iso: string | null | undefined): string {
-  if (!iso) return 'Checked — date unknown';
+  if (!iso) return 'Checked, date unknown';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'Checked — date unknown';
+  if (Number.isNaN(d.getTime())) return 'Checked, date unknown';
   const day = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   return `Checked ${day}, ${time}`;
@@ -81,7 +81,7 @@ export function BuildingRecordCard({
             Permits, violations, complaints and zoning from NYC Open Data. You confirm the building first.
           </Text>
           <Button
-            label="Look up this building at DOB"
+            label="Look Up This Building at DOB"
             onPress={br.lookup}
             variant="secondary"
             size="sm"
@@ -121,10 +121,10 @@ export function BuildingRecordCard({
             style={styles.linkBtn}
             onPress={() => openUrl(ZOLA_SEARCH_URL)}
             accessibilityRole="link"
-            accessibilityLabel="None of these — search ZoLa"
+            accessibilityLabel="None of these, search ZoLa"
             testID={`${tid}-none`}
           >
-            <Text style={styles.link}>None of these</Text>
+            <Text style={styles.link}>None of These</Text>
           </TouchableOpacity>
         </View>
       );
@@ -144,10 +144,10 @@ export function BuildingRecordCard({
               style={styles.linkBtn}
               onPress={() => setShowAll(true)}
               accessibilityRole="button"
-              accessibilityLabel="Show all building record lines"
+              accessibilityLabel="Show All Building Record Lines"
               testID={`${tid}-show-all`}
             >
-              <Text style={styles.link}>Show all</Text>
+              <Text style={styles.link}>Show All</Text>
             </TouchableOpacity>
           ) : null}
           {rec ? (
@@ -165,8 +165,8 @@ export function BuildingRecordCard({
           ) : null}
           <View style={styles.footer}>
             <Text style={styles.muted} testID={`${tid}-checked`}>{checkedLabel(rec?.fetchedAt)}</Text>
-            <TouchableOpacity style={styles.linkBtn} onPress={br.changeBuilding} accessibilityRole="button" accessibilityLabel="Change building" testID={`${tid}-change`}>
-              <Text style={styles.link}>Change building</Text>
+            <TouchableOpacity style={styles.linkBtn} onPress={br.changeBuilding} accessibilityRole="button" accessibilityLabel="Change Building" testID={`${tid}-change`}>
+              <Text style={styles.link}>Change Building</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -188,7 +188,7 @@ export function BuildingRecordCard({
   return (
     <Card radius="card" pad={14} style={compact ? styles.wrapCompact : styles.wrap} testID={tid}>
       <View style={styles.eyebrowRow}>
-        <EyebrowLabel tone="neutral">NYC DOB record</EyebrowLabel>
+        <EyebrowLabel tone="neutral">NYC DOB Record</EyebrowLabel>
         {br.confirmed && br.phase !== 'confirm' ? (
           <Text style={styles.bin} numberOfLines={1}>{`BIN ${br.confirmed.bin}`}</Text>
         ) : null}

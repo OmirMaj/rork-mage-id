@@ -202,7 +202,7 @@ assert(!!shareRun && !/identity:\s*true/.test(shareRun.span), 'the share gate as
 assert(!!shareRun && /\((\w+)\)\s*=>\s*\{[^}]*copyProposalLink\(\s*\1\.split\s*\)/.test(shareRun.span),
   "the continuation passes the gate's own answer (a.split) to copyProposalLink");
 assert(!!shareRun && /afterDismiss/.test(shareRun.span),
-  'the "Proposal link copied" alert waits for the ask sheet to finish closing (afterDismiss)');
+  'the "Proposal Link Copied" alert waits for the ask sheet to finish closing (afterDismiss)');
 
 // The client preview: his split when set, a not-set branch when not.
 assert(/paymentSchedule=\{\s*savedSplit\s*\?\s*proposalPaymentLines\(\s*clientView\.projectTotal\s*,\s*savedSplit\s*\)\s*:\s*undefined\s*\}/.test(review),
@@ -218,9 +218,9 @@ assert(statusBranch >= 0 && !!notSet && statusBranch < notSet.index,
 assert(/testID="review-terms-loading"/.test(review) && /onPress=\{savedTerms\.retry\}/.test(review),
   '…and the loading/failed branch has its own card with a Retry on a failed read');
 const notSetSpan = notSet ? review.slice(notSet.index, notSet.index + 900) : '';
-assert(/Payment schedule — not set yet\. You’ll be asked before you share\./.test(notSetSpan),
+assert(/Payment schedule: not set yet\. You’ll be asked before you share\./.test(notSetSpan),
   'the client preview has the GC-only "not set yet" line');
-assert(/label="Set now"/.test(notSetSpan) && /onPress=\{handleSetTermsNow\}/.test(notSetSpan),
+assert(/label="Set Now"/.test(notSetSpan) && /onPress=\{handleSetTermsNow\}/.test(notSetSpan),
   '…with a Set now button');
 const setNowDecl = /const handleSetTermsNow = useCallback\(\(\) => \{/.exec(review);
 const setNowBody = setNowDecl ? balanced(review, setNowDecl.index + setNowDecl[0].length - 1) : '';

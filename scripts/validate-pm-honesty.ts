@@ -1,13 +1,13 @@
 // validate-pm-honesty.ts — Phase 0, lane D1: the Property Manager screens say
 // what is true and keep what he typed.
 //
-// Before this: "Post for bids" promised "MAGE ID contractors who cover your
+// Before this: "Post for Bids" promised "MAGE ID contractors who cover your
 // area" while RFP_BROWSE_ENABLED and SERVICE_AREA_SETUP_ENABLED were both off
 // and no post could reach anyone; the assignee vanished once a job left
 // 'assigned'; dispatch texts were signed from contractor branding a PM never
 // fills in; an empty send sheet said "Add … in the Contacts screen" with no
 // way there; owner email, units and notes were columns nothing could enter;
-// budgets lost their cents; the portfolio was missing from "Export my data";
+// budgets lost their cents; the portfolio was missing from "Export My Data";
 // comments still said "all data is local"; the open status was the
 // pre-rebrand orange; a plain Add button wore the AI mark.
 //
@@ -99,7 +99,7 @@ console.log('\n── "Post for bids" says what really happens ──');
     sendAt > -1 && sendAt < tileAt && /styles\.bridgeBtnPrimary/.test(woCode.slice(woCode.lastIndexOf('<TouchableOpacity', sendAt), sendAt)));
   ok('an order already Out for bids says the same and offers "Send to a contractor instead"',
     /const outForBidsGoesNowhere = wo\.status === 'posted_for_bids' && !BIDS_GATE\.open;/.test(woCode)
-    && /\{outForBidsGoesNowhere && \([\s\S]{0,400}\{BIDS_GATE\.reason\}[\s\S]{0,600}Send to a contractor instead/.test(woCode)
+    && /\{outForBidsGoesNowhere && \([\s\S]{0,400}\{BIDS_GATE\.reason\}[\s\S]{0,600}Send to a Contractor Instead/.test(woCode)
     && /testID="wo-send-instead"/.test(woCode));
   // The flags really are off today, so the closed branch is what ships.
   ok('(today) the flags are off, so the shipped tile is the closed one',
@@ -124,7 +124,7 @@ console.log('\n── the assignee and the signature ──');
 
 console.log('\n── an empty contractor list is not a dead end ──');
 {
-  ok('the send sheet has an "Add a contractor" button', /testID="wo-add-contractor"/.test(woCode) && />Add a contractor</.test(woCode));
+  ok('the send sheet has an "Add a contractor" button', /testID="wo-add-contractor"/.test(woCode) && />Add a Contractor</.test(woCode));
   ok('...rendered whether or not the list is empty (after the list/empty ternary)',
     woCode.indexOf('testID="wo-add-contractor"') > woCode.indexOf('No contacts yet.'));
   ok('the empty text no longer points at a screen with no link to it', !/in the Contacts screen/.test(woCode));
@@ -250,8 +250,8 @@ console.log('\n── the portfolio is in "Export my data" ──');
     /const \{ properties: managedProperties, workOrders \} = useProperties\(\);/.test(screen)
     && /managedProperties,\s*workOrders,\s*aiaPayApps,/.test(screen));
   ok('the screen lists them under WHAT\'S INCLUDED when there is a portfolio',
-    /<SummaryLine label="Managed properties" value=\{totals\.managedProperties\} \/>/.test(screen)
-    && /<SummaryLine label="Work orders" value=\{totals\.workOrders\} \/>/.test(screen));
+    /<SummaryLine label="Managed Properties" value=\{totals\.managedProperties\} \/>/.test(screen)
+    && /<SummaryLine label="Work Orders" value=\{totals\.workOrders\} \/>/.test(screen));
 }
 
 console.log('\n── stale comments, colours, the AI mark ──');
@@ -284,7 +284,7 @@ console.log('\n── stale comments, colours, the AI mark ──');
     ok(`${mode}: emergency is the danger pair`, pm.workOrderPriorityTone(t, 'emergency').fg === t.dangerLabel);
   }
   ok('"Add property" uses the Plus icon, not the AI mark',
-    !/MageAIMark/.test(homeCode) && /<Plus size=\{15\} color=\{Colors\.textOnAccent\}[^>]*\/>\s*<Text style=\{styles\.modalCtaText\}>Add property<\/Text>/.test(homeCode));
+    !/MageAIMark/.test(homeCode) && /<Plus size=\{15\} color=\{Colors\.textOnAccent\}[^>]*\/>\s*<Text style=\{styles\.modalCtaText\}>Add Property<\/Text>/.test(homeCode));
 }
 
 console.log(fail ? `\n${fail} FAILED, ${pass} passed` : `\nALL PASS (${pass})`);

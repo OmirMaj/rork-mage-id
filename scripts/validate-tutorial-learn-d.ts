@@ -126,7 +126,7 @@ console.log('lane D tutorials\nfixtures');
   ok('legal rule: the set-up ids are not (and neither is "design" / "assign")',
     notLegal.every(x => !isLegalOrOutboundTarget(x)), notLegal.filter(isLegalOrOutboundTarget).join(', '));
   ok('legal rule: the three named LOOK-ONLY targets are on the list', ['contract.sign', 'payApp.certifyExplain', 'binder.deliver'].every(x => (LANE_D_LEGAL_TARGETS as readonly string[]).includes(x)));
-  ok('the sample refusal is the spec\'s sentence', SAMPLE_DOC_NOT_SENT === 'Sample job — contracts, pay applications and binders never go out from a sample.');
+  ok('the sample refusal is the spec\'s sentence', SAMPLE_DOC_NOT_SENT === 'Sample job. Contracts, pay applications and binders never go out from a sample.');
 }
 
 // ── 2. defs ─────────────────────────────────────────────────────────────────
@@ -134,9 +134,9 @@ console.log('defs');
 {
   const byId = new Map<string, TutorialDef>(LANE_D_DEFS.map(d => [d.id, d]));
   const spec: [string, string, string, number, string][] = [
-    ['contract-from-estimate', 'Set up a contract from the estimate', 'Start date and payment terms set, ready to sign', 45, 'client'],
-    ['pay-app-period', 'Fill in a pay application period', 'A draft pay application for this period', 45, 'money'],
-    ['closeout-binder', 'Build a closeout binder', 'A draft binder with every section in one place', 35, 'client'],
+    ['contract-from-estimate', 'Set Up a Contract from the Estimate', 'Start date and payment terms set, ready to sign', 45, 'client'],
+    ['pay-app-period', 'Fill In a Pay Application Period', 'A draft pay application for this period', 45, 'money'],
+    ['closeout-binder', 'Build a Closeout Binder', 'A draft binder with every section in one place', 35, 'client'],
   ];
   for (const [id, title, endsWith, seconds, group] of spec) {
     const d = byId.get(id);
@@ -192,7 +192,7 @@ const BD = strip(read('app/closeout-binder.tsx'));
   // ── contract: the outbound fence ──
   const press = callbackBody(CT, 'handleSignPress');
   ok('contract: handleSignPress (Sign & send AND Sign together) refuses a sample before anything opens',
-    /if \(sampleJobRef\.current\) \{ showAlert\('Sample job', SAMPLE_DOC_NOT_SENT\); return; \}/.test(press)
+    /if \(sampleJobRef\.current\) \{ showAlert\('Sample Job', SAMPLE_DOC_NOT_SENT\); return; \}/.test(press)
       && before(press, 'sampleJobRef.current', 'askContractTerms(') && before(press, 'sampleJobRef.current', 'setSignatureModal(true)')
       && before(press, 'sampleJobRef.current', 'setDeliveryAsk('));
   ok('contract: sampleJobRef is the render\'s isSampleProject(project)', /const sampleJob = isSampleProject\(project\);\s*const sampleJobRef = useRef\(sampleJob\);\s*sampleJobRef\.current = sampleJob;/.test(CT));
@@ -201,12 +201,12 @@ const BD = strip(read('app/closeout-binder.tsx'));
     /if \(sampleJobRef\.current\) return \{ status: 'refused', reason: SAMPLE_DOC_NOT_SENT \};/.test(signSend)
       && before(signSend, 'sampleJobRef.current', 'saveContractDetailed(') && before(signSend, 'sampleJobRef.current', 'emailContractLink('));
   const retry = callbackBody(CT, 'retryDelivery');
-  ok('contract: retryDelivery refuses a sample before it emails', /if \(isSampleProject\(p\)\) \{ showAlert\('Sample job', SAMPLE_DOC_NOT_SENT\); return; \}/.test(retry) && before(retry, 'isSampleProject(p)', 'emailContractLink('));
+  ok('contract: retryDelivery refuses a sample before it emails', /if \(isSampleProject\(p\)\) \{ showAlert\('Sample Job', SAMPLE_DOC_NOT_SENT\); return; \}/.test(retry) && before(retry, 'isSampleProject(p)', 'emailContractLink('));
   const copy = callbackBody(CT, 'copyContractLink');
-  ok('contract: copyContractLink refuses a sample before it copies the signing link', before(copy, /if \(isSampleProject\(projectRef\.current\)\) \{ showAlert\('Sample job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'copyToClipboard('));
+  ok('contract: copyContractLink refuses a sample before it copies the signing link', before(copy, /if \(isSampleProject\(projectRef\.current\)\) \{ showAlert\('Sample Job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'copyToClipboard('));
   const ask = callbackBody(CT, 'saveDeliveryAsk');
   ok('contract: the delivery ask refuses a sample before it writes the client or turns on the portal',
-    before(ask, /if \(isSampleProject\(p\)\) \{ setDeliveryAsk\(null\); showAlert\('Sample job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'seedClientEverywhere(') && before(ask, 'isSampleProject(p)', 'continueAfterAsk('));
+    before(ask, /if \(isSampleProject\(p\)\) \{ setDeliveryAsk\(null\); showAlert\('Sample Job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'seedClientEverywhere(') && before(ask, 'isSampleProject(p)', 'continueAfterAsk('));
   ok('contract: Sign together is disabled on a sample, and the reason prints under the row',
     /onPress=\{handleSignTogetherPress\}\s*disabled=\{\(contract\.paymentSchedule\.length > 0 && !scheduleMatchesValue\) \|\| saving \|\| sampleJob\}/.test(CT)
       && /\{contract\.status === 'draft' && sampleJob && \(\s*<Text[^>]*testID="contract-sample-note">\{SAMPLE_DOC_NOT_SENT\}<\/Text>/.test(CT));
@@ -250,7 +250,7 @@ const BD = strip(read('app/closeout-binder.tsx'));
   // ── binder: the outbound fence + the save ──
   const deliver = callbackBody(BD, 'handleDeliver');
   ok('binder: handleDeliver refuses a sample before it writes, publishes or notifies',
-    before(deliver, /if \(isSampleProject\(project\)\) \{ showAlert\('Sample job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'persistBinder(') && before(deliver, 'isSampleProject(project)', 'notifyEvent('));
+    before(deliver, /if \(isSampleProject\(project\)\) \{ showAlert\('Sample Job', SAMPLE_DOC_NOT_SENT\); return; \}/, 'persistBinder(') && before(deliver, 'isSampleProject(project)', 'notifyEvent('));
   ok('binder: Deliver and Re-deliver are disabled on a sample, with the reason above the bar',
     (BD.match(/disabled=\{delivering \|\| sampleJob\}/g) ?? []).length === 2 && /testID="binder-sample-note">\{SAMPLE_DOC_NOT_SENT\}/.test(BD));
   const bsave = callbackBody(BD, 'handleSave');

@@ -68,11 +68,11 @@ export function summarizeTaskDiff(
   const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
   for (const k of keys) {
     if (before[k] === after[k]) continue;
-    if (k === 'progress') parts.push(`progress ${before[k] ?? 0}% → ${after[k] ?? 0}%`);
-    else if (k === 'durationDays') parts.push(`duration ${before[k]}d → ${after[k]}d`);
-    else if (k === 'startDay') parts.push(`start day ${before[k]} → ${after[k]}`);
-    else if (k === 'crew') parts.push(`crew → ${after[k] || '(none)'}`);
-    else if (k === 'status') parts.push(`status → ${after[k]}`);
+    if (k === 'progress') parts.push(`progress ${before[k] ?? 0}% to ${after[k] ?? 0}%`);
+    else if (k === 'durationDays') parts.push(`duration ${before[k]}d to ${after[k]}d`);
+    else if (k === 'startDay') parts.push(`start day ${before[k]} to ${after[k]}`);
+    else if (k === 'crew') parts.push(`crew to ${after[k] || '(none)'}`);
+    else if (k === 'status') parts.push(`status to ${after[k]}`);
     else if (k === 'dependencies') parts.push('dependencies changed');
     else parts.push(`${k} changed`);
   }

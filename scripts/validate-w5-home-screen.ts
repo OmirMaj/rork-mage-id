@@ -156,7 +156,7 @@ console.log('\n#153 Stripe status:');
     && /stripeCheckFailed=\{stripeCheckFailed\}/.test(home));
   ok('a check that gave up says so (not "Checking…", never "not connected")',
     /\? \(stripeCheckFailed \? STRIPE_CHECK_FAILED_LABEL : 'Checking…'\)/.test(cl)
-    && /export const STRIPE_CHECK_FAILED_LABEL = "Couldn't check Stripe — pull down to refresh";/.test(cl));
+    && /export const STRIPE_CHECK_FAILED_LABEL = "Couldn't check Stripe. Pull down to refresh.";/.test(cl));
   ok('only a running check is announced busy', /busy: !!item\.pendingBusy/.test(cl)
     && /pendingBusy: stripeConnected === undefined && !stripeCheckFailed,/.test(cl));
   ok('a pending row is not tappable and shows no CTA',
@@ -170,21 +170,21 @@ console.log('\n#154 empty bucket:');
   ok('ListEmptyComponent found', empty.length > 0);
   const iErr = empty.indexOf('<ErrorState');
   const iBucket = empty.indexOf(') : projects.length > 0 ? (');
-  const iDayOne = empty.indexOf('title="Build something"');
+  const iDayOne = empty.indexOf('title="No Projects Yet"');
   ok('order: failed read → empty bucket → day-one card', iErr >= 0 && iErr < iBucket && iBucket < iDayOne,
     `${iErr} ${iBucket} ${iDayOne}`);
   const bucket = empty.slice(iBucket, iDayOne);
   ok('the bucket state names the bucket from the shared label map',
-    /title=\{`No \$\{STATUS_FILTER_LABEL\[statusFilter\]\.toLowerCase\(\)\} jobs`\}/.test(bucket));
+    /title=\{`No \$\{STATUS_FILTER_LABEL\[statusFilter\]\} Projects`\}/.test(bucket));
   ok('…says the stage is empty', /message="Nothing in this stage right now\."/.test(bucket));
-  ok('…offers "Show all jobs" → All', /actionLabel="Show all jobs"/.test(bucket) && /onAction=\{\(\) => pickStatusFilter\('all'\)\}/.test(bucket));
-  ok('…and no create / sample CTAs', !/Create your first project|secondaryLabel|handleSeedDemo|handleCreatePress/.test(bucket));
+  ok('…offers "Show All Projects" → All', /actionLabel="Show All Projects"/.test(bucket) && /onAction=\{\(\) => pickStatusFilter\('all'\)\}/.test(bucket));
+  ok('…and no create / sample CTAs', !/Create Your First Project|secondaryLabel|handleSeedDemo|handleCreatePress/.test(bucket));
   ok('the dense header reads the same label map', /\{STATUS_FILTER_LABEL\[statusFilter\]\}/.test(home));
   ok('home drives the filter through the one reducer (no ref, no second effect)',
     /useReducer\(homeStatusFilterReducer, HOME_STATUS_FILTER_INITIAL\)/.test(home)
     && /dispatchStatusFilter\(\{ type: 'data', projectCount: projects\.length, activeCount: statusBuckets\.active\.length \}\);\s*\}, \[projects\.length, statusBuckets\.active\.length\]\);/.test(home)
     && !/autoPickedActiveRef|setStatusFilter\(/.test(home));
-  ok('a chip / "Show all jobs" is his pick', /dispatchStatusFilter\(\{ type: 'pick', filter: next \}\);/.test(home));
+  ok('a chip / "Show All Projects" is his pick', /dispatchStatusFilter\(\{ type: 'pick', filter: next \}\);/.test(home));
 
   // The reducer, executed: the sequence the review replayed.
   const run = (acts: HomeStatusFilterAction[]) => acts.reduce(homeStatusFilterReducer, HOME_STATUS_FILTER_INITIAL);
@@ -247,16 +247,16 @@ console.log('\n#157 voice fill:');
   ok('a parse that found nothing returns filled:false (no false "Filled from your voice")',
     /if \(!heardSomething\) \{\s*return \{\s*filled: false,/.test(home));
   ok('the nothing-heard note never says "try again" (a cap refusal lands here too — CONTRACT 26)',
-    /type them below\.",/.test(home) && !/or try again/.test(home));
+    /Type them below\.",/.test(home) && !/or try again/.test(home));
   ok("a failed parse does not overwrite the type he picked",
     /if \(partial\.type && heardSomething\) setProjectType\(/.test(home));
 
   const both = voiceUnappliedNote(150000, '2027-06-01') ?? '';
   ok('budget + start: one line, both named, both destinations',
-    both === 'Heard budget $150,000 and start June 1, 2027 — not saved here; set the budget on the estimate and the start date on the schedule.', both);
+    both === 'Heard budget $150,000 and start June 1, 2027. Not saved here; set the budget on the estimate and the start date on the schedule.', both);
   ok('money to the cent when there are cents', formatHeardMoney(80000.5) === '$80,000.50' && formatHeardMoney(80000) === '$80,000');
-  ok('budget only', voiceUnappliedNote(25000, '') === 'Heard budget $25,000 — not saved here; set it on the estimate.', voiceUnappliedNote(25000, '') ?? '');
-  ok('start only', voiceUnappliedNote(0, '2027-01-31') === 'Heard start January 31, 2027 — not saved here; set it on the schedule.', voiceUnappliedNote(0, '2027-01-31') ?? '');
+  ok('budget only', voiceUnappliedNote(25000, '') === 'Heard budget $25,000. Not saved here; set it on the estimate.', voiceUnappliedNote(25000, '') ?? '');
+  ok('start only', voiceUnappliedNote(0, '2027-01-31') === 'Heard start January 31, 2027. Not saved here; set it on the schedule.', voiceUnappliedNote(0, '2027-01-31') ?? '');
   ok('nothing unapplied → null', voiceUnappliedNote(0, '') === null && voiceUnappliedNote(undefined, undefined) === null);
   ok('a non-calendar start is quoted, not guessed', (voiceUnappliedNote(0, 'next spring') ?? '').includes('start next spring'));
   // A calendar day, never new Date('YYYY-MM-DD') (the previous evening west of UTC).
@@ -279,7 +279,7 @@ console.log('\n#157 voice fill:');
     const voiceFillLines = new Function(js)() as (r: unknown) => { filled: string | null; note: string | null };
     const legacy = voiceFillLines(undefined);
     ok('an undefined return keeps today\'s line exactly',
-      legacy.filled === 'Filled from your voice — review and edit before saving.' && legacy.note === null, JSON.stringify(legacy));
+      legacy.filled === 'Filled from your voice. Review and edit before saving.' && legacy.note === null, JSON.stringify(legacy));
     ok('a void-ish non-object return is treated as undefined', voiceFillLines(null).filled !== null && voiceFillLines(null).note === null);
     const noted = voiceFillLines({ note: 'Heard budget $1' });
     ok('{ note } keeps the success line and adds the note', noted.filled !== null && noted.note === 'Heard budget $1');

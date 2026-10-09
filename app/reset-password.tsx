@@ -75,7 +75,7 @@ export default function ResetPasswordScreen() {
           });
           if (error) {
             console.log('[ResetPassword] Failed to set session:', error.message);
-            showAlert('Reset link expired', 'This reset link is invalid or has expired. Request a new one from the sign-in screen.');
+            showAlert('Reset Link Expired', 'This reset link is invalid or has expired. Request a new one from the sign-in screen.');
           } else {
             await onNewSessionEstablished(handoff);
           }
@@ -88,11 +88,11 @@ export default function ResetPasswordScreen() {
 
   const handleSubmit = useCallback(async () => {
     if (!newPassword.trim() || newPassword.length < 8) {
-      showAlert('Choose a longer password', 'Use at least 8 characters.');
+      showAlert('Choose a Longer Password', 'Use at least 8 characters.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      showAlert("Passwords don't match", 'Enter the same password in both fields.');
+      showAlert("Passwords don't match.", 'Enter the same password in both fields.');
       return;
     }
 
@@ -109,7 +109,7 @@ export default function ResetPasswordScreen() {
       // old password.") names what to change; show it when it reads as one.
       const own = ownSentence(err);
       const copy = describeError(err, { action: 'update your password' });
-      showAlert(own ? "Couldn't update your password" : copy.title, own ?? copy.body);
+      showAlert(own ? "Couldn't Update Your Password" : copy.title, own ?? copy.body);
     } finally {
       setIsSubmitting(false);
     }
@@ -123,7 +123,7 @@ export default function ResetPasswordScreen() {
           <View style={styles.successIcon}>
             <CheckCircle size={48} color={themeColors.success} strokeWidth={1.5} />
           </View>
-          <Text style={styles.successTitle}>Password updated</Text>
+          <Text style={styles.successTitle}>Password Updated</Text>
           <Text style={styles.successText}>
             Your password is reset. Taking you to sign in…
           </Text>
@@ -143,13 +143,13 @@ export default function ResetPasswordScreen() {
           <View style={styles.iconWrap}>
             <Lock size={32} color={themeColors.accent} strokeWidth={1.5} />
           </View>
-          <Text style={styles.title}>Set a new password</Text>
+          <Text style={styles.title}>Set a New Password</Text>
           <Text style={styles.subtitle}>
             Enter your new password below.
           </Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>New password</Text>
+            <Text style={styles.inputLabel}>New Password</Text>
             <View style={styles.inputWrapper}>
               <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
               <TextInput
@@ -167,7 +167,7 @@ export default function ResetPasswordScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Confirm password</Text>
+            <Text style={styles.inputLabel}>Confirm Password</Text>
             <View style={styles.inputWrapper}>
               <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
               <TextInput
@@ -196,7 +196,7 @@ export default function ResetPasswordScreen() {
               <ActivityIndicator color={themeColors.surface} size="small" />
             ) : (
               <>
-                <Text style={styles.submitButtonText}>Update password</Text>
+                <Text style={styles.submitButtonText}>Update Password</Text>
                 <ArrowRight size={18} color={themeColors.surface} strokeWidth={2.5} />
               </>
             )}
@@ -207,7 +207,7 @@ export default function ResetPasswordScreen() {
             onPress={() => router.replace('/login')}
             testID="reset-back"
           >
-            <Text style={styles.backText}>Back to sign in</Text>
+            <Text style={styles.backText}>Back to Sign In</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

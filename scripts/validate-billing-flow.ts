@@ -104,7 +104,7 @@ console.log('\nmilestone → invoice amounts:');
     JSON.stringify(line));
   ok('derived line is lump-sum quantity 1', line.quantity === 1 && line.unit === 'lump');
   ok('derived line names the milestone', line.name === 'Deposit');
-  ok('derived line explains the % basis to the client',
+  ok('derived line explains the % basis to the Client',
     /25% of contract/.test(line.description), line.description);
 
   const fixedLine = deriveMilestoneInvoiceLine(ms({ amount: 8_000, trigger: 'on_signing' }), 100_000);
@@ -359,9 +359,9 @@ console.log('\nreminder state line:');
   ok('a sent reminder reads "Reminder sent · Stage 2 · <date>"',
     label.startsWith('Reminder sent · Stage 2 · ') && label.length > 26, label);
   ok('stage labels escalate',
-    dunningStageLabel(1) === 'First reminder' &&
-    dunningStageLabel(2) === 'Second notice' &&
-    dunningStageLabel(3) === 'Final notice');
+    dunningStageLabel(1) === 'First Reminder' &&
+    dunningStageLabel(2) === 'Second Reminder' &&
+    dunningStageLabel(3) === 'Third Reminder');
 }
 
 // ── 7. Cron / core parity + edge-function safety ─────────────────────
@@ -425,7 +425,7 @@ console.log('\nsurfaces:');
   ok('the contract screen offers "Create invoice" on a milestone row',
     /Create invoice/.test(contractSrc) && /milestone-create-invoice-/.test(contractSrc));
   ok('the milestone button prints the amount that will actually be billed',
-    /Create invoice · \{formatMoney\(billability\.amount\)\}/.test(contractSrc),
+    /Create Invoice · \{formatMoney\(billability\.amount\)\}/.test(contractSrc),
     'a % milestone bills the derived figure, not the cached one — show it');
   ok('the contract screen re-reads on focus so a billed milestone shows as billed',
     /useFocusEffect/.test(contractSrc));
@@ -469,7 +469,7 @@ console.log('\nsurfaces:');
 // A new contract's schedule is the GC's own deposit / progress / final split
 // (utils/paymentTerms.contractScheduleFromSplit), not the 25/25/25/25 seed.
 // Three things must hold or the schedule he signs cannot be billed as printed:
-//   · the progress row ("Billed as work is completed") is NEVER a lump invoice
+//   · the progress row ("Billed as Work Is Completed") is NEVER a lump invoice
 //     — composing it would bill the homeowner 65% the day after signing;
 //   · the deposit and the final bill EXACTLY the cents the contract printed;
 //   · after the deposit and every cent of progress, the final is still under
@@ -580,19 +580,19 @@ console.log('\ncontract screen — progress rows (Direction B):');
   const contractSrc = read('app/contract.tsx');
   const code = contractSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
-  // "Create invoice · $X" must not be offered on a progress row.
-  const createBtn = code.search(/Create invoice · \{formatMoney\(billability\.amount\)\}/);
+  // "Create Invoice · $X" must not be offered on a progress row.
+  const createBtn = code.search(/Create Invoice · \{formatMoney\(billability\.amount\)\}/);
   const createGate = code.lastIndexOf("{billability?.billable && milestone.trigger !== 'on_invoice' && (", createBtn);
-  ok('the "Create invoice ·" button renders only on non-progress rows',
+  ok('the "Create Invoice ·" button renders only on non-progress rows',
     createBtn > 0 && createGate > 0 && createBtn - createGate < 700,
     'the lump-invoice button must sit behind `milestone.trigger !== \'on_invoice\'`');
 
-  ok('an on_invoice row on a signed contract offers "Bill progress" instead',
+  ok('an on_invoice row on a signed contract offers "Bill Progress" instead',
     /\{billability && isProgressRow && !billability\.existingInvoiceId && progressRowOpen\(billability\) && \(/.test(code)
     && /const isProgressRow = milestone\.trigger === 'on_invoice';/.test(code)
     && /testID=\{`milestone-bill-progress-\$\{milestone\.id\}`\}/.test(code)
     && /onPress=\{onBillProgress\}/.test(code));
-  ok('…and "Bill progress" routes to /bill-from-estimate with the project',
+  ok('…and "Bill Progress" routes to /bill-from-estimate with the project',
     /onBillProgress=\{\(\) => router\.push\(\{ pathname: '\/bill-from-estimate', params: \{ projectId \} \}/.test(code));
   // THE BILLABILITY THE LUMP BUTTON USES, READ FOR WHAT A PROGRESS ROW CAN DO
   // WITH IT (review rounds 4 and 5). Offered on `billability` alone the action
@@ -613,7 +613,7 @@ console.log('\ncontract screen — progress rows (Direction B):');
   // EXECUTED, on the row a 25 / 65 / 10 split actually seeds: which states
   // open the action and which close it.
   {
-    const row: MilestoneLike = { id: 'p', label: 'Progress payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' };
+    const row: MilestoneLike = { id: 'p', label: 'Progress Payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' };
     const at = (billedToDate: number, patch: Partial<MilestoneLike> = {}) => milestoneBillability({
       milestone: { ...row, ...patch }, contractValue: 100_000, contractStatus: 'signed', contractBilledToDate: billedToDate,
     });
@@ -633,7 +633,7 @@ console.log('\ncontract screen — progress rows (Direction B):');
     // contract, so from the FIRST draw past 35% its own amount no longer fits
     // and milestoneBillability refuses it — on the row whose entire purpose is
     // to be drawn against again and again. Every dollar from $35,001 to
-    // $99,999 left "Bill progress" hidden behind a sentence whose own remedy
+    // $99,999 left "Bill Progress" hidden behind a sentence whose own remedy
     // is the screen that button opens.
     const midJob = [35_001, 57_500, 80_000, 99_999.99];
     ok('…but a HALF-DRAWN one stays open all the way to the last cent of the contract',
@@ -684,16 +684,16 @@ console.log('\ncontract screen — progress rows (Direction B):');
   // that stopped being true, so the row reports the one thing that stays true.
   ok('a progress row never wears a PENDING pill — nothing can ever clear it',
     /const isProgressRow = milestone\.trigger === 'on_invoice';\s*\n\s*const cfg =/.test(code)
-    && /isProgressRow\s+\? \{ bg: themeColors\.surfaceAlt, color: themeColors\.textMuted, label: 'As work is done' \} :/.test(code),
+    && /isProgressRow\s+\? \{ bg: themeColors\.surfaceAlt, color: themeColors\.textMuted, label: 'As Work Is Done' \} :/.test(code),
     "the on_invoice arm must sit between 'skipped' and the PENDING fallback");
   ok('…while a hand-set paid / invoiced / skipped still wins, because somebody chose it',
-    code.indexOf("label: 'Paid'") < code.indexOf("label: 'As work is done'")
-    && code.indexOf("label: 'Skipped'") < code.indexOf("label: 'As work is done'")
-    && code.indexOf("label: 'As work is done'") < code.indexOf("label: 'Pending'") && code.indexOf("label: 'Paid'") >= 0);
+    code.indexOf("label: 'Paid'") < code.indexOf("label: 'As Work Is Done'")
+    && code.indexOf("label: 'Skipped'") < code.indexOf("label: 'As Work Is Done'")
+    && code.indexOf("label: 'As Work Is Done'") < code.indexOf("label: 'Pending'") && code.indexOf("label: 'Paid'") >= 0);
   // EXECUTED: the state the pill used to lie about — $57,500 of the contract
   // drawn, the row's own status untouched by any of it.
   {
-    const row = { id: 'p', label: 'Progress payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' } as const;
+    const row = { id: 'p', label: 'Progress Payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' } as const;
     const half = milestoneBillability({
       milestone: { ...row }, contractValue: 100_000, contractStatus: 'signed', contractBilledToDate: 57_500,
     });

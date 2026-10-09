@@ -1,4 +1,4 @@
-const { withXcodeProject, withDangerousMod } = require('expo/config-plugins');
+const { withXcodeProject, withDangerousMod, withFinalizedMod } = require('expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -56,6 +56,48 @@ const path = require('path');
  *    and the app dies at launch with "The embedded manifest is invalid or
  *    could not be read."
  *
+ * ── 2026-10-09: the FIRST path on the bundle line was still unquoted ────────
+ * A local build from "MAGE ID - CLAUDE" failed in "Bundle React Native code and
+ * images" again. The generated project read:
+ *
+ *   /bin/sh `"$NODE_BINARY" --print "… sentry-xcode.sh'"` "'$("$NODE_BINARY" --print "… react-native-xcode.sh'")'"
+ *
+ * The second path carried this plugin's quoting; the first was a bare backtick
+ * substitution. Cause: config mods do not run in app.json order. Each plugin
+ * WRAPS the mod chain, so the plugin listed LAST runs FIRST. This plugin is
+ * listed after "@sentry/react-native/expo" and so ran BEFORE Sentry's mod: it
+ * quoted the template's one path, and then Sentry put its own unquoted
+ * `sentry-xcode.sh` in front and added "Upload Debug Symbols to Sentry" with a
+ * second bare backtick. The withXcodeProject pass could never see either.
+ *
+ * The fix does not depend on plugin order: a FINALIZED mod (it runs after every
+ * other mod has run and the project file is on disk) reads project.pbxproj as
+ * text and quotes every substitution in every script that names one of the
+ * Xcode helper scripts. scripts/validate-ios-space-paths.ts pins the line Sentry
+ * really leaves behind, and a planted break that leaves its first path bare
+ * turns that check red.
+ *
+ * ── 2026-10-09, review: the line with NO Sentry plugin was not a command ────
+ * The paragraph above used to end "the withXcodeProject pass stays, for a
+ * config with no Sentry plugin". With no Sentry plugin the template's line is
+ * the substitution ALONE: the path worked out by node IS the command,
+ *
+ *   `"$NODE_BINARY" --print "… react-native-xcode.sh'"`
+ *
+ * and both passes turned it into  "'$( … )'"  : a command whose name starts
+ * and ends with a literal single quote, which no shell can find. The single
+ * quotes are only right where the path is an ARGUMENT handed to
+ * sentry-xcode.sh (which runs it through `sh -c` and so parses it a second
+ * time). singleQuoteReactNativeXcodeArg now adds them only when
+ * sentry-xcode.sh comes earlier on the same line. With no Sentry plugin the
+ * line is left as  "$( … )"  : the path, quoted once, run as the command.
+ * scripts/validate-ios-space-paths.ts RUNS both lines under /bin/sh from a
+ * folder with a space in its name, and a planted return to the old behaviour
+ * turns the no-Sentry check red.
+ *
+ * This only matters for a LOCAL build from a path with a space. Cloud builds
+ * check out to a path with no space and are unaffected either way.
+ *
  * All of it disappears if the checkout path has no spaces.
  */
 
@@ -75,7 +117,9 @@ function quoteBacktickSubstitutions(script) {
 /**
  * `sentry-xcode.sh` does `/bin/sh -c "$REACT_NATIVE_XCODE"`, re-parsing its own
  * argument. Wrap that argument in literal single quotes so the second parse
- * keeps the path whole. No-op when already quoted.
+ * keeps the path whole. No-op when already quoted, and a no-op when the path
+ * is not an argument to sentry-xcode.sh at all (a config with no Sentry
+ * plugin, where the path is the command itself and single quotes would break it).
  * @param {string} script
  * @returns {string}
  */
@@ -94,6 +138,9 @@ function singleQuoteReactNativeXcodeArg(script) {
     if (line.includes('"\'$(')) return script;
     const open = line.lastIndexOf('"$(');
     if (open === -1) continue;
+    // Only an ARGUMENT to sentry-xcode.sh is parsed twice. With no Sentry
+    // script in front, this substitution is the command: leave it "$( … )".
+    if (!line.slice(0, open).includes('sentry-xcode.sh')) continue;
     if (line.startsWith('"\'', open)) continue; // already single-quoted
     const close = line.lastIndexOf(')"');
     if (close <= open) continue;
@@ -103,6 +150,81 @@ function singleQuoteReactNativeXcodeArg(script) {
   }
   return script;
 }
+
+/** The helper scripts whose paths these phases work out with node. */
+const HELPER_SCRIPTS = ['sentry-xcode.sh', 'react-native-xcode.sh', 'sentry-xcode-debug-files.sh'];
+
+/**
+ * One shell script, every path quoted: backticks become "$( … )" and the
+ * react-native-xcode.sh argument is single-quoted for the `sh -c` re-parse.
+ * Idempotent. A script that names none of the helper scripts is left alone.
+ * @param {string} script raw shell source
+ * @returns {string}
+ */
+function quoteScriptPaths(script) {
+  if (typeof script !== 'string' || !HELPER_SCRIPTS.some(h => script.includes(h))) return script;
+  return singleQuoteReactNativeXcodeArg(quoteBacktickSubstitutions(script));
+}
+
+/**
+ * The command substitutions on the lines that work out a path with
+ * `node --print` and are NOT inside double quotes: any backtick form, and any
+ * `$(` that does not sit straight after `"` or `"'`. Empty means every path on
+ * those lines is quoted. The validator reads the generated project with this.
+ * @param {string} script raw shell source
+ * @returns {string[]} the offending lines, trimmed
+ */
+function unquotedPathSubstitutions(script) {
+  if (typeof script !== 'string') return [];
+  const bad = [];
+  for (const line of script.split('\n')) {
+    if (!line.includes('--print')) continue;
+    let open = line.includes('`');
+    for (let i = line.indexOf('$('); i !== -1 && !open; i = line.indexOf('$(', i + 2)) {
+      const before = line.slice(Math.max(0, i - 2), i);
+      if (!(before.endsWith('"') || before === '"\'')) open = true;
+    }
+    if (open) bad.push(line.trim());
+  }
+  return bad;
+}
+
+/**
+ * project.pbxproj as text, with every shell script phase passed through
+ * quoteScriptPaths. A `shellScript = "…";` value is a JSON-style string
+ * literal; one that will not parse is left exactly as it was.
+ * @param {string} pbx the project file's text
+ * @returns {string}
+ */
+function quoteProjectShellScripts(pbx) {
+  if (typeof pbx !== 'string') return pbx;
+  return pbx.replace(/^(\s*shellScript = )(".*");$/gm, (whole, head, literal) => {
+    let source;
+    try { source = JSON.parse(literal); } catch { return whole; }
+    if (typeof source !== 'string') return whole;
+    const quoted = quoteScriptPaths(source);
+    return quoted === source ? whole : `${head}${JSON.stringify(quoted)};`;
+  });
+}
+
+/** Runs after every other mod, whatever the order in app.json: quote what is on disk. */
+const withQuotedFinalProject = config =>
+  withFinalizedMod(config, [
+    'ios',
+    cfg => {
+      const root = cfg.modRequest.platformProjectRoot;
+      if (!fs.existsSync(root)) return cfg;
+      for (const name of fs.readdirSync(root)) {
+        if (!name.endsWith('.xcodeproj')) continue;
+        const file = path.join(root, name, 'project.pbxproj');
+        if (!fs.existsSync(file)) continue;
+        const before = fs.readFileSync(file, 'utf8');
+        const after = quoteProjectShellScripts(before);
+        if (after !== before) fs.writeFileSync(file, after);
+      }
+      return cfg;
+    },
+  ]);
 
 /** Quote the `bash -l -c "<unquoted path>"` phases CocoaPods writes. */
 const PODFILE_MARKER = '# withQuotedXcodeScriptPaths: quote bash -l -c paths';
@@ -162,9 +284,12 @@ const withQuotedXcodeProjectPaths = config =>
   });
 
 const withQuotedXcodeScriptPaths = config =>
-  withQuotedPodfileScriptPaths(withQuotedXcodeProjectPaths(config));
+  withQuotedFinalProject(withQuotedPodfileScriptPaths(withQuotedXcodeProjectPaths(config)));
 
 module.exports = withQuotedXcodeScriptPaths;
 module.exports.quoteBacktickSubstitutions = quoteBacktickSubstitutions;
 module.exports.singleQuoteReactNativeXcodeArg = singleQuoteReactNativeXcodeArg;
+module.exports.quoteScriptPaths = quoteScriptPaths;
+module.exports.quoteProjectShellScripts = quoteProjectShellScripts;
+module.exports.unquotedPathSubstitutions = unquotedPathSubstitutions;
 module.exports.PHASES_TO_FIX = PHASES_TO_FIX;

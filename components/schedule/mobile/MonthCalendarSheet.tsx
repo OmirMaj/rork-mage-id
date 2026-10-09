@@ -83,9 +83,9 @@ export function MonthCalendarSheet({ visible, selectedDate, tasks, startDateIso,
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.grab} />
         <View style={styles.head}>
-          <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.nav} accessibilityLabel="Previous month"><ChevronLeft size={20} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.nav} accessibilityLabel="Previous Month"><ChevronLeft size={20} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
           <Text style={styles.title}>{MONTHS[cursor.getMonth()]} {cursor.getFullYear()}</Text>
-          <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.nav} accessibilityLabel="Next month"><ChevronRight size={20} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.nav} accessibilityLabel="Next Month"><ChevronRight size={20} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
           <TouchableOpacity onPress={onClose} style={styles.nav} accessibilityLabel="Close"><X size={18} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <View style={styles.dowRow}>
@@ -108,7 +108,7 @@ export function MonthCalendarSheet({ visible, selectedDate, tasks, startDateIso,
           })}
         </View>
         <TouchableOpacity style={styles.todayBtn} onPress={() => pick(new Date())} testID="cal-today">
-          <Text style={styles.todayBtnText}>Jump to today</Text>
+          <Text style={styles.todayBtnText}>Jump to Today</Text>
         </TouchableOpacity>
       </View>
     </Modal>

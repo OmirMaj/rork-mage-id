@@ -50,7 +50,7 @@ const POPOVER_MAX_LIST = 420;
 const STATUS_LABEL: Record<Project['status'], string> = {
   draft: 'Draft',
   estimated: 'Estimated',
-  in_progress: 'In progress',
+  in_progress: 'In Progress',
   completed: 'Completed',
   closed: 'Closed',
 };
@@ -132,12 +132,12 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
     }
   }, [list.length, close]);
 
-  const label = activeProject?.name ?? 'Pick a project';
+  const label = activeProject?.name ?? 'Pick a Project';
 
   // Section headers are derived from the list order, so they can never
   // disagree with it: recent ids first, then in-progress, then the rest.
   const sectionFor = (p: Project) =>
-    recentSet.has(p.id) ? 'Recent' : p.status === 'in_progress' ? 'In progress' : 'Other projects';
+    recentSet.has(p.id) ? 'Recent' : p.status === 'in_progress' ? 'In Progress' : 'Other Projects';
 
   // The popover drops in (web CSS; null on native and under Reduce Motion).
   // It renders only while open, so nothing changes at rest.
@@ -154,7 +154,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
         onPress={open ? close : openPopover}
         style={(s) => [styles.trigger, (s as { hovered?: boolean }).hovered && styles.triggerHovered]}
         accessibilityRole="button"
-        accessibilityLabel={activeProject ? `Current project: ${activeProject.name}. Switch project` : 'Pick a project'}
+        accessibilityLabel={activeProject ? `Current project: ${activeProject.name}. Switch project` : 'Pick a Project'}
         accessibilityState={{ expanded: open }}
         testID="job-switcher"
       >
@@ -168,7 +168,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
       </Pressable>
 
       <Modal visible={open} transparent animationType="none" onRequestClose={close}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Close project switcher" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Close Project Switcher" />
         <View
           style={drop ? [styles.popover, popoverPlace, drop] : [styles.popover, popoverPlace]}
           testID="job-switcher-popover"
@@ -182,7 +182,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
             placeholderTextColor={t.textMuted}
             autoFocus
             style={styles.input}
-            accessibilityLabel="Filter projects"
+            accessibilityLabel="Filter Projects"
             testID="job-switcher-filter"
           />
           <ScrollView style={{ maxHeight: POPOVER_MAX_LIST }} keyboardShouldPersistTaps="handled">

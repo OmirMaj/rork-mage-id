@@ -80,7 +80,7 @@ describe('Price watch card', () => {
     // stud 4.00 → 4.40 (+10%) on 200 ea at 15% markup: 920 → 1012 (+$92).
     expect(screen.getByText('Rivera kitchen · 1 line is up 10% on your latest receipts')).toBeTruthy();
     fireEvent.press(screen.getByText('Reprice (+$92)'));
-    expect(screen.getByText(/Grand total \$1,085\.00 → \$1,177\.00/)).toBeTruthy();
+    expect(screen.getByText(/Grand total \$1,085\.00 to \$1,177\.00/)).toBeTruthy();
     expect(mockCtx.updateProject).not.toHaveBeenCalled();
     fireEvent.press(screen.getByTestId('pricewatch-confirm-p1'));
     expect(mockCtx.updateProject).toHaveBeenCalledTimes(1);
@@ -98,7 +98,7 @@ describe('Price watch card', () => {
     mockReceipts = [receipt('r1', 'Yard A', daysAgo(1), 'Plywood', 'sheet', 10, 50)];
     mockCtx.projects = [];
     render(<PriceWatchCard projectId="p1" />, { wrapper: Wrapper });
-    expect(screen.getByText('Price watch compares your reviewed receipts — it needs the same item from two suppliers.')).toBeTruthy();
+    expect(screen.getByText('Price watch compares your reviewed receipts. It needs the same item from two suppliers.')).toBeTruthy();
   });
 });
 
@@ -117,14 +117,14 @@ describe('Lien clock card', () => {
     if (LIEN_RULES.NY.verified) {
       const eight = formatCalendarDay(addCalendarMonths(last, 8));
       const four = formatCalendarDay(addCalendarMonths(last, 4));
-      expect(screen.getByText(new RegExp(`New York: file by ${eight} — or by ${four} if this is a single-family dwelling`))).toBeTruthy();
+      expect(screen.getByText(new RegExp(`New York: file by ${eight}, or by ${four} if this is a single-family dwelling`))).toBeTruthy();
       expect(screen.getByText(/A public project \(city, state, school, authority\) has a much shorter deadline/)).toBeTruthy();
       expect(screen.getByText(/N\.Y\. Lien Law § 10/)).toBeTruthy();
     } else {
       expect(screen.getByText(/We couldn't verify New York's lien deadline today/)).toBeTruthy();
       expect(screen.queryByText(/Lien Law/)).toBeNull();
     }
-    expect(screen.getByText(/confirm with your attorney/)).toBeTruthy();
+    expect(screen.getByText(/Confirm with your attorney/)).toBeTruthy();
   });
 
   it('says there is no daily report once the log is read', () => {

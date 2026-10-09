@@ -103,8 +103,8 @@ export function ScheduleAuditModal(props: {
             {source === null
               ? 'Checking your account for changes made on other devices…'
               : source === 'cloud'
-                ? `Saved to your account — changes you made on any device.${truncated ? ` Showing the newest ${SCHEDULE_AUDIT_CLOUD_READ_LIMIT}.` : ''} Edits made by collaborators are kept under their own accounts and are not shown here.`
-                : "On this device only — your account's copy couldn't be reached, so changes made on other devices or before a sign-out may be missing."}
+                ? `Saved to your account: changes you made on any device.${truncated ? ` Showing the newest ${SCHEDULE_AUDIT_CLOUD_READ_LIMIT}.` : ''} Edits made by collaborators are kept under their own accounts and are not shown here.`
+                : "On this device only. Your account's copy couldn't be reached, so changes made on other devices or before a sign-out may be missing."}
           </Text>
 
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>

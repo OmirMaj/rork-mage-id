@@ -128,9 +128,12 @@ describe('marketing motion (homepage + slim motion.js)', () => {
     runMain();
     expect(mm()).toBeUndefined();
     const sel = $('#cmpSel') as unknown as HTMLSelectElement;
-    sel.value = 'procore';
+    // PROTECT-TEXT (2026-10-09): the named-competitor entries left the homepage
+    // widget (unsourced claims about other products). The one entry left is
+    // the spreadsheet baseline, and the change path is exercised on it.
+    sel.value = 'sheets';
     expect(() => sel.dispatchEvent(new Event('change'))).not.toThrow();
-    expect($('#cmpPanel').textContent).toContain('Procore');
+    expect($('#cmpPanel').textContent).toContain('Spreadsheets');
     expect(document.querySelectorAll('#cmpPanel [data-mk-row]')).toHaveLength(8);
   });
 
@@ -201,7 +204,7 @@ describe('marketing motion (homepage + slim motion.js)', () => {
     const panel = $('#cmpPanel');
     const spy = jest.spyOn(mm()!, 'play');
     const sel = $('#cmpSel') as unknown as HTMLSelectElement;
-    sel.value = 'jobtread';
+    sel.value = 'sheets';
     sel.dispatchEvent(new Event('change'));
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy.mock.calls[0][0]).toBe(panel);

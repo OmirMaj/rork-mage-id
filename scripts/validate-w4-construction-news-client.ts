@@ -107,11 +107,11 @@ eq('header: an old copy reads "on <date>"', newsHeaderLine(P([{ name: 'A', ok: t
 eq('failed sources are named', failedSourcesLine(P([{ name: 'ENR', ok: true, count: 1 }, { name: 'OSHA', ok: false, count: 0 }, { name: 'JLC', ok: false, count: 0 }])), "Didn't load: OSHA, JLC");
 eq('no failed line when every source answered', failedSourcesLine(P([{ name: 'ENR', ok: true, count: 1 }])), null);
 
-eq('offline banner — the founder-spec wording', staleBannerText('offline', agoMs(2 * HR), NOW), 'Offline — showing news from 2 hr ago');
-eq('offline banner — seconds old reads "a moment ago"', staleBannerText('offline', agoMs(10_000), NOW), 'Offline — showing news from a moment ago');
-eq('offline banner — yesterday', staleBannerText('offline', new Date(2026, 8, 21, 9, 0).toISOString(), NOW), 'Offline — showing news from yesterday');
-eq('offline banner — an old copy', staleBannerText('offline', new Date(2026, 8, 3, 9, 0).toISOString(), NOW), 'Offline — showing news from Sep 3');
-eq('online but the refresh failed does NOT claim offline', staleBannerText('refresh_failed', agoMs(40 * MIN), NOW), "Couldn't refresh — showing news from 40 min ago");
+eq('offline banner — the founder-spec wording', staleBannerText('offline', agoMs(2 * HR), NOW), 'Offline. Showing news from 2 hr ago.');
+eq('offline banner — seconds old reads "a moment ago"', staleBannerText('offline', agoMs(10_000), NOW), 'Offline. Showing news from a moment ago.');
+eq('offline banner — yesterday', staleBannerText('offline', new Date(2026, 8, 21, 9, 0).toISOString(), NOW), 'Offline. Showing news from yesterday.');
+eq('offline banner — an old copy', staleBannerText('offline', new Date(2026, 8, 3, 9, 0).toISOString(), NOW), 'Offline. Showing news from Sep 3.');
+eq('online but the refresh failed does NOT claim offline', staleBannerText('refresh_failed', agoMs(40 * MIN), NOW), "Couldn't refresh. Showing news from 40 min ago.");
 
 // ── Chips ──────────────────────────────────────────────────────────────────
 {
@@ -165,8 +165,8 @@ ok('screen: the stale banner is rendered from staleBannerText when there is a re
   /\{staleReason \? \([\s\S]*staleBannerText\(staleReason, payload\.fetchedAt, now\)/.test(screen));
 ok('screen: topic chips from topicChips, hidden when only All', /topicChips\(items\)/.test(screen) && /chips\.length > 1 \?/.test(screen));
 ok('screen: error state says why and offers Retry',
-  /title="The news didn't load"[\s\S]{0,120}message=\{errorMessage/.test(screen) && /actionLabel="Retry"/.test(screen));
-ok('screen: empty state says why and offers Retry', /title="No stories right now"[\s\S]{0,300}actionLabel="Retry"/.test(screen));
+  /title="The News Didn't Load"[\s\S]{0,120}message=\{errorMessage/.test(screen) && /actionLabel="Retry"/.test(screen));
+ok('screen: empty state says why and offers Retry', /title="No Stories Right Now"[\s\S]{0,300}actionLabel="Retry"/.test(screen));
 ok('screen: the spinner shows only while nothing is on screen', /if \(isLoading\) \{/.test(screen));
 ok('screen: lucide Newspaper icon + @/components/ui primitives',
   /from 'lucide-react-native'/.test(screen) && /\bNewspaper\b/.test(screen) && /import \{ Card, Button \} from '@\/components\/ui'/.test(screen));
@@ -176,11 +176,11 @@ ok('screen: says where the words come from', /Headlines and summaries come from 
 ok('route file exists', existsSync(join(ROOT, 'app', 'construction-news.tsx')));
 const layout = read('app/_layout.tsx');
 ok("Stack registers /construction-news titled 'Construction news'",
-  /<Stack\.Screen\s+name="construction-news"\s+options=\{\{\s*title: "Construction news"/.test(layout));
-eq('browser-tab title', pathToDocumentTitle('/construction-news'), 'Construction news');
+  /<Stack\.Screen\s+name="construction-news"\s+options=\{\{\s*title: "Construction News"/.test(layout));
+eq('browser-tab title', pathToDocumentTitle('/construction-news'), 'Construction News');
 const tools = read('app/(tabs)/discover/tools.tsx');
 ok('Discover ▸ Tools has a Construction news tile (phone door)',
-  /\{ route: '\/construction-news', Icon: Newspaper, title: 'Construction news'[^}]*section: 'INDUSTRY' \}/.test(tools)
+  /\{ route: '\/construction-news', Icon: Newspaper, title: 'Construction News'[^}]*section: 'INDUSTRY' \}/.test(tools)
   && /'AI HUB', 'INDUSTRY', 'DECISIONS'/.test(tools));
 ok('the Tools tile opens its own route when it has no registry row',
   /row\.feature \? featureFor\(row\.feature\)\.route : row\.route/.test(tools) && /if \(!row\.feature\) return undefined;/.test(tools));
@@ -188,11 +188,11 @@ const sidebar = read('components/DesktopSidebar.tsx');
 // Wave 6c moved the row from WORKSPACE into SETUP & TOOLS (WORKSPACE back to
 // six rows above the fold on the founder's 858 px viewport); either is a door.
 ok('DesktopSidebar has a Construction news row (desktop door, same label)',
-  /\{ key: 'construction-news', label: 'Construction news', icon: Newspaper,\s+route: '\/construction-news',\s+section: '(?:WORKSPACE|SETUP & TOOLS)'(, feature: 'construction-news')? \}/.test(sidebar));
+  /\{ key: 'construction-news', label: 'Construction News', icon: Newspaper,\s+route: '\/construction-news',\s+section: '(?:WORKSPACE|SETUP & TOOLS)'(, feature: 'construction-news')? \}/.test(sidebar));
 // Integration round 1: the ⌘K registry row landed (validate-feature-search
 // requires every sidebar route to be searchable), so the row names it.
 ok('the registry has a construction-news row on the same route, ungated',
-  /\{ id: 'construction-news', title: 'Construction news', synonyms: \[[^\]]*'news'[^\]]*\], route: '\/construction-news', icon: 'Newspaper', group: 'workspace' \}/.test(read('utils/featureRegistry.ts')));
+  /\{ id: 'construction-news', title: 'Construction News', synonyms: \[[^\]]*'news'[^\]]*\], route: '\/construction-news', icon: 'Newspaper', group: 'workspace' \}/.test(read('utils/featureRegistry.ts')));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

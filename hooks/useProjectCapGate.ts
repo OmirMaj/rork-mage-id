@@ -57,8 +57,8 @@ export function useProjectCapGate(): ProjectCapGate {
 
   const explainAndOfferUpgrade = useCallback(() => {
     showAlert(PROJECT_CAP_ALERT_TITLE, PROJECT_CAP_ALERT_BODY, [
-      { text: 'Not now', style: 'cancel' },
-      { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+      { text: 'Not Now', style: 'cancel' },
+      { text: 'See Plans', onPress: () => router.push('/paywall' as never) },
     ]);
   }, [router]);
 

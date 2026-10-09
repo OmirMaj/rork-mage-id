@@ -119,7 +119,7 @@ console.log('\n#32 the deposit holds no retainage; invoice #2 does not inherit i
   ok('invoice.tsx: a deposit is a NEW milestone invoice with the flag', /const isDepositInvoice = !invoiceId && !!milestoneId && depositParam === '1';/.test(INVOICE));
   ok('...seeds 0%', /useState<string>\(isDepositInvoice \? '0' : String\(retainageSeed\.percent\)\)/.test(INVOICE));
   ok('...never opens the ask', /retainageSeed\.needsAsk && !isLocked && !retainageAsked && !isDepositInvoice\)/.test(INVOICE));
-  ok('...and labels the 0 as the contract\'s rule', /if \(isDepositInvoice\) return \{ label: 'Deposit — no retainage held \(per contract\)', warn: false \};/.test(INVOICE));
+  ok('...and labels the 0 as the contract\'s rule', /if \(isDepositInvoice\) return \{ label: 'Deposit: No Retainage Held \(Per Contract\)', warn: false \};/.test(INVOICE));
 }
 
 // ── #119: a sent contract re-reads ─────────────────────────────────────────
@@ -164,7 +164,7 @@ console.log('\n#132/#136 a paid draw shows PAID however it was paid');
   ok('the contract screen never writes the invoiced link itself (that stays the editor\'s, on creation)', !/markMilestoneInvoiced\(/.test(CONTRACT));
 
   ok('the pill and the "Paid — already on an invoice" line read the derived state',
-    /const isPaid = paidByInvoices \?\? milestone\.status === 'paid';/.test(CONTRACT) && /isPaid\s+\? \{ bg: themeColors\.success/.test(CONTRACT) && /\{isPaid \? 'Paid' : 'Billed'\} — already on an invoice/.test(CONTRACT));
+    /const isPaid = paidByInvoices \?\? milestone\.status === 'paid';/.test(CONTRACT) && /isPaid\s+\? \{ bg: themeColors\.success/.test(CONTRACT) && /\{isPaid \? 'Paid' : 'Billed'\}, already on an invoice/.test(CONTRACT));
   ok('the screen passes each row the invoice-derived answer, from EFFECTIVE status',
     /paidByInvoices=\{paidMilestoneIds\.has\(m\.id\)\}/.test(CONTRACT) && /paid: getEffectiveInvoiceStatus\(inv\) === 'paid',/.test(CONTRACT));
   ok('the open-time repair runs the live read-verify-write, never a queued schedule array',

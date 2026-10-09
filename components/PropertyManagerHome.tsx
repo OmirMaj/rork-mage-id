@@ -146,7 +146,7 @@ export default function PropertyManagerHome() {
                 {greeting.text}{firstName ? `, ${firstName}` : ''}
               </Text>
             </View>
-            <Text style={styles.title}>Your portfolio</Text>
+            <Text style={styles.title}>Your Portfolio</Text>
             <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
           </View>
         </FadeRise>
@@ -161,7 +161,7 @@ export default function PropertyManagerHome() {
                 <Plus size={20} color="#FFF" strokeWidth={2.6} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.heroCtaTitle}>Add a property</Text>
+                <Text style={styles.heroCtaTitle}>Add a Property</Text>
                 <Text style={styles.heroCtaBody}>
                   Track maintenance, log work orders, and dispatch them to your contractors.
                 </Text>
@@ -176,7 +176,7 @@ export default function PropertyManagerHome() {
             <View style={styles.statsRow}>
               <StatTile icon={Building2} label="Properties" value={totals.properties} accent={themeColors.text} lit={totals.properties > 0} />
               <StatTile icon={Wrench} label="Open" value={totals.openWO} accent={themeColors.accent} lit={totals.openWO > 0} />
-              <StatTile icon={Send} label="Out for bids" value={totals.outForBids} accent={themeColors.success} lit={totals.outForBids > 0} />
+              <StatTile icon={Send} label="Out for Bids" value={totals.outForBids} accent={themeColors.success} lit={totals.outForBids > 0} />
             </View>
           </FadeRise>
         )}
@@ -187,7 +187,7 @@ export default function PropertyManagerHome() {
               <View style={styles.emptyIconWrap}>
                 <ClipboardList size={28} color={themeColors.accent} strokeWidth={1.75} />
               </View>
-              <Text style={styles.emptyTitle}>Your portfolio starts here</Text>
+              <Text style={styles.emptyTitle}>Your Portfolio Starts Here</Text>
               <Text style={styles.emptyBody}>
                 Add the buildings and units you manage. Every leak, turnover, and service call
                 becomes a work order you can track and hand to a contractor.
@@ -256,7 +256,7 @@ export default function PropertyManagerHome() {
             {fAdd.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={styles.modalHeadIcon}><Building2 size={16} color="#FFF" strokeWidth={1.75} /></View>
-              <Text style={styles.modalTitle}>Add a property</Text>
+              <Text style={styles.modalTitle}>Add a Property</Text>
               <TouchableOpacity onPress={() => { setAddOpen(false); resetDraft(); }} hitSlop={8}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -296,7 +296,7 @@ export default function PropertyManagerHome() {
             >
               {/* A plain add, so a plain Plus: the AI mark is for AI actions. */}
               <Plus size={15} color={Colors.textOnAccent} strokeWidth={2.2} />
-              <Text style={styles.modalCtaText}>Add property</Text>
+              <Text style={styles.modalCtaText}>Add Property</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

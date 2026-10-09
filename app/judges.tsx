@@ -295,7 +295,7 @@ function JudgesInner() {
     const target = projects.find(p => p.id === routeProjectId);
     setMode('pick');
     if (!target) {
-      setError('That project isn’t in your list any more — pick an estimate below.');
+      setError('That project isn’t in your list any more. Pick an estimate below.');
       return;
     }
     if (!target.linkedEstimate) {
@@ -365,10 +365,10 @@ function JudgesInner() {
             <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.headerEyebrow}>Bid advisor · MAGE ID</Text>
+            <Text style={styles.headerEyebrow}>Bid Advisor · MAGE ID</Text>
             <Text style={styles.headerTitle} numberOfLines={1}>Verdict</Text>
           </View>
-          <TouchableOpacity onPress={handleReset} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Score another bid">
+          <TouchableOpacity onPress={handleReset} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Score Another Bid">
             <Scale size={18} color={t.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
@@ -378,7 +378,7 @@ function JudgesInner() {
         >
           <VerdictCard result={result} marginSource={marginLabel} />
           <TouchableOpacity style={[styles.resetBtn, isDesktop && desktopCta]} onPress={handleReset} activeOpacity={0.85}>
-            <Text style={styles.resetBtnText}>Score another bid</Text>
+            <Text style={styles.resetBtnText}>Score Another Bid</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -395,7 +395,7 @@ function JudgesInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Bid advisor · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Bid Advisor · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Should I bid this?</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -409,7 +409,7 @@ function JudgesInner() {
           activeOpacity={0.8}
         >
           <Scale size={14} color={mode === 'describe' ? Colors.textOnAccent : t.textSecondary} strokeWidth={1.75} />
-          <Text style={[styles.modeBtnText, mode === 'describe' && styles.modeBtnTextActive]}>Describe project</Text>
+          <Text style={[styles.modeBtnText, mode === 'describe' && styles.modeBtnTextActive]}>Describe Project</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'pick' && styles.modeBtnActive]}
@@ -417,7 +417,7 @@ function JudgesInner() {
           activeOpacity={0.8}
         >
           <List size={14} color={mode === 'pick' ? Colors.textOnAccent : t.textSecondary} strokeWidth={1.75} />
-          <Text style={[styles.modeBtnText, mode === 'pick' && styles.modeBtnTextActive]}>Pick estimate</Text>
+          <Text style={[styles.modeBtnText, mode === 'pick' && styles.modeBtnTextActive]}>Pick Estimate</Text>
         </TouchableOpacity>
       </View>
 
@@ -436,19 +436,19 @@ function JudgesInner() {
         {/* ── Describe mode ── */}
         {mode === 'describe' && (
           <>
-            <Text style={styles.sectionTitle}>Describe the scope</Text>
+            <Text style={styles.sectionTitle}>Describe the Scope</Text>
             <TextInput
               style={[styles.input, styles.inputMultiline]}
               value={scope}
               onChangeText={setScope}
-              placeholder="e.g. Full kitchen remodel — demo to studs, new layout, cabinets, counters, appliances, tile backsplash, plumbing relocated, 200A panel upgrade"
+              placeholder="Full kitchen remodel: demo to studs, new layout, cabinets, counters, appliances, tile backsplash, plumbing relocated, 200A panel upgrade"
               placeholderTextColor={t.textMuted}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
             />
 
-            <Text style={styles.sectionTitle}>Project type</Text>
+            <Text style={styles.sectionTitle}>Project Type</Text>
             <ChipRail contentContainerStyle={styles.chipsRow}>
               {PROJECT_TYPES.map(pt => (
                 <TouchableOpacity
@@ -457,18 +457,18 @@ function JudgesInner() {
                   onPress={() => setProjectType(pt.id)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.chipText, projectType === pt.id && styles.chipTextActive]}>{pt.id === 'other' ? 'Other (describe it)' : pt.label}</Text>
+                  <Text style={[styles.chipText, projectType === pt.id && styles.chipTextActive]}>{pt.id === 'other' ? 'Other (Describe It)' : pt.label}</Text>
                 </TouchableOpacity>
               ))}
             </ChipRail>
             {projectType === 'other' ? (
               <>
-                <Text style={styles.fieldLabel}>Describe the project</Text>
+                <Text style={styles.fieldLabel}>Describe the Project</Text>
                 <TextInput
                   style={styles.input}
                   value={projectTypeOther}
                   onChangeText={setProjectTypeOther}
-                  placeholder="e.g. Whole-house repipe"
+                  placeholder="Whole-house repipe"
                   placeholderTextColor={t.textMuted}
                   maxLength={PROJECT_TYPE_OTHER_MAX}
                   testID="judges-type-other"
@@ -479,24 +479,24 @@ function JudgesInner() {
 
             <View style={styles.compactRow}>
               <View style={styles.compactCol}>
-                <Text style={styles.fieldLabel}>Size (sqft)</Text>
+                <Text style={styles.fieldLabel}>Size (Sq Ft)</Text>
                 <TextInput
                   style={[styles.input, isDesktop && styles.inputXsDesktop]}
                   value={sizeSqft}
                   onChangeText={setSizeSqft}
-                  placeholder="e.g. 250"
+                  placeholder="250"
                   placeholderTextColor={t.textMuted}
                   keyboardType="numeric"
                   inputMode="numeric"
                 />
               </View>
               <View style={styles.compactCol}>
-                <Text style={styles.fieldLabel}>Timeline (weeks)</Text>
+                <Text style={styles.fieldLabel}>Timeline (Weeks)</Text>
                 <TextInput
                   style={[styles.input, isDesktop && styles.inputXsDesktop]}
                   value={timelineWeeks}
                   onChangeText={setTimelineWeeks}
-                  placeholder="e.g. 8"
+                  placeholder="8"
                   placeholderTextColor={t.textMuted}
                   keyboardType="numeric"
                   inputMode="numeric"
@@ -533,7 +533,7 @@ function JudgesInner() {
                 : <Scale size={16} color={Colors.textOnAccent} strokeWidth={2} />
               }
               <Text style={styles.judgeBtnText}>
-                {loading ? 'Scoring this bid…' : 'Score this bid'}
+                {loading ? 'Scoring this bid…' : 'Score This Bid'}
               </Text>
             </TouchableOpacity>
           </>
@@ -542,7 +542,7 @@ function JudgesInner() {
         {/* ── Pick-existing mode ── */}
         {mode === 'pick' && (
           <>
-            <Text style={styles.sectionTitle}>Pick an estimate to judge</Text>
+            <Text style={styles.sectionTitle}>Pick an Estimate to Judge</Text>
             {markupRow}
 
             {/* Optional timeline for capacity analysis */}
@@ -551,7 +551,7 @@ function JudgesInner() {
               style={styles.input}
               value={timelineWeeks}
               onChangeText={setTimelineWeeks}
-              placeholder="e.g. 8"
+              placeholder="8"
               placeholderTextColor={t.textMuted}
               keyboardType="numeric"
               inputMode="numeric"

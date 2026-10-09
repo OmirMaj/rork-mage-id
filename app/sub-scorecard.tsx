@@ -40,9 +40,9 @@ function colorForGrade(grade: SubGrade, t: ThemeColors): string {
 }
 
 const CONFIDENCE_LABEL: Record<SubScorecard['confidence'], string> = {
-  low: 'Low confidence',
-  medium: 'Medium confidence',
-  high: 'High confidence',
+  low: 'Low Confidence',
+  medium: 'Medium Confidence',
+  high: 'High Confidence',
 };
 
 export default function SubScorecardScreen() {
@@ -127,17 +127,17 @@ function SubScorecardInner() {
   if (subcontractors.length === 0 && suppliers.length === 0) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Sub scorecard' }} />
+        <Stack.Screen options={{ title: 'Sub Scorecard' }} />
         <EmptyState
           icon={<HardHat size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No subs to grade yet"
+          title="No Subs to Grade Yet"
           message="The sub scorecard grades every sub from your own project costs: closed-commitment overruns, change-order creep and paperwork. To see it:"
           steps={[
             'Add subs from the Subs tab.',
             'Award commitments to them through buyout.',
             'Come back to see who earns the next call.',
           ]}
-          actionLabel="Open subs"
+          actionLabel="Open Subs"
           onAction={() => router.push('/(tabs)/subs' as any)}
         />
       </View>
@@ -157,7 +157,7 @@ function SubScorecardInner() {
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Scorecard · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {mode === 'subs' ? 'Who earns the next call' : 'Who hits their dates'}
+            {mode === 'subs' ? 'Who Earns the Next Call' : 'Who Hits Their Dates'}
           </Text>
         </View>
         <View style={styles.headerBtn} />
@@ -263,7 +263,7 @@ function SubScorecardInner() {
             <Text style={styles.note}>
               Reliability is built from deliveries you already track: the date you were
               promised versus the date it landed, and whether the supplier ever confirmed
-              before shipping. Early loads do not cancel late ones — a slip already cost a
+              before shipping. Early loads do not cancel late ones: a slip already cost a
               crew a day an early delivery does not give back. A supplier stays ungraded
               until there is enough history to defend the number, and an uninspected load
               is never counted as damage-free.
@@ -273,7 +273,7 @@ function SubScorecardInner() {
         <Text style={styles.lede}>
           {graded > 0
             ? `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} ranked from your signed commitments and compliance records. ${graded} ha${graded === 1 ? 's' : 've'} project history behind the grade.`
-            : `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} on file — none with signed commitments yet, so grades reflect paperwork only. Award work through Buyout and the scores get real.`}
+            : `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} on file, none with signed commitments yet, so grades reflect paperwork only. Award work through Buyout and the scores fill in.`}
         </Text>
 
         {result.cards.map(card => {
@@ -357,7 +357,7 @@ function SubScorecardInner() {
           Grades blend cost discipline on closed commitments, change-order growth on
           signed work, punch items bounced at review, schedule reliability on tasks
           assigned to the sub, and today&apos;s COI / license / W-9 standing. Factors
-          without enough linked data show as &quot;—&quot; and sit out of the blend. History depth
+          without enough linked data show as a dash and sit out of the blend. History depth
           moves confidence, not the grade, so a new sub with clean paper isn&apos;t punished.
         </Text>
         </>)}

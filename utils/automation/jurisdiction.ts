@@ -185,10 +185,10 @@ export const stubGuessSource: ZoningGuessSource = {
     // read identically — and neither was distinguishable from a zoning source
     // that answered "no district here".
     const RATIONALE: Record<GeocodeOrigin, string> = {
-      stored: 'Located from the saved jobsite coordinates, but no zoning source is connected — enter the district and confirm.',
-      geocoded: 'Address located, but no zoning source is connected — enter the district and confirm.',
-      failed: 'The address lookup did not resolve this address, so nothing was checked against a map — enter the zoning district and confirm.',
-      unattempted: 'No jobsite address to look up — add the address, then enter the zoning district and confirm.',
+      stored: 'Located from the saved jobsite coordinates, but no zoning source is connected. Enter the district and confirm.',
+      geocoded: 'Address located, but no zoning source is connected. Enter the district and confirm.',
+      failed: 'The address lookup did not resolve this address, so nothing was checked against a map. Enter the zoning district and confirm.',
+      unattempted: 'No jobsite address to look up. Add the address, then enter the zoning district and confirm.',
     };
     return { district: null, confidence: 'low', rationale: RATIONALE[ctx.geocodeOrigin] };
   },
@@ -619,11 +619,11 @@ export function confirmZoning(
 ): NonNullable<Project['structuredAddress']> {
   const trimmed = (district || '').trim();
   if (!trimmed) {
-    throw new Error('confirmZoning: district is required — cannot confirm an empty district.');
+    throw new Error('confirmZoning: district is required. Cannot confirm an empty district.');
   }
   if (looksLikeAddressNotDistrict(project, trimmed)) {
     throw new Error(
-      `confirmZoning: "${trimmed}" is the jobsite address, not a zoning district. A district is the municipality's code for the parcel (e.g. "R-5"); confirming an address would present a guess as truth.`,
+      `confirmZoning: "${trimmed}" is the jobsite address, not a zoning district. A district is the municipality's code for the parcel ("R-5", for example); confirming an address would present a guess as truth.`,
     );
   }
   const key = zoningAddressKey(project);
@@ -651,7 +651,7 @@ export function canConfirmZoning(project: Project): { ok: true } | { ok: false; 
     return {
       ok: false,
       reason:
-        'Add the jobsite city and state first — a zoning district only means something for a specific address.',
+        'Add the jobsite city and state first. A zoning district only means something for a specific address.',
     };
   }
   return { ok: true };
@@ -678,7 +678,7 @@ export function zoningBlockedReason(project: Project): string | null {
       return can.ok ? 'Confirm zoning to enable code requirements and auto-scheduling.' : can.reason;
     }
     case 'laundered':
-      return `"${stored}" was recorded as this project's zoning district, but it is the jobsite address — not a district. Enter the district the municipality assigned this parcel.`;
+      return `"${stored}" was recorded as this project's zoning district, but it is the jobsite address, not a district. Enter the district the municipality assigned this parcel.`;
     case 'stale':
       return stored
         ? `The jobsite address changed since "${stored}" was confirmed, and zoning districts do not travel with a job. Confirm the district for the current address.`
@@ -779,7 +779,7 @@ export function describeZoningUnknown(project: Project): ZoningUnknownFacts {
     // it without claiming a district; until that is wired, we hedge.
     zoningAuthorityLabel: placeLabel,
     zoningAuthorityNote: placeLabel
-      ? `Zoning is set locally — by the village, town or city that governs this parcel, not by the county or the state. MAGE has not verified which one covers ${placeLabel}.`
+      ? `Zoning is set locally, by the village, town or city that governs this parcel, not by the county or the state. MAGE has not verified which one covers ${placeLabel}.`
       : null,
     permitAuthority: issuingAuthorityForAddress({ city, county: q.county, state, zip: q.zip }),
     codeSummary: grounded ? codesSummary(grounded.codes) : null,
@@ -790,7 +790,7 @@ export function describeZoningUnknown(project: Project): ZoningUnknownFacts {
     // it again here reads as "ask THEM", which is the claim that was withdrawn.
     // What is left is verified and still actionable.
     ask: placeLabel
-      ? 'MAGE has no zoning record for this address. Zoning here is set by the local village, town or city — look up the parcel on its zoning map, or ask its building department, then enter the district here.'
+      ? 'MAGE has no zoning record for this address. Zoning here is set by the local village, town or city. Look up the parcel on its zoning map, or ask its building department, then enter the district here.'
       : 'MAGE has no zoning record for this address. Add the jobsite city and state, then enter the district the municipality assigned this parcel.',
   };
 }

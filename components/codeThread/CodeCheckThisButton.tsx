@@ -64,7 +64,7 @@ export function CodeCheckThisButton({
         onPress={onPress}
         hitSlop={12}
         accessibilityRole="button"
-        accessibilityLabel="Code check this sheet"
+        accessibilityLabel="Code Check This Sheet"
       >
         <ShieldCheck size={20} color={colors.accent} />
       </TouchableOpacity>
@@ -77,10 +77,10 @@ export function CodeCheckThisButton({
       style={[styles.row, style]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel="Code check this item"
+      accessibilityLabel="Code Check This Item"
     >
       <ShieldCheck size={20} color={colors.accent} />
-      <Text style={styles.rowText}>Code check this item</Text>
+      <Text style={styles.rowText}>Code Check This Item</Text>
     </TouchableOpacity>
   );
 }

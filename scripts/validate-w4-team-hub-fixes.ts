@@ -12,7 +12,7 @@
 //            failed or is paused; Invite is off with its reason; the count
 //            needs data; a same-role pending re-send keeps its token;
 //   carries  #38 billing buttons owner-only with the reason, #15 the lite
-//            portal publish carries the job's pay apps, #63 "Filed by" on
+//            portal publish carries the job's pay apps, #63 "Filed By" on
 //            daily report rows, #29 the RFI log export counts queued INSERTs only.
 //
 // Screens import react-native, so the screen side is pinned by source; the
@@ -99,7 +99,7 @@ async function main() {
   ok('CollaboratorsManager derives the view from the read\'s state',
     /const view = rosterView\(\{ isLoading, isError, isPaused, hasData, count: collaborators\.length \}\);/.test(CM));
   ok('"No team members yet" renders only for view === \'empty\'',
-    /view === 'empty' \? \( <Text[^>]*>No team members yet/.test(CM) && !/collaborators\.length === 0 \? \(/.test(CM));
+    /view === 'empty' \? \( <Text[^>]*>\{isOwner \? 'No team members yet\./.test(CM) && !/collaborators\.length === 0 \? \(/.test(CM));
   ok('error/offline render their line, and error offers Retry (refetch)',
     /view === 'error' \|\| view === 'offline' \?/.test(CM) && /onPress=\{refetch\} testID="collab-roster-retry"/.test(CM));
   ok('Send invite is disabled by inviteBlocked and prints the reason',
@@ -121,7 +121,7 @@ async function main() {
   ok('nothing queued: plain Leave, base copy, no promise that nothing is deleted',
     zero.leaveLabel === 'Leave' && !zero.offerSyncFirst && zero.message.includes(LEAVE_SYNCED_STAYS) && !/Nothing on the job is deleted/.test(zero.message));
   ok('3 queued: says the number, discards, Sync first + Leave anyway',
-    three.offerSyncFirst && three.leaveLabel === 'Leave anyway'
+    three.offerSyncFirst && three.leaveLabel === 'Leave Anyway'
     && three.message.startsWith("3 changes on this project haven't reached the cloud yet. Leaving now discards them."));
   ok('1 queued: singular', one.message.startsWith("1 change on this project hasn't reached the cloud yet. Leaving now discards it."));
   expect('"You left" names the dropped count', leftProjectMessage('Henderson', true, 2),
@@ -144,7 +144,7 @@ async function main() {
     && /const copy = leaveDialogCopy\(name, pending, unsaved, Platform\.OS === 'android' \? 3 : 4\);/.test(leave));
   const dialog = leave.slice(leave.indexOf('void (async () => {\n      setCheckingLeave(true);'));
   ok('"Sync first" re-runs the whole check; the server call happens only on the destructive button',
-    /copy\.offerSyncFirst \? \[\{ text: 'Sync first', onPress: \(\) => \{ handleLeaveRef\.current\(\); \} \}\]/.test(flat(dialog))
+    /copy\.offerSyncFirst \? \[\{ text: 'Sync First', onPress: \(\) => \{ handleLeaveRef\.current\(\); \} \}\]/.test(flat(dialog))
     && dialog.length > 0 && !/functions\.invoke/.test(dialog) && /await runLeave\(\);/.test(dialog)
     && leave.indexOf("functions.invoke('project-invite'") < leave.indexOf('setCheckingLeave(true)'));
   ok('a plain Leave re-counts at the tap and falls back to the count dialog',

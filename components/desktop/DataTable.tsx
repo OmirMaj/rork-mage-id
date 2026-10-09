@@ -409,15 +409,15 @@ function DesktopDataTable<T>({
   };
   useHotkeys(
     [
-      { combo: 'j', enabled: gates.j, handler: () => step(1), label: 'Next row', group: 'Table' },
+      { combo: 'j', enabled: gates.j, handler: () => step(1), label: 'Next Row', group: 'Table' },
       // ↑/↓ only while he drives the cursor and nothing is open: with a
       // record open they scroll the record he is reading (browser default).
       { combo: 'arrowdown', enabled: gates.arrows, handler: () => step(1) },
-      { combo: 'k', enabled: gates.k, handler: () => step(-1), label: 'Previous row', group: 'Table' },
+      { combo: 'k', enabled: gates.k, handler: () => step(-1), label: 'Previous Row', group: 'Table' },
       { combo: 'arrowup', enabled: gates.arrows, handler: () => step(-1) },
       {
         combo: 'enter',
-        label: 'Open row',
+        label: 'Open Row',
         group: 'Table',
         // The open record is already open; Enter belongs to it.
         enabled: gates.enter,
@@ -425,24 +425,24 @@ function DesktopDataTable<T>({
       },
       {
         combo: 'x',
-        label: 'Select row',
+        label: 'Select Row',
         group: 'Table',
         enabled: gates.x,
         handler: () => { const k = visibleKeys[cursor]; if (k) onCheck(k, false); },
       },
       {
         combo: 'mod+a',
-        label: 'Select all rows',
+        label: 'Select All Rows',
         group: 'Table',
         enabled: gates.selectAll,
         // Cmd+A inside the search box selects its text, not every row.
         blockInInput: true,
         handler: () => setSelected(new Set(visibleKeys)),
       },
-      { combo: '/', label: 'Search the table', group: 'Table', enabled: gates.search, handler: () => searchRef.current?.focus() },
+      { combo: '/', label: 'Search the Table', group: 'Table', enabled: gates.search, handler: () => searchRef.current?.focus() },
       {
         combo: 'escape',
-        label: 'Clear selection / search',
+        label: 'Clear Selection / Search',
         group: 'Table',
         // Only when there is something to clear, so Esc otherwise reaches the
         // SplitView record or panel it belongs to. Priority 1 beats their
@@ -504,7 +504,7 @@ function DesktopDataTable<T>({
                 testID={testID ? `${testID}-search` : undefined}
               />
               {query ? (
-                <Pressable onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={8}>
+                <Pressable onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Clear Search" hitSlop={8}>
                   <X {...Tokens.iconSize.small} color={t.textMuted} />
                 </Pressable>
               ) : null}
@@ -517,7 +517,7 @@ function DesktopDataTable<T>({
               onPress={() => setShowColumnPicker((s) => !s)}
               style={[styles.toolButton, showColumnPicker && styles.toolButtonOn]}
               accessibilityRole="button"
-              accessibilityLabel="Choose columns"
+              accessibilityLabel="Choose Columns"
               accessibilityState={{ expanded: showColumnPicker }}
               testID={testID ? `${testID}-columns` : undefined}
             >
@@ -586,7 +586,7 @@ function DesktopDataTable<T>({
             onPress={onCheckAll}
             style={styles.checkCell}
             accessibilityRole="checkbox"
-            accessibilityLabel="Select all rows"
+            accessibilityLabel="Select All Rows"
             accessibilityState={{ checked: allState === 'all' ? true : allState === 'some' ? 'mixed' : false }}
             testID={testID ? `${testID}-check-all` : undefined}
           >
@@ -627,7 +627,7 @@ function DesktopDataTable<T>({
             <>
               <Text style={styles.emptyText}>No rows match “{query}”.</Text>
               <Pressable onPress={() => setQuery('')} accessibilityRole="button" style={styles.bulkButton}>
-                <Text style={styles.bulkButtonText}>Clear search</Text>
+                <Text style={styles.bulkButtonText}>Clear Search</Text>
               </Pressable>
             </>
           ) : (
@@ -758,7 +758,7 @@ function DataRow({
           style={styles.checkCell}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: selected }}
-          accessibilityLabel="Select row"
+          accessibilityLabel="Select Row"
           testID={testID ? `${testID}-check` : undefined}
         >
           <View style={[styles.box, selected && styles.boxOn]}>

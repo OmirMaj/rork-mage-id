@@ -66,12 +66,12 @@ console.log('\n  #12 — verified-only copy promises only what is enforced');
 // The exact subtitle a homeowner reads next to the toggle. Pinned verbatim:
 // this is the sentence the audit found to be false, and any reword has to be
 // re-checked against the RLS before it ships.
-const SUBTITLE = 'We only alert contractors with a current license on file. Fewer bids, higher quality.';
+const SUBTITLE = 'We only alert contractors who have given MAGE ID a license number. MAGE ID does not check that number with the state.';
 ok('post-rfp toggle subtitle is the notification-scoped copy',
   postSrc.includes(SUBTITLE),
   `Expected this exact string in ${POST}:\n      "${SUBTITLE}"`);
 
-const TOGGLE_TITLE = 'Notify verified pros only';
+const TOGGLE_TITLE = 'Notify Only Contractors With a License on File';
 ok('post-rfp toggle title is notification-scoped',
   postSrc.includes(`<Text style={styles.verifyToggleTitle}>${TOGGLE_TITLE}</Text>`),
   `Expected the toggle title to be "${TOGGLE_TITLE}" in ${POST}. Plain "Verified pros only"`
@@ -93,7 +93,7 @@ for (const [label, src] of [[POST, postCode], [DETAIL, detailCode]] as const) {
 }
 
 ok('rfp-detail pill does not claim "VERIFIED PROS ONLY"',
-  !/verified pros only/i.test(detailCode) && detailCode.includes('Verified pros notified'),
+  !/verified pros only/i.test(detailCode) && detailCode.includes('Alerted Contractors With a License on File'),
   `${DETAIL} must label verified_only as a notification setting, not an access restriction.`);
 
 // ── #13: no bare-spinner dead end ───────────────────────────────────────────

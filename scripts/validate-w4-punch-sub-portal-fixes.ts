@@ -173,13 +173,13 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ]));
   const out = r.sec.innerHTML;
   check('#47 "Sent back by <contractor>: <reason>", escaped', /Sent back by Acme Builders: Cover is cracked, &lt;replace&gt;/.test(out));
-  check('#47 the app\'s default reads as "no reason given"', /Sent back by Acme Builders — no reason given/.test(out) && !/needs rework/.test(out));
+  check('#47 the app\'s default reads as "no reason given"', /Sent back by Acme Builders\. No reason given\./.test(out) && !/needs rework/.test(out));
   check('#47 no sent-back box on a row in Review; its note is labelled "Note sent with your last mark"',
     !/old round/.test(out) && /Note sent with your last mark: swapped it/.test(out));
   check('#47 last round\'s note never shows under a sent-back reason', !/stale/.test(out));
   check('#47 "Your note:" is gone', !/Your note:/.test(out));
   check('#56 no "Unspecified" room; a pinned row with no room says to check the sheet',
-    !/Unspecified/.test(out) && /No room given — check the sheet/.test(out));
+    !/Unspecified/.test(out) && /No room given\. Check the sheet\./.test(out));
   check('#56 an unnamed/missing sheet says so — never "On sheet Plan"', /Pinned on a plan \(sheet not available\)/.test(out) && !/On sheet Plan/.test(out) && /On sheet A-101/.test(out));
 
   // #48 + #49: type, redraw, fail, keep; then the server's answer.
@@ -200,21 +200,21 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   check('#48 the box is disabled while sending', /data-note-for="a"[^>]*disabled>/.test(m.sec.innerHTML));
   await tick(); await tick();
   check('#48 a failed send keeps the note and says so in words (not "Failed to fetch")',
-    /swapped cover plate, see panel label<\/textarea>/.test(m.sec.innerHTML) && /your note is kept/.test(m.sec.innerHTML) && !/Failed to fetch/.test(m.sec.innerHTML), m.sec.innerHTML.slice(0, 400));
+    /swapped cover plate, see panel label<\/textarea>/.test(m.sec.innerHTML) && /Your note is kept/.test(m.sec.innerHTML) && !/Failed to fetch/.test(m.sec.innerHTML), m.sec.innerHTML.slice(0, 400));
   // Retry: the first send landed but its answer was lost → the RPC says already.
   answer = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, already: true, note_added: false }) });
   m.fire('click', m.el({ 'data-punch-send': 'a' }));
   await tick(); await tick();
   check('#49 retry sends the kept note', sent[1] === 'swapped cover plate, see panel label', JSON.stringify(sent));
   check('#49 already + note not added: the page says it was not added, and does not show it as his note',
-    /Already marked fixed — your note was not added/.test(m.sec.innerHTML) && !/Note sent with your last mark: swapped/.test(m.sec.innerHTML));
+    /Already marked fixed\. Your note was not added/.test(m.sec.innerHTML) && !/Note sent with your last mark: swapped/.test(m.sec.innerHTML));
   check('#48 the draft is cleared once the server answered', !/swapped cover plate, see panel label<\/textarea>/.test(m.sec.innerHTML));
   answer = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, already: true, note_added: true }) });
   m.fire('click', m.el({ 'data-punch-fix': 'b' }));
   m.fire('input', m.el({ 'data-note-for': 'b' }, 'used 5/8 type X'));
   m.fire('click', m.el({ 'data-punch-send': 'b' }));
   await tick(); await tick();
-  check('#49 already + note added: says so and shows it', /your note was added for Acme Builders/.test(m.sec.innerHTML) && /Note sent with your last mark: used 5\/8 type X/.test(m.sec.innerHTML));
+  check('#49 already + note added: says so and shows it', /Your note was added for Acme Builders/.test(m.sec.innerHTML) && /Note sent with your last mark: used 5\/8 type X/.test(m.sec.innerHTML));
   const a = m.api.punchState.items.find(i => i.id === 'a');
   check('#49 the optimistic item never claims a note the server dropped', a?.subNote === undefined && a?.status === 'ready_for_review');
 }
@@ -259,7 +259,7 @@ console.log('\nmarketing/sub-portal/index.html — boot (#50):');
 
   let r = await run({ fetch: () => Promise.reject(new TypeError('Failed to fetch')) });
   check('short link + no signal → "Couldn\'t reach the server" with Try again, never "expired"',
-    /Couldn’t reach the server/.test(r.title) && r.retry === 'block' && !/expired/i.test(r.title + r.text) && r.rendered.length === 0, r.title);
+    /Couldn’t Reach the Server/.test(r.title) && r.retry === 'block' && !/expired/i.test(r.title + r.text) && r.rendered.length === 0, r.title);
   r = await run({ fetch: () => Promise.resolve(resp(401, { code: '42501', message: 'sub_portal_denied' })) });
   check('short link + 401 → "turned off or replaced"', /turned off or replaced/.test(r.title) && r.retry === 'none' && r.rendered.length === 0, r.title);
   r = await run({ hash: HASH, fetch: () => Promise.resolve(resp(400, { code: 'P0001', message: 'sub_portal_denied' })) });
@@ -273,12 +273,12 @@ console.log('\nmarketing/sub-portal/index.html — boot (#50):');
   r = await run({ hash: HASH, fetch: () => Promise.resolve(resp(200, { live: true, punchItems: [] })) });
   check('ok → the server copy renders, not the hash', r.rendered.length === 1 && r.rendered[0].live === true && r.card === 'none');
   r = await run({ fetch: () => Promise.resolve(resp(200, null)) });
-  check('200 null, no hash → "Nothing published yet"', /Nothing published yet/.test(r.title) && /^Your contractor/.test(r.text), `${r.title} / ${r.text}`);
+  check('200 null, no hash → "Nothing published yet"', /Nothing Published Yet/.test(r.title) && /^Your contractor/.test(r.text), `${r.title} / ${r.text}`);
   r = await run({
     fireTimeout: true,
     fetch: (_u, init) => new Promise((_res, rej) => init.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')))),
   });
-  check('a hung request is aborted by the timeout → network card', /Couldn’t reach the server/.test(r.title), r.title);
+  check('a hung request is aborted by the timeout → network card', /Couldn’t Reach the Server/.test(r.title), r.title);
   check('the timeout is ~10 s and the request carries the abort signal',
     /var SNAPSHOT_TIMEOUT_MS = 10000;/.test(boot) && /signal: ctl \? ctl\.signal : undefined,/.test(boot));
   r = await run({ hash: HASH, token: '', path: '/sub-portal/' , fetch: () => Promise.reject(new Error('must not fetch')) });

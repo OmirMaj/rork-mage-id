@@ -67,8 +67,8 @@ export const CREW_CHIPS: readonly { key: CrewChip; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'active', label: 'Active' },
   { key: 'inactive', label: 'Inactive' },
-  { key: 'verified', label: 'ID verified' },
-  { key: 'unverified', label: 'Not verified' },
+  { key: 'verified', label: 'ID on File' },
+  { key: 'unverified', label: 'No ID on File' },
 ];
 
 /** 'ID verified' is a CURRENT verified ID; an expired one is 'Not verified'. */
@@ -93,7 +93,7 @@ export function crewChipCounts(rows: readonly Pick<CrewRegisterRow, 'active' | '
 
 /** The ID column's words, from verifiedBadge. */
 export const CREW_ID_LABEL: Readonly<Record<IdBadge, string>> = {
-  id_verified: 'ID verified',
-  id_expired: 'ID expired',
-  unverified: 'Not verified',
+  id_verified: 'ID on File',
+  id_expired: 'ID Expired',
+  unverified: 'No ID on File',
 };

@@ -156,12 +156,12 @@ function xrayApplySummary(r: {
 }): string {
   const parts: string[] = [];
   if (r.linesAdded > 0) {
-    parts.push(`${r.linesAdded} hidden-condition line${r.linesAdded === 1 ? '' : 's'} (+${formatMoney(r.dollarsAdded)}) added to your estimate — the client's proposal shows the amount as one "Contingency" line, never the finding, and invoices and pay apps bill it as "Contingency" too.`);
+    parts.push(`${r.linesAdded} hidden-condition line${r.linesAdded === 1 ? '' : 's'} (+${formatMoney(r.dollarsAdded)}) added to your estimate. The client's proposal shows the amount as one "Contingency" line, never the finding, and invoices and pay apps bill it as "Contingency" too.`);
   }
   if (r.pricedNotAdded > 0) {
-    parts.push(`${formatMoney(r.dollarsNotAdded)} of hidden-condition contingency was NOT added — this project has no estimate yet. Build one, then re-run the scan.`);
+    parts.push(`${formatMoney(r.dollarsNotAdded)} of hidden-condition contingency was not added. This project has no estimate yet. Build one, then re-run the scan.`);
   }
-  parts.push(`${r.verifyTasks} field-verify task${r.verifyTasks === 1 ? '' : 's'} created on the crew list (internal — never shown to the client).`);
+  parts.push(`${r.verifyTasks} field-verify task${r.verifyTasks === 1 ? '' : 's'} created on the crew list (internal, never shown to the client).`);
   return parts.join(' ');
 }
 
@@ -241,18 +241,18 @@ export default function CostXrayScreen() {
   }, [project, addProjectPhoto, resetScan]);
 
   const capture = useCallback(async (source: 'camera' | 'library') => {
-    if (!project) { showAlert('Pick a project', 'Choose which project this scan is for.'); return; }
-    if (photos.length >= MAX_PHOTOS) { showAlert('Limit reached', `Up to ${MAX_PHOTOS} photos per scan.`); return; }
+    if (!project) { showAlert('Pick a Project', 'Choose which project this scan is for.'); return; }
+    if (photos.length >= MAX_PHOTOS) { showAlert('Limit Reached', `Up to ${MAX_PHOTOS} photos per scan.`); return; }
     try {
       if (source === 'camera') {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { showAlert('Camera access needed', 'Grant camera access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Camera Access Needed', 'Grant camera access in Settings.'); return; }
         const res = await ImagePicker.launchCameraAsync({ quality: 0.7 });
         if (res.canceled || !res.assets[0]) return;
         addCaptured(res.assets[0].uri);
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { showAlert('Photo access needed', 'Grant photo access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Photo Access Needed', 'Grant photo access in Settings.'); return; }
         const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
         if (res.canceled || !res.assets[0]) return;
         addCaptured(res.assets[0].uri);
@@ -310,8 +310,8 @@ export default function CostXrayScreen() {
       const payloadBytes = inline.reduce((s, p) => s + p.base64.length, 0);
       if (payloadBytes > MAX_PAYLOAD_BYTES) {
         showAlert(
-          'Photos too large',
-          `Your photos are too large to analyze (${(payloadBytes / 1024 / 1024).toFixed(1)} MB). Try fewer photos or use the camera option — it captures at a smaller file size. Max batch size is 8 MB.`,
+          'Photos Too Large',
+          `Your photos are too large to analyze (${(payloadBytes / 1024 / 1024).toFixed(1)} MB). Try fewer photos or use the camera option, which captures at a smaller file size. Max batch size is 8 MB.`,
         );
         return;
       }
@@ -358,7 +358,7 @@ export default function CostXrayScreen() {
       if (built.length > 0) setXrayRun((n) => n + 1);
       setReviews(built);
       if (built.length === 0) {
-        setError('No hidden conditions detected in these shots. For better results, try a closer shot of the panel edges, look for water staining on the basement wall, or shoot in brighter light — then scan again.');
+        setError('No hidden conditions detected in these shots. For better results, try a closer shot of the panel edges, look for water staining on the basement wall, or shoot in brighter light, then scan again.');
       } else if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -372,11 +372,11 @@ export default function CostXrayScreen() {
         const message = String((e as Error)?.message ?? '') || 'Cost X-Ray is not available on your plan right now.';
         setError(`${message} Your photos are saved to the project.`);
         showAlert(
-          code === 'tier_required' ? 'Not included in your plan' : "You've hit this month's limit",
+          code === 'tier_required' ? 'Not Included in Your Plan' : "You've hit this month's limit.",
           message,
           [
-            { text: 'Not now', style: 'cancel' },
-            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'See Plans', onPress: () => router.push('/paywall' as never) },
           ],
         );
       } else if (code === 'hourly_limit') {
@@ -597,8 +597,8 @@ export default function CostXrayScreen() {
               <ShieldAlert size={14} color={t.accentHot} strokeWidth={1.75} />
               <Text style={styles.verifyText}>
                 {verifyOnlyReason(r.tell) === 'no-likelihood'
-                  ? 'Field-verify only — no likelihood came back for this tell, so there is nothing to weight an allowance against. It becomes a task, not a line.'
-                  : 'Field-verify only — confidence too low to price. It becomes a task, not a line.'}
+                  ? 'Field-verify only. No likelihood came back for this tell, so there is nothing to weight an allowance against. It becomes a task, not a line.'
+                  : 'Field-verify only. Confidence is too low to price. It becomes a task, not a line.'}
               </Text>
             </View>
           )}
@@ -672,7 +672,7 @@ export default function CostXrayScreen() {
           </TouchableOpacity>
           <View style={styles.headerText}>
             <Text style={styles.headerEyebrow}>Cost X-Ray · MAGE ID</Text>
-            <Text style={styles.headerTitle} numberOfLines={1}>Price the hidden conditions</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Price the Hidden Conditions</Text>
           </View>
           <View style={styles.headerBtn} />
         </View>
@@ -695,7 +695,7 @@ export default function CostXrayScreen() {
             accessibilityRole="button"
             testID="xray-upgrade"
           >
-            <Text style={styles.aiBtnText}>See what Business includes</Text>
+            <Text style={styles.aiBtnText}>See What Business Includes</Text>
           </TouchableOpacity>
         </ScrollView>
         <Paywall
@@ -719,7 +719,7 @@ export default function CostXrayScreen() {
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Cost X-Ray · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Price the hidden conditions'}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Price the Hidden Conditions'}</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -752,10 +752,10 @@ export default function CostXrayScreen() {
                 Photograph the panel, supply lines, waste stack, foundation, or any water staining. MAGE flags the costly hidden conditions and prices each as a contingency on <Text style={styles.introEmph}>your</Text> cost history, before you commit a number.
               </Text>
               <View style={styles.tipsBox}>
-                <Text style={styles.tipsLabel}>For best results</Text>
+                <Text style={styles.tipsLabel}>For Best Results</Text>
                 {([
                   'Get the whole panel or area in frame',
-                  'Capture water stains clearly — fill the shot',
+                  'Capture water stains clearly and fill the shot',
                   'Zoom in on wire type or pipe material',
                   'Shoot in good light (avoid harsh shadows)',
                 ] as const).map((tip) => (
@@ -776,7 +776,7 @@ export default function CostXrayScreen() {
               <View key={p.id} style={styles.thumbWrap}>
                 <Image source={{ uri: p.uri }} style={styles.thumb} resizeMode="cover" />
                 {!hasReviews && (
-                  <TouchableOpacity onPress={() => removePhoto(p.id)} style={styles.thumbDel} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove photo">
+                  <TouchableOpacity onPress={() => removePhoto(p.id)} style={styles.thumbDel} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove Photo">
                     <X size={12} color={Colors.textOnAccent} strokeWidth={2.25} />
                   </TouchableOpacity>
                 )}
@@ -803,7 +803,7 @@ export default function CostXrayScreen() {
                 accessibilityState={{ disabled: photos.length >= MAX_PHOTOS }}
               >
                 <Camera size={22} color={photos.length >= MAX_PHOTOS ? t.textMuted : t.accent} strokeWidth={1.75} />
-                <Text style={[styles.captureText, photos.length >= MAX_PHOTOS && { color: t.textMuted }]}>Take photo</Text>
+                <Text style={[styles.captureText, photos.length >= MAX_PHOTOS && { color: t.textMuted }]}>Take Photo</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.captureBtn, isDesktop && styles.captureBtnDesktop]}
@@ -813,7 +813,7 @@ export default function CostXrayScreen() {
                 accessibilityState={{ disabled: photos.length >= MAX_PHOTOS }}
               >
                 <ImagePlus size={22} color={photos.length >= MAX_PHOTOS ? t.textMuted : t.accent} strokeWidth={1.75} />
-                <Text style={[styles.captureText, photos.length >= MAX_PHOTOS && { color: t.textMuted }]}>From library</Text>
+                <Text style={[styles.captureText, photos.length >= MAX_PHOTOS && { color: t.textMuted }]}>From Library</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -823,7 +823,7 @@ export default function CostXrayScreen() {
         {photos.length > 0 && !hasReviews && (
           <TouchableOpacity style={[styles.aiBtn, isDesktop && desktopCta, busy && { opacity: 0.7 }]} onPress={detect} disabled={busy} activeOpacity={0.85} testID="xray-scan">
             {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <ScanSearch size={16} color={Colors.textOnAccent} strokeWidth={2} />}
-            <Text style={styles.aiBtnText}>{busy ? 'Scanning photos. This takes about 20 seconds.' : pending ? 'Retry scan' : 'Scan for hidden costs'}</Text>
+            <Text style={styles.aiBtnText}>{busy ? 'Scanning photos. This takes about 20 seconds.' : pending ? 'Retry Scan' : 'Scan for Hidden Costs'}</Text>
           </TouchableOpacity>
         )}
 
@@ -849,8 +849,8 @@ export default function CostXrayScreen() {
             <Text style={styles.sectionTitle}>{reviews.length} tell{reviews.length === 1 ? '' : 's'} found</Text>
             <Text style={styles.sectionSub}>
               {canPrice
-                ? 'Accept the ones worth carrying. Priced tells become contingency lines on the estimate — the client\u2019s proposal shows only their total, as one \u201cContingency\u201d line, never the finding. Invoices and pay apps bill them as \u201cContingency\u201d too. Every accepted tell also spawns a field-verify task.'
-                : 'Accept the ones worth carrying. Every accepted tell spawns a field-verify task. This project has no estimate yet, so priced tells can\u2019t be added as lines — build one first.'}
+                ? 'Accept the ones worth carrying. Priced tells become contingency lines on the estimate. The client\u2019s proposal shows only their total, as one \u201cContingency\u201d line, never the finding. Invoices and pay apps bill them as \u201cContingency\u201d too. Every accepted tell also spawns a field-verify task.'
+                : 'Accept the ones worth carrying. Every accepted tell spawns a field-verify task. This project has no estimate yet, so priced tells can\u2019t be added as lines. Build one first.'}
             </Text>
 
             {walkPricedCents > 0 && (
@@ -875,7 +875,7 @@ export default function CostXrayScreen() {
             <Text style={styles.applyCount}>{accepted.length} accepted</Text>
             {acceptedContingency > 0 && (canPrice
               ? <Text style={styles.applySub}>{formatMoney(acceptedContingency)} contingency</Text>
-              : <Text style={styles.applySub} testID="xray-no-estimate">No estimate on this project — contingency won&apos;t be added</Text>)}
+              : <Text style={styles.applySub} testID="xray-no-estimate">No estimate on this project, so contingency won&apos;t be added</Text>)}
           </ActionBarReadout>
           <TouchableOpacity
             style={[styles.applyBtn, accepted.length === 0 && styles.applyBtnDisabled]}

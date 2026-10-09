@@ -150,7 +150,7 @@ async function interview(cap: { aiFeature: AIFeature; turnMeterFeature?: AIFeatu
   ok('a limit hit is routed through limitHit (review with note, or the real reason)', /limitHit\(baseDraft, s\.grounding, limit\.reason/.test(hook) && !/errorKind: 'monthly_cap', message: limit\.message/.test(hook));
   ok('START and cancel reset the meter', /meter\.reset\(\);\s*\n\s*const grounding/.test(hook) && /cancel = useCallback\(\(\) => \{ meter\.reset\(\)/.test(hook));
   const shell = src('components/copilot/CopilotShell.tsx');
-  ok('the shell answers a limit with See plans → /paywall', /isLimitErrorKind\(state\.errorKind\)/.test(shell) && /router\.push\('\/paywall'/.test(shell) && /See plans/.test(shell));
+  ok('the shell answers a limit with See Plans → /paywall', /isLimitErrorKind\(state\.errorKind\)/.test(shell) && /router\.push\('\/paywall'/.test(shell) && /See Plans/.test(shell));
 
   console.log(`\n  ${pass} passed, ${fail} failed\n`);
   if (fail > 0) process.exit(1);

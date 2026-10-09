@@ -142,7 +142,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
     if (!roleError) return <LockedAccessCard what="Margin" />;
     return (
       <View style={styles.card} testID="project-hero-unavailable">
-        <Text style={styles.eyebrow}>Projected margin</Text>
+        <Text style={styles.eyebrow}>Projected Margin</Text>
         <Text style={styles.unavailable}>
           Couldn't verify your access to this project's financials. Check your connection and pull to refresh.
         </Text>
@@ -156,9 +156,9 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
         style={styles.card}
         testID="project-hero-loading"
         accessibilityRole="progressbar"
-        accessibilityLabel="Loading crew hours and receipts"
+        accessibilityLabel="Loading Crew Hours and Receipts"
       >
-        <Text style={styles.eyebrow}>Projected margin</Text>
+        <Text style={styles.eyebrow}>Projected Margin</Text>
         <View style={styles.loadingRow}>
           <ActivityIndicator size="small" color={t.accent} />
           <Text style={styles.loadingText}>Loading crew hours and receipts…</Text>
@@ -194,7 +194,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
 
   return (
     <View style={styles.card}>
-      <Text style={styles.eyebrow}>Projected margin</Text>
+      <Text style={styles.eyebrow}>Projected Margin</Text>
       <View style={styles.numRow}>
         <Text style={styles.num}>{shown.toFixed(1)}</Text>
         <Text style={styles.pct}>%</Text>
@@ -216,7 +216,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
 
       {/* margin risk, in words (the Level card draws it as colour) */}
       <View style={styles.riskRow}>
-        <Text style={styles.riskLabel}>Margin risk</Text>
+        <Text style={styles.riskLabel}>Margin Risk</Text>
         <Text style={[styles.riskBand, { color: riskColor }]}>{riskBandLabel(risk.band)}</Text>
       </View>
 

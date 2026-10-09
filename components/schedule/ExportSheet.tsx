@@ -43,28 +43,28 @@ export function ExportSheet(props: ExportSheetProps) {
     {
       key: 'pdf',
       iconColor: Colors.pillLate,
-      label: 'PDF  ·  Full Gantt chart',
+      label: 'PDF  ·  Full Gantt Chart',
       sub: 'Multi-page · baseline overlay · for clients',
       onPress: props.onExportPdf,
     },
     {
       key: 'csv',
       iconColor: Colors.pillOnTrack,
-      label: 'CSV  ·  Task list',
+      label: 'CSV  ·  Task List',
       sub: 'Open in Excel · 1 row per task',
       onPress: props.onExportCsv,
     },
     {
       key: 'share',
       iconColor: Colors.tradeColors.general,
-      label: 'Share link  ·  Read-only',
+      label: 'Share Link  ·  Read-Only',
       sub: 'Send to subs or the client · no sign-in needed',
       onPress: props.onShareLink,
     },
     {
       key: 'ical',
       iconColor: Colors.tradeColors.closeout,
-      label: 'iCal  ·  Calendar feed',
+      label: 'iCal  ·  Calendar Feed',
       sub: 'Subscribe in Apple or Google Calendar',
       onPress: props.onExportIcal,
     },
@@ -93,7 +93,7 @@ export function ExportSheet(props: ExportSheetProps) {
       <Pressable style={[styles.backdrop, frame.backdrop]} onPress={props.onClose} />
       <View style={[styles.sheet, frame.card]}>
         {frame.showHandle && <View style={styles.grab} />}
-        <Text style={styles.title}>Export schedule</Text>
+        <Text style={styles.title}>Export Schedule</Text>
         {opts.map(o => (
           <Pressable
             key={o.key}

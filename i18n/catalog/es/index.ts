@@ -29,6 +29,15 @@ import { ES_FIELD_CHROME } from './field/chrome';
 import { ES_FIELD_DELIVERY } from './field/delivery';
 import { ES_FIELD_PHOTO } from './field/photo';
 import { ES_FIELD_VOICE } from './field/voice';
+import { ES_OFFICE_FIRST_JOB } from './office/firstJob';
+import { ES_OFFICE_PROTECT } from './office/protect';
+import { ES_OFFICE_MANAGE_SUB } from './office/manageSub';
+import { ES_OFFICE_ROOM_SCAN } from './office/roomScan';
+import { ES_OFFICE_CODE_FLAGS } from './office/codeFlags';
+import { ES_OFFICE_PROOF_PACK } from './office/proofPack';
+import { ES_OFFICE_LIVING_MODEL } from './office/livingModel';
+import { ES_OFFICE_SCAN_CLEARANCE } from './office/scanClearance';
+import { ES_OFFICE_NOTICES } from './office/notices';
 
 /** Every Spanish file by its path under es/ (validate-i18n checks a key never sits in two). */
 export const ES_SHARDS: Record<string, EsCatalog> = {
@@ -51,6 +60,15 @@ export const ES_SHARDS: Record<string, EsCatalog> = {
   'field/delivery': ES_FIELD_DELIVERY,
   'field/photo': ES_FIELD_PHOTO,
   'field/voice': ES_FIELD_VOICE,
+  'office/firstJob': ES_OFFICE_FIRST_JOB,
+  'office/protect': ES_OFFICE_PROTECT,
+  'office/manageSub': ES_OFFICE_MANAGE_SUB,
+  'office/roomScan': ES_OFFICE_ROOM_SCAN,
+  'office/codeFlags': ES_OFFICE_CODE_FLAGS,
+  'office/proofPack': ES_OFFICE_PROOF_PACK,
+  'office/livingModel': ES_OFFICE_LIVING_MODEL,
+  'office/scanClearance': ES_OFFICE_SCAN_CLEARANCE,
+  'office/notices': ES_OFFICE_NOTICES,
 };
 
 export const ES_CATALOG: EsCatalog = Object.assign({}, ...Object.values(ES_SHARDS)) as EsCatalog;

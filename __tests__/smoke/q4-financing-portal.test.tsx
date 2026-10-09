@@ -109,7 +109,7 @@ describe('client portal financing — decided by the GC, shown to the homeowner'
     const text = flat(tree);
     if (RECORD) { recorded.localOff = text; return; }
     expect(norm(text)).toBe(norm(goldens().localOff));
-    expect(text).not.toContain('Check financing options');
+    expect(text).not.toContain('Check Financing Options');
   });
 
   it('financing OFF: the homeowner view is byte-identical to the pre-change golden', async () => {
@@ -117,7 +117,7 @@ describe('client portal financing — decided by the GC, shown to the homeowner'
     const text = flat(tree);
     if (RECORD) { recorded.homeownerOff = text; return; }
     expect(norm(text)).toBe(norm(goldens().homeownerOff));
-    expect(text).not.toContain('Check financing options');
+    expect(text).not.toContain('Check Financing Options');
   });
 
   if (RECORD) return;
@@ -130,10 +130,10 @@ describe('client portal financing — decided by the GC, shown to the homeowner'
     });
     const tree = await mountHomeowner(snap);
     const text = flat(tree);
-    expect(text).toContain('Check financing options');
+    expect(text).toContain('Check Financing Options');
     expect(text).toContain('Acme Home Loans');
     expect(text).not.toContain('may receive compensation');
-    const btn = tree.getByLabelText('Check financing options with Acme Home Loans');
+    const btn = tree.getByLabelText('Check Financing Options with Acme Home Loans');
     expect(btn).toBeTruthy();
   });
 
@@ -147,8 +147,8 @@ describe('client portal financing — decided by the GC, shown to the homeowner'
   it("the GC's own preview has no access key, so it says why the button is not live instead of drawing a dead one", async () => {
     const tree = await mountLocalPreview(FINANCING_ON);
     const text = flat(tree);
-    expect(text).not.toContain('Check financing options\n');
-    expect(text).toContain('Your client sees a "Check financing options" button here');
+    expect(text).not.toContain('Check Financing Options\n');
+    expect(text).toContain('Your client sees a "Check Financing Options" button here');
   });
 });
 

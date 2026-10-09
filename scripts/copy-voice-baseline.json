@@ -1,14 +1,8 @@
 {
   "version": 1,
   "counts": {
-    "app/(tabs)/(home)/index.tsx": {
-      "R10": 1,
-      "R18": 1
-    },
     "app/(tabs)/construction-ai/index.tsx": {
-      "R14": 1,
-      "R15": 1,
-      "R17": 1
+      "R14": 1
     },
     "app/(tabs)/discover/tools.tsx": {
       "R19": 1
@@ -25,40 +19,17 @@
     "app/bid-leveling.tsx": {
       "R16": 1
     },
-    "app/buyout-package.tsx": {
-      "R17": 1
-    },
     "app/buyout.tsx": {
       "R16": 3
     },
     "app/client-update.tsx": {
       "R09": 1
     },
-    "app/closeout-binder.tsx": {
-      "R15": 3
-    },
     "app/contract.tsx": {
-      "R13": 1,
-      "R14": 4,
-      "R17": 2
+      "R14": 4
     },
     "app/cost-database.tsx": {
       "R16": 1
-    },
-    "app/crew.tsx": {
-      "R09": 1
-    },
-    "app/daily-report.tsx": {
-      "R01": 8,
-      "R05": 1,
-      "R08": 2,
-      "R09": 2,
-      "R10": 3,
-      "R13": 6,
-      "R14": 2,
-      "R15": 2,
-      "R18": 1,
-      "R19": 12
     },
     "app/deliveries.tsx": {
       "R01": 1
@@ -66,15 +37,11 @@
     "app/estimate-accuracy.tsx": {
       "R16": 1
     },
-    "app/estimate-confidence.tsx": {
-      "R16": 1
-    },
     "app/estimate-wizard.tsx": {
       "R01": 1,
       "R14": 1
     },
     "app/invoice.tsx": {
-      "R15": 3,
       "R16": 2,
       "R19": 1
     },
@@ -93,38 +60,25 @@
       "R11": 5,
       "R13": 1,
       "R14": 12,
-      "R15": 18,
-      "R16": 4,
-      "R17": 1
-    },
-    "app/punch-list.tsx": {
-      "R15": 1,
-      "R16": 1
+      "R16": 4
     },
     "app/quick-quote.tsx": {
       "R16": 1
     },
     "app/rfi.tsx": {
-      "R01": 2,
-      "R13": 1,
-      "R15": 1,
-      "R16": 1
+      "R01": 2
     },
     "app/safety-osha.tsx": {
       "R10": 2
     },
     "app/scan.tsx": {
-      "R09": 1,
-      "R12": 1
+      "R09": 1
     },
     "app/schedule-wizard.tsx": {
       "R09": 1
     },
     "app/selections.tsx": {
       "R09": 1
-    },
-    "app/smart-proposal.tsx": {
-      "R17": 1
     },
     "app/sub-portal-setup.tsx": {
       "R05": 1,
@@ -134,9 +88,7 @@
       "R14": 1
     },
     "app/time-tracking.tsx": {
-      "R11": 2,
-      "R14": 5,
-      "R17": 1
+      "R11": 2
     },
     "app/weekly-snapshot.tsx": {
       "R16": 2
@@ -148,18 +100,13 @@
       "R09": 1
     },
     "components/CreateMenu.tsx": {
-      "R01": 1,
-      "R15": 1
+      "R01": 1
     },
     "components/DesktopActionRail.tsx": {
       "R10": 3
     },
     "components/NextStepHero.tsx": {
       "R05": 1
-    },
-    "components/Paywall.tsx": {
-      "R15": 1,
-      "R16": 2
     },
     "components/ProjectCard.tsx": {
       "R11": 1
@@ -172,12 +119,6 @@
     },
     "components/schedule/InteractiveGantt.tsx": {
       "R16": 2
-    },
-    "components/schedule/TodayView.tsx": {
-      "R15": 1
-    },
-    "components/subs/SubCredentialCard.tsx": {
-      "R16": 3
     }
   },
   "raises": [

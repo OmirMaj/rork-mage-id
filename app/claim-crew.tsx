@@ -16,6 +16,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ClaimedWorkerSelfView } from './crew';
 import { useT } from '@/contexts/LanguageContext';
+import { AgreementNotice } from '@/components/ProtectNotices';
 
 // Worker claim redemption. Opened from the magic-link invite
 // (https://app.mageid.app/claim-crew?token=crew_...). MagicLinkHandler
@@ -165,14 +166,14 @@ export default function ClaimCrewScreen() {
   if (state === 'done') {
     return (
       <View style={styles.page}>
-        <Stack.Screen options={{ title: t('field.crew.claimProfile', 'Claim profile') }} />
+        <Stack.Screen options={{ title: t('field.crew.claimProfile', 'Claim Profile') }} />
         {myRows.length > 0 ? (
           <ClaimedWorkerSelfView
             members={myRows}
             embedded
             header={(
               <View style={styles.doneHeader}>
-                <Text style={styles.title}>{t('field.crew.profileClaimed', 'Profile claimed')}</Text>
+                <Text style={styles.title}>{t('field.crew.profileClaimed', 'Profile Claimed')}</Text>
                 <Text style={styles.msg}>
                   {t('field.crew.thisIsYourCrew', 'This is your crew profile. Keep your phone, email and trades up to date here.')}
                 </Text>
@@ -180,7 +181,7 @@ export default function ClaimCrewScreen() {
             )}
             footer={(
               <Text style={styles.linkMuted} onPress={() => router.replace('/')} accessibilityRole="link">
-                {t('field.crew.setUpYourOwn', 'Set up your own MAGE account')}
+                {t('field.crew.setUpYourOwn', 'Set Up Your Own MAGE Account')}
               </Text>
             )}
           />
@@ -189,7 +190,7 @@ export default function ClaimCrewScreen() {
             <ActivityIndicator color={Colors.primary} />
             <Text style={styles.msg}>{t('field.crew.profileClaimedLoadingIt', 'Profile claimed. Loading it…')}</Text>
             <Text style={styles.linkMuted} onPress={() => router.replace('/')} accessibilityRole="link">
-              {t('field.crew.setUpYourOwn', 'Set up your own MAGE account')}
+              {t('field.crew.setUpYourOwn', 'Set Up Your Own MAGE Account')}
             </Text>
           </View>
         )}
@@ -199,7 +200,7 @@ export default function ClaimCrewScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: t('field.crew.claimProfile', 'Claim profile') }} />
+      <Stack.Screen options={{ title: t('field.crew.claimProfile', 'Claim Profile') }} />
 
       {(state === 'waiting' || state === 'redeeming') && (
         <>
@@ -213,6 +214,7 @@ export default function ClaimCrewScreen() {
           <Text style={styles.msg}>
             {t('field.crew.thisSignInLink', 'This sign-in link has expired or was already used. Your invite is still good. Sign in to finish claiming your profile.')}
           </Text>
+          <AgreementNotice testID="claim-crew-agreement" style={{ marginBottom: 12 }} />
           {sentTo ? (
             <Text style={styles.msg}>{t('field.crew.weSentANew', 'We sent a new link to {sentTo}. Open it on this device to finish.', { sentTo })}</Text>
           ) : (
@@ -237,7 +239,7 @@ export default function ClaimCrewScreen() {
                 accessibilityRole="button"
                 testID="claim-send-fresh"
               >
-                <Text style={styles.primaryBtnText}>{sending ? t('field.crew.sending', 'Sending…') : t('field.crew.emailMeANew', 'Email me a new link')}</Text>
+                <Text style={styles.primaryBtnText}>{sending ? t('field.crew.sending', 'Sending…') : t('field.crew.emailMeANew', 'Email Me a New Link')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -248,7 +250,7 @@ export default function ClaimCrewScreen() {
             accessibilityRole="button"
             testID="claim-sign-in"
           >
-            <Text style={styles.secondaryBtnText}>{t('field.crew.signIn', 'Sign in')}</Text>
+            <Text style={styles.secondaryBtnText}>{t('field.crew.signIn', 'Sign In')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -278,7 +280,7 @@ export default function ClaimCrewScreen() {
       {/* A way out in every state except the few seconds a redeem is actually
           in flight (it was hidden for the whole wait). */}
       {state !== 'redeeming' && (
-        <Text style={styles.linkMuted} onPress={() => router.replace('/')} accessibilityRole="link">{t('field.crew.goToApp', 'Go to app')}</Text>
+        <Text style={styles.linkMuted} onPress={() => router.replace('/')} accessibilityRole="link">{t('field.crew.goToApp', 'Go to App')}</Text>
       )}
     </View>
   );

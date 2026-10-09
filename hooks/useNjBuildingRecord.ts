@@ -59,8 +59,8 @@ export interface StoredParcelConfirm {
 const HOUR_MS = 60 * 60 * 1000;
 export const NJ_BUILDING_RECORD_STALE_MS = 12 * HOUR_MS;
 
-export const NJ_NO_MATCH_TEXT = 'No tax lot found at this address — nothing was checked.';
-const UNREADABLE_TEXT = 'The building lookup returned something MAGE could not read — nothing was checked.';
+export const NJ_NO_MATCH_TEXT = 'No tax lot found at this address, so nothing was checked.';
+const UNREADABLE_TEXT = 'The building lookup returned something MAGE could not read, so nothing was checked.';
 
 function parseStoredConfirm(raw: string | null): StoredParcelConfirm | null {
   if (!raw) return null;

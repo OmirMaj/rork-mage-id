@@ -107,12 +107,12 @@ export function NyContractChecklist({
           style={styles.headerRow}
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
-          accessibilityLabel={`${t('office.nyContract.title', 'New York contract checklist')}. ${summary}`}
+          accessibilityLabel={`${t('office.nyContract.title', 'New York Contract Checklist')}. ${summary}`}
           testID="contract-ny-toggle"
         >
           <View style={styles.headerText}>
             <Text style={styles.cardHeading} accessibilityRole="header">
-              {t('office.nyContract.title', 'New York contract checklist')}
+              {t('office.nyContract.title', 'New York Contract Checklist')}
             </Text>
             <Text style={result.missing > 0 ? styles.summaryWarn : styles.summary} testID="contract-ny-summary">{summary}</Text>
           </View>
@@ -203,13 +203,13 @@ function ItemRow({ item, isDesktop, statusWord, counsel, openProfile, openProfil
  */
 export function askNyMissingItems(missing: number, actions: { onReview: () => void; onContinue: () => void }): void {
   showAlert(
-    t('office.nyContract.alert.title', 'Some New York items are missing'),
+    t('office.nyContract.alert.title', 'Some New York items are missing.'),
     tn('office.nyContract.alert.body', missing, {
       one: '{count} item on the New York checklist is missing. You can still send it.',
       other: '{count} items on the New York checklist are missing. You can still send it.',
     }),
     [
-      { text: t('office.nyContract.alert.review', 'Review the list'), style: 'cancel', onPress: actions.onReview },
+      { text: t('office.nyContract.alert.review', 'Review the List'), style: 'cancel', onPress: actions.onReview },
       { text: t('office.nyContract.alert.continue', 'Continue'), onPress: actions.onContinue },
     ],
   );

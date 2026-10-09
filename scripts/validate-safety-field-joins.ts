@@ -91,7 +91,7 @@ ok('…but is NOT linked to the crew member (a name match is a guess)', typed[0]
 
 // Grounded-on honesty line.
 eq('grounded-on with history', toolboxGroundedOnLine(2, 1), 'Grounded on: 2 recent incidents, 1 open hazard on this job.');
-ok('grounded-on with nothing says so', toolboxGroundedOnLine(0, 0).includes('nothing logged on this job yet'));
+ok('grounded-on with nothing says so', toolboxGroundedOnLine(0, 0).includes('nothing logged on this project yet'));
 {
   const g = await buildToolboxGrounding({
     project: null, projectId: 'p', ctx: {}, tier: 'business',
@@ -106,7 +106,7 @@ ok('grounded-on with nothing says so', toolboxGroundedOnLine(0, 0).includes('not
   ok('the recommended topic cites its grounding', gap.groundedDefault.basis.includes('Grounded on: 1 recent incident'));
   const empty = await buildToolboxGrounding({ project: null, projectId: 'p', ctx: {}, tier: 'business', safety: {} });
   ok('an evergreen default on an empty job says it had nothing to learn from',
-    toolboxGaps({}, empty)[0].groundedDefault.basis.includes('nothing logged on this job yet'));
+    toolboxGaps({}, empty)[0].groundedDefault.basis.includes('nothing logged on this project yet'));
 }
 
 // ── #3 hazard photo ───────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ ok('JHA sign-off chip only follows a roster pick (typing clears the link)',
     && jha.includes('certFlagsForWorker(certifications, sigWorkerId, today)'));
 ok('JHA sign-off of a lapsed card asks first, with the JHA\'s own verb (the button says "Sign off anyway")',
   jha.includes("lapsedCertConfirmText(name, sigFlags, 'Sign them off')")
-    && (jha.includes("{ text: 'Sign off anyway'") || jha.includes("{ text: t('safety.jha.signOffAnyway', 'Sign off anyway')"))
+    && (jha.includes("{ text: 'Sign Off Anyway'") || jha.includes("{ text: t('safety.jha.signOffAnyway', 'Sign Off Anyway')"))
     && (lapsedCertConfirmText('Ana', f1, 'Sign them off') ?? '').endsWith('Sign them off anyway?'));
 // The marketing line must not promise a flag the app does not raise: only a
 // roster pick is linked to a card (a typed name never is), and clock-in warns too.

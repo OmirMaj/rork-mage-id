@@ -153,7 +153,7 @@ console.log('\n4 · the vault list falls back to the date on the record:');
   const e2 = vaultCoiExpiry({ coverages: [{ expiresAt: day(90) }] }, { coiExpiry: day(5) });
   ok("the certificate's own date wins over the record", e2.day === day(90) && e2.source === 'certificate');
   const e3 = vaultCoiExpiry(noDates, { coiExpiry: 'next spring' });
-  ok('an unparseable record date is reported, not skipped', e3.recordUnreadable && /not a date · no reminders/.test(vaultCoiStatus(e3, NOW).label));
+  ok('an unparseable record date is reported, not skipped', e3.recordUnreadable && /Not a Date · No Reminders/.test(vaultCoiStatus(e3, NOW).label));
   ok('certificateExpiryDay reads the earliest calendar day', certificateExpiryDay({ coverages: [{ expiresAt: '2027-05-01' }, { expiresAt: '2027-02-01T12:00:00.000Z' }] }) === '2027-02-01');
 
   const vault = src('app/coi-vault.tsx');
@@ -177,9 +177,9 @@ console.log('\n5 · the card has coverage rows, saved through updateCOI:');
   ok('a card with no rows opens one empty row and says "Type the expiry from the certificate"',
     /stored\.length > 0 \? stored : \[emptyRow\(\)\]/.test(vault) && /Type the expiry from the certificate/.test(vault));
   ok('AI rows are shown unconfirmed with a Confirm action that moves the suggestion (confirmAiCoverage)',
-    /Read by AI — unconfirmed/.test(vault) && /onPress=\{\(\) => replaceRow\(i, confirmAiCoverage\(c\)\)\}/.test(vault));
+    /Read by AI\. Unconfirmed/.test(vault) && /onPress=\{\(\) => replaceRow\(i, confirmAiCoverage\(c\)\)\}/.test(vault));
   ok('…the date buttons show an AI-read day as "AI read: … — unconfirmed", not as the policy date',
-    /AI read: expires \$\{formatCalendarDay\(c\.aiExpiresAt\)\} — unconfirmed/.test(vault)
+    /AI read: expires \$\{formatCalendarDay\(c\.aiExpiresAt\)\} \(unconfirmed\)/.test(vault)
     && /c\.expiresAt\s*\?\s*`Expires \$\{formatCalendarDay\(c\.expiresAt\)\}`/.test(vault));
   ok('…and picking a date goes through pickCoverageDate (drops the matching suggestion)',
     /replaceRow\(picking\.row, pickCoverageDate\(row, picking\.field, iso\.slice\(0, 10\)\)\)/.test(vault));

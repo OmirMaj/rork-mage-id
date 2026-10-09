@@ -8,8 +8,8 @@ function eq<T>(n: string, got: T, want: T) {
   const ok = JSON.stringify(got) === JSON.stringify(want);
   if (ok) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n, '\n   got ', JSON.stringify(got), '\n   want', JSON.stringify(want)); }
 }
-eq('float 0 → critical wording', floatPhrase(0), 'On the critical path — no slack');
-eq('float -2 → critical wording', floatPhrase(-2), 'On the critical path — no slack');
+eq('float 0 → critical wording', floatPhrase(0), 'On the critical path, no slack');
+eq('float -2 → critical wording', floatPhrase(-2), 'On the critical path, no slack');
 eq('float 1 → singular day', floatPhrase(1), 'Can slip 1 day');
 eq('float 3 → plural days', floatPhrase(3), 'Can slip 3 days');
 

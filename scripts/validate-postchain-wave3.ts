@@ -159,7 +159,7 @@ console.log('\n#49 the send awaits its own INSERT before minting');
     // Wave 4 #39 (invoice-send): a refused insert no longer emails a
     // Pay-button-less invoice — it stops before the mint and the email and
     // says to Retry it from the sync badge.
-    && /if \(insertState === 'failed'\) \{\s*showAlert\('Invoice not sent', invoiceInsertRefusedMessage\(workingInvoice\.number\)\);\s*return;/.test(inv));
+    && /if \(insertState === 'failed'\) \{\s*showAlert\('Invoice Not Sent', invoiceInsertRefusedMessage\(workingInvoice\.number\)\);\s*return;/.test(inv));
 }
 
 // ── #131 in-app CO record carries the frozen tax ────────────────────────────
@@ -226,7 +226,7 @@ console.log('\n#133 the day he says the money arrived');
 // ── #50 scale honesty ───────────────────────────────────────────────────────
 console.log('\n#50 actuals are calendar indices everywhere they are written or shown');
 {
-  const find = (ts: ScheduleTask[]) => ts.find(t => t.title.startsWith('Clear & grub'));
+  const find = (ts: ScheduleTask[]) => ts.find(t => t.title.startsWith('Clear and Grub'));
   const undated = find(seedDemoSchedule());
   const dated = find(seedDemoSchedule({ scheduleStartDate: '2026-09-07', workingDaysPerWeek: 5 }));
   ok('undated demo: calendar = working, nothing moves', undated?.actualEndDay === 6, String(undated?.actualEndDay));

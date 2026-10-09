@@ -1355,12 +1355,12 @@ async function sendReceiptEmail(
 
     const bodyHtml = `
       <p style="margin:0 0 14px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:22px;color:#4A5159;">
-        Thanks — your payment for <strong>${escapeHtml(projectName)}</strong> (Invoice #${escapeHtml(String(invoiceNumber))}) was received.
+        Thanks. Your payment for <strong>${escapeHtml(projectName)}</strong> (Invoice #${escapeHtml(String(invoiceNumber))}) was received.
       </p>
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#4A5159;">
         <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Project</td><td style="padding:4px 0;">${escapeHtml(projectName)}</td></tr>
         <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Invoice #</td><td style="padding:4px 0;">${escapeHtml(String(invoiceNumber))}</td></tr>
-        <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Amount received</td><td style="padding:4px 0;font-weight:700;color:#0B0D10;">${escapeHtml(formatMoney(opts.amountReceived))}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Amount Received</td><td style="padding:4px 0;font-weight:700;color:#0B0D10;">${escapeHtml(formatMoney(opts.amountReceived))}</td></tr>
         <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Status</td><td style="padding:4px 0;">${opts.newStatus === "paid" ? "Paid in full" : "Partially paid"}</td></tr>
         <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Reference</td><td style="padding:4px 0;font-family:Menlo,monospace;font-size:11px;">${escapeHtml(opts.sessionId)}</td></tr>
       </table>
@@ -1369,9 +1369,9 @@ async function sendReceiptEmail(
 
     const html = wrapEmailHtml({
       preheader: opts.newStatus === "paid"
-        ? `Paid in full · ${projectName}`
-        : `Payment received · ${projectName}`,
-      eyebrow: "Payment received",
+        ? `Paid in Full · ${projectName}`
+        : `Payment Received · ${projectName}`,
+      eyebrow: "Payment Received",
       title: formatMoney(opts.amountReceived),
       bodyHtml,
       companyName,
@@ -1382,8 +1382,8 @@ async function sendReceiptEmail(
     });
 
     const subject = opts.newStatus === "paid"
-      ? `Paid in full · ${projectName}`
-      : `Payment received · ${projectName}`;
+      ? `Paid in Full · ${projectName}`
+      : `Payment Received · ${projectName}`;
 
     const result = await resendSend(RESEND_API_KEY, {
       to: opts.customerEmail,

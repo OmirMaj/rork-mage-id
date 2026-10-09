@@ -201,7 +201,7 @@ function getStatusConfig(c: ThemeColors, status: PunchItemStatus): { label: stri
     // There is no `infoSoft` token, so in-progress uses the repo-wide
     // `info + '1F'` soft fill (payments.tsx, warranties.tsx, ui/Badge.tsx).
     case 'open': return { label: t('field.punch.status.open', 'Open'), color: c.dangerLabel, bg: c.dangerSoft };
-    case 'in_progress': return { label: t('field.punch.status.inProgress', 'In progress'), color: c.info, bg: c.info + '1F' };
+    case 'in_progress': return { label: t('field.punch.status.inProgress', 'In Progress'), color: c.info, bg: c.info + '1F' };
     case 'ready_for_review': return { label: t('field.punch.status.review', 'Review'), color: c.accent, bg: c.accentSoft };
     case 'closed': return { label: t('field.punch.status.closed', 'Closed'), color: c.success, bg: c.successSoft };
   }
@@ -238,7 +238,7 @@ function getPriorityConfig(c: ThemeColors, p: PunchItemPriority): { label: strin
 /** The two lists' names. A function, never a module map: t() reads the
  *  language at call time. */
 function listLabel(list: PunchListType): string {
-  return list === 'punch' ? t('field.punch.listLabel.punch', 'Punch') : t('field.punch.listLabel.crew', 'Crew list');
+  return list === 'punch' ? t('field.punch.listLabel.punch', 'Punch') : t('field.punch.listLabel.crew', 'Crew List');
 }
 /** Punch priorities as the filter prints them (VOICE: a label map, never a
  *  title-cased enum). Same keys and English as app/ai-punch.tsx priorityLabel. */
@@ -318,9 +318,9 @@ function moveConfirmCopy(
     return {
       title: tn('field.punch.move.toPunchTitle', count, { one: 'Put this item on the punch list?', other: 'Put {count} items on the punch list?' }),
       message: clientSeesPunch
-        ? tn('field.punch.move.toPunchSeen', count, { one: 'Your client will be able to see it — the client portal shows every punch item that is not closed.', other: 'Your client will be able to see them — the client portal shows every punch item that is not closed.' })
+        ? tn('field.punch.move.toPunchSeen', count, { one: 'Your client will be able to see it. The client portal shows every punch item that is not closed.', other: 'Your client will be able to see them. The client portal shows every punch item that is not closed.' })
         : tn('field.punch.move.toPunchUnseen', count, { one: "It join the formal punch list. Punch list sharing is off in this project's client portal, so your client won't see it until that is turned on.", other: "They join the formal punch list. Punch list sharing is off in this project's client portal, so your client won't see them until that is turned on." }),
-      confirm: t('field.punch.move.toPunchConfirm', 'Move to punch'),
+      confirm: t('field.punch.move.toPunchConfirm', 'Move to Punch'),
     };
   }
   return {
@@ -328,7 +328,7 @@ function moveConfirmCopy(
     message: clientSeesPunch
       ? tn('field.punch.move.toCrewSeen', count, { one: "It comes off the punch list and out of your client's portal. Crew list items are never shown to the client.", other: "They come off the punch list and out of your client's portal. Crew list items are never shown to the client." })
       : tn('field.punch.move.toCrewUnseen', count, { one: 'It comes off the formal punch list. Crew list items are never shown in the client portal.', other: 'They come off the formal punch list. Crew list items are never shown in the client portal.' }),
-    confirm: t('field.punch.move.toCrewConfirm', 'Move to crew list'),
+    confirm: t('field.punch.move.toCrewConfirm', 'Move to Crew List'),
   };
 }
 
@@ -646,11 +646,11 @@ const PunchRow = React.memo(function PunchRow({
               onPress={() => actions.onOpenPlan(item)}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel={t('field.punch.viewThisItemOn', 'View this item on the plan')}
+              accessibilityLabel={t('field.punch.viewThisItemOn', 'View This Item on the Plan')}
               testID="punch-on-plan"
             >
               <MapPin size={11} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.onPlanChipText}>{t('field.punch.onPlan', 'On plan')}</Text>
+              <Text style={styles.onPlanChipText}>{t('field.punch.onPlan', 'On Plan')}</Text>
               <ChevronRight size={11} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ) : null}
@@ -686,7 +686,7 @@ const PunchRow = React.memo(function PunchRow({
         <View style={[styles.dueChip, styles.dueChipSoon]}>
           <CalendarClock size={12} color={themeColors.warningLabel} strokeWidth={1.75} />
           <Text style={[styles.dueChipText, { color: themeColors.warningLabel }]}>
-            {t('field.punch.dueNotADate', 'Due “{dueDate}” — not a date, not tracked. Edit to pick one.', { dueDate: item.dueDate })}
+            {t('field.punch.dueNotADate', 'Due “{dueDate}” is not a date, so it is not tracked. Edit to pick one.', { dueDate: item.dueDate })}
           </Text>
         </View>
       ) : formal && item.dueDate ? (
@@ -783,7 +783,7 @@ const PunchRow = React.memo(function PunchRow({
           {item.status === 'in_progress' && (
             <TouchableOpacity style={styles.punchActionBtn} onPress={() => actions.onStatus(item, 'ready_for_review')}>
               <Eye size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={[styles.punchActionText, { color: themeColors.accent }]}>{t('field.punch.sendForReview', 'Send for review')}</Text>
+              <Text style={[styles.punchActionText, { color: themeColors.accent }]}>{t('field.punch.sendForReview', 'Send for Review')}</Text>
             </TouchableOpacity>
           )}
           {item.status === 'ready_for_review' && (
@@ -814,7 +814,7 @@ const PunchRow = React.memo(function PunchRow({
           >
             <ArrowLeftRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={[styles.punchActionText, { color: themeColors.textSecondary }]}>
-              {moveTo === 'punch' ? t('field.punch.toPunch', 'To punch') : t('field.punch.toCrew', 'To crew')}
+              {moveTo === 'punch' ? t('field.punch.toPunch', 'To Punch') : t('field.punch.toCrew', 'To Crew')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -823,7 +823,7 @@ const PunchRow = React.memo(function PunchRow({
             onPress={() => (canDelete ? actions.onDelete(item) : actions.onDeleteBlocked())}
             accessibilityRole="button"
             accessibilityState={{ disabled: !canDelete }}
-            accessibilityLabel={canDelete ? t('common.action.delete', 'Delete') : t('field.punch.deleteUnavailable', 'Delete unavailable')}
+            accessibilityLabel={canDelete ? t('common.action.delete', 'Delete') : t('field.punch.deleteUnavailable', 'Delete Unavailable')}
             accessibilityHint={canDelete ? undefined : punchDeleteBlockedReason()}
             testID={`punch-delete-${item.id}`}
           >
@@ -907,13 +907,13 @@ function PunchGateView({ state, reason, onRetry }: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const copy = state === 'error'
-    ? { title: t('field.punch.gate.errorTitle', 'Could not check your access to this project'), body: t('field.punch.gate.errorBody', 'MAGE could not load who is on this project, so it cannot tell whether you were invited to its punch list. Check your connection and try again.') }
+    ? { title: t('field.punch.gate.errorTitle', 'Could Not Check Your Access to This Project'), body: t('field.punch.gate.errorBody', 'MAGE could not load who is on this project, so it cannot tell whether you were invited to its punch list. Check your connection and try again.') }
     : state === 'paused'
-      ? { title: t('field.punch.gate.pausedTitle', 'Waiting for signal'), body: reason ?? t('field.punch.gate.pausedBody', 'This project is not saved on this phone yet. It opens once there is signal.') }
-      : { title: t('field.punch.gate.missingTitle', 'Not on this project'), body: t('field.punch.gate.missingBody', 'You don\'t have access to this project\'s punch list. Ask the project owner to invite you.') };
+      ? { title: t('field.punch.gate.pausedTitle', 'Waiting for Signal'), body: reason ?? t('field.punch.gate.pausedBody', 'This project is not saved on this phone yet. It opens once there is signal.') }
+      : { title: t('field.punch.gate.missingTitle', 'Not on This Project'), body: t('field.punch.gate.missingBody', 'You don\'t have access to this project\'s punch list. Ask the project owner to invite you.') };
   return (
     <View style={[styles.gateWrap, { backgroundColor: themeColors.bg }]} testID={`punch-gate-${state}`}>
-      <Stack.Screen options={{ title: t('field.punch.punchList', 'Punch list') }} />
+      <Stack.Screen options={{ title: t('field.punch.punchList', 'Punch List') }} />
       {state === 'loading' ? (
         <>
           <ActivityIndicator color={themeColors.accent} />
@@ -924,7 +924,7 @@ function PunchGateView({ state, reason, onRetry }: {
           <Text style={styles.gateTitle}>{copy.title}</Text>
           <Text style={styles.gateText}>{copy.body}</Text>
           {state === 'missing' ? null : (
-            <Button label={t('field.punch.tryAgain', 'Try again')} variant="secondary" onPress={onRetry} testID="punch-gate-retry" />
+            <Button label={t('field.punch.tryAgain', 'Try Again')} variant="secondary" onPress={onRetry} testID="punch-gate-retry" />
           )}
         </>
       )}
@@ -1120,7 +1120,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     if (!openNew || openedNewRef.current || !project || prefillPhotoUri || prefillPhotoId) return;
     openedNewRef.current = true;
     if (recordWriteBlock) {
-      showAlert(t('field.punch.cantAddItems', "Can't add items"), recordWriteBlock);
+      showAlert(t('field.punch.cantAddItems', "Can't Add Items"), recordWriteBlock);
       return;
     }
     setShowForm(true);
@@ -1171,7 +1171,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const handleApplyTemplate = useCallback((template: PunchTemplate) => {
     if (!projectId) return;
     if (recordWriteBlock) {
-      showAlert(t('field.punch.cantAddItems', "Can't add items"), recordWriteBlock);
+      showAlert(t('field.punch.cantAddItems', "Can't Add Items"), recordWriteBlock);
       return;
     }
     let added = 0;
@@ -1201,7 +1201,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     setShowTemplates(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      t('field.punch.templateApplied', 'Template applied'),
+      t('field.punch.templateApplied', 'Template Applied'),
       activeList === 'punch'
         ? tn('field.punch.templateAddedPunch', added, { one: 'Added {count} item from "{template}" to the punch list. Edit or remove any that don\'t apply to this project.', other: 'Added {count} items from "{template}" to the punch list. Edit or remove any that don\'t apply to this project.' }, { template: template.label })
         : tn('field.punch.templateAddedCrew', added, { one: 'Added {count} item from "{template}" to the crew list. Edit or remove any that don\'t apply to this project.', other: 'Added {count} items from "{template}" to the crew list. Edit or remove any that don\'t apply to this project.' }, { template: template.label }),
@@ -1356,14 +1356,14 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const sealedEditReason = t('field.punchSeal.editBlocked', 'This item is in the sealed final punch, so it can’t be changed. Add a new item for rework.');
   const sealGuard = useCallback((item: PunchItem | null | undefined): boolean => {
     if (!sealedPunchEditBlock(item, sealedIdSet)) return false;
-    showAlert(t('field.punchSeal.sealedItemTitle', 'Sealed item'), t('field.punchSeal.editBlocked', 'This item is in the sealed final punch, so it can’t be changed. Add a new item for rework.'));
+    showAlert(t('field.punchSeal.sealedItemTitle', 'Sealed Item'), t('field.punchSeal.editBlocked', 'This item is in the sealed final punch, so it can’t be changed. Add a new item for rework.'));
     return true;
   }, [sealedIdSet, t]);
   const sealedSelectionGuard = useCallback((list: readonly PunchItem[]): boolean => {
     const n = list.filter(i => sealedPunchEditBlock(i, sealedIdSet)).length;
     if (n === 0) return false;
     showAlert(
-      t('field.punchSeal.sealedItemTitle', 'Sealed item'),
+      t('field.punchSeal.sealedItemTitle', 'Sealed Item'),
       tn('field.punchSeal.selectionBlocked', n, {
         one: '{count} selected item is in the sealed final punch and can’t be changed. Deselect it, or add a new item for rework.',
         other: '{count} selected items are in the sealed final punch and can’t be changed. Deselect them, or add new items for rework.',
@@ -1792,20 +1792,20 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const handleSave = useCallback(() => {
     // LS-5: belt and braces — the button is off for a viewer, and so is this.
     if (recordWriteBlock) {
-      showAlert(t('field.punch.cantSave', "Can't save"), recordWriteBlock);
+      showAlert(t('field.punch.cantSave', "Can't Save"), recordWriteBlock);
       return;
     }
     if (editingItem && sealGuard(editingItem)) return;
     const desc = description.trim();
     if (!desc) {
-      showAlert(t('field.punch.addADescription', 'Add a description'), t('field.punch.describeThePunchItem', 'Describe the punch item.'));
+      showAlert(t('field.punch.addADescription', 'Add a Description'), t('field.punch.describeThePunchItem', 'Describe the punch item.'));
       return;
     }
     // The picker stores a calendar day; this refuses anything else (an old
     // free-text value he left in place), with the reason — a date that is not
     // a date would never go overdue (#113).
     if (dueDate.trim() && !parseCalendarDay(dueDate.trim().slice(0, 10))) {
-      showAlert(t('field.punch.dueDateNotUnderstood', 'Due date not understood'), t('field.punch.dueNotADateBody', '“{value}” is not a date, so it would never be tracked as overdue. Pick a date, or clear it.', { value: dueDate.trim() }));
+      showAlert(t('field.punch.dueDateNotUnderstood', 'Due Date Not Understood'), t('field.punch.dueNotADateBody', '“{value}” is not a date, so it would never be tracked as overdue. Pick a date, or clear it.', { value: dueDate.trim() }));
       return;
     }
     const linkedTaskName = linkedTask?.title;
@@ -1903,7 +1903,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     const remaining = MAX_WALK_SHOTS - walkShots.length;
     if (remaining <= 0) {
       showAlert(
-        t('field.punch.thatIsAFull', 'That is a full walk'),
+        t('field.punch.thatIsAFull', 'That is a full walk.'),
         t('field.punch.youHavePhotosWaiting', 'You have {MAX_WALK_SHOTS} photos waiting for a description. File those first, then start another walk.', { MAX_WALK_SHOTS }),
       );
       setShowWalk(true);
@@ -1938,7 +1938,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
   const discardWalkShot = useCallback((id: string) => {
     showAlert(t('field.punch.discardThisPhoto', 'Discard this photo?'), t('field.punch.itHasNotBeen', 'It has not been added to the punch list, so nothing else will remember it.'), [
-      { text: t('field.punch.keepIt', 'Keep it'), style: 'cancel' },
+      { text: t('field.punch.keepIt', 'Keep It'), style: 'cancel' },
       { text: t('field.punch.discard', 'Discard'), style: 'destructive', onPress: () => setWalkShots(prev => prev.filter(w => w.id !== id)) },
     ]);
   }, [t]);
@@ -1962,7 +1962,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const fileWalkShots = useCallback((opts?: { thenPin?: boolean }) => {
     if (describedWalkShots.length === 0) return;
     if (recordWriteBlock) {
-      showAlert(t('field.punch.cantAddItems', "Can't add items"), recordWriteBlock);
+      showAlert(t('field.punch.cantAddItems', "Can't Add Items"), recordWriteBlock);
       return;
     }
     if (filingWalkRef.current) return;
@@ -2029,7 +2029,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
   const handleStatusChange = useCallback((item: PunchItem, newStatus: PunchItemStatus) => {
     if (recordWriteBlock) {
-      showAlert(t('field.punch.cantChangeStatus', "Can't change status"), recordWriteBlock);
+      showAlert(t('field.punch.cantChangeStatus', "Can't Change Status"), recordWriteBlock);
       return;
     }
     if (sealGuard(item)) return;
@@ -2077,7 +2077,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const handleReject = useCallback((itemId: string) => {
     // LS-5: a reject is a punch_items UPDATE, which RLS refuses a viewer.
     if (recordWriteBlock) {
-      showAlert(t('field.punch.cantChangeStatus', "Can't change status"), recordWriteBlock);
+      showAlert(t('field.punch.cantChangeStatus', "Can't Change Status"), recordWriteBlock);
       setShowRejectModal(null);
       return;
     }
@@ -2168,7 +2168,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const runBulkUpdate = useCallback((ids: string[], updates: Partial<PunchItem>, message: (n: number) => string) => {
     // LS-5: bulk assign / move land here; each is an UPDATE a viewer can't make.
     if (recordWriteBlock) {
-      showAlert(t('field.punch.cantChangeTheseItems', "Can't change these items"), recordWriteBlock);
+      showAlert(t('field.punch.cantChangeTheseItems', "Can't Change These Items"), recordWriteBlock);
       return;
     }
     if (ids.length === 0) return;
@@ -2196,7 +2196,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const bulkSetStatus = useCallback((next: PunchItemStatus) => {
     if (recordWriteBlock) {
       setShowBulkStatusPicker(false);
-      showAlert(t('field.punch.cantChangeStatus', "Can't change status"), recordWriteBlock);
+      showAlert(t('field.punch.cantChangeStatus', "Can't Change Status"), recordWriteBlock);
       return;
     }
     if (selectedIdList.length === 0) return;
@@ -2229,7 +2229,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       tn('field.punch.ofTheseAreWaiting', n, { one: '{count} of these is waiting for your review. Moving it to {label} sends it back as not done, with no reason given. To say why, use Reject on the item instead.', other: '{count} of these are waiting for your review. Moving them to {label} sends them back as not done, with no reason given. To say why, use Reject on the item instead.' }, { label: cfg.label }),
       [
         { text: t('common.action.cancel', 'Cancel'), style: 'cancel' },
-        { text: t('field.punch.sendBack', 'Send back'), style: 'destructive', onPress: run },
+        { text: t('field.punch.sendBack', 'Send Back'), style: 'destructive', onPress: run },
       ],
     );
   }, [selectedIdList, selectedItems, themeColors, updatePunchItems, finishBulk, recordWriteBlock, sealedSelectionGuard, t, tn]);
@@ -2263,7 +2263,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   /** Single-item move from the row rail. Same confirmation as the bulk verb. */
   const moveItem = useCallback((item: PunchItem) => {
     if (recordWriteBlock) {
-      showAlert(t('field.punch.cantMove', "Can't move"), recordWriteBlock);
+      showAlert(t('field.punch.cantMove', "Can't Move"), recordWriteBlock);
       return;
     }
     if (sealGuard(item)) return;
@@ -2294,7 +2294,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     const kept = selectedIdList.length - ids.length;
     const n = ids.length;
     if (n === 0) {
-      showAlert(t('field.punch.cantDeleteTheseItems', 'Can’t delete these items'), punchDeleteBlockedReason());
+      showAlert(t('field.punch.cantDeleteTheseItems', 'Can’t Delete These Items'), punchDeleteBlockedReason());
       return;
     }
     const keptLine = kept > 0
@@ -2305,7 +2305,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       tn('field.punch.deletePunchItems', n, { one: 'Delete {count} punch item?', other: 'Delete {count} punch items?' }),
       t('field.punch.theyAreRemovedFrom', 'They are removed from this project and from the closeout packet. This cannot be undone.{keptLine}', { keptLine }),
       [
-        { text: t('field.punch.keepThem', 'Keep them'), style: 'cancel' },
+        { text: t('field.punch.keepThem', 'Keep Them'), style: 'cancel' },
         {
           text: t('field.punch.deleteN', 'Delete {n}', { n }),
           style: 'destructive',
@@ -2387,12 +2387,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     onStatus: (item, next) => latestActions.current.handleStatusChange(item, next),
     onReject: item => {
       const block = latestActions.current.recordWriteBlock;
-      if (block) { showAlert(t('field.punch.cantChangeStatus', "Can't change status"), block); return; }
+      if (block) { showAlert(t('field.punch.cantChangeStatus', "Can't Change Status"), block); return; }
       if (latestActions.current.sealGuard(item)) return;
       latestActions.current.setShowRejectModal(item.id);
       latestActions.current.setRejectionNote('');
     },
-    onDeleteBlocked: () => showAlert(t('field.punch.cantDeleteThisItem', 'Can’t delete this item'), punchDeleteBlockedReason()),
+    onDeleteBlocked: () => showAlert(t('field.punch.cantDeleteThisItem', 'Can’t Delete This Item'), punchDeleteBlockedReason()),
     onDelete: item => {
       if (latestActions.current.sealGuard(item)) return;
       showAlert(t('common.action.delete', 'Delete'), t('field.punch.deleteThisPunchItem', 'Delete this punch item?'), [
@@ -2556,7 +2556,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     try {
       result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: false });
     } catch {
-      showAlert(t('field.punch.couldntOpenYourFiles', 'Couldn’t open your files'), t('field.punch.theBrowserDidntOpen', 'The browser didn’t open the file chooser. Try again.'));
+      showAlert(t('field.punch.couldntOpenYourFiles', 'Couldn’t Open Your Files'), t('field.punch.theBrowserDidntOpen', 'The browser didn’t open the file chooser. Try again.'));
       return;
     }
     const asset = !result.canceled ? result.assets?.[0] : undefined;
@@ -2583,13 +2583,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   }, [editingItem]);
   const panePendingNote = editingItem
     ? photoEdit.kind === 'replace'
-      ? t('field.punch.paneNewPhoto', 'New photo — saved when you tap Update.')
+      ? t('field.punch.paneNewPhoto', 'New photo. It is saved when you tap Update.')
       : photoEdit.kind === 'remove'
         ? t('field.punch.panePhotoRemoved', 'The photo is removed when you tap Update.')
         : null
     : attachedPhotoUri && paneMarkup.length > 0
       // Same caveat the phone sheet prints under a marked-up prefill.
-      ? t('field.punch.yourMarkupShowsHere', 'Your markup shows here only. The sub portal shows the description, location and plan sheet, not the photo or the mark — describe the mark in the description.')
+      ? t('field.punch.yourMarkupShowsHere', 'Your markup shows here only. The sub portal shows the description, location and plan sheet, not the photo or the mark, so describe the mark in the description.')
       : null;
   const panePin = useMemo((): PunchEditPinThumb | null => {
     const ref = editingItem ? pinRefOf(editingItem, sheetsById) : null;
@@ -2607,7 +2607,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       y: spot.y,
       number: n,
       // A list of facts after the sheet name: each tag is its own key, joined as data.
-      label: `${pinSheetLabel(sheet)}${sheet.superseded ? t('field.punch.pin.olderRevisionTag', ' · older revision') : ''}${n !== null ? t('field.punch.pin.pinN', ' — pin {n}', { n }) : ''}${editingItem ? '' : t('field.punch.pin.pinnedWhenAdded', ' · pinned when you add it')}`,
+      label: `${pinSheetLabel(sheet)}${sheet.superseded ? t('field.punch.pin.olderRevisionTag', ' · older revision') : ''}${n !== null ? t('field.punch.pin.pinN', ' · pin {n}', { n }) : ''}${editingItem ? '' : t('field.punch.pin.pinnedWhenAdded', ' · pinned when you add it')}`,
     };
   }, [editingItem, sheetsById, formPin, itemNumbers, t]);
 
@@ -2617,7 +2617,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   // durable path. The seal screen ticks the item only when the SERVER has it.
   const takeAfterPhoto = useCallback(async (item: PunchItem) => {
     if (recordWriteBlock) {
-      showAlert(t('field.punch.cantSave', "Can't save"), recordWriteBlock);
+      showAlert(t('field.punch.cantSave', "Can't Save"), recordWriteBlock);
       return;
     }
     if (sealGuard(item)) return;
@@ -2628,13 +2628,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       } else {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-          showAlert(t('field.punchSeal.cameraNeeded', 'Camera access needed'), t('field.punchSeal.cameraNeededBody', 'Allow camera access in Settings to take the after photo.'));
+          showAlert(t('field.punchSeal.cameraNeeded', 'Camera Access Needed'), t('field.punchSeal.cameraNeededBody', 'Allow camera access in Settings to take the after photo.'));
           return;
         }
         result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
       }
     } catch {
-      showAlert(t('field.punchSeal.cameraFailed', 'Couldn’t open the camera'), t('field.punchSeal.cameraFailedBody', 'Try again.'));
+      showAlert(t('field.punchSeal.cameraFailed', 'Couldn’t Open the Camera'), t('field.punchSeal.cameraFailedBody', 'Try again.'));
       return;
     }
     const uri = !result.canceled ? result.assets?.[0]?.uri : undefined;
@@ -2654,7 +2654,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const exportProjectName = project?.name;
   const stackOptions = useMemo(
     () => ({
-      title: exportProjectName !== undefined ? t('field.punch.titleWithProject', 'Punch list · {name}', { name: exportProjectName }) : t('field.punch.punchList', 'Punch list'),
+      title: exportProjectName !== undefined ? t('field.punch.titleWithProject', 'Punch List · {name}', { name: exportProjectName }) : t('field.punch.punchList', 'Punch List'),
       headerRight: exportProjectName !== undefined ? exportHeaderRight : undefined,
     }),
     [exportProjectName, exportHeaderRight, t],
@@ -2685,7 +2685,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={stackOptions} />
         <ToolProjectPicker
-          toolName={t('field.punch.punchList', 'Punch list')}
+          toolName={t('field.punch.punchList', 'Punch List')}
           message={ownTier
             ? t('field.punch.pickerOwn', 'Punch lists are tied to a project so each item links to its trade and location.')
             // #127: in on an invite, not his own plan — only the jobs whose
@@ -2723,14 +2723,14 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             {refreshState === 'refreshing'
               ? t('field.punch.refreshingLoadingTheSubs', 'Refreshing… loading the sub’s latest mark. Statuses below may be out of date until this finishes.')
               : refreshState === 'offline'
-                ? t('field.punch.noSignalThisIs', 'No signal — this is the list saved on this phone, so the sub’s latest mark may not be on it yet.')
+                ? t('field.punch.noSignalThisIs', 'No signal. This is the list saved on this phone, so the sub’s latest mark may not be on it yet.')
                 : t('field.punch.thatItemIsntOn', 'That item isn’t on this punch list. It may have been deleted, or it isn’t shared with you.')}
           </Text>
           {/* A real control, not "pull down": pull-to-refresh does nothing on
               the web app, and this re-runs the whole focus, not just a read. */}
           {refreshState !== 'refreshing' ? (
             <Button
-              label={refreshState === 'offline' ? t('field.punch.tryAgain', 'Try again') : t('field.punch.refresh', 'Refresh')}
+              label={refreshState === 'offline' ? t('field.punch.tryAgain', 'Try Again') : t('field.punch.refresh', 'Refresh')}
               variant="secondary"
               size="sm"
               onPress={retryFocus}
@@ -2788,7 +2788,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           <View style={styles.listBannerRow}>
             <Eye size={15} color={themeColors.text} strokeWidth={2} />
             <Text style={styles.listBannerPunchTitle}>
-              {clientSeesPunch ? t('field.punch.yourClientSeesThis', 'Your client sees this list') : t('field.punch.formalPunchList', 'Formal punch list')}
+              {clientSeesPunch ? t('field.punch.yourClientSeesThis', 'Your Client Sees This List') : t('field.punch.formalPunchList', 'Formal Punch List')}
             </Text>
           </View>
           <Text style={styles.listBannerPunchBody}>
@@ -2809,14 +2809,14 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={styles.listBannerCrew} testID="punch-list-banner-crew">
           <EyeOff size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
           <Text style={styles.listBannerCrewText}>
-            {t('field.punch.internalWorkingListFor', 'Internal working list for your crew and subs — never shown in the client portal. A sub still sees the items assigned to them in their own sub portal.')}
+            {t('field.punch.internalWorkingListFor', 'Internal working list for your crew and subs, never shown in the client portal. A sub still sees the items assigned to them in their own sub portal.')}
           </Text>
         </View>
       )}
 
       <View style={styles.progressSection}>
         <View style={styles.progressHeader}>
-          <Text style={styles.progressTitle}>{activeList === 'punch' ? t('field.punch.punchListCompletion', 'Punch list completion') : t('field.punch.crewListCompletion', 'Crew list completion')}</Text>
+          <Text style={styles.progressTitle}>{activeList === 'punch' ? t('field.punch.punchListCompletion', 'Punch List Completion') : t('field.punch.crewListCompletion', 'Crew List Completion')}</Text>
           <Text style={styles.progressPercent}>{shownPct}%</Text>
         </View>
         <View style={styles.progressTrack}>
@@ -2848,7 +2848,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       {punchItemsLoaded && items.length > 0 && (
         <View style={[cardSurface(themeColors, { radius: 'md', pad: 12 }), styles.planCard]} testID="punch-plan-card">
           <View style={styles.planCardHead}>
-            <EyebrowLabel tone="neutral">{t('field.punch.onThePlan', 'On the plan')}</EyebrowLabel>
+            <EyebrowLabel tone="neutral">{t('field.punch.onThePlan', 'On the Plan')}</EyebrowLabel>
             <Text style={[styles.planCardCount, pinCountsReady && pinStats.unpinned === 0 && { color: themeColors.successLabel }]}>
               {!pinCountsReady
                 ? t('field.punch.checkingThePlanSheets', 'Checking the plan sheets…')
@@ -2870,7 +2870,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             <Button
               size="md"
               variant="secondary"
-              label={t('field.punch.pinFirst', 'Pin first')}
+              label={t('field.punch.pinFirst', 'Pin First')}
               onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList, start: 'pin' } as never })}
               disabled={!!pinBlocked}
               iconLeft={<MapPinPlus size={14} color={themeColors.text} strokeWidth={2} />}
@@ -2920,7 +2920,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           onPress={() => setShowFilterDrawer(true)}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={t('field.punch.moreFilters', 'More filters')}
+          accessibilityLabel={t('field.punch.moreFilters', 'More Filters')}
         >
           <Filter size={14} color={activeFilterCount > 0 ? themeColors.accent : themeColors.textSecondary} strokeWidth={1.75} />
           {activeFilterCount > 0 && (
@@ -2943,19 +2943,19 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             </TouchableOpacity>
           )}
           {filterPriority !== 'all' && (
-            <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterPriority('all')} accessibilityRole="button" accessibilityLabel={t('field.punch.removeThePriorityFilter', 'Remove the priority filter')}>
+            <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterPriority('all')} accessibilityRole="button" accessibilityLabel={t('field.punch.removeThePriorityFilter', 'Remove the Priority Filter')}>
               <Text style={styles.activeFilterPillText}>{t('field.punch.priorityFilterPill', 'Priority: {filterPriority}', { filterPriority: lang === 'en' ? filterPriority : priorityLabel(filterPriority as PunchItemPriority).toLowerCase() })}</Text>
               <X size={11} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
           {filterLocationKey && (
-            <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterLocationKey('')} accessibilityRole="button" accessibilityLabel={t('field.punch.removeTheLocationFilter', 'Remove the location filter')}>
+            <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterLocationKey('')} accessibilityRole="button" accessibilityLabel={t('field.punch.removeTheLocationFilter', 'Remove the Location Filter')}>
               <Text style={styles.activeFilterPillText}>{t('field.punch.locationFilterPill', 'Location: {label}', { label: filterLocationLabel })}</Text>
               <X size={11} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={clearAllFilters} style={[styles.activeFilterPill, { backgroundColor: themeColors.line }]} accessibilityRole="button" accessibilityLabel={t('field.punch.clearAllFilters', 'Clear all filters')}>
-            <Text style={[styles.activeFilterPillText, { color: themeColors.textSecondary }]}>{t('field.punch.clearAll', 'Clear all')}</Text>
+          <TouchableOpacity onPress={clearAllFilters} style={[styles.activeFilterPill, { backgroundColor: themeColors.line }]} accessibilityRole="button" accessibilityLabel={t('field.punch.clearAllFilters', 'Clear All Filters')}>
+            <Text style={[styles.activeFilterPillText, { color: themeColors.textSecondary }]}>{t('field.punch.clearAll', 'Clear All')}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -2972,11 +2972,11 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityState={{ selected: grouped }}
-            accessibilityLabel={t('field.punch.groupTheListBy', 'Group the list by location')}
+            accessibilityLabel={t('field.punch.groupTheListBy', 'Group the List by Location')}
             testID="punch-view-grouped"
           >
             <Layers size={13} color={grouped ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.viewChipText, grouped && styles.viewChipTextActive]}>{t('field.punch.byLocation', 'By location')}</Text>
+            <Text style={[styles.viewChipText, grouped && styles.viewChipTextActive]}>{t('field.punch.byLocation', 'By Location')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.viewChip, !grouped && styles.viewChipActive]}
@@ -2984,7 +2984,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityState={{ selected: !grouped }}
-            accessibilityLabel={t('field.punch.showOneFlatList', 'Show one flat list')}
+            accessibilityLabel={t('field.punch.showOneFlatList', 'Show One Flat List')}
             testID="punch-view-flat"
           >
             <List size={13} color={!grouped ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />
@@ -3002,7 +3002,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               testID="punch-group-order"
             >
               <ArrowUpDown size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
-              <Text style={styles.viewChipText}>{groupOrder === 'recent' ? t('field.punch.recent', 'Recent') : t('field.punch.aZ', 'A–Z')}</Text>
+              <Text style={styles.viewChipText}>{groupOrder === 'recent' ? t('field.punch.recent', 'Recent') : t('field.punch.aZ', 'A to Z')}</Text>
             </TouchableOpacity>
           ) : null}
           <View style={{ flex: 1 }} />
@@ -3013,7 +3013,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityState={{ selected: selectMode }}
-              accessibilityLabel={selectMode ? t('field.punch.stopSelecting', 'Stop selecting') : t('field.punch.selectSeveralItems', 'Select several items')}
+              accessibilityLabel={selectMode ? t('field.punch.stopSelecting', 'Stop Selecting') : t('field.punch.selectSeveralItems', 'Select Several Items')}
               testID="punch-select-mode"
             >
               <SquareCheck size={13} color={selectMode ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />
@@ -3041,7 +3041,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           >
             <Send size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.portalBannerText} numberOfLines={2}>
-              {tn('field.punch.handTheirOpenItems', portalTarget.count, { one: 'Hand {name} their {count} open item — open their portal link', other: 'Hand {name} their {count} open items — open their portal link' }, { name: portalTarget.name })}
+              {tn('field.punch.handTheirOpenItems', portalTarget.count, { one: 'Hand {name} their {count} open item: open their portal link', other: 'Hand {name} their {count} open items: open their portal link' }, { name: portalTarget.name })}
             </Text>
             <ChevronRight size={14} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -3051,7 +3051,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           <View style={styles.portalBannerOff}>
             <Send size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.portalBannerOffText}>
-              {t('field.punch.noPortalForThat', 'No portal for "{name}" — that name is typed on the items but isn\'t in your subcontractor list. Add them under Subs and reassign to build a link.', { name: portalTarget.name })}
+              {t('field.punch.noPortalForThat', 'No portal for "{name}". That name is typed on the items but isn\'t in your subcontractor list. Add them under Subs and reassign to build a link.', { name: portalTarget.name })}
             </Text>
           </View>
         )
@@ -3064,16 +3064,16 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       <EmptyState
         icon={<CheckCircle size={36} color={themeColors.accent} strokeWidth={1.75} />}
         title={activeFilterCount > 0
-          ? t('field.punch.nothingMatchesThoseFilters', 'Nothing matches those filters')
-          : activeList === 'punch' ? t('field.punch.noPunchItemsYet', 'No punch items yet') : t('field.punch.nothingOnTheCrew', 'Nothing on the crew list')}
+          ? t('field.punch.nothingMatchesThoseFilters', 'Nothing Matches Those Filters')
+          : activeList === 'punch' ? t('field.punch.noPunchItemsYet', 'No Punch Items Yet') : t('field.punch.nothingOnTheCrew', 'Nothing on the Crew List')}
         message={activeFilterCount > 0
           ? t('field.punch.emptyFiltered', 'Nothing is left after the filters above. Clear one to see the rest of the list.')
           : activeList === 'punch'
             ? t('field.punch.emptyPunch', 'Walk the project, snap photos of anything that needs touch-up, and add the items here. They\'ll roll into your closeout packet automatically.')
             : t('field.punch.emptyCrew', 'Touch-ups, cleanup and "while you\'re in there" fixes for your own crew and subs. Nothing added here is shown to your client.')}
         actionLabel={activeFilterCount > 0
-          ? t('field.punch.clearAllFilters', 'Clear all filters')
-          : activeList === 'punch' ? t('field.punch.addFirstPunchItem', 'Add first punch item') : t('field.punch.addFirstCrewItem', 'Add first crew item')}
+          ? t('field.punch.clearAllFilters', 'Clear All Filters')
+          : activeList === 'punch' ? t('field.punch.addFirstPunchItem', 'Add First Punch Item') : t('field.punch.addFirstCrewItem', 'Add First Crew Item')}
         onAction={activeFilterCount > 0 ? clearAllFilters : () => { resetForm(); setShowForm(true); }}
       />
     </View>
@@ -3124,10 +3124,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         activeOpacity={0.7}
         testID="apply-punch-template"
         accessibilityRole="button"
-        accessibilityLabel={t('field.punch.applyATradeTemplate', 'Apply a trade template')}
+        accessibilityLabel={t('field.punch.applyATradeTemplate', 'Apply a Trade Template')}
       >
         <MagePunch size={16} color={themeColors.accent} />
-        <Text style={styles.addItemBtnText}>{t('field.punch.applyTradeTemplate', 'Apply trade template')}</Text>
+        <Text style={styles.addItemBtnText}>{t('field.punch.applyTradeTemplate', 'Apply Trade Template')}</Text>
       </TouchableOpacity>
 
       {/* ── Walk the job ──────────────────────────────────────────────────
@@ -3135,11 +3135,11 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           it pins. Walk Mode was labelled "voice capture" — the thing it is
           for (photo → pin → describe) was invisible from here. */}
       <View style={styles.walkGroupWrap}>
-        <EyebrowLabel tone="neutral">{t('field.punch.walkTheJobsite', 'Walk the jobsite')}</EyebrowLabel>
+        <EyebrowLabel tone="neutral">{t('field.punch.walkTheJobsite', 'Walk the Jobsite')}</EyebrowLabel>
         <View style={[cardSurface(themeColors, { radius: 'md', pad: 'none' }), styles.walkGroup]}>
           {renderWalkRow({
             icon: <Camera size={18} color={themeColors.accentLabel} strokeWidth={1.75} />,
-            title: t('field.punch.walk.modeTitle', 'Walk mode: photo → pin → describe'),
+            title: t('field.punch.walk.modeTitle', 'Walk Mode: Photo, Pin, Describe'),
             sub: t('field.punch.walk.modeSub', 'Photo, then tap where it is on the plan, then say what’s wrong.'),
             a11y: t('field.punch.walk.modeA11y', 'Walk mode: take a photo, pin it on the plan, then describe it'),
             testID: 'open-punch-walk',
@@ -3149,7 +3149,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           })}
           {renderWalkRow({
             icon: <MapPinPlus size={18} color={themeColors.accentLabel} strokeWidth={1.75} />,
-            title: t('field.punch.walk.pinFirstTitle', 'Pin first: pin → photo → describe'),
+            title: t('field.punch.walk.pinFirstTitle', 'Pin First: Pin, Photo, Describe'),
             sub: pinBlocked ?? t('field.punch.walk.pinFirstSub', 'Tap the spot on the plan, then take the photo.'),
             a11y: t('field.punch.walk.pinFirstA11y', 'Pin first: tap the spot on the plan, then take the photo, then describe it'),
             testID: 'open-punch-pin-first',
@@ -3158,7 +3158,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           })}
           {renderWalkRow({
             icon: <MapPinned size={18} color={themeColors.accentLabel} strokeWidth={1.75} />,
-            title: t('field.punch.walk.pinItemsTitle', 'Pin items on the plan'),
+            title: t('field.punch.walk.pinItemsTitle', 'Pin Items on the Plan'),
             sub: pinBlocked
               ?? (!pinCountsReady
                 ? t('field.punch.walk.pinItemsLoading', 'Loading the punch list and plans…')
@@ -3166,7 +3166,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             count: pinCountsReady && pinStats.unpinned > 0 ? t('field.punch.walk.notPinnedCount', '{count} not pinned', { count: pinStats.unpinned }) : undefined,
             a11y: pinCountsReady && pinStats.unpinned > 0
               ? t('field.punch.walk.pinItemsA11yCount', 'Pin items on the plan, {count} not pinned', { count: pinStats.unpinned })
-              : t('field.punch.walk.pinItemsTitle', 'Pin items on the plan'),
+              : t('field.punch.walk.pinItemsTitle', 'Pin Items on the Plan'),
             testID: 'open-punch-pin-items',
             disabled: !!pinBlocked || !pinCountsReady || pinStats.unpinned === 0,
             onPress: () => router.push({ pathname: '/punch-pin' as never, params: { projectId: projectId ?? '', list: activeList } as never }),
@@ -3175,9 +3175,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             icon: <Images size={18} color={themeColors.accentLabel} strokeWidth={1.75} />,
             title: walkShots.length > 0
               ? t('field.punch.walk.photoWalkWaiting', 'Photo walk: {count} waiting for a line', { count: walkShots.length })
-              : t('field.punch.walk.photoWalkTitle', 'Photo walk: shoot now, describe later'),
-            sub: t('field.punch.walk.photoWalkSub', 'No pins — pin them after with Pin items.'),
-            a11y: t('field.punch.walk.photoWalkA11y', 'Start a photo walk'),
+              : t('field.punch.walk.photoWalkTitle', 'Photo Walk: Shoot Now, Describe Later'),
+            sub: t('field.punch.walk.photoWalkSub', 'No pins. Pin them after with Pin Items.'),
+            a11y: t('field.punch.walk.photoWalkA11y', 'Start a Photo Walk'),
             testID: 'start-photo-walk',
             last: true,
             onPress: () => { void startPhotoWalk(); },
@@ -3202,11 +3202,11 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             <TouchableOpacity
               onPress={openPunchSeal}
               accessibilityRole="button"
-              accessibilityLabel={t('field.punchSeal.sealTheFinalPunch', 'Seal the final punch')}
+              accessibilityLabel={t('field.punchSeal.sealTheFinalPunch', 'Seal the Final Punch')}
               hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
               testID="punch-all-closed-seal"
             >
-              <Text style={styles.allClosedBannerAction}>{t('field.punchSeal.sealTheFinalPunch', 'Seal the final punch')}</Text>
+              <Text style={styles.allClosedBannerAction}>{t('field.punchSeal.sealTheFinalPunch', 'Seal the Final Punch')}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -3214,7 +3214,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       {activeList === 'punch' && !punchSeal.seal && formalAllClosed && !(allClosed && allClosedBanner) ? (
         <View style={styles.sealEntry}>
           <Button
-            label={t('field.punchSeal.sealTheFinalPunch', 'Seal the final punch')}
+            label={t('field.punchSeal.sealTheFinalPunch', 'Seal the Final Punch')}
             variant="secondary"
             fullWidth
             onPress={openPunchSeal}
@@ -3224,16 +3224,16 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         </View>
       ) : null}
       {allClosed && !allClosedBanner && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
-        <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t('field.punch.closeProject', 'Close project')}>
+        <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={t('field.punch.closeProject', 'Close Project')}>
           <CheckCircle size={18} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.closeProjectBtnText}>{t('field.punch.closeProject', 'Close project')}</Text>
+          <Text style={styles.closeProjectBtnText}>{t('field.punch.closeProject', 'Close Project')}</Text>
         </TouchableOpacity>
       )}
 
       {(project.status === 'completed' || project.status === 'closed') && (
         <View style={styles.projectClosedNote}>
           <CheckCircle size={16} color={themeColors.success} strokeWidth={1.75} />
-          <Text style={styles.projectClosedNoteText}>{t('field.punch.projectClosedPunchList', 'Project closed — punch list is archived.')}</Text>
+          <Text style={styles.projectClosedNoteText}>{t('field.punch.projectClosedPunchList', 'Project closed. The punch list is archived.')}</Text>
         </View>
       )}
     </View>
@@ -3249,7 +3249,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     <>
       <View style={styles.formHeader}>
         <Text style={styles.formTitle}>
-          {editingItem ? t('field.punch.editItem', 'Edit item') : formListType === 'punch' ? t('field.punch.newPunchItem', 'New punch item') : t('field.punch.newCrewListItem', 'New crew list item')}
+          {editingItem ? t('field.punch.editItem', 'Edit Item') : formListType === 'punch' ? t('field.punch.newPunchItem', 'New Punch Item') : t('field.punch.newCrewListItem', 'New Crew List Item')}
         </Text>
         <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
           <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -3277,7 +3277,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               // LS-5: advancing is a punch_items UPDATE, which RLS refuses a
               // viewer — the tap says why instead of writing.
               if (recordWriteBlock) {
-                showAlert(t('field.punch.cantChangeStatus', "Can't change status"), recordWriteBlock);
+                showAlert(t('field.punch.cantChangeStatus', "Can't Change Status"), recordWriteBlock);
                 return;
               }
               if (sealGuard(editingItem)) return;
@@ -3308,15 +3308,15 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       {editingItem && punchListTypeOf(editingItem) === 'punch'
         && (editingItem.status === 'ready_for_review' || editingItem.status === 'closed') ? (
         <View style={styles.afterPhotoBlock} testID="punch-after-photo">
-          <Text style={styles.fieldLabel}>{t('field.punchSeal.afterPhoto', 'After photo')}</Text>
+          <Text style={styles.fieldLabel}>{t('field.punchSeal.afterPhoto', 'After Photo')}</Text>
           {editingItem.afterPhotoUri ? (
-            <Image source={{ uri: editingItem.afterPhotoUri }} style={styles.afterPhotoImg} resizeMode="cover" accessibilityLabel={t('field.punchSeal.afterPhoto', 'After photo')} />
+            <Image source={{ uri: editingItem.afterPhotoUri }} style={styles.afterPhotoImg} resizeMode="cover" accessibilityLabel={t('field.punchSeal.afterPhoto', 'After Photo')} />
           ) : (
             <Text style={styles.formListNote}>{t('field.punchSeal.noAfterPhotoYet', 'No after photo yet. The sealed final punch needs one on every item.')}</Text>
           )}
           {!sealedPunchEditBlock(editingItem, sealedIdSet) ? (
             <Button
-              label={editingItem.afterPhotoUri ? t('field.punchSeal.retakeAfterPhoto', 'Retake after photo') : t('field.punchSeal.addAfterPhoto', 'Add after photo')}
+              label={editingItem.afterPhotoUri ? t('field.punchSeal.retakeAfterPhoto', 'Retake After Photo') : t('field.punchSeal.addAfterPhoto', 'Add After Photo')}
               variant="secondary"
               fullWidth
               onPress={() => { void takeAfterPhoto(editingItem); }}
@@ -3330,7 +3330,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       {editingItem && backchargePrefill ? (
         <View testID="backcharge-from-punch" style={styles.backchargeEntry}>
           <Button
-            label={t('field.punch.backchargeTheSub', 'Backcharge the sub')}
+            label={t('field.punch.backchargeTheSub', 'Backcharge the Sub')}
             variant="secondary"
             fullWidth
             disabled={!!backchargeBlocked}
@@ -3369,13 +3369,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             style={styles.photoRemove}
             onPress={() => { setAttachedPhotoUri(undefined); setAttachedSourcePhotoId(undefined); }}
             accessibilityRole="button"
-            accessibilityLabel={t('field.punch.removeAttachedPhoto', 'Remove attached photo')}
+            accessibilityLabel={t('field.punch.removeAttachedPhoto', 'Remove Attached Photo')}
             testID="punch-remove-photo"
           >
             <X size={12} color="#fff" strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.photoBadge}>
-            <Text style={styles.photoBadgeText}>{t('field.punch.photoAttached', 'Photo attached')}</Text>
+            <Text style={styles.photoBadgeText}>{t('field.punch.photoAttached', 'Photo Attached')}</Text>
           </View>
         </View>
       ) : null}
@@ -3384,7 +3384,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         // private bucket and needs a signed link), let alone the mark,
         // so he must describe it in words.
         <Text style={styles.formListNote}>
-          {t('field.punch.yourMarkupShowsHere', 'Your markup shows here only. The sub portal shows the description, location and plan sheet, not the photo or the mark — describe the mark in the description.')}
+          {t('field.punch.yourMarkupShowsHere', 'Your markup shows here only. The sub portal shows the description, location and plan sheet, not the photo or the mark, so describe the mark in the description.')}
         </Text>
       ) : null}
     </>
@@ -3419,7 +3419,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       </View>
       <Text style={styles.formListNote}>
         {formListType === 'crew'
-          ? t('field.punch.internalNeverShownIn', 'Internal — never shown in the client portal.')
+          ? t('field.punch.internalNeverShownIn', 'Internal. Never shown in the client portal.')
           : clientSeesPunch
             ? t('field.punch.shownToYourClient', 'Shown to your client in their portal until it is closed.')
             : t('field.punch.formalPunchListPunch', 'Formal punch list. Punch list sharing is off in the client portal, so your client does not see it yet.')}
@@ -3444,7 +3444,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <View style={{ flex: 1 }}>
           <Text style={styles.fieldLabel}>{t('field.punch.locationArea', 'Location/Area')}</Text>
-          <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder={t('field.punch.eGKitchenRoom', 'e.g. Kitchen, Room 3B')} placeholderTextColor={themeColors.textMuted} testID="punch-location-input" />
+          <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder={t('field.punch.eGKitchenRoom', 'Kitchen, Room 3B')} placeholderTextColor={themeColors.textMuted} testID="punch-location-input" />
           {recentLocations.length > 0 ? (
             <View style={styles.recentLocRow} testID="punch-recent-locations">
               {recentLocations.map(loc => (
@@ -3463,7 +3463,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           ) : null}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.fieldLabel}>{t('field.punch.dueDate', 'Due date')}</Text>
+          <Text style={styles.fieldLabel}>{t('field.punch.dueDate', 'Due Date')}</Text>
           {/* A picker, not a text box: a typed "9/25" saved, never
               went overdue and printed raw (#113). Stored as the
               calendar day picked (utils/calendarDate), never a UTC
@@ -3472,7 +3472,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             style={[styles.input, styles.dueField]}
             onPress={() => setShowDuePicker(true)}
             accessibilityRole="button"
-            accessibilityLabel={dueDate ? t('field.punch.dueDateChange', 'Due date {dueDate}. Change', { dueDate }) : t('field.punch.pickADueDate', 'Pick a due date')}
+            accessibilityLabel={dueDate ? t('field.punch.dueDateChange', 'Due date {dueDate}. Change', { dueDate }) : t('field.punch.pickADueDate', 'Pick a Due Date')}
             testID="punch-due-field"
           >
             <CalendarClock size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
@@ -3481,14 +3481,14 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               numberOfLines={1}
             >
               {!dueDate
-                ? t('field.punch.noDueDate', 'No due date')
+                ? t('field.punch.noDueDate', 'No Due Date')
                 : parseCalendarDay(dueDate.slice(0, 10))
                   ? formatCalendarDay(dueDate.slice(0, 10))
-                  : t('field.punch.notADate', '“{dueDate}” — not a date', { dueDate })}
+                  : t('field.punch.notADate', '“{dueDate}” is not a date', { dueDate })}
             </Text>
           </TouchableOpacity>
           {dueDate ? (
-            <TouchableOpacity onPress={() => setDueDate('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.punch.clearDueDate', 'Clear due date')} testID="punch-due-clear">
+            <TouchableOpacity onPress={() => setDueDate('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('field.punch.clearDueDate', 'Clear Due Date')} testID="punch-due-clear">
               <Text style={styles.dueClear}>{t('field.punch.clear', 'Clear')}</Text>
             </TouchableOpacity>
           ) : null}
@@ -3496,7 +3496,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             visible={showDuePicker}
             value={dueDate && parseCalendarDay(dueDate.slice(0, 10)) ? (parseCalendarDay(dueDate.slice(0, 10))?.toISOString() ?? '') : ''}
             allowFuture
-            title={t('field.punch.dueDate', 'Due date')}
+            title={t('field.punch.dueDate', 'Due Date')}
             onClose={() => setShowDuePicker(false)}
             // The picker hands back noon-UTC of the day he picked;
             // calendarDayOf keeps that local calendar day as YYYY-MM-DD.
@@ -3508,7 +3508,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       {/* Where it is on the plan. The row says the export's verdict
           in words; an existing item's pin is saved the moment it is
           placed or removed. */}
-      <Text style={styles.fieldLabel}>{t('field.punch.onThePlan', 'On the plan')}</Text>
+      <Text style={styles.fieldLabel}>{t('field.punch.onThePlan', 'On the Plan')}</Text>
       {(() => {
         const ref = editingItem ? pinRefOf(editingItem, sheetsById) : null;
         const formSheet = formPin ? sheetsById.get(formPin.sheetId) : undefined;
@@ -3523,12 +3523,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               ? `${t('field.punch.pin.spotMissing', 'On {sheet}, but its spot is missing', { sheet: ref.sheetLabel })}${saved}`
               : ref?.state === 'sheet-missing'
                 ? `${t('field.punch.pin.sheetGone', 'Its plan sheet is no longer on this project')}${saved}`
-                : `${t('field.punch.pin.notPinnedExport', 'Not pinned — the export lists it as not pinned')}${saved}`
+                : `${t('field.punch.pin.notPinnedExport', 'Not pinned. The export lists it as not pinned')}${saved}`
           : formPin
             ? (formSheet
               ? t('field.punch.pin.willPinOn', 'Will be pinned on {sheet} when you add it', { sheet: pinSheetLabel(formSheet) })
               : t('field.punch.pin.willPinPlan', 'Will be pinned on the plan when you add it'))
-            : t('field.punch.pin.notPinnedYet', 'Not pinned yet');
+            : t('field.punch.pin.notPinnedYet', 'Not Pinned Yet');
         return (
           <View style={styles.formPinBlock} testID="punch-form-pin">
             <View style={styles.formPinRow}>
@@ -3538,14 +3538,14 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             <View style={styles.formPinActions}>
               {pinnedHere ? (
                 <>
-                  <Button size="md" variant="secondary" label={t('field.punch.movePin', 'Move pin')} onPress={openFormPinStep} disabled={!!pinBlocked} testID="punch-form-pin-move" />
-                  <Button size="md" variant="ghost" label={t('field.punch.removePin', 'Remove pin')} onPress={handleFormPinRemove} disabled={!!pinBlocked} testID="punch-form-pin-remove" />
+                  <Button size="md" variant="secondary" label={t('field.punch.movePin', 'Move Pin')} onPress={openFormPinStep} disabled={!!pinBlocked} testID="punch-form-pin-move" />
+                  <Button size="md" variant="ghost" label={t('field.punch.removePin', 'Remove Pin')} onPress={handleFormPinRemove} disabled={!!pinBlocked} testID="punch-form-pin-remove" />
                 </>
               ) : (
                 <Button
                   size="md"
                   variant="secondary"
-                  label={t('field.punch.pinOnPlan', 'Pin on plan')}
+                  label={t('field.punch.pinOnPlan', 'Pin on Plan')}
                   onPress={openFormPinStep}
                   disabled={!!pinBlocked}
                   iconLeft={<MapPinPlus size={14} color={themeColors.text} strokeWidth={2} />}
@@ -3558,7 +3558,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         );
       })()}
 
-      <Text style={styles.fieldLabel}>{t('field.punch.assignedSub', 'Assigned sub')}</Text>
+      <Text style={styles.fieldLabel}>{t('field.punch.assignedSub', 'Assigned Sub')}</Text>
       {/* Unassigned, the subs, and Other…. Tapping the active chip
           also clears it. Every choice sets the name AND the id
           together: a chip gives its sub's id; Unassigned and Other…
@@ -3645,11 +3645,11 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
       {scheduleTasks.length > 0 ? (
         <>
-          <Text style={styles.fieldLabel}>{t('field.punch.linkToScheduleTask', 'Link to Schedule Task (optional)')}</Text>
+          <Text style={styles.fieldLabel}>{t('field.punch.linkToScheduleTask', 'Link to Schedule Task (Optional)')}</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
             <Link2 size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={[styles.pickerBtnText, !linkedTask && { color: themeColors.textMuted }]} numberOfLines={1}>
-              {linkedTask ? linkedTask.title : t('field.punch.noTaskLinked', 'No task linked')}
+              {linkedTask ? linkedTask.title : t('field.punch.noTaskLinked', 'No Task Linked')}
             </Text>
             {linkedTask ? (
               <TouchableOpacity onPress={() => setLinkedTaskId('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
@@ -3670,7 +3670,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           <Text style={styles.cancelBtnText}>{t('common.action.cancel', 'Cancel')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.saveBtn, recordWriteBlock ? styles.punchDeleteBtnBlocked : null]} onPress={handleSave} disabled={recordWriteBlock ? true : undefined} accessibilityState={recordWriteBlock ? { disabled: true } : undefined} activeOpacity={0.85} testID="save-punch-item">
-          <Text style={styles.saveBtnText}>{editingItem ? t('field.punch.update', 'Update') : t('field.punch.addItem2', 'Add item')}</Text>
+          <Text style={styles.saveBtnText}>{editingItem ? t('field.punch.update', 'Update') : t('field.punch.addItem2', 'Add Item')}</Text>
         </TouchableOpacity>
       </View>
       {/* LS-5: says why Add / Update is off for a viewer seat. */}
@@ -3734,7 +3734,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                   activeOpacity={0.85}
                   testID="add-punch-item"
                   accessibilityRole="button"
-                  accessibilityLabel={activeList === 'punch' ? t('field.punch.addPunchItem', 'Add punch item') : t('field.punch.addCrewListItem', 'Add crew list item')}
+                  accessibilityLabel={activeList === 'punch' ? t('field.punch.addPunchItem', 'Add Punch Item') : t('field.punch.addCrewListItem', 'Add Crew List Item')}
                 >
                   <Plus size={18} color={Colors.textOnAccent} strokeWidth={2} />
                   <Text style={styles.addBarPrimaryText}>{t('field.punch.add', 'Add')}</Text>
@@ -3751,7 +3751,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               activeOpacity={0.85}
               testID="punch-add-bar-walk"
               accessibilityRole="button"
-              accessibilityLabel={t('field.punch.walkModePhotoPin', 'Walk mode: photo, pin, describe')}
+              accessibilityLabel={t('field.punch.walkModePhotoPin', 'Walk Mode: Photo, Pin, Describe')}
             >
               <Camera size={18} color={themeColors.accentLabel} strokeWidth={1.75} />
               <Text style={styles.addBarSecondaryText}>{t('field.punch.walkButton', 'Walk')}</Text>
@@ -3822,7 +3822,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               onPress={clearSelection}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel={t('field.punch.doneSelecting', 'Done selecting')}
+              accessibilityLabel={t('field.punch.doneSelecting', 'Done Selecting')}
               testID="punch-bulk-done"
             >
               <Text style={styles.bulkBarDone}>{t('common.action.done', 'Done')}</Text>
@@ -3875,7 +3875,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               >
                 <ArrowLeftRight size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
                 <Text style={styles.bulkBtnText} numberOfLines={1}>
-                  {activeList === 'punch' ? t('field.punch.toCrew', 'To crew') : t('field.punch.toPunch', 'To punch')}
+                  {activeList === 'punch' ? t('field.punch.toCrew', 'To Crew') : t('field.punch.toPunch', 'To Punch')}
                 </Text>
               </TouchableOpacity>
 
@@ -3929,8 +3929,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           <View style={[styles.modalOverlay, fWalk.overlay]}>
             <Animated.View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fWalk.card, fWalk.cardMotion]}>
               <View style={styles.formHeader}>
-                <Text style={styles.formTitle}>{t('field.punch.photoWalk', 'Photo walk')}</Text>
-                <TouchableOpacity onPress={() => setShowWalk(false)} accessibilityRole="button" accessibilityLabel={t('field.punch.closePhotoWalk', 'Close photo walk')} testID="close-photo-walk">
+                <Text style={styles.formTitle}>{t('field.punch.photoWalk', 'Photo Walk')}</Text>
+                <TouchableOpacity onPress={() => setShowWalk(false)} accessibilityRole="button" accessibilityLabel={t('field.punch.closePhotoWalk', 'Close Photo Walk')} testID="close-photo-walk">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
@@ -3938,7 +3938,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 {walkShots.length === 0 ? (
                   <Text style={styles.walkEmpty}>
-                    {t('field.punch.noFramesYetTap', 'No frames yet. Tap Shoot more — the camera stays open, so you can walk the whole floor before you type anything.')}
+                    {t('field.punch.noFramesYetTap', 'No frames yet. Tap Shoot More. The camera stays open, so you can walk the whole floor before you type anything.')}
                   </Text>
                 ) : null}
 
@@ -3970,7 +3970,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                           style={styles.input}
                           value={shot.location}
                           onChangeText={v => updateWalkShot(shot.id, 'location', v)}
-                          placeholder={t('field.punch.whereEGUnit', 'Where — e.g. Unit 4B bath')}
+                          placeholder={t('field.punch.whereEGUnit', 'Where: Unit 4B bath')}
                           placeholderTextColor={themeColors.textMuted}
                         />
                       </View>
@@ -3979,9 +3979,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                 ))}
               </ScrollView>
 
-              <TouchableOpacity style={styles.walkShootBtn} onPress={() => { void startPhotoWalk(); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('field.punch.shootMorePhotos', 'Shoot more photos')} testID="walk-shoot-more">
+              <TouchableOpacity style={styles.walkShootBtn} onPress={() => { void startPhotoWalk(); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('field.punch.shootMorePhotos', 'Shoot More Photos')} testID="walk-shoot-more">
                 <Camera size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
-                <Text style={styles.walkShootBtnText}>{t('field.punch.shootMore', 'Shoot more')}</Text>
+                <Text style={styles.walkShootBtnText}>{t('field.punch.shootMore', 'Shoot More')}</Text>
               </TouchableOpacity>
 
               {/* A blocked control says WHY. With nothing described the button
@@ -4020,7 +4020,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               ) : null}
               {walkShots.length > describedWalkShots.length ? (
                 <Text style={styles.walkPending}>
-                  {tn('field.punch.walk.stillWithoutLine', walkShots.length - describedWalkShots.length, { one: '{count} photo still without a line — they stay here until you write one.', other: '{count} photos still without a line — they stay here until you write one.' })}
+                  {tn('field.punch.walk.stillWithoutLine', walkShots.length - describedWalkShots.length, { one: '{count} photo still without a line. They stay here until you write one.', other: '{count} photos still without a line. They stay here until you write one.' })}
                 </Text>
               ) : null}
             </Animated.View>
@@ -4053,7 +4053,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                     replaceBlocked={paneBlocked('replace')}
                     removeBlocked={paneBlocked('remove')}
                     pin={panePin}
-                    pinText={editingItem ? t('field.punch.pin.notPinnedExportFull', 'Not pinned — the export lists it as not pinned.') : t('field.punch.pin.notPinnedYetForm', 'Not pinned yet — use Pin on plan in the form.')}
+                    pinText={editingItem ? t('field.punch.pin.notPinnedExportFull', 'Not pinned. The export lists it as not pinned.') : t('field.punch.pin.notPinnedYetForm', 'Not pinned yet. Use Pin on Plan in the form.')}
                     onOpenPin={openFormPinStep}
                     pinBlocked={pinBlocked || null}
                   />
@@ -4083,10 +4083,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           visible={formPinOpen}
           projectId={projectId ?? ''}
           title={editingItem ? t('field.punch.whereIsNumber', 'Where is #{number}?', { number: itemNumbers.get(editingItem.id) ?? '' }) : t('field.punch.whereIsThis', 'Where is this?')}
-          nextLabel={t('field.punch.pin.useThisSpot', 'Use this spot')}
+          nextLabel={t('field.punch.pin.useThisSpot', 'Use This Spot')}
           skipLabel={t('common.action.cancel', 'Cancel')}
           skipHint={t('field.punch.pin.cancelKeep', 'Cancel to keep it as it was')}
-          closeLabel={t('field.punch.pin.backToItem', 'Back to the item')}
+          closeLabel={t('field.punch.pin.backToItem', 'Back to the Item')}
           photoUri={editingItem?.photoUri ?? attachedPhotoUri}
           initialPin={editingPinSeed.initialPin}
           initialSheetId={editingPinSeed.initialSheetId}
@@ -4111,7 +4111,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.rejectOverlay, fTaskPick.overlay]}>
           <View style={[styles.rejectCard, { maxHeight: '70%' as const }, fTaskPick.card]}>
             <View style={styles.formHeader}>
-              <Text style={styles.rejectTitle}>{t('field.punch.linkToTask', 'Link to task')}</Text>
+              <Text style={styles.rejectTitle}>{t('field.punch.linkToTask', 'Link to Task')}</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -4139,7 +4139,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       <Modal visible={showRejectModal !== null} transparent animationType={fReject.animationType} onRequestClose={() => setShowRejectModal(null)}>
         <View style={[styles.rejectOverlay, fReject.overlay]}>
           <View style={[styles.rejectCard, fReject.card]}>
-            <Text style={styles.rejectTitle}>{t('field.punch.rejectItem', 'Reject item')}</Text>
+            <Text style={styles.rejectTitle}>{t('field.punch.rejectItem', 'Reject Item')}</Text>
             <Text style={styles.rejectDesc}>{t('field.punch.provideAReasonFor', 'Provide a reason for rejection:')}</Text>
             <TextInput
               style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
@@ -4172,7 +4172,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               onPress={() => setViewerItem(null)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityRole="button"
-              accessibilityLabel={t('field.punch.closePhoto', 'Close photo')}
+              accessibilityLabel={t('field.punch.closePhoto', 'Close Photo')}
               testID="punch-photo-close"
             >
               <X size={22} color="#fff" strokeWidth={1.75} />
@@ -4184,7 +4184,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               <TouchableOpacity
                 testID="codelook-open-punch"
                 accessibilityRole="button"
-                accessibilityLabel={t('field.punch.codeLook', 'Photo code check')}
+                accessibilityLabel={t('field.punch.codeLook', 'Photo Code Check')}
                 style={styles.viewerCodeLookBtn}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => {
@@ -4195,7 +4195,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                 }}
               >
                 <ScanSearch size={16} color="#fff" strokeWidth={1.75} />
-                <Text style={styles.viewerCodeLookText} numberOfLines={1}>{t('field.punch.codeLook', 'Photo code check')}</Text>
+                <Text style={styles.viewerCodeLookText} numberOfLines={1}>{t('field.punch.codeLook', 'Photo Code Check')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -4242,7 +4242,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           onSave={(b) => {
             addBackcharge(b);
             setBackchargeFor(null);
-            showAlert(t('field.punch.backchargeSaved', 'Backcharge saved'), t('field.punch.itComesOffS', 'It comes off {companyName}’s next bill only when you apply it on their sub page. Nothing was sent.', { companyName: backchargeSub.companyName }));
+            showAlert(t('field.punch.backchargeSaved', 'Backcharge Saved'), t('field.punch.itComesOffS', 'It comes off {companyName}’s next bill only when you apply it on their sub page. Nothing was sent.', { companyName: backchargeSub.companyName }));
           }}
         />
       ) : null}
@@ -4267,13 +4267,13 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.modalOverlay, fTemplates.overlay]}>
           <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '85%' }, fTemplates.card]}>
             <View style={styles.formHeader}>
-              <Text style={styles.formTitle}>{t('field.punch.applyTradeTemplate', 'Apply trade template')}</Text>
+              <Text style={styles.formTitle}>{t('field.punch.applyTradeTemplate', 'Apply Trade Template')}</Text>
               <TouchableOpacity onPress={() => setShowTemplates(false)} accessibilityRole="button" accessibilityLabel={t('common.action.close', 'Close')}>
                 <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 14, lineHeight: 17 }}>
-              {t('field.punch.dropACuratedChecklist', "Drop a curated checklist into this punch list. Edit / remove items that don't apply to this project — the template is a starting point, not a contract.")}
+              {t('field.punch.dropACuratedChecklist', "Drop a curated checklist into this punch list. Edit or remove items that don't apply to this project. The template is a starting point, not a contract.")}
             </Text>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }}>
               {templateGroups.map(group => (
@@ -4331,7 +4331,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ paddingBottom: 8, gap: 16 }}>
               {/* Sub filter */}
               <View>
-                <Text style={styles.filterSectionLabel}>{t('field.punch.assignedTo2', 'Assigned to')}</Text>
+                <Text style={styles.filterSectionLabel}>{t('field.punch.assignedTo2', 'Assigned To')}</Text>
                 <View style={styles.filterChipsWrap}>
                   <TouchableOpacity
                     style={[styles.filterDrawerChip, !filterSub && styles.filterDrawerChipActive]}
@@ -4389,7 +4389,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                     onPress={() => setFilterLocationKey('')}
                     accessibilityRole="button"
                     accessibilityState={{ selected: !filterLocationKey }}
-                    accessibilityLabel={t('field.punch.anyLocation', 'Any location')}
+                    accessibilityLabel={t('field.punch.anyLocation', 'Any Location')}
                   >
                     <Text style={[styles.filterDrawerChipText, !filterLocationKey && styles.filterDrawerChipTextActive]}>{t('field.punch.any', 'Any')}</Text>
                   </TouchableOpacity>
@@ -4446,7 +4446,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
             <View style={{ flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: themeColors.line }}>
               <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: themeColors.line }]} onPress={clearAllFilters}>
-                <Text style={[styles.filterDrawerBtnText, { color: themeColors.text }]}>{t('field.punch.clearAll', 'Clear all')}</Text>
+                <Text style={[styles.filterDrawerBtnText, { color: themeColors.text }]}>{t('field.punch.clearAll', 'Clear All')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: themeColors.accentFill, flex: 1.4 }]} onPress={() => setShowFilterDrawer(false)}>
                 <Text style={[styles.filterDrawerBtnText, { color: "#FFFFFF" }]}>
@@ -4504,7 +4504,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                     accessibilityLabel={t('field.punch.assignTo2', 'Assign to {name}', { name })}
                   >
                     <Text style={styles.pickerOptionText}>{name}</Text>
-                    <Text style={styles.pickerOptionMeta}>{t('field.punch.typedOnItemsNot', 'Typed on items — not in your subs list')}</Text>
+                    <Text style={styles.pickerOptionMeta}>{t('field.punch.typedOnItemsNot', 'Typed on items, not in your subs list')}</Text>
                   </TouchableOpacity>
                 ))}
               {pickerSubs.length === 0 && subsInList.length === 0 ? (

@@ -99,7 +99,7 @@ export function buildTypeProfitability(
     return {
       type: ti.id,
       // Q6: 'other' is his own words per job — a mix, and labelled so.
-      label: ti.id === 'other' ? 'Other (mixed)' : ti.label,
+      label: ti.id === 'other' ? 'Other (Mixed)' : ti.label,
       jobCount,
       avgMarginPct,
       revenueWeightedMarginPct,

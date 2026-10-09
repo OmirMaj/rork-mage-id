@@ -175,7 +175,7 @@ const ONBOARDING_PAYWALL_ROUTE = '/onboarding-paywall' as never;
 /** The name a first bid's project gets when the onboarding share has to save
  *  it for him (#69) — his own answers, never a placeholder he did not give. */
 function onboardingProjectName(a: WizardAnswers): string {
-  const type = a.projectType.trim() || 'First estimate';
+  const type = a.projectType.trim() || 'First Estimate';
   const where = a.location.trim();
   return where ? `${type} — ${where}` : type;
 }
@@ -785,7 +785,7 @@ function EstimateWizardScreenInner() {
       if (runRef.current !== runId) return;
       if (!res.success || !res.data) {
         console.warn('[EstimateWizard] estimate failed:', res.error);
-        showAlert("Couldn't build the estimate", ownSentence(res.error ?? null) ?? "Couldn't read the estimate. Your answers are saved. Try again.");
+        showAlert("Couldn't Build the Estimate", ownSentence(res.error ?? null) ?? "Couldn't read the estimate. Your answers are saved. Try again.");
       } else {
         // NEVER trust AI arithmetic in a client-facing PDF or saved
         // project financials. Deterministically recompute every number
@@ -829,7 +829,7 @@ function EstimateWizardScreenInner() {
         // $0 estimate — do NOT render/save it or overwrite the project.
         // (An AI error kind is already handled by the !res.success guard.)
         if (lineItems.length === 0 || total <= 0) {
-          showAlert("Couldn't build the estimate", 'The estimate came back empty. Your answers are saved. Try again.');
+          showAlert("Couldn't Build the Estimate", 'The estimate came back empty. Your answers are saved. Try again.');
           return;
         }
 
@@ -927,7 +927,7 @@ function EstimateWizardScreenInner() {
       `${scopedProject?.name ?? 'This project'} already has a ${moneyLabel(existingEstimateTotal)} estimate. The new one replaces it on the project; the current one is kept in Revisions.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Replace it', style: 'destructive', onPress: () => { void generate(answersOverride); } },
+        { text: 'Replace It', style: 'destructive', onPress: () => { void generate(answersOverride); } },
       ],
     );
   }, [existingEstimateTotal, costResult, generate, scopedProject?.name]);
@@ -939,7 +939,7 @@ function EstimateWizardScreenInner() {
       const lock = proposalLockedCopy(requiredTierFor('client_portal'));
       showAlert(lock.title, lock.message, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'See plans', onPress: () => router.push('/paywall') },
+        { text: 'See Plans', onPress: () => router.push('/paywall') },
       ]);
       return;
     }
@@ -1204,7 +1204,7 @@ function EstimateWizardScreenInner() {
       // pop-ups for app.mageid.app…"): that sentence is the fix, so it wins.
       const own = ownSentence(err);
       const copy = describeError(err, { action: 'share the estimate' });
-      showAlert(own ? "Couldn't share the estimate" : copy.title, own ?? copy.body);
+      showAlert(own ? "Couldn't Share the Estimate" : copy.title, own ?? copy.body);
     } finally {
       sharingRef.current = false;
       setSharingPdf(false);
@@ -1285,14 +1285,14 @@ function EstimateWizardScreenInner() {
   const confirmDiscard = useCallback((onDiscard: () => void) => {
     const sharedAt = sharedUnsavedRef.current;
     showAlert(
-      sharedAt ? 'You sent this estimate but haven\'t saved it' : 'This estimate isn\'t saved',
+      sharedAt ? 'You sent this estimate but haven\'t saved it.' : 'This estimate isn\'t saved.',
       sharedAt
         ? 'The PDF went to your client, but the line items and price are not on any project. Discard them and you cannot build the contract from what they were quoted.'
         : 'The line items and price are not on any project yet. Discarding loses them.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: onDiscard },
-        { text: 'Save to a project', onPress: () => setShowSaveModal(true) },
+        { text: 'Save to a Project', onPress: () => setShowSaveModal(true) },
       ],
     );
   }, []);
@@ -1393,7 +1393,7 @@ function EstimateWizardScreenInner() {
   const createFromEstimate = useCallback(() => {
     if (!costResult) return;
     if (!newProjectName.trim()) {
-      showAlert('Name required', 'Give this project a name so you can find it later.');
+      showAlert('Name Required', 'Give this project a name so you can find it later.');
       return;
     }
     // #57 / #156 (CONTRACT 5): the free plan's one-job cap, asked BEFORE the
@@ -1528,12 +1528,12 @@ function EstimateWizardScreenInner() {
               <AlertTriangle size={18} color={themeColors.dangerLabel} strokeWidth={2} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.atCostTitle}>
-                  {isMarkupSet(markupPct) ? 'Quoted at cost — no profit' : 'This number is your cost'}
+                  {isMarkupSet(markupPct) ? 'Quoted at Cost, No Profit' : 'This number is your cost'}
                 </Text>
                 <Text style={styles.atCostBody}>
                   {isMarkupSet(markupPct)
                     ? 'Your markup is set to none, so this bid carries no overhead and no profit. Tap to change it.'
-                    : 'Materials, labor, permits and contingency — nothing on top. Tap to set what you charge.'}
+                    : 'Materials, labor, permits and contingency, with nothing on top. Tap to set what you charge.'}
                 </Text>
               </View>
               <ChevronRight size={16} color={themeColors.dangerLabel} strokeWidth={2} />
@@ -1555,7 +1555,7 @@ function EstimateWizardScreenInner() {
                   {`+${markupPct}% markup`}
                 </Text>
                 <Text style={styles.marginBandBody}>
-                  {`$${Math.round(result.total - (costResult?.total ?? 0)).toLocaleString()} of overhead and profit — a ${(marginOf(markupPct as number) * 100).toFixed(1)}% gross margin. Only you see this row.`}
+                  {`$${Math.round(result.total - (costResult?.total ?? 0)).toLocaleString()} of overhead and profit, a ${(marginOf(markupPct as number) * 100).toFixed(1)}% gross margin. Only you see this row.`}
                 </Text>
               </View>
               <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
@@ -1572,7 +1572,7 @@ function EstimateWizardScreenInner() {
             const hero = (
               <View style={styles.heroCard}>
                 <BrandBackdrop />
-                <Text style={styles.heroEyebrow}>Construction estimate</Text>
+                <Text style={styles.heroEyebrow}>Construction Estimate</Text>
                 <TapeRollNumber
                   value={result.total}
                   prefix="$"
@@ -1595,11 +1595,11 @@ function EstimateWizardScreenInner() {
               that prints at the top of the PDF. */}
           <View style={styles.metaCard}>
             <View style={styles.metaCol}>
-              <Text style={styles.metaLabel}>Prepared on</Text>
+              <Text style={styles.metaLabel}>Prepared On</Text>
               <Text style={styles.metaValue}>{todayLabel}</Text>
             </View>
             <View style={styles.metaCol}>
-              <Text style={styles.metaLabel}>Valid until</Text>
+              <Text style={styles.metaLabel}>Valid Until</Text>
               <Text style={[styles.metaValue, { color: themeColors.accent }]}>{validUntilDate}</Text>
             </View>
             <View style={styles.metaCol}>
@@ -1613,7 +1613,7 @@ function EstimateWizardScreenInner() {
           <View style={styles.statGrid}>
             {sizeNum > 0 ? (
               <View style={styles.statTile}>
-                <Text style={styles.statLabel}>Project size</Text>
+                <Text style={styles.statLabel}>Project Size</Text>
                 <Text style={styles.statValue}>{sizeNum.toLocaleString()}</Text>
                 <Text style={styles.statUnit}>sqft</Text>
               </View>
@@ -1634,14 +1634,14 @@ function EstimateWizardScreenInner() {
 
           {result.summary ? (
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Scope of work</Text>
+              <Text style={styles.summaryLabel}>Scope of Work</Text>
               <Text style={styles.summaryText}>{result.summary}</Text>
               {answers.scope && answers.scope !== result.summary ? (
                 <Text style={styles.summaryNote}>{answers.scope}</Text>
               ) : null}
               {answers.specialRequirements ? (
                 <View style={styles.specialReq}>
-                  <Text style={styles.specialReqLabel}>Special requirements</Text>
+                  <Text style={styles.specialReqLabel}>Special Requirements</Text>
                   <Text style={styles.specialReqText}>{answers.specialRequirements}</Text>
                 </View>
               ) : null}
@@ -1687,7 +1687,7 @@ function EstimateWizardScreenInner() {
                   <TrendingUp size={16} color={themeColors.accent} strokeWidth={2} />
                   <View style={{ flex: 1 }}>
                     <View style={styles.seedPromptTitleRow}>
-                      <Text style={styles.seedPromptTitle}>Price this from your numbers</Text>
+                      <Text style={styles.seedPromptTitle}>Price This from Your Numbers</Text>
                       {/* The tier, BEFORE the tap. "Takes a minute" landed on a
                           $29 wall — and it landed there ~90 seconds after the
                           identical paste box was free during onboarding. A
@@ -1701,7 +1701,7 @@ function EstimateWizardScreenInner() {
                     <Text style={styles.seedPromptBody}>
                       {seedNeedsUpgrade
                         ? 'Paste or type the rates you already charge and the next estimate is yours instead of the market\u2019s. Seeding your rates is part of Pro.'
-                        : 'Paste or type the rates you already charge \u2014 takes a minute, and the next estimate is yours instead of the market\u2019s.'}
+                        : 'Paste or type the rates you already charge. It takes a minute, and the next estimate is yours instead of the market\u2019s.'}
                     </Text>
                   </View>
                   <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1712,7 +1712,7 @@ function EstimateWizardScreenInner() {
 
           {result.refineWith && result.refineWith.length > 0 && (
             <View style={styles.refineCard}>
-              <Text style={styles.refineTitle}>Sharpen this estimate</Text>
+              <Text style={styles.refineTitle}>Sharpen This Estimate</Text>
               {/* Refining is not editing: the answer is appended to the prompt
                   and the model is asked again, which spends one of the two free
                   AI estimates. It used to do that silently, so a contractor who
@@ -1721,8 +1721,8 @@ function EstimateWizardScreenInner() {
               {freeRunsLeft !== null ? (
                 <Text style={styles.refineMeter}>
                   {freeRunsLeft > 0
-                    ? `Each answer re-prices the whole estimate with AI — it uses one of your ${freeRunsLeft} free AI estimate${freeRunsLeft === 1 ? '' : 's'}.`
-                    : 'Your free AI estimates are used up — answering here will ask you to upgrade.'}
+                    ? `Each answer re-prices the whole estimate with AI and uses one of your ${freeRunsLeft} free AI estimate${freeRunsLeft === 1 ? '' : 's'}.`
+                    : 'Your free AI estimates are used up. Answering here will ask you to upgrade.'}
                 </Text>
               ) : null}
               {result.refineWith.map((rfn, i) => (
@@ -1763,7 +1763,7 @@ function EstimateWizardScreenInner() {
                         style={[styles.refineGoBtn, (!refineText.trim() || loading) && styles.primaryBtnDisabled]}
                         activeOpacity={0.85}
                         accessibilityRole="button"
-                        accessibilityLabel="Add answer and refine estimate"
+                        accessibilityLabel="Add Answer and Refine Estimate"
                       >
                         <Text style={styles.refineGoText}>
                           {freeRunsLeft !== null && freeRunsLeft > 0 ? 'Refine · uses 1 free' : 'Refine'}
@@ -1784,7 +1784,7 @@ function EstimateWizardScreenInner() {
               changes it remounts the card static on the new figure. */}
           {result.total > 0 && sortedCategories.length > 0 ? (
             <View style={styles.breakdownCard}>
-              <Text style={styles.breakdownTitle}>Cost distribution</Text>
+              <Text style={styles.breakdownTitle}>Cost Distribution</Text>
               <AccumulateCards
                 key={breakdownTotalCents}
                 testID="estimate-breakdown"
@@ -1820,7 +1820,7 @@ function EstimateWizardScreenInner() {
                 }))}
                 renderTotal={(roll) => (
                   <View style={styles.breakdownTotalRow} testID="estimate-breakdown-total">
-                    <Text style={styles.breakdownCat}>Line items</Text>
+                    <Text style={styles.breakdownCat}>Line Items</Text>
                     {roll}
                   </View>
                 )}
@@ -1831,7 +1831,7 @@ function EstimateWizardScreenInner() {
           {/* Detailed line items, grouped by category, biggest first.
               Each category card has its own subtotal + % so the GC can
               still drill into specifics. */}
-          <Text style={styles.sectionTitle}>Line items</Text>
+          <Text style={styles.sectionTitle}>Line Items</Text>
           {sortedCategories.map(({ cat, items, subtotal }, ci) => {
             const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
             return (
@@ -1857,7 +1857,7 @@ function EstimateWizardScreenInner() {
           })}
 
           <View style={styles.totalsBlockNew}>
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Line items subtotal</Text><Text style={styles.totalValue}>{formatMoney(result.subtotal, 2)}</Text></View>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Line Items Subtotal</Text><Text style={styles.totalValue}>{formatMoney(result.subtotal, 2)}</Text></View>
             <View style={styles.totalRow}>
               {/* Names the rate and its source, so an 8% line is defensible
                   when a client asks — and so a GC who never set one can see
@@ -1869,10 +1869,10 @@ function EstimateWizardScreenInner() {
               </Text>
               <Text style={styles.totalValue}>{formatMoney(result.contingency, 2)}</Text>
             </View>
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Permits & fees</Text><Text style={styles.totalValue}>{formatMoney(result.permits, 2)}</Text></View>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Permits and Fees</Text><Text style={styles.totalValue}>{formatMoney(result.permits, 2)}</Text></View>
             <View style={[styles.totalRow, styles.totalRowGrand]}>
               <View>
-                <Text style={styles.grandLabel}>Estimated total</Text>
+                <Text style={styles.grandLabel}>Estimated Total</Text>
                 {costPerSqft > 0 ? (
                   <Text style={styles.grandSubLabel}>${costPerSqft.toFixed(0)}/sqft · {sizeNum.toLocaleString()} sqft</Text>
                 ) : null}
@@ -1885,7 +1885,7 @@ function EstimateWizardScreenInner() {
               honest — these are the categories actually estimated). */}
           {sortedCategories.length > 0 ? (
             <View style={styles.includedCard}>
-              <Text style={styles.sectionTitle}>What's included</Text>
+              <Text style={styles.sectionTitle}>What's Included</Text>
               <View style={styles.includedChips}>
                 {sortedCategories.map(({ cat }, i) => (
                   <View key={i} style={styles.includedChip}>
@@ -1903,7 +1903,7 @@ function EstimateWizardScreenInner() {
               These prevent 90% of "I thought that was included" disputes.
               Same list as the PDF. */}
           <View style={styles.excludedCard}>
-            <Text style={styles.sectionTitle}>What's not included</Text>
+            <Text style={styles.sectionTitle}>What's Not Included</Text>
             <Text style={styles.excludedItem}>• Architectural / engineering / design fees</Text>
             <Text style={styles.excludedItem}>• HOA, city, or third-party plan-review fees beyond standard permits</Text>
             <Text style={styles.excludedItem}>• Asbestos, lead, mold, or other hazardous-material abatement</Text>
@@ -1917,13 +1917,13 @@ function EstimateWizardScreenInner() {
               given one, this GC-only line says so rather than showing a
               schedule the homeowner would never receive. */}
           <View style={styles.paymentCard} testID="wizard-payment-terms">
-            <Text style={styles.sectionTitle}>Payment terms</Text>
+            <Text style={styles.sectionTitle}>Payment Terms</Text>
             {savedTerms.status !== 'ready' ? (
               <View style={styles.paymentNotSet} testID="wizard-payment-terms-loading">
                 <Text style={styles.paymentRowDesc}>
                   {savedTerms.status === 'loading'
                     ? 'Loading your payment terms…'
-                    : `Payment terms — ${PROFILE_FAILED_TITLE.toLowerCase()}. Check your signal.`}
+                    : `Payment terms: ${PROFILE_FAILED_TITLE.toLowerCase()}. Check your signal.`}
                 </Text>
                 {savedTerms.status === 'failed' ? (
                   <Button label="Retry" size="sm" variant="secondary" onPress={savedTerms.retry} testID="wizard-payment-terms-retry" />
@@ -1945,10 +1945,10 @@ function EstimateWizardScreenInner() {
             ) : (
               <View style={styles.paymentNotSet} testID="wizard-payment-terms-not-set">
                 <Text style={styles.paymentRowDesc}>
-                  Payment terms — not set yet. You'll be asked before this goes to your client.
+                  Payment terms: not set yet. You'll be asked before this goes to your client.
                 </Text>
                 <Button
-                  label="Set now"
+                  label="Set Now"
                   size="sm"
                   variant="secondary"
                   onPress={() => { gate.run({ terms: true, purpose: 'proposal_pdf', total: result.total, projectType: scopedProject?.type ?? null, record: jobStamp }, () => {}); }}
@@ -1971,7 +1971,7 @@ function EstimateWizardScreenInner() {
 
           {result.notes.length > 0 && (
             <View style={styles.notesBlock}>
-              <Text style={styles.sectionTitle}>Project notes</Text>
+              <Text style={styles.sectionTitle}>Project Notes</Text>
               {result.notes.map((n, i) => (
                 <Text key={i} style={styles.noteRow}>• {n}</Text>
               ))}
@@ -1990,9 +1990,9 @@ function EstimateWizardScreenInner() {
           <RevenueEarlyAccessCard
             eventKey="revenue.sub_bid_network"
             icon={Users}
-            headline="Post this scope to vetted subs"
-            body="Push the trades-by-line-item to qualified subs in your area, instead of emailing the set to each one and waiting."
-            footer="Sub-bid network launches when your metro hits 50 active subs per trade"
+            headline="Send This Scope to Subs"
+            body="We are working on a way to send the trades, line by line, to subs in your area. It is not built yet."
+            footer="Not available yet. Tap to be told when it is."
             testID="estimate-subbid-cta"
           />
 
@@ -2022,7 +2022,7 @@ function EstimateWizardScreenInner() {
                 >
                   <CheckCircle2 size={18} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.resultPrimaryText} numberOfLines={1}>
-                    {t('common.tutorial.estimateSavedOpenJob', 'Saved as a revision — open the job')}
+                    {t('common.tutorial.estimateSavedOpenJob', 'Saved as a revision. Open the job')}
                   </Text>
                 </TouchableOpacity>
               ) : (
@@ -2035,7 +2035,7 @@ function EstimateWizardScreenInner() {
                 >
                   <FolderPlus size={18} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.resultPrimaryText} numberOfLines={1}>
-                    {t('common.tutorial.estimateSaveToSample', 'Save to the sample job')}
+                    {t('common.tutorial.estimateSaveToSample', 'Save to the Sample Job')}
                   </Text>
                 </TouchableOpacity>
               );
@@ -2059,7 +2059,7 @@ function EstimateWizardScreenInner() {
                   {proposalOpen
                     ? <Send size={18} color={Colors.textOnAccent} strokeWidth={1.75} />
                     : <Lock size={18} color={Colors.textOnAccent} strokeWidth={1.75} />}
-                  <Text style={styles.resultPrimaryText} numberOfLines={1}>Send proposal</Text>
+                  <Text style={styles.resultPrimaryText} numberOfLines={1}>Send Proposal</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => router.push({ pathname: '/project-detail', params: { id: attachedId! } })}
@@ -2093,7 +2093,7 @@ function EstimateWizardScreenInner() {
                     so the label must not promise the project one tap earlier
                     than it arrives. */}
                 <Text style={styles.resultPrimaryText} numberOfLines={1}>
-                  Saved to {attachedProject.name}{isOnboarding ? ' — continue' : ' — open project'}
+                  Saved to {attachedProject.name}{isOnboarding ? '. Continue' : '. Open project'}
                 </Text>
               </TouchableOpacity>
             ) : parkedProject ? (
@@ -2110,7 +2110,7 @@ function EstimateWizardScreenInner() {
               >
                 <AlertTriangle size={18} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.resultPrimaryText} numberOfLines={1}>
-                  Not saved to {parkedProject.name} — set your markup
+                  Not saved to {parkedProject.name}. Set your markup
                 </Text>
               </TouchableOpacity>
             ) : (
@@ -2124,7 +2124,7 @@ function EstimateWizardScreenInner() {
                 testID="wizard-save-to-project"
               >
                 <FolderPlus size={18} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.resultPrimaryText} numberOfLines={1}>Save to a project</Text>
+                <Text style={styles.resultPrimaryText} numberOfLines={1}>Save to a Project</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -2140,7 +2140,7 @@ function EstimateWizardScreenInner() {
                 <>
                   <FileDown size={18} color={themeColors.text} strokeWidth={1.75} />
                   <Text style={styles.resultSecondaryText}>
-                    {Platform.OS === 'web' ? 'Open PDF preview' : 'Download & share PDF'}
+                    {Platform.OS === 'web' ? 'Open PDF Preview' : 'Download and Share PDF'}
                   </Text>
                 </>
               )}
@@ -2153,7 +2153,7 @@ function EstimateWizardScreenInner() {
               testID="wizard-reset"
             >
               <RotateCcw size={16} color={themeColors.text} strokeWidth={1.75} />
-              <Text style={styles.resultSecondaryText}>Start a new estimate</Text>
+              <Text style={styles.resultSecondaryText}>Start a New Estimate</Text>
             </TouchableOpacity>
             {/* Win Optimizer — contextual decision-moment link. After building
                 an estimate the GC is thinking about bid price; Win Optimizer
@@ -2177,7 +2177,7 @@ function EstimateWizardScreenInner() {
                 testID="wizard-win-optimizer"
               >
                 <TrendingUp size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={[styles.resultSecondaryText, { color: themeColors.accent }]}>Optimize your bid price</Text>
+                <Text style={[styles.resultSecondaryText, { color: themeColors.accent }]}>Optimize Your Bid Price</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -2193,14 +2193,14 @@ function EstimateWizardScreenInner() {
             <View style={[styles.saveOverlay, fSave.overlay]}>
               <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }, fSave.card]}>
                 <View style={styles.saveHeader}>
-                  <Text style={styles.saveTitle}>Save estimate</Text>
+                  <Text style={styles.saveTitle}>Save Estimate</Text>
                   <TouchableOpacity onPress={() => setShowSaveModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
                 {/* Create a brand-new project from this estimate */}
-                <Text style={styles.saveSectionLabel}>New project</Text>
+                <Text style={styles.saveSectionLabel}>New Project</Text>
                 <View style={styles.saveInputRow}>
                   <TextInput
                     style={styles.saveInput}
@@ -2228,12 +2228,12 @@ function EstimateWizardScreenInner() {
                     carried through untouched — so it is never stamped as the
                     address; a city he typed for this job is offered as a
                     one-tap fill, like Home's "usual area". */}
-                <Text style={[styles.saveSectionLabel, { marginTop: 14 }]}>Jobsite address · optional</Text>
+                <Text style={[styles.saveSectionLabel, { marginTop: 14 }]}>Jobsite Address · Optional</Text>
                 <TextInput
                   style={[styles.saveInput, { flex: 0 }]}
                   value={jobsiteAddress}
                   onChangeText={setJobsiteAddress}
-                  placeholder="e.g. 412 Oak St, Austin, TX"
+                  placeholder="412 Oak St, Austin, TX"
                   placeholderTextColor={themeColors.textMuted}
                   returnKeyType="done"
                   onSubmitEditing={createFromEstimate}
@@ -2254,12 +2254,12 @@ function EstimateWizardScreenInner() {
                 <Text style={styles.jobsiteHint}>
                   {jobsiteOffer
                     ? `Printed on proposals and invoices. Left blank, the project uses ${jobsiteOffer}.`
-                    : 'Printed on proposals and invoices. Left blank, the project has no address until you add one — your pricing market is not a jobsite.'}
+                    : 'Printed on proposals and invoices. Left blank, the project has no address until you add one. Your pricing market is not a jobsite.'}
                 </Text>
 
                 {projects.length > 0 ? (
                   <>
-                    <Text style={[styles.saveSectionLabel, { marginTop: 18 }]}>Or add to an existing project</Text>
+                    <Text style={[styles.saveSectionLabel, { marginTop: 18 }]}>Or Add to an Existing Project</Text>
                     <ScrollView style={styles.saveList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                       {projects.map((p) => (
                         <TouchableOpacity
@@ -2323,10 +2323,10 @@ function EstimateWizardScreenInner() {
                 </View>
 
                 <Text style={styles.identityReason}>
-                  {`The $${Math.round(costResult?.total ?? 0).toLocaleString()} behind this sheet is what the job costs you — materials, labor, permits and contingency. Your overhead and profit go on top. We ask once and remember it.`}
+                  {`The $${Math.round(costResult?.total ?? 0).toLocaleString()} behind this sheet is what the job costs you: materials, labor, permits and contingency. Your overhead and profit go on top. We ask once and remember it.`}
                 </Text>
 
-                <Text style={styles.saveSectionLabel}>Markup on cost</Text>
+                <Text style={styles.saveSectionLabel}>Markup on Cost</Text>
                 <View style={styles.markupGrid}>
                   {MARKUP_CHOICES.map((c) => (
                     <TouchableOpacity
@@ -2344,13 +2344,13 @@ function EstimateWizardScreenInner() {
                   ))}
                 </View>
 
-                <Text style={styles.saveSectionLabel}>Or your own number</Text>
+                <Text style={styles.saveSectionLabel}>Or Your Own Number</Text>
                 <View style={styles.markupCustomRow}>
                   <TextInput
                     style={[styles.saveInput, { flex: 1, marginBottom: 0 }]}
                     value={markupInput}
                     onChangeText={setMarkupInput}
-                    placeholder="e.g. 18"
+                    placeholder="18"
                     placeholderTextColor={themeColors.textMuted}
                     keyboardType="decimal-pad"
                     returnKeyType="done"
@@ -2362,7 +2362,7 @@ function EstimateWizardScreenInner() {
                     disabled={!(parseFloat(markupInput) > 0)}
                     onPress={() => applyMarkupChoice(parseFloat(markupInput))}
                     accessibilityRole="button"
-                    accessibilityLabel="Use this markup"
+                    accessibilityLabel="Use This Markup"
                     testID="wizard-markup-apply"
                   >
                     <Text style={styles.markupApplyText}>Use</Text>
@@ -2370,7 +2370,7 @@ function EstimateWizardScreenInner() {
                 </View>
                 {parseFloat(markupInput) > 0 ? (
                   <Text style={styles.markupCustomHint}>
-                    {`+${parseFloat(markupInput)}% on cost is a ${(marginOf(parseFloat(markupInput)) * 100).toFixed(1)}% gross margin — $${Math.round((costResult?.total ?? 0) * (parseFloat(markupInput) / 100)).toLocaleString()} on this job.`}
+                    {`+${parseFloat(markupInput)}% on cost is a ${(marginOf(parseFloat(markupInput)) * 100).toFixed(1)}% gross margin, $${Math.round((costResult?.total ?? 0) * (parseFloat(markupInput) / 100)).toLocaleString()} on this job.`}
                   </Text>
                 ) : null}
 
@@ -2382,7 +2382,7 @@ function EstimateWizardScreenInner() {
                   accessibilityLabel="Quote this at cost, with no markup"
                   testID="wizard-markup-none"
                 >
-                  <Text style={styles.markupNoneText}>I quote at cost — no markup</Text>
+                  <Text style={styles.markupNoneText}>I Quote at Cost, No Markup</Text>
                   <Text style={styles.markupNoneSub}>Every estimate will say so, on screen and to you.</Text>
                 </TouchableOpacity>
               </View>
@@ -2420,15 +2420,15 @@ function EstimateWizardScreenInner() {
     >
       <Mic size={18} color={themeColors.accent} strokeWidth={2} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.voiceBannerTitle}>Build by voice instead</Text>
-        <Text style={styles.voiceBannerDesc}>Say the scope — MAGE prices it from your past jobs</Text>
+        <Text style={styles.voiceBannerTitle}>Build by Voice Instead</Text>
+        <Text style={styles.voiceBannerDesc}>Say the scope. MAGE prices it from your past jobs.</Text>
       </View>
       <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
     </TouchableOpacity>
   );
   const onboardingBanner = (
     <View style={styles.onboardingBanner} testID="estimate-onboarding-banner">
-      <Text style={styles.onboardingBannerTitle}>Your first bid</Text>
+      <Text style={styles.onboardingBannerTitle}>Your First Bid</Text>
       {/* Onboarding lets him skip the rate paste, and this line claimed
           his rates were pricing the bid either way. Same discriminator
           the grounding chip uses on the result screen (utils/groundingChip):
@@ -2441,15 +2441,15 @@ function EstimateWizardScreenInner() {
           // not know yet.
           ? 'Send it when it looks right.'
           : seeds.length > 0
-            ? 'Priced off the rates you added — send it when it looks right.'
-            : 'Priced off market averages until you add your rates — send it when it looks right.'}
+            ? 'Priced off the rates you added. Send it when it looks right.'
+            : 'Priced off market averages until you add your rates. Send it when it looks right.'}
       </Text>
     </View>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'Quick estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
+      <Stack.Screen options={{ title: 'Quick Estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
       {/* Tutorial: a sample run on desktop web asks through the stepper (one
           question at a time, in the form column) — its scope box and Generate
           are the controls the coach lights. */}
@@ -2459,7 +2459,7 @@ function EstimateWizardScreenInner() {
           set={set}
           onGenerate={() => generateOrConfirm()}
           loading={loading}
-          generateLabel={`${replaceLabel ?? 'Generate estimate'}${!sampleRun && freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}`}
+          generateLabel={`${replaceLabel ?? 'Generate Estimate'}${!sampleRun && freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}`}
           onCancel={() => (isOnboarding ? router.replace('/(tabs)/(home)') : safeBack())}
           cancelLabel="Cancel"
           stepHint={stepHint}
@@ -2478,7 +2478,7 @@ function EstimateWizardScreenInner() {
             testID="wizard-summary"
           >
             {!!projectId && voiceBanner}
-            <Text style={styles.knownTitle}>Already answered</Text>
+            <Text style={styles.knownTitle}>Already Answered</Text>
             <Text style={styles.knownSub}>From {scopedProject?.name ?? 'this project'}. Tap anything to change it.</Text>
             <Card pad="none">
               {SCOPE_STEPS.slice(0, 5).map((st, i) => {
@@ -2546,7 +2546,7 @@ function EstimateWizardScreenInner() {
         {!summaryMode && step >= FIRST_OPTIONAL_STEP && step < TOTAL_STEPS - 1 ? (
           <View style={styles.optionalRow}>
             <Text style={styles.optionalText}>
-              Everything from here on is optional — it sharpens the number, it is not needed
+              Everything from here on is optional. It sharpens the number, it is not needed
               for one.
             </Text>
             <TouchableOpacity
@@ -2558,7 +2558,7 @@ function EstimateWizardScreenInner() {
             >
               <MageAIMark size={16} color={themeColors.accent} />
               <Text style={styles.optionalBtnText}>
-                Generate now{!sampleRun && freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
+                Generate Now{!sampleRun && freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
               </Text>
             </TouchableOpacity>
           </View>
@@ -2615,7 +2615,7 @@ function EstimateWizardScreenInner() {
                   <>
                     <MageAIMark size={18} color="#FFF" />
                     <Text style={styles.primaryText} numberOfLines={1}>
-                      {replaceLabel ?? 'Generate estimate'}{!sampleRun && freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
+                      {replaceLabel ?? 'Generate Estimate'}{!sampleRun && freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
                     </Text>
                   </>
                 )}
@@ -2635,7 +2635,7 @@ function EstimateWizardScreenInner() {
         // Nothing is retrieved: the model estimates from the answers plus the
         // grounding the steps name. The old line said materials, labor and
         // this year's pricing were being pulled — a lookup that never happens.
-        subtitle="Usually 20–40 seconds. The model is estimating from your answers plus the grounding listed — nothing is pulled from a price list."
+        subtitle="Usually 20–40 seconds. The model is estimating from your answers plus the grounding listed. Nothing is pulled from a price list."
         // Loader copy from the counts of the bundle stored for THIS run: "your
         // history" only for a measured rate, "the rates you set" for a
         // seeded-only book, market averages otherwise (utils/groundingChip).

@@ -173,7 +173,7 @@ describe('Ask MAGE with ASK_FILES_ENABLED on (mocked)', () => {
     const [title, body, buttons] = alert.mock.calls[0] as [string, string, { text: string }[]];
     expect(title).toBe('Reading files is on the Pro plan');
     expect(body).toBe('On Pro, MAGE reads the photos, PDFs and plan pages you attach. Each read counts as one of your monthly photo analyses.');
-    expect(buttons.map((b) => b.text)).toEqual(['Not now', 'See plans']);
+    expect(buttons.map((b) => b.text)).toEqual(['Not Now', 'See Plans']);
     expect(screen.queryByTestId('ask-attach-photos')).toBeNull();
     expect(screen.queryByTestId('ask-attach-camera')).toBeNull();
     expect(screen.queryByTestId('ask-tray')).toBeNull();
@@ -214,7 +214,7 @@ describe('Ask MAGE with ASK_FILES_ENABLED on (mocked)', () => {
       fireEvent.press(row);
       await pump(3);
       expect(screen.queryByTestId('ask-plan-list')).toBeNull();
-      expect(screen.queryByText('Pick a plan page')).toBeNull();
+      expect(screen.queryByText('Pick a Plan Page')).toBeNull();
       expect(screen.queryByTestId(`ask-plan-${SHEET_ID}`)).toBeNull();
       expect(screen.queryByTestId('ask-tray')).toBeNull();
     },
@@ -254,7 +254,7 @@ describe('Ask MAGE with ASK_FILES_ENABLED on (mocked)', () => {
     expect(screen.queryByTestId('ask-tray')).toBeNull();
     fireEvent.press(screen.getByTestId('ask-attach'));
     await pump(3);
-    expect(screen.getByText('Add to your question')).toBeTruthy();
+    expect(screen.getByText('Add to Your Question')).toBeTruthy();
     expect(screen.getByTestId('ask-attach-camera')).toBeTruthy();
     expect(screen.getByTestId('ask-attach-pdf')).toBeTruthy();
     expect(screen.getByTestId('ask-attach-plan')).toBeTruthy();
@@ -277,14 +277,14 @@ describe('Ask MAGE with ASK_FILES_ENABLED on (mocked)', () => {
     await pump(3);
     fireEvent.press(screen.getByTestId('ask-attach-plan'));
     await pump(3);
-    expect(screen.getByText('Pick a plan page')).toBeTruthy();
+    expect(screen.getByText('Pick a Plan Page')).toBeTruthy();
     expect(screen.getByText('1 older page is not listed. Import it again in Plans to ask about it.')).toBeTruthy();
     expect(screen.queryByText('Legacy sheet')).toBeNull();
     fireEvent.press(screen.getByTestId(`ask-plan-${SHEET_ID}`));
     await pump(3);
     const trayText = allText(screen.toJSON()).join('\n');
     expect(trayText).toContain('A-101 Floor plan');
-    expect(trayText).toContain('Plan page');
+    expect(trayText).toContain('Plan Page');
     const removeIds = screen.getAllByLabelText(/^Remove /).map((n) => String(n.props.testID));
     expect(removeIds).toHaveLength(2);
     const photoId = removeIds[0].replace('ask-tray-remove-', '');
@@ -317,8 +317,8 @@ describe('Ask MAGE with ASK_FILES_ENABLED on (mocked)', () => {
     expect(screen.getByText('The photo shows a crack at the corner of the footing.')).toBeTruthy();
     expect(screen.getByTestId('ask-what-i-read')).toBeTruthy();
     expect(screen.getByTestId('ask-what-i-read').props.accessibilityLabel).toBe('MAGE read 2 files');
-    expect(screen.getByText('What I read')).toBeTruthy();
-    expect(screen.getByText('AI reading — check the original')).toBeTruthy();
+    expect(screen.getByText('What I Read')).toBeTruthy();
+    expect(screen.getByText('AI reading. Check the original.')).toBeTruthy();
     expect(screen.queryByText('MAGE may not have got through all of it.')).toBeNull();
     // The files are STILL in the tray.
     expect(screen.getByTestId('ask-tray')).toBeTruthy();
@@ -481,12 +481,12 @@ describe('Ask MAGE with ASK_FILES_ENABLED on (mocked)', () => {
     await pump(3);
     fireEvent.press(screen.getByTestId('ask-attach-plan'));
     await pump(3);
-    expect(screen.getByText('Pick a plan page')).toBeTruthy();
+    expect(screen.getByText('Pick a Plan Page')).toBeTruthy();
     expect(screen.queryByTestId('ask-attach-photos')).toBeNull();
     expect(screen.getByTestId('ask-plan-back').props.accessibilityLabel).toBe('Back');
     fireEvent.press(screen.getByTestId('ask-plan-back'));
     await pump(3);
-    expect(screen.getByText('Add to your question')).toBeTruthy();
+    expect(screen.getByText('Add to Your Question')).toBeTruthy();
     expect(screen.getByTestId('ask-attach-photos')).toBeTruthy();
     expect(screen.queryByTestId('ask-plan-back')).toBeNull();
     (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValueOnce({ canceled: true, assets: null });

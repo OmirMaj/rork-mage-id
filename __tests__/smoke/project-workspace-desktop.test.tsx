@@ -247,7 +247,7 @@ describe('desktop web at 1512 x 945: the workspace', () => {
     await settle();
     expect(setParams).toHaveBeenCalledWith({ tile: 'subsPay' });
     const panel = tree.getByTestId('project-section-panel') as unknown as Inst;
-    expect(panelSays(panel, 'Subs & pay')).toBe(true);
+    expect(panelSays(panel, 'Subs and Pay')).toBe(true);
     expect(panelHas(panel, 'subs-pay')).toBe(true);
     expect(tree.queryByTestId('section-modal-back')).toBeNull();
   });
@@ -256,7 +256,7 @@ describe('desktop web at 1512 x 945: the workspace', () => {
     await primeWorld('populated');
     const tree = await mountRouteChecked(`${URL}&tile=subsPay`);
     const panel = tree.getByTestId('project-section-panel') as unknown as Inst;
-    expect(panelSays(panel, 'Subs & pay')).toBe(true);
+    expect(panelSays(panel, 'Subs and Pay')).toBe(true);
     expect(panelHas(panel, 'subs-pay')).toBe(true);
   });
 

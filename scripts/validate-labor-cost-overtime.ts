@@ -182,7 +182,7 @@ console.log('\n#61 unpriced crew hours are said, not silently $0:');
     /summary\.unpricedLaborHours > 0/.test(jc) && /unpricedLaborLine\(summary\.unpricedLaborHours\)/.test(jc) && /pathname: '\/time-tracking'/.test(jc));
   const le = src('app/living-estimate.tsx');
   ok('the Living Estimate shows the line and never "On track" while hours are unpriced',
-    /unpricedLaborFor\(project\.id, timeEntries, laborRates\)/.test(le) && /laborGap \? 'Labor unpriced' : 'On track'/.test(le));
+    /unpricedLaborFor\(project\.id, timeEntries, laborRates\)/.test(le) && /laborGap \? 'Labor Unpriced' : 'On Track'/.test(le));
 
   // Margin Alerts: raised as a warning card, never a push, and quiet once seen.
   const b = (h: number): MarginBaseline => ({
@@ -282,7 +282,7 @@ console.log('\n#65 / #153 Time Tracking reads the allocation and sets the multip
   const tt = src('app/time-tracking.tsx');
   ok('OT badge and today tile read overtimeFor, never entry.overtimeHours', /overtimeFor\(overtime, entry\.id\)/.test(tt) && /overtimeFor\(overtime, e\.id\)/.test(tt) && !/entry\.overtimeHours|e\.overtimeHours/.test(tt));
   ok('"Overtime pays ×" saves with the rates and echoes the clamp',
-    /Overtime pays ×/.test(tt) && /onBlur=\{echoClampedMultiplier\}/.test(tt) && /setOvertimeSettings\(\{/.test(tt) && /normalizeOvertimeMultiplier\(n\)/.test(tt));
+    /Overtime Pays ×/.test(tt) && /onBlur=\{echoClampedMultiplier\}/.test(tt) && /setOvertimeSettings\(\{/.test(tt) && /normalizeOvertimeMultiplier\(n\)/.test(tt));
   ok('the default is shown as the default', /time-and-a-half, the default/.test(tt));
   ok('the bare-wage hint no longer folds OT into the rate', !/comp, taxes, OT, and small tools/.test(tt));
   // W1 UXDOORS: the overtime hint ended on a sentence with no figure in it

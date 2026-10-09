@@ -366,9 +366,9 @@ eq('(i) …and after a re-push with a new quantity', cert(applyTakeoffPush(iRes.
 console.log('\npushBlockReason:');
 const proj = { id: 'p1', name: 'Job', linkedEstimate: cleanEstimate() } as unknown as Project;
 eq('no project', pushBlockReason(null, [line()]), 'Pick a job to push to.');
-eq('no lines', pushBlockReason(proj, []), 'Nothing to push — every condition needs a quantity and a rate.');
+eq('no lines', pushBlockReason(proj, []), 'Nothing to push. Every condition needs a quantity and a rate.');
 eq('no estimate on the job', pushBlockReason({ ...proj, linkedEstimate: undefined } as unknown as Project, [line()]),
-  'This job has no estimate yet — start one in Estimate, then push.');
+  'This job has no estimate yet. Start one in Estimate, then push.');
 eq('pushable', pushBlockReason(proj, [line()]), null);
 
 // ── 5. source pins ──────────────────────────────────────────────────────────
@@ -418,7 +418,7 @@ eq('no points → -1', hitVertex([], id1, hvPaper, 0, 0), -1);
 
 console.log('\nstarter conditions:');
 const families: [string | null, string][] = [
-  [null, 'default'], ['Remodel', 'default'], ['Kitchen remodel', 'kitchen-bath'], ['Master Bath', 'kitchen-bath'],
+  [null, 'default'], ['Remodel', 'default'], ['Kitchen Remodel', 'kitchen-bath'], ['Master Bath', 'kitchen-bath'],
   ['Roofing', 'roofing-exterior'], ['Exterior siding', 'roofing-exterior'], ['Commercial', 'commercial'], ['Tenant fit-out', 'commercial'],
 ];
 for (const [label, fam] of families) {
@@ -449,8 +449,8 @@ const wsSrc = readFileSync(join(ROOT, 'components/takeoff/TakeoffWorkspace.tsx')
 const panelSrc = readFileSync(join(ROOT, 'components/takeoff/ConditionsPanel.tsx'), 'utf8');
 ok('TakeoffWorkspace carries {/* seam:rail */}', wsSrc.includes('{/* seam:rail */}'));
 ok('TakeoffWorkspace carries {/* seam:first-run */}', wsSrc.includes('{/* seam:first-run */}'));
-ok('ConditionsPanel carries {/* seam:ai-section */} right after the New condition row',
-  /New condition \(N\)<\/Text>\s*<\/TouchableOpacity>\s*\{\/\* seam:ai-section \*\/\}/.test(panelSrc));
+ok('ConditionsPanel carries {/* seam:ai-section */} right after the New Condition row',
+  /New Condition \(N\)<\/Text>\s*<\/TouchableOpacity>\s*\{\/\* seam:ai-section \*\/\}/.test(panelSrc));
 ok('the workspace reads saveLine / conflict straight from the hook (no widening cast)', /const tk = useTakeoffConditions\(projectId\);/.test(wsSrc) && /const \{ doc, loaded, update, record, undo, redo, saveLine, conflict \} = tk;/.test(wsSrc) && !/as typeof tk &/.test(wsSrc) && !/sync\.(saveLine|conflict)/.test(wsSrc));
 
 // ── 7. list-3 lane TK-b: AI read ──────────────────────────────────────────────────
@@ -503,13 +503,13 @@ ok('a measured line has NO aiRead key (byte-identical to before)', !('aiRead' in
 eq('This sheet rollup: the AI read adds nothing', rollup(docAi, DB, () => CAL100, 'A1').rows.find((r) => r.condition.id === 'ai')?.price.qty, 0);
 const apA = applyTakeoffPush(cleanEstimate(), PA.lines, {}, newId);
 const aiItem = (e: LinkedEstimate) => e.items.find((i) => i.sourceTakeoffConditionId === 'ai')!;
-eq('APPEND: the AI line is named "… — AI read, not measured"; the measured one is plain',
+eq('APPEND: the AI line is named "… (AI read, not measured)"; the measured one is plain',
   [aiItem(apA.next).name, apA.next.items.find((i) => i.sourceTakeoffConditionId === 'd')!.name],
-  ['5/8 drywall — AI read, not measured', '5/8 drywall']);
+  ['5/8 drywall (AI read, not measured)', '5/8 drywall']);
 ok('APPEND with an AI line foots (Σ lineTotal === grandTotal)', foots(apA.next));
 const upA = applyTakeoffPush(apA.next, [{ ...PA.lines[0], quantity: 1300 }], apA.pushed, newId);
 eq('UPDATE of an AI line keeps the label', [aiItem(upA.next).name, aiItem(upA.next).quantity, upA.added, upA.updated],
-  ['5/8 drywall — AI read, not measured', 1300, 0, 1]);
+  ['5/8 drywall (AI read, not measured)', 1300, 0, 1]);
 ok('…and foots', foots(upA.next));
 const docMeasured: TakeoffDoc = { ...docAi, measurements: [...docAi.measurements, meas({ id: 'ma', conditionId: 'ai', points: sq, aspect: 1 })] };
 const PM = pushLinesFrom(rollup(docMeasured, DB, () => CAL100).rows);

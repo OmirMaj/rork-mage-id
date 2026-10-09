@@ -96,26 +96,26 @@ export default function EstimateCopilotReview({ draft, ctx, onBuild, onDiscard, 
   if (!priced) {
     return (
       <View style={styles.wrap}>
-        <Text style={styles.eyebrow}>Pricing your estimate</Text>
+        <Text style={styles.eyebrow}>Pricing Your Estimate</Text>
         {!!note && <Text style={styles.note}>{note}</Text>}
         {price.kind === 'error' ? (
           <>
             <Text style={styles.headline}>{price.message}</Text>
             {price.limit ? (
               <TouchableOpacity accessibilityRole="button" style={styles.primary} activeOpacity={0.9} onPress={() => { onDiscard(); router.push('/paywall' as never); }} testID="copilot-estimate-see-plans">
-                <Text style={styles.primaryText}>See plans</Text>
+                <Text style={styles.primaryText}>See Plans</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity accessibilityRole="button" style={styles.primary} activeOpacity={0.9} onPress={() => void runPrice()} testID="copilot-estimate-retry">
                 <RefreshCw size={16} color={Colors.textOnAccent} strokeWidth={2} />
-                <Text style={styles.primaryText}>Try pricing again</Text>
+                <Text style={styles.primaryText}>Try Pricing Again</Text>
               </TouchableOpacity>
             )}
           </>
         ) : (
           <View style={styles.center}>
             <ActivityIndicator color={colors.accent} />
-            <Text style={styles.muted}>Pricing each line — nothing is saved until you build.</Text>
+            <Text style={styles.muted}>Pricing each line. Nothing is saved until you build.</Text>
           </View>
         )}
         <TouchableOpacity accessibilityRole="button" style={styles.discard} onPress={onDiscard} activeOpacity={0.7}>
@@ -129,7 +129,7 @@ export default function EstimateCopilotReview({ draft, ctx, onBuild, onDiscard, 
   const est = preview!.est;
   return (
     <View style={styles.wrap} testID="copilot-estimate-review">
-      <Text style={styles.eyebrow}>Ready to build</Text>
+      <Text style={styles.eyebrow}>Ready to Build</Text>
       <Text style={styles.headline}>{preview!.headline}</Text>
       {!!note && <Text style={styles.note}>{note}</Text>}
 
@@ -137,7 +137,7 @@ export default function EstimateCopilotReview({ draft, ctx, onBuild, onDiscard, 
         <View style={styles.totals}>
           <Text style={styles.total} testID="copilot-estimate-total">{money(est.grandTotal)}</Text>
           <Text style={styles.split}>
-            Cost {money(est.baseTotal)} + {markup.pct}% markup {money(est.markupTotal)} — from {markupSourceLabel(markup.source)}
+            Cost {money(est.baseTotal)} + {markup.pct}% markup {money(est.markupTotal)}, from {markupSourceLabel(markup.source)}
           </Text>
         </View>
       ) : (
@@ -190,7 +190,7 @@ export default function EstimateCopilotReview({ draft, ctx, onBuild, onDiscard, 
         testID="copilot-estimate-build"
       >
         <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
-        <Text style={styles.primaryText}>{replacing ? 'Replace estimate' : 'Build it'}</Text>
+        <Text style={styles.primaryText}>{replacing ? 'Replace Estimate' : 'Build It'}</Text>
       </TouchableOpacity>
       {!markup && <Text style={styles.muted}>Pick a markup first. Build turns on once you set what you charge.</Text>}
       <TouchableOpacity accessibilityRole="button" style={styles.discard} onPress={onDiscard} activeOpacity={0.7}>

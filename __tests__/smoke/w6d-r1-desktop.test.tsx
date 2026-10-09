@@ -308,7 +308,7 @@ describe('lane R1 — Crew register, desktop web 1512', () => {
       await act(async () => { fireEvent.press(screen.getByTestId('crew-register-table-row-crew-r1-1-check')); });
       await pump(2);
       await act(async () => { fireEvent.press(screen.getByText('Delete')); });
-      expect(spy).toHaveBeenCalledWith('Delete', 'Delete crew one at a time — it offers Mark inactive first and purges a kept ID photo.');
+      expect(spy).toHaveBeenCalledWith('Delete', 'Delete crew one at a time. It offers Mark Inactive first and purges a kept ID photo.');
       expect(screen.getByTestId('crew-register-table-row-crew-r1-1')).toBeTruthy();
     } finally {
       spy.mockRestore();
@@ -320,7 +320,7 @@ describe('lane R1 — Crew register, desktop web 1512', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('crew-register-table-row-crew-r1-1-check')); });
     await act(async () => { fireEvent.press(screen.getByTestId('crew-register-table-row-crew-r1-3-check')); });
     await pump(2);
-    await act(async () => { fireEvent.press(screen.getByText('Mark inactive')); });
+    await act(async () => { fireEvent.press(screen.getByText('Mark Inactive')); });
     await pump(4);
     const saved = JSON.parse((await AsyncStorage.getItem(`mageid_crew_members_${SMOKE_USER.id}`)) ?? '[]') as { id: string; status: string }[];
     const status = Object.fromEntries(saved.map((m) => [m.id, m.status]));

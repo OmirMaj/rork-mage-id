@@ -313,7 +313,7 @@ function buildCard(
     const costScore = clamp01(1 - overrun / 0.25);
     factors.push({
       key: 'cost_discipline',
-      label: 'Cost discipline',
+      label: 'Cost Discipline',
       score: costScore,
       weight: W_COST,
       applicable: true,
@@ -325,11 +325,11 @@ function buildCard(
   } else {
     factors.push({
       key: 'cost_discipline',
-      label: 'Cost discipline',
+      label: 'Cost Discipline',
       score: 0,
       weight: 0,
       applicable: false,
-      detail: noHistory ? 'No job history yet' : 'No closed commitments yet — final cost unproven',
+      detail: noHistory ? 'No job history yet' : 'No closed commitments yet, so final cost is unproven',
     });
   }
 
@@ -342,7 +342,7 @@ function buildCard(
     const coScore = clamp01(1 - coShare / 0.2);
     factors.push({
       key: 'co_impact',
-      label: 'Change-order impact',
+      label: 'Change-Order Impact',
       score: coScore,
       weight: W_CO,
       applicable: true,
@@ -354,7 +354,7 @@ function buildCard(
   } else {
     factors.push({
       key: 'co_impact',
-      label: 'Change-order impact',
+      label: 'Change-Order Impact',
       score: 0,
       weight: 0,
       applicable: false,
@@ -374,7 +374,7 @@ function buildCard(
     const reworkRate = rejectedPunch.length / reviewedPunch.length;
     factors.push({
       key: 'rework_rate',
-      label: 'Punch rework',
+      label: 'Punch Rework',
       score: clamp01(1 - reworkRate / REWORK_ZERO_AT),
       weight: W_REWORK,
       applicable: true,
@@ -386,14 +386,14 @@ function buildCard(
   } else {
     factors.push({
       key: 'rework_rate',
-      label: 'Punch rework',
+      label: 'Punch Rework',
       score: 0,
       weight: 0,
       applicable: false,
       detail:
         subPunch.length === 0
-          ? 'Not enough linked data yet — no punch items assigned to this sub'
-          : `Not enough linked data yet — ${reviewedPunch.length} of ${MIN_REVIEWED_PUNCH} reviewed punch items needed`,
+          ? 'Not enough linked data yet: no punch items assigned to this sub'
+          : `Not enough linked data yet: ${reviewedPunch.length} of ${MIN_REVIEWED_PUNCH} reviewed punch items needed`,
     });
   }
 
@@ -410,7 +410,7 @@ function buildCard(
     const slip = plannedSum > 0 ? Math.max(0, actualSum / plannedSum - 1) : 0;
     factors.push({
       key: 'schedule_reliability',
-      label: 'Schedule reliability',
+      label: 'Schedule Reliability',
       score: clamp01(1 - slip / SLIP_ZERO_AT),
       weight: W_SCHED,
       applicable: true,
@@ -422,16 +422,16 @@ function buildCard(
   } else {
     factors.push({
       key: 'schedule_reliability',
-      label: 'Schedule reliability',
+      label: 'Schedule Reliability',
       score: 0,
       weight: 0,
       applicable: false,
       detail:
         subTasks.linked === 0
-          ? 'Not enough linked data yet — no schedule tasks assigned to this sub'
+          ? 'Not enough linked data yet: no schedule tasks assigned to this sub'
           : measured.length === 0
-            ? `Not enough linked data yet — ${subTasks.linked} assigned task${subTasks.linked === 1 ? '' : 's'} without as-built dates`
-            : `Not enough linked data yet — ${measured.length} of ${MIN_MEASURED_TASKS} measured tasks needed`,
+            ? `Not enough linked data yet: ${subTasks.linked} assigned task${subTasks.linked === 1 ? '' : 's'} without as-built dates`
+            : `Not enough linked data yet: ${measured.length} of ${MIN_MEASURED_TASKS} measured tasks needed`,
     });
   }
 
@@ -456,7 +456,7 @@ function buildCard(
     ).length;
     factors.push({
       key: 'rfi_responsiveness',
-      label: 'RFI turnaround',
+      label: 'RFI Turnaround',
       score: clamp01(1 - meanHold / RFI_HOLD_ZERO_AT_DAYS),
       weight: W_RFI,
       applicable: true,
@@ -468,14 +468,14 @@ function buildCard(
   } else {
     factors.push({
       key: 'rfi_responsiveness',
-      label: 'RFI turnaround',
+      label: 'RFI Turnaround',
       score: 0,
       weight: 0,
       applicable: false,
       detail:
         subRfis.length === 0
-          ? 'Not enough linked data yet — no RFIs assigned to this sub'
-          : `Not enough linked data yet — ${rfiHolds.length} of ${MIN_MEASURED_RFIS} measurable RFIs needed`,
+          ? 'Not enough linked data yet: no RFIs assigned to this sub'
+          : `Not enough linked data yet: ${rfiHolds.length} of ${MIN_MEASURED_RFIS} measurable RFIs needed`,
     });
   }
 
@@ -557,7 +557,7 @@ function buildCard(
   });
 
   const topDriver = paperworkOnly
-    ? `No job history yet — graded on paperwork only. ${ranked[0]?.detail ?? ''}`.trim()
+    ? `No job history yet. Graded on paperwork only. ${ranked[0]?.detail ?? ''}`.trim()
     : ranked[0]?.detail ?? '';
 
   return {

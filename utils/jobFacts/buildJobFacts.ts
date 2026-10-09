@@ -96,7 +96,7 @@ const INSPECTION_RESULT_LABEL: Record<string, string> = {
 };
 
 const CO_STATUS_LABEL: Record<string, string> = {
-  submitted: 'Sent for approval', under_review: 'Under review', approved: 'Approved',
+  submitted: 'Sent for Approval', under_review: 'Under Review', approved: 'Approved',
   rejected: 'Declined', revised: 'Revised', void: 'Void',
 };
 
@@ -285,13 +285,13 @@ export function buildJobFacts(input: BuildJobFactsInput): JobFactsPayload {
     if (b && b.status !== 'draft') {
       const fin = factInstantDay(b.finalizedAt);
       if (fin) {
-        facts.push({ kind: 'binder_finalized', section: 'closeout', label: 'Closeout binder', value: 'Finalized', detail: `Status: ${BINDER_STATUS_WORDS[b.status] ?? b.status}`, source: { record: 'closeout_binder', ref: 'binder' }, date: fin });
+        facts.push({ kind: 'binder_finalized', section: 'closeout', label: 'Closeout Binder', value: 'Finalized', detail: `Status: ${BINDER_STATUS_WORDS[b.status] ?? b.status}`, source: { record: 'closeout_binder', ref: 'binder' }, date: fin });
       } else {
         leave('closeout_binder', 'no_date');
       }
       const sent = factInstantDay(b.sentAt);
       if (b.status === 'sent' && sent) {
-        facts.push({ kind: 'binder_sent', section: 'closeout', label: 'Closeout binder', value: 'Delivered to the owner', source: { record: 'closeout_binder', ref: 'binder' }, date: sent });
+        facts.push({ kind: 'binder_sent', section: 'closeout', label: 'Closeout Binder', value: 'Delivered to the owner', source: { record: 'closeout_binder', ref: 'binder' }, date: sent });
       } else if (b.status === 'sent') {
         leave('closeout_binder', 'no_date');
       }

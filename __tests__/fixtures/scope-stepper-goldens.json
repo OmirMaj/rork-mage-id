@@ -258,7 +258,7 @@
       }
      },
      "children": [
-      "Pick the closest match — we'll refine in the next steps."
+      "Pick the closest match. We'll refine in the next steps."
      ]
     },
     {
@@ -1011,7 +1011,7 @@
        "props": {
         "value": "1500",
         "onChangeText": "[fn onChangeText]",
-        "placeholder": "e.g. 1500",
+        "placeholder": "1500",
         "placeholderTextColor": "rgba(43,48,56,0.72)",
         "keyboardType": "numeric",
         "inputAccessoryViewID": "scope-stepper-kb-done",
@@ -1403,7 +1403,7 @@
       }
      },
      "children": [
-      "City and state — we use this for regional pricing."
+      "City and state. We use this for regional pricing."
      ]
     },
     {
@@ -1419,7 +1419,7 @@
        "props": {
         "value": "Austin, TX",
         "onChangeText": "[fn onChangeText]",
-        "placeholder": "e.g. Austin, TX",
+        "placeholder": "Austin, TX",
         "placeholderTextColor": "rgba(43,48,56,0.72)",
         "style": {
          "backgroundColor": "#FFFFFF",
@@ -2041,7 +2041,7 @@
        "props": {
         "value": "Gut the hall bath",
         "onChangeText": "[fn onChangeText]",
-        "placeholder": "e.g. Gut kitchen, new cabinets and quartz counters, move the sink wall, add island with seating, replace floors.",
+        "placeholder": "Gut kitchen, new cabinets and quartz counters, move the sink wall, add island with seating, replace floors.",
         "placeholderTextColor": "rgba(43,48,56,0.72)",
         "multiline": true,
         "numberOfLines": 5,
@@ -2422,7 +2422,7 @@
       }
      },
      "children": [
-      "Expected duration in weeks — optional, skip if unsure."
+      "Expected duration in weeks. Optional, skip if unsure."
      ]
     },
     {
@@ -2438,7 +2438,7 @@
        "props": {
         "value": "6",
         "onChangeText": "[fn onChangeText]",
-        "placeholder": "e.g. 8",
+        "placeholder": "8",
         "placeholderTextColor": "rgba(43,48,56,0.72)",
         "keyboardType": "numeric",
         "inputAccessoryViewID": "scope-stepper-kb-done",
@@ -2851,7 +2851,7 @@
        "props": {
         "value": "HOA review",
         "onChangeText": "[fn onChangeText]",
-        "placeholder": "e.g. Historic district review, ADA bathroom.",
+        "placeholder": "Historic district review, ADA bathroom.",
         "placeholderTextColor": "rgba(43,48,56,0.72)",
         "multiline": true,
         "numberOfLines": 4,
@@ -3125,7 +3125,7 @@
       }
      },
      "children": [
-      "Optional — helps the AI sanity-check the estimate."
+      "Optional. Helps the AI sanity-check the estimate."
      ]
     },
     {
@@ -3141,7 +3141,7 @@
        "props": {
         "value": "40000",
         "onChangeText": "[fn onChangeText]",
-        "placeholder": "e.g. 75000",
+        "placeholder": "75000",
         "placeholderTextColor": "rgba(43,48,56,0.72)",
         "keyboardType": "numeric",
         "inputAccessoryViewID": "scope-stepper-kb-done",

@@ -259,7 +259,7 @@ export default function SubmitBidResponseScreen() {
       if (!estimateAmount || Number(estimateAmount) <= 0) return 'Enter a non-zero estimate amount.';
       if (!estimateSummary.trim()) return 'Add a one-line summary of what your estimate covers.';
     }
-    if (!message.trim() || message.trim().length < 20) return 'Add a brief message — what makes you a good fit, when you can start, etc.';
+    if (!message.trim() || message.trim().length < 20) return 'Add a brief message: what makes you a good fit and when you can start.';
     return null;
   }, [viewSiteFirst, estimateAmount, estimateSummary, message]);
 
@@ -287,11 +287,11 @@ export default function SubmitBidResponseScreen() {
       if (used >= FREE_MONTHLY_BID_RESPONSES) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         showAlert(
-          'Monthly bid limit reached',
-          `You've sent your ${FREE_MONTHLY_BID_RESPONSES} bids for this month. Unlimited marketplace bids are on the Business plan.`,
+          'Monthly Bid Limit Reached',
+          `You've sent your ${FREE_MONTHLY_BID_RESPONSES} bids for this month. On the Business plan you can keep bidding this month.`,
           [
-            { text: 'Not now', style: 'cancel' },
-            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'See Plans', onPress: () => router.push('/paywall' as never) },
           ],
         );
         return;
@@ -398,7 +398,7 @@ export default function SubmitBidResponseScreen() {
 
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Bid submitted',
+        'Bid Submitted',
         viewSiteFirst
           ? 'The client sees your site-visit request and reaches out if they want to schedule it. It is in your Leads pipeline.'
           : 'The client reviews your estimate. You\'re notified if they shortlist or award you. It is in your Leads pipeline.',
@@ -425,7 +425,7 @@ export default function SubmitBidResponseScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Submit your bid</Text>
+          <Text style={styles.eyebrow}>Submit Your Bid</Text>
           <Text style={styles.title} numberOfLines={2}>{heading}</Text>
         </View>
       </View>
@@ -434,13 +434,13 @@ export default function SubmitBidResponseScreen() {
   );
 
   if (!bidId) {
-    return renderShell('Project not found', (
+    return renderShell('Project Not Found', (
       <>
         <AlertTriangle size={22} color={themeColors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.stateTitle}>Couldn’t open that link</Text>
+        <Text style={styles.stateTitle}>Couldn’t Open That Link</Text>
         <Text style={styles.stateText}>It is missing a project reference. Open the project again from your MAGE ID Bids tab.</Text>
         <TouchableOpacity style={styles.stateBtn} onPress={goBack} accessibilityRole="button" testID="submit-bid-back">
-          <Text style={styles.stateBtnText}>Go back</Text>
+          <Text style={styles.stateBtnText}>Go Back</Text>
         </TouchableOpacity>
       </>
     ));
@@ -459,10 +459,10 @@ export default function SubmitBidResponseScreen() {
   // not loading; `&& !rfp` keeps a loaded project on screen through a failed
   // background refetch.
   if ((!rfp && (isError || fetchStatus === 'paused')) || !isSupabaseConfigured) {
-    return renderShell('Could not load', (
+    return renderShell('Could Not Load', (
       <>
         <AlertTriangle size={22} color={themeColors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.stateTitle}>Couldn’t load this project</Text>
+        <Text style={styles.stateTitle}>Couldn’t Load This Project</Text>
         <Text style={styles.stateText}>You may be offline or on a weak connection. Nothing was lost.</Text>
         <TouchableOpacity
           style={[styles.stateBtn, isFetching && { opacity: 0.5 }]}
@@ -476,7 +476,7 @@ export default function SubmitBidResponseScreen() {
           ) : (
             <>
               <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.stateBtnText}>Try again</Text>
+              <Text style={styles.stateBtnText}>Try Again</Text>
             </>
           )}
         </TouchableOpacity>
@@ -485,13 +485,13 @@ export default function SubmitBidResponseScreen() {
   }
 
   if (!rfp) {
-    return renderShell('No longer open', (
+    return renderShell('No Longer Open', (
       <>
         <FileText size={22} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.stateTitle}>This project is no longer open for bids</Text>
         <Text style={styles.stateText}>The client may have closed or awarded it. Nothing you typed was sent.</Text>
         <TouchableOpacity style={styles.stateBtn} onPress={goBack} accessibilityRole="button" testID="submit-bid-back">
-          <Text style={styles.stateBtnText}>Go back</Text>
+          <Text style={styles.stateBtnText}>Go Back</Text>
         </TouchableOpacity>
       </>
     ));
@@ -506,7 +506,7 @@ export default function SubmitBidResponseScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Submit your bid</Text>
+          <Text style={styles.eyebrow}>Submit Your Bid</Text>
           <Text style={styles.title} numberOfLines={2}>{rfp.title}</Text>
         </View>
       </View>
@@ -521,9 +521,9 @@ export default function SubmitBidResponseScreen() {
           <View style={styles.instantHead}>
             <View style={styles.instantIcon}><MageAIMark size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.instantTitle}>Instant bid</Text>
+              <Text style={styles.instantTitle}>Instant Bid</Text>
               <Text style={styles.instantSub}>
-                Draft a Good / Better / Best proposal from the posting. Contractors who respond first win more work.
+                Draft a Good / Better / Best proposal from the posting.
               </Text>
             </View>
           </View>
@@ -539,7 +539,7 @@ export default function SubmitBidResponseScreen() {
             ) : (
               <>
                 <MageAIMark size={15} color="#FFF" />
-                <Text style={styles.instantBtnText}>{proposal ? 'Regenerate draft' : 'Draft my bid'}</Text>
+                <Text style={styles.instantBtnText}>{proposal ? 'Regenerate Draft' : 'Draft My Bid'}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -548,9 +548,9 @@ export default function SubmitBidResponseScreen() {
         {/* Tier picker — appears once a draft exists */}
         {proposal && !viewSiteFirst && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Choose the option to send</Text>
+            <Text style={styles.cardLabel}>Choose the Option to Send</Text>
             <Text style={styles.helper}>
-              Offering a range lifts win-rates — the &quot;Recommended&quot; tier is pre-selected. Tap to switch.
+              Three price levels give the client a choice. The &quot;Recommended&quot; tier is pre-selected. Tap to switch.
             </Text>
             <View style={styles.tierList}>
               {proposal.tiers.map(tier => {
@@ -596,7 +596,7 @@ export default function SubmitBidResponseScreen() {
                 ? `Anchored on your last ${proposal.groundingRateCount} learned rate${proposal.groundingRateCount === 1 ? '' : 's'}. Review before sending.`
                 : proposal.basis === 'budget'
                   ? 'Blended toward the posted budget. Review before sending.'
-                  : 'Rough AI guess — no budget or cost history to anchor this. Review carefully before sending.'}
+                  : 'Rough AI guess. No budget or cost history to anchor this. Review carefully before sending.'}
             </Text>
           </View>
         )}
@@ -615,7 +615,7 @@ export default function SubmitBidResponseScreen() {
           >
             <Eye size={16} color={viewSiteFirst ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
             <Text style={[styles.toggleText, viewSiteFirst && styles.toggleTextActive]}>
-              {viewSiteFirst ? 'Requesting a site visit before quoting' : 'Request site visit before quoting'}
+              {viewSiteFirst ? 'Requesting a Site Visit Before Quoting' : 'Request Site Visit Before Quoting'}
             </Text>
             <View style={[styles.toggleDot, viewSiteFirst && styles.toggleDotActive]} />
           </TouchableOpacity>
@@ -623,7 +623,7 @@ export default function SubmitBidResponseScreen() {
 
         {!viewSiteFirst && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Estimate amount *</Text>
+            <Text style={styles.cardLabel}>Estimate Amount *</Text>
             <View style={styles.amountField}>
               <DollarSign size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               <TextInput
@@ -636,8 +636,8 @@ export default function SubmitBidResponseScreen() {
               />
             </View>
 
-            <Text style={[styles.cardLabel, { marginTop: 14 }]}>One-line summary *</Text>
-            <Text style={styles.helper}>What does this estimate cover? E.g. &quot;Cabinets + counters + install, materials sourced.&quot;</Text>
+            <Text style={[styles.cardLabel, { marginTop: 14 }]}>One-Line Summary *</Text>
+            <Text style={styles.helper}>What does this estimate cover? For example: &quot;Cabinets + counters + install, materials sourced.&quot;</Text>
             <TextInput
               style={styles.input}
               value={estimateSummary}
@@ -650,7 +650,7 @@ export default function SubmitBidResponseScreen() {
         )}
 
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Message to the client *</Text>
+          <Text style={styles.cardLabel}>Message to the Client *</Text>
           <Text style={styles.helper}>
             Why are you a fit, what&apos;s included, when can you start, references? This is your pitch.
           </Text>
@@ -669,7 +669,7 @@ export default function SubmitBidResponseScreen() {
 
         {/* Identity preview */}
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Submitting as</Text>
+          <Text style={styles.cardLabel}>Submitting As</Text>
           <View style={styles.identityRow}>
             <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.identityText}>
@@ -679,7 +679,7 @@ export default function SubmitBidResponseScreen() {
           </View>
           {!company && (
             <Text style={styles.identityHelper}>
-              Tip: add a company profile in Settings → Companies so the client sees a verified pitch.
+              Tip: add a company profile in Settings &gt; Companies so the client sees your company details.
             </Text>
           )}
         </View>
@@ -704,7 +704,7 @@ export default function SubmitBidResponseScreen() {
               <Lock size={16} color={themeColors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.capTitle}>You&apos;ve used your {FREE_MONTHLY_BID_RESPONSES} bids this month</Text>
-                <Text style={styles.capSub}>Unlimited marketplace bids are on the Business plan.</Text>
+                <Text style={styles.capSub}>On the Business plan you can keep bidding this month.</Text>
               </View>
               <ArrowRight size={16} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -726,13 +726,13 @@ export default function SubmitBidResponseScreen() {
           ) : atMonthlyCap ? (
             <>
               <Lock size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.submitBtnText}>See plans</Text>
+              <Text style={styles.submitBtnText}>See Plans</Text>
             </>
           ) : (
             <>
               {viewSiteFirst ? <MessageSquare size={16} color="#FFF" strokeWidth={1.75} /> : <Send size={16} color="#FFF" strokeWidth={1.75} />}
               <Text style={styles.submitBtnText}>
-                {viewSiteFirst ? 'Send site-visit request' : 'Send bid'}
+                {viewSiteFirst ? 'Send Site-Visit Request' : 'Send Bid'}
               </Text>
             </>
           )}

@@ -111,9 +111,9 @@ export interface DelayConsequence {
   text: string;
 }
 
-export const NO_TASK_TEXT = "Not linked to a schedule task — can't say what it holds up.";
-export const LOGIC_ERROR_TEXT = 'Schedule has a logic error — delay not computed.';
-export const NO_SITE_COST_TEXT = ' · No daily site cost on file — add a General Conditions line to see dollars.';
+export const NO_TASK_TEXT = "Not linked to a schedule task. Can't say what it holds up.";
+export const LOGIC_ERROR_TEXT = 'Schedule has a logic error. Delay not computed.';
+export const NO_SITE_COST_TEXT = ' · No daily site cost on file. Add a General Conditions line to see dollars.';
 
 function wd(n: number): string {
   return `${n} working day${n === 1 ? '' : 's'}`;
@@ -141,7 +141,7 @@ export function delayConsequence(a: {
   }
   const basis = a.basis;
   const title = task.title?.trim() || 'this task';
-  const prefix = basis === 'matched_by_name' ? `Matched by name: ${title} — ` : '';
+  const prefix = basis === 'matched_by_name' ? `Matched by name: ${title}. ` : '';
   const base = { basis, taskTitle: title };
 
   const anchor = anchorIso(schedule);
@@ -167,7 +167,7 @@ export function delayConsequence(a: {
   const scale = dayScale(schedule, anchor);
   const late = neededBy < today ? workingDaysInSpan(calIndex(anchor, neededBy), calIndex(anchor, today) - 1, scale) : 0;
   if (late <= 0) {
-    return { ...base, neededBy, pushesFinishDays: 0, cents: null, text: `${prefix}Needed by ${label} for ${title} — no delay yet.` };
+    return { ...base, neededBy, pushesFinishDays: 0, cents: null, text: `${prefix}Needed by ${label} for ${title}. No delay yet.` };
   }
   if (a.cpmFloatDays == null || !Number.isFinite(a.cpmFloatDays)) {
     return { ...base, neededBy, pushesFinishDays: null, cents: null, text: `${prefix}${LOGIC_ERROR_TEXT}` };
@@ -179,8 +179,8 @@ export function delayConsequence(a: {
     text = `${title} is on the critical path: finish moves ${wd(pushes)}`;
   } else if (pushes === 0) {
     text = late < float
-      ? `${title} has ${float} days of float — finish holds for ${float - late} more working day${float - late === 1 ? '' : 's'}`
-      : `${title} had ${float} days of float, now used up — finish moves if this waits another day`;
+      ? `${title} has ${float} days of float. Finish holds for ${float - late} more working day${float - late === 1 ? '' : 's'}`
+      : `${title} had ${float} days of float, now used up. Finish moves if this waits another day`;
   } else {
     text = `${title} had ${float} days of float, now used up: finish moves ${wd(pushes)}`;
   }

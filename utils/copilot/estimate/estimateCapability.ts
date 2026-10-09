@@ -34,7 +34,7 @@ export function commitCopilotEstimate(project: Project, linked: LinkedEstimate, 
 
 export const estimateCapability: CopilotCapability<EstimateDraft, EstimateApplied> = {
   id: 'estimate',
-  label: 'Build an estimate',
+  label: 'Build an Estimate',
   aiFeature: 'quickEstimate',
   // The interview turns are field extraction; the one quickEstimate trial is
   // charged on the pricing call (#35/#38: an estimate used to cost two).
@@ -42,19 +42,19 @@ export const estimateCapability: CopilotCapability<EstimateDraft, EstimateApplie
   maxQuestions: 3,
   askThreshold: ESTIMATE_ASK_THRESHOLD,
   suggestions: [
-    'Kitchen gut — demo, 200 SF tile, new cabinets, rewire, repaint',
+    'Kitchen gut: demo, 200 SF tile, new cabinets, rewire, repaint',
     'Full bath remodel, standard finishes, move the plumbing',
   ],
   topicChecklist: [
     { label: 'Scope', hint: 'rooms / trades / what work' },
-    { label: 'Finish level', hint: 'economy → luxury' },
+    { label: 'Finish Level', hint: 'economy to luxury' },
     { label: 'Size', hint: 'rough square footage' },
   ],
   copy: {
-    voiceTitle: 'Build an estimate',
+    voiceTitle: 'Build an Estimate',
     composeEyebrow: 'TELL ME ABOUT THE SCOPE',
     composeQuestion: 'What are we pricing?',
-    composeHint: 'Rooms, trades, finishes — I’ll price it from your costs where you have them.',
+    composeHint: 'Rooms, trades, finishes. I’ll price it from your costs where you have them.',
     // Not rendered (renderReview below owns the review card); kept honest in
     // case a caller reads it.
     reviewHeadline: 'Here’s your estimate.',
@@ -101,10 +101,10 @@ export const estimateCapability: CopilotCapability<EstimateDraft, EstimateApplie
     // Build commits what the review showed. It never prices: a second model
     // call would write numbers he never saw.
     if (!priced || !Array.isArray(priced.costItems) || priced.costItems.length === 0) {
-      throw new Error('Price the estimate on the review card first — nothing was saved.');
+      throw new Error('Price the estimate on the review card first. Nothing was saved.');
     }
     const markup = copilotEstimateMarkup(draft, ctx);
-    if (!markup) throw new Error('Pick a markup first — MAGE won’t guess what you charge.');
+    if (!markup) throw new Error('Pick a markup first. MAGE won’t guess what you charge.');
     const linked = buildCopilotLinkedEstimate(priced.costItems, markup.pct, createId('est'), new Date().toISOString());
     commitCopilotEstimate(project, linked, ctx);
     return { route: '/project-detail', projectId: ctx.projectId };

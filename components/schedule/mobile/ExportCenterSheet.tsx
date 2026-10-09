@@ -24,9 +24,9 @@ import { parseCalendarDay } from '@/utils/calendarDate';
 
 const ALL_SECTIONS: ReportSectionKey[] = ['kpis','critPath','risks','lookahead','milestones','gantt','slippages','phaseProgress','weather'];
 const SECTION_LABEL: Record<ReportSectionKey, string> = {
-  kpis: 'Key numbers', critPath: 'Critical path', risks: 'Risks', lookahead: 'Lookahead',
-  milestones: 'Milestones', gantt: 'Gantt', slippages: 'Slippages', phaseProgress: 'Phase progress',
-  weather: 'Weather', register: 'Task register',
+  kpis: 'Key Numbers', critPath: 'Critical Path', risks: 'Risks', lookahead: 'Lookahead',
+  milestones: 'Milestones', gantt: 'Gantt', slippages: 'Slippages', phaseProgress: 'Phase Progress',
+  weather: 'Weather', register: 'Task Register',
 };
 const SIZES: { key: ReportPaperSize | 'auto'; label: string }[] = [
   { key: 'auto', label: 'Auto' }, { key: 'letter', label: 'Letter' }, { key: 'a4', label: 'A4' },
@@ -81,7 +81,7 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
         singleWallSheet: override?.singleWallSheet ?? false,
       };
       const html = renderScheduleReportHtml(model, opts);
-      await generateScheduleReportPdf(html, `${project.name} — Schedule report`);
+      await generateScheduleReportPdf(html, `${project.name} Schedule Report`);
       onClose();
     } catch (e) {
       console.warn('[ExportCenterSheet] report export failed', rawErrorMessage(e));
@@ -96,7 +96,7 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
       workingDaysPerWeek: project.schedule?.workingDaysPerWeek,
       nonWorkingDates: project.schedule?.nonWorkingDates,
     });
-    if (!url) { showAlert('Schedule too large', 'This schedule is too large for a quick link. Export a PDF instead.'); return; }
+    if (!url) { showAlert('Schedule Too Large', 'This schedule is too large for a quick link. Export a PDF instead.'); return; }
     try { const { Share } = await import('react-native'); await shareText({ message: `${project.name} schedule: ${url}`, url }); onClose(); } catch { /* cancelled */ }
   };
 
@@ -107,29 +107,29 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 16, maxHeight: '88%' }]}>
         <View style={styles.grab} />
-        <View style={styles.headRow}><Text style={styles.title}>Export schedule</Text><TouchableOpacity onPress={onClose}><X size={20} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity></View>
+        <View style={styles.headRow}><Text style={styles.title}>Export Schedule</Text><TouchableOpacity onPress={onClose}><X size={20} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity></View>
         <ScrollView showsVerticalScrollIndicator={false}>
           {canLockPlan && onLockPlan && (
-            <Preset icon={<Lock size={18} color={colors.accent} strokeWidth={1.75} />} label="Lock this plan first" sub="No plan is locked, so reports have no slippage or variance to show" onPress={onLockPlan} styles={styles} />
+            <Preset icon={<Lock size={18} color={colors.accent} strokeWidth={1.75} />} label="Lock This Plan First" sub="No plan is locked, so reports have no slippage or variance to show" onPress={onLockPlan} styles={styles} />
           )}
           <Text style={styles.section}>One-tap</Text>
-          <Preset icon={<FileText size={18} color={colors.accent} strokeWidth={1.75} />} id="Client Report" label="Client report" sub="A3 · summary and Gantt · for the client" onPress={() => runReport({ paperSizeChoice: 'a3', secs: ['kpis','critPath','risks','milestones','gantt','phaseProgress'] })} styles={styles} />
+          <Preset icon={<FileText size={18} color={colors.accent} strokeWidth={1.75} />} id="Client Report" label="Client Report" sub="A3 · summary and Gantt · for the client" onPress={() => runReport({ paperSizeChoice: 'a3', secs: ['kpis','critPath','risks','milestones','gantt','phaseProgress'] })} styles={styles} />
           <Preset icon={<Hammer size={18} color={colors.accent} strokeWidth={1.75} />} label="Field Gantt" sub="Arch D · lookahead and large Gantt · trailer wall" onPress={() => runReport({ paperSizeChoice: 'arch_d', secs: ['kpis','lookahead','risks','gantt'], singleWallSheet: true })} styles={styles} />
-          <Preset icon={<FileStack size={18} color={colors.accent} strokeWidth={1.75} />} id="Full Dossier" label="Full report" sub="Auto size · every section and the task register" onPress={() => runReport({ paperSizeChoice: 'auto', secs: [...ALL_SECTIONS, 'register'], showPredecessors: true })} styles={styles} />
+          <Preset icon={<FileStack size={18} color={colors.accent} strokeWidth={1.75} />} id="Full Dossier" label="Full Report" sub="Auto size · every section and the task register" onPress={() => runReport({ paperSizeChoice: 'auto', secs: [...ALL_SECTIONS, 'register'], showPredecessors: true })} styles={styles} />
           <Preset icon={<Sheet size={18} color={colors.accent} strokeWidth={1.75} />} label="CSV" sub="Open in Excel · 1 row per task" onPress={runCsv} styles={styles} />
-          <Preset icon={<ShareIcon size={18} color={colors.accent} strokeWidth={1.75} />} label="Share link" sub="Read-only · no sign-in needed" onPress={runShare} styles={styles} />
+          <Preset icon={<ShareIcon size={18} color={colors.accent} strokeWidth={1.75} />} label="Share Link" sub="Read-only · no sign-in needed" onPress={runShare} styles={styles} />
           <Preset icon={<CalendarPlus size={18} color={colors.accent} strokeWidth={1.75} />} label="iCal" sub="Add to Apple or Google Calendar" onPress={() => { onExportIcal(); onClose(); }} styles={styles} />
 
           <TouchableOpacity style={styles.customToggle} onPress={() => setShowCustom((v) => !v)}><Text style={styles.customToggleText}>{showCustom ? '▾ Customize' : '▸ Customize'}</Text></TouchableOpacity>
           {showCustom && (
             <View style={styles.customBox}>
-              <Text style={styles.section}>Paper size</Text>
+              <Text style={styles.section}>Paper Size</Text>
               <View style={styles.chipRow}>{SIZES.map((sz) => (
                 <TouchableOpacity key={sz.key} style={[styles.chip, size === sz.key && styles.chipOn]} onPress={() => setSize(sz.key)}><Text style={[styles.chipText, size === sz.key && styles.chipTextOn]}>{sz.label}</Text></TouchableOpacity>
               ))}</View>
               <View style={styles.toggleRow}><Text style={styles.toggleLabel}>Landscape</Text><Switch01 on={landscape} onToggle={() => setLandscape((v) => !v)} styles={styles} /></View>
-              <View style={styles.toggleRow}><Text style={styles.toggleLabel}>Fit to one page</Text><Switch01 on={fitOne} onToggle={() => setFitOne((v) => !v)} styles={styles} /></View>
-              <View style={styles.toggleRow}><Text style={styles.toggleLabel}>Predecessors column</Text><Switch01 on={showPred} onToggle={() => setShowPred((v) => !v)} styles={styles} /></View>
+              <View style={styles.toggleRow}><Text style={styles.toggleLabel}>Fit to One Page</Text><Switch01 on={fitOne} onToggle={() => setFitOne((v) => !v)} styles={styles} /></View>
+              <View style={styles.toggleRow}><Text style={styles.toggleLabel}>Predecessors Column</Text><Switch01 on={showPred} onToggle={() => setShowPred((v) => !v)} styles={styles} /></View>
               <Text style={styles.section}>Sections</Text>
               <View style={styles.chipRow}>{ALL_SECTIONS.map((k) => (
                 <TouchableOpacity key={k} style={[styles.chip, sections.includes(k) && styles.chipOn]} onPress={() => toggleSection(k)}><Text style={[styles.chipText, sections.includes(k) && styles.chipTextOn]}>{SECTION_LABEL[k]}</Text></TouchableOpacity>

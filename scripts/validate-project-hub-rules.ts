@@ -237,7 +237,7 @@ ok('no count reads the legacy project.collaborators any more',
   !/project\.collaborators/.test(pdRaw) && !/collaborators\.length \+ 1/.test(pdRaw));
 ok('"You (Owner)" renders only for the owner', /\{hubRole === 'owner' \? \( <View style=\{styles\.collabMember\} testID="team-owner-row-self">[\s\S]{0,400}You \(Owner\)/.test(pd));
 ok('…anyone else sees a neutral "Project owner" and "You · <role>", never his own email as the owner\'s',
-  /testID="team-owner-row-other"[\s\S]{0,500}Project owner/.test(pd) && /You · \$\{ROLE_LABELS\[hubRole\]\}/.test(pd)
+  /testID="team-owner-row-other"[\s\S]{0,500}Project Owner/.test(pd) && /You · \$\{ROLE_LABELS\[hubRole\]\}/.test(pd)
   && (pd.match(/branding\.email \|\| 'Set email in settings'/g) ?? []).length === 1);
 
 // ── #143 · the full RFI / submittal logs, overdue first ──────────────────────

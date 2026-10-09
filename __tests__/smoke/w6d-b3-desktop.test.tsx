@@ -294,7 +294,7 @@ describe('lane B3 — /buyout on desktop web (1512 × 945)', () => {
     expect(screen.getByTestId('buyout-packages')).toBeTruthy();
     for (const p of B3_PACKAGES) expect(screen.getByTestId(`buyout-packages-row-${p.id}`)).toBeTruthy();
     // The phone card's own call to action is not drawn on desktop web.
-    expect(screen.queryByText('Send RFP →')).toBeNull();
+    expect(screen.queryByText('Send RFP')).toBeNull();
 
     // OVERDUE rides on the package cell of a live package past its date.
     expect(textIn(screen.getByTestId('buyout-packages-row-pkg-b3-plumb'))).toContain('Overdue');
@@ -315,11 +315,11 @@ describe('lane B3 — /buyout on desktop web (1512 × 945)', () => {
     const overrun = engineSavings('pkg-b3-drywall');
     expect(savings).toBe(1100);
     expect(overrun).toBe(-1100);
-    expect(phone).toContain('Budget includes markup — review');
-    expect(phone).toContain(`Buyout savings${signedMoney(savings)}`);
-    expect(phone).toContain(`Buyout overrun${signedMoney(overrun)}`);
-    expect(phone).toContain(`Lowest bid · 2 in${formatMoney(14800)}`);
-    expect(phone).toContain('No bids yetSend RFP →');
+    expect(phone).toContain('Budget Includes Markup: Review');
+    expect(phone).toContain(`Buyout Savings${signedMoney(savings)}`);
+    expect(phone).toContain(`Buyout Overrun${signedMoney(overrun)}`);
+    expect(phone).toContain(`Lowest Bid · 2 in${formatMoney(14800)}`);
+    expect(phone).toContain('No Bids YetSend RFP');
   });
 
   it('…and the desktop Result cell prints the same branch, in the same figures', async () => {
@@ -328,11 +328,11 @@ describe('lane B3 — /buyout on desktop web (1512 × 945)', () => {
     const overrun = engineSavings('pkg-b3-drywall');
     await mountAt('android', 1512, 945, true, `/buyout?${P}`);
     const row = (id: string) => textIn(screen.getByTestId(`buyout-packages-row-${id}`));
-    expect(row('pkg-b3-tile')).toContain('Budget includes markup — review');
+    expect(row('pkg-b3-tile')).toContain('Budget Includes Markup: Review');
     expect(row('pkg-b3-elec')).toContain(signedMoney(savings));
     expect(row('pkg-b3-drywall')).toContain(signedMoney(overrun));
     expect(row('pkg-b3-plumb')).toContain(`Lowest ${formatMoney(14800)} · 2 in`);
-    expect(row('pkg-b3-finish')).toContain('No bids yet');
+    expect(row('pkg-b3-finish')).toContain('No Bids Yet');
     // No row claims a savings figure the card withholds.
     expect(row('pkg-b3-tile')).not.toContain('+');
     // Status reads whole: its one-line cell is wide enough for the longest
@@ -344,15 +344,15 @@ describe('lane B3 — /buyout on desktop web (1512 × 945)', () => {
     expect(flat(cell!.props.style).width as number).toBeGreaterThanOrEqual(170);
     // Invites: the read came back with none for these packages — words, never a bare 0/0.
     for (const p of B3_PACKAGES) expect(row(p.id)).not.toContain('0/0');
-    expect(row('pkg-b3-finish')).toContain('None sent');
+    expect(row('pkg-b3-finish')).toContain('None Sent');
   });
 
   it('the new-package sheet is a centred 560 card with a scrim; the FAB sits right, capped', async () => {
     await mountAt('android', 1512, 945, true, `/buyout?${P}`);
-    const createBtn = screen.getByText('Create package');
+    const createBtn = screen.getByText('Create Package');
     expectCentredCard(modalOf(createBtn), 'form');
 
-    const fabText = screen.getAllByText('New scope package').find((n) => {
+    const fabText = screen.getAllByText('New Scope Package').find((n) => {
       try { modalOf(n); return false; } catch { return true; }
     })!;
     let row: ReactTestInstance | null = fabText;
@@ -378,13 +378,13 @@ describe('lane B3 — /buyout-package on desktop web (1512 × 945)', () => {
     const railText = textIn(rail);
     expect(mainText).toContain('Plumbing rough-in');
     expect(mainText).toContain("Joe's Plumbing");
-    expect(mainText).not.toContain('Scope of work');
-    expect(railText).toContain('Scope of work');
-    expect(railText).toContain('Invited to bid');
-    expect(railText).toContain('Delete this package');
+    expect(mainText).not.toContain('Scope of Work');
+    expect(railText).toContain('Scope of Work');
+    expect(railText).toContain('Invited to Bid');
+    expect(railText).toContain('Delete This Package');
     expect(railText).not.toContain("Joe's Plumbing");
     // The leveling CTA travels with the scope (2 bids in, not awarded).
-    expect(railText).toContain('Level the bids');
+    expect(railText).toContain('Level the Bids');
     expect(within(rail).getByTestId('invite-subs-to-bid')).toBeTruthy();
   });
 
@@ -413,18 +413,18 @@ describe('lane B3 — /buyout-package on desktop web (1512 × 945)', () => {
     press('Enter', { metaKey: true });
     await pump(2);
     // The send ran — with no addresses typed it stops at its own refusal.
-    expect(alertMock.showAlert).toHaveBeenCalledWith('No email addresses', expect.any(String));
+    expect(alertMock.showAlert).toHaveBeenCalledWith('No Email Addresses', expect.any(String));
 
     // Close it; the add-bid sheet's primary is a save, so Cmd+S runs it.
     alertMock.showAlert.mockClear();
     const closeInvite = within(modalOf(screen.getByTestId('invite-send'))).getAllByLabelText('Close');
     fireEvent.press(closeInvite[0]);
     await pump(2);
-    fireEvent.press(screen.getByText('Add by hand'));
+    fireEvent.press(screen.getByText('Add by Hand'));
     await pump(2);
     press('s', { metaKey: true });
     await pump(2);
-    expect(alertMock.showAlert).toHaveBeenCalledWith('Add the vendor', expect.any(String));
+    expect(alertMock.showAlert).toHaveBeenCalledWith('Add the Vendor', expect.any(String));
   });
 });
 
@@ -434,7 +434,7 @@ describe('lane B3 — native tablet (android 1100: isDesktop, not desktop web)',
   it('/buyout keeps the card list (the table sits behind useIsDesktopWeb)', async () => {
     await mountAt('android', 1100, 800, false, `/buyout?${P}`);
     expect(screen.queryByTestId('buyout-packages')).toBeNull();
-    expect(screen.getByText('Send RFP →')).toBeTruthy();
+    expect(screen.getByText('Send RFP')).toBeTruthy();
   });
 
   it('/buyout-package keeps the one-column page', async () => {

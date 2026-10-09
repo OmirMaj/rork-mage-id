@@ -61,59 +61,63 @@ const litRe = (en: string) => `(?:'${esc(en.replace(/'/g, "\\'"))}'|"${esc(en)}"
 
 /** S2 — the Phase 1 field screens that carry a Stack.Screen title. */
 const FIELD_TITLES: { route: string; slug: string; en: string }[] = [
-  { route: 'daily-report', slug: 'dailyReport', en: 'Daily report' },
-  { route: 'punch-list', slug: 'punchList', en: 'Punch list' },
-  { route: 'time-tracking', slug: 'timeTracking', en: 'Time tracking' },
+  { route: 'daily-report', slug: 'dailyReport', en: 'Daily Report' },
+  { route: 'punch-list', slug: 'punchList', en: 'Punch List' },
+  { route: 'time-tracking', slug: 'timeTracking', en: 'Time Tracking' },
   { route: 'crew', slug: 'crew', en: 'Crew' },
   { route: 'safety', slug: 'safety', en: 'Safety' },
   { route: 'safety-jha', slug: 'safetyJha', en: 'JHAs' },
-  { route: 'safety-toolbox', slug: 'safetyToolbox', en: 'Toolbox talks' },
+  { route: 'safety-toolbox', slug: 'safetyToolbox', en: 'Toolbox Talks' },
   { route: 'safety-incidents', slug: 'safetyIncidents', en: 'Incidents' },
-  { route: 'safety-hazards', slug: 'safetyHazards', en: 'Hazard log' },
+  { route: 'safety-hazards', slug: 'safetyHazards', en: 'Hazard Log' },
   { route: 'safety-inspections', slug: 'safetyInspections', en: 'Inspections' },
   { route: 'safety-certifications', slug: 'safetyCertifications', en: 'Certifications' },
-  { route: 'safety-forms', slug: 'safetyForms', en: 'Forms library' },
-  { route: 'safety-osha', slug: 'safetyOsha', en: 'OSHA 300 log' },
-  { route: 'photo-triage', slug: 'photoTriage', en: 'Photo triage' },
-  { route: 'material-receipt', slug: 'materialReceipt', en: 'Material receipt' },
+  { route: 'safety-forms', slug: 'safetyForms', en: 'Forms Library' },
+  { route: 'safety-osha', slug: 'safetyOsha', en: 'OSHA 300 Log' },
+  { route: 'photo-triage', slug: 'photoTriage', en: 'Photo Triage' },
+  { route: 'material-receipt', slug: 'materialReceipt', en: 'Material Receipt' },
   { route: 'deliveries', slug: 'deliveries', en: 'Deliveries' },
-  { route: 'tomorrow-lineup', slug: 'tomorrowLineup', en: "Tomorrow's lineup" },
+  { route: 'tomorrow-lineup', slug: 'tomorrowLineup', en: "Tomorrow's Lineup" },
 ];
 
 /** Every Stack.Screen title in app/_layout.tsx BEFORE the W3 edit (base
  *  616842c8), route → English. The Phase 1 rows above must now read
  *  fieldTitle.<slug>; every other row must still be this literal. */
 const TITLES_BEFORE: Record<string, string> = {
-  'leads': 'Pipeline', 'lead-detail': 'Lead', 'buyout': 'Buyout', 'buyout-package': 'Bid package',
-  'bid-leveling': 'Bid leveling', 'win-optimizer': 'Win optimizer', 'smart-proposal': 'Smart proposal',
-  'material-receipt': 'Material receipt', 'last-planner': 'Last Planner', 'plan-intelligence': 'Plan intelligence',
-  'photo-triage': 'Photo triage', 'tax-1099-export': '1099-NEC export', 'insurance-audit': 'Insurance audit pack',
-  'tomorrow-lineup': "Tomorrow's lineup", 'warranty-walk': '11-month walk', 'project-detail': 'Project details',
-  'invoice': 'Invoice', 'bill-from-estimate': 'Bill from estimate', 'daily-report': 'Daily report',
-  'punch-list': 'Punch list', 'safety': 'Safety', 'safety-jha': 'JHAs', 'safety-toolbox': 'Toolbox talks',
-  'safety-incidents': 'Incidents', 'safety-hazards': 'Hazard log', 'safety-inspections': 'Inspections',
-  'safety-certifications': 'Certifications', 'safety-forms': 'Forms library', 'safety-osha': 'OSHA 300 log',
-  'warranties': 'Warranties', 'retention': 'Retainage', 'payment-predictions': 'Payment forecast',
-  'contacts': 'Contacts', 'crew': 'Crew', 'rfi': 'RFI', 'submittal': 'Submittal', 'oac-meeting': 'OAC meetings',
-  'coi-vault': 'COI vault', 'budget-dashboard': 'Budget dashboard', 'wip-report': 'WIP report',
-  'construction-news': 'Construction news', 'sub-scorecard': 'Sub scorecard', 'estimate-scorecard': 'Estimate scorecard',
-  'deliveries': 'Deliveries', 'building-access': 'Building access', 'estimate-calibration': 'Estimate calibration',
-  'sub-portal-setup': 'Sub portal', 'public-profile-setup': 'Public profile', 'notifications-settings': 'Notifications',
-  'tutorials': 'Tutorials', 'equipment-detail': 'Equipment', 'bid-detail': 'Bid details', 'post-bid': 'Post a bid',
-  'company-detail': 'Company', 'company-profile': 'Company profile', 'job-detail': 'Job details',
-  'worker-detail': 'Crew member profile', 'post-job': 'Post a job', 'messages': 'Messages', 'cash-flow': 'Cash flow',
-  'integrations': 'Integrations', 'time-tracking': 'Time tracking', 'documents': 'Documents', 'permits': 'Permits',
-  'weekly-snapshot': 'This week', 'payments-setup': 'Payments', 'qbo-setup': 'QuickBooks', 'qbo-review': 'QuickBooks costs',
-  'integrations/qbo/callback': 'QuickBooks connection', 'dev-seeder': 'Demo seeder', 'dev-flagship-seeder': 'Flagship seeder',
-  'dev-ar-measure': 'AR measure (dev)', 'report-inbox': 'Report inbox', 'profit-leak-history': 'Profit leak history',
-  'payments': 'Payments', 'aia-pay-app': 'Pay app', 'data-export': 'Export my data', 'scope-sheet': 'Scope sheet',
-  'connect-claude': 'Connect Claude', 'data-import': 'Import data', 'client-update': 'Weekly client update',
-  'client-messages': 'Messages', 'estimate-wizard': 'Quick estimate', 'client-view': 'Client portal',
+  'leads': 'Pipeline', 'lead-detail': 'Lead', 'buyout': 'Buyout', 'buyout-package': 'Bid Package',
+  'bid-leveling': 'Bid Leveling', 'win-optimizer': 'Win Optimizer', 'smart-proposal': 'Smart Proposal',
+  'material-receipt': 'Material Receipt', 'last-planner': 'Last Planner', 'plan-intelligence': 'Plan Intelligence',
+  'photo-triage': 'Photo Triage', 'tax-1099-export': '1099-NEC Export', 'insurance-audit': 'Insurance Audit Pack',
+  'tomorrow-lineup': "Tomorrow's Lineup", 'warranty-walk': '11-month walk', 'project-detail': 'Project Details',
+  'invoice': 'Invoice', 'bill-from-estimate': 'Bill from Estimate', 'daily-report': 'Daily Report',
+  'punch-list': 'Punch List', 'safety': 'Safety', 'safety-jha': 'JHAs', 'safety-toolbox': 'Toolbox Talks',
+  'safety-incidents': 'Incidents', 'safety-hazards': 'Hazard Log', 'safety-inspections': 'Inspections',
+  'safety-certifications': 'Certifications', 'safety-forms': 'Forms Library', 'safety-osha': 'OSHA 300 Log',
+  'warranties': 'Warranties', 'retention': 'Retainage', 'payment-predictions': 'Payment Forecast',
+  'contacts': 'Contacts', 'crew': 'Crew', 'rfi': 'RFI', 'submittal': 'Submittal', 'oac-meeting': 'OAC Meetings',
+  'coi-vault': 'COI Vault', 'budget-dashboard': 'Budget Dashboard', 'wip-report': 'WIP Report',
+  'construction-news': 'Construction News', 'sub-scorecard': 'Sub Scorecard', 'estimate-scorecard': 'Estimate Scorecard',
+  'deliveries': 'Deliveries', 'building-access': 'Building Access', 'estimate-calibration': 'Estimate Calibration',
+  'sub-portal-setup': 'Sub Portal', 'public-profile-setup': 'Public Profile', 'notifications-settings': 'Notifications',
+  'tutorials': 'Tutorials', 'equipment-detail': 'Equipment', 'bid-detail': 'Bid Details', 'post-bid': 'Post a Bid',
+  'company-detail': 'Company', 'company-profile': 'Company Profile', 'job-detail': 'Job Details',
+  'worker-detail': 'Crew Member Profile', 'post-job': 'Post a Job', 'messages': 'Messages', 'cash-flow': 'Cash Flow',
+  'integrations': 'Integrations', 'time-tracking': 'Time Tracking', 'documents': 'Documents', 'permits': 'Permits',
+  'weekly-snapshot': 'This Week', 'payments-setup': 'Payments', 'qbo-setup': 'QuickBooks', 'qbo-review': 'QuickBooks Costs',
+  'integrations/qbo/callback': 'QuickBooks Connection', 'dev-seeder': 'Demo Seeder', 'dev-flagship-seeder': 'Flagship Seeder',
+  'dev-ar-measure': 'AR Measure (Dev)', 'report-inbox': 'Report Inbox', 'profit-leak-history': 'Profit Leak History',
+  'payments': 'Payments', 'aia-pay-app': 'Pay App', 'data-export': 'Export My Data', 'scope-sheet': 'Scope Sheet',
+  'connect-claude': 'Connect Claude', 'data-import': 'Import Data', 'client-update': 'Weekly Client Update',
+  'client-messages': 'Messages', 'estimate-wizard': 'Quick Estimate', 'client-view': 'Client Portal',
   // LEARN wave (LEARNQUIZ): the skills check.
-  'skills-check': 'Skills check',
+  'skills-check': 'Skills Check',
   'skills-certificates': 'Certificates',
   // Permit Path wave (PPUI): the job's permit route; headerShown false, the title names the web tab.
   'permit-path': 'Permit Path',
+  'scan-room': 'Scan the Room',
+  // Lane PROOFPACK: dark behind PROOF_PACK_ENABLED; headerShown false, the title names the web tab.
+  'proof-pack': 'Pay Period Record',
+  'living-model': 'Living Model',
 };
 
 /** S3 — the tab bar. Keys are the seed's (exact); English = what the UI shows. */
@@ -316,11 +320,11 @@ const red = (name: string, probs: string[]) => ok(`RED on planted: ${name}`, pro
 red('a Phase 1 title back to a raw literal',
   checkFieldTitles(LAYOUT.replace('title: fieldTitle.punchList,', 'title: "Punch list",')));
 red('a Phase 1 key with the wrong English',
-  checkFieldTitles(LAYOUT.replace("t('nav.title.safetyToolbox', 'Toolbox talks')", "t('nav.title.safetyToolbox', 'Toolbox Talks')")));
+  checkFieldTitles(LAYOUT.replace("t('nav.title.safetyToolbox', 'Toolbox Talks')", "t('nav.title.safetyToolbox', 'Toolbox talks')")));
 red('an office title changed in passing',
-  checkOtherTitlesUnchanged(LAYOUT.replace("title: 'Building access'", "title: t('nav.title.buildingAccess', 'Building access')")));
+  checkOtherTitlesUnchanged(LAYOUT.replace("title: 'Building Access'", "title: t('nav.title.buildingAccess', 'Building Access')")));
 red('an office title reworded',
-  checkOtherTitlesUnchanged(LAYOUT.replace('title: "Cash flow"', 'title: "Cash Flow"')));
+  checkOtherTitlesUnchanged(LAYOUT.replace('title: "Cash Flow"', 'title: "Cash flow"')));
 red('a Stack.Screen dropped', checkOtherTitlesUnchanged(LAYOUT.replace(/<Stack\.Screen name="leads"[\s\S]*?\/>/, '')));
 red('ConfettiHost mounted again', checkConfettiGone(LAYOUT.replace('<NailItToastHost />', '<NailItToastHost />\n<ConfettiHost />'), false));
 red('Confetti.tsx back on disk', checkConfettiGone(LAYOUT, true));

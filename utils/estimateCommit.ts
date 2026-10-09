@@ -174,7 +174,7 @@ export function diffEstimates(a: LinkedEstimate, b: LinkedEstimate): EstimateDif
   // Half-cent floor: the recompute paths round to cents, so anything smaller is
   // float noise that would render as a meaningless "+$0" row.
   if (Math.abs(markupDelta) > 0.005) {
-    categories.push({ key: '__markup__', label: 'Markup & overhead', delta: markupDelta });
+    categories.push({ key: '__markup__', label: 'Markup and Overhead', delta: markupDelta });
   }
   return { categories, netDelta };
 }

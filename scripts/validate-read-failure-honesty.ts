@@ -7,7 +7,7 @@
 // Every defect in that class had the same two shapes. Either a queryFn caught
 // the error and returned `[]`, so the screen's empty state made an absolute
 // claim about data it never received ("You haven't posted anything yet" to a
-// homeowner with three live RFPs; "No companies match yet" during a backend
+// homeowner with three live RFPs; "No Companies Match Yet" during a backend
 // hiccup; the day-one onboarding empty state to a GC whose whole book of work
 // had simply failed to load). Or a success path ran unconditionally, outside
 // the try that was supposed to gate it (EstimateComparison alerting "Saved"
@@ -76,7 +76,7 @@ console.log('\nread-failure honesty');
     /useCoreData\(\)/.test(summary) && /sourceFailed/.test(summary));
   ok('summary: "No projects yet" is unreachable while the source is failing',
     /projects\.length === 0 && sourceFailed/.test(summary)
-    && summary.indexOf('projects.length === 0 && sourceFailed') < summary.indexOf('title="No projects yet"'));
+    && summary.indexOf('projects.length === 0 && sourceFailed') < summary.indexOf('title="No Projects Yet"'));
   ok('summary: the failed-read state says what happened and offers the retry, not onboarding copy',
     /Couldn't reach MAGE/.test(summary) && /onAction=\{retryRemoteReads\}/.test(summary));
   ok('summary: a partial failure (cached projects, failing reads) is disclosed above the briefing',
@@ -117,11 +117,11 @@ console.log('\nread-failure honesty');
   ok('mage-id-bids: "You haven\'t posted anything yet" requires the read to have succeeded',
     /!mineQ\.error && \(mineQ\.data \?\? \[\]\)\.length === 0/.test(mine));
   ok('mage-id-bids: the failure branch says nothing was deleted and offers a retry',
-    /Couldn't load your posts/.test(mine) && /testID="mageid-bids-retry"/.test(mine));
+    /Couldn't Load Your Posts/.test(mine) && /testID="mageid-bids-retry"/.test(mine));
 
   for (const [rel, label, empty] of [
-    ['app/(tabs)/discover/companies.tsx', 'companies', 'No companies match yet'],
-    ['app/(tabs)/discover/hire.tsx', 'hire', 'No job posts to show'],
+    ['app/(tabs)/discover/companies.tsx', 'companies', 'No Companies Match Yet'],
+    ['app/(tabs)/discover/hire.tsx', 'hire', 'No Job Posts to Show'],
   ] as const) {
     const file = src(rel);
     ok(`discover/${label}: the query error is kept, not underscore-prefixed away`,
@@ -172,7 +172,7 @@ console.log('\nread-failure honesty');
   ok('documents: the empty state names the create homes this read-only aggregator collects from',
     /COI Vault/.test(docs) && /Permits/.test(docs) && /actionLabel=/.test(docs));
   ok('documents: an empty FILTER is told apart from an empty account',
-    /documents\.length === 0 \? 'Nothing filed yet' : 'Nothing under this filter'/.test(docs));
+    /documents\.length === 0 \? 'Nothing Filed Yet' : 'Nothing Under This Filter'/.test(docs));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

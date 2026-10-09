@@ -471,7 +471,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE a  phon
             ]
           }
         >
-          Bid confidence 
+          Bid Confidence 
         </Text>
         <Text
           style={
@@ -1150,7 +1150,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE b  phon
             ]
           }
         >
-          Invite a team member
+          Invite a Team Member
         </Text>
         <View
           style={
@@ -1758,7 +1758,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE b  phon
               }
             }
           >
-            Send invite
+            Send Invite
           </Text>
         </View>
       </View>
@@ -3346,7 +3346,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE c  desk
       }
     >
       <View
-        accessibilityLabel="Back to your projects"
+        accessibilityLabel="Back to Your Projects"
         accessibilityRole="link"
         accessibilityState={
           {
@@ -4407,7 +4407,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE c  desk
         </Text>
       </View>
       <View
-        accessibilityLabel="More actions"
+        accessibilityLabel="More Actions"
         accessibilityRole="button"
         accessibilityState={
           {
@@ -4592,7 +4592,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE c  desk
     }
   >
     <View
-      accessibilityLabel="Project stage"
+      accessibilityLabel="Project Stage"
       accessibilityRole="tablist"
       style={
         [
@@ -5158,7 +5158,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE c  desk
           ]
         }
       >
-        Bid confidence 
+        Bid Confidence 
       </Text>
       <Text
         style={
@@ -5939,7 +5939,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE d  desk
             ]
           }
         >
-          Invite a team member
+          Invite a Team Member
         </Text>
         <View
           style={
@@ -6547,7 +6547,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE d  desk
               }
             }
           >
-            Send invite
+            Send Invite
           </Text>
         </View>
       </View>
@@ -8119,7 +8119,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
   }
 >
   <View
-    accessibilityLabel="Privacy policy"
+    accessibilityLabel="Privacy Policy"
     accessibilityRole="link"
     accessibilityState={
       {
@@ -8283,7 +8283,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
         }
       }
     >
-      Privacy policy
+      Privacy Policy
     </Text>
     <RNSVGSvgView
       align="xMidYMid"
@@ -8373,7 +8373,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
     }
   />
   <View
-    accessibilityLabel="Terms of service"
+    accessibilityLabel="Terms of Service"
     accessibilityRole="link"
     accessibilityState={
       {
@@ -8603,7 +8603,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
         }
       }
     >
-      Terms of service
+      Terms of Service
     </Text>
     <RNSVGSvgView
       align="xMidYMid"
@@ -8693,7 +8693,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
     }
   />
   <View
-    accessibilityLabel="Do not sell or share my personal information"
+    accessibilityLabel="Do Not Sell or Share My Personal Information"
     accessibilityRole="link"
     accessibilityState={
       {
@@ -8857,7 +8857,7 @@ exports[`GOLDEN, flag off: what the screens rendered before lane WHOWIRE e  phon
         }
       }
     >
-      Do not sell my info (CA)
+      Do Not Sell My Info (CA)
     </Text>
     <RNSVGSvgView
       align="xMidYMid"
@@ -8953,7 +8953,7 @@ exports[`flag ON, desktop web 1512 x 945: an owner with three people on the proj
   }
 >
   <View
-    accessibilityLabel="Back to your projects"
+    accessibilityLabel="Back to Your Projects"
     accessibilityRole="link"
     accessibilityState={
       {

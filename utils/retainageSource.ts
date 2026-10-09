@@ -169,7 +169,7 @@ export function resolveRetainagePercent(input: RetainageSourceInput): ResolvedRe
     return {
       percent: input.project!.retainagePercent as number,
       source: 'contract',
-      label: assumed ? 'carried from earlier billing — check your contract' : 'from your contract',
+      label: assumed ? 'carried from earlier billing (check your contract)' : 'from your contract',
       needsAsk: false,
     };
   }
@@ -186,7 +186,7 @@ export function resolveRetainagePercent(input: RetainageSourceInput): ResolvedRe
 
   // 5 — nothing on file. The math gets 0 because it must get a number; the
   // screen gets a label that does NOT dress that 0 up as a decision.
-  return { percent: 0, source: 'unknown', label: 'not on file — retainage not held', needsAsk: true };
+  return { percent: 0, source: 'unknown', label: 'not on file (retainage not held)', needsAsk: true };
 }
 
 /**

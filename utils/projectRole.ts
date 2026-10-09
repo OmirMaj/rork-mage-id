@@ -236,14 +236,14 @@ export function leaveDialogCopy(name: string, pending: number, unsaved = 0, maxB
     const head = `${pending} change${pending === 1 ? '' : 's'} on this project ${pending === 1 ? "hasn't" : "haven't"} reached the cloud yet.`;
     const refused = notSaved === 0 ? ''
       : notSaved === pending
-        ? ` ${pending === 1 ? 'It is' : 'They are'} under Not saved — MAGE refused ${pending === 1 ? 'it' : 'them'}, so syncing won't send ${pending === 1 ? 'it' : 'them'}. Open Not saved to Retry or Discard.`
-        : ` ${notSaved} of them ${notSaved === 1 ? 'is' : 'are'} under Not saved — MAGE refused ${notSaved === 1 ? 'it' : 'them'}, so syncing won't send ${notSaved === 1 ? 'it' : 'them'}. Open Not saved to Retry or Discard.`;
+        ? ` ${pending === 1 ? 'It is' : 'They are'} under Not saved. MAGE refused ${pending === 1 ? 'it' : 'them'}, so syncing won't send ${pending === 1 ? 'it' : 'them'}. Open Not saved to Retry or Discard.`
+        : ` ${notSaved} of them ${notSaved === 1 ? 'is' : 'are'} under Not saved. MAGE refused ${notSaved === 1 ? 'it' : 'them'}, so syncing won't send ${notSaved === 1 ? 'it' : 'them'}. Open Not saved to Retry or Discard.`;
     return {
       title: `Leave ${job}?`,
       message: `${head}${refused} Leaving now discards ${pending === 1 ? 'it' : 'them'}. ${base}`,
       offerSyncFirst: queued > 0 && (notSaved === 0 || maxButtons >= 4),
       offerOpenNotSaved: notSaved > 0,
-      leaveLabel: 'Leave anyway',
+      leaveLabel: 'Leave Anyway',
     };
   }
   return { title: `Leave ${job}?`, message: base, offerSyncFirst: false, offerOpenNotSaved: false, leaveLabel: 'Leave' };

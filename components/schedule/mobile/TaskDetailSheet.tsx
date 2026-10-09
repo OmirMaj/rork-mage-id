@@ -85,7 +85,7 @@ function ReadOnlyChecklist({ items }: { items: { id: string; label: string; done
   return (
     <View style={[styles.card, { marginTop: 12 }]} testID="task-checklist-readonly">
       <View style={styles.pctHeaderRow}>
-        <Text style={styles.gLbl}>Task checklist</Text>
+        <Text style={styles.gLbl}>Task Checklist</Text>
         <Text style={styles.gVal}>{doneCount}/{items.length}</Text>
       </View>
       {items.length === 0 ? <Text style={styles.gLbl}>No checklist items.</Text> : null}
@@ -344,7 +344,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
 
                 <TouchableOpacity style={[styles.deleteBtn, locks.plan ? styles.lockedControl : null]} activeOpacity={0.8} onPress={handleDelete} disabled={locks.plan} accessibilityState={{ disabled: locks.plan }} testID="task-delete">
                   <Trash2 size={16} color={colors.danger} strokeWidth={1.75} />
-                  <Text style={styles.deleteText}>Delete task</Text>
+                  <Text style={styles.deleteText}>Delete Task</Text>
                 </TouchableOpacity>
                 {/* A "4D model — coming soon" card used to live here. It was
                     advertising a delivered capability as future work: the
@@ -365,7 +365,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
             )}
             {tab === 'resources' && (
               <View style={styles.card}>
-                <Text style={styles.gLbl}>Crew or sub</Text>
+                <Text style={styles.gLbl}>Crew or Sub</Text>
                 <TextInput
                   value={crew}
                   onChangeText={setCrew}
@@ -377,12 +377,12 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                   style={styles.input}
                   testID="task-crew-input"
                 />
-                {!!task.crewSize && (<><Text style={[styles.gLbl, { marginTop: 12 }]}>Crew size</Text><Text style={styles.gVal}>{task.crewSize}</Text></>)}
+                {!!task.crewSize && (<><Text style={[styles.gLbl, { marginTop: 12 }]}>Crew Size</Text><Text style={styles.gVal}>{task.crewSize}</Text></>)}
               </View>
             )}
             {tab === 'docs' && (
               <View style={styles.card}>
-                <Text style={styles.gLbl}>Linked estimate items</Text>
+                <Text style={styles.gLbl}>Linked Estimate Items</Text>
                 <Text style={styles.gVal}>{task.linkedEstimateItems?.length ? `${task.linkedEstimateItems.length} linked` : 'None linked'}</Text>
               </View>
             )}

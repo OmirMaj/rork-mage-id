@@ -62,7 +62,7 @@ export default function ContactPickerModal({
   onClose,
   onSelect,
   contacts,
-  title = 'Select recipient',
+  title = 'Select Recipient',
   filterRoles,
 }: ContactPickerModalProps) {
   const { colors: themeColors } = useTheme();
@@ -177,7 +177,7 @@ export default function ContactPickerModal({
               <View style={styles.emptyState}>
                 <User size={32} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.emptyTitle}>
-                  {query ? 'No contacts found' : 'No contacts yet'}
+                  {query ? 'No Contacts Found' : 'No Contacts Yet'}
                 </Text>
                 <Text style={styles.emptyDesc}>
                   {query ? 'Try a different search term.' : 'Add contacts from the Contacts screen.'}

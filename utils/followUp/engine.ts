@@ -197,7 +197,7 @@ export function runFollowUpRules(rules: readonly FollowUpRule[], ctx: FollowUpCo
       refusals.push({
         ruleId: rule.id,
         guard: 'G3_collection_not_loaded',
-        detail: `did not run — ${missing.join(', ')} not loaded (undefined, not empty)`,
+        detail: `did not run: ${missing.join(', ')} not loaded (undefined, not empty)`,
         missing,
       });
       continue;
@@ -216,7 +216,7 @@ export function runFollowUpRules(rules: readonly FollowUpRule[], ctx: FollowUpCo
         refusals.push({
           ruleId: rule.id,
           guard: 'G1_join_needs_two_records',
-          detail: `dropped "${m.title}" — a join rule produced ${m.evidence.length} evidence row(s)`,
+          detail: `dropped "${m.title}": a join rule produced ${m.evidence.length} evidence row(s)`,
         });
         continue;
       }

@@ -21,9 +21,9 @@ export function coGaps(draft: CODraft, _grounding: Grounding): Gap[] {
   if (draft.changeAmount == null) {
     gaps.push({
       field: 'changeAmount', impact: 0.75, kind: 'number',
-      question: 'What’s the change worth — the added cost?',
+      question: 'What’s the change worth (the added cost)?',
       groundedDefault: { value: 0, basis: 'no amount stated yet' },
-      placeholder: 'e.g. 4200',
+      placeholder: '4200',
     });
   }
 

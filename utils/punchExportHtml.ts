@@ -357,7 +357,7 @@ export const PUNCH_EXPORT_PRINT_PLACEHOLDER_HTML = `<!DOCTYPE html>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https:; object-src data: https:; script-src 'none'; frame-src 'none'; child-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Preparing punch list…</title>
 <style>html,body{height:100%;margin:0}body{display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#0B0D10;background:#FFFFFF;text-align:center;padding:24px;font-size:15px}</style>
-</head><body><div><p id="${PUNCH_EXPORT_STATUS_ELEMENT_ID}">Preparing your punch list…</p><p style="font-size:13px;color:#555B63">On a phone, if this stops moving, switch back to the MAGE ID tab for a moment — phone browsers pause a tab that is in the background.</p></div></body></html>`;
+</head><body><div><p id="${PUNCH_EXPORT_STATUS_ELEMENT_ID}">Preparing your punch list…</p><p style="font-size:13px;color:#555B63">On a phone, if this stops moving, switch back to the MAGE ID tab for a moment. Phone browsers pause a tab that is in the background.</p></div></body></html>`;
 
 // ───────────────────────────────────────────────────────────────────────────
 // Pieces
@@ -373,7 +373,7 @@ function statusTone(status: string): 'error' | 'warning' | 'brand' | 'success' |
 
 function planText(row: PunchExportRow): string {
   const p = row.plan;
-  if (p.state === 'pinned') return `${p.sheetLabel} — pin ${row.number}`;
+  if (p.state === 'pinned') return `${p.sheetLabel} · pin ${row.number}`;
   if (p.state === 'no-position') return `${p.sheetLabel} (pin position missing)`;
   if (p.state === 'sheet-missing') return "pinned on a sheet that's no longer in this project";
   return PUNCH_EXPORT_NOT_PINNED;
@@ -500,7 +500,7 @@ function cropHtml(row: PunchExportRow, c: PunchExportPlanCropSource): string {
     ? `<div class="${cpinCls}" style="left:${pct(clamp01(pinX))};top:0;margin-top:${pct(clamp01(pinY))}"><div class="pe-cpin-head">${row.number}</div><div class="pe-cpin-tail"></div></div>`
     : '';
   const label = row.plan.state === 'pinned' ? row.plan.sheetLabel : '';
-  return `<div class="pe-crop">${img}${pin}</div><div class="pe-crop-cap">${escHtml(`${label} — pin ${row.number}`)}</div>`;
+  return `<div class="pe-crop">${img}${pin}</div><div class="pe-crop-cap">${escHtml(`${label} · pin ${row.number}`)}</div>`;
 }
 
 /** Where a close-up marker may hang without being clipped by its box. */
@@ -659,9 +659,9 @@ function planPageHtml(
   const land = layout.mode === 'natural' && layout.landscapePage;
   const rotated = layout.mode === 'rotated';
   const caption = sheetCaption(page);
-  const missingText = 'Plan sheet image not available — the items below are pinned on this sheet.';
+  const missingText = 'Plan sheet image not available. The items below are pinned on this sheet.';
   const subBits = [`${page.pinnedCount} item${page.pinnedCount === 1 ? '' : 's'} on ${page.markers.length} marker${page.markers.length === 1 ? '' : 's'}`];
-  if (rotated) subBits.push('sheet turned to fit the page — top of the sheet is on the right');
+  if (rotated) subBits.push('sheet turned to fit the page, top of the sheet is on the right');
   const src = asset?.kind === 'image' ? safeObjectSrc(asset.src, allowedOrigins) : null;
   let image: string;
   if (asset?.kind === 'image' && src) {
@@ -716,7 +716,7 @@ function planPageHtml(
     return `<div class="pe-legend-chunk">${pdfTable(legendCols, rows).replace('<thead>', `<thead>${cap}`)}</div>`;
   }).join('');
   const cls = `pe-plan${land ? ' pe-plan-land' : ''}${rotated ? ' pe-plan-rot-page' : ''}${target === 'web' && !land ? ' pe-plan-web' : ''}`;
-  return `<section class="${cls}"><div class="pe-plan-fig">${pdfSectionHeader(`Plan — ${caption}`)}<div class="pe-plan-sub">${escHtml(subBits.join(' · '))}</div>${image}</div><div class="pe-legend">${legend}</div></section>`;
+  return `<section class="${cls}"><div class="pe-plan-fig">${pdfSectionHeader(`Plan: ${caption}`)}<div class="pe-plan-sub">${escHtml(subBits.join(' · '))}</div>${image}</div><div class="pe-legend">${legend}</div></section>`;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -753,9 +753,9 @@ export function buildPunchExportHtml(
     { label: 'Generated', value: model.generatedAtLabel },
     { label: 'Scope', value: model.scopeLabel },
   ];
-  if (safeBranding.contactName) meta.push({ label: 'Prepared by', value: safeBranding.contactName });
+  if (safeBranding.contactName) meta.push({ label: 'Prepared By', value: safeBranding.contactName });
   body.push(pdfTitle({
-    eyebrow: model.internal ? 'Punch list · Internal' : 'Punch list',
+    eyebrow: model.internal ? 'Punch List · Internal' : 'Punch List',
     title: model.projectName,
     subtitle: model.projectAddress || undefined,
     meta,
@@ -770,12 +770,12 @@ export function buildPunchExportHtml(
     // The crew label already reads "Crew list (internal)", so the suffix is
     // added only when the label does not say it — the summary printed
     // "CREW LIST (INTERNAL) — INTERNAL".
-    body.push(`<div class="pe-sec-label">${escHtml(s.label)}${s.internal && !/internal/i.test(s.label) ? ' — internal' : ''}</div>`);
+    body.push(`<div class="pe-sec-label">${escHtml(s.label)}${s.internal && !/internal/i.test(s.label) ? ' (internal)' : ''}</div>`);
     body.push(`<div class="pe-lead">${sm.notDone} still open (${sm.ready} ready for inspection) · ${sm.overdue} overdue · ${closed} closed</div>`);
     body.push(pdfStatGrid([
       { label: 'Open', value: String(sm.byStatus.open), accent: sm.byStatus.open > 0 ? 'error' : undefined },
-      { label: 'In progress', value: String(sm.byStatus.in_progress) },
-      { label: 'Ready for review', value: String(sm.byStatus.ready_for_review) },
+      { label: 'In Progress', value: String(sm.byStatus.in_progress) },
+      { label: 'Ready for Review', value: String(sm.byStatus.ready_for_review) },
       { label: 'Closed', value: String(closed), accent: 'success' },
       { label: 'Total', value: String(sm.total) },
     ]));
@@ -816,7 +816,7 @@ export function buildPunchExportHtml(
     const n = s.summary.total;
     const parts: string[] = [];
     parts.push(`<section class="pe-list pe-list-${s.list}${crewBreak ? ' pe-crew-break' : ''}">`);
-    parts.push(pdfSectionHeader(`${s.label} — ${n} item${n === 1 ? '' : 's'}`));
+    parts.push(pdfSectionHeader(`${s.label} · ${n} item${n === 1 ? '' : 's'}`));
     if (s.list === 'crew') parts.push(`<div class="pe-internal">${escHtml(PUNCH_EXPORT_CREW_INTERNAL)}</div>`);
     if (cardsMode) {
       for (const g of s.groups) {
@@ -852,7 +852,7 @@ export function buildPunchExportHtml(
 
   body.push(pdfFooter(
     safeBranding,
-    escHtml(`${model.internal ? 'INTERNAL — includes crew list · ' : ''}Punch list · ${model.projectName} · Generated ${model.generatedAtLabel}`),
+    escHtml(`${model.internal ? 'INTERNAL: includes crew list · ' : ''}Punch list · ${model.projectName} · Generated ${model.generatedAtLabel}`),
     PUNCH_EXPORT_DISCLAIMER,
   ));
 

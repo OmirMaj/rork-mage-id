@@ -276,7 +276,7 @@ console.log('\nsubmittal screen wiring');
   ok('#55 a title edit sends only what changed', /changedFields\(submittalFormValuesOf\(base\), formValues\)/.test(SUB) && !/updateSubmittal\(existingSubmittal\.id, \{\s*title: title\.trim\(\),\s*specSection/.test(SUB));
   ok('#147 the manual cycle takes the days he entered, never now()', /sentDate: newCycleSent,/.test(SUB) && !/sentDate: new Date\(\)\.toISOString\(\),\s*reviewer: newReviewer/.test(SUB));
   ok('#147 the manual cycle is validated (Returned required for a stamp)', /manualCycleProblem\(\{/.test(SUB));
-  ok('#147 an unknown Sent day says "Not recorded"', /cycleDayLabel\(cycle\.sentDate\) \?\? 'Not recorded'/.test(SUB));
+  ok('#147 an unknown Sent day says "Not recorded"', /cycleDayLabel\(cycle\.sentDate\) \?\? 'Not Recorded'/.test(SUB));
   ok('#147 "pending" is not a review outcome in the cycle form', /CYCLE_STATUSES(\.filter\([^)]*\))?\.map/.test(SUB) && !/'pending', 'in_review', 'approved'/.test(SUB.slice(SUB.indexOf('const CYCLE_STATUSES'), SUB.indexOf('const CYCLE_STATUSES') + 120)));
   ok('#148 email / PDF / portal wait for the server number', /subject: `Submittal #\$\{subNumber\}/.test(SUB) && /number: numberInfo\.number/.test(SUB) && /sendBlockReason\(\{ isDirty, numberHold \}\)/.test(SUB));
   const subSend = SUB.slice(SUB.indexOf('const handleSendEmail'), SUB.indexOf('const scheduleTasks'));
@@ -300,7 +300,7 @@ console.log('\nsubmittal screen wiring');
 
 console.log('\nSendToClientButton (#36 label, #58 no save-in-send)');
 {
-  ok('the label names the client portal for every caller', /'Send to client portal'/.test(BTN) && /'Resend to client portal'/.test(BTN));
+  ok('the label names the client portal for every caller', /'Send to Client Portal'/.test(BTN) && /'Resend to Client Portal'/.test(BTN));
   ok('no bare "Send to Client" / "Re-send updated" left', !/'Send to Client'/.test(BTN) && !/'Re-send updated'/.test(BTN) && !/'Re-send to Client'/.test(BTN));
   const doSend = BTN.slice(BTN.indexOf('const doSend'), BTN.indexOf('const doRecall'));
   ok('no pre-send save hook (it would snapshot the pre-save record)', !/onBeforeSend/.test(BTN) && /await sendToClientPortal\(\{ kind, itemId, projectId \}\)/.test(doSend));

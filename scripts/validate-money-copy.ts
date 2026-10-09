@@ -20,6 +20,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isTitleCase } from './copy-title-case';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
@@ -83,6 +84,8 @@ function sentenceCase(label: string): boolean {
   return !/\b[A-Z][a-z]/.test(rest);
 }
 
+const CONVERTED_FILES = new Set<string>(JSON.parse(readFileSync(join(ROOT, 'scripts', 'copy-style-converted.json'), 'utf8')).paths);
+
 const COVERAGE: [string, string, string][] = [
   // [file, map constant, union in types/index.ts]
   ['utils/pdfGenerator.ts', 'CO_STATUS_PDF_LABEL', 'ChangeOrderStatus'],
@@ -103,8 +106,12 @@ for (const [rel, name, union] of COVERAGE) {
   ok(`${union} has values to label (types/index.ts)`, values.length > 0, union);
   const missing = values.filter((v) => !(v in map));
   ok(`${rel} ${name} labels every ${union} value`, missing.length === 0, missing);
-  const bad = Object.values(map).filter((l) => !sentenceCase(l));
-  ok(`${rel} ${name} labels are sentence case`, bad.length === 0, bad);
+  // docs/VOICE.md section 3 (2026-10-05): a file on the converted list
+  // (scripts/copy-style-converted.json) prints its labels in Title Case; a file
+  // not yet converted keeps sentence case until its lane lands.
+  const converted = CONVERTED_FILES.has(rel);
+  const bad = Object.values(map).filter((l) => !(converted ? isTitleCase(l) : sentenceCase(l)));
+  ok(`${rel} ${name} labels are ${converted ? 'Title Case' : 'sentence case'}`, bad.length === 0, bad);
 }
 // The wiring, not only the maps: each document actually reads its map.
 const pdf = code('utils/pdfGenerator.ts');
@@ -142,13 +149,13 @@ for (const rel of PLURAL_SURFACES) {
 
 // ── 3. The removed tells stay removed ───────────────────────────────────────
 const GONE: [string, RegExp, string][] = [
-  ['utils/subCompliance.ts', /Expiring Soon|typed on his record|before he starts|his insurance/, 'sentence case and no gendered sub'],
+  ['utils/subCompliance.ts', /Expiring soon|typed on his record|before he starts|his insurance/, 'Title Case status label (converted file) and no gendered sub'],
   ['app/(tabs)/subs/index.tsx', /couldn't check his portal|keep him so/, 'no gendered sub in the delete alert'],
   ['app/buyout-package.tsx', /tell him to phone|what he is pricing|to his record|AI PICK/, 'no gendered sub, no hard-coded caps badge'],
   ['app/wip-report.tsx', /AS THEY STAND TODAY|will not invent|LOSS JOB/, 'the save alert reads VOICE #18, the loss tag is words'],
   ['components/PDFPreSendSheet.tsx', /Generate & Share|Send via Email|FILE NAME|INCLUDE IN PDF/, 'buttons name the action; labels uppercase by style'],
-  ['app/payment-predictions.tsx', /err\?\.message|On Track|At Risk'/, 'no raw error text; sentence-case risk labels'],
-  ['app/reports.tsx', />no cost basis</, 'VOICE #17: "No cost basis"'],
+  ['app/payment-predictions.tsx', /err\?\.message|On track|At risk'/, 'no raw error text; Title Case risk labels (a converted file, VOICE 3)'],
+  ['app/reports.tsx', />no cost basis</, 'VOICE #17: "No Cost Basis"'],
   ['utils/pdfGenerator.ts', /Please find attached|Please review the|⚠/, 'no "Please", no emoji on documents'],
 ];
 for (const [rel, re, why] of GONE) {

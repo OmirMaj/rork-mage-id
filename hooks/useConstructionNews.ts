@@ -63,7 +63,7 @@ async function readServerMessage(err: unknown): Promise<string | null> {
 
 export async function fetchConstructionNews(): Promise<NewsPayload> {
   if (!isSupabaseConfigured) {
-    throw new NewsFetchError("News isn't available in this build — the app has no server connection configured.", false);
+    throw new NewsFetchError("News isn't available in this build. The app has no server connection configured.", false);
   }
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) throw new NewsFetchError('Sign in to read the news.', false);

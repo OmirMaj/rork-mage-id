@@ -303,7 +303,7 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
       : null;
   const checkAgain = (
     <Button
-      label="Check again"
+      label="Check Again"
       variant="secondary"
       size="sm"
       onPress={() => { void runCheck(); }}
@@ -350,7 +350,7 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
             testID={`rfiscope-toggle-${i}`}
           >
             <Text style={styles.toggleText}>
-              {it.covered ? (on ? 'On the CO — tap to keep it out' : 'Move to the CO') : (on ? 'On the CO — tap to leave out' : 'Leave off the CO — tap to add')}
+              {it.covered ? (on ? 'On the CO. Tap to keep it out.' : 'Move to the CO') : (on ? 'On the CO. Tap to leave out.' : 'Leave off the CO. Tap to add.')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -366,13 +366,13 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
         </View>
         {adds.length > 0 ? (
           <View style={styles.group}>
-            <Text style={styles.groupLabel}>Adds scope</Text>
+            <Text style={styles.groupLabel}>Adds Scope</Text>
             {adds.map(renderItem)}
           </View>
         ) : null}
         {covered.length > 0 ? (
           <View style={styles.group}>
-            <Text style={styles.groupLabel}>Looks already in your scope</Text>
+            <Text style={styles.groupLabel}>Looks Already in Your Scope</Text>
             {covered.map(renderItem)}
           </View>
         ) : null}
@@ -388,7 +388,7 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
             testID="rfiscope-draft"
           />
           <Button
-            label="Not a change"
+            label="Not a Change"
             variant="secondary"
             onPress={() => { void markNotAChange(); }}
             disabled={drafting}
@@ -433,7 +433,7 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
         <Text style={styles.text}>Did this answer add work? MAGE compares it with your estimate lines and change orders.</Text>
         <View style={styles.actions}>
           <Button
-            label="Check the answer"
+            label="Check the Answer"
             onPress={() => { void runCheck(); }}
             loading={busy}
             disabled={!!blockedReason}
@@ -448,7 +448,7 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
   return (
     <View testID="rfiscope-card" style={styles.wrap}>
       <Card pad={Tokens.spacing.md}>
-        <Card.Title>Scope check</Card.Title>
+        <Card.Title>Scope Check</Card.Title>
         <View style={styles.body}>
           {body}
           {existingDraft ? null : runStatus}

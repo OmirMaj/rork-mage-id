@@ -107,7 +107,7 @@ export function WorkloadTab({ resources, onFixOverloads }: WorkloadTabProps) {
   if (lanes.length === 0) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>No resources yet</Text>
+        <Text style={styles.emptyTitle}>No Resources Yet</Text>
         <Text style={styles.emptyText}>
           Assign a crew name to each task, or add resources in project settings, and
           this heatmap fills in.
@@ -129,9 +129,9 @@ export function WorkloadTab({ resources, onFixOverloads }: WorkloadTabProps) {
             style={styles.fixBtn}
             hitSlop={4}
             accessibilityRole="button"
-            accessibilityLabel="Fix overloads"
+            accessibilityLabel="Fix Overloads"
           >
-            <Text style={styles.fixBtnText}>Fix overloads</Text>
+            <Text style={styles.fixBtnText}>Fix Overloads</Text>
           </Pressable>
         )}
       </View>

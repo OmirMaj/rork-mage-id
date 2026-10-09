@@ -42,7 +42,7 @@ import { LandingSlot, useLanding } from '@/components/animations/Landing';
 import ErrorState from '@/components/ErrorState';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
-import { OnboardingChecklist } from '@/components/OnboardingChecklist';
+import { FirstJobPath } from '@/components/FirstJobPath';
 import { NextStepHero } from '@/components/NextStepHero';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
 import { capProjectCount, countsTowardFreeCap, isSampleProjectName } from '@/utils/projectCap';
@@ -142,7 +142,7 @@ function sentenceParts(template: string, values: Record<string, string | number>
 // are unchanged; only the words moved.
 type StatusFilter = HomeStatusFilter;
 const STATUS_FILTER_LABEL: Record<StatusFilter, string> = {
-  all: 'All projects',
+  all: 'All Projects',
   active: stageLabel('construction'),
   precon: stageLabel('precon'),
   closeout: stageLabel('postcon'),
@@ -565,12 +565,20 @@ export default function HomeScreen() {
   // UX wave, Lane D (D1): `then=estimate|schedule` rides along from the +
   // menu's "+ New job" row, so the new job goes straight into its wizard.
   useEffect(() => {
-    if (openCreate && !openCreateConsumed.current) {
+    // Once the param has been cleared the guard is re-armed: Home stays
+    // mounted, so without this the SECOND /?openCreate=1 of a session (the +
+    // menu again, or any other door) found the guard still set and did nothing.
+    if (!openCreate) { openCreateConsumed.current = false; return; }
+    if (!openCreateConsumed.current) {
       openCreateConsumed.current = true;
       startCreate(readNewJobThen(thenParam));
       router.setParams({ openCreate: undefined, then: undefined });
     }
   }, [openCreate, thenParam, router, startCreate]);
+  // "Your First Job" sits on Home itself, so its "Create The Project First"
+  // button opens the create sheet directly: no /?openCreate=1 round trip
+  // through the router, nothing stacked on Home, and it works on every tap.
+  const startCreateFromFirstJob = useCallback(() => startCreate(null), [startCreate]);
 
   const filteredProjects = useMemo(
     () => statusBuckets[statusFilter],
@@ -695,20 +703,20 @@ export default function HomeScreen() {
   const handleCreateProject = useCallback(() => {
     const name = projectName.trim();
     if (!name) {
-      showAlert('Add a name', 'Enter a project name.');
+      showAlert('Add a Name', 'Enter a project name.');
       return;
     }
     // Q6: Other needs his words — "Other" alone tells nobody what the job is.
     const typeBlock = projectTypeBlockReason(projectType, projectTypeOther);
     if (typeBlock) {
-      showAlert('Describe the project', typeBlock);
+      showAlert('Describe the Project', typeBlock);
       return;
     }
     // D4: a typed client email / phone that cannot be used is said, not dropped.
     const clientTyped = { name: clientName, phone: clientPhone, email: clientEmail };
     const clientProblem = clientFieldsProblem(clientTyped);
     if (clientProblem) {
-      showAlert('Check the client details', clientProblem);
+      showAlert('Check the Client Details', clientProblem);
       return;
     }
     const client = editedPrimaryContact(undefined, clientTyped);
@@ -909,9 +917,9 @@ export default function HomeScreen() {
       >
         <MageAIMark size={TOOL_GLYPH_SIZE} color={themeColors.text} accentColor={themeColors.accent} />
         <View style={styles.launcherBody}>
-          <Text style={styles.launcherName} numberOfLines={1}>Ask MAGE anything</Text>
+          <Text style={styles.launcherName} numberOfLines={1}>Ask MAGE Anything</Text>
           <Text style={styles.launcherDesc} numberOfLines={2}>
-            What&apos;s overdue? What&apos;s unbilled? Which job is over budget?
+            What&apos;s overdue? What&apos;s unbilled? Which project is over budget?
           </Text>
         </View>
         <ChevronRight size={TOOL_CHEVRON_SIZE} color={themeColors.textMuted} strokeWidth={1.75} style={styles.launcherChevron} />
@@ -931,7 +939,7 @@ export default function HomeScreen() {
         <View style={styles.launcherBody}>
           <Text style={styles.launcherName} numberOfLines={1}>MAGE Copilot</Text>
           <Text style={styles.launcherDesc} numberOfLines={2}>
-            Say what you need — build schedules, write change orders, create reports by voice
+            Say what you need. Build schedules, write change orders and create reports by voice.
           </Text>
         </View>
         <ChevronRight size={TOOL_CHEVRON_SIZE} color={themeColors.textMuted} strokeWidth={1.75} style={styles.launcherChevron} />
@@ -948,7 +956,7 @@ export default function HomeScreen() {
           <View style={styles.aiBriefingToggleLeft}>
             <MageAIMark size={14} color={themeColors.accent} />
             <Text style={styles.aiBriefingToggleText}>
-              {showAIBriefing ? 'Hide AI summary' : 'Get AI summary'}
+              {showAIBriefing ? 'Hide AI Summary' : 'Get AI Summary'}
             </Text>
           </View>
           {showAIBriefing
@@ -1099,8 +1107,11 @@ export default function HomeScreen() {
   // dismissed. ONE element for the phone header and the desktop cards column;
   // it stays a full mounted card at every width (its 'Show me first' entry
   // starts the tutorial — validate-tutorial-entry-points).
+  // FirstJobPath takes the old card's props and renders "Your First Job" for a
+  // contractor, or the old card itself (FIRST_JOB_PATH_ENABLED off, or an
+  // invited field seat).
   const onboardingChecklistCard = (
-    <OnboardingChecklist
+    <FirstJobPath
       companyInfoDone={companyInfoDone}
       // realProjectCount, not projects.length (polish audit 2026-09-10,
       // first-ten-minutes #15). Seeding "Sample — The Henderson Residence"
@@ -1119,6 +1130,7 @@ export default function HomeScreen() {
       // Invoices on a demo project are the seed's (#155).
       invoiceCount={realInvoiceCount}
       triedWowFeature={milestones.voiceUsed || milestones.takeoffRun || estimateCount > 0}
+      onStartCreate={startCreateFromFirstJob}
     />
   );
 
@@ -1134,7 +1146,7 @@ export default function HomeScreen() {
     <PortfolioHomeLayout
       header={
         <PageHeader
-          title="Your projects"
+          title="Your Projects"
           statusPill={<OfflineSyncPill />}
           onSearchPress={openSearch}
           actions={
@@ -1158,7 +1170,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
               {/* The labelled primary: straight to the New Project form
                   (the cap check included), no menu in between. */}
-              <Button label="New project" size="md" onPress={handleCreatePress} testID="home-new-project" />
+              <Button label="New Project" size="md" onPress={handleCreatePress} testID="home-new-project" />
               {/* Everything else that can be created. */}
               <TouchableOpacity
                 style={styles.addButton}
@@ -1166,7 +1178,7 @@ export default function HomeScreen() {
                 activeOpacity={0.7}
                 testID="new-project-btn"
                 accessibilityRole="button"
-                accessibilityLabel="Create something else"
+                accessibilityLabel="Create Something Else"
               >
                 <Plus size={20} color={Colors.textOnAccent} strokeWidth={2.5} />
               </TouchableOpacity>
@@ -1184,7 +1196,7 @@ export default function HomeScreen() {
             {
               id: 'stripe',
               visible: showStripeBanner,
-              message: 'Get paid in one tap — connect Stripe so clients can pay invoices from their phone. About 3 minutes, then Stripe reviews it.',
+              message: 'Connect Stripe so clients can pay invoices from their phone. Setup takes about 3 minutes, then Stripe reviews it.',
               onDismiss: handleDismissStripeBanner,
               action: { label: 'Connect', onPress: () => router.push('/payments-setup') },
               testID: 'stripe-connect-home-notice',
@@ -1192,8 +1204,8 @@ export default function HomeScreen() {
             {
               id: 'samples',
               visible: allSamples,
-              message: 'These are sample projects — create your own to start for real.',
-              action: { label: 'New project', onPress: handleCreatePress },
+              message: 'These are sample projects. Create your own to get started.',
+              action: { label: 'New Project', onPress: handleCreatePress },
               testID: 'samples-notice',
             },
             {
@@ -1202,7 +1214,7 @@ export default function HomeScreen() {
               visible: !railShowing && !!firstWalk,
               tone: firstWalk?.severity === 'urgent' ? 'warn' : 'info',
               message: firstWalk
-                ? `${firstWalk.warrantyMonthsAssumed ? 'Warranty walk' : warrantyWalkTitle(firstWalk.warrantyMonths)} — ${firstWalk.project.name} · ${describeWalkTiming(firstWalk)}${warrantyWalkAlerts.length > 1 ? ` · +${warrantyWalkAlerts.length - 1} more` : ''}`
+                ? `${firstWalk.warrantyMonthsAssumed ? 'Warranty walk' : warrantyWalkTitle(firstWalk.warrantyMonths)}: ${firstWalk.project.name} · ${describeWalkTiming(firstWalk)}${warrantyWalkAlerts.length > 1 ? ` · +${warrantyWalkAlerts.length - 1} more` : ''}`
                 : '',
               action: firstWalk
                 ? { label: 'Open', onPress: () => router.push({ pathname: '/warranty-walk', params: { projectId: firstWalk.project.id } }) }
@@ -1238,16 +1250,16 @@ export default function HomeScreen() {
               value={statusFilter}
               onChange={pickStatusFilter}
               variant="pill"
-              accessibilityLabel="Filter jobs by stage"
+              accessibilityLabel="Filter Projects by Stage"
               testID="stage-chips"
             />
           }
           emptyState={
             <EmptyState
               icon={<FolderOpen size={40} color={themeColors.textMuted} strokeWidth={1.6} />}
-              title={`No ${STATUS_FILTER_LABEL[statusFilter].toLowerCase()} jobs`}
+              title={`No ${STATUS_FILTER_LABEL[statusFilter]} Projects`}
               message="Nothing in this stage right now."
-              actionLabel="Show all jobs"
+              actionLabel="Show All Projects"
               onAction={() => pickStatusFilter('all')}
             />
           }
@@ -1331,7 +1343,7 @@ export default function HomeScreen() {
                 drop the inline search field and rely on the search icon
                 button in the actions cluster. */}
             <PageHeader
-              title="Your projects"
+              title="Your Projects"
               statusPill={<OfflineSyncPill />}
               onSearchPress={openSearch}
               actions={
@@ -1518,14 +1530,14 @@ export default function HomeScreen() {
                 onPress={() => router.push('/payments-setup' as never)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Connect Stripe to get paid"
+                accessibilityLabel="Connect Stripe to Get Paid"
                 testID="stripe-connect-home-banner"
               >
                 <View style={styles.stripeBannerIcon}>
                   <Wallet size={20} color="#FFFFFF" strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.stripeBannerTitle}>Get paid in one tap</Text>
+                  <Text style={styles.stripeBannerTitle}>Get Paid in One Tap</Text>
                   {/* Three screens quoted three different durations for this one
                       step and none was the true one: this said 2 minutes, the
                       checklist says "About 2 minutes" for a list containing it,
@@ -1582,7 +1594,7 @@ export default function HomeScreen() {
                 <MageAIMark size={20} color={themeColors.accent} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 15, fontWeight: '700', color: themeColors.text }}>
-                    These are sample projects
+                    Sample Projects
                   </Text>
                   <Text style={{ fontSize: 13, color: themeColors.textSecondary, marginTop: 2 }}>
                     Tap to create your own and start for real.
@@ -1640,12 +1652,12 @@ export default function HomeScreen() {
           projects.length === 0 && sourceFailed ? (
             <ErrorState
               icon={<CloudOff size={40} color={themeColors.warningLabel} strokeWidth={1.6} />}
-              title="Couldn't reach MAGE"
-              body="Your projects didn't come back from the last read. Nothing has been deleted — this device just has nothing cached to show yet."
+              title="Couldn't Reach MAGE"
+              body="Your projects didn't load. Nothing has been deleted. This device has no saved copy to show yet."
               steps={[
                 'Check that you have signal or Wi-Fi.',
                 'Tap Try again below.',
-                'If it keeps failing, sign out and back in — the session may have expired.',
+                'If it keeps failing, sign out and back in. The session may have expired.',
               ]}
               onRetry={retryRemoteReads}
               testID="home-unreachable"
@@ -1659,19 +1671,19 @@ export default function HomeScreen() {
             // or sample CTAs: those are for an account with nothing.
             <EmptyState
               icon={<FolderOpen size={40} color={themeColors.textMuted} strokeWidth={1.6} />}
-              title={`No ${STATUS_FILTER_LABEL[statusFilter].toLowerCase()} jobs`}
+              title={`No ${STATUS_FILTER_LABEL[statusFilter]} Projects`}
               message="Nothing in this stage right now."
-              actionLabel="Show all jobs"
+              actionLabel="Show All Projects"
               onAction={() => pickStatusFilter('all')}
             />
           ) : (
             <EmptyState
               icon={<HardHat size={40} color={themeColors.accent} strokeWidth={1.6} />}
-              title="Build something"
-              message="Your first project is one tap away. Add it to start tracking estimates, daily reports, invoices — every job, every detail."
-              actionLabel="Create your first project"
+              title="No Projects Yet"
+              message="Add your first project to track its estimates, daily reports and invoices."
+              actionLabel="Create Your First Project"
               onAction={handleCreatePress}
-              secondaryLabel={showDemoSeed ? 'Try a sample project (small or large)' : undefined}
+              secondaryLabel={showDemoSeed ? 'Try a Sample Project' : undefined}
               onSecondaryAction={showDemoSeed ? handleSeedDemo : undefined}
             />
           )
@@ -1689,7 +1701,7 @@ export default function HomeScreen() {
           <View style={[styles.modalOverlay, createFrame.overlay]}>
             <Animated.View style={[styles.createModalCard, { paddingBottom: insets.bottom + 20 }, createFrame.card, createFrame.cardMotion]}>
               <View style={styles.createModalHeader}>
-                <Text style={styles.createModalTitle}>New project</Text>
+                <Text style={styles.createModalTitle}>New Project</Text>
                 <TouchableOpacity onPress={closeCreateModal} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -1701,8 +1713,8 @@ export default function HomeScreen() {
                 <FormGrid>
                 <FormField span="full">
                 <InlineVoiceFill
-                  title="Dictate this project"
-                  buttonLabel="Fill project by voice"
+                  title="Dictate This Project"
+                  buttonLabel="Fill In by Voice"
                   // Only fields this form keeps: name, address, type and
                   // description (audit wave 5, #157). The examples used to say
                   // "budget eighty thousand" and "start date June 1st" — both
@@ -1751,7 +1763,7 @@ export default function HomeScreen() {
                     if (!heardSomething) {
                       return {
                         filled: false,
-                        note: note ?? "Couldn't pick out a project name or address from that — type them below.",
+                        note: note ?? "Couldn't find a project name or address in that. Type them below.",
                       };
                     }
                     return note ? { filled: true, note } : undefined;
@@ -1760,12 +1772,12 @@ export default function HomeScreen() {
                 </FormField>
 
                 <FormField span="full" size="md">
-                <Text style={styles.fieldLabel}>Project name</Text>
+                <Text style={styles.fieldLabel}>Project Name</Text>
                 <TextInput
                   style={styles.input}
                   value={projectName}
                   onChangeText={setProjectName}
-                  placeholder="e.g. Kitchen Renovation"
+                  placeholder="Kitchen Renovation"
                   placeholderTextColor={themeColors.textMuted}
                   autoFocus
                   onSubmitEditing={desktopWeb ? handleCreateProject : undefined}
@@ -1774,12 +1786,12 @@ export default function HomeScreen() {
                 </FormField>
 
                 <FormField span="full" size="lg">
-                <Text style={styles.fieldLabel}>Jobsite address</Text>
+                <Text style={styles.fieldLabel}>Jobsite Address</Text>
                 <TextInput
                   style={styles.input}
                   value={projectLocation}
                   onChangeText={setProjectLocation}
-                  placeholder="e.g. 123 Main St, San Diego, CA"
+                  placeholder="123 Main St, San Diego, CA"
                   placeholderTextColor={themeColors.textMuted}
                   onSubmitEditing={desktopWeb ? handleCreateProject : undefined}
                   testID="project-location-input"
@@ -1794,14 +1806,14 @@ export default function HomeScreen() {
                     testID="project-location-usual"
                   >
                     <MapPin size={13} color={themeColors.accent} strokeWidth={1.9} />
-                    <Text style={styles.fieldChipLabel}>Use my usual area — {usualArea}</Text>
+                    <Text style={styles.fieldChipLabel}>Use My Usual Area: {usualArea}</Text>
                   </TouchableOpacity>
                 ) : null}
                 {!projectLocation.trim() ? (
                   <Text style={styles.fieldHint}>
-                    Optional — but this is the address your proposals, invoices and purchase orders
-                    print, and what permit lookups and site weather run on. Left blank they stay
-                    blank rather than guess; you can add it any time in Project Details.
+                    Optional. This is the address your proposals, invoices and purchase orders
+                    print, and what permit lookups and site weather run on. Left blank, they stay
+                    blank rather than guess. You can add it any time in Project Details.
                   </Text>
                 ) : null}
                 </FormField>
@@ -1821,7 +1833,7 @@ export default function HomeScreen() {
                 </FormField>
 
                 <FormField span="full">
-                <Text style={styles.fieldLabel}>Project type</Text>
+                <Text style={styles.fieldLabel}>Project Type</Text>
                 <View style={styles.typeGrid}>
                   {PROJECT_TYPES.map(pt => (
                     <TouchableOpacity
@@ -1836,30 +1848,30 @@ export default function HomeScreen() {
                 </View>
                 {projectType === 'other' ? (
                   <>
-                    <Text style={styles.fieldLabel}>Describe the project</Text>
+                    <Text style={styles.fieldLabel}>Describe the Project</Text>
                     <TextInput
                       style={styles.input}
                       value={projectTypeOther}
                       onChangeText={setProjectTypeOther}
-                      placeholder="e.g. Whole-house repipe"
+                      placeholder="Whole-house repipe"
                       placeholderTextColor={themeColors.textMuted}
                       maxLength={PROJECT_TYPE_OTHER_MAX}
                       testID="project-type-other-input"
                     />
                     <Text style={styles.fieldHint}>
-                      Shown instead of &quot;Other&quot; on the job list, PDFs and the client portal, and sent to the AI as the project type.
+                      Shown instead of &quot;Other&quot; on the job list, PDFs and the client portal, and sent to MAGE as the project type.
                     </Text>
                   </>
                 ) : null}
                 </FormField>
 
                 <FormField span="full" size="xs">
-                <Text style={styles.fieldLabel}>Square footage</Text>
+                <Text style={styles.fieldLabel}>Square Footage</Text>
                 <TextInput
                   style={styles.input}
                   value={projectSqft}
                   onChangeText={setProjectSqft}
-                  placeholder="e.g. 2400 — leave blank if you don't know yet"
+                  placeholder="2,400 (optional)"
                   placeholderTextColor={themeColors.textMuted}
                   keyboardType="number-pad"
                   onSubmitEditing={desktopWeb ? handleCreateProject : undefined}
@@ -1877,12 +1889,12 @@ export default function HomeScreen() {
                     change-order approver, the portal invite and a new
                     invoice's bill-to are seeded from it. Optional. */}
                 <FormField span="full" size="md">
-                <Text style={styles.fieldLabel}>Client name</Text>
+                <Text style={styles.fieldLabel}>Client Name</Text>
                 <TextInput
                   style={styles.input}
                   value={clientName}
                   onChangeText={setClientName}
-                  placeholder="e.g. Tom Reyes — optional"
+                  placeholder="Tom Reyes (optional)"
                   placeholderTextColor={themeColors.textMuted}
                   autoCapitalize="words"
                   textContentType="name"
@@ -1891,7 +1903,7 @@ export default function HomeScreen() {
                 />
                 </FormField>
                 <FormField span="half" size="sm">
-                <Text style={styles.fieldLabel}>Client phone</Text>
+                <Text style={styles.fieldLabel}>Client Phone</Text>
                 <TextInput
                   style={styles.input}
                   value={clientPhone}
@@ -1905,7 +1917,7 @@ export default function HomeScreen() {
                 />
                 </FormField>
                 <FormField span="half" size="md">
-                <Text style={styles.fieldLabel}>Client email</Text>
+                <Text style={styles.fieldLabel}>Client Email</Text>
                 <TextInput
                   style={styles.input}
                   value={clientEmail}
@@ -1925,7 +1937,7 @@ export default function HomeScreen() {
               </ScrollView>
 
               <TouchableOpacity style={[styles.createBtn, createFrame.footerButton, responsive.isDesktop && styles.createBtnDesktop]} onPress={handleCreateProject} activeOpacity={0.85} testID="create-project-btn">
-                <Text style={styles.createBtnText}>Create project</Text>
+                <Text style={styles.createBtnText}>Create Project</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -1939,13 +1951,13 @@ export default function HomeScreen() {
             <View style={styles.nextStepSuccessIcon}>
               <CheckCircle2 size={36} color={themeColors.success} strokeWidth={2.4} />
             </View>
-            <Text style={styles.nextStepTitle}>Project created</Text>
+            <Text style={styles.nextStepTitle}>Project Created</Text>
             <Text style={styles.nextStepDesc}>What would you like to do next?</Text>
 
             <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('estimate')} activeOpacity={0.7}>
               <IconWrapper icon={Calculator} tone="accent" size="md" />
               <View style={styles.nextStepTextWrap}>
-                <Text style={styles.nextStepOptionTitle}>Create estimate</Text>
+                <Text style={styles.nextStepOptionTitle}>Create Estimate</Text>
                 <Text style={styles.nextStepOptionDesc}>Search materials and build a cost estimate</Text>
               </View>
               <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1954,14 +1966,14 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('schedule')} activeOpacity={0.7}>
               <IconWrapper icon={CalendarDays} tone="info" size="md" />
               <View style={styles.nextStepTextWrap}>
-                <Text style={styles.nextStepOptionTitle}>Create schedule</Text>
+                <Text style={styles.nextStepOptionTitle}>Create Schedule</Text>
                 <Text style={styles.nextStepOptionDesc}>Plan tasks and timeline for this project</Text>
               </View>
               <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.laterBtn} onPress={() => handleNextStep('later')} activeOpacity={0.7}>
-              <Text style={styles.laterBtnText}>I'll do this later</Text>
+              <Text style={styles.laterBtnText}>Not Now</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>

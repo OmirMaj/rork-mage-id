@@ -168,3 +168,154 @@ export const ASK_FILES_ENABLED = false;
 // MESSAGE_SOURCE_ENABLED = true and MESSAGE_SOURCE_NOT_BEFORE set, deployed,
 // and (4) utils/messageAiCore.ts MESSAGE_AI_NOT_BEFORE carries the same time.
 export const PORTAL_MESSAGE_AI_ENABLED = false;
+
+// YOUR FIRST JOB: the interactive starter path on Home (2026-10-05).
+//
+// True: a contractor's Home shows "Your First Job" (components/FirstJobPath.tsx)
+// where the old "Get up and running" card sat: one opening question, seven
+// steps in the order of a real job, one step open at a time, each one ticked
+// only from the account's real data.
+//
+// False: Home renders the old card (components/OnboardingChecklist.tsx)
+// exactly as before, for everyone. The old component stays in the repo until a
+// later lane deletes it, so this switch is a full way back.
+export const FIRST_JOB_PATH_ENABLED = true;
+
+// SCAN THE ROOM: walk a room with a LiDAR iPhone, get a plan, quantities and a
+// priced draft (2026-10-06). Dark, with an OWNER PREVIEW since 2026-10-08.
+//
+// While this is false, nothing of the feature exists for anyone but the owner
+// (utils/owner.ts OWNER_EMAILS): /scan-room redirects to Home, no tile, row or
+// button leads to it, and utils/roomScan/native.ts never looks the native
+// module up (its one optional lookup is refused before it runs). The owner's
+// account alone gets one row on the project page, the route and the lookup.
+// This flag is read in ONE file, utils/roomScan/allowed.ts; everything else
+// asks scanRoomAllowed(email).
+//
+// Why it is still off: the native module (modules/mage-room-scan) compiles
+// against the real ExpoModulesCore and links with RoomPlan as a weak framework,
+// but it has never run on a phone; the parser was written from Apple's
+// documented structure and has not read a real export; no build that carries
+// the module has been launched on an iOS 15 phone; and nobody has measured how
+// far a scan is from a tape.
+//
+// Flip it to true only when ALL of these hold
+// (docs/scan-the-room-native-checklist.md): a build that carries the module
+// has been seen to launch on a PHYSICAL iOS 15 phone, the app has been seen to
+// launch on a build WITHOUT the module with this JavaScript over the air, a
+// real export from a LiDAR iPhone parses and is a fixture, the App Store
+// privacy answers cover a saved room shape, and the founder's ten-room
+// tape-measure test is done.
+export const SCAN_ROOM_ENABLED = false;
+
+// Clearance Check (the room scanner's table of commonly used figures) has its
+// OWN switch. Turning SCAN_ROOM_ENABLED on does NOT show it to anyone. It is
+// shown to the owner account always (preview), and to anyone else only when
+// this is true AND utils/roomScan/clearanceRefs says a named architect or
+// expediter has read the table. The one reader is
+// utils/roomScan/clearanceAllowed; scripts/validate-scan-clearance.ts pins it.
+export const CLEARANCE_CHECK_ENABLED = false;
+
+// CODE FLAGS (Big Bets, Bet 4, Phase 1, 2026-10-06): a quiet chip on a change
+// order line or an estimate line that touches code-sensitive work ("May Need a
+// Permit Amendment or an Inspection"), with a sheet that says in the app's own
+// words why that kind of work is commonly looked at, which words triggered it,
+// and where the official page is. It is a rule table (utils/codeFlags), never
+// a model call. It flags and never blocks, and it is the contractor's private
+// note: nothing of it is stored on the line or reaches a client.
+//
+// While this is false: no chip, no sheet, and the two screens that would show
+// it (app/change-order.tsx, app/(tabs)/estimate/full.tsx) never load the
+// feature's modules (scripts/validate-code-flags.ts proves both).
+//
+// Why it is off: the rule table is a STARTER LIST. The founder has not yet
+// read it (design-previews/big-bets/CODE-FLAGS-RULES.md is the sheet he owes;
+// utils/codeScopeTriggers CODE_SCOPE_RULES_REVIEW still says
+// pending_founder_review), the lane has not had its independent review, and
+// only two section numbers exist in the app's checked data (Phase 2 is a
+// licensed architect or expediter checking a real table).
+//
+// Flip it to true only after the founder's review of the rule sheet and the
+// independent review are both done.
+export const CODE_FLAGS_ENABLED = false;
+
+// DISCOVER WAITLIST CARDS (PROTECT-TEXT, 2026-10-09). The Discover tab ended in
+// a section called "Earn More with MAGE" with four cards: "Refer a lead, earn
+// 5% if it closes", "One-tap Friday payouts to all your subs", "Lien waivers
+// at point-of-payment" and "Finance a truck or new equipment". None of the
+// four exists: there is no referral payout, no mass payout or 1099 filing, no
+// escrow and no equipment lender. The cards stated a commission, a tax-law
+// reading, "No application fee" and a launch condition as if they were
+// offers, and one footer printed an internal planning note. A card for a
+// product that does not exist is not shown. Flip this only when a card's
+// product is real, and rewrite the card to say what the product does.
+export const DISCOVER_WAITLIST_CARDS_ENABLED: boolean = false;
+
+// RE-ACCEPTANCE OF THE TERMS (lane PROTECT-SERVER, 2026-10-09): a full-screen
+// sheet shown to a signed-in account that has no saved acceptance of the
+// CURRENT Terms of Service and Privacy Policy (public.legal_acceptances): what
+// changed, links to both, "I Agree", and "Sign Out". Built and tested; OFF.
+//
+// While this is false the sheet is never mounted, the account's rows are never
+// read for it, and nobody is asked or blocked. Acceptances at sign-up and
+// sign-in are recorded either way (that does not depend on this flag).
+//
+// Turning it on is the FOUNDER'S decision, after his attorney has finalised the
+// Terms (the words a person is asked to agree to must be the words counsel
+// approved, and the sheet's own sentences are draft). Before flipping: the
+// legal_acceptances migration is applied, the Terms and Privacy pages are final
+// and their version and hash in utils/legalAcceptanceCore.ts match
+// (scripts/validate-legal-acceptance.ts fails otherwise), and the sheet's
+// "what changed" lines in hooks/useLegalCopy.ts say what changed.
+// The one reader is components/LegalGateHost.tsx.
+export const TERMS_REACCEPT_ENABLED = false;
+
+// PAY PERIOD RECORD (Big Bets, Bet 3, Phase 1, 2026-10-09; the lane's first
+// name for it was the proof of work package, retired because it read as proof
+// that the work was done; the flag, the folder and the table keep "proof pack"
+// as an internal name only): one document
+// per pay period that says what was billed and lists the records MAGE ID holds
+// for that period, each labelled by how hard it is to change afterwards
+// (Sealed, Signed, Locked, Recorded, Stated), with a fingerprint the
+// contractor can check again in the app. Dark, with an OWNER PREVIEW.
+//
+// While this is false, nothing of the feature exists for anyone but the owner
+// (utils/owner.ts OWNER_EMAILS): /proof-pack redirects to Home and the row on
+// the pay application and invoice screens renders nothing. This flag is read
+// in ONE file, utils/proofPack/allowed.ts; everything else asks
+// proofPackAllowed(email).
+//
+// Why it is off: the fingerprint table (supabase/migrations/
+// 20261009120000_proof_packs.sql) is written and proven on PGlite but NOT
+// applied, so a document made today prints "No fingerprint is on file"; the
+// signature provenance migration (20261010090000_signature_provenance.sql) is
+// NOT applied either, so no record can earn the Signed label yet; a lawyer
+// has not read what the document may say it shows, the Notice to Recipients,
+// or whether a client's address and photos may go to a third party (BIG-BETS.md, Bet 3, "For the lawyer
+// first"); the Spanish is a draft no bilingual construction person has read;
+// and the lane has not had its independent review.
+//
+// Flip it to true only when the migration is applied, the lawyer's answers are
+// in the repo and the review is done.
+export const PROOF_PACK_ENABLED = false;
+
+// The Living Model, Phase 1 (lane LIVINGMODEL). One schematic 3D model of the
+// job, made of rooms, with the schedule hung on it so the job can be played
+// from start to finish, planned against reported. The Room Editor and the flat
+// replay run everywhere; the 3D view is on the web only in this phase.
+//
+// When false the feature is dark for everyone EXCEPT the owner account
+// (utils/owner.ts OWNER_EMAILS): /living-model redirects to Home and the row on
+// the project page is not drawn. The flag is read in ONE file,
+// utils/livingModel/allowed.ts; everything else asks livingModelAllowed(email).
+//
+// Why it is off: the job model is saved on the device only (no table yet, so a
+// model made on the phone does not reach the web); the stage table and the
+// wording have not been read by a lawyer ("Schematic made from typed and
+// scanned sizes. Not to scale for building."); the Spanish is a draft no
+// bilingual construction person has read; nobody has yet used it on a real job;
+// and the lane has not had its independent review.
+//
+// Flip it to true only when the model syncs, the wording is approved and the
+// review is done.
+export const LIVING_MODEL_ENABLED = false;

@@ -437,7 +437,7 @@ export function describeDayPack(
     return 'No plan sheets saved on this device.';
   }
   if (freshness === 'expired') {
-    return 'Offline plan copies have expired — reconnect to refresh them.';
+    return 'Offline plan copies have expired. Reconnect to refresh them.';
   }
   const jobs = record.projects.filter((p) => p.sheetsWarmed > 0).length;
   const jobWord = jobs === 1 ? 'job' : 'jobs';

@@ -259,7 +259,7 @@ export default function DeliveriesScreen() {
         <Header onBack={goBack} title="Deliveries" subtitle="" styles={styles} t={t} onAdd={undefined} />
         <ToolProjectPicker
           toolName="Deliveries"
-          message="Deliveries are tracked per project — pick the job whose material you're expecting."
+          message="Deliveries are tracked per project. Pick the project whose material you're expecting."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={!project && paramProjectId ? paramProjectId : undefined}
@@ -376,7 +376,7 @@ export default function DeliveriesScreen() {
             {look.upcoming.length === 0 && look.late.length === 0 ? (
               <EmptyState
                 icon={<Truck size={36} color={t.accent} strokeWidth={1.6} />}
-                title="Nothing scheduled yet"
+                title="Nothing Scheduled Yet"
                 message="Add what you're expecting and the date it was promised. Anything that slips past its date shows up here and in Waiting On, so a late load gets chased before the crew is stood down."
               />
             ) : (
@@ -404,7 +404,7 @@ export default function DeliveriesScreen() {
             >
               <Building2 size={15} color={t.textSecondary} strokeWidth={1.8} />
               <Text style={styles.buildingLinkText}>
-                {rules ? 'Building access & bookings' : 'Set up building access'}
+                {rules ? 'Building Access and Bookings' : 'Set Up Building Access'}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -478,11 +478,11 @@ function Header({
       {onArrived ? (
         <TouchableOpacity onPress={onArrived} style={styles.arrivedBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="It's here now. Log a delivery that just arrived" testID="deliveries-arrived">
           <PackageCheck size={16} color={t.accentLabel} strokeWidth={1.9} />
-          <Text style={styles.arrivedBtnText}>Here now</Text>
+          <Text style={styles.arrivedBtnText}>Here Now</Text>
         </TouchableOpacity>
       ) : null}
       {onAdd ? (
-        <TouchableOpacity onPress={onAdd} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add delivery">
+        <TouchableOpacity onPress={onAdd} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add Delivery">
           <Plus size={18} color="#FFFFFF" strokeWidth={1.75} />
         </TouchableOpacity>
       ) : <View style={styles.headerBtn} />}
@@ -575,7 +575,7 @@ function ReceiveSheet({
       <View style={[styles.overlay, f.overlay]}>
         <View style={[styles.sheet, f.card]}>
           <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle}>Receive delivery</Text>
+            <Text style={styles.sheetTitle}>Receive Delivery</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
               <X size={20} color={t.textSecondary} strokeWidth={1.9} />
             </TouchableOpacity>
@@ -585,7 +585,7 @@ function ReceiveSheet({
             {delivery.description} — {delivery.supplier}
           </Text>
 
-          <Text style={styles.fieldLabel}>Received by</Text>
+          <Text style={styles.fieldLabel}>Received By</Text>
           <TextInput
             style={styles.input}
             value={form.receivedBy}
@@ -606,13 +606,13 @@ function ReceiveSheet({
               {form.hasDamage ? <Check size={13} color="#FFFFFF" strokeWidth={2.5} /> : null}
             </View>
             <Text style={[styles.damageLabel, form.hasDamage && { color: t.danger }]}>
-              Something arrived damaged or short
+              Something Arrived Damaged or Short
             </Text>
           </TouchableOpacity>
 
           {form.hasDamage ? (
             <>
-              <Text style={styles.fieldLabel}>What was wrong</Text>
+              <Text style={styles.fieldLabel}>What Was Wrong</Text>
               <TextInput
                 style={[styles.input, styles.inputMulti]}
                 value={form.damageNotes}
@@ -628,7 +628,7 @@ function ReceiveSheet({
             </>
           ) : null}
 
-          <Text style={styles.fieldLabel}>Notes (optional)</Text>
+          <Text style={styles.fieldLabel}>Notes (Optional)</Text>
           <TextInput
             style={styles.input}
             value={form.notes}
@@ -644,7 +644,7 @@ function ReceiveSheet({
             accessibilityRole="button"
             testID="receive-save"
           >
-            <Text style={styles.saveBtnText}>Mark received</Text>
+            <Text style={styles.saveBtnText}>Mark Received</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -687,7 +687,7 @@ function AddDeliverySheet({
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.overlay, f.overlay]}>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }, f.card]}>
           <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle}>Expecting a delivery</Text>
+            <Text style={styles.sheetTitle}>Expecting a Delivery</Text>
             <TouchableOpacity onPress={onClose} style={styles.headerBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
               <X size={20} color={t.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -715,7 +715,7 @@ function AddDeliverySheet({
           />
           <SupplierAdvisoryLine advisory={supplierAdvisory} />
 
-          <Text style={styles.fieldLabel}>Promised date</Text>
+          <Text style={styles.fieldLabel}>Promised Date</Text>
           {/* UX wave B6: a picker, never a typed YYYY-MM-DD. */}
           <TouchableOpacity
             style={[styles.input, isDesktop && desktopField('sm'), styles.dateField]}
@@ -731,13 +731,13 @@ function AddDeliverySheet({
             visible={pickingDate}
             value={parseCalendarDay(draft.expectedDate)?.toISOString() ?? ''}
             allowFuture
-            title="Promised date"
+            title="Promised Date"
             onClose={() => setPickingDate(false)}
             onChange={(iso) => { setDraft(p => ({ ...p, expectedDate: calendarDayOf(iso) ?? p.expectedDate })); setPickingDate(false); }}
           />
 
           <Text style={styles.fieldLabel}>
-            Window <Text style={styles.fieldHint}>optional — the dock slot, if there is one</Text>
+            Window <Text style={styles.fieldHint}>optional, the dock slot if there is one</Text>
           </Text>
           <TextInput
             style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]}
@@ -756,7 +756,7 @@ function AddDeliverySheet({
             testID="delivery-save"
           >
             <CalendarDays size={16} color="#FFFFFF" strokeWidth={1.75} />
-            <Text style={styles.saveBtnText}>Add to the look-ahead</Text>
+            <Text style={styles.saveBtnText}>Add to the Look-Ahead</Text>
           </TouchableOpacity>
           </ScrollView>
         </View>
@@ -826,14 +826,14 @@ function ArrivedSheet({
         res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
       } else {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { showAlert('Camera access needed', 'Allow camera access in Settings to photograph the ticket.'); return; }
+        if (!perm.granted) { showAlert('Camera Access Needed', 'Allow camera access in Settings to photograph the ticket.'); return; }
         res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
       }
       if (res.canceled || !res.assets[0]?.uri) return;
       const uri = res.assets[0].uri;
       setForm(p => ({ ...p, ticketUri: uri }));
     } catch (e) {
-      showAlert('Couldn\u2019t open the camera', 'Try again.');
+      showAlert('Couldn\u2019t Open the Camera', 'Try again.');
     }
   }, []);
 
@@ -895,7 +895,7 @@ function ArrivedSheet({
             {!closing ? (
               <>
                 <Text style={styles.fieldLabel}>
-                  What arrived{fromScan(scanPrefill?.what) ? <Text style={styles.fieldHint}>{` · ${FROM_SCAN_LABEL}`}</Text> : null}
+                  What Arrived{fromScan(scanPrefill?.what) ? <Text style={styles.fieldHint}>{` · ${FROM_SCAN_LABEL}`}</Text> : null}
                 </Text>
                 <TextInput
                   style={styles.input}
@@ -924,11 +924,11 @@ function ArrivedSheet({
             ) : (
               <TouchableOpacity style={styles.buildingLink} onPress={() => { void takeTicket(); }} accessibilityRole="button" testID="arrived-ticket">
                 <Camera size={16} color={t.textSecondary} strokeWidth={1.8} />
-                <Text style={styles.buildingLinkText}>{Platform.OS === 'web' ? 'Attach the ticket photo' : 'Photograph the ticket'}</Text>
+                <Text style={styles.buildingLinkText}>{Platform.OS === 'web' ? 'Attach the Ticket Photo' : 'Photograph the Ticket'}</Text>
               </TouchableOpacity>
             )}
 
-            <Text style={styles.fieldLabel}>Received by</Text>
+            <Text style={styles.fieldLabel}>Received By</Text>
             <TextInput
               style={styles.input}
               value={form.receivedBy}
@@ -953,7 +953,7 @@ function ArrivedSheet({
             <DatePickerModal
               visible={pickingDate}
               value={parseCalendarDay(form.date)?.toISOString() ?? ''}
-              title="Arrived on"
+              title="Arrived On"
               onClose={() => setPickingDate(false)}
               onChange={(iso) => { setForm(p => ({ ...p, date: calendarDayOf(iso) ?? p.date })); setPickingDate(false); }}
             />
@@ -968,7 +968,7 @@ function ArrivedSheet({
               <View style={[styles.damageBox, form.hasDamage && { backgroundColor: t.danger, borderColor: t.danger }]}>
                 {form.hasDamage ? <Check size={13} color={Colors.textOnAccent} strokeWidth={2.5} /> : null}
               </View>
-              <Text style={[styles.damageLabel, form.hasDamage && { color: t.danger }]}>Something arrived damaged or short</Text>
+              <Text style={[styles.damageLabel, form.hasDamage && { color: t.danger }]}>Something Arrived Damaged or Short</Text>
             </TouchableOpacity>
             {form.hasDamage ? (
               <TextInput
@@ -992,7 +992,7 @@ function ArrivedSheet({
               testID="arrived-save"
             >
               <PackageCheck size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-              <Text style={styles.saveBtnText}>{closing ? 'Mark received' : 'Log it as received'}</Text>
+              <Text style={styles.saveBtnText}>{closing ? 'Mark Received' : 'Log It as Received'}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>

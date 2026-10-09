@@ -49,7 +49,7 @@ export function CriticalPathPanel(props: {
         <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, frame.card]}>
           {frame.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHead}>
-            <Text style={styles.modalTitle}>What&apos;s driving the finish date</Text>
+            <Text style={styles.modalTitle}>What’s Driving the Finish Date</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
               <X size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -79,8 +79,8 @@ export function CriticalPathPanel(props: {
                 branches get their own row and a heading that says so. */}
             <Text style={styles.sectionHead}>
               {explanation.criticalChains.length > 1
-                ? `The critical path — ${explanation.criticalChains.length} parallel branches`
-                : 'The critical path'}
+                ? `The critical path: ${explanation.criticalChains.length} parallel branches`
+                : 'The Critical Path'}
             </Text>
             {explanation.criticalChains.length > 1 && (
               <Text style={styles.branchNote}>
@@ -113,7 +113,7 @@ export function CriticalPathPanel(props: {
             )}
 
             {/* Tasks with breathing room — how far each can slip without moving the finish. */}
-            <Text style={styles.sectionHead}>These have breathing room</Text>
+            <Text style={styles.sectionHead}>These Have Breathing Room</Text>
             {explanation.slack.length > 0 ? (
               explanation.slack.map((task) => (
                 <View key={task.id} style={styles.slackRow}>

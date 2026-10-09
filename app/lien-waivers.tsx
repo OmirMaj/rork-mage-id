@@ -64,6 +64,7 @@ import { SplitView, useSplitRecord } from '@/components/desktop/SplitView';
 import { routeHref } from '@/components/desktop/RowLink';
 import { rowsToCsv } from '@/utils/dataTable';
 import { deliverTextFile } from '@/utils/platformFile';
+import { TemplateNotice } from '@/components/ProtectNotices';
 
 /** A calendar day from whatever the invoice screen passed as prefillThroughDate
  *  (see the seed below): 'YYYY-MM-DD' as-is, an ISO instant as its LOCAL day,
@@ -186,7 +187,7 @@ function LienWaiverGateView({ state, message, onRetry, onBack }: {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Lien waivers</Text>
+          <Text style={styles.title}>Lien Waivers</Text>
         </View>
       </View>
       <View style={styles.emptyCard}>
@@ -200,11 +201,11 @@ function LienWaiverGateView({ state, message, onRetry, onBack }: {
             {state === 'blocked'
               ? <Lock size={28} color={themeColors.textMuted} strokeWidth={1.75} />
               : <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />}
-            <Text style={styles.emptyTitle}>{state === 'blocked' ? 'Managed by the project owner' : 'Couldn’t check access'}</Text>
+            <Text style={styles.emptyTitle}>{state === 'blocked' ? 'Managed by the Project Owner' : 'Couldn’t Check Access'}</Text>
             <Text style={styles.emptyBody}>{message}</Text>
             {onRetry && (
               <TouchableOpacity style={styles.bigCta} onPress={onRetry} accessibilityRole="button">
-                <Text style={styles.bigCtaText}>Try again</Text>
+                <Text style={styles.bigCtaText}>Try Again</Text>
               </TouchableOpacity>
             )}
           </>
@@ -426,10 +427,10 @@ function LienWaiversScreenInner() {
     } else if (isOfflineError(res.error)) {
       // A waiver is created on the server (it carries the id the signing link
       // is built on), so offline it cannot be saved yet — say that, not "failed".
-      showAlert('You’re offline', 'The waiver was not saved — this phone has no signal. Your entries are still in the form; tap Create again once you’re back online.');
+      showAlert('You’re offline.', 'The waiver was not saved. This phone has no signal. Your entries are still in the form. Tap Create again once you’re back online.');
     } else {
       console.warn('[LienWaivers] create failed:', res.error);
-      showAlert("Couldn't save the waiver", `The waiver was not saved. ${ownSentence(res.error) ?? 'Try again.'}`);
+      showAlert("Couldn't Save the Waiver", `The waiver was not saved. ${ownSentence(res.error) ?? 'Try again.'}`);
     }
   }, [projectId, prefillSeed, refresh]);
 
@@ -473,7 +474,7 @@ function LienWaiversScreenInner() {
     } catch (e) {
       // CONTRACT 25: a blocked pop-up on web reads as exactly that; anything
       // else keeps this screen's own sentence. No success haptic on this path.
-      showAlert('Export failed', pdfFailureMessage(e, 'Could not generate the PDF. Try again.'));
+      showAlert('Export Failed', pdfFailureMessage(e, 'Could not generate the PDF. Try again.'));
     } finally {
       setExporting(null);
     }
@@ -501,12 +502,12 @@ function LienWaiversScreenInner() {
     const email = (typed ?? '').trim();
     if (!email) return;   // they cancelled or cleared the field
     if (!email.includes('@') || /\s/.test(email)) {
-      showAlert('That is not an email address', `"${email}" has no "@" in it, so there is nowhere to send the waiver.`);
+      showAlert('That is not an email address.', `"${email}" has no "@" in it, so there is nowhere to send the waiver.`);
       return;
     }
     const saved = await saveLienWaiver({ ...w, id: w.id, subEmail: email });
     if (!saved) {
-      showAlert('Could not save that address', 'The email was not saved, so nothing was sent. Try again.');
+      showAlert('Could Not Save That Address', 'The email was not saved, so nothing was sent. Try again.');
       return;
     }
     setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
@@ -526,7 +527,7 @@ function LienWaiversScreenInner() {
       if (result.outcome === 'sent') {
         await refresh();
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        showAlert('Signing link sent', `${w.subName} can now open the waiver and sign it. You'll see it here once they do.`);
+        showAlert('Signing Link Sent', `${w.subName} can now open the waiver and sign it. You'll see it here once they do.`);
         return;
       }
       if (result.outcome === 'no_email') {
@@ -555,14 +556,14 @@ function LienWaiversScreenInner() {
         // that status — so the sub would be handed a live link to a release this
         // contractor had already cancelled.
         showAlert(
-          'This waiver is voided',
+          'This waiver is voided.',
           `It was cancelled, so ${w.subName} is not being asked to sign it. Create a new waiver if you need one.`,
         );
         return;
       }
       if (result.outcome === 'already_signed') {
         showAlert(
-          'This waiver is already signed',
+          'This waiver is already signed.',
           `${w.subName} has signed it. Re-sending would replace the signed document with a fresh unsigned one, so it is refused.`,
         );
         return;
@@ -576,18 +577,18 @@ function LienWaiversScreenInner() {
         // to paste.
         await refresh();
         showAlert(
-          'Email did not go out',
+          'Email did not go out.',
           'The waiver is ready to sign but the email was not accepted. Copy the signing link and send it yourself.',
           [
             { text: 'Close', style: 'cancel' },
-            { text: 'Copy link', onPress: () => { void copyToClipboard(url); } },
+            { text: 'Copy Link', onPress: () => { void copyToClipboard(url); } },
           ],
         );
         return;
       }
       if (result.outcome === 'not_provisioned') {
         showAlert(
-          'Signing is not switched on yet',
+          'Signing is not switched on yet.',
           'Sub-signed waivers need a database update that has not been applied to this account yet. Until then, use Record paper waiver.',
         );
         return;
@@ -595,10 +596,10 @@ function LienWaiversScreenInner() {
       if (isOfflineError(result.error ?? '')) {
         // The token is minted on the server row before the email goes, so this
         // is online-only by design (an optimistic token is a link that 404s).
-        showAlert('You’re offline', 'A signing link is created on the server, so it can only be sent with signal. Nothing was sent — try again once you’re back online.');
+        showAlert('You’re offline.', 'A signing link is created on the server, so it can only be sent with signal. Nothing was sent. Try again once you’re back online.');
         return;
       }
-      showAlert('Could not send', result.error || 'The signing request did not go out. Try again.');
+      showAlert('Could Not Send', result.error || 'The signing request did not go out. Try again.');
     } finally {
       requestInFlight.current = false;
       setRequesting(null);
@@ -629,7 +630,7 @@ function LienWaiversScreenInner() {
         showAlert(
           `Couldn’t ${verb}`,
           isOfflineError(res.error)
-            ? 'Not saved — this phone is offline. Check your signal and try again.'
+            ? 'Not saved. This phone is offline. Check your signal and try again.'
             : 'Not saved. Check your signal and try again.',
         );
         return;
@@ -660,7 +661,7 @@ function LienWaiversScreenInner() {
     const current = fresh.ok && fresh.waiver ? fresh.waiver : w;
     if (fresh.ok && fresh.waiver) setWaivers(prev => prev.map(x => x.id === w.id ? current : x));
     if (fresh.ok && !fresh.waiver) {
-      showAlert('This waiver is gone', 'It is no longer on the project. It may have been deleted on another device.');
+      showAlert('This waiver is gone.', 'It is no longer on the project. It may have been deleted on another device.');
       void refresh();
       return;
     }
@@ -686,7 +687,7 @@ function LienWaiversScreenInner() {
     const persist = async (rawName: string) => {
       const name = rawName.trim();
       if (!name || name.length < 2) {
-        showAlert('Name required', 'Type the subcontractor\'s legal name as it appears on the paper waiver.');
+        showAlert('Name Required', 'Type the subcontractor\'s legal name as it appears on the paper waiver.');
         return;
       }
       if (writeInFlight.current) return;
@@ -708,16 +709,16 @@ function LienWaiversScreenInner() {
           void refresh();
           const on = live?.signedAt ? new Date(live.signedAt).toLocaleDateString() : 'an earlier date';
           showAlert(
-            live?.subSignature?.role === 'gc' ? 'Already recorded' : `${w.subName} already e-signed this`,
+            live?.subSignature?.role === 'gc' ? 'Already Recorded' : `${w.subName} already e-signed this`,
             live?.subSignature?.role === 'gc'
               ? `A paper record for this waiver was already saved on ${on}. Nothing was changed.`
               : `${live?.subSignature?.name || w.subName} already e-signed this on ${on}; their electronic signature is on file. No paper record was added over it.`,
           );
         } else {
           showAlert(
-            "Couldn't record the waiver",
+            "Couldn't Record the Waiver",
             isOfflineError(res.error)
-              ? 'Not saved — this phone is offline. Check your signal and try again.'
+              ? 'Not saved. This phone is offline. Check your signal and try again.'
               : 'Could not record this waiver. Check your signal and try again.',
           );
         }
@@ -735,7 +736,7 @@ function LienWaiversScreenInner() {
     // fallback this file carried for web is no longer needed.
     showPrompt(
       'Record a paper waiver',
-      'Only for a waiver the sub has already signed on paper. Type the name as it appears on that original — this is recorded as your record of it, not as their signature.',
+      'Only for a waiver the sub has already signed on paper. Type the name as it appears on that original. This is recorded as your record of it, not as their signature.',
       (name) => { if (name != null) void persist(name); },
       'plain-text',
       w.subName,
@@ -763,7 +764,7 @@ function LienWaiversScreenInner() {
                 setWaivers(prev => prev.filter(x => x.id !== w.id));
                 void refresh();
               } else {
-                showAlert('Couldn’t delete', 'The waiver was not deleted. Check your signal and try again.');
+                showAlert('Couldn’t Delete', 'The waiver was not deleted. Check your signal and try again.');
                 void refresh();
               }
             } finally {
@@ -821,14 +822,14 @@ function LienWaiversScreenInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <EmptyState
           icon={<ShieldCheck size={36} color={themeColors.accent} strokeWidth={1.75} />}
-          title="Lien waivers live inside a project"
+          title="Lien Waivers Live Inside a Project"
           message="A lien waiver is tied to a specific project's payments, so it lives inside a project. To generate one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Lien waivers inside the project tile grid.',
-            'Pick the waiver type — we auto-fill the sub, paid amount, and through-date.',
+            'Pick the waiver type. We auto-fill the sub, paid amount, and through-date.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -844,7 +845,7 @@ function LienWaiversScreenInner() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Lien waivers</Text>
+          <Text style={styles.title}>Lien Waivers</Text>
         </View>
         <TouchableOpacity style={[styles.addBtn, isDesktop && desktopCta]} onPress={() => setAddModal(true)}>
           <Plus size={14} color="#FFF" strokeWidth={1.75} />
@@ -852,9 +853,9 @@ function LienWaiversScreenInner() {
         </TouchableOpacity>
       </View>
       <FeatureHeader
-        eyebrow="Lien waivers"
-        title="Signed proof each sub was paid"
-        subtitle="A signed slip from each sub saying &ldquo;I&apos;ve been paid; I won&apos;t lien the job.&rdquo; Many lenders and owners ask for these with a draw. We auto-fill from the invoice — you just pick the type."
+        eyebrow="Lien Waivers"
+        title="Signed Proof Each Sub Was Paid"
+        subtitle="A signed slip from each sub saying “I&apos;ve been paid; I won&apos;t lien the job.” Many lenders and owners ask for these with a draw. We auto-fill from the invoice. You pick the type."
         explainer={{
           term: 'Lien Waiver',
           definition: 'A lien waiver is a legal document a contractor or subcontractor signs giving up their right to file a mechanic\'s lien against the property for the amount they\'ve been paid. Lenders and owners often ask for them with a draw, as a record that each sub was paid.',
@@ -884,8 +885,8 @@ function LienWaiversScreenInner() {
             <WifiOff size={14} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.staleBannerText}>
               {loadError.offline
-                ? `Offline — showing what this phone last saw at ${seenAtLabel(seenAt)}.`
-                : `Couldn’t refresh — showing what this phone last saw at ${seenAtLabel(seenAt)}.`}
+                ? `Offline. Showing what this phone last saw at ${seenAtLabel(seenAt)}.`
+                : `Couldn’t refresh. Showing what this phone last saw at ${seenAtLabel(seenAt)}.`}
             </Text>
             <TouchableOpacity onPress={() => { void onPullRefresh(); }} accessibilityRole="button" hitSlop={8}>
               <Text style={styles.staleBannerAction}>Retry</Text>
@@ -895,10 +896,10 @@ function LienWaiversScreenInner() {
         {!loading && loadError && waivers.length === 0 && (
           <View style={styles.emptyCard} testID="lien-waivers-load-failed">
             <WifiOff size={28} color={Colors.warningLabel} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>Couldn&apos;t load waivers — check your signal</Text>
+            <Text style={styles.emptyTitle}>Couldn’t Load Waivers</Text>
             <Text style={styles.emptyBody}>
               This phone has no saved copy of this job&apos;s waivers, so we can&apos;t say whether any exist.
-              Nothing has been lost — retry once you have signal.
+              Nothing has been lost. Check your signal and retry.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={() => { void onPullRefresh(); }} accessibilityRole="button">
               <Text style={styles.bigCtaText}>Retry</Text>
@@ -909,14 +910,14 @@ function LienWaiversScreenInner() {
         {!loading && !loadError && waivers.length === 0 && (
           <View style={styles.emptyCard}>
             <ShieldCheck size={28} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No waivers yet</Text>
+            <Text style={styles.emptyTitle}>No Waivers Yet</Text>
             <Text style={styles.emptyBody}>
               Generate a lien waiver after every sub payment. Banks ask for them on every draw.
-              We'll auto-fill the sub's name, paid amount, and through-date — you just pick the type.
+              We'll auto-fill the sub's name, paid amount, and through-date. You pick the type.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={() => setAddModal(true)}>
               <Plus size={14} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.bigCtaText}>New waiver</Text>
+              <Text style={styles.bigCtaText}>New Waiver</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -928,8 +929,8 @@ function LienWaiversScreenInner() {
           <View style={styles.statuteBanner}>
             <Landmark size={14} color={themeColors.success} strokeWidth={1.75} />
             <Text style={styles.statuteBannerText}>
-              This jobsite is in {statutoryStateName(docCtx.jobsiteState)}. Waivers print on that state&apos;s statutory form
-              — check the citation and &ldquo;text as of&rdquo; date on the PDF, and have counsel confirm the
+              This jobsite is in {statutoryStateName(docCtx.jobsiteState)}. Waivers print on that state&apos;s statutory form.
+              Check the citation and “text as of” date on the PDF, and have counsel confirm the
               current wording before you rely on it.
             </Text>
           </View>
@@ -1142,7 +1143,7 @@ function WaiverCard({ waiver, exporting, requesting, busy, offline, formLabel, o
               <>
                 <Send size={13} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.actionPrimaryText}>
-                  {waiver.signRequestedAt ? 'Resend to sub' : 'Request signature'}
+                  {waiver.signRequestedAt ? 'Resend to Sub' : 'Request Signature'}
                 </Text>
               </>
             )}
@@ -1151,13 +1152,13 @@ function WaiverCard({ waiver, exporting, requesting, busy, offline, formLabel, o
         {waiver.status === 'requested' && (
           <TouchableOpacity style={[styles.actionSecondary, busy && styles.actionDisabled]} onPress={onRecordPaper} disabled={busy}>
             <FileSignature size={13} color={themeColors.text} strokeWidth={1.75} />
-            <Text style={styles.actionSecondaryText}>Record paper waiver</Text>
+            <Text style={styles.actionSecondaryText}>Record Paper Waiver</Text>
           </TouchableOpacity>
         )}
         {waiver.status === 'signed' && (
           <TouchableOpacity style={[styles.actionPrimary, busy && styles.actionDisabled]} onPress={onMarkReceived} disabled={busy}>
             <CheckCircle2 size={13} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.actionPrimaryText}>Mark received</Text>
+            <Text style={styles.actionPrimaryText}>Mark Received</Text>
           </TouchableOpacity>
         )}
         {(waiver.status === 'requested' || waiver.status === 'signed') && (
@@ -1250,15 +1251,15 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
     const trimmedEmail = subEmail.trim();
     const numericAmount = Number(amount);
     if (!trimmedName) {
-      showAlert('Sub name required', 'Type the subcontractor\'s legal company or person name.');
+      showAlert('Sub Name Required', 'Type the subcontractor\'s legal company or person name.');
       return;
     }
     if (!isFinite(numericAmount) || numericAmount <= 0) {
-      showAlert('Amount required', 'Enter the dollar amount paid through this date.');
+      showAlert('Amount Required', 'Enter the dollar amount paid through this date.');
       return;
     }
     if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      showAlert('Email looks off', 'Either fix the email or leave it blank.');
+      showAlert('Email looks off.', 'Either fix the email or leave it blank.');
       return;
     }
     const link = picked && picked.name === trimmedName ? picked : null;
@@ -1279,8 +1280,9 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
     <Modal visible={visible} animationType={f.animationType} transparent onRequestClose={onClose}>
       <View style={[styles.modalOverlay, f.overlay]}>
         <View style={[styles.modalCard, f.card]}>
-          <Text style={styles.modalTitle}>New lien waiver</Text>
+          <Text style={styles.modalTitle}>New Lien Waiver</Text>
           <Text style={styles.modalBody}>Pick the type, fill in the sub + amount, generate the PDF.</Text>
+          <TemplateNotice testID="lien-waiver-template-notice" style={{ marginBottom: 10 }} />
 
           <Text style={styles.modalLabel}>Type</Text>
           <View style={styles.typeRow}>
@@ -1301,7 +1303,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
 
           {subOptions.length > 0 && (
             <>
-              <Text style={styles.modalLabel}>From this project&apos;s subs</Text>
+              <Text style={styles.modalLabel}>From This Project’s Subs</Text>
               <View style={styles.typeRow} testID="waiver-sub-picker">
                 {subOptions.map(o => (
                   <TouchableOpacity
@@ -1319,7 +1321,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
             </>
           )}
 
-          <Text style={styles.modalLabel}>Sub name *</Text>
+          <Text style={styles.modalLabel}>Sub Name *</Text>
           <TextInput
             style={styles.modalInput}
             value={subName}
@@ -1329,7 +1331,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
             autoCapitalize="words"
           />
 
-          <Text style={styles.modalLabel}>Sub email</Text>
+          <Text style={styles.modalLabel}>Sub Email</Text>
           <TextInput
             style={styles.modalInput}
             value={subEmail}
@@ -1342,7 +1344,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
 
           <View style={styles.modalRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.modalLabel}>Through date</Text>
+              <Text style={styles.modalLabel}>Through Date</Text>
               <TouchableOpacity
                 style={[styles.modalInput, styles.dateField]}
                 onPress={() => setDatePicker(true)}
@@ -1354,7 +1356,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
               </TouchableOpacity>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.modalLabel}>Paid amount *</Text>
+              <Text style={styles.modalLabel}>Paid Amount *</Text>
               <TextInput
                 style={styles.modalInput}
                 value={amount}
@@ -1387,7 +1389,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
           visible
           value={throughDate}
           allowFuture
-          title="Paid through"
+          title="Paid Through"
           onClose={() => setDatePicker(false)}
           onChange={(iso) => { setThroughDate(iso.slice(0, 10)); setDatePicker(false); }}
         />

@@ -161,7 +161,7 @@ describe('practice pass — sample only', () => {
     expectRunLive();
     expect(tree.queryByTestId('paywall-upgrade-btn')).toBeNull();
     expect(tree.queryByTestId('send-invoice-btn')).not.toBeNull();
-    expect(tree.queryByText('Send to me')).not.toBeNull();
+    expect(tree.queryByText('Send to Me')).not.toBeNull();
     // The sample records its retainage term, so step 1 is not hidden behind
     // the "Retainage on this job" sheet (integration review).
     expect(tree.queryByTestId('retainage-ask-modal')).toBeNull();

@@ -297,7 +297,7 @@ export interface AgingCells {
   retainageOnly: boolean;
   /** Collectible money that is actually late (danger ink). */
   late: boolean;
-  /** The phone pill's own words: 'Retainage only' / 'Current' / 'Nd past due'. */
+  /** The phone pill's own words: 'Retainage Only' / 'Current' / 'Nd past due'. */
   bucketWord: string;
   bucketTone: AgingTone;
 }
@@ -319,7 +319,7 @@ export function agingCells(r: ARAgingRow): AgingCells {
     daysPastDue: retainageOnly ? null : r.daysPastDue,
     retainageOnly,
     late: !retainageOnly && r.bucket !== 'current',
-    bucketWord: retainageOnly ? 'Retainage only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`,
+    bucketWord: retainageOnly ? 'Retainage Only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`,
     bucketTone: retainageOnly || r.bucket === 'current' ? 'muted'
       : r.bucket === '0-30' || r.bucket === '31-60' ? 'warn' : 'bad',
   };

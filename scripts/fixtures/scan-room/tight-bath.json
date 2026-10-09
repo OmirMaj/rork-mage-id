@@ -1,0 +1,423 @@
+{
+ "walls": [
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000001",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    1.524,
+    2.0574,
+    0
+   ],
+   "transform": [
+    0.956305,
+    0,
+    -0.292372,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.292372,
+    0,
+    0.956305,
+    0,
+    1.428704,
+    -0.1713,
+    0.177213,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000002",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    2.4384,
+    2.0574,
+    0
+   ],
+   "transform": [
+    -0.292372,
+    0,
+    -0.956305,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.956305,
+    0,
+    -0.292372,
+    0,
+    1.800949,
+    -0.1713,
+    -1.211501,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000003",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    1.524,
+    2.0574,
+    0
+   ],
+   "transform": [
+    -0.956305,
+    0,
+    0.292372,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.292372,
+    0,
+    -0.956305,
+    0,
+    0.715785,
+    -0.1713,
+    -2.154641,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000004",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    2.4384,
+    2.0574,
+    0
+   ],
+   "transform": [
+    0.292372,
+    0,
+    0.956305,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.956305,
+    0,
+    0.292372,
+    0,
+    0.34354,
+    -0.1713,
+    -0.765927,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  }
+ ],
+ "doors": [
+  {
+   "identifier": "5CA90002-0000-4000-8000-000000000001",
+   "category": {
+    "door": {
+     "isOpen": false
+    }
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.7112,
+    2.032,
+    0
+   ],
+   "transform": [
+    0.956305,
+    0,
+    -0.292372,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.292372,
+    0,
+    0.956305,
+    0,
+    1.720186,
+    -0.184,
+    0.088098,
+    1
+   ],
+   "completedEdges": [],
+   "curve": null,
+   "parentIdentifier": "5CA90001-0000-4000-8000-000000000001",
+   "story": 0,
+   "polygonCorners": []
+  }
+ ],
+ "windows": [],
+ "openings": [],
+ "objects": [
+  {
+   "identifier": "5CA90005-0000-4000-8000-000000000001",
+   "category": {
+    "bathtub": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    1.524,
+    0.508,
+    0.762
+   ],
+   "transform": [
+    0.956305,
+    0,
+    -0.292372,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.292372,
+    0,
+    0.956305,
+    0,
+    0.827179,
+    -0.946,
+    -1.790289,
+    1
+   ],
+   "parentIdentifier": null,
+   "story": 0,
+   "attributes": {}
+  },
+  {
+   "identifier": "5CA90005-0000-4000-8000-000000000002",
+   "category": {
+    "toilet": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.381,
+    0.762,
+    0.7111999999999999
+   ],
+   "transform": [
+    -0.292372,
+    0,
+    -0.956305,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.956305,
+    0,
+    -0.292372,
+    0,
+    0.653897,
+    -0.819,
+    -0.967055,
+    1
+   ],
+   "parentIdentifier": null,
+   "story": 0,
+   "attributes": {}
+  },
+  {
+   "identifier": "5CA90005-0000-4000-8000-000000000003",
+   "category": {
+    "sink": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.6095999999999999,
+    0.8635999999999999,
+    0.508
+   ],
+   "transform": [
+    -0.292372,
+    0,
+    -0.956305,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.956305,
+    0,
+    -0.292372,
+    0,
+    0.73868,
+    -0.7682,
+    -0.342241,
+    1
+   ],
+   "parentIdentifier": null,
+   "story": 0,
+   "attributes": {}
+  },
+  {
+   "identifier": "5CA90005-0000-4000-8000-000000000004",
+   "category": {
+    "storage": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.508,
+    1.8288,
+    0.254
+   ],
+   "transform": [
+    -0.292372,
+    0,
+    -0.956305,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.956305,
+    0,
+    -0.292372,
+    0,
+    1.649793,
+    -0.2856,
+    -1.271531,
+    1
+   ],
+   "parentIdentifier": null,
+   "story": 0,
+   "attributes": {}
+  }
+ ],
+ "version": 2,
+ "story": 0,
+ "floors": [],
+ "sections": [
+  {
+   "label": {
+    "bathroom": {}
+   },
+   "center": [
+    0,
+    0,
+    0
+   ],
+   "story": 0
+  }
+ ],
+ "referenceOriginTransform": [
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  1
+ ]
+}

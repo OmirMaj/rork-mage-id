@@ -121,14 +121,14 @@ console.log('\napp/coi-vault.tsx:');
   ok('the new row is added with the uploaded fileUri or \'\' — never the local uri',
     /let fileUri = '';/.test(ingest) && /fileUri = await uploadCoiFile\(entry\)/.test(ingest) && /fileUri,\n/.test(ingest) && !/fileUri:\s*picked\.uri/.test(ingest));
   ok('a failed upload keeps the local file in the device-only pending map', /updatePending\(m => \(\{ \.\.\.m, \[coiId\]: entry \}\)\)/.test(ingest));
-  ok('…labelled "Not uploaded yet — only on this phone"', /Not uploaded yet — only on this phone/.test(vault));
+  ok('…labelled "Not uploaded yet — only on this phone"', /Not uploaded yet\. Only on this phone/.test(vault));
   ok('…and retried on the next open, then patched onto the certificate',
     /void uploadCoiFile\(entry\)\.then\(/.test(vault) && /queuePatch\(entry\.coiId, \{ fileUri \}\)/.test(vault));
   // Raw source: the comment stripper reads the '/*' inside 'image/*' as a comment.
   ok('PDFs can be picked (DocumentPicker with application/pdf)', /getDocumentAsync\(\{\s*type: \['application\/pdf', 'image\/\*'\]/.test(src('app/coi-vault.tsx')));
   ok('the card renders through resolveCoiFileUrl, not the raw fileUri', /resolveCoiFileUrl\(coi\.fileUri\)/.test(vault) && !/source=\{\{ uri: coi\.fileUri \}\}/.test(vault));
-  ok('a PDF is an "Open certificate" row, not an <Image>', /accessibilityLabel="Open certificate"/.test(vault) && /pdf \? \(/.test(vault));
-  ok('an unreachable file says so ("not on this device — re-upload")', /Certificate file not on this device — re-upload it\./.test(vault));
+  ok('a PDF is an "Open certificate" row, not an <Image>', /accessibilityLabel="Open Certificate"/.test(vault) && /pdf \? \(/.test(vault));
+  ok('an unreachable file says so ("not on this device — re-upload")', /Certificate file not on this device\. Upload it again\./.test(vault));
   ok('the AI read still runs on the local file', /validateCOIImage\(picked\.uri, contentType\)/.test(vault));
   ok('writes after an await go through the latest context (ctxRef), not a stale capture',
     /ctxRef\.current\.addCOI\?\.\(newCoi\)/.test(vault) && !/\bctx\.updateCOI\?\.\(newCoi\.id/.test(vault));

@@ -45,6 +45,7 @@ import { PriceDriftCheck, usePriceDriftAtSend } from '@/components/priceWatch/Pr
 import type { DriftAtSend } from '@/utils/priceDriftGate';
 import { defaultValidUntil } from '@/utils/proposalValidity';
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { TemplateNotice } from '@/components/ProtectNotices';
 
 export default function SmartProposalScreen() {
   const router = useRouter();
@@ -70,7 +71,7 @@ function markupToPercent(globalMarkup: number | undefined): number {
 
 const STATUS_LABEL: Record<SmartProposal['status'], string> = {
   draft: 'Draft',
-  sent: 'Sent — awaiting answer',
+  sent: 'Sent, Awaiting Answer',
   accepted: 'Accepted',
   declined: 'Declined',
 };
@@ -250,7 +251,7 @@ function SmartProposalInner() {
   const handleDecline = () => {
     if (!built) return;
     showAlert(
-      'Mark declined',
+      'Mark Declined',
       'What was the dealbreaker? Tagging price-driven losses sharpens the next recommendation.',
       [
         { text: 'Price', onPress: () => { persistProposal('declined'); closeLead('lost', 'price'); } },
@@ -273,8 +274,8 @@ function SmartProposalInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Smart proposal · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Good / better / best'}</Text>
+          <Text style={styles.headerEyebrow}>Smart Proposal · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Good / Better / Best'}</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -283,7 +284,7 @@ function SmartProposalInner() {
         {/* Inputs */}
         <View style={styles.inputCard}>
           <View style={styles.inputRow}>
-            <Text style={styles.inputLabel}>Job cost</Text>
+            <Text style={styles.inputLabel}>Job Cost</Text>
             <View style={styles.inputWrap}>
               <Text style={styles.inputPrefix}>$</Text>
               <TextInput
@@ -300,7 +301,7 @@ function SmartProposalInner() {
           </View>
           <View style={styles.inputDivider} />
           <View style={styles.inputRow}>
-            <Text style={styles.inputLabel}>Your usual markup</Text>
+            <Text style={styles.inputLabel}>Your Usual Markup</Text>
             <View style={styles.inputWrap}>
               <TextInput
                 style={styles.input}
@@ -317,7 +318,7 @@ function SmartProposalInner() {
           </View>
           <View style={styles.inputDivider} />
           <View style={styles.inputRow}>
-            <Text style={styles.inputLabel}>Competing bids <Text style={styles.inputHint}>(optional)</Text></Text>
+            <Text style={styles.inputLabel}>Competing Bids <Text style={styles.inputHint}>(optional)</Text></Text>
             <View style={styles.inputWrap}>
               <TextInput
                 style={styles.input}
@@ -333,7 +334,7 @@ function SmartProposalInner() {
           </View>
           <View style={styles.inputDivider} />
           <View style={styles.inputRow}>
-            <Text style={styles.inputLabel}>Client name</Text>
+            <Text style={styles.inputLabel}>Client Name</Text>
             <TextInput
               style={[styles.input, { minWidth: 140 }]}
               value={clientNameStr}
@@ -348,9 +349,9 @@ function SmartProposalInner() {
         {/* Lead picker — links the proposal so accept/decline trains the curve. */}
         {!leadId && pickableLeads.length > 0 && (
           <View style={styles.leadCard}>
-            <Text style={styles.leadCardTitle}>Link a lead</Text>
+            <Text style={styles.leadCardTitle}>Link a Lead</Text>
             <Text style={styles.leadCardSub}>
-              Accept/decline updates the lead to won/lost — that history trains your pricing curve.
+              Accept/decline updates the lead to won/lost. That history trains your pricing curve.
             </Text>
             <View style={styles.leadChips}>
               {pickableLeads.map(l => {
@@ -371,7 +372,7 @@ function SmartProposalInner() {
           </View>
         )}
         {selectedLead && leadId && (
-          <Text style={styles.linkedLeadNote}>Linked lead: {selectedLead.name} — accept/decline will mark it won/lost.</Text>
+          <Text style={styles.linkedLeadNote}>Linked lead: {selectedLead.name}. Accept/decline will mark it won/lost.</Text>
         )}
 
         {!built ? (
@@ -379,8 +380,8 @@ function SmartProposalInner() {
             <FileSignature size={26} color={t.accent} strokeWidth={1.7} />
             <Text style={styles.infoTitle}>Enter a job cost to build the proposal</Text>
             <Text style={styles.infoBody}>
-              Smart Proposal turns your estimate into three client-ready options — Essential,
-              Signature, Premium — each priced by the Win Optimizer to balance margin against
+              Smart Proposal turns your estimate into three client-ready options (Essential,
+              Signature, Premium), each priced by the Win Optimizer to balance margin against
               the odds of closing. Share it, then mark the answer to sharpen the next one.
             </Text>
           </View>
@@ -430,7 +431,7 @@ function SmartProposalInner() {
             {/* Actions */}
             <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: t.accentFill }]} onPress={handleShare} activeOpacity={0.85} testID="proposal-share">
               <Share2 size={18} color={t.bg} strokeWidth={1.75} />
-              <Text style={[styles.primaryBtnText, { color: t.bg }]}>Share with client</Text>
+              <Text style={[styles.primaryBtnText, { color: t.bg }]}>Share with Client</Text>
             </TouchableOpacity>
             <View style={styles.outcomeRow}>
               <TouchableOpacity
@@ -444,7 +445,7 @@ function SmartProposalInner() {
                 {/* C9: a price someone said yes to is not a signed agreement.
                     The lead still closes as won (handleAccept); the contract
                     is the one path that records a signed acceptance. */}
-                <Text style={[styles.outcomeBtnText, { color: t.success }]}>Client said yes (not signed)</Text>
+                <Text style={[styles.outcomeBtnText, { color: t.success }]}>Client Said Yes (Not Signed)</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.outcomeBtn, { borderColor: t.danger }, status === 'declined' && { backgroundColor: t.danger + '22' }]}
@@ -454,7 +455,7 @@ function SmartProposalInner() {
                 testID="proposal-decline"
               >
                 <XCircle size={16} color={t.danger} strokeWidth={1.75} />
-                <Text style={[styles.outcomeBtnText, { color: t.danger }]}>Mark declined</Text>
+                <Text style={[styles.outcomeBtnText, { color: t.danger }]}>Mark Declined</Text>
               </TouchableOpacity>
             </View>
             {project ? (
@@ -471,8 +472,12 @@ function SmartProposalInner() {
               <Text style={styles.lockInLine} testID="proposal-lock-in-contract">To lock it in, send the contract</Text>
             )}
 
+            {/* GC-facing: the proposal wording is a template. Not printed on
+                the proposal the client reads. */}
+            <TemplateNotice testID="proposal-template-notice" style={{ marginBottom: 14 }} />
+
             {/* GC-facing reasoning */}
-            <Text style={styles.sectionTitle}>Why these prices</Text>
+            <Text style={styles.sectionTitle}>Why These Prices</Text>
             <View style={styles.driversCard}>
               {built.drivers.map((d, i) => (
                 <View key={i} style={[styles.driverRow, i > 0 && styles.driverBorder]}>
@@ -483,7 +488,7 @@ function SmartProposalInner() {
             </View>
 
             <Text style={styles.note}>
-              The shared version carries prices and inclusions only — win odds, expected profit,
+              The shared version carries prices and inclusions only. Win odds, expected profit,
               and markup never leave this screen. Marking the outcome trains the pricing curve
               ({built.sampleSize} closed proposal{built.sampleSize === 1 ? '' : 's'} so far).
             </Text>

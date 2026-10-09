@@ -178,7 +178,7 @@ ok('days open: answered with no response date → null (its end is unknown)', rf
 ok('days open: an ISO instant is read as its local day',
   rfiDaysOpen(rfi({ dateSubmitted: new Date(2026, 8, 24, 22, 0).toISOString() }), NOW) === 1);
 ok("ball label: the RFI screen's words; unknown → null",
-  rfiBallLabel('gc') === 'You (GC)' && rfiBallLabel('building_engineer') === 'Building engineer' && rfiBallLabel(undefined) === null);
+  rfiBallLabel('gc') === 'You (GC)' && rfiBallLabel('building_engineer') === 'Building Engineer' && rfiBallLabel(undefined) === null);
 ok('overdue: only an OPEN RFI past its due day', rfiOverdueDays(rfi({}), NOW) === 5
   && rfiOverdueDays(rfi({ status: 'answered' }), NOW) === 0 && rfiOverdueDays(rfi({ dateRequired: '2026-09-25' }), NOW) === 0);
 const rfis = [rfi({ id: 'a' }), rfi({ id: 'b', dateRequired: '2026-10-01' }), rfi({ id: 'c', status: 'answered' }),
@@ -214,7 +214,7 @@ ok("ball: in review with no named reviewer → 'Reviewer'",
 ok('ball: approved / as noted / rejected → null (—)', ['approved', 'approved_as_noted', 'rejected']
   .every((st) => submittalBallInCourt(sub({ currentStatus: st as Submittal['currentStatus'] })) === null));
 ok("cycle: 'Not sent' before the first, else 'Cycle n' (the highest)",
-  submittalCycleLabel(sub({})) === 'Not sent' && submittalCycleLabel(sub({ reviewCycles: [cyc(1, 'a', 'x'), cyc(2, 'b')] })) === 'Cycle 2');
+  submittalCycleLabel(sub({})) === 'Not Sent' && submittalCycleLabel(sub({ reviewCycles: [cyc(1, 'a', 'x'), cyc(2, 'b')] })) === 'Cycle 2');
 ok('late: past required and not approved; no required date is never late',
   submittalIsLate(sub({ requiredDate: '2026-09-20' }), NOW) && !submittalIsLate(sub({ requiredDate: '2026-09-20', currentStatus: 'approved_as_noted' }), NOW)
   && !submittalIsLate(sub({}), NOW) && !submittalIsLate(sub({ requiredDate: '2026-09-25' }), NOW));
@@ -356,9 +356,9 @@ ok('rfi / submittal editors report unsaved edits to the log (useLogRecordDirty o
   /useLogRecordDirty\(\(\) => dirtyRef\.current\);/.test(rfiSrc) && /useLogRecordDirty\(\(\) => dirtyRef\.current\);/.test(subSrc));
 ok('Cmd+S / Cmd+Enter: usePrimaryAction on all four editors, desktop only',
   /usePrimaryAction\(existingRFI \? handleSaveInPlace : handleSave, \{\s*label: 'Save RFI',\s*enabled: isDesktop/.test(rfiSrc)
-  && /usePrimaryAction\(existingSubmittal \? handleSaveInPlace : handleSave, \{ label: 'Save submittal', enabled: isDesktop \}\)/.test(subSrc)
-  && /usePrimaryAction\(\(\) => withConfirmedImpactDays\(\(\) => handleSave\('draft'\)\), \{\s*label: 'Save change order',\s*enabled: isDesktop,\s*disabled: isLocked,/.test(coSrc)
-  && /usePrimaryAction\(\(\) => handleSave\('draft'\), \{\s*label: 'Save invoice',\s*enabled: isDesktop,/.test(invSrc));
+  && /usePrimaryAction\(existingSubmittal \? handleSaveInPlace : handleSave, \{ label: 'Save Submittal', enabled: isDesktop \}\)/.test(subSrc)
+  && /usePrimaryAction\(\(\) => withConfirmedImpactDays\(\(\) => handleSave\('draft'\)\), \{\s*label: 'Save Change Order',\s*enabled: isDesktop,\s*disabled: isLocked,/.test(coSrc)
+  && /usePrimaryAction\(\(\) => handleSave\('draft'\), \{\s*label: 'Save Invoice',\s*enabled: isDesktop,/.test(invSrc));
 ok('a sheet that sends or records money never binds Cmd+S (saveKey: false)',
   /useSheetPrimaryHotkey\(showSendModal,[^\n]*\{ saveKey: false \}\)/.test(rfiSrc)
   && /useSheetPrimaryHotkey\(showEmailSend,[^\n]*\{ saveKey: false \}\)/.test(subSrc)
@@ -432,7 +432,7 @@ console.log('\nhonest loading (wave 6d, lane V3 — runtime fix C6): no "No … 
     ok(`${file}: reads its settle signal (${signal}) and derives \`loading\` from it`, reads.test(src) && src.includes(loadingLine));
     ok(`${file}: the emptyState branches on \`loading\` FIRST ("Loading …"), before any "No … on this project yet"`,
       /^emptyState=\{loading \? \(\s*<EmptyState[\s\S]{0,160}title="Loading [A-Za-z ]+…"/.test(empty)
-      && empty.indexOf('title="Loading') < empty.indexOf('on this project yet'));
+      && empty.indexOf('title="Loading') < empty.search(/on this project yet/i));
     ok(`${file}: the chip counts are hidden while loading (never a 0 it has not earned)`, /count: loading \? undefined : counts\[f\.key\]/.test(src));
   }
   for (const [file, key, noun] of [['components/logs/RfiLog.tsx', 'rfis', 'RFIs'], ['components/logs/SubmittalLog.tsx', 'submittals', 'submittals']] as const) {

@@ -692,7 +692,7 @@ export function stepCopy(step: TutorialStep, ctx: CopyCtx, usedTargetId?: string
   return { text: resolveCopy(text, ctx), detail: resolveCopy(step.detail, ctx) };
 }
 
-export const OFFLINE_SUCCESS_SUB = "Saved on this phone — syncs when you're back online";
+export const OFFLINE_SUCCESS_SUB = "Saved on this phone. Syncs when you're back online.";
 
 /** The stamp's title and subline. Offline, the local save IS the success,
  *  and the subline says so instead of implying it reached the server. */

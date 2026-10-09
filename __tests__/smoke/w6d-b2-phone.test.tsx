@@ -202,7 +202,7 @@ async function pump(n = 6) {
 const inv = (id: string, number: number, issueDate: string, dueDate: string, totalDue: number, amountPaid: number, retentionAmount = 0) => ({
   id, number, projectId: PROJECT_ID, type: 'progress', progressPercent: 100,
   issueDate, dueDate, paymentTerms: 'net_30', notes: '',
-  lineItems: [{ id: `${id}-l1`, name: 'Progress billing', description: '', quantity: 1, unit: 'LS', unitPrice: totalDue, total: totalDue }],
+  lineItems: [{ id: `${id}-l1`, name: 'Progress Billing', description: '', quantity: 1, unit: 'LS', unitPrice: totalDue, total: totalDue }],
   subtotal: totalDue, taxRate: 0, taxAmount: 0, totalDue, amountPaid,
   status: amountPaid > 0 ? 'partially_paid' : 'sent',
   payments: amountPaid > 0 ? [{ id: `${id}-p1`, date: issueDate, amount: amountPaid, method: 'check' }] : [],
@@ -293,6 +293,6 @@ describe('lane B2 — android 1100 (isDesktop true, desktopWeb false)', () => {
 
   it('reports renders on the tablet (its DataTables follow isDesktop, accepted since 6b)', async () => {
     await tablet('/reports');
-    expect(screen.getAllByText('Reports for your bank').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Reports for Your Bank').length).toBeGreaterThan(0);
   });
 });

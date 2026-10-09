@@ -291,8 +291,8 @@ expect('highlights include trades', sam.credential.highlights.includes('Trades p
 expect('highlights include first year on platform', sam.credential.highlights.includes('Working through MAGE ID since 2024'), true);
 expect('summary opens with the reach claim', sam.credential.summary.startsWith('Volt Edge Electric has run 3 jobs for 2 general contractors on MAGE ID'), true);
 expect('summary states the on-time rate', sam.credential.summary.includes('75% of the time'), true);
-expect('verified line names the evidence and disclaims pricing', sam.credential.verifiedLine, 'Verified by MAGE ID from 3 job records across 2 general contractors. No pricing, rates, or contract values are shared.');
-expect('empty credential says so instead of bluffing', stranger.credential.verifiedLine.includes('no linked job records yet'), true);
+expect('verified line names the evidence and disclaims pricing', sam.credential.verifiedLine, 'Built from 3 job records kept in MAGE ID by 2 general contractors. MAGE ID did not check them. No pricing, rates, or contract values are shared.');
+expect('empty credential says so instead of bluffing', stranger.credential.verifiedLine.includes('No linked job records yet'), true);
 
 // ── Referral hook ───────────────────────────────────────────────────────────
 console.log('\nreferral hook (the sub pulls their other GCs in):');
@@ -300,11 +300,11 @@ console.log('\nreferral hook (the sub pulls their other GCs in):');
 expect('invite targets drop GCs already on MAGE and case dupes', sam.referral.inviteTargets.map(g => g.name), ['Ridgeline Homes', 'Castle Rock Custom']);
 expect('invite target contact details are carried through', [sam.referral.inviteTargets[0].contactName, sam.referral.inviteTargets[1].email], ['Dana', 'jo@castlerock.com']);
 expect('no off-platform list → no targets', thin.referral.inviteTargets, []);
-expect('referral leads with the sub\'s own experience', sam.referral.message.startsWith('Hey - a couple of the GCs I work for run their subs through MAGE ID'), true);
+expect('referral leads with the sub\'s own experience', sam.referral.message.startsWith('Hey, a couple of the GCs I work for run their subs through MAGE ID'), true);
 expect('referral carries the proof line', sam.referral.message.includes('3 jobs for 2 GCs, 2 closed out'), true);
 expect('referral says free for subs', sam.referral.message.includes("free for subs"), true);
 expect('short message fits an SMS', sam.referral.shortMessage.length < 200, true);
-expect('email subject is branded to the sub', sam.referral.emailSubject, 'Volt Edge Electric - running our jobs through MAGE ID');
+expect('email subject is branded to the sub', sam.referral.emailSubject, 'Volt Edge Electric: running our jobs through MAGE ID');
 expect('referral copy carries no money', findSubDataLeaks(sam.referral), []);
 
 // ── Sub COMPLIANCE state (utils/subCompliance) ──────────────────────────────
@@ -334,7 +334,7 @@ const cSub = (o: Partial<Subcontractor> = {}): Subcontractor =>
 expect('empty-string dates are NOT compliant',
   getComplianceStatus(cSub(), CNOW), 'unknown' as ComplianceState);
 expect('empty-string dates label the gap',
-  complianceLabel(getComplianceStatus(cSub(), CNOW), cSub()), 'No docs');
+  complianceLabel(getComplianceStatus(cSub(), CNOW), cSub()), 'No Docs');
 
 // Absent (undefined) behaves identically to empty string. The type says these
 // are required strings, but AsyncStorage rows written before the fields existed
@@ -361,7 +361,7 @@ expect('and the chip names the missing document',
 
 const coiOnly = { ...cSub(), licenseExpiry: '', coiExpiry: '2027-06-01' } as Subcontractor;
 expect('COI on file but no licence names that gap',
-  complianceLabel(getComplianceStatus(coiOnly, CNOW), coiOnly), 'No license');
+  complianceLabel(getComplianceStatus(coiOnly, CNOW), coiOnly), 'No License');
 
 // Evidence of a problem outranks missing evidence.
 expect('expired COI + no licence date is EXPIRED, not unknown',

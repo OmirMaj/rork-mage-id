@@ -120,7 +120,7 @@ export function ContactsRegister({ contacts, split, detail, roles, onNew, delete
       csvStem="contacts"
       csv={csv}
       onNew={onNew}
-      actions={[{ key: 'new', label: 'New contact', primary: true, icon: Plus, onPress: onNew, testID: 'contacts-register-new' }]}
+      actions={[{ key: 'new', label: 'New Contact', primary: true, icon: Plus, onPress: onNew, testID: 'contacts-register-new' }]}
       record={{ split, param: 'contactId', pathname: '/contacts', detail, noun: 'contact' }}
       renderTable={({ activeKey, onRowOpen, getRowHref }) => (
         <DataTable<Contact>
@@ -156,11 +156,11 @@ export function ContactsRegister({ contacts, split, detail, roles, onNew, delete
           emptyState={(
             <EmptyState
               icon={<User size={28} color={t.accent} strokeWidth={1.75} />}
-              title={filtered ? 'No contacts match' : 'No contacts yet'}
+              title={filtered ? 'No Contacts Match' : 'No Contacts Yet'}
               message={filtered
                 ? 'Try a different search term or clear the role filter to see everyone.'
                 : 'Add your owners, architects, engineers, inspectors, and lenders here. Every RFI, daily report, and invoice can pull from this list automatically.'}
-              actionLabel={filtered ? undefined : 'Add first contact'}
+              actionLabel={filtered ? undefined : 'Add First Contact'}
               onAction={filtered ? undefined : onNew}
             />
           )}

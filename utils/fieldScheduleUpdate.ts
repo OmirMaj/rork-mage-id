@@ -420,9 +420,9 @@ export function scheduleWritePathForRole(role: string | null | undefined): Sched
  *  viewer seats with 200 and zero rows: the plan looked saved on his phone and
  *  the next reload put the old one back. One wording for both screens, so the
  *  two refusals cannot drift. `null` = this role may write it. */
-export const SCHEDULE_NOT_SAVED_TITLE = 'Schedule not saved';
+export const SCHEDULE_NOT_SAVED_TITLE = 'Schedule Not Saved';
 export const SCHEDULE_WRITE_FIELD_REASON =
-  'Field access saves task progress, status, notes and actual start/finish — from Quick field update on Home, or the Schedule tab on your phone. Building, accepting or replacing a whole schedule needs editor access from the project owner.';
+  'Field access saves task progress, status, notes and actual start/finish, from Quick Field Update on Home, or the Schedule tab on your phone. Building, accepting or replacing a whole schedule needs editor access from the project owner.';
 export const SCHEDULE_WRITE_VIEWER_REASON =
   'You have view-only access to this project, so a new schedule is not saved. Ask the project owner for field or editor access.';
 export function scheduleWriteBlockedReason(path: ScheduleWritePath): string | null {
@@ -587,15 +587,15 @@ interface RpcClient {
 export function fieldSendFailureMessage(err: { message?: string; code?: string } | null | undefined): string {
   const msg = (err?.message ?? '').toLowerCase();
   const code = err?.code ?? '';
-  if (code === '42501') return 'Not saved — your access to this project no longer allows schedule updates. Ask the project owner.';
+  if (code === '42501') return 'Not saved. Your access to this project no longer allows schedule updates. Ask the project owner.';
   if (code === 'PGRST202' || code === '42883' || msg.includes('could not find the function')) {
-    return 'Not saved — progress updates on field access are not switched on for this account yet. Tell the project owner.';
+    return 'Not saved. Progress updates on field access are not switched on for this account yet. Tell the project owner.';
   }
-  if (code === '22023') return 'Not saved — that change isn\'t a progress update, so field access can\'t send it.';
+  if (code === '22023') return 'Not saved. That change isn\'t a progress update, so field access can\'t send it.';
   if (msg.includes('network') || msg.includes('fetch') || msg.includes('offline') || msg.includes('timed out')) {
-    return 'Not saved — no connection. Progress updates on field access need a signal; try again when you are back online.';
+    return 'Not saved: no connection. Progress updates on field access need a signal; try again when you are back online.';
   }
-  return 'Not saved — the update didn\'t go through. Try again, or ask the project owner.';
+  return 'Not saved. The update didn\'t go through. Try again, or ask the project owner.';
 }
 
 /**
@@ -772,7 +772,7 @@ export async function planFieldRetry(
  *  reached the server first. Plain about what happened, and what he sees now. */
 export function fieldRetrySupersededMessage(titles: readonly string[]): string {
   const names = titles.length <= 2 ? titles.join(' and ') : `${titles.slice(0, 2).join(', ')} and ${titles.length - 2} more`;
-  return `Your unsent change to ${names} was not sent: it was changed elsewhere while you had no signal. It now shows the newer value — change it again if yours is right.`;
+  return `Your unsent change to ${names} was not sent: it was changed elsewhere while you had no signal. It now shows the newer value. Change it again if yours is right.`;
 }
 
 /** That notice as a banner entry: nothing left to send, so no Retry — only the

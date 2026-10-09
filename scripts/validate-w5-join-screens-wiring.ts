@@ -235,7 +235,7 @@ console.log('\n#61 — Delete and the OSHA log:');
   const pd = read('app/project-detail.tsx');
   ok('the confirm lists the safety records that go (JHAs, toolbox talks, hazards)', /its safety records \(JHAs, toolbox talks, hazards\)/.test(pd));
   ok('a job with incidents is refused up front, with Mark closed', /if \(deleteSafety\.refusal\) \{ showDeleteRefusal\(deleteSafety\.refusal, true\); return; \}/.test(pd)
-    && /\{ text: 'Mark closed', onPress: markJobClosed \}/.test(pd));
+    && /\{ text: 'Mark Closed', onPress: markJobClosed \}/.test(pd));
   ok('deleteProject gets the hydrated incident count and its refusal is shown', /await deleteProject\(id, knownIncidents !== undefined && knownIncidents > 0 \? \{ safetyIncidentCount: knownIncidents \} : undefined\)/.test(pd)
     && /showDeleteRefusal\(res\.reason, res\.action === DELETE_SAFETY_ACTION\)/.test(pd));
   ok('the count is passed only once the safety log has hydrated', /const knownIncidents = jobSafety\.hydrated \? jobSafety\.incidents : undefined;/.test(pd));
@@ -265,7 +265,7 @@ console.log('\n#57 / #156 — every create path asks the cap gate:');
   const hook = read('hooks/useCopilotConversation.ts');
   const shell = read('components/copilot/CopilotShell.tsx');
   ok('the Copilot names a cap refusal (project_cap) and offers See plans, not a retry',
-    /capRefused \? 'project_cap'/.test(hook) && /Free covers one project/.test(shell) && /\(limitError \|\| capError\) &&/.test(shell) && /!limitError && !applyError && !capError/.test(shell));
+    /capRefused \? 'project_cap'/.test(hook) && /Free Covers One Project/.test(shell) && /\(limitError \|\| capError\) &&/.test(shell) && /!limitError && !applyError && !capError/.test(shell));
 }
 
 // ── #74 claimed crew worker ───────────────────────────────────────────────
@@ -277,9 +277,9 @@ console.log('\n#74 — a claimed crew worker:');
   ok('a stashed /claim-crew is replayed before the persona question', /if \(route === 'claim-crew'\) \{ router\.replace\(pending as never\); return; \}/.test(layout)
     && /await setPendingDeepLink\(pending\);/.test(layout) && /if \(authLoading \|\| projectLoading \|\| !isAuthenticated \|\| userRole !== null \|\| claimReplayRef\.current\) return;/.test(layout));
   ok('Tools and the sidebar read "My profile" (no chip / lock) for them',
-    /crewAsProfile\(row\) \? 'My profile' : row\.title/.test(read('app/(tabs)/discover/tools.tsx'))
+    /crewAsProfile\(row\) \? 'My Profile' : row\.title/.test(read('app/(tabs)/discover/tools.tsx'))
     && /if \(crewAsProfile\(row\)\) return undefined;/.test(read('app/(tabs)/discover/tools.tsx'))
-    && /const label = asProfile \? 'My profile' : item\.label;/.test(read('components/DesktopSidebar.tsx'))
+    && /const label = asProfile \? 'My Profile' : item\.label;/.test(read('components/DesktopSidebar.tsx'))
     && /const locked = !asProfile && /.test(read('components/DesktopSidebar.tsx')));
 }
 
@@ -320,7 +320,7 @@ console.log('\n#137 / #48 — selections:');
     && !/\bsaveSelectionOption\(/.test(sel) && !/\bchooseSelectionOption\(/.test(sel) && !/\bdeleteSelectionCategory\(/.test(sel));
   ok('the photo edit sends no unitPrice (it cannot un-choose or re-total)',
     /saveSelectionOptionDetailed\(\{ id: option\.id, categoryId: option\.categoryId, productName: option\.productName, productUrl: url\.trim\(\), imageUrl \}\)/.test(sel));
-  ok('queued and failed are said', /'Saved offline'/.test(sel) && /showAlert\('Not chosen', res\.message\)/.test(sel));
+  ok('queued and failed are said', /'Saved Offline'/.test(sel) && /showAlert\('Not Chosen', res\.message\)/.test(sel));
   ok('exceeded / decided also read the chosen total', /chosen\.total > category\.budget/.test(sel) && /opts\.some\(o => o\.isChosen\)/.test(sel));
 }
 
@@ -330,7 +330,7 @@ for (const f of ['app/closeout-binder.tsx', 'app/project-detail.tsx', 'app/sub-p
   const src = read(f);
   ok(`${f} reads through loadLienWaiversChecked`, /loadLienWaiversChecked\(/.test(src) && !/fetchLienWaiversForProject\(/.test(src));
 }
-ok('the binder refuses to print an empty waiver section off a failed read', /if \(waiverReadError\) \{[\s\S]{0,300}'Lien waivers not loaded'/.test(read('app/closeout-binder.tsx')));
+ok('the binder refuses to print an empty waiver section off a failed read', /if \(waiverReadError\) \{[\s\S]{0,300}'Lien Waivers Not Loaded'/.test(read('app/closeout-binder.tsx')));
 ok('sub-portal setup says it could not check instead of offering a second release',
   /releasesReadFailed \? 'Couldn\\u2019t check lien releases/.test(read('app/sub-portal-setup.tsx'))
   && /\(!shown \|\| needsUnconditional\) && !releasesReadFailed \?/.test(read('app/sub-portal-setup.tsx')));

@@ -345,7 +345,7 @@ console.log('\na sub paid by check (MONEY-1099-GC-1):');
     noBills[0].notes);
   ok('…and its coverage sentence is the narrow one', coverageNoteFor(noBills) === COVERAGE_NOTE);
   ok('…and COVERAGE_NOTE itself still describes only portal invoices',
-    /^Counts sub-portal invoices marked paid —/.test(COVERAGE_NOTE), COVERAGE_NOTE);
+    /^Counts sub-portal invoices marked paid,/.test(COVERAGE_NOTE), COVERAGE_NOTE);
 
   const withBillsButNone = buildTax1099Dataset({
     year: 2026, subcontractors: [sub('s1')], commitments: [subcontract],

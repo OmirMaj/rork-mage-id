@@ -250,8 +250,8 @@ export function countBookRows(
 
 // ── Screen copy ──────────────────────────────────────────────────────────────
 
-export const LABEL_NOT_FROM_BOOK = 'Not from your book';
-export const LABEL_NEEDS_PRICE = 'Needs price';
+export const LABEL_NOT_FROM_BOOK = 'Not from Your Book';
+export const LABEL_NEEDS_PRICE = 'Needs Price';
 export const LABEL_YOUR_HISTORY = 'Your history';
 export const NO_BOOK_MATCH_NOTE = 'No rates in your book matched these exclusions, so the amounts are not from your book.';
 
@@ -266,8 +266,8 @@ export function exclusionsNeedPriceLine(n: number): string {
 
 export const LABEL_YOUR_PRICE = 'Your price';
 export const SET_YOUR_PRICE_CTA = 'Set your price for the excluded scope';
-export const SAVINGS_NEEDS_PRICE = 'Not shown — needs your price';
-export const AWARD_NEEDS_PRICE_TITLE = 'Price the excluded scope first';
+export const SAVINGS_NEEDS_PRICE = 'Not shown. Needs your price';
+export const AWARD_NEEDS_PRICE_TITLE = 'Price the Excluded Scope First';
 
 interface BidReasonLike { id?: string; excludes?: string | null; normalizedAdjustmentReason?: string | null }
 

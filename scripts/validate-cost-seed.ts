@@ -413,7 +413,7 @@ expect('an earned entry is flagged earned', earnedFraming?.provenance, 'earned')
 expect('an earned entry has no seeded samples', earnedFraming?.seededSampleCount, 0);
 const earnedMatch = matchOwnRate({ description: 'Framing', unit: 'SF' }, earnedOnly.entries);
 ok('the earned label is unchanged — "Your rate — Framing, 1 job"',
-  priceSourceLabel('yours', earnedMatch).startsWith('Your rate — Framing, 1 job'),
+  priceSourceLabel('yours', earnedMatch).startsWith('Your rate: Framing, 1 job'),
   priceSourceLabel('yours', earnedMatch));
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -829,7 +829,7 @@ const earnedConf = computeEstimateConfidence(
     { ...realSample, projectId: 'p3', closedAt: '2026-01-12' },
   ], []),
 );
-expect('three closed jobs lift the line to medium confidence', earnedConf.lines[0].confidence, 'medium');
+expect('three closed jobs lift the line to Medium Confidence', earnedConf.lines[0].confidence, 'medium');
 ok('a measured book CAN score — the zero above is the firewall, not a bug',
   earnedConf.score > 0, `score=${earnedConf.score} flag=${earnedConf.lines[0].flag}`);
 
@@ -850,7 +850,7 @@ const XRAY_SEEDS = draftsToSeeds([{ trade: 'Electrical', unit: 'EA', rate: 3000,
 const xraySeeded = priceTell(TELL, buildCostDatabase(emptyProjects, emptyCommitments, [], [], XRAY_SEEDS));
 const xrayCatalog = priceTell(TELL, cold);
 expect('X-Ray prices the tell off the seeded rate', xraySeeded.band.expected, Math.round(0.8 * 3000));
-expect('…labelled seeded, so the screen cannot say "your job history"',
+expect('…labelled seeded, so the screen cannot say "Your Job History"',
   xraySeeded.rateBasis, 'seeded');
 expect('a bookless scan is labelled catalog', xrayCatalog.rateBasis, 'catalog');
 expect('an earned book is labelled earned',
@@ -876,7 +876,7 @@ const leak = priceLeakItems(
 expect('a seeded book prices a flagged leak item', leak[0].estimatedPrice, 500);
 expect('…stamped seeded so the row cannot read "from your cost history"',
   leak[0].rateProvenance, 'seeded');
-expect('…at low confidence', leak[0].rateConfidence, 'low');
+expect('…at Low Confidence', leak[0].rateConfidence, 'low');
 expect('an earned book stamps earned',
   priceLeakItems([{ trade: 'Framing', unit: 'SF', quantity: 40, description: 'x', confidence: 'high', reportQuote: '' } as never],
     EARNED_ONLY)[0].rateProvenance, 'earned');
@@ -903,7 +903,7 @@ ok('the sub-bid copy never cites a job count for a seeded rate',
 // it visible, so it is now a surface that can lie, and gets pinned like one.
 const seededChip = rateProvenanceChipModel(lookupRate(SEEDED_ONLY, 'Framing', 'SF'));
 const earnedChip = rateProvenanceChipModel(lookupRate(EARNED_ONLY, 'Framing', 'SF'));
-expect('the chip on a stated rate reads Your rate', seededChip?.label, 'Your rate');
+expect('the chip on a stated rate reads Your rate', seededChip?.label, 'Your Rate');
 ok('…and never cites a job count, because there are none',
   !/\d+ jobs?\b/.test(seededChip?.label ?? ''), seededChip?.label);
 expect('…in the NEUTRAL tone, never the measured one', seededChip?.tone, 'stated');
@@ -1260,8 +1260,8 @@ ok("tone 'measured' still requires provenance 'earned' — the original firewall
 // branched on `model.provenance`, and 'contracted' IS provenance 'earned', so
 // the four-signed-subs book above rendered a chip reading "SIGNED · 4 jobs"
 // over a body reading "Measured on 4 closed jobs of your own. This is what
-// this scope actually cost you — not a catalog price and not a number anyone
-// typed in", with a Fact labelled "Measured average". The chip told the truth
+// this scope actually cost you, not a catalog price and not a number anyone
+// typed in", with a Fact labelled "Measured Average". The chip told the truth
 // and the thing you tap it to read did not — a worse failure than the original,
 // because the sheet is the detail a contractor opens when he doubts the chip.
 // Tone is the only classification that separates them, so the sheet must
@@ -1278,9 +1278,9 @@ const contractedBody = ((/model\.tone === 'contracted' \? \([\s\S]*?\n {12}\) :/
 ok('…and it is a real body, not an empty branch', contractedBody.length > 400, `${contractedBody.length} chars`);
 // The test is the CLAIM, not the token. "…turns it into a measured rate" names
 // what would upgrade this rate and is the opposite of claiming it already is
-// one; "Measured on N closed jobs", "Measured average" and "actually cost you"
+// one; "Measured on N closed jobs", "Measured Average" and "actually cost you"
 // are the measured branch's assertions and may not appear here.
-for (const claim of ['Measured on', 'Measured average', 'actually cost you', 'cost you']) {
+for (const claim of ['Measured on', 'Measured Average', 'actually cost you', 'cost you']) {
   ok(`…and never makes the measured branch's claim ${JSON.stringify(claim)}`,
     contractedBody.length > 400 && !contractedBody.includes(claim),
     contractedBody.slice(0, 500));
@@ -1288,7 +1288,7 @@ for (const claim of ['Measured on', 'Measured average', 'actually cost you', 'co
 ok('…and says instead that nothing has been paid against it',
   /not yet what you\s*\n?\s*paid/.test(contractedBody) && /Nothing settled yet/.test(contractedBody));
 ok('…while the measured branch still DOES make that claim (so the test is not vacuous)',
-  /Measured on \{model\.jobCount\} closed project/.test(chipSrc) && /Measured average/.test(chipSrc));
+  /Measured on \{model\.jobCount\} closed project/.test(chipSrc) && /Measured Average/.test(chipSrc));
 // The seeded branch must be reached by tone too, or a future basis added to
 // 'earned' falls through into the measured copy exactly as 'contracted' did.
 ok('the seeded body is gated on its tone as well, not on provenance alone',
@@ -1979,8 +1979,8 @@ console.log('\n17. the pins the last pass did not leave behind:');
   // in the repo green. (test:app-slop is not a substitute — it was RED at
   // baseline for an unrelated reason in another file, so it proves nothing.)
   const cdb = src('app/cost-database.tsx');
-  ok('the price-book screen still renders the "Read, but not priced" section',
-    /awaiting\.length > 0 \?/.test(cdb) && /Read, but not priced/.test(cdb),
+  ok('the price-book screen still renders the "Read, but Not Priced" section',
+    /awaiting\.length > 0 \?/.test(cdb) && /Read, but Not Priced/.test(cdb),
     'a trade whose only samples were disqualified must be SHOWN with its reason, not silently missing');
   ok('…counting JOBS, not samples, on those cards',
     /new Set\(e\.samples\.map\(s => s\.projectId\)\.filter\(Boolean\)\)\.size/.test(cdb));

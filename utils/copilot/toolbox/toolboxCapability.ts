@@ -38,13 +38,13 @@ function formatNotes(data: unknown, topic: string): string {
 
 export const toolboxCapability: CopilotCapability<ToolboxDraft, ToolboxApplied> = {
   id: 'toolbox_talk',
-  label: 'Run a toolbox talk',
+  label: 'Run a Toolbox Talk',
   aiFeature: 'voiceCapture',
   maxQuestions: 1,
   askThreshold: 0.4,
   suggestions: [
-    'Ladder safety — we’ve got a lot of overhead work today',
-    'Heat illness — it’s going to be 95 out there',
+    'Ladder safety, we’ve got a lot of overhead work today',
+    'Heat illness, it’s going to be 95 out there',
   ],
   topicChecklist: [
     { label: 'Topic', hint: 'what today’s talk covers' },
@@ -53,7 +53,7 @@ export const toolboxCapability: CopilotCapability<ToolboxDraft, ToolboxApplied> 
     voiceTitle: 'Run a toolbox talk',
     composeEyebrow: 'TODAY’S SAFETY TALK',
     composeQuestion: 'What are we covering?',
-    composeHint: 'Name the topic — or ask MAGE, and it’ll pull one from this job’s recent incidents.',
+    composeHint: 'Name the topic, or ask MAGE and it’ll pull one from this job’s recent incidents.',
     reviewHeadline: 'Here’s your toolbox talk, ready to run.',
     reviewSub: 'Review the talking points, then log it. You’ll take attendance on the toolbox-talk log.',
     buildingLabel: 'Writing the talk…',

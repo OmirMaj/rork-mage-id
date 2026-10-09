@@ -144,7 +144,7 @@ export default function VoiceBacklogSheet({ visible, onClose, tasks, userId }: P
     <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={onClose}>
       <View style={[styles.backdrop, frame.overlay]}>
         <View style={[styles.sheet, frame.card]} testID="voice-backlog-sheet">
-          <Text style={styles.title}>{t('field.chrome.voiceNotesTitle', 'Voice notes on this phone')}</Text>
+          <Text style={styles.title}>{t('field.chrome.voiceNotesTitle', 'Voice Notes on This Phone')}</Text>
           <Text style={styles.detail}>
             {t('field.chrome.voiceNotesWhy', "Recorded with no signal. Each one is added to its project's daily report for the day you recorded it, once it is transcribed.")}
           </Text>

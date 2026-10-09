@@ -111,7 +111,7 @@ export default function AskPlansPanel({ projectId, sheets, onUpgrade, onBeforeOp
         <View style={styles.upsellCard}>
           <View style={{ flex: 1, gap: 8 }}>
             <Text style={styles.upsellSub}>Couldn&apos;t check your access to this project&apos;s plans.</Text>
-            <Button label="Try again" variant="secondary" size="sm" onPress={roleState.refetch} />
+            <Button label="Try Again" variant="secondary" size="sm" onPress={roleState.refetch} />
           </View>
         </View>
       );
@@ -331,7 +331,7 @@ function AskPlansPanelInner({
     setIndexResult(null);
     const { reembed, missingText } = renumberReembedPlan(plan.patches, before, lastRunTextRef.current);
     const out = await reembedRenumberedSheets(projectId, reembed);
-    showAlert('Sheet numbers saved', renumberSavedMessage(plan.applied, plan.messages, {
+    showAlert('Sheet Numbers Saved', renumberSavedMessage(plan.applied, plan.messages, {
       reembedded: out.reembedded, failed: out.failed, missingText: missingText.length,
     }));
     // The manifest effect may have read before the re-embed landed — ask again.
@@ -362,10 +362,10 @@ function AskPlansPanelInner({
       return `Checking ${currentCount} sheet${currentCount === 1 ? '' : 's'}…`;
     }
     if (summary) return summary.label;
-    if (indexState === 'error') return 'Indexing failed — try again';
+    if (indexState === 'error') return 'Indexing failed. Try again.';
     const changed = changedSinceIndexLabel(changedCount);
     if (changed) return changed;
-    return currentCount > 0 ? `Index ${currentCount} sheet${currentCount === 1 ? '' : 's'}` : 'Index plans';
+    return currentCount > 0 ? `Index ${currentCount} sheet${currentCount === 1 ? '' : 's'}` : 'Index Plans';
   })();
   const changedWarning = !summary && indexState !== 'indexing' && indexState !== 'error' && (changedCount ?? 0) > 0;
   const toneColor = (tone: IndexTone | undefined): string =>
@@ -455,7 +455,7 @@ function AskPlansPanelInner({
         <View style={styles.weakRow}>
           <AlertTriangle size={12} color={t.warningLabel} strokeWidth={2} />
           <Text style={styles.weakText}>
-            Weak match — no sheet scored as a close match to that question. Open the cited sheet and verify before you build to this.
+            Weak match. No sheet scored as a close match to that question. Open the cited sheet and verify before you build to this.
           </Text>
         </View>
       )}
@@ -463,7 +463,7 @@ function AskPlansPanelInner({
       {/* None-found message */}
       {noneFound && staleDropped === 0 && (
         <Text style={styles.noneFoundText}>
-          I couldn't find that in the indexed plans — try rephrasing, or index new sheets below.
+          I couldn't find that in the indexed plans. Try rephrasing, or index new sheets below.
         </Text>
       )}
     </ChatTurn>
@@ -474,7 +474,7 @@ function AskPlansPanelInner({
       {/* Header */}
       <View style={styles.panelHeader}>
         <BookOpen size={16} color={t.accent} strokeWidth={1.75} />
-        <Text style={styles.panelTitle}>Ask your plans</Text>
+        <Text style={styles.panelTitle}>Ask Your Plans</Text>
       </View>
 
       {/* Input row (with the tutorial's sample-question chip during a run on
@@ -538,7 +538,7 @@ function AskPlansPanelInner({
         <View style={styles.weakRow}>
           <AlertTriangle size={12} color={t.dangerLabel} strokeWidth={2} />
           <Text style={[styles.weakText, { color: t.dangerLabel }]}>
-            Couldn&apos;t search your plans just now — {searchFailed}. Your plans may still hold the answer.
+            Couldn&apos;t search your plans just now: {searchFailed}. Your plans may still hold the answer.
           </Text>
         </View>
       ) : null}
@@ -550,7 +550,7 @@ function AskPlansPanelInner({
         <View style={styles.weakRow} testID="ask-plans-answer-failed">
           <AlertTriangle size={12} color={t.dangerLabel} strokeWidth={2} />
           <Text style={[styles.weakText, { color: t.dangerLabel }]}>
-            Found matching sheets, but couldn&apos;t write the answer — {answerFailed.reason}.{answerFailed.retry ? ' Try again in a moment.' : ''}
+            Found matching sheets, but couldn&apos;t write the answer: {answerFailed.reason}.{answerFailed.retry ? ' Try again in a moment.' : ''}
           </Text>
         </View>
       ) : null}
@@ -561,7 +561,7 @@ function AskPlansPanelInner({
         <View style={{ gap: 6 }}>
           <Text style={styles.skipText} testID="ask-plans-index-blocked">{indexBlock}</Text>
           {roleStatus.isError && onRetryRole ? (
-            <Button label="Try again" variant="secondary" size="sm" onPress={onRetryRole} testID="ask-plans-role-retry" />
+            <Button label="Try Again" variant="secondary" size="sm" onPress={onRetryRole} testID="ask-plans-role-retry" />
           ) : null}
         </View>
       ) : (
@@ -589,7 +589,7 @@ function AskPlansPanelInner({
           a reading and only the ticked ones are saved. */}
       {titleReview && titleReview.length > 0 ? (
         <View style={styles.skipList} testID="ask-plans-title-review">
-          <Text style={styles.skipText}>Read by AI from the title blocks — check each against the sheet.</Text>
+          <Text style={styles.skipText}>Read by AI from the title blocks. Check each against the sheet.</Text>
           {titleReview.map(item => (
             <TouchableOpacity
               key={item.sheetId}
@@ -602,18 +602,18 @@ function AskPlansPanelInner({
                 ? <CheckSquare size={14} color={t.accent} strokeWidth={1.75} />
                 : <Square size={14} color={t.textMuted} strokeWidth={1.75} />}
               <Text style={[styles.skipText, { flex: 1 }]} numberOfLines={2}>
-                Title block reads {item.sheetNumber} — use it? · {item.label}{item.duplicate ? ` · another page also reads ${item.sheetNumber}` : ''}
+                Title block reads {item.sheetNumber}. Use it? · {item.label}{item.duplicate ? ` · another page also reads ${item.sheetNumber}` : ''}
               </Text>
             </TouchableOpacity>
           ))}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Button
-              label={titleReview.some(i => i.use) ? `Use ${titleReview.filter(i => i.use).length} number${titleReview.filter(i => i.use).length === 1 ? '' : 's'}` : 'Tick a number to use it'}
+              label={titleReview.some(i => i.use) ? `Use ${titleReview.filter(i => i.use).length} number${titleReview.filter(i => i.use).length === 1 ? '' : 's'}` : 'Tick a Number to Use It'}
               size="sm"
               onPress={() => { void applyTitleNumbers(); }}
               disabled={!titleReview.some(i => i.use)}
             />
-            <Button label="Not now" size="sm" variant="ghost" onPress={() => setTitleReview(null)} />
+            <Button label="Not Now" size="sm" variant="ghost" onPress={() => setTitleReview(null)} />
           </View>
         </View>
       ) : null}
@@ -645,13 +645,13 @@ function UpsellCard({ t, styles, onUpgrade }: { t: ThemeColors; styles: ReturnTy
       <Lock size={15} color={t.accent} strokeWidth={1.75} />
       <View style={{ flex: 1, gap: 8 }}>
         <View>
-          <Text style={styles.upsellTitle}>Ask your plans in plain English</Text>
+          <Text style={styles.upsellTitle}>Ask Your Plans in Plain English</Text>
           <Text style={styles.upsellSub}>
-            Type a question, get a cited answer with a tap-to-jump to the sheet — Business plan.
+            Type a question, get a cited answer with a tap-to-jump to the sheet. On the Business plan.
           </Text>
         </View>
         {/* #163: the lock used to have no way through it. */}
-        <Button label="See Business plan" size="sm" variant="secondary" onPress={onUpgrade} testID="ask-plans-upgrade" />
+        <Button label="See Business Plan" size="sm" variant="secondary" onPress={onUpgrade} testID="ask-plans-upgrade" />
       </View>
     </View>
   );

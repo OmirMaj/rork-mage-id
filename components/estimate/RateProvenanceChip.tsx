@@ -169,16 +169,16 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
                 {/* A stated rate. The sheet says so in the same words the cost
                     book uses for a seeded sample, and never cites a job count. */}
                 <Text style={styles.lede}>
-                  {SEED_SAMPLE_LABEL}. It is a rate you entered yourself — MAGE ID has not
+                  {SEED_SAMPLE_LABEL}. It is a rate you entered yourself. MAGE ID has not
                   measured this scope on any project here yet, so this is your own number carried
                   forward, not evidence from a closed project.
                 </Text>
                 <View style={styles.facts}>
-                  <Fact label="The rate you set" value={`${money(entry.suggestedRate)} / ${unit}`} />
-                  <Fact label="Closed projects behind it" value="None yet" />
+                  <Fact label="The Rate You Set" value={`${money(entry.suggestedRate)} / ${unit}`} />
+                  <Fact label="Closed Projects Behind It" value="None yet" />
                 </View>
                 <Text style={styles.note}>
-                  It still beats a national average — it is what you actually charge. The first
+                  It still beats a national average. It is what you actually charge. The first
                   project you close on this scope replaces it with what the work really cost.
                 </Text>
               </>
@@ -193,17 +193,17 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
                     scripts/validate-cost-seed §15.3 pins exactly that line. */}
                 <Text style={styles.lede}>
                   Signed on {model.jobCount} closed project{model.jobCount === 1 ? '' : 's'} of your
-                  own — this is the sub/PO amount you contracted for that scope. Nothing has been
+                  own. This is the sub/PO amount you contracted for that scope. Nothing has been
                   paid out against it yet here, so it is what you agreed to pay, not yet what you
                   paid.
                 </Text>
                 <View style={styles.facts}>
-                  <Fact label="Rate in your book" value={`${money(entry.suggestedRate)} / ${unit}`} />
-                  <Fact label="Contracted average" value={`${money(entry.personalRate)} / ${unit}`} />
-                  <Fact label="Signed on" value={`${model.jobCount} closed project${model.jobCount === 1 ? '' : 's'}`} />
-                  <Fact label="Paid to date" value="Nothing settled yet" />
-                  {sampleWindow ? <Fact label="Sample window" value={sampleWindow} /> : null}
-                  {spread ? <Fact label="Spread across projects" value={spread} /> : null}
+                  <Fact label="Rate in Your Book" value={`${money(entry.suggestedRate)} / ${unit}`} />
+                  <Fact label="Contracted Average" value={`${money(entry.personalRate)} / ${unit}`} />
+                  <Fact label="Signed On" value={`${model.jobCount} closed project${model.jobCount === 1 ? '' : 's'}`} />
+                  <Fact label="Paid to Date" value="Nothing settled yet" />
+                  {sampleWindow ? <Fact label="Sample Window" value={sampleWindow} /> : null}
+                  {spread ? <Fact label="Spread Across Projects" value={spread} /> : null}
                   <Fact label="Confidence" value={CONFIDENCE_LABEL[entry.confidence]} />
                 </View>
                 <Text style={styles.note}>
@@ -220,10 +220,10 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
                   measured against it since. It is part measurement, part your own stated number.
                 </Text>
                 <View style={styles.facts}>
-                  <Fact label="Rate in your book" value={`${money(entry.suggestedRate)} / ${unit}`} />
-                  <Fact label="Measured on" value={`${model.jobCount} closed project${model.jobCount === 1 ? '' : 's'}`} />
-                  {sampleWindow ? <Fact label="Sample window" value={sampleWindow} /> : null}
-                  {spread ? <Fact label="Spread across projects" value={spread} /> : null}
+                  <Fact label="Rate in Your Book" value={`${money(entry.suggestedRate)} / ${unit}`} />
+                  <Fact label="Measured On" value={`${model.jobCount} closed project${model.jobCount === 1 ? '' : 's'}`} />
+                  {sampleWindow ? <Fact label="Sample Window" value={sampleWindow} /> : null}
+                  {spread ? <Fact label="Spread Across Projects" value={spread} /> : null}
                   <Fact label="Confidence" value={CONFIDENCE_LABEL[entry.confidence]} />
                 </View>
                 <Text style={styles.note}>
@@ -235,15 +235,15 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
               <>
                 <Text style={styles.lede}>
                   Measured on {model.jobCount} closed project{model.jobCount === 1 ? '' : 's'} of your
-                  own. This is what this scope actually cost you — not a catalog price and not a
+                  own. This is what this scope actually cost you, not a catalog price and not a
                   number anyone typed in.
                 </Text>
                 <View style={styles.facts}>
-                  <Fact label="Rate in your book" value={`${money(entry.suggestedRate)} / ${unit}`} />
-                  <Fact label="Measured average" value={`${money(entry.personalRate)} / ${unit}`} />
-                  <Fact label="Measured on" value={`${model.jobCount} closed project${model.jobCount === 1 ? '' : 's'}`} />
-                  {sampleWindow ? <Fact label="Sample window" value={sampleWindow} /> : null}
-                  {spread ? <Fact label="Spread across projects" value={spread} /> : null}
+                  <Fact label="Rate in Your Book" value={`${money(entry.suggestedRate)} / ${unit}`} />
+                  <Fact label="Measured Average" value={`${money(entry.personalRate)} / ${unit}`} />
+                  <Fact label="Measured On" value={`${model.jobCount} closed project${model.jobCount === 1 ? '' : 's'}`} />
+                  {sampleWindow ? <Fact label="Sample Window" value={sampleWindow} /> : null}
+                  {spread ? <Fact label="Spread Across Projects" value={spread} /> : null}
                   <Fact label="Confidence" value={CONFIDENCE_LABEL[entry.confidence]} />
                 </View>
               </>

@@ -182,17 +182,17 @@ export function classifyError(err: unknown): ErrorKind {
 // "MAGE couldn't ", so it stays a verb phrase.
 
 const TITLES: Record<ErrorKind, string> = {
-  offline: "You're offline",
-  session: 'Signed out',
-  permission: 'Not allowed',
-  rateLimit: 'Too many requests',
-  schema: 'MAGE needs to update',
-  notFound: 'That record is gone',
-  conflict: 'That already exists',
-  timeout: 'That took too long',
+  offline: "You're offline.",
+  session: 'Signed Out',
+  permission: 'Not Allowed',
+  rateLimit: 'Request Limit Reached',
+  schema: 'MAGE needs to update.',
+  notFound: 'That record is gone.',
+  conflict: 'That already exists.',
+  timeout: 'That took too long.',
   cancelled: 'Cancelled',
-  server: 'MAGE hit a problem',
-  unknown: "That didn't go through",
+  server: 'MAGE hit a problem.',
+  unknown: "That didn't go through.",
 };
 
 // The two kinds whose only remaining advice is "tell support" have to know
@@ -212,9 +212,9 @@ function supportTail(hasCode: boolean): string {
 function sentence(kind: ErrorKind, action: string, hasCode: boolean): string {
   switch (kind) {
     case 'offline':
-      return `MAGE couldn't ${action} — this device isn't reaching the network. Check your signal or Wi-Fi, then try again.`;
+      return `MAGE couldn't ${action}. This device isn't reaching the network. Check your signal or Wi-Fi, then try again.`;
     case 'session':
-      return `MAGE couldn't ${action} — the server no longer recognizes this sign-in, even though the app still looks signed in. Sign out and back in from Settings, then try again.`;
+      return `MAGE couldn't ${action}. The server no longer recognizes this sign-in, even though the app still looks signed in. Sign out and back in from Settings, then try again.`;
     case 'permission':
       // "isn't allowed to CHANGE that record" asserts the operation was a
       // write. It is not: the first two adopters call this on READS too
@@ -223,11 +223,11 @@ function sentence(kind: ErrorKind, action: string, hasCode: boolean): string {
       // who has no account at all. State only what a 403 actually proves —
       // that this sign-in does not have access — and leave the verb to
       // `action`, which the caller wrote (review 2026-09-07).
-      return `MAGE couldn't ${action} — this sign-in doesn't have access to that record. Ask whoever owns the account to give you access.`;
+      return `MAGE couldn't ${action}. This sign-in doesn't have access to that record. Ask whoever owns the account to give you access.`;
     case 'rateLimit':
-      return `MAGE couldn't ${action} — too many requests went out in a short window. Wait about a minute, then try again.`;
+      return `MAGE couldn't ${action}. Too many requests went out in a short window. Wait about a minute, then try again.`;
     case 'schema':
-      return `MAGE couldn't ${action} — this build of the app is asking the server for something it doesn't have yet. Close the app fully, reopen it to pick up the latest update, then try again.`;
+      return `MAGE couldn't ${action}. This build of the app is asking the server for something it doesn't have yet. Close the app fully, reopen it to pick up the latest update, then try again.`;
     case 'notFound':
       // NOT "pull down to refresh". This module formats ALERT bodies as much
       // as list states — its first three call sites are modal alerts on
@@ -235,15 +235,15 @@ function sentence(kind: ErrorKind, action: string, hasCode: boolean): string {
       // naming a control the reader cannot find is the same defect class as
       // the raw exception this file replaced (review 2026-09-07). "Reopen the
       // screen" is true on every surface that can show this string.
-      return `MAGE couldn't ${action} — the record it needs isn't there any more. It may have been deleted on another device. Go back, reopen the screen, then try again.`;
+      return `MAGE couldn't ${action}. The record it needs isn't there any more. It may have been deleted on another device. Go back, reopen the screen, then try again.`;
     case 'conflict':
-      return `MAGE couldn't ${action} — something with the same number or name is already saved. Change it, then try again.`;
+      return `MAGE couldn't ${action}. Something with the same number or name is already saved. Change it, then try again.`;
     case 'timeout':
-      return `MAGE couldn't ${action} — the server didn't answer in time. Try again in a moment.`;
+      return `MAGE couldn't ${action}. The server didn't answer in time. Try again in a moment.`;
     case 'cancelled':
-      return `MAGE stopped trying to ${action}. Nothing was changed — start it again when you're ready.`;
+      return `MAGE stopped trying to ${action}. Nothing was changed. Start it again when you're ready.`;
     case 'server':
-      return `MAGE couldn't ${action} — the server returned an error.` + supportTail(hasCode);
+      return `MAGE couldn't ${action}. The server returned an error.` + supportTail(hasCode);
     case 'unknown':
       return `MAGE couldn't ${action}.` + supportTail(hasCode);
   }
@@ -251,7 +251,7 @@ function sentence(kind: ErrorKind, action: string, hasCode: boolean): string {
 
 /** The sentence that answers the question he actually has. */
 function fateOfHisWork(keptLocally: boolean | undefined): string {
-  if (keptLocally === true) return " Nothing you entered was lost — it's still on this device.";
+  if (keptLocally === true) return " Nothing you entered was lost. It's still on this device.";
   if (keptLocally === false) return ' What you entered was not saved.';
   return '';
 }
@@ -263,17 +263,17 @@ function fateOfHisWork(keptLocally: boolean | undefined): string {
 
 function titleL(kind: ErrorKind): string {
   switch (kind) {
-    case 'offline': return t('common.error.title.offline', "You're offline");
-    case 'session': return t('common.error.title.session', 'Signed out');
-    case 'permission': return t('common.error.title.permission', 'Not allowed');
-    case 'rateLimit': return t('common.error.title.rateLimit', 'Too many requests');
-    case 'schema': return t('common.error.title.schema', 'MAGE needs to update');
-    case 'notFound': return t('common.error.title.notFound', 'That record is gone');
-    case 'conflict': return t('common.error.title.conflict', 'That already exists');
-    case 'timeout': return t('common.error.title.timeout', 'That took too long');
+    case 'offline': return t('common.error.title.offline', "You're offline.");
+    case 'session': return t('common.error.title.session', 'Signed Out');
+    case 'permission': return t('common.error.title.permission', 'Not Allowed');
+    case 'rateLimit': return t('common.error.title.rateLimit', 'Request Limit Reached');
+    case 'schema': return t('common.error.title.schema', 'MAGE needs to update.');
+    case 'notFound': return t('common.error.title.notFound', 'That record is gone.');
+    case 'conflict': return t('common.error.title.conflict', 'That already exists.');
+    case 'timeout': return t('common.error.title.timeout', 'That took too long.');
     case 'cancelled': return t('common.error.title.cancelled', 'Cancelled');
-    case 'server': return t('common.error.title.server', 'MAGE hit a problem');
-    case 'unknown': return t('common.error.title.unknown', "That didn't go through");
+    case 'server': return t('common.error.title.server', 'MAGE hit a problem.');
+    case 'unknown': return t('common.error.title.unknown', "That didn't go through.");
   }
 }
 

@@ -139,10 +139,10 @@ console.log('\nsending:');
   const missing = await sendFieldTaskPatches(client({ data: { applied: [], missing: ['a'] } }), 'p1', patches);
   ok('a task deleted meanwhile is reported as missing', missing.ok && missing.missing.join() === 'a');
   for (const [label, res, re] of [
-    ['RLS/role refusal', { error: { message: 'field access required', code: '42501' } }, /^Not saved — your access/],
-    ['function not deployed yet', { error: { message: 'Could not find the function', code: 'PGRST202' } }, /^Not saved — progress updates on field access are not switched on/],
-    ['disallowed key', { error: { message: 'field_update_schedule_tasks: "startDay" is not a field-access schedule field', code: '22023' } }, /^Not saved — that change isn't a progress update/],
-    ['offline', { throws: true }, /^Not saved — no connection/],
+    ['RLS/role refusal', { error: { message: 'field access required', code: '42501' } }, /^Not saved. Your access/],
+    ['function not deployed yet', { error: { message: 'Could not find the function', code: 'PGRST202' } }, /^Not saved. Progress updates on field access are not switched on/],
+    ['disallowed key', { error: { message: 'field_update_schedule_tasks: "startDay" is not a field-access schedule field', code: '22023' } }, /^Not saved. That change isn't a progress update/],
+    ['offline', { throws: true }, /^Not saved: no connection/],
   ] as const) {
     const r = await sendFieldTaskPatches(client(res), 'p1', patches);
     ok(`${label} → not ok, and the message says not saved`, !r.ok && re.test(r.message), JSON.stringify(r));
@@ -161,7 +161,7 @@ ok('...field sends through the RPC and returns the failure instead of confirming
 ok('...the local copy is only updated after the server said yes',
   QFU.indexOf('await sendFieldTaskPatches(') < QFU.indexOf('applyFieldTaskPatches(tasks, [fieldPatch])'));
 ok('...a refused update is shown as an error, not "success"', /outcome\.kind === 'refused'\) \{\s*\/\/[^\n]*\n\s*setFeedback\(\{ kind: 'error'/.test(QFU));
-ok('...viewer is refused up front with the reason', /if \(writePath === 'none'\) \{\s*return \{ ok: false, message: t\('field\.home\.qfu\.viewOnly', 'Not saved — you have view-only access to \{project\}\. Ask the project owner for field or editor access\.', \{ project: project\.name \}\) \};/.test(QFU));
+ok('...viewer is refused up front with the reason', /if \(writePath === 'none'\) \{\s*return \{ ok: false, message: t\('field\.home\.qfu\.viewOnly', 'Not saved\. You have view-only access to \{project\}\. Ask the project owner for field or editor access\.', \{ project: project\.name \}\) \};/.test(QFU));
 ok('Schedule Pro no longer gates on `role !== \'viewer\'` alone', !/const canEdit = role !== 'viewer';/.test(SP));
 // While useProjectRole is still null (loading, or its read failed) a KNOWN
 // field user must not fall back to the row PATCH that silently drops his edit:
@@ -180,7 +180,7 @@ ok('...and says what was not saved, putting the working copy back',
 ok('Daily report ripple is blocked for field/viewer with the reason',
   /const path = scheduleWritePathForRole\(project\?\.myRole\);/.test(DFR)
   && /disabled=\{confirmableRows\.length === 0 \|\| delayRowsStale \|\| !!delayRippleBlockedReason\}/.test(DFR)
-  && /if \(delayRippleBlockedReason\) \{\s*showAlert\(t\('field\.dfr\.scheduleNotChanged', 'Schedule not changed'\), delayRippleBlockedReason\);/.test(DFR));
+  && /if \(delayRippleBlockedReason\) \{\s*showAlert\(t\('field\.dfr\.scheduleNotChanged', 'Schedule Not Changed'\), delayRippleBlockedReason\);/.test(DFR));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The phone schedule — MobileScheduleScreen. THE primary platform's editor, and
@@ -225,7 +225,7 @@ console.log('\nthe phone schedule:');
     && /if \(sent\.ok\) \{\s*accepted = applyFieldTaskPatches\(baseTasks, patches\);/.test(MSS));
   ok('...a failure, a blocked change or a settings change says what was not saved',
     /if \(failure \|\| blocked\.length > 0 \|\| settingsChanged\) \{/.test(MSS)
-    && /Field access saves progress, status, notes and actual start\/finish only — ask the project owner for editor access to move dates or change tasks\./.test(MSS));
+    && /Field access saves progress, status, notes and actual start\/finish only. Ask the project owner for editor access to move dates or change tasks\./.test(MSS));
   ok('...and puts the open task sheet back to what the server accepted',
     /setDetailTask\(\(t\) => \(t \? accepted\.find\(\(x\) => x\.id === t\.id\) \?\? null : t\)\);/.test(MSS));
   ok('...the standing notice tells him BEFORE he taps, and the card carries the refusal after',
@@ -247,8 +247,8 @@ console.log('\nthe phone schedule:');
   // baseline are both outside the RPC, so they must refuse BEFORE the alert
   // that would otherwise say the plan moved.
   ok('the whole-plan actions (catch-up, plan lock) refuse before they confirm themselves',
-    /if \(wholePlanWriteBlocked\) \{ showAlert\('Schedule not changed', wholePlanWriteBlocked\); setShowFinishSheet\(false\); return; \}/.test(MSS)
-    && /if \(wholePlanWriteBlocked\) \{ showAlert\('Plan not locked', wholePlanWriteBlocked\); return; \}/.test(MSS));
+    /if \(wholePlanWriteBlocked\) \{ showAlert\('Schedule Not Changed', wholePlanWriteBlocked\); setShowFinishSheet\(false\); return; \}/.test(MSS)
+    && /if \(wholePlanWriteBlocked\) \{ showAlert\('Plan Not Locked', wholePlanWriteBlocked\); return; \}/.test(MSS));
   ok('...and their buttons carry the reason instead of staying live',
     /writeBlockedReason=\{wholePlanWriteBlocked\}/.test(MSS)
     && /testID="catch-up-blocked-by-access"/.test(MSS)
@@ -321,9 +321,9 @@ console.log('\nthe AI draft review screen:');
     const body = slice(REVIEW, 'const accept = useCallback(', 'const regenerate');
     ok('accept is refused before anything is written or recorded',
       body.length > 0
-      && body.indexOf('showAlert(\'Schedule not saved\', scheduleWriteBlockedReason)') >= 0
-      && body.indexOf('showAlert(\'Schedule not saved\', scheduleWriteBlockedReason)') < body.indexOf('recordPrediction(')
-      && body.indexOf('showAlert(\'Schedule not saved\', scheduleWriteBlockedReason)') < body.indexOf('updateProject('));
+      && body.indexOf('showAlert(\'Schedule Not Saved\', scheduleWriteBlockedReason)') >= 0
+      && body.indexOf('showAlert(\'Schedule Not Saved\', scheduleWriteBlockedReason)') < body.indexOf('recordPrediction(')
+      && body.indexOf('showAlert(\'Schedule Not Saved\', scheduleWriteBlockedReason)') < body.indexOf('updateProject('));
     ok('...and the refusal is in its dependency list, so a role that resolves late is honoured',
       /\}, \[project, draft, tasks, updateProject, router, width, canAccess, preApplied, pacedIds, scheduleWriteBlockedReason\]\);/.test(REVIEW));
   }
@@ -346,9 +346,9 @@ console.log('\nthe daily-report progress ripple:');
   ok('...the local copy is only written after the server took it, and only for what it took',
     body.indexOf('sendFieldTaskPatches(supabase, proj.id, patches)') < body.indexOf('applyFieldTaskPatches(live.tasks, accepted)')
     && /const accepted = patches\.filter\(\(p\) => !sent\.missing\.includes\(p\.id\)\);/.test(body)
-    && /if \(!sent\.ok\) \{[\s\S]*?showAlert\('Schedule not updated'/.test(body));
+    && /if \(!sent\.ok\) \{[\s\S]*?showAlert\('Schedule Not Updated'/.test(body));
   ok('...a refused ripple is reported, never confirmed',
-    /The daily report itself saved — its progress did not reach the schedule\./.test(body));
+    /The daily report itself saved\. Its progress did not reach the schedule\./.test(body));
   // The mic writes the schedule and files the report in the same tick; a
   // ripple rebuilt from the render-time `projects` closure put back a task the
   // same update had just lowered. It must read the live ref, both before the
@@ -372,9 +372,9 @@ console.log('\nthe daily-report progress ripple:');
   ok('the voice mic routes schedule progress by the project\'s role',
     /const writePath = scheduleWritePathForRole\(proj\.myRole\);/.test(body));
   ok('...viewer: refused with the reason, never "tasks updated"',
-    /if \(writePath === 'none'\) \{\s*summaryParts\.push\(`schedule not updated — you have view-only access/.test(body));
+    /if \(writePath === 'none'\) \{\s*summaryParts\.push\(`schedule not updated: you have view-only access/.test(body));
   ok('...field: sent through the field RPC, and a failure is said, not counted',
-    /const sent = await sendFieldTaskPatches\(supabase, proj\.id, patches\);\s*if \(!sent\.ok\) \{\s*summaryParts\.push\(`schedule not updated — \$\{sent\.message\}`\);/.test(body)
+    /const sent = await sendFieldTaskPatches\(supabase, proj\.id, patches\);\s*if \(!sent\.ok\) \{\s*summaryParts\.push\(`schedule not updated: \$\{sent\.message\}`\);/.test(body)
       && body.indexOf("writePath === 'field_rpc'") < body.indexOf('await sendFieldTaskPatches('));
   ok('...the row PATCH is reached only on the owner/editor path',
     (body.match(/ctx\.updateProject\(proj\.id, \{ schedule: \{ \.\.\.schedule, tasks: updatedTasks \} \}\)/g) ?? []).length === 1
@@ -445,7 +445,7 @@ console.log('\n#138 — a failed field send:');
     id: 'x', title: 'X', phase: 'P', durationDays: 5, startDay: 1, progress: 0, crew: '', dependencies: [], notes: '', status: 'not_started', ...o,
   } as ScheduleTask);
   const base = [t({ id: 'a', title: 'Framing', progress: 10 }), t({ id: 'b', title: 'Drywall' })];
-  const sent = { message: 'Not saved — no connection.', offline: true, retryable: true };
+  const sent = { message: 'Not saved: no connection.', offline: true, retryable: true };
   const f1 = captureFieldSendFailure('p1', base, [{ id: 'a', progress: 60, status: 'in_progress' }], sent);
   ok('a failure remembers what each key held when it failed', f1.before.a.progress.value === 10 && f1.before.a.status.value === 'not_started', JSON.stringify(f1.before));
   ok('retry re-sends a key still holding that value',
@@ -457,7 +457,7 @@ console.log('\n#138 — a failed field send:');
   ok('...a key whose stamp moved (same value, newer write) is dropped too',
     JSON.stringify(pendingFieldRetryPatches(f1, restamped)) === JSON.stringify([{ id: 'a', status: 'in_progress' }]), JSON.stringify(pendingFieldRetryPatches(f1, restamped)));
   ok('...a task deleted meanwhile is dropped', pendingFieldRetryPatches(f1, [base[1]]).length === 0);
-  const f2 = captureFieldSendFailure('p1', base, [{ id: 'b', notes: 'rained out' }], { message: 'Not saved — no connection (2).', offline: true, retryable: true });
+  const f2 = captureFieldSendFailure('p1', base, [{ id: 'b', notes: 'rained out' }], { message: 'Not saved: no connection (2).', offline: true, retryable: true });
   const merged = mergeFieldSendFailure(f1, f2);
   ok('a second failure on the same job folds in — Retry sends both', pendingFieldRetryPatches(merged, base).length === 2 && merged.message.endsWith('(2).'));
   ok('another job\'s failure replaces it', mergeFieldSendFailure(f1, { ...f2, projectId: 'p2' }).projectId === 'p2' && mergeFieldSendFailure(f1, { ...f2, projectId: 'p2' }).patches.length === 1);

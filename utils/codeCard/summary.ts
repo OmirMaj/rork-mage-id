@@ -71,9 +71,9 @@ export interface CodeGroup<K extends string> {
 }
 
 export const STATUS_GROUP_LABEL: Readonly<Record<CodeCardStatus, string>> = Object.freeze({
-  fix: 'Fix before you submit',
-  ask: 'Needs an answer',
-  ok: 'Look right on the drawing',
+  fix: 'Fix Before You Submit',
+  ask: 'Needs an Answer',
+  ok: 'Look Right on the Drawing',
 });
 
 const STATUS_ORDER: readonly CodeCardStatus[] = ['fix', 'ask', 'ok'];
@@ -85,7 +85,7 @@ export function groupByStatus(items: readonly CodeCardItem[]): CodeGroup<CodeCar
     label: STATUS_GROUP_LABEL[key],
     items: items.filter((i) => i.status === key),
   }));
-  groups.push({ key: 'none', label: 'Other items', items: items.filter((i) => !i.status) });
+  groups.push({ key: 'none', label: 'Other Items', items: items.filter((i) => !i.status) });
   return groups.filter((g) => g.items.length > 0);
 }
 
@@ -111,7 +111,7 @@ export function groupByStage(
     label: stageLabel(stage),
     items: sort(items.filter((i) => stageOf(i) === stage)),
   }));
-  groups.push({ key: 'unset', label: 'Inspection not set', items: sort(items.filter((i) => !stageOf(i))) });
+  groups.push({ key: 'unset', label: 'Inspection Not Set', items: sort(items.filter((i) => !stageOf(i))) });
   return groups.filter((g) => g.items.length > 0);
 }
 

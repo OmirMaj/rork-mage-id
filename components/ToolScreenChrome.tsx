@@ -137,14 +137,14 @@ export function ToolProjectPicker({
       <View style={styles.pickerEmptyWrap}>
         <EmptyState
           icon={icon ?? <FolderOpen size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No projects yet"
+          title="No Projects Yet"
           message={
             staleProjectId
               ? `That project no longer exists, and there are no others to open. ${message}`
               : `${message} Create a project first so ${toolName} has somewhere to land.`
           }
           steps={steps}
-          actionLabel="Create a project"
+          actionLabel="Create a Project"
           onAction={createProject}
         />
       </View>
@@ -163,7 +163,7 @@ export function ToolProjectPicker({
         </View>
       ) : null}
       <Text style={styles.pickerLead}>{message}</Text>
-      <Text style={styles.sectionTitle}>Pick a project</Text>
+      <Text style={styles.sectionTitle}>Pick a Project</Text>
       {projects.map(p => (
         <TouchableOpacity
           key={p.id}
@@ -183,7 +183,7 @@ export function ToolProjectPicker({
         testID="tool-pick-create-project"
       >
         <Plus size={16} color={t.accent} strokeWidth={1.9} />
-        <Text style={styles.pickCreateText}>New project</Text>
+        <Text style={styles.pickCreateText}>New Project</Text>
       </TouchableOpacity>
     </ScrollView>
   );

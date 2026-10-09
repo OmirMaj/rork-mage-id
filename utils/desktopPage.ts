@@ -182,6 +182,12 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'job-facts': 'dashboard',
   // Lane PPUI: Permit Path (spine | station / questions / checklist, two panes on desktop).
   'permit-path': 'dashboard',
+  // Lane SCANROOM: Scan The Room (dark behind SCAN_ROOM_ENABLED). A phone flow; on desktop it reads as a form.
+  'scan-room': 'form',
+  // Lane PROOFPACK: the Pay Period Record review (dark behind PROOF_PACK_ENABLED). One column of cards: a form.
+  'proof-pack': 'form',
+  // Lane LIVINGMODEL: the Living Model (dark behind LIVING_MODEL_ENABLED). The floor and the 3D view beside a side panel: a dashboard.
+  'living-model': 'dashboard',
   'job-detail': 'dashboard', 'lien-waivers': 'dashboard', 'living-estimate': 'dashboard',
   'margin-alerts': 'dashboard', 'margin-risk': 'dashboard', 'my-rfps': 'dashboard',
   'nearby-rfps': 'dashboard', 'notifications-inbox': 'dashboard',

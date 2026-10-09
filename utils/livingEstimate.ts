@@ -69,7 +69,7 @@ export const hasFullCostBasis = (s: { costBasis?: MarginCostBasis }): boolean =>
   s.costBasis === 'all_sources';
 
 export const SUBS_ONLY_COST_CAVEAT =
-  'counts subcontracts and purchase orders only — crew labor, material receipts, equipment and permits are not in this figure';
+  'counts subcontracts and purchase orders only. Crew labor, material receipts, equipment and permits are not in this figure';
 
 export interface MarginPoint {
   /** Total contract / sell value. */
@@ -210,7 +210,7 @@ function buildDrivers(args: {
   if (Math.abs(coImpact) >= 1) {
     drivers.push({
       key: 'change_orders',
-      label: 'Approved change orders',
+      label: 'Approved Change Orders',
       marginImpact: coImpact,
       detail:
         coRevenue > 0
@@ -221,7 +221,7 @@ function buildDrivers(args: {
   if (Math.abs(buyoutImpact) >= 1) {
     drivers.push({
       key: 'buyout',
-      label: buyoutImpact >= 0 ? 'Favorable buyout' : 'Buyout over estimate',
+      label: buyoutImpact >= 0 ? 'Favorable Buyout' : 'Buyout Over Estimate',
       marginImpact: buyoutImpact,
       detail:
         buyoutImpact >= 0
@@ -233,7 +233,7 @@ function buildDrivers(args: {
   if (Math.abs(costGrowthImpact) >= 1) {
     drivers.push({
       key: 'cost_growth',
-      label: costGrowthImpact >= 0 ? 'Cost coming in under' : 'Cost growth',
+      label: costGrowthImpact >= 0 ? 'Cost Coming in Under' : 'Cost Growth',
       marginImpact: costGrowthImpact,
       detail:
         costGrowthImpact >= 0

@@ -254,11 +254,11 @@ function QboReviewInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>QuickBooks · costs</Text>
+          <Text style={styles.headerEyebrow}>QuickBooks · Costs</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {stagedLines.length > 0
               ? `${stagedLines.length} cost${stagedLines.length === 1 ? '' : 's'} to review`
-              : 'Cost review'}
+              : 'Cost Review'}
           </Text>
         </View>
         <View style={styles.headerBtn} />
@@ -269,7 +269,7 @@ function QboReviewInner() {
           <View style={styles.emptyWrap}>
             <Inbox size={32} color={t.textMuted} strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>
-              {isLoading ? 'Checking QuickBooks…' : 'No QBO costs waiting'}
+              {isLoading ? 'Checking QuickBooks…' : 'No QBO Costs Waiting'}
             </Text>
             <Text style={styles.emptyBody}>
               Purchases and bills you enter in QuickBooks land here about every 30 minutes. Confirm each one to file it into job costs and your cost history. Nothing is filed without you.
@@ -317,11 +317,11 @@ function QboReviewInner() {
                         onPress={() => setPickerFor(row)}
                         activeOpacity={0.75}
                         accessibilityRole="button"
-                        accessibilityLabel={projName ? `Change project, currently ${projName}` : 'Assign a project'}
+                        accessibilityLabel={projName ? `Change project, currently ${projName}` : 'Assign a Project'}
                       >
                         <FolderOpen size={12} color={projId ? t.accent : '#7A4500'} strokeWidth={2} />
                         <Text style={[styles.projectChipText, !projId && styles.projectChipTextUnmapped]}>
-                          {projName ?? 'Assign project'}
+                          {projName ?? 'Assign Project'}
                         </Text>
                       </TouchableOpacity>
 
@@ -330,7 +330,7 @@ function QboReviewInner() {
                         <View style={styles.dupChip}>
                           <AlertTriangle size={12} color="#7A4500" strokeWidth={2} />
                           <Text style={styles.dupChipText}>
-                            Looks like the receipt you scanned {dup.receiptDate ? fmtDay(dup.receiptDate) : 'recently'} ({formatMoney(dup.total)}). Confirming counts this cost twice — reject it here if it&apos;s the same purchase.
+                            Looks like the receipt you scanned {dup.receiptDate ? fmtDay(dup.receiptDate) : 'recently'} ({formatMoney(dup.total)}). Confirming counts this cost twice. Reject it here if it’s the same purchase.
                           </Text>
                         </View>
                       )}
@@ -353,11 +353,11 @@ function QboReviewInner() {
                           disabled={!projId}
                           activeOpacity={0.85}
                           accessibilityRole="button"
-                          accessibilityLabel={projId ? `Confirm and file to ${projName}` : 'Assign a project before confirming'}
+                          accessibilityLabel={projId ? `Confirm and file to ${projName}` : 'Assign a Project Before Confirming'}
                           testID={`qbo-confirm-${row.id}`}
                         >
                           <CheckCircle2 size={14} color="#FFFFFF" strokeWidth={2} />
-                          <Text style={styles.confirmText}>{projId ? 'Confirm' : 'Needs project'}</Text>
+                          <Text style={styles.confirmText}>{projId ? 'Confirm' : 'Needs Project'}</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -397,7 +397,7 @@ function QboReviewInner() {
           <View style={[styles.pickerSheet, fPick.card]}>
             <View style={styles.pickerHead}>
               <Text style={styles.pickerTitle}>Which project is this cost for?</Text>
-              <TouchableOpacity onPress={() => setPickerFor(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close picker">
+              <TouchableOpacity onPress={() => setPickerFor(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close Picker">
                 <X size={18} color={t.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>

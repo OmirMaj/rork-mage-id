@@ -44,9 +44,9 @@ console.log('\n#149 /client-messages always has a way out:');
   ok('it takes a safe back', /import \{ useSafeBack \} from '@\/hooks\/useSafeBack';/.test(src) && /const goBack = useSafeBack\(\);/.test(src));
   ok('no bare router.back() is left on the screen', !/router\.back\(\)/.test(src),
     'router.back() with nothing to pop does nothing — the email-link dead end');
-  ok("'Go back' uses the safe back", /onPress=\{goBack\}>\s*<Text style=\{styles\.backBtnTxt\}>Go back<\/Text>/.test(src));
-  ok("'Back to portal setup' goes to portal setup for THIS project",
-    /router\.replace\(\{ pathname: '\/client-portal-setup', params: \{ id: project\.id \} \}\)[\s\S]{0,40}>\s*<Text style=\{styles\.backBtnTxt\}>Back to portal setup<\/Text>/.test(src));
+  ok("'Go Back' uses the safe back", /onPress=\{goBack\}>\s*<Text style=\{styles\.backBtnTxt\}>Go Back<\/Text>/.test(src));
+  ok("'Back to Portal Setup' goes to portal setup for THIS project",
+    /router\.replace\(\{ pathname: '\/client-portal-setup', params: \{ id: project\.id \} \}\)[\s\S]{0,40}>\s*<Text style=\{styles\.backBtnTxt\}>Back to Portal Setup<\/Text>/.test(src));
   const screens = src.match(/<Stack\.Screen options=\{\{[^}]*\}\} \/>/g) ?? [];
   ok(`every one of its Stack.Screen states carries the header back (${screens.length} found)`,
     screens.length === 3 && screens.every(s => /\.\.\.headerBack/.test(s)), screens.join('\n   '));
@@ -101,13 +101,13 @@ const T = '2026-09-23';
 {
   const f = coiDocStatus({ overallStatus: 'fail' }, '2027-01-01', T);
   ok("a COI that FAILED its check → 'Failed check', at risk, danger (was a grey 'Draft')",
-    f.bucket === 'at_risk' && f.label === 'Failed check' && f.tone === 'danger', JSON.stringify(f));
+    f.bucket === 'at_risk' && f.label === 'Failed Check' && f.tone === 'danger', JSON.stringify(f));
   const w = coiDocStatus({ overallStatus: 'warn' }, '2027-01-01', T);
-  ok("a flagged COI → 'Needs review', at risk", w.bucket === 'at_risk' && w.label === 'Needs review' && w.tone === 'warning', JSON.stringify(w));
+  ok("a flagged COI → 'Needs review', at risk", w.bucket === 'at_risk' && w.label === 'Needs Review' && w.tone === 'warning', JSON.stringify(w));
   const n = coiDocStatus(undefined, '2027-01-01', T);
-  ok("only a COI nobody has checked reads 'Awaiting review'", n.label === 'Awaiting review' && n.bucket === 'awaiting', JSON.stringify(n));
+  ok("only a COI nobody has checked reads 'Awaiting review'", n.label === 'Awaiting Review' && n.bucket === 'awaiting', JSON.stringify(n));
   const p = coiDocStatus({ overallStatus: 'pass' }, '2027-01-01', T);
-  ok("a passed COI reads 'Passed check', never 'Signed'", p.label === 'Passed check' && p.bucket === 'done', JSON.stringify(p));
+  ok("a passed COI reads 'Passed check', never 'Signed'", p.label === 'Passed Check' && p.bucket === 'done', JSON.stringify(p));
   const e = coiDocStatus({ overallStatus: 'pass' }, '2026-09-22', T);
   ok('a COI past its last covered day is expired whatever its check said', e.bucket === 'expired', JSON.stringify(e));
   const d = coiDocStatus({ overallStatus: 'fail' }, T, T);
@@ -119,13 +119,13 @@ const T = '2026-09-23';
   const none = payAppDocStatus(undefined, undefined, undefined);
   ok('…and so does one with no linked invoice', none.label === 'Saved', JSON.stringify(none));
   const sent = payAppDocStatus(undefined, 'draft', { status: 'sent' });
-  ok("sent through the portal → 'Sent to client', waiting", sent.label === 'Sent to client' && sent.bucket === 'awaiting', JSON.stringify(sent));
+  ok("sent through the portal → 'Sent to client', waiting", sent.label === 'Sent to Client' && sent.bucket === 'awaiting', JSON.stringify(sent));
   const viewed = payAppDocStatus(undefined, 'sent', { status: 'sent', viewedAt: '2026-09-20T10:00:00Z' });
-  ok("viewed → 'Viewed by client'", viewed.label === 'Viewed by client', JSON.stringify(viewed));
+  ok("viewed → 'Viewed by client'", viewed.label === 'Viewed by Client', JSON.stringify(viewed));
   const invSent = payAppDocStatus(undefined, 'sent', undefined);
-  ok("invoice sent → 'Awaiting payment'", invSent.label === 'Awaiting payment' && invSent.bucket === 'awaiting', JSON.stringify(invSent));
+  ok("invoice sent → 'Awaiting payment'", invSent.label === 'Awaiting Payment' && invSent.bucket === 'awaiting', JSON.stringify(invSent));
   const partly = payAppDocStatus(undefined, 'partially_paid', { status: 'sent' });
-  ok("partly paid → 'Partly paid'", partly.label === 'Partly paid', JSON.stringify(partly));
+  ok("partly paid → 'Partly paid'", partly.label === 'Partly Paid', JSON.stringify(partly));
   const overdue = payAppDocStatus(undefined, 'overdue', { status: 'sent' });
   ok("overdue → 'Overdue' in danger", overdue.label === 'Overdue' && overdue.tone === 'danger', JSON.stringify(overdue));
   const paid = payAppDocStatus(undefined, 'paid', { status: 'sent' });
@@ -140,13 +140,13 @@ const T = '2026-09-23';
   const now = Date.parse('2026-09-23T12:00:00Z');
   const in10 = new Date(now + 10 * 86400000).toISOString();
   ok('a failed-check COI keeps its expiry warning (was judged only for "signed" rows)',
-    isExpiringSoon({ expiresAt: in10, status: { bucket: 'at_risk', label: 'Failed check', tone: 'danger' } }, now));
+    isExpiringSoon({ expiresAt: in10, status: { bucket: 'at_risk', label: 'Failed Check', tone: 'danger' } }, now));
   ok('an awaiting permit expiring in 10 days is flagged too',
     isExpiringSoon({ expiresAt: in10, status: { bucket: 'awaiting', label: 'Pending', tone: 'warning' } }, now));
   ok('an already-expired row is not "expiring soon"',
     !isExpiringSoon({ expiresAt: in10, status: { bucket: 'expired', label: 'Expired', tone: 'danger' } }, now));
   ok('41 days out is not soon',
-    !isExpiringSoon({ expiresAt: new Date(now + 41 * 86400000).toISOString(), status: { bucket: 'done', label: 'Passed check', tone: 'success' } }, now));
+    !isExpiringSoon({ expiresAt: new Date(now + 41 * 86400000).toISOString(), status: { bucket: 'done', label: 'Passed Check', tone: 'success' } }, now));
 }
 
 console.log('\n#161 Documents: pay-app status reads the DERIVED invoice status, run:');
@@ -174,7 +174,7 @@ console.log('\n#161 Documents: pay-app status reads the DERIVED invoice status, 
   ok("a SENT invoice past its due date → the pay app reads 'Overdue' (the derived status)",
     pastDue.label === 'Overdue' && pastDue.tone === 'danger', JSON.stringify(pastDue));
   const notDue = payAppDocStatus(undefined, statusOf(inv({ status: 'sent', dueDate: '2099-01-15' })), undefined);
-  ok("a sent invoice not yet due → 'Awaiting payment'", notDue.label === 'Awaiting payment', JSON.stringify(notDue));
+  ok("a sent invoice not yet due → 'Awaiting payment'", notDue.label === 'Awaiting Payment', JSON.stringify(notDue));
   const reopened = payAppDocStatus(undefined, statusOf(inv({ status: 'paid', dueDate: '2099-01-15', amountPaid: 0 })), undefined);
   ok("a stored-'paid' invoice with the balance still open is NOT 'Paid' (matches the Invoice screen)",
     reopened.label !== 'Paid' && reopened.bucket !== 'done', JSON.stringify(reopened));
@@ -202,7 +202,7 @@ console.log('\n#161 Documents: wiring and copy:');
     /router\.push\(\{ pathname: '\/project-files', params: \{ projectId \} \} as never\)/.test(src) && /onPress=\{\(\) => openProjectFiles\(p\.id\)\}/.test(src));
   ok("no filter chip says 'Signed'", !/label: 'Signed'/.test(src));
   ok('the empty state still tells an empty filter from an empty account',
-    /documents\.length === 0 \? 'Nothing filed yet' : 'Nothing under this filter'/.test(src));
+    /documents\.length === 0 \? 'Nothing Filed Yet' : 'Nothing Under This Filter'/.test(src));
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-w5-desktop-web-screens: ${pass} passed, ${fail} failed\n`);

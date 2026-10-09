@@ -62,8 +62,8 @@ import {
   type CodeLookResult,
 } from '@/utils/codeLook';
 
-export const CODE_LOOK_NEEDS_PRO = 'Photo code check uses AI and needs Pro';
-export const CODE_LOOK_NOT_LIVE = "Photo code check isn't live on the server yet.";
+export const CODE_LOOK_NEEDS_PRO = 'Photo Code Check uses AI and needs Pro';
+export const CODE_LOOK_NOT_LIVE = "Photo Code Check isn't live on the server yet.";
 
 type RunState =
   | { kind: 'idle' }
@@ -106,7 +106,7 @@ export default function CodeLookSheet({
   // to this sheet first by the host's onRequestClose, so one Esc never closes
   // both sheets.
   useHotkeys(
-    [{ combo: 'escape', handler: embedded ? undefined : onClose, priority: embedded ? 1 : 0, label: 'Close photo code check' }],
+    [{ combo: 'escape', handler: embedded ? undefined : onClose, priority: embedded ? 1 : 0, label: 'Close Photo Code Check' }],
     { scope: 'dialog', enabled: visible },
   );
 
@@ -148,7 +148,7 @@ export default function CodeLookSheet({
       setRun({ kind: 'done', result });
     } catch (e) {
       if (!alive.current || mine !== seq.current) return;
-      const message = aiConsentErrorText(e) ?? (e instanceof Error && e.message.trim() ? e.message.trim() : "Photo code check didn't finish. Try again.");
+      const message = aiConsentErrorText(e) ?? (e instanceof Error && e.message.trim() ? e.message.trim() : "Photo Code Check didn't finish. Try again.");
       setRun({ kind: 'error', message, code: edgeErrorCode(e) });
     }
   }, [canAI, photoUri, project, trade, checklist]);
@@ -210,7 +210,7 @@ export default function CodeLookSheet({
             testID={`codelook-punch-${o.id}`}
           >
             <ListChecks size={13} color={t.textSecondary} strokeWidth={1.75} />
-            <Text style={s.actionText}>{inPunch ? 'In punch (internal)' : 'Make punch item'}</Text>
+            <Text style={s.actionText}>{inPunch ? 'In Punch (Internal)' : 'Make Punch Item'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={s.action}
@@ -223,10 +223,10 @@ export default function CodeLookSheet({
             <ClipboardCheck size={13} color={t.textSecondary} strokeWidth={1.75} />
             <Text style={s.actionText}>
               {addedTo
-                ? (prepFull[o.id] ? `Not added: ${addedTo}'s photo code check list is full` : `Added to ${addedTo} prep on this device`)
+                ? (prepFull[o.id] ? `Not added: ${addedTo}'s Photo Code Check list is full` : `Added to ${addedTo} prep on this device`)
                 : prepBlocked
                   ? `No inspection in the next ${PREP_WINDOW_DAYS} days to add it to`
-                  : 'Add to inspection prep'}
+                  : 'Add to Inspection Prep'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -241,7 +241,7 @@ export default function CodeLookSheet({
     >
       <View style={s.header}>
         <View style={s.headerBody}>
-          <Text style={s.sheetHeading}>Photo code check</Text>
+          <Text style={s.sheetHeading}>Photo Code Check</Text>
           <Text style={s.disclaimer} testID="codelook-disclaimer">{CODE_LOOK_DISCLAIMER}</Text>
           <Text style={s.groundingChip}>{grounding.chipLabel}</Text>
         </View>
@@ -251,7 +251,7 @@ export default function CodeLookSheet({
       </View>
 
       <ScrollView contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 32 }]}>
-        <Image source={{ uri: photoUri }} style={s.thumb} resizeMode="cover" accessibilityLabel="The photo to look at" />
+        <Image source={{ uri: photoUri }} style={s.thumb} resizeMode="cover" accessibilityLabel="The Photo to Look At" />
 
         {!canAI ? (
           <View style={s.section}>
@@ -263,7 +263,7 @@ export default function CodeLookSheet({
         ) : run.kind === 'idle' ? (
           <TouchableOpacity style={s.primary} onPress={() => { void look(); }} accessibilityRole="button" testID="codelook-run">
             <ScanSearch size={16} color={t.bg} strokeWidth={1.75} />
-            <Text style={s.primaryText}>Look at this photo</Text>
+            <Text style={s.primaryText}>Look at This Photo</Text>
           </TouchableOpacity>
         ) : run.kind === 'busy' ? (
           <View style={s.busy} testID="codelook-busy">
@@ -277,12 +277,12 @@ export default function CodeLookSheet({
             </Text>
             {run.code === 'monthly_cap_reached' ? (
               <TouchableOpacity style={s.action} onPress={() => setPaywallOpen(true)} accessibilityRole="button" testID="codelook-see-plans">
-                <Text style={s.actionText}>See plans</Text>
+                <Text style={s.actionText}>See Plans</Text>
               </TouchableOpacity>
             ) : run.code === 'unknown_task' ? null : (
               <TouchableOpacity style={s.action} onPress={() => { void look(); }} accessibilityRole="button" testID="codelook-retry">
                 <RefreshCw size={13} color={t.textSecondary} strokeWidth={1.75} />
-                <Text style={s.actionText}>Try again</Text>
+                <Text style={s.actionText}>Try Again</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -293,7 +293,7 @@ export default function CodeLookSheet({
               <View style={s.section} testID="codelook-observations">
                 <View style={s.sectionHead}>
                   <ScanSearch size={15} color={t.accentLabel} strokeWidth={1.75} />
-                  <Text style={s.sectionHeading}>What an inspector would look at</Text>
+                  <Text style={s.sectionHeading}>What an Inspector Would Look At</Text>
                 </View>
                 {run.result.observations.map(renderObservation)}
               </View>
@@ -302,7 +302,7 @@ export default function CodeLookSheet({
               <View style={s.section} testID="codelook-check-on-site">
                 <View style={s.sectionHead}>
                   <HelpCircle size={15} color={t.warningLabel} strokeWidth={1.75} />
-                  <Text style={s.sectionHeading}>Check on site</Text>
+                  <Text style={s.sectionHeading}>Check On Site</Text>
                 </View>
                 {run.result.checkOnSite.map(renderObservation)}
               </View>
@@ -310,7 +310,7 @@ export default function CodeLookSheet({
             <View style={s.section} testID="codelook-cant-tell">
               <View style={s.sectionHead}>
                 <EyeOff size={15} color={t.textSecondary} strokeWidth={1.75} />
-                <Text style={s.sectionHeading}>Can&apos;t tell from this photo</Text>
+                <Text style={s.sectionHeading}>Can&apos;t Tell from This Photo</Text>
               </View>
               {run.result.cantTell.map((c, i) => (
                 <View key={`${i}_${c.what}`} style={s.item}>

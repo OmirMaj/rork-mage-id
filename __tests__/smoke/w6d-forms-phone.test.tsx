@@ -319,11 +319,11 @@ describe('lane P2 — the phone is unchanged (golden)', () => {
   it.each(SETTINGS)('%s', async (name, os, role, owner) => {
     mockOwner = owner;
     const tree = await mountAt(os, 390, 844, '/settings', role);
-    expect(screen.getByText('AI usage')).toBeTruthy();
-    if (owner) expect(screen.getByText('Developer (owner only)')).toBeTruthy();
-    else expect(screen.queryByText('Developer (owner only)')).toBeNull();
-    if (role === 'property_manager') expect(screen.queryByText('Estimate defaults')).toBeNull();
-    else expect(screen.getByText('Estimate defaults')).toBeTruthy();
+    expect(screen.getByText('AI Usage')).toBeTruthy();
+    if (owner) expect(screen.getByText('Developer (Owner Only)')).toBeTruthy();
+    else expect(screen.queryByText('Developer (Owner Only)')).toBeNull();
+    if (role === 'property_manager') expect(screen.queryByText('Estimate Defaults')).toBeNull();
+    else expect(screen.getByText('Estimate Defaults')).toBeTruthy();
     expect(fingerprint(name, tree.toJSON())).toMatchSnapshot();
   });
 
@@ -373,7 +373,7 @@ describe('lane P2 — android 1100 (isDesktop true, desktopWeb false)', () => {
   it('settings keeps one long list (no index)', async () => {
     const tree = await mountAt('android', 1100, 800, '/settings', 'contractor');
     expect(hasTestIdPrefix(tree.toJSON(), 'settings-index-')).toBe(false);
-    expect(screen.getByText('AI usage')).toBeTruthy();
+    expect(screen.getByText('AI Usage')).toBeTruthy();
     expect(screen.getByText('Payments')).toBeTruthy();
   });
 
@@ -435,12 +435,12 @@ describe('lane P2 — desktop web 1512 (the one-page forms)', () => {
     await desk('/settings', 'contractor');
     expect(screen.getByTestId('settings-index')).toBeTruthy();
     expect(screen.getByTestId('settings-index-payments')).toBeTruthy();
-    // Section headers and index rows share the sentence-case label, so a
+    // Section headers and index rows share the same label, so a
     // mounted pane shows it twice (index row + header), an unmounted one once.
-    expect(screen.getAllByText('AI usage')).toHaveLength(2);
+    expect(screen.getAllByText('AI Usage')).toHaveLength(2);
     expect(screen.getByTestId('logout-button')).toBeTruthy();
     expect(screen.getAllByText('Payments')).toHaveLength(1);
-    expect(screen.getAllByText('Help and support')).toHaveLength(1);
+    expect(screen.getAllByText('Help and Support')).toHaveLength(1);
     // Web never lists the native-only security section.
     expect(screen.queryByTestId('settings-index-security')).toBeNull();
   });
@@ -449,7 +449,7 @@ describe('lane P2 — desktop web 1512 (the one-page forms)', () => {
     await desk('/settings?section=payments', 'contractor');
     expect(screen.getAllByText('Payments')).toHaveLength(2);
     expect(screen.getAllByText('Integrations')).toHaveLength(2);
-    expect(screen.getAllByText('AI usage')).toHaveLength(1);
+    expect(screen.getAllByText('AI Usage')).toHaveLength(1);
   });
 
   it('settings: a property manager\'s index has none of the four contractor-only rows', async () => {

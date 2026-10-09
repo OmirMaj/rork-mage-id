@@ -90,7 +90,7 @@ function BriefInner() {
   // Verbatim the sentence the home card and the desktop rail use: a reader who
   // has learned what it means on one surface should not relearn it on another.
   const unreachableLine =
-    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+    `Couldn't reach MAGE. Showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}.`;
 
   // Opening the brief counts as "seen today" — hides the pinned home card.
   useEffect(() => {
@@ -103,7 +103,7 @@ function BriefInner() {
   );
 
   const headline = brief.needsYou.length === 0
-    ? (sourceFailed ? 'Brief incomplete — MAGE was unreachable' : QUIET_MORNING_LINE)
+    ? (sourceFailed ? 'Brief incomplete. MAGE was unreachable.' : QUIET_MORNING_LINE)
     : `${brief.needsYou.length} need${brief.needsYou.length === 1 ? 's' : ''} you`;
 
   const openItem = (item: BriefItem) => {
@@ -123,7 +123,7 @@ function BriefInner() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     router.push({
       pathname: '/ask',
-      params: { seed: `About "${item.text}" — what's going on and what should I do?`, screen: 'brief' },
+      params: { seed: `About "${item.text}": what's going on and what should I do?`, screen: 'brief' },
     });
   };
 
@@ -202,7 +202,7 @@ function BriefInner() {
                 <View style={[styles.section, isDesktop && styles.sectionDesktop]}>
                   <View style={styles.sectionHeader}>
                     <AlertCircle size={14} color={t.danger} strokeWidth={2} />
-                    <Text style={styles.sectionLabel}>Needs you</Text>
+                    <Text style={styles.sectionLabel}>Needs You</Text>
                   </View>
                   {renderRows(brief.needsYou, true)}
                 </View>
@@ -224,7 +224,7 @@ function BriefInner() {
                 <View style={[styles.section, isDesktop && styles.sectionDesktop]}>
                   <View style={styles.sectionHeader}>
                     <MageAIMark size={14} color={t.accent} />
-                    <Text style={styles.sectionLabel}>Did for you</Text>
+                    <Text style={styles.sectionLabel}>Did for You</Text>
                   </View>
                   {renderRows(brief.didForYou, false)}
                 </View>
@@ -233,7 +233,7 @@ function BriefInner() {
 
               {brief.needsYou.length === 0 && brief.watching.length === 0 && (
                 <Text style={styles.quietNote}>
-                  {sourceFailed ? `${unreachableLine} — nothing was read just now.` : quietBriefDetail(brief)}
+                  {sourceFailed ? `${unreachableLine} Nothing was read just now.` : quietBriefDetail(brief)}
                 </Text>
               )}
             </>

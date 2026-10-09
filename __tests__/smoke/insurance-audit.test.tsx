@@ -131,7 +131,7 @@ describe('insurance audit pack', () => {
   it('a failed portal read says so and disables both exports', async () => {
     await mount('error');
     expect(screen.getByTestId('insaudit-load-error')).toBeTruthy();
-    expect(screen.getByTestId('insaudit-headline').props.children).toMatch(/^Portal payments couldn't be loaded — totals below leave them out\./);
+    expect(screen.getByTestId('insaudit-headline').props.children).toMatch(/^Portal payments couldn't be loaded\. Totals below leave them out\./);
     expect(screen.getByTestId('insaudit-export-blocked').props.children).toMatch(/Export needs the sub-portal payments/);
     for (const id of ['insaudit-export-csv', 'insaudit-export-pdf']) {
       const btn = screen.getByTestId(id);
@@ -144,6 +144,6 @@ describe('insurance audit pack', () => {
     await AsyncStorage.setItem('mageid_subcontractors', JSON.stringify(subs));
     await mountRouteChecked('/coi-vault');
     expect(screen.getByTestId('insaudit-link')).toBeTruthy();
-    expect(screen.getByText('Insurance audit pack — payments vs certificates')).toBeTruthy();
+    expect(screen.getByText('Insurance Audit Pack: Payments vs Certificates')).toBeTruthy();
   });
 });

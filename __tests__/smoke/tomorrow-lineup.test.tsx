@@ -115,13 +115,13 @@ describe("tomorrow's lineup", () => {
     expect(a).toContain('Hang board (2nd fl)');
     expect(a).toContain('freight elevator booked 07:00-09:00, ref BK-7');
     expect(a).toContain('Board from ABC Supply, window 08:00-09:00');
-    expect(a).toContain('Plumbing rough inspection — time not set');
+    expect(a).toContain('Plumbing rough inspection, time not set');
     expect(b).toContain('Electrical rough');
     expect(b).not.toContain('Board from ABC Supply');
     expect(b).not.toContain('Demo');
     expect(screen.getByText(/No phone or email on file/)).toBeTruthy();
     expect(screen.getByTestId('lineup-gaps')).toBeTruthy();
-    expect(screen.getByText(/1 task tomorrow has no sub assigned — it's not in any message: Site clean-up\./)).toBeTruthy();
+    expect(screen.getByText(/1 task tomorrow has no sub assigned, so it's not in any message: Site clean-up\./)).toBeTruthy();
     expect(mockShare).not.toHaveBeenCalled();
     expect({ a: mask(a), b: mask(b) }).toMatchSnapshot();
   });
@@ -163,7 +163,7 @@ describe("tomorrow's lineup", () => {
     expect(screen.getByText(/It can’t see your schedule, so it rings even when tomorrow is empty\. Nothing is sent to your subs/)).toBeTruthy();
     const sw = screen.getByTestId('lineup-reminder-switch');
     expect(sw.props.value).toBe(false);
-    expect(sw.props.accessibilityLabel).toBe('Remind me at 3 pm on weekdays');
+    expect(sw.props.accessibilityLabel).toBe('Remind Me at 3 pm on Weekdays');
     N.requestPermissionsAsync.mockClear();
     N.scheduleNotificationAsync.mockClear();
     await act(async () => { fireEvent(sw, 'valueChange', true); });
@@ -215,6 +215,6 @@ describe("tomorrow's lineup", () => {
   it('/last-planner carries the door to the lineup', async () => {
     await mount(`/last-planner?projectId=${P}`);
     expect(screen.getByTestId('lineup-link')).toBeTruthy();
-    expect(screen.getByText("Tomorrow's lineup — a ready-to-send text per sub")).toBeTruthy();
+    expect(screen.getByText("Tomorrow's Lineup: A Ready-to-Send Text per Sub")).toBeTruthy();
   });
 });

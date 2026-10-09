@@ -1456,7 +1456,7 @@ export function describeVariance(variance: number): VarianceDisplay {
   // painted as one — `formatMoney` would render "$0" beside "Under by".
   return {
     tone: 'on_budget',
-    label: 'On budget',
+    label: 'On Budget',
     banner: 'Projecting to finish on budget',
     amount: 0,
     colorKey: 'neutral',

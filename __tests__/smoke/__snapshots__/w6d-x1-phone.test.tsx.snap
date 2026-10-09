@@ -4,7 +4,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) AssemblyEditor
 {
   "lines": 119,
   "modalCount": 1,
-  "sha256": "52a89ce78ba9a057d901dcb58fa9168e73bfbf74370b4bdfd72bb3707b677cb5",
+  "sha256": "488ec6b4cef459427b651687b62b02abcea014e06b3c953b79ab144b3ffd9bf5",
 }
 `;
 
@@ -12,7 +12,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) AssemblyEditor
 {
   "lines": 119,
   "modalCount": 1,
-  "sha256": "dfcd3eabb7dff9c3d7bbc228c38c0ae5a7ca99316859fed16d7b9ad659826f86",
+  "sha256": "85f94dc98cd70428739f519e6a17cd0f656e804e7a17000682311e2099e9b712",
 }
 `;
 
@@ -20,7 +20,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailMo
 {
   "lines": 16,
   "modalCount": 1,
-  "sha256": "4eb8fddb1c6a74cb7f0d999c8185461a71e3b3bdee02a7bc896f3adcf1be61f1",
+  "sha256": "49e15eb8bd27e91c56273a849a76813457a5d1526a85317a6a3414289a636ff2",
 }
 `;
 
@@ -28,7 +28,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailMo
 {
   "lines": 16,
   "modalCount": 1,
-  "sha256": "b8ec9a11be51bf95bf29b591a36cd77f22a1f763a0cdf7d7967107a2101614b6",
+  "sha256": "832670325ad04e743febaf2652086f5016e56a4edd7c69d9921a9a3820d06019",
 }
 `;
 
@@ -36,7 +36,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailMo
 {
   "lines": 60,
   "modalCount": 1,
-  "sha256": "cbe9176f9bb64f64f63f2742e05887ffb643d352361536ea99a8b8d9642fa981",
+  "sha256": "fed40be450ad2b00203ea78fb045bc52b104e284e90b51cb145772f346fb6985",
 }
 `;
 
@@ -44,7 +44,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailMo
 {
   "lines": 60,
   "modalCount": 1,
-  "sha256": "ff512413f2ffa6a7ecab3473b704223d0b37e2a9586d474923870a05c1a17865",
+  "sha256": "33e7ab308e5f341bed7976a7ba48a3a7eafa53c99c698f8fe275ca172fb66991",
 }
 `;
 
@@ -52,7 +52,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadin
 {
   "lines": 46,
   "modalCount": 1,
-  "sha256": "90c27e070119af4e3f125b418e9f8acfc4f72dcc55250a13cf86a22d615073b4",
+  "sha256": "f1ae4612a417c4dbcb08bd268940221731e1dbef2e35629c993434c259cf94fc",
 }
 `;
 
@@ -60,7 +60,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadin
 {
   "lines": 46,
   "modalCount": 1,
-  "sha256": "b63b4c39c4be5d7c78ec6e1e144cc231ac1f59ef6fc88aa1ad41149ae4de9832",
+  "sha256": "c17946a1c413d4808608bfa1d03b4be85da142d0876778c1a9afcbf3f5f091ec",
 }
 `;
 
@@ -68,7 +68,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InfoBubble —
 {
   "lines": 27,
   "modalCount": 1,
-  "sha256": "8e7bfe8b263a241c8ffdc9a5fddaae38c6df2e82ef5922ff42bc2deeccb78199",
+  "sha256": "8727905dc5bd411022d084a48ffb190a0f30c55bd725cf4fc909c8c99a290c72",
 }
 `;
 
@@ -76,7 +76,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InfoBubble —
 {
   "lines": 27,
   "modalCount": 1,
-  "sha256": "ecb2c1dafd9861810642c05072a74e21eb61552f53d5caec714bf5ea2e890373",
+  "sha256": "fa2d2e9551721db5bb6f46a708bd1b5ddd2c140125727db2e7beda3cce63a8a5",
 }
 `;
 
@@ -84,7 +84,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InstantBidProp
 {
   "lines": 46,
   "modalCount": 1,
-  "sha256": "6151224ee1e1e604d15bd6c03deb6f6736444b15ba414f45543be23dcbe04e30",
+  "sha256": "a958f796ae16ca2341468341d9ee3ad87eedf7cdc5df21aed015c32cba5abf46",
 }
 `;
 
@@ -92,7 +92,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InstantBidProp
 {
   "lines": 46,
   "modalCount": 1,
-  "sha256": "a760edc948910e8e26d5a5a072edfcae41bceb2151e3a885d192c33887abee6e",
+  "sha256": "809a63a21a6897c27267e840f6815f7afd231c8129749fd55561cfee137a74dc",
 }
 `;
 
@@ -116,7 +116,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PropertyManage
 {
   "lines": 106,
   "modalCount": 1,
-  "sha256": "5796e392c0fa28ebba782857c39ea7efab2be11acaf1dac2c9885fef0d63e547",
+  "sha256": "49b1923b22fcbd7f95fcf2c6c36a2b0ab75bb26af46a4112013a9bdeecfbe6ed",
 }
 `;
 
@@ -124,7 +124,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PropertyManage
 {
   "lines": 106,
   "modalCount": 1,
-  "sha256": "9bc074fb5415a0bf64029ae7511b67f119c32fae0d9cacdcb3f5fab0c4792e6d",
+  "sha256": "dcf0dd7ef2c7a3107d2a62c2cc642c4096f6a86b5b23e30e466c6ae8747307d7",
 }
 `;
 
@@ -132,7 +132,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PunchExportShe
 {
   "lines": 84,
   "modalCount": 1,
-  "sha256": "871800a937a3526eb31145d76220b4af2ce6b30385db009b74c542439e7445ad",
+  "sha256": "7f6260392165ec3a95260d09ac3d38939b04a2d26049da86e5649c2602434316",
 }
 `;
 
@@ -140,7 +140,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PunchExportShe
 {
   "lines": 84,
   "modalCount": 1,
-  "sha256": "08cee5ed9f1784d7e7ff55ee502c5a9a8e9c48595be9e3bbb5f5b0487c6cc1d5",
+  "sha256": "a16b29a6a314417304872e5ff44b79b8f316e3dce50bba3a7f0985f000d5c77a",
 }
 `;
 
@@ -148,7 +148,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) QuickFieldUpda
 {
   "lines": 181,
   "modalCount": 2,
-  "sha256": "60610961f2453f79345a71d31521ef6ad6a2adaae10812a4e6a43380bb6c8a94",
+  "sha256": "7cef9d0b3063503a6d242db4d90ed84d9528152351aa1defb5c7521842813781",
 }
 `;
 
@@ -156,7 +156,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) QuickFieldUpda
 {
   "lines": 181,
   "modalCount": 2,
-  "sha256": "7ca96c45cb5af8914b93cc0429885c5c1bc3b63fc0175fee1a7c069f8a161a97",
+  "sha256": "cddfe5511b0302a39f66238242ae56b2ccbc77067372f8ac2b0c1ac26141d034",
 }
 `;
 
@@ -164,7 +164,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) RateOverrideMo
 {
   "lines": 55,
   "modalCount": 1,
-  "sha256": "ae16ec93d5187415ec3035c545c1a6d83f377011c58573df91815f571c295ca6",
+  "sha256": "ff3e46c179b1fa53847a950396da59734d23bbf1cbc8846926e61378f12c5350",
 }
 `;
 
@@ -172,7 +172,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) RateOverrideMo
 {
   "lines": 55,
   "modalCount": 1,
-  "sha256": "3084f01b82ea9fd58dd4c6b1d84564064f5f9d9cebce7b150be2b1be4eb3a8c4",
+  "sha256": "5d9f2a1fdf81b4276dc0945941ca301d425e53d8d2036ccce4b23f91cb39aa48",
 }
 `;
 
@@ -180,7 +180,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ReferralPrompt
 {
   "lines": 40,
   "modalCount": 1,
-  "sha256": "9d1ff302c941e6e582d394cb6de0d1e30fe0a761c58870faccd5ba65754af1ac",
+  "sha256": "426f130290716f3a0fe002be3ebd071b52326b9008b558bbaf734bd26e25c55e",
 }
 `;
 
@@ -188,7 +188,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ReferralPrompt
 {
   "lines": 40,
   "modalCount": 1,
-  "sha256": "dd3f87edce332c195a101fa9fb329f1443a27ab91e90f3c06e57234fa9a3413f",
+  "sha256": "62354028be288c8dd47325cc2771241ba8674061570b2636654093b949d25d90",
 }
 `;
 
@@ -196,7 +196,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) SubDailyUpdate
 {
   "lines": 117,
   "modalCount": 1,
-  "sha256": "3abd90f1da3c60e790de9abdc74c40da499f6b628cdcc582c9c89eaa43955e0e",
+  "sha256": "0bc4f9a20953c716a9b50cbbfebec1dd4238ab1e25c232859b4da3b86c3b546f",
 }
 `;
 
@@ -204,7 +204,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) SubDailyUpdate
 {
   "lines": 117,
   "modalCount": 1,
-  "sha256": "9319c5966f2bb66988600c25bebf3eab653efb89fb2dd0fa2ed20fe1d8ca89bf",
+  "sha256": "a30d5a9a12c80a8f556e2d8d4aafc2707f136fc3ac619143e753fd4f90a3aa7b",
 }
 `;
 
@@ -212,7 +212,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVe
 {
   "lines": 47,
   "modalCount": 1,
-  "sha256": "3562a6ee729854f758c71e0b1f03f30fa4d7082e7beb915a615fc0eb54a45d13",
+  "sha256": "c676ae6711e23be0eb0f0a67e314e2edaf09ce30afd732ff020ec7f8a0eb1ed2",
 }
 `;
 
@@ -220,7 +220,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVe
 {
   "lines": 47,
   "modalCount": 1,
-  "sha256": "25ecd76ca7bc6a08583f75221129fbdf385ca3645684af94137b2f6653cf8164",
+  "sha256": "ff503482567269044d1a5697c50936eda2370e948dc511a5b7ebc2c1aa45738c",
 }
 `;
 
@@ -228,7 +228,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVe
 {
   "lines": 35,
   "modalCount": 1,
-  "sha256": "409e3c520fcc20f25af3d097b5adb2789175cd4377c6f3e8fb402f82786d43fc",
+  "sha256": "f9e04323dfe72015410f7e6824c11e54cba5adfda35f28a56bff03da348804a6",
 }
 `;
 
@@ -236,7 +236,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVe
 {
   "lines": 35,
   "modalCount": 1,
-  "sha256": "2dc7b5c6609c3a82fbba121d498695591a4330b1860c9c14879e97dd03170f15",
+  "sha256": "c8ab9b936e18b9d37946bd58bca499b9ad86bfe862673d6b3c5b04727ff36ea3",
 }
 `;
 
@@ -244,7 +244,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UniversalMicBu
 {
   "lines": 87,
   "modalCount": 2,
-  "sha256": "01f037a0df848165a91552253346f18b4deb1d9c9b34f3548a3be4142f29660f",
+  "sha256": "59a1280101e697c8a7af567f55ba4c915426582214c4450c66295ac3d5a047ba",
 }
 `;
 
@@ -252,7 +252,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UniversalMicBu
 {
   "lines": 87,
   "modalCount": 2,
-  "sha256": "d8cdde1495dfbcd502423eb418ec941aaecc060dbc3aaf3986666d90e0e57a74",
+  "sha256": "051d01dc29192beee55038e991b87ede23a6610b6d4f260b9cc659ccfd452a0c",
 }
 `;
 
@@ -260,7 +260,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UpgradeSheet �
 {
   "lines": 42,
   "modalCount": 1,
-  "sha256": "5d506ad47abc64d7d332b4eaffc0069014ec92da4d54bd3388840179d7b33445",
+  "sha256": "256a45ce6f9d0be0d187c07e64799852d0c2ece494e1419af7762ea001366b34",
 }
 `;
 
@@ -268,7 +268,7 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UpgradeSheet �
 {
   "lines": 42,
   "modalCount": 1,
-  "sha256": "53401a06e227f220a26cabeafeda2437db15dc14795e11fe4a6bcec889ba3550",
+  "sha256": "74bad97c20ccdb5aff700be26ee2f7ac2830f918937ff652de8a6f3f322dfcfb",
 }
 `;
 
@@ -276,7 +276,7 @@ exports[`lane X1 — D: the classic schedule tab (golden, android 800 × 1280) /
 {
   "lines": 2194,
   "modalCount": 19,
-  "sha256": "126361394b113f51fcb9aed91b6e0f11917655541b407cad42d7aa6e4e9d1554",
+  "sha256": "1e0702f316336b1f0ee3581bdbf84b5996850e5b03f33ab8bb6f25486f3185c9",
 }
 `;
 
@@ -284,7 +284,7 @@ exports[`lane X1 — PunchExportHeaderButton alone (golden, iOS 390) dark — th
 {
   "lines": 11,
   "modalCount": 0,
-  "sha256": "901cbfbb12dae00e8848962dcc37c28d50b92f7a1694c7fed24997964ac59527",
+  "sha256": "88ff5fef7ea44af42d4381b852c317927a9ba02816207d52bb6b827c962b1605",
 }
 `;
 
@@ -292,6 +292,6 @@ exports[`lane X1 — PunchExportHeaderButton alone (golden, iOS 390) light — t
 {
   "lines": 11,
   "modalCount": 0,
-  "sha256": "2fb6277c455cc9716305579c2cd44194ac87b6949da18e056791bb894bd20543",
+  "sha256": "b0fc30a0fb3422a468493c2294cbabae1036fbcbfd4cbcd1a2cf7f4257dc4511",
 }
 `;

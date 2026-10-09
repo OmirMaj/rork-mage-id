@@ -99,7 +99,7 @@ ok('fixture: Tile is critical (float 0), Paint has 8 working days of float', fB 
 const site = { cents: 21000, source: 'your General Conditions line ($12,600 ÷ 60 working days)' };
 {
   const r = delayConsequence({ task: tB, basis: 'linked_task', schedule: sched, cpmFloatDays: fB, today: '2026-05-20', site });
-  ok('future start → "Needed by … — no delay yet", nothing pushed, no dollars', r.text === 'Needed by Jun 8 for Tile — no delay yet.' && r.pushesFinishDays === 0 && r.cents === null && r.neededBy === '2026-06-08', r);
+  ok('future start → "Needed by … — no delay yet", nothing pushed, no dollars', r.text === 'Needed by Jun 8 for Tile. No delay yet.' && r.pushesFinishDays === 0 && r.cents === null && r.neededBy === '2026-06-08', r);
 }
 {
   const r = delayConsequence({ task: tB, basis: 'linked_task', schedule: sched, cpmFloatDays: fB, today: '2026-06-11', site });
@@ -110,12 +110,12 @@ const site = { cents: 21000, source: 'your General Conditions line ($12,600 ÷ 6
 }
 {
   const r = delayConsequence({ task: tB, basis: 'linked_task', schedule: sched, cpmFloatDays: fB, today: '2026-06-11', site: null });
-  ok('no site cost → the "add a General Conditions line" words', r.text.endsWith(NO_SITE_COST_TEXT.trimEnd()) || r.text.includes('No daily site cost on file — add a General Conditions line to see dollars.'), r.text);
+  ok('no site cost → the "add a General Conditions line" words', r.text.endsWith(NO_SITE_COST_TEXT.trimEnd()) || r.text.includes('No daily site cost on file. Add a General Conditions line to see dollars.'), r.text);
   ok('no site cost → no $ and no cents', !r.text.includes('$') && r.cents === null);
 }
 {
   const r = delayConsequence({ task: tC, basis: 'linked_task', schedule: sched, cpmFloatDays: fC, today: '2026-06-04', site });
-  ok('float covers the wait → finish holds for F − late more', r.pushesFinishDays === 0 && r.text === 'Paint has 8 days of float — finish holds for 5 more working days.' && r.cents === null, r.text);
+  ok('float covers the wait → finish holds for F − late more', r.pushesFinishDays === 0 && r.text === 'Paint has 8 days of float. Finish holds for 5 more working days.' && r.cents === null, r.text);
   const used = delayConsequence({ task: tC, basis: 'linked_task', schedule: sched, cpmFloatDays: fC, today: '2026-06-15', site });
   ok('float used up → pushes late − F, with dollars', used.pushesFinishDays === 2 && used.cents === 42000 && used.text.includes('finish moves 2 working days'), used);
 }
@@ -127,7 +127,7 @@ const site = { cents: 21000, source: 'your General Conditions line ($12,600 ÷ 6
 }
 {
   const r = delayConsequence({ task: tB, basis: 'matched_by_name', schedule: sched, cpmFloatDays: fB, today: '2026-06-11', site });
-  ok('matched_by_name → "Matched by name: {task} — " prefix', r.text.startsWith('Matched by name: Tile — Tile is on the critical path'), r.text);
+  ok('matched_by_name → "Matched by name: {task} — " prefix', r.text.startsWith('Matched by name: Tile. Tile is on the critical path'), r.text);
   const n = delayConsequence({ task: null, basis: 'no_task', schedule: sched, cpmFloatDays: null, today: '2026-06-11', site });
   ok('no_task → the "can\'t say what it holds up" sentence, never zero', n.text === NO_TASK_TEXT && n.pushesFinishDays === null && n.cents === null);
   const u = delayConsequence({ task: tB, basis: 'linked_task', schedule: { ...sched, startDate: undefined }, cpmFloatDays: fB, today: '2026-06-11', site });
@@ -151,8 +151,8 @@ ok('selections omitted ≡ selections: [] (the list is exactly as before)', JSON
 {
   const shape = without.map(i => [i.id, i.kind, i.daysOverdue, i.severity, i.nudge]);
   const expected = [
-    ['co1', 'co_approval', 7, 'critical', 'Checking in on CO #7, sent 10 days ago. We can\'t schedule this work until it\'s approved — let us know if you have questions.'],
-    ['co2', 'co_approval', 7, 'critical', 'Checking in on CO #8, sent 10 days ago. We can\'t schedule this work until it\'s approved — let us know if you have questions.'],
+    ['co1', 'co_approval', 7, 'critical', 'Checking in on CO #7, sent 10 days ago. We can\'t schedule this work until it\'s approved. Let us know if you have questions.'],
+    ['co2', 'co_approval', 7, 'critical', 'Checking in on CO #8, sent 10 days ago. We can\'t schedule this work until it\'s approved. Let us know if you have questions.'],
   ];
   ok('co_approval ids/kinds/daysOverdue (d − 3)/nudges are unchanged', JSON.stringify(shape) === JSON.stringify(expected), shape);
   const c1 = without.find(i => i.id === 'co1')!;
@@ -178,9 +178,9 @@ ok('selections omitted ≡ selections: [] (the list is exactly as before)', JSON
   ok("a 'pending' selection with an isChosen option never chases", !sels.some(i => i.id === 'selection:s8'));
   ok('only past-due, unchosen selections chase (due today / future / no date do not)', sels.map(i => i.id).sort().join() === 'selection:s1,selection:s6', sels.map(i => i.id));
   const s1 = sels.find(i => i.id === 'selection:s1')!;
-  ok('selection item shape', s1.title === 'Tile selection' && s1.waitingOn === 'the owner' && s1.daysOverdue === 6 && s1.severity === 'high' && s1.route.pathname === '/selections' && s1.route.params.projectId === 'p1', s1);
-  ok('selection nudge names the date and the matched task', s1.nudge === 'Checking in on the Tile selection — it was due Jun 5. We need it to keep the schedule on track for Tile.', s1.nudge);
-  ok('matched by name → the prefix on its consequence', !!s1.consequence && s1.consequence.startsWith('Matched by name: Tile — '), s1.consequence);
+  ok('selection item Shape', s1.title === 'Tile selection' && s1.waitingOn === 'the owner' && s1.daysOverdue === 6 && s1.severity === 'high' && s1.route.pathname === '/selections' && s1.route.params.projectId === 'p1', s1);
+  ok('selection nudge names the date and the matched task', s1.nudge === 'Checking in on the Tile selection. It was due Jun 5. We need it to keep the schedule on track for Tile.', s1.nudge);
+  ok('matched by name → the prefix on its consequence', !!s1.consequence && s1.consequence.startsWith('Matched by name: Tile. '), s1.consequence);
   const s6 = sels.find(i => i.id === 'selection:s6')!;
   ok('no matching task → the no_task sentence, and no " for …" in the nudge', s6.consequence === NO_TASK_TEXT && s6.nudge.endsWith('keep the schedule on track.'), s6);
   ok('chaseSummary counts the selection kind', chaseSummary(list).byKind.selection === 2);

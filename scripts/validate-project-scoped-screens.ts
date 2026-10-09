@@ -9,7 +9,7 @@
 // ("No project to cost yet") and a button back to the Projects tab. For a user
 // with three in-progress projects that copy is simply false, and the screen has
 // no next action — the definition of a dead end in a workflow tool.
-// schedule-pro was worse: "No project selected" with a single "Go back".
+// schedule-pro was worse: "No project selected" with a single "Go Back".
 //
 // Meanwhile field-ticket / ai-punch / compare-drawings / extract-submittals had
 // already solved it with <ToolProjectPicker> — so the app shipped two answers
@@ -77,7 +77,7 @@ for (const file of REFERENCE) {
 // ── Exactly ONE picker in the app ───────────────────────────────────────────
 // Half of finding #3 was that the app shipped two answers to the same question
 // and put the worse one on the money screens. A second hand-rolled picker is
-// how that comes back, so ban the shape: a screen that says "Pick a project"
+// how that comes back, so ban the shape: a screen that says "Pick a Project"
 // must be delegating to ToolScreenChrome, not painting its own rows.
 {
   const hosts = [...SCREENS.map(s => s.file), ...REFERENCE];
@@ -147,7 +147,7 @@ for (const { file, param } of SCREENS) {
 console.log('\nToolProjectPicker contract:');
 const chrome = read('components/ToolScreenChrome.tsx');
 ok('zero projects offers "Create a project", not an empty picker',
-  /projects\.length === 0/.test(chrome) && /actionLabel="Create a project"/.test(chrome),
+  /projects\.length === 0/.test(chrome) && /actionLabel="Create a Project"/.test(chrome),
   'a user with no projects cannot pick one — the honest next action is to make one');
 ok('the create action opens the create sheet directly',
   /openCreate: '1'/.test(chrome),

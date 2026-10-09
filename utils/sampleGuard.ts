@@ -3,7 +3,7 @@
 // A sample job ("Sample — Sarah's Place", seeded by utils/demoSeed) is a real,
 // synced project: the real save paths run on it, which is what makes a
 // tutorial honest. But nothing on it may ever reach anyone but the user:
-//   • no email to a client (an invoice send goes to HIM, "Send to me");
+//   • no email to a client (an invoice send goes to HIM, "Send to Me");
 //   • no Stripe pay link (mintPayLinkFor refuses; create-payment-link refuses
 //     server-side with 409 sample_project);
 //   • no payment reminder (invoice-dunning skips it server-side);
@@ -35,23 +35,23 @@ export function isSampleProject(projectOrName: NamedProject | string): boolean {
 // ── Copy (one place, so every surface says the same honest thing) ───────────
 
 /** Under the locked recipient in the invoice (and report) send sheet. */
-export const SAMPLE_SEND_NOTE = 'Sample job — this goes to you, not a client. No pay link is made.';
+export const SAMPLE_SEND_NOTE = 'Sample job. This goes to you, not a client. No pay link is made.';
 
 /** On a control that would reach someone else (the invoice's reminder and
  *  pay link) — shown disabled, with this as the reason. Scoped to what it
- *  refuses: the same screen's "Send to me" DOES email him from the sample, so
+ *  refuses: the same screen's "Send to Me" DOES email him from the sample, so
  *  a blanket "nothing is sent" would be false (honest-copy rule). */
-export const SAMPLE_NOTHING_SENT = 'Sample job — reminders and pay links never go out from a sample.';
+export const SAMPLE_NOTHING_SENT = 'Sample job. Reminders and pay links never go out from a sample.';
 
 /** On the legal documents' outbound controls (contract Sign & send / Sign
  *  together / delivery, the pay application's pay link, the closeout binder's
  *  Deliver) — refused on a sample, with this as the reason. Unlike an invoice
  *  there is no "send to me" form of these: none of them goes anywhere from a
  *  sample (LEARNDEFS-D M4). */
-export const SAMPLE_DOC_NOT_SENT = 'Sample job — contracts, pay applications and binders never go out from a sample.';
+export const SAMPLE_DOC_NOT_SENT = 'Sample job. Contracts, pay applications and binders never go out from a sample.';
 
 /** The send button's label on a sample. */
-export const SAMPLE_SEND_TO_ME_LABEL = 'Send to me';
+export const SAMPLE_SEND_TO_ME_LABEL = 'Send to Me';
 
 /** The refusal reason the invoice screen's mintPayLinkFor returns on a sample
  *  ({ ok: false, reason: 'sample' }) — it never calls the server. */
@@ -62,7 +62,7 @@ export const SAMPLE_PAY_LINK_REFUSAL = 'sample' as const;
 export const SAMPLE_SERVER_REFUSAL = 'sample_project' as const;
 
 /** The Pay button's stand-in in a sample invoice email. */
-export const SAMPLE_PAY_SPECIMEN_NOTE = 'Pay button — live once you connect Stripe';
+export const SAMPLE_PAY_SPECIMEN_NOTE = 'Pay button, live once you connect Stripe';
 
 /** Subject prefix of every email sent from a sample (idempotent). */
 export function sampleEmailSubject(subject: string): string {

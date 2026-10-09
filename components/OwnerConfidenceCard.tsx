@@ -108,22 +108,22 @@ export function OwnerConfidenceCard({
             <BillRow label="Contract" value={formatMoney(c.billing.contract)} styles={styles} />
             {c.billing.approvedChanges !== 0 ? (
               <BillRow
-                label="Approved changes"
+                label="Approved Changes"
                 value={(c.billing.approvedChanges > 0 ? '+' : '') + formatMoney(c.billing.approvedChanges)}
                 styles={styles}
               />
             ) : null}
             {c.billing.approvedChanges !== 0 ? (
-              <BillRow label="Revised contract" value={formatMoney(c.billing.revisedContract)} styles={styles} emphasize />
+              <BillRow label="Revised Contract" value={formatMoney(c.billing.revisedContract)} styles={styles} emphasize />
             ) : null}
-            <BillRow label="Invoiced to date" value={formatMoney(c.billing.billed)} styles={styles} />
+            <BillRow label="Invoiced to Date" value={formatMoney(c.billing.billed)} styles={styles} />
             <BillRow label="Paid" value={formatMoney(c.billing.paid)} styles={styles} />
           </View>
           <View style={styles.track}>
             <View style={[styles.fill, { width: `${paidPct}%`, backgroundColor: t.success }]} />
           </View>
           <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>Balance remaining</Text>
+            <Text style={styles.balanceLabel}>Balance Remaining</Text>
             <Text style={styles.balanceValue}>{formatMoney(c.billing.balance)}</Text>
           </View>
         </>
@@ -133,7 +133,7 @@ export function OwnerConfidenceCard({
       {c.nextMilestones.length > 0 ? (
         <>
           <View style={styles.divider} />
-          <Text style={styles.sectionLabel}>What's next</Text>
+          <Text style={styles.sectionLabel}>What's Next</Text>
           {c.nextMilestones.map((m, i) => (
             <View key={`${m.title}-${i}`} style={styles.mRow}>
               <Flag size={13} color={t.accent} strokeWidth={2} />

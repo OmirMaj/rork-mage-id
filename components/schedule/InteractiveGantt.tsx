@@ -332,10 +332,10 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     const actions: RowMenuAction[] = [
       { key: 'indent',  label: 'Indent',  onPress: () => onOutline?.(task.id, 'indent') },
       { key: 'outdent', label: 'Outdent', onPress: () => onOutline?.(task.id, 'outdent') },
-      { key: 'up',      label: 'Move up',   onPress: () => onReorder?.(task.id, -1) },
-      { key: 'down',    label: 'Move down', onPress: () => onReorder?.(task.id, 1) },
-      { key: 'ms',      label: task.isMilestone ? 'Unmark milestone' : 'Convert to milestone', onPress: () => onEdit(task.id, { isMilestone: !task.isMilestone }) },
-      { key: 'done',    label: 'Mark complete', onPress: () => onEdit(task.id, { status: 'done', progress: 100 }) },
+      { key: 'up',      label: 'Move Up',   onPress: () => onReorder?.(task.id, -1) },
+      { key: 'down',    label: 'Move Down', onPress: () => onReorder?.(task.id, 1) },
+      { key: 'ms',      label: task.isMilestone ? 'Unmark Milestone' : 'Convert to Milestone', onPress: () => onEdit(task.id, { isMilestone: !task.isMilestone }) },
+      { key: 'done',    label: 'Mark Complete', onPress: () => onEdit(task.id, { status: 'done', progress: 100 }) },
       { key: 'del',     label: 'Delete', destructive: true, onPress: () => onDeleteTask?.(task.id) },
     ];
     const title = task.title || 'Task';
@@ -1416,7 +1416,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             <Pressable
               style={{ width: timelineWidth, height: gridHeight }}
               onPress={handleBackgroundPress}
-              accessibilityLabel="Timeline background — double-tap to add a task at that day"
+              accessibilityLabel="Timeline background, double-tap to add a task at that day"
             >
               {/* --- Header --- */}
               <View style={[styles.timelineHeader, { width: timelineWidth, height: headerH }, isDesktopWeb && STICKY_HEADER_WEB]}>
@@ -1847,7 +1847,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       borderColor: themeColors.success, backgroundColor: themeColors.success + '14',
                     }]}
                   >
-                    <Text style={[styles.previewLabel, { color: themeColors.successLabel }]} numberOfLines={1}>+ {a.title || 'New task'}</Text>
+                    <Text style={[styles.previewLabel, { color: themeColors.successLabel }]} numberOfLines={1}>+ {a.title || 'New Task'}</Text>
                   </View>
                 );
               })}
@@ -1994,7 +1994,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       ))}
                     </View>
                     <View style={styles.linkLagRow}>
-                      <Text style={styles.linkLagLabel}>Lag (days)</Text>
+                      <Text style={styles.linkLagLabel}>Lag (Days)</Text>
                       {[-3, -1, 0, 1, 3, 7].map(n => (
                         <TouchableOpacity
                           key={n}
@@ -2127,7 +2127,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       <View style={[styles.hoverCardAccent, { backgroundColor: accent }]} />
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.hoverCardTitle} numberOfLines={1}>
-                          {t.title || 'Untitled task'}
+                          {t.title || 'Untitled Task'}
                         </Text>
                         {t.phase ? (
                           <Text style={styles.hoverCardPhase} numberOfLines={1}>
@@ -2807,7 +2807,7 @@ function BarView({
             style={styles.chipBtn}
             activeOpacity={0.8}
           >
-            <Text style={styles.chipBtnText}>▶ Start today</Text>
+            <Text style={styles.chipBtnText}>▶ Start Today</Text>
           </TouchableOpacity>
         )}
         {!finishRecorded && (
@@ -2818,7 +2818,7 @@ function BarView({
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Check size={10} color="#fff" strokeWidth={2.5} />
-              <Text style={[styles.chipBtnText, { color: '#fff' }]}>Finish today</Text>
+              <Text style={[styles.chipBtnText, { color: '#fff' }]}>Finish Today</Text>
             </View>
           </TouchableOpacity>
         )}

@@ -140,8 +140,8 @@ export function rfiRegressionReason(
   const answerOnRecord = !!(opened.response ?? '').trim() || !!opened.dateResponded;
   if ((opened.status === 'answered' || opened.status === 'closed') && form.status === 'open' && answerOnRecord) {
     return (opened.response ?? '').trim()
-      ? 'An answered RFI stays answered — the response is on record. Void it, or raise a follow-up RFI.'
-      : 'An answered RFI stays answered — the day it was answered is on record. Void it, or raise a follow-up RFI.';
+      ? 'An answered RFI stays answered. The response is on record. Void it, or raise a follow-up RFI.'
+      : 'An answered RFI stays answered. The day it was answered is on record. Void it, or raise a follow-up RFI.';
   }
   if ((opened.response ?? '').trim() && !form.response.trim()) {
     return 'The recorded response can\'t be cleared. Edit it instead, or void the RFI.';
@@ -170,7 +170,7 @@ export function nextCycleNumber(cycles: CycleLike[] | undefined): number {
  *  'YYYY-MM-DD'. */
 export function manualCycleProblem(c: { reviewer: string; status: string; sentDay: string; returnDay: string }): string | null {
   if (!c.reviewer.trim()) return 'Enter the reviewer.';
-  if (c.status !== 'in_review' && !c.returnDay) return 'Add the Returned date — a stamped cycle needs the day it came back.';
+  if (c.status !== 'in_review' && !c.returnDay) return 'Add the Returned date. A stamped cycle needs the day it came back.';
   if (c.status === 'in_review' && c.returnDay) return 'A cycle still in review has no Returned date. Pick the stamp it came back with, or clear Returned.';
   if (c.sentDay && c.returnDay && c.returnDay < c.sentDay) return 'Returned can\'t be before Sent.';
   return null;
@@ -200,7 +200,7 @@ export function numberHoldReason(kind: string, state: NumberState): string | nul
   if (state === 'confirmed') return null;
   if (state === 'pending') return `This ${kind} hasn't reached the server yet, so it has no number. It sends once it syncs.`;
   if (state === 'checking') return `Checking this ${kind}'s number…`;
-  return `You're offline — this ${kind}'s number can't be confirmed, so it can't be sent yet.`;
+  return `You're offline, so this ${kind}'s number can't be confirmed and it can't be sent yet.`;
 }
 /**
  * #58 (review round 2): Send never saves. A save and a send in the same tap
@@ -212,7 +212,7 @@ export function numberHoldReason(kind: string, state: NumberState): string | nul
  * render reads the saved record.
  */
 export function sendBlockReason(i: { isDirty: boolean; numberHold: string | null }): string | null {
-  if (i.isDirty) return 'Save your changes before sending — what goes out is the saved record, not the screen.';
+  if (i.isDirty) return 'Save your changes before sending. What goes out is the saved record, not the screen.';
   return i.numberHold;
 }
 
@@ -269,7 +269,7 @@ export function rebaseFormOnLiveWithConflicts<T extends Record<string, unknown>>
 /** #25: what the RFI screen says while the architect's incoming answer and his
  *  typed one disagree — Save waits for his choice. */
 export const RFI_RESPONSE_CONFLICT_REASON =
-  'The architect answered through the reply link while you were typing — keep theirs, or replace it with yours.';
+  'The architect answered through the reply link while you were typing. Keep theirs, or replace it with yours.';
 
 
 /**

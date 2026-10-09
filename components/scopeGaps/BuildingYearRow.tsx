@@ -77,7 +77,7 @@ export function BuildingYearRow(p: BuildingYearRowProps): React.ReactElement {
               placeholder="Year built"
               placeholderTextColor={t.textMuted}
               style={styles.input}
-              accessibilityLabel="Year built"
+              accessibilityLabel="Year Built"
               testID="scopegaps-year-input"
             />
             <Button label={SAVE_YEAR} size="sm" variant="secondary" disabled={!!blocked} onPress={save} testID="scopegaps-year-save" />

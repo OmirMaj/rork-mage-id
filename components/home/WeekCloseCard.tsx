@@ -182,17 +182,17 @@ export default function WeekCloseCard() {
         onPress={openClose}
         activeOpacity={0.75}
         accessibilityRole="button"
-        accessibilityLabel="Open Friday close"
+        accessibilityLabel="Open Friday Close"
         testID="week-close-card"
       >
         <View style={styles.icon}>
           <CalendarCheck size={16} color={t.accent} strokeWidth={2} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Friday close</Text>
+          <Text style={styles.title}>Friday Close</Text>
           <Text style={styles.summary} numberOfLines={1}>
             {allQuiet
-              ? 'Clean close — nothing left on the table.'
+              ? 'Clean close. Nothing left on the table.'
               : openLegs > 0
                 ? `${openLegs} leg${openLegs === 1 ? '' : 's'} to close out`
                 : 'Review your week'}
@@ -205,7 +205,7 @@ export default function WeekCloseCard() {
         onPress={markSeen}
         hitSlop={10}
         accessibilityRole="button"
-        accessibilityLabel="Dismiss Friday close for this week"
+        accessibilityLabel="Dismiss Friday Close for This Week"
         testID="week-close-dismiss"
       >
         <X size={14} color={t.textMuted} strokeWidth={2} />

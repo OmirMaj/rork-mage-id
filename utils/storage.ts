@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured, SUPABASE_URL } from '@/lib/supabase';
+import { rfpAttachmentStoredValue } from '@/utils/rfpAttachmentPath';
 import { readFileBytes } from '@/utils/fileBytes';
 import { PHOTO_BUCKET } from '@/utils/photoUploadCore';
 
@@ -178,21 +179,17 @@ export async function uploadProfileImage(
 }
 
 // Upload a homeowner-RFP attachment (photo or drawing PDF) to the
-// public rfp-attachments bucket. Returns the public URL — the bucket is
-// public-read so contractors browsing the listing can fetch directly.
-// Path convention is <userId>/<rfpId>/<timestamp>_<filename> which the
-// RLS policy on storage.objects expects (folder[1] must equal auth.uid()).
-//
-// ⚠ OPEN FINDING DB-F11b, deliberately NOT closed by DB-F11. This is the same
-// permanent-unsigned-URL shape that DB-F11 removed from `plan-sheets`, on a
-// parallel bucket that DB-F11 does not touch. app/post-rfp.tsx accepts PDFs and
-// images here as kind:'drawing' and writes these URLs into
-// public_bids.drawing_urls, which `public_bids_select … TO authenticated USING
-// (true)` lets ANY signed-in account enumerate — and the bucket being public
-// then makes each URL readable by an unauthenticated third party, forever.
-// Do not read "drawings are private now" as covering this path. The marketplace
-// intent (a listing contractors browse) is why it is a separate decision and
-// not a silent extension of DB-F11.
+// rfp-attachments bucket. Returns the value to STORE in public_bids.photo_urls /
+// drawing_urls, decided by ONE constant: utils/rfpAttachmentPath.ts
+// RFP_ATTACHMENT_STORED_FORM. Today that is the legacy public URL (the one
+// value a phone on an older build can render while the bucket is still
+// public); after supabase/migrations/20261010140000_rfp_attachments_flip.sql it
+// becomes the bare path. No reader renders the stored value: every screen maps
+// it back to a path and asks Storage for a short-lived signed link
+// (utils/rfpAttachmentUrls.ts, audit DB-F11b). Path convention is
+// <userId>/<rfpId>/<timestamp>_<filename>, which the insert policy on
+// storage.objects expects (folder[1] must equal auth.uid()) and which
+// supabase/functions/_shared/storagePath.ts RFP_ATTACHMENT_PATH describes.
 export async function uploadRfpAttachment(
   userId: string,
   rfpId: string,
@@ -212,8 +209,7 @@ export async function uploadRfpAttachment(
       console.log('[Storage] RFP attachment upload error:', error.message);
       return null;
     }
-    const { data } = supabase.storage.from('rfp-attachments').getPublicUrl(path);
-    return data.publicUrl ?? null;
+    return rfpAttachmentStoredValue(path, SUPABASE_URL) ?? path;
   } catch (err) {
     console.log('[Storage] RFP attachment upload failed:', err);
     return null;

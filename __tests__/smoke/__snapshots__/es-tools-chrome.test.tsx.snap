@@ -4,7 +4,7 @@ exports[`ESTOOLS — English golden (strings a person reads or hears) daily repo
 [
   "Daily report · last 30 days",
   "1 working day in the last 30 has no daily report.",
-  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so — that still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
+  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so. That still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
   "accessibilityLabel: Elm Street addition: 1 day missing. 17 of 20 working days logged. Open a report for Thu, Sep 24.",
   "Elm Street addition",
   "17 of 20 working days logged · opens Thu, Sep 24",
@@ -16,7 +16,7 @@ exports[`ESTOOLS — English golden (strings a person reads or hears) daily repo
 [
   "Daily report · last 30 days",
   "1 project has no daily report for today.",
-  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so — that still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
+  "A daily report is worth more for being complete than for being detailed. If nothing happened on site, file the day and say so. That still counts. Tap a project with a gap to file its most recent missing day, dated the day it covers.",
   "accessibilityLabel: Henderson kitchen: Today not filed. 17 of 20 working days logged. Open daily report.",
   "Henderson kitchen",
   "17 of 20 working days logged",
@@ -41,7 +41,7 @@ exports[`ESTOOLS — English golden (strings a person reads or hears) sync pill 
   "accessibilityLabel: 1 voice note couldn't be transcribed",
   "accessibilityHint: Shows the voice notes on this phone",
   "1 voice note couldn't be transcribed",
-  "Voice notes on this phone",
+  "Voice Notes on This Phone",
   "Recorded with no signal. Each one is added to its project's daily report for the day you recorded it, once it is transcribed.",
   "Henderson kitchen",
   "Recorded 9:14 AM · 0:42",
@@ -65,12 +65,12 @@ exports[`ESTOOLS — English golden (strings a person reads or hears) voice capt
   "Voice dictation",
   "for Henderson kitchen",
   "accessibilityLabel: Close",
-  "Try saying",
+  "Try Saying",
   "“Poured the east footing, six guys on site.”",
-  "Cover all of these",
+  "Cover All of These",
   "1",
   "Crew on site",
   "how many, which trades",
-  "Tap to start recording",
+  "Tap to Start Recording",
 ]
 `;

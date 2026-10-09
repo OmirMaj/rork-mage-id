@@ -200,11 +200,11 @@ function DrawingAnalyzerInner() {
       setError(message);
       if (code === 'monthly_cap_reached' || code === 'tier_required') {
         showAlert(
-          code === 'tier_required' ? 'Not included in your plan' : "You've hit this month's limit",
+          code === 'tier_required' ? 'Not Included in Your Plan' : "You've hit this month's limit.",
           message,
           [
-            { text: 'Not now', style: 'cancel' },
-            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'See Plans', onPress: () => router.push('/paywall' as never) },
           ],
         );
       }
@@ -237,19 +237,19 @@ function DrawingAnalyzerInner() {
   const handleUseAsEstimate = useCallback(() => {
     if (!result) return;
     if (!pickedProjectId) {
-      showAlert('Pick a project', 'Choose which project to drop these line items into first.');
+      showAlert('Pick a Project', 'Choose which project to drop these line items into first.');
       return;
     }
     const target = getProject(pickedProjectId);
     if (!target) {
-      showAlert('Project not found', 'That project is no longer on this device. Pick another project and run the analyzer again.');
+      showAlert('Project Not Found', 'That project is no longer on this device. Pick another project and run the analyzer again.');
       return;
     }
     // The line items AND the contingency row the result card showed, at cost
     // on the cent grid (utils/estimateLanding.analyzerCostItems).
     const costItems = analyzerCostItems(result.lineItems ?? [], result.totals, generateUUID);
     if (costItems.length === 0) {
-      showAlert('Nothing to add', 'The analyzer returned no priced line items for this set.');
+      showAlert('Nothing to Add', 'The analyzer returned no priced line items for this set.');
       return;
     }
     const n = costItems.length;
@@ -263,8 +263,8 @@ function DrawingAnalyzerInner() {
     const doReplace = () => {
       if (!isMarkupSet(markupPct)) {
         showAlert(
-          'Set your markup first',
-          `These ${n} ${lineWord} are priced at your COST. Saving now would put an at-cost number on ${target.name} — and the proposal, the contract value and every margin figure MAGE reports read it. Pick your markup on the "Your markup" row above the button; the estimate wizard, Quick Quote and the takeoff use the same answer.`,
+          'Set Your Markup First',
+          `These ${n} ${lineWord} are priced at your cost. Saving now would put an at-cost number on ${target.name}, and the proposal, the contract value and every margin figure MAGE reports read it. Pick your markup on the "Your Markup" row above the button; the estimate wizard, Quick Quote and the takeoff use the same answer.`,
         );
         return;
       }
@@ -274,9 +274,9 @@ function DrawingAnalyzerInner() {
       }));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Estimate saved',
+        'Estimate Saved',
         `${n} ${lineWord} saved to ${target.name} at your ${markupPct}% markup: ${formatMoney(linked.baseTotal, 2)} cost, ${formatMoney(linked.grandTotal, 2)} estimate. Review every line before you send it.`,
-        [{ text: 'Open project', onPress: openProject }],
+        [{ text: 'Open Project', onPress: openProject }],
       );
     };
 
@@ -290,9 +290,9 @@ function DrawingAnalyzerInner() {
       }));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Lines appended',
+        'Lines Appended',
         `${n} ${lineWord} (${formatMoney(addedSell, 2)}) added to ${target.name}. New estimate total: ${formatMoney(next.grandTotal, 2)}.`,
-        [{ text: 'Open project', onPress: openProject }],
+        [{ text: 'Open Project', onPress: openProject }],
       );
     };
 
@@ -301,18 +301,18 @@ function DrawingAnalyzerInner() {
     if (existing && existing.items.length > 0) {
       const blocked = !isMarkupSet(markupPct);
       showAlert(
-        'This project already has an estimate',
+        'This project already has an estimate.',
         `${target.name} has a ${formatMoney(existing.grandTotal ?? 0, 2)} estimate (${existing.items.length} line${existing.items.length === 1 ? '' : 's'}). ${blocked
-          ? `Appending these ${n} ${lineWord} carries that estimate's own markup across. Replacing it needs your markup first — set it on the "Your markup" row above the button.`
+          ? `Appending these ${n} ${lineWord} carries that estimate's own markup across. Replacing it needs your markup first. Set it on the "Your Markup" row above the button.`
           : `Replace it (it stays in the estimate history), or append these ${n} ${lineWord} to it?`}`,
         blocked
           ? [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Append these lines', onPress: () => doAppend(existing) },
+            { text: 'Append These Lines', onPress: () => doAppend(existing) },
           ]
           : [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Append these lines', onPress: () => doAppend(existing) },
+            { text: 'Append These Lines', onPress: () => doAppend(existing) },
             { text: 'Replace', style: 'destructive', onPress: doReplace },
           ],
       );
@@ -340,8 +340,8 @@ function DrawingAnalyzerInner() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>AI drawing analyzer</Text>
-          <Text style={styles.title}>Drop in plans, get a starting estimate</Text>
+          <Text style={styles.eyebrow}>AI Drawing Analyzer</Text>
+          <Text style={styles.title}>Drop In Plans, Get a Starting Estimate</Text>
         </View>
       </View>
 
@@ -353,7 +353,7 @@ function DrawingAnalyzerInner() {
         {/* Model picker — Business tier picks; Pro tier sees an upgrade hint. */}
         {step === 'idle' && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Estimator depth</Text>
+            <Text style={styles.cardLabel}>Estimator Depth</Text>
             <Text style={styles.cardHelper}>
               Standard returns a directional estimate fast, even from rough drawings. Pro Estimator is a slower model with room for a longer answer. Both follow the same instructions.
             </Text>
@@ -387,7 +387,7 @@ function DrawingAnalyzerInner() {
         {/* Project picker — required: it is the storage folder, not just context */}
         {step === 'idle' && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Project (required)</Text>
+            <Text style={styles.cardLabel}>Project (Required)</Text>
             <Text style={styles.cardHelper}>
               Drawings are stored in the project&apos;s own folder, so only your team can open them. The project also tells the AI your square footage, location, and quality tier so the unit pricing is regional + tier-appropriate.
             </Text>
@@ -420,9 +420,9 @@ function DrawingAnalyzerInner() {
             <View style={styles.uploadIcon}>
               <FileUp size={34} color={themeColors.accent} strokeWidth={1.75} />
             </View>
-            <Text style={styles.uploadTitle}>Upload a drawings PDF</Text>
+            <Text style={styles.uploadTitle}>Upload a Drawings PDF</Text>
             <Text style={styles.uploadBody}>
-              Architectural plans, MEP, schedules — up to 12 pages. The AI returns a CSI-organized estimate with full reasoning.
+              Architectural plans, MEP, schedules, up to 12 pages. The AI returns a CSI-organized estimate with full reasoning.
             </Text>
             <View style={styles.uploadCta}>
               <MageAIMark size={14} color="#FFF" />
@@ -633,7 +633,7 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
         <Text style={styles.summaryTitle}>{result.summary}</Text>
         <Text style={styles.summarySub}>{result.confidenceExplanation}</Text>
         <View style={styles.summaryGrand}>
-          <Text style={styles.summaryGrandLabel}>AI starting estimate</Text>
+          <Text style={styles.summaryGrandLabel}>AI Starting Estimate</Text>
           <Text style={styles.summaryGrandValue}>{formatMoney(result.totals.grandTotal)}</Text>
         </View>
         <View style={styles.summarySplit}>
@@ -654,8 +654,8 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
             percentage is the model's pick. */}
         <Text style={styles.summaryNote} testID="drawing-contingency-source">
           {contingencyRateUsed != null
-            ? `Contingency at ${contingencyRateUsed}% \u2014 the default in Settings \u2192 Estimate Defaults.`
-            : 'Contingency percentage picked by the AI (8\u201312% band). Set your own rate in Settings \u2192 Estimate Defaults.'}
+            ? `Contingency at ${contingencyRateUsed}%, the default in Settings > Estimate Defaults.`
+            : 'Contingency percentage picked by the AI (8\u201312% band). Set your own rate in Settings > Estimate Defaults.'}
         </Text>
       </View>
 
@@ -667,8 +667,8 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
               <Crown size={16} color={Colors.warningLabel} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.teaserEyebrow}>Business plan · Pro estimator</Text>
-              <Text style={styles.teaserTitle}>Want sharper numbers on this set?</Text>
+              <Text style={styles.teaserEyebrow}>Business Plan · Pro Estimator</Text>
+              <Text style={styles.teaserTitle}>Want a closer look at this set?</Text>
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </View>
@@ -693,18 +693,18 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
             <View style={styles.teaserStatDivider} />
             <View style={styles.teaserStat}>
               <Text style={styles.teaserStatValue}>2x</Text>
-              <Text style={styles.teaserStatLabel}>Room to itemize dense sets</Text>
+              <Text style={styles.teaserStatLabel}>Room to Itemize Dense Sets</Text>
             </View>
           </View>
           <View style={styles.teaserCta}>
-            <Text style={styles.teaserCtaText}>See Business plan</Text>
+            <Text style={styles.teaserCtaText}>See Business Plan</Text>
             <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
           </View>
         </TouchableOpacity>
       )}
 
       {/* What the AI looked at */}
-      <SectionHeader icon={<Eye size={16} color={themeColors.accent} strokeWidth={1.75} />} title="What the AI looked at" />
+      <SectionHeader icon={<Eye size={16} color={themeColors.accent} strokeWidth={1.75} />} title="What the AI Looked At" />
       <Text style={styles.sectionHelper}>
         Verify these match what you uploaded. If a page is read &quot;poor,&quot; rerun with a higher-resolution scan.
       </Text>
@@ -749,7 +749,7 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
         <>
           <SectionHeader
             icon={<ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={1.75} />}
-            title="Areas of concern"
+            title="Areas of Concern"
           />
           <Text style={styles.sectionHelper}>
             What the AI flagged that needs your attention before relying on these numbers.
@@ -785,7 +785,7 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
         <>
           <SectionHeader
             icon={<HelpCircle size={16} color={themeColors.accent} strokeWidth={1.75} />}
-            title="Double-check before sending"
+            title="Double-Check Before Sending"
           />
           <View style={styles.checklistCard}>
             {result.doubleCheck.map((item, idx) => (
@@ -803,7 +803,7 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
         <>
           <SectionHeader
             icon={<AlertTriangle size={16} color={Colors.warningLabel} strokeWidth={1.75} />}
-            title="Scopes not included in these drawings"
+            title="Scopes Not Included in These Drawings"
           />
           <View style={styles.checklistCard}>
             {result.missingScopes.map((item, idx) => (
@@ -857,7 +857,7 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
                   </View>
                   {li.reasoning ? (
                     <View style={styles.reasoningWrap}>
-                      <Text style={styles.reasoningLabel}>AI reasoning</Text>
+                      <Text style={styles.reasoningLabel}>AI Reasoning</Text>
                       <Text style={styles.reasoningText}>{li.reasoning}</Text>
                     </View>
                   ) : null}
@@ -871,11 +871,11 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
       {/* Your markup — what "Use as starting point" prices the lines at (#8).
           The figures above are COST; the estimate is saved at cost + this. */}
       <View style={styles.card} testID="analyzer-markup-row">
-        <Text style={styles.cardLabel}>Your markup</Text>
+        <Text style={styles.cardLabel}>Your Markup</Text>
         <Text style={styles.cardHelper}>
           {isMarkupSet(markupPct)
-            ? `The figures above are cost. The estimate is saved at cost + ${markupPct}% — contingency included, so a contingency you spend keeps its margin.`
-            : 'Not set yet. The figures above are your cost, and the estimate is not saved at a markup you never chose — pick yours here.'}
+            ? `The figures above are cost. The estimate is saved at cost + ${markupPct}%, contingency included, so a contingency you spend keeps its margin.`
+            : 'Not set yet. The figures above are your cost, and the estimate is not saved at a markup you never chose. Pick yours here.'}
         </Text>
         <View style={styles.chipRow}>
           {markupOptions.map(pct => (
@@ -901,7 +901,7 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
             keyboardType="decimal-pad"
             inputMode="decimal"
             returnKeyType="done"
-            accessibilityLabel="Other markup percent"
+            accessibilityLabel="Other Markup Percent"
             testID="analyzer-markup-custom"
           />
         </View>
@@ -910,11 +910,11 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
       {/* CTA bar */}
       <View style={styles.ctaBar}>
         <TouchableOpacity style={styles.ctaSecondary} onPress={onReset}>
-          <Text style={styles.ctaSecondaryText}>Run on a different PDF</Text>
+          <Text style={styles.ctaSecondaryText}>Run on a Different PDF</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.ctaPrimary} onPress={onUse}>
           <CheckCircle2 size={16} color="#FFF" strokeWidth={1.75} />
-          <Text style={styles.ctaPrimaryText}>Use as starting point</Text>
+          <Text style={styles.ctaPrimaryText}>Use as Starting Point</Text>
           <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
         </TouchableOpacity>
       </View>

@@ -170,8 +170,8 @@ function PortfolioMarginInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Margin board · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Portfolio margin</Text>
+          <Text style={styles.headerEyebrow}>Margin Board · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Portfolio Margin</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -181,7 +181,7 @@ function PortfolioMarginInner() {
           style={styles.loading}
           testID="portfolio-margin-loading"
           accessibilityRole="progressbar"
-          accessibilityLabel="Loading crew hours and receipts"
+          accessibilityLabel="Loading Crew Hours and Receipts"
         >
           <ActivityIndicator size="small" color={t.accent} />
           <Text style={styles.loadingText}>Loading crew hours and receipts before reading margins…</Text>
@@ -189,14 +189,14 @@ function PortfolioMarginInner() {
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<TrendingUp size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No margin to roll up yet"
+          title="No Margin to Roll Up Yet"
           message="The margin board ranks every active project by margin risk. To fill it:"
           steps={[
             'Mark projects as estimated or in progress.',
             'Give each an estimate with markup so there is a margin to track.',
             'Award buyout and approve change orders. The board updates as you go.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
@@ -204,12 +204,12 @@ function PortfolioMarginInner() {
           {/* Portfolio KPIs */}
           <View style={styles.kpiRow}>
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Projected revenue</Text>
+              <Text style={styles.kpiLabel}>Projected Revenue</Text>
               <Text style={styles.kpiValue}>{formatMoney(totalRevenue)}</Text>
               <Text style={styles.kpiSub}>{rows.length} active {rows.length === 1 ? 'project' : 'projects'}</Text>
             </View>
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Blended margin</Text>
+              <Text style={styles.kpiLabel}>Blended Margin</Text>
               <Text style={[styles.kpiValue, { color: blendedPct < 0.1 ? t.danger : t.text }]}>{pct(blendedPct)}</Text>
               <Text style={styles.kpiSub}>{formatMoney(totalMargin)} profit</Text>
             </View>
@@ -239,7 +239,7 @@ function PortfolioMarginInner() {
             </View>
           )}
 
-          <Text style={styles.sectionTitle}>Ranked by risk</Text>
+          <Text style={styles.sectionTitle}>Ranked by Risk</Text>
           {rows.map(r => {
             const bc = colorForBand(r.band, t);
             const eroded = r.erosionPoints < -0.05;

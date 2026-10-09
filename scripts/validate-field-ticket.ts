@@ -721,7 +721,7 @@ console.log('\npricing names the signed-in user, and only the owner or an editor
   eq('a resolved role is never overridden (a field seat stays field)', pricingRoleFor('field', 'u1', 'u1'), 'field');
   ok('the screen gates pricing on pricingRoleFor(projectRole, project?.ownerUserId, user?.id)',
     /const pricingRole = pricingRoleFor\(projectRole, project\?\.ownerUserId, user\?\.id\);/.test(screen));
-  ok('applying prices re-checks the role', /if \(pricingBlockReason\) \{ showAlert\(t\('field\.ticket\.notSaved', 'Not saved'\), pricingBlockReason\); return; \}/.test(screen));
+  ok('applying prices re-checks the role', /if \(pricingBlockReason\) \{ showAlert\(t\('field\.ticket\.notSaved', 'Not Saved'\), pricingBlockReason\); return; \}/.test(screen));
 }
 
 // Integration round 1: the field role SEES no money on a saved ticket either —

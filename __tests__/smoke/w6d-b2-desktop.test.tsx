@@ -180,7 +180,7 @@ function valueAfterLabel(label: string): string {
 const inv = (id: string, number: number, issueDate: string, dueDate: string, totalDue: number, amountPaid: number, retentionAmount = 0) => ({
   id, number, projectId: PROJECT_ID, type: 'progress', progressPercent: 100,
   issueDate, dueDate, paymentTerms: 'net_30', notes: '',
-  lineItems: [{ id: `${id}-l1`, name: 'Progress billing', description: '', quantity: 1, unit: 'LS', unitPrice: totalDue, total: totalDue }],
+  lineItems: [{ id: `${id}-l1`, name: 'Progress Billing', description: '', quantity: 1, unit: 'LS', unitPrice: totalDue, total: totalDue }],
   subtotal: totalDue, taxRate: 0, taxAmount: 0, totalDue, amountPaid,
   status: amountPaid > 0 ? 'partially_paid' : 'sent',
   payments: amountPaid > 0 ? [{ id: `${id}-p1`, date: issueDate, amount: amountPaid, method: 'check' }] : [],
@@ -226,9 +226,9 @@ describe('lane B2 — /wip-report on desktop web (1512 × 945)', () => {
     // Portfolio card prints through its own Row component.
     const table = textsOf('wip-projects');
     const [fContract, fEst, fCost, fEarned, fBilled] = after(table, 'Portfolio total', 5);
-    expect(fContract).toBe(valueAfterLabel('Revised contract'));
-    expect(fEarned).toBe(valueAfterLabel('Earned revenue'));
-    expect(fBilled).toBe(valueAfterLabel('Billed to date'));
+    expect(fContract).toBe(valueAfterLabel('Revised Contract'));
+    expect(fEarned).toBe(valueAfterLabel('Earned Revenue'));
+    expect(fBilled).toBe(valueAfterLabel('Billed to Date'));
     expect(fEst).toMatch(/^\$[\d,]+$/);
     expect(fCost).toMatch(/^\$[\d,]+$/);
     // The phone's row cards are not drawn on desktop web.
@@ -256,7 +256,7 @@ describe('lane B2 — /wip-report on desktop web (1512 × 945)', () => {
 
   it("a saved (frozen) period's rows open nothing; Live rows open the drill again", async () => {
     await desk('/wip-report');
-    fireEvent.press(screen.getByText('Save period'));
+    fireEvent.press(screen.getByText('Save Period'));
     await pump();
     const rail = screen.getByTestId('dashboard-columns-rail');
     // The saved chip, then the period-end picker row below it, print the same
@@ -309,12 +309,12 @@ describe('lane B2 — /reports on desktop web (1512 × 945)', () => {
     expect(screen.getByTestId('reports-wip')).toBeTruthy();
     expect(screen.getByTestId('reports-toolbar')).toBeTruthy();
     // The hero repeated the title; on desktop web only the header says it.
-    expect(screen.getAllByText('Reports for your bank')).toHaveLength(1);
+    expect(screen.getAllByText('Reports for Your Bank')).toHaveLength(1);
     const table = textsOf('reports-wip');
     const [fContract] = after(table, 'Total', 1);
-    expect(fContract).toBe(valueAfterLabel('Revised contract'));
+    expect(fContract).toBe(valueAfterLabel('Revised Contract'));
     // The Retainage column is shown at 1272 (hideBelow 1150): its total is the tile's.
-    expect(table).toContain(valueAfterLabel('Retainage held'));
+    expect(table).toContain(valueAfterLabel('Retainage Held'));
     // Billed: the column total equals the "Billed" tile.
     expect(table).toContain(valueAfterLabel('Billed'));
     // The cost-basis line and the two named testIDs stay in the summary card.
@@ -339,7 +339,7 @@ describe('lane B2 — /reports on desktop web (1512 × 945)', () => {
     const at = table.indexOf('Portfolio');
     expect(at).toBeGreaterThan(-1);
     // The headline under RUNNING PORTFOLIO MARGIN is formatMoney(profit.totalProfit).
-    expect(table.slice(at)).toContain(valueAfterLabel('Running portfolio margin'));
+    expect(table.slice(at)).toContain(valueAfterLabel('Running Portfolio Margin'));
     // No Export CSV on Profit (it ships no CSV); Print stays.
     expect(screen.getByTestId('reports-print')).toBeTruthy();
     expect(screen.queryByTestId('reports-toolbar-csv')).toBeNull();
@@ -357,10 +357,10 @@ describe('lane B2 — /reports on desktop web (1512 × 945)', () => {
     const tail = table.slice(table.lastIndexOf('Total'));
     // The hero amount above the table is report.totals.totalOutstanding.
     const all = texts(screen.toJSON() as unknown);
-    const heroAt = all.findIndex((s) => /^OUTSTANDING — /.test(s));
+    const heroAt = all.findIndex((s) => /^Outstanding · /.test(s));
     const hero = all.slice(heroAt).find((s) => /^\$[\d,]+/.test(s));
     expect(tail).toContain(hero);
-    expect(texts(rows[2].children as unknown)).toContain('Retainage only');
+    expect(texts(rows[2].children as unknown)).toContain('Retainage Only');
 
     fireEvent.press(rows[0]);
     await pump();

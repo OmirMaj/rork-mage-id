@@ -124,7 +124,7 @@ describe('Leads list (real DOM, 1512)', () => {
   it('before the leads load it says Loading…, never an empty pipeline', async () => {
     const { el } = await mount(<LeadsTable grouped={GROUPED} loaded={false} stageColors={STAGE_COLORS} onNew={jest.fn()} />);
     expect(el.textContent).toContain('Loading…');
-    expect(el.textContent).not.toMatch(/No leads in the pipeline yet/);
+    expect(el.textContent).not.toMatch(/No Leads in the Pipeline Yet/);
     expect(el.querySelector('a[href^="/lead-detail"]')).toBeNull();
   });
 });
@@ -212,9 +212,9 @@ describe('Deliveries register (real DOM, 1512)', () => {
     const onReceive = jest.fn();
     const { el } = await mount(deliveries({ onReceive }));
     await click(byId(el, 'deliveries-register-table-row-d-soon-check')!);
-    await bulkButton(el, 'deliveries-register-table', 'Mark received');
+    await bulkButton(el, 'deliveries-register-table', 'Mark Received');
     const [title, message] = lastAlert();
-    expect(title).toBe('Mark received');
+    expect(title).toBe('Mark Received');
     expect(message).toBe(DELIVERY_BULK_RECEIVE_REASON);
     expect(onReceive).not.toHaveBeenCalled();
   });
@@ -225,7 +225,7 @@ describe('Deliveries register (real DOM, 1512)', () => {
     const call = (deliverTextFile as jest.Mock).mock.calls[0];
     expect(call[0]).toBe(`deliveries-henderson-remodel-${localDay(new Date())}.csv`);
     const lines = String(call[1]).split('\r\n');
-    expect(lines[0]).toBe('Flag,What,Promised,Supplier,Window,PO,Confirmed,Building access');
+    expect(lines[0]).toBe('Flag,What,Promised,Supplier,Window,PO,Confirmed,Building Access');
     expect(lines).toHaveLength(1 + 4);
   });
 
@@ -238,7 +238,7 @@ describe('Deliveries register (real DOM, 1512)', () => {
 
   it('with nothing scheduled the table shows the phone\'s empty copy', async () => {
     const { el } = await mount(deliveries({ look: buildLookahead([], 7, NOW), conflicts: [], projectConflicts: [] }));
-    expect(el.textContent).toContain('Nothing scheduled yet');
+    expect(el.textContent).toContain('Nothing Scheduled Yet');
     expect(byId(el, 'deliveries-register-late')).toBeNull();
   });
 });
@@ -248,9 +248,9 @@ const doc = (id: string, type: DocumentRegisterRow['type'], title: string, statu
   id, projectId: 'p1', projectName: 'Henderson Remodel', type, title, status, createdAt: '2026-09-10T12:00:00.000Z', ...extra,
 });
 const DOCS: DocumentRegisterRow[] = [
-  doc('coi-c1', 'coi', 'COI · Harbor Electric', { bucket: 'at_risk', label: 'Failed check', tone: 'danger' }),
+  doc('coi-c1', 'coi', 'COI · Harbor Electric', { bucket: 'at_risk', label: 'Failed Check', tone: 'danger' }),
   doc('permit-1', 'permit', 'Permit · building', { bucket: 'done', label: 'Approved', tone: 'success' }),
-  doc('submittal-s5', 'other', 'Submittal #5 · Doors', { bucket: 'awaiting', label: 'In review', tone: 'warning' }),
+  doc('submittal-s5', 'other', 'Submittal #5 · Doors', { bucket: 'awaiting', label: 'In Review', tone: 'warning' }),
   doc('aia-a1', 'aia_billing', 'AIA G702 · App #2', { bucket: 'draft', label: 'Saved', tone: 'neutral' }),
 ];
 const STATS: DocumentStats = { total: 4, pending: 1, done: 1, expired: 0, coiFailed: 1, coiReview: 0, expiringSoon: 0 };
@@ -282,22 +282,22 @@ describe('Documents register (real DOM, 1512)', () => {
   it('the COI-at-risk KPI links to the vault; the Files rail links each job', async () => {
     const { el } = await mount(documents());
     expect(byId(el, 'documents-register-kpis')).not.toBeNull();
-    expect(el.textContent).toContain('COI at risk');
+    expect(el.textContent).toContain('COI at Risk');
     expect(el.querySelector('a[href="/coi-vault"]')).not.toBeNull();
     expect(el.querySelector('a[href="/project-files?projectId=p1"]')).not.toBeNull();
   });
 
   it('no COI at risk → no COI KPI; the meta line claims no contracts', async () => {
     const { el } = await mount(documents({ stats: { ...STATS, coiFailed: 0 } }));
-    expect(el.textContent).not.toContain('COI at risk');
+    expect(el.textContent).not.toContain('COI at Risk');
     expect(el.textContent).toContain(DOCUMENTS_REGISTER_META);
     expect(DOCUMENTS_REGISTER_META).not.toMatch(/contract/i);
   });
 
   it('a chip filters to its bucket; an empty bucket says it is the filter, not the feed', async () => {
     const { el } = await mount(documents({ selectedFilter: 'expired' }));
-    expect(el.textContent).toContain('Nothing under this filter');
-    expect(el.textContent).toContain('this is the filter, not the feed');
+    expect(el.textContent).toContain('Nothing Under This Filter');
+    expect(el.textContent).toContain('This is the filter, not the feed');
     const done = await mount(documents({ selectedFilter: 'done' }));
     expect(done.el.querySelector('a[href="/permits"]')).not.toBeNull();
     expect(done.el.querySelector('a[href="/coi-vault?subId=sub-9"]')).toBeNull();

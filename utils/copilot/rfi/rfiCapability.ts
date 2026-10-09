@@ -15,7 +15,7 @@ export const rfiCapability: CopilotCapability<RFIDraft, RFIApplied> = {
   askThreshold: 0.4,
   suggestions: [
     'Need the beam size for the second-floor opening at grid C',
-    'Which fixture goes in the powder room — the spec and plan disagree',
+    'Which fixture goes in the powder room? The spec and plan disagree',
   ],
   topicChecklist: [
     { label: 'Question', hint: 'what you need answered' },

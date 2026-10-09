@@ -306,7 +306,7 @@ export default function MaterialsScreen() {
               behind this screen, so it says what it is. */}
           <View style={styles.provenanceRow}>
             <BookOpen size={11} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.provenanceLabel}>Reference price book</Text>
+            <Text style={styles.provenanceLabel}>Reference Price Book</Text>
           </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -384,7 +384,7 @@ export default function MaterialsScreen() {
               onPress={() => pickMarket(null, null)}
               testID="market-us-average"
             >
-              <Text style={[styles.pickerChipText, !market.resolved && styles.pickerChipTextActive]}>US average</Text>
+              <Text style={[styles.pickerChipText, !market.resolved && styles.pickerChipTextActive]}>US Average</Text>
               <Text style={[styles.pickerChipSub, !market.resolved && styles.pickerChipTextActive]}>No adjustment</Text>
             </TouchableOpacity>
             {REGIONS.map(region => {
@@ -405,7 +405,7 @@ export default function MaterialsScreen() {
               );
             })}
           </ScrollView>
-          <Text style={[styles.pickerLabel, { marginTop: 8 }]}>Metro area</Text>
+          <Text style={[styles.pickerLabel, { marginTop: 8 }]}>Metro Area</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerScroll}>
             {Object.entries(CITY_ADJUSTMENTS).map(([city, adj]) => {
               const active = market.city === city;
@@ -437,8 +437,8 @@ export default function MaterialsScreen() {
           {override
             ? `Showing ${market.label} on this screen only. It isn't saved as your market. Pick a metro, or set Location in Settings to a city and state, to price estimates and change orders there.`
             : market.resolved
-              ? `${market.label} is saved as your market — estimates and change orders price here too.`
-              : 'No market saved — everything prices at the US average. Pick a metro or your region.'}
+              ? `${market.label} is saved as your market. Estimates and change orders price here too.`
+              : 'No market saved. Everything prices at the US average. Pick a metro or your region.'}
         </Text>
       )}
 
@@ -496,11 +496,11 @@ export default function MaterialsScreen() {
 
       {showTargets && priceAlerts.length > 0 && (
         <View style={styles.alertsSection}>
-          <Text style={styles.alertsSectionTitle}>Price targets ({priceAlerts.length})</Text>
+          <Text style={styles.alertsSectionTitle}>Price Targets ({priceAlerts.length})</Text>
           {/* The old panel promised a watch it could not keep: the "Triggered"
               badge came from a sine wave, not from a supplier. */}
           <Text style={styles.alertsSectionNote}>
-            MAGE has no supplier feed. A target is compared against the price book above for {market.resolved ? market.label : 'the US average'} — it does not watch the market.
+            MAGE has no supplier feed. A target is compared against the price book above for {market.resolved ? market.label : 'the US average'}. It does not watch the market.
           </Text>
           {priceAlerts.map(alert => {
             const status = targetStatus.get(alert.id);
@@ -534,7 +534,7 @@ export default function MaterialsScreen() {
                       or a target is paused. */}
                   {meets && (
                     <View style={[styles.alertStatusBadge, { backgroundColor: themeColors.successSoft }]}>
-                      <Text style={[styles.alertStatusText, { color: themeColors.successLabel }]}>Meets target</Text>
+                      <Text style={[styles.alertStatusText, { color: themeColors.successLabel }]}>Meets Target</Text>
                     </View>
                   )}
                   {alert.isPaused && (
@@ -579,14 +579,14 @@ export default function MaterialsScreen() {
       <View style={styles.savingsBanner}>
         <TrendingDown size={14} color={themeColors.success} strokeWidth={1.75} />
         <Text style={styles.savingsText}>
-          Bulk price averages {avgBulkDiscount}% under list across this book — tap a category to browse
+          Bulk price averages {avgBulkDiscount}% under list across this book. Tap a category to browse.
         </Text>
       </View>
 
       {filteredCategories.length === 0 ? (
         <View style={styles.emptyState}>
           <Search size={40} color={themeColors.textMuted} strokeWidth={1.75} />
-          <Text style={styles.emptyTitle}>No categories found</Text>
+          <Text style={styles.emptyTitle}>No Categories Found</Text>
           <Text style={styles.emptyDesc}>Try a different search term</Text>
         </View>
       ) : (

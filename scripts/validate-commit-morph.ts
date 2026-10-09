@@ -126,8 +126,8 @@ ok('renders <Button … done={commit.done}> for both send bars',
   (STC.match(/<Button\b[\s\S]{0,400}?done=\{commit\.done\}/g) ?? []).length === 2
   && (STC.match(/loading=\{commit\.loading\}/g) ?? []).length === 2);
 ok('keeps `await sendToClientPortal({ kind, itemId, projectId })`', /await sendToClientPortal\(\{ kind, itemId, projectId \}\)/.test(STC));
-ok("keeps `if (!isOwner) showAlert('Sent to the client portal', EDITOR_SEND_NOTE);`",
-  /if \(!isOwner\) showAlert\('Sent to the client portal', EDITOR_SEND_NOTE\);/.test(STC));
+ok("keeps `if (!isOwner) showAlert('Sent to the Client Portal', EDITOR_SEND_NOTE);`",
+  /if \(!isOwner\) showAlert\('Sent to the Client Portal', EDITOR_SEND_NOTE\);/.test(STC));
 ok('the tapped bar is held through the check (branch = commit.busy ? heldBranch : computed)',
   /const branch = commit\.busy \? heldBranch : computed;/.test(STC));
 ok('no hand-rolled send bar or "Sending…" swap left', !/styles\.primary\b/.test(STC) && !/Sending\u2026|Sending…/.test(STC));

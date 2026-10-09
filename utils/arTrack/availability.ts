@@ -31,11 +31,11 @@ export interface ArAvailability {
 
 const MESSAGES: Record<ArUnavailableReason, { message: string; action: ArAvailability['action'] }> = {
   notInThisBuild: {
-    message: "This build doesn't include the AR module. It can only arrive in a new iPhone build — an over-the-air update can't add native code.",
+    message: "This build doesn't include the AR module. It can only arrive in a new iPhone build. An over-the-air update can't add native code.",
     action: 'none',
   },
   simulator: {
-    message: 'The simulator has no camera or motion sensors — ARKit only runs on a real iPhone.',
+    message: 'The simulator has no camera or motion sensors. ARKit only runs on a real iPhone.',
     action: 'none',
   },
   unsupportedDevice: {
@@ -43,11 +43,11 @@ const MESSAGES: Record<ArUnavailableReason, { message: string; action: ArAvailab
     action: 'none',
   },
   cameraUndetermined: {
-    message: 'AR tracking needs the camera. Nothing is recorded or uploaded — the camera is only used to work out how the phone is moving.',
+    message: 'AR tracking needs the camera. Nothing is recorded or uploaded. The camera is only used to work out how the phone is moving.',
     action: 'requestCamera',
   },
   cameraDenied: {
-    message: 'Camera access is off for MAGE ID, so AR tracking cannot start. Turn it back on in Settings → MAGE ID → Camera.',
+    message: 'Camera access is off for MAGE ID, so AR tracking cannot start. Turn it back on in Settings > MAGE ID > Camera.',
     action: 'openSettings',
   },
 };

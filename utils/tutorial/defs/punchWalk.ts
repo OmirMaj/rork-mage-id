@@ -31,12 +31,12 @@ export const punchWalk: TutorialDef = {
       kind: 'do',
       route: WALK,
       target: 'punch.camera',
-      text: '{Tap} Photo — or use the sample photo',
+      text: '{Tap} Photo, or use the sample photo',
       // With no sample plan the pin steps auto-skip (skipIf noSamplePlan) and
       // the photo does not open the plan screen — say so up front (spec).
       detail: ctx =>
         ctx.samplePlan === false
-          ? "The sample plan didn't load — we'll skip the pin."
+          ? "The sample plan didn't load, so we'll skip the pin."
           : ctx.web ? 'The sample photo is an illustration, labelled as a sample.' : 'The sample photo skips the camera prompt.',
       gesture: 'tap',
       until: { signal: 'punch.photo.added' },
@@ -49,7 +49,7 @@ export const punchWalk: TutorialDef = {
       route: WALK,
       layer: 'planPin',
       target: 'punch.planImage',
-      text: '{Tap} where the problem is — try the Kitchen',
+      text: '{Tap} where the problem is. Try the Kitchen.',
       detail: 'Pinch to zoom. The pin goes where you {tap}.',
       gesture: 'tap-point',
       // Kitchen label centre on the bundled A-101 (fixtures SAMPLE_PLAN).
@@ -74,7 +74,7 @@ export const punchWalk: TutorialDef = {
       kind: 'do',
       route: WALK,
       target: 'punch.description',
-      text: "Say what's wrong — or {tap} the sample line",
+      text: "Say what's wrong, or {tap} the sample line",
       detail: 'It picks the trade from your words.',
       gesture: 'tap',
       until: { signal: 'punch.description.filled' },
@@ -85,11 +85,11 @@ export const punchWalk: TutorialDef = {
       kind: 'do',
       route: WALK,
       target: 'punch.save',
-      text: '{Tap} Save to punch list',
+      text: '{Tap} Save to Punch List',
       gesture: 'tap',
       until: { signal: 'punch.saved' },
       success: {
-        title: 'Punch item logged',
+        title: 'Punch Item Logged',
         sub: ctx => {
           const s = ctx.payloads['punch.saved'];
           if (!s) return 'Saved on the sample job';
@@ -152,9 +152,9 @@ export const punchWalk: TutorialDef = {
   handoff: {
     pathname: '/punch-walk',
     projectParam: 'projectId',
-    realJobLabel: name => `Walk ${name} →`,
+    realJobLabel: name => `Walk ${name}`,
     feature: 'punch_list_closeout',
-    paywallLabel: 'Punch walk comes with Business — see plans',
+    paywallLabel: 'Punch Walk Comes with Business: See Plans',
     roles: ['owner', 'editor', 'field'],
   },
   chainNext: { tutorialId: 'invoice-to-self', label: 'Next: bill the job · 40 s' },

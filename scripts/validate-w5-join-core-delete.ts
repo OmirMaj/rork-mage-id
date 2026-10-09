@@ -226,7 +226,7 @@ async function main() {
     const settings = read('app/(tabs)/settings/index.tsx');
     ok('Settings: the busy caption and its accessibility label come from the phase',
       /testID="logout-busy-label">\{signOutBusyLabel\(signOutPhase\)\}<\/Text>/.test(settings)
-        && /accessibilityLabel=\{signingOut \? signOutBusyLabel\(signOutPhase\) : 'Sign out'\}/.test(settings));
+        && /accessibilityLabel=\{signingOut \? signOutBusyLabel\(signOutPhase\) : 'Sign Out'\}/.test(settings));
     const notif = read('utils/notifications.ts');
     ok('the sign-out token read (prompt: false) is answered from the token this process already fetched; registering callers still fetch',
       /if \(opts\.prompt === false && knownExpoPushToken\) return knownExpoPushToken;\s*const tokenData = await Notifications\.getExpoPushTokenAsync\(\{ projectId \}\);\s*knownExpoPushToken = tokenData\.data;/.test(notif)

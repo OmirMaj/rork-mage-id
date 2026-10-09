@@ -74,7 +74,7 @@ console.log('\nA. #67 — the sealed contract says how the homeowner signed');
   const gcSignature = { name: 'Sam Smith', role: 'gc', signedAt: '2026-09-09T15:00:00.000Z', signaturePaths: ['M0 0 L10 10'] };
   const contractWith = (homeownerSignature: Record<string, unknown> | undefined) => ({
     id: 'c1', projectId: 'p1', userId: 'u1', version: 1, title: 'Kitchen Agreement', contractValue: 48000,
-    scopeText: 'Kitchen remodel', termsText: 'Net 10', warrantyText: 'One year', paymentSchedule: [], allowances: [],
+    scopeText: 'Kitchen Remodel', termsText: 'Net 10', warrantyText: 'One year', paymentSchedule: [], allowances: [],
     gcSignature, homeownerSignature, status: 'signed', signedAt: '2026-09-10T12:00:00.000Z', createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-10T12:00:00Z',
   });
   const render = async (sig: Record<string, unknown> | undefined) => {
@@ -90,7 +90,7 @@ console.log('\nA. #67 — the sealed contract says how the homeowner signed');
   const paper = await render({ name: 'Pat Paper', role: 'homeowner', method: 'paper', signedAt: '2026-09-10T12:00:00.000Z', evidencePath: 'u1/c1/page.jpg' });
   const pBlock = homeownerBlock(paper);
   ok('the contract renders', paper.length > 0 && pBlock.length > 0);
-  ok('paper: the method line says paper, with the page photo on file', pBlock.includes('Signed on paper — photo of the signed page on file'), pBlock);
+  ok('paper: the method line says paper, with the page photo on file', pBlock.includes('Signed on paper, photo of the signed page on file'), pBlock);
   ok('paper: the name is NOT drawn in the cursive e-signature font', !/Caveat/.test(pBlock), pBlock);
   ok('paper: dated to the calendar day on the page (September 10), never re-zoned', pBlock.includes('September 10, 2026') && !pBlock.includes('September 11'), pBlock);
   ok('paper: the seal line does not call it electronically signed',
@@ -98,7 +98,7 @@ console.log('\nA. #67 — the sealed contract says how the homeowner signed');
   ok('paper: the evidence path (a private bucket path) is not printed', !paper.includes('u1/c1/page.jpg'));
 
   const noPhoto = homeownerBlock(await render({ name: 'Pat Paper', role: 'homeowner', method: 'paper', signedAt: '2026-09-10T12:00:00.000Z' }));
-  ok('paper with no photo on record never claims one', noPhoto.includes('no photo of the signed page on file') && !noPhoto.includes('— photo of the signed page on file'), noPhoto.slice(0, 900));
+  ok('paper with no photo on record never claims one', noPhoto.includes('No photo of the signed page on file') && !noPhoto.includes('Signed on paper, photo of the signed page on file'), noPhoto.slice(0, 900));
 
   const inPerson = await render({ name: 'Ina Person', role: 'homeowner', method: 'in_person', signedAt: '2026-09-10T18:30:00.000Z', signaturePaths: ['M1 1 L5 5'] });
   ok('in person: the method line says so', homeownerBlock(inPerson).includes('Signed in person on the contractor'), homeownerBlock(inPerson));

@@ -82,7 +82,7 @@ const mk = (over: Partial<Delivery>): Delivery => ({
   check('unconfirmed inside the window is flagged', classifyDelivery(soonUnconfirmed, NOW).flag === 'unconfirmed');
   const soonConfirmed = mk({ expectedDate: ymd(2), status: 'confirmed' });
   check('confirmed inside the window is due_soon, not chased', classifyDelivery(soonConfirmed, NOW).flag === 'due_soon');
-  check('confirmed tomorrow reads "tomorrow"', classifyDelivery(mk({ expectedDate: ymd(1), status: 'confirmed' }), NOW).label.includes('tomorrow'));
+  check('confirmed tomorrow reads "tomorrow"', classifyDelivery(mk({ expectedDate: ymd(1), status: 'confirmed' }), NOW).label.includes('Tomorrow'));
   const far = mk({ expectedDate: ymd(CONFIRM_WINDOW_DAYS + 5), status: 'scheduled' });
   check('unconfirmed beyond the window is not yet chased', classifyDelivery(far, NOW).flag === 'ok');
 }

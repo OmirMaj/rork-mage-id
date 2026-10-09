@@ -23,7 +23,7 @@ function records(ctx: CopyCtx): number | null {
 export const constructionAiAsk: TutorialDef = {
   id: 'construction-ai-ask',
   version: 1,
-  title: 'Ask Construction AI about your job',
+  title: 'Ask Construction AI About Your Job',
   seconds: 35,
   endsWith: "An answer built from the job's own records",
   group: 'bid',
@@ -68,7 +68,7 @@ export const constructionAiAsk: TutorialDef = {
       gesture: 'tap',
       until: { signal: 'cai.answered' },
       success: {
-        title: 'Answered from the job',
+        title: 'Answered from the Job',
         sub: ctx => {
           const n = records(ctx);
           return n !== null ? `${n} record${n === 1 ? '' : 's'} read · no AI credits used` : 'No AI credits used';
@@ -106,9 +106,9 @@ export const constructionAiAsk: TutorialDef = {
     pathname: '/construction-ai',
     projectParam: 'projectId',
     params: { mode: 'ask' },
-    realJobLabel: name => `Ask about ${name} →`,
+    realJobLabel: name => `Ask about ${name}`,
     feature: 'construction_answer',
-    paywallLabel: 'Construction answers come with Business — see plans',
+    paywallLabel: 'Construction answers come with Business. See Plans',
     roles: ['owner', 'editor'],
   },
 };

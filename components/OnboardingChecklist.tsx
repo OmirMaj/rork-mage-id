@@ -92,7 +92,7 @@ export interface OnboardingChecklistProps {
 }
 
 /** Home's pull-to-refresh re-asks Stripe (app/(tabs)/(home)/index.tsx handleRefresh). */
-export const STRIPE_CHECK_FAILED_LABEL = "Couldn't check Stripe — pull down to refresh";
+export const STRIPE_CHECK_FAILED_LABEL = "Couldn't check Stripe. Pull down to refresh.";
 
 interface ChecklistItem {
   key: 'tryit' | 'companyInfo' | 'project' | 'estimate' | 'stripe' | 'invoice';
@@ -193,12 +193,12 @@ function OnboardingChecklistImpl({
   const items: ChecklistItem[] = useMemo(() => [
     {
       key: 'tryit',
-      title: 'Try it: voice capture or an AI estimate',
+      title: 'Try It: Voice Capture or an AI Estimate',
       done: triedWowFeature || estimateCount > 0,
       Icon: Mic,
       known: projectsLoaded,
       href: '/estimate-wizard',
-      cta: 'Try it free',
+      cta: 'Try It Free',
       // Named precisely, because this row offers TWO metered things and only
       // one of them is counted here: voice capture has its own allowance.
       meta: freeEstimatesLeft === null ? undefined
@@ -208,25 +208,25 @@ function OnboardingChecklistImpl({
     },
     {
       key: 'project',
-      title: 'Create your first project',
+      title: 'Create Your First Project',
       done: projectCount > 0,
       Icon: FolderPlus,
       known: projectsLoaded,
       href: '/?openCreate=1',
-      cta: 'Add a project',
+      cta: 'Add a Project',
     },
     {
       key: 'companyInfo',
-      title: 'Add your company info',
+      title: 'Add Your Company Info',
       done: companyInfoDone,
       Icon: Building2,
       known: settingsLoaded,
       href: '/company-profile',
-      cta: 'Add info',
+      cta: 'Add Info',
     },
     {
       key: 'stripe',
-      title: 'Connect Stripe to get paid',
+      title: 'Connect Stripe to Get Paid',
       done: stripeConnected === true,
       Icon: Wallet,
       // Only a real "not connected" answer: unknown → connected is the check
@@ -241,7 +241,7 @@ function OnboardingChecklistImpl({
     },
     {
       key: 'invoice',
-      title: 'Send your first invoice',
+      title: 'Send Your First Invoice',
       // Never 'done' while the row is held (audit wave 5, #155): a held row
       // says the step can't be done yet, so a tick beside it would be a
       // contradiction — seeded sample invoices used to produce exactly that.
@@ -249,7 +249,7 @@ function OnboardingChecklistImpl({
       Icon: Receipt,
       known: projectsLoaded && invoicesLoaded,
       href: '/invoice?new=1',
-      cta: 'New invoice',
+      cta: 'New Invoice',
       // Invoices live inside a project — /invoice renders "No projects yet" for
       // an account with none. Handing a brand-new user a tappable "New invoice"
       // that lands on that is a step which cannot be done in the order given.
@@ -370,7 +370,7 @@ function OnboardingChecklistImpl({
             <MageAIMark size={14} color={colors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Get up and running</Text>
+            <Text style={styles.title}>Get Up and Running</Text>
             {/* "About 2 minutes" was false for a list whose fourth step is
                 Stripe's identity check — /payments-setup's own screen says the
                 review takes "an hour, sometimes a few minutes". Promise the
@@ -438,7 +438,7 @@ function OnboardingChecklistImpl({
             {showMe ? (
               showMe.kind === 'practised' ? (
                 <Text style={styles.showMePractised} testID={`onboarding-checklist-${item.key}-practised`}>
-                  Practised on the sample
+                  Practised on the Sample
                 </Text>
               ) : (
                 // A sibling, not nested in the row: a button inside a button is

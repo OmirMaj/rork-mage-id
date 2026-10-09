@@ -139,7 +139,7 @@ const FN = 'https://nteoqhcswappxxjlpvap.supabase.co/functions/v1';
     core.portalFinancingRedirectUrl(FN, { projectId: 'portal:abc', portalId: 'p', accessToken: 'k' }) === null);
   const note = core.portalFinancingPreviewNote('Acme Home Loans');
   ok('the GC preview says what the client sees and why it is not live here',
-    /Your client sees a "Check financing options" button here/.test(note) && /Acme Home Loans/.test(note) && /not from this preview/.test(note), note);
+    /Your client sees a "Check Financing Options" button here/.test(note) && /Acme Home Loans/.test(note) && /not from this preview/.test(note), note);
 }
 
 const html = read('marketing/portal/index.html');
@@ -162,7 +162,7 @@ const html = read('marketing/portal/index.html');
   const cardHtml = card({ partnerName: 'Acme <b>Loans</b>', disclosure: core.financingDisclosureText('Acme') }, 'https://x/y?a=1&b=2');
   ok('the card is a real link to that URL, opened in a new tab',
     /<a class="invoice-pay-btn fin-btn" href="https:\/\/x\/y\?a=1&amp;b=2" target="_blank" rel="noopener noreferrer"/.test(cardHtml), cardHtml.slice(0, 300));
-  ok('…labelled "Check financing options", the lender name escaped', /Check financing options/.test(cardHtml) && /Acme &lt;b&gt;Loans&lt;\/b&gt;/.test(cardHtml) && !/<b>Loans/.test(cardHtml));
+  ok('…labelled "Check Financing Options", the lender name escaped', /Check Financing Options/.test(cardHtml) && /Acme &lt;b&gt;Loans&lt;\/b&gt;/.test(cardHtml) && !/<b>Loans/.test(cardHtml));
   ok('…with the snapshot\'s disclosure under it', cardHtml.includes('is not paid for this referral'));
   const page = code(html);
   ok('render() adds the section only when data.financing is present AND a link could be built',
@@ -284,7 +284,7 @@ const html = read('marketing/portal/index.html');
     && !/Wisetack/i.test(ps) && !/funded/.test(ps) && !/estimates & invoices/.test(ps) && !/paid in full upfront/.test(ps));
   ok('…the referral line comes from financingReferralSummary', /\{financingReferralSummary\(referralStats\)\}/.test(ps));
   ok('…and switching financing on without a lender name says why instead of saving a dead offer',
-    /if \(enabled && !finPartner\.trim\(\)\) \{\s*showAlert\('Lender name needed'/.test(ps));
+    /if \(enabled && !finPartner\.trim\(\)\) \{\s*showAlert\('Lender Name Needed'/.test(ps));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -294,7 +294,7 @@ const html = read('marketing/portal/index.html');
   const pw = code(read('app/paywall.tsx'));
   ok('the plans page no longer names Wisetack', !/Wisetack/i.test(pw));
   ok('…lists client financing as bring-your-own-lender on every plan',
-    /\{ label: 'Client financing \(bring your own lender\)', free: 'Yes', pro: 'Yes', business: 'Yes', enterprise: 'Yes' \}/.test(pw));
+    /\{ label: 'Client Financing \(Bring Your Own Lender\)', free: 'Yes', pro: 'Yes', business: 'Yes', enterprise: 'Yes' \}/.test(pw));
   const fin = code(read('utils/financing.ts'));
   ok('the invoice-email block renders the one disclosure (financingDisclosureText)',
     /escapeHtml\(financingDisclosureText\(cfg\.partnerName\)\)/.test(fin) && !/may receive compensation/.test(fin));
@@ -321,10 +321,10 @@ const html = read('marketing/portal/index.html');
   // The executed copy.
   const on = core.invoiceFinancingOnLine('  Acme Home Loans ');
   ok('invoiceFinancingOnLine names the GC\'s own lender and says MAGE ID is not one and is not paid',
-    on === 'Financing is on: invoice emails you send and your client portal offer "Check financing options" from Acme Home Loans. '
+    on === 'Financing is on: invoice emails you send and your client portal offer "Check Financing Options" from Acme Home Loans. '
       + 'MAGE ID is not a lender and is not paid for referrals.', on);
   ok('INVOICE_FINANCING_SETUP_LINE is bring-your-own-lender, pointing at Payments',
-    core.INVOICE_FINANCING_SETUP_LINE === 'Want to offer your client monthly payments? Bring your own lender — set it up in Payments →');
+    core.INVOICE_FINANCING_SETUP_LINE === 'Want to offer your client monthly payments? Bring your own lender. Set it up in Payments');
   ok('…neither names a partner, a rate or a date',
     !/Wisetack|%|Q3|20\d\d/i.test(on + core.INVOICE_FINANCING_SETUP_LINE));
 
@@ -341,9 +341,9 @@ const html = read('marketing/portal/index.html');
   // Contract D8: the early-access cards on the invoice and prequal-manager.
   const FOOTER = 'Not available yet. Tap to be told when it is.';
   const D8: [string, string, string, string, string][] = [
-    ['app/invoice.tsx', 'invoice-factoring-cta', 'revenue.factoring.altline', 'Advances on unpaid invoices',
+    ['app/invoice.tsx', 'invoice-factoring-cta', 'revenue.factoring.altline', 'Advances on Unpaid Invoices',
       'We are looking at a factoring partner that could advance part of an unpaid invoice. No partner is signed yet, so there are no rates or timelines to show.'],
-    ['app/prequal-manager.tsx', 'coi-requote-cta', 'revenue.insurance.coi_requote', 'Renewal quotes for expiring sub insurance',
+    ['app/prequal-manager.tsx', 'coi-requote-cta', 'revenue.insurance.coi_requote', 'Renewal Quotes for Expiring Sub Insurance',
       "We are working on requesting renewal quotes for a sub's expiring coverage, pre-filled from the COI on file. No insurer or broker is signed up yet."],
   ];
   const FORBIDDEN = ['LOI', 'Q3 2026', '24 hours', '60 seconds', 'Coterie', 'Hiscox', 'Next Insurance', '3 brokers', '%'];
@@ -367,7 +367,7 @@ const html = read('marketing/portal/index.html');
   ok('emailService: no "1–2 business days" payout promise', !/1[–-]2 business days/.test(em));
   ok('…the welcome email\'s "Get paid in the app" line renders PAYOUT_TIMING_SHORT from platformFees',
     /import \{ PAYOUT_TIMING_SHORT \} from '@\/utils\/platformFees';/.test(emc)
-    && /title: 'Get paid in the app', body: `A Pay button on every invoice\. \$\{PAYOUT_TIMING_SHORT\}\.` \}/.test(emc));
+    && /title: 'Get Paid in the App', body: `A Pay button on every invoice\. \$\{PAYOUT_TIMING_SHORT\}\.` \}/.test(emc));
   ok('…the Pay-link footer no longer promises bank payment (it exists only when ACH is on in Stripe)',
     !/card &amp; bank payment/.test(em) && /Powered by Stripe · secure online payment/.test(emc));
 
@@ -380,12 +380,18 @@ const html = read('marketing/portal/index.html');
   ok('…and never a bare "As low as $"', !/As low as \$/.test(code(ib)));
   // Executed: lifted with the real illustrativeMonthly (lifted from utils/financing.ts).
   const im = liftFunction(read('utils/financing.ts'), 'illustrativeMonthly');
-  let line: string | null = null, off: string | null = 'unset', noTerms: string | null = 'unset';
+  let line: string | null = null, off: string | null = 'unset', noTerms: string | null = 'unset', shippedOff: string | null = 'unset';
   try {
     const js = new (globalThis as unknown as { Bun: { Transpiler: new (o: { loader: 'ts' }) => { transformSync: (c: string) => string } } }).Bun
       .Transpiler({ loader: 'ts' }).transformSync(`${im}\n${tfl}`);
-    const run = new Function('financingDisclosureText', `${js}\nreturn tierFinancingLine;`)(core.financingDisclosureText) as
+    // PROTECT-TEXT (2026-10-09): figures are OFF in the shipped build
+    // (FINANCING_FIGURES_ENABLED = false). The lifted function is run with
+    // the flag on, to keep the rule that a figure, if it ever returns, carries
+    // its rate, its term and the lender; and with the flag as shipped.
+    const make = (flag: boolean) => new Function('financingDisclosureText', 'FINANCING_FIGURES_ENABLED', `${js}\nreturn tierFinancingLine;`)(core.financingDisclosureText, flag) as
       (a: number, c?: Record<string, unknown>) => string | null;
+    const run = make(true);
+    shippedOff = make(false)(25000, { enabled: true, partnerName: 'Acme Home Loans', prequalBaseUrl: 'https://acme.example/p', exampleApr: 9.99, exampleTermMonths: 60, updatedAt: '' });
     const cfg = { enabled: true, partnerName: 'Acme Home Loans', prequalBaseUrl: 'https://acme.example/p', exampleApr: 9.99, exampleTermMonths: 60, updatedAt: '' };
     line = run(25000, cfg);
     off = run(25000, { ...cfg, enabled: false });
@@ -394,6 +400,8 @@ const html = read('marketing/portal/index.html');
   ok('…executed: "Est. $531/mo at 9.99% APR for 60 months (example)." + the lender disclosure',
     line === `Est. $531/mo at 9.99% APR for 60 months (example). ${core.financingDisclosureText('Acme Home Loans')}`, String(line));
   ok('…executed: no line when financing is off or has no example terms', off === null && noTerms === null, `${off} / ${noTerms}`);
+  ok('…and as shipped the figures are off: no monthly amount and no APR reach a homeowner',
+    shippedOff === null && /export const FINANCING_FIGURES_ENABLED: boolean = false;/.test(read('utils/financing.ts')), String(shippedOff));
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-financing-honesty: ${pass} passed, ${fail} failed\n`);

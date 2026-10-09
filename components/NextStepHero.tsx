@@ -146,8 +146,8 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       icon: Receipt,
       tone: 'danger',
       title: `${usd} past due across ${overdueInvoices.length} invoice${overdueInvoices.length === 1 ? '' : 's'}`,
-      body: 'Send a friendly reminder — most owners pay within 48 hours of a nudge.',
-      cta: 'Open the invoice',
+      body: 'Send a friendly reminder with the amount and the due date.',
+      cta: 'Open the Invoice',
       // invoice.tsx resolves the project via projectId (getProject), so
       // both params are required — invoiceId alone left the screen blank.
       href: { pathname: '/invoice', params: { projectId: first.projectId, invoiceId: first.id } },
@@ -187,11 +187,11 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
           kind: 'co_unbilled',
           icon: FilePlus2,
           tone: 'success',
-          title: `CO #${first.co.number} is approved — ${moneyLabel(first.remaining)} not billed`,
+          title: `CO #${first.co.number} is approved, ${moneyLabel(first.remaining)} not billed`,
           body: unbilled.length > 1
             ? `${unbilled.length} approved change orders have money nobody has invoiced yet.`
             : 'The client approved it and it is not on an invoice yet.',
-          cta: 'Bill this change order',
+          cta: 'Bill This Change Order',
           href: { pathname: '/change-order', params: { coId: first.co.id, projectId: scopedProject.id } },
         };
       }
@@ -203,9 +203,9 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
         kind: 'sub_paid_no_waiver',
         icon: ShieldCheck,
         tone: 'warn',
-        title: `${first.subName} was paid — no lien waiver on file`,
+        title: `${first.subName} was paid, no lien waiver on file`,
         body: `${moneyLabel(first.amount)} went out with no lien waiver back. Collect it before the next draw.`,
-        cta: 'Get lien waiver',
+        cta: 'Get Lien Waiver',
         href: { pathname: '/lien-waivers', params: { projectId: scopedProject.id } },
       };
     }
@@ -229,7 +229,7 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
         tone: 'warn',
         title: `${expiringSoon.length} sub COI${expiringSoon.length === 1 ? '' : 's'} expire this week`,
         body: 'Expired COIs can cost $16,550 per OSHA citation. Send a renewal request now.',
-        cta: 'Open prequal',
+        cta: 'Open Prequal',
         href: '/prequal-manager',
       };
     }
@@ -271,7 +271,7 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       tone: 'accent',
       title: `Add scope to ${projectNoScope.name}`,
       body: 'A short scope unlocks AI estimates + client-portal copy. 2 minutes of typing saves an hour later.',
-      cta: 'Add scope now',
+      cta: 'Add Scope Now',
       href: { pathname: '/project-scope', params: { id: projectNoScope.id } },
     };
   }
@@ -288,7 +288,7 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       tone: 'accent',
       title: `Build an estimate for ${projectNoEstimate.name}`,
       body: 'AI drafts a full line-item estimate from your scope. You edit, you send. Done in minutes.',
-      cta: 'Open estimator',
+      cta: 'Open Estimator',
       // Route to the project-aware estimate wizard so the new estimate
       // is linked to this project automatically.
       href: { pathname: '/estimate-wizard', params: { projectId: projectNoEstimate.id } },
@@ -304,7 +304,7 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       tone: 'accent',
       title: `Send the proposal for ${scopedProject.name}`,
       body: 'The estimate is done and no contract has gone to the client yet.',
-      cta: 'Send proposal',
+      cta: 'Send Proposal',
       href: { pathname: '/contract', params: { projectId: scopedProject.id } },
     };
   }
@@ -321,7 +321,7 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       tone: 'success',
       title: `Send your first invoice for ${projectNoInvoice.name}`,
       body: 'Drop a deposit invoice or a progress bill. Pay button is auto-attached via Stripe.',
-      cta: 'Create invoice',
+      cta: 'Create Invoice',
       // invoice.tsx with just projectId opens the new-invoice screen for
       // this project directly — the actual next action. `new: '1'` (wave 6c):
       // on desktop web /invoice is the invoice LOG (lane G); the flag opens
@@ -352,8 +352,8 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       icon: PartyPopper,
       tone: 'success',
       title: `${closeReadyProject.name} looks done`,
-      body: 'Close it out to feed your cost book and pace history — so every next bid gets sharper.',
-      cta: 'Close the project',
+      body: 'Close it out to add its actual costs and pace to your cost book for the next bid.',
+      cta: 'Close the Project',
       href: { pathname: '/closeout-binder', params: { projectId: closeReadyProject.id } },
     };
   }
@@ -401,7 +401,7 @@ export function NextStepHero(props: NextStepHeroProps) {
       <View style={styles.body}>
         <View style={styles.headerRow}>
           <View style={[styles.eyebrowDot, { backgroundColor: accent }]} />
-          <Text style={[styles.eyebrow, { color: accent }]}>Next step</Text>
+          <Text style={[styles.eyebrow, { color: accent }]}>Next Step</Text>
         </View>
         <Text style={styles.title} numberOfLines={2}>{step.title}</Text>
         <Text style={styles.bodyText} numberOfLines={3}>{step.body}</Text>

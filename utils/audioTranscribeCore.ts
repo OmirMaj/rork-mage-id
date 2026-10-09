@@ -602,14 +602,14 @@ export function parseAudioQueue(raw: string | null | undefined): AudioTranscribe
  * only later and with more confidence.
  */
 export function savedOfflineMessage(task: AudioTranscribeTask): string {
-  return `Saved on this phone — ${formatClipLength(task.durationMs)} of dictation. It will transcribe as soon as you have signal.`;
+  return `Saved on this phone: ${formatClipLength(task.durationMs)} of dictation. It will transcribe as soon as you have signal.`;
 }
 
 /** Line for a surface that is holding dictation the user recorded earlier. */
 export function pendingNoticeMessage(count: number): string {
   if (count <= 0) return '';
   const each = count === 1 ? 'dictation is' : 'dictations are';
-  return `${count} saved ${each} waiting for signal. Nothing is lost — tap “Transcribe now” once you have a bar.`;
+  return `${count} saved ${each} waiting for signal. Nothing is lost. Tap “Transcribe now” once you have a bar.`;
 }
 
 /**

@@ -41,7 +41,7 @@ export const DFR_FILED_PDF_LINK_DAYS = 30;
 /** Why the project-files copy is native-only — the same words the screen shows
  *  on the disabled switch (#27). */
 export const PROJECT_FILES_NEEDS_APP =
-  'Saving a PDF to project files needs the mobile app — use Print to keep a copy.';
+  'Saving a PDF to project files needs the mobile app. Use Print to keep a copy.';
 
 export interface SaveDailyReportPdfArgs {
   projectId: string;
@@ -227,7 +227,7 @@ export async function resolveDfrPhotosForDocument(
  * `Linking.openURL('')` / `window.open('')` did nothing at all — a tap with no
  * answer (#160). The caller shows the message.
  */
-export const OPEN_DOCUMENT_NO_LINK = "Couldn't get a link to this file — no signal or the server didn't answer. Try again when you're back online.";
+export const OPEN_DOCUMENT_NO_LINK = "Couldn't get a link to this file. No signal, or the server didn't answer. Try again when you're back online.";
 
 export async function openSavedDocument(publicUrl: string): Promise<void> {
   if (!/^https?:\/\//i.test((publicUrl ?? '').trim())) throw new Error(OPEN_DOCUMENT_NO_LINK);

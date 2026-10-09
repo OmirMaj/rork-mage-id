@@ -36,7 +36,7 @@ function generatedLine(ctx: CopyCtx): string {
 export const estimateFirst: TutorialDef = {
   id: 'estimate-first',
   version: 1,
-  title: 'Price a job from a scope',
+  title: 'Price a Job from a Scope',
   seconds: 45,
   endsWith: 'A priced estimate saved on the sample job',
   group: 'bid',
@@ -58,7 +58,7 @@ export const estimateFirst: TutorialDef = {
       layer: 'estimateWizard',
       target: 'estimate.scope',
       text: 'Describe the job in a sentence or two',
-      detail: 'On the sample, use the sample scope. Sample — no AI credits used.',
+      detail: 'On the sample, use the sample scope. Sample, no AI credits used.',
       gesture: 'tap',
       until: { signal: 'estimate.scope.filled' },
       assist: 'estimate.useSampleScope',
@@ -71,7 +71,7 @@ export const estimateFirst: TutorialDef = {
       layer: 'estimateWizard',
       target: 'estimate.generate',
       text: '{Tap} Generate estimate',
-      detail: 'The sample prices from the sample job. Sample — no AI credits used.',
+      detail: 'The sample prices from the sample job. Sample, no AI credits used.',
       gesture: 'tap',
       until: { signal: 'estimate.generated' },
       // He may have typed his own scope at step 1 (it completes the step), and
@@ -104,7 +104,7 @@ export const estimateFirst: TutorialDef = {
       gesture: 'tap',
       until: { signal: 'estimate.saved' },
       success: {
-        title: 'Estimate saved on the sample job',
+        title: 'Estimate Saved on the Sample Job',
         sub: ctx => {
           const s = ctx.payloads['estimate.saved'];
           const parts: string[] = [];
@@ -146,7 +146,7 @@ export const estimateFirst: TutorialDef = {
   handoff: {
     pathname: '/estimate-wizard',
     projectParam: 'projectId',
-    realJobLabel: name => `Price ${name} →`,
+    realJobLabel: name => `Price ${name}`,
     roles: ['owner', 'editor'],
   },
 };

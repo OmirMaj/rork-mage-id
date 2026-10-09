@@ -82,9 +82,9 @@ export function ProgressTab({
           testID="progress-verdict"
         >
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.verdictEyebrow}>Projected finish</Text>
+            <Text style={styles.verdictEyebrow}>Projected Finish</Text>
             <Text style={[styles.verdictDate, { color: colors[verdictToneTokens(verdict.tone).ink] }]}>
-              {!finishDateLabel || finishDateLabel === '—' ? 'No finish date yet' : finishDateLabel}
+              {!finishDateLabel || finishDateLabel === '—' ? 'No Finish Date Yet' : finishDateLabel}
             </Text>
             <Text style={styles.verdictHeadline}>{verdict.headline}</Text>
             {!!verdict.detail && <Text style={styles.verdictDetail}>{verdict.detail}</Text>}
@@ -99,12 +99,12 @@ export function ProgressTab({
         <View style={styles.heroTrack}><AnimatedFill value={Math.min(100, overall)} style={[styles.heroFill, { width: `${Math.min(100, overall)}%` }]} /></View>
       </View>
 
-      <Text style={styles.section}>By phase</Text>
+      <Text style={styles.section}>By Phase</Text>
       <View style={styles.card}>
         {/* Honest empty state — with zero tasks this card rendered as a bare
             white pill (sim-audit #12). Mirrors the milestones card below. */}
         {phases.length === 0 && (
-          <Text style={styles.empty}>No phases yet — add work packages to the schedule.</Text>
+          <Text style={styles.empty}>No phases yet. Add work packages to the schedule.</Text>
         )}
         {phases.map((p, i) => (
           <View key={p.phase} style={[styles.prow, i > 0 ? styles.rowDivider : null]}>

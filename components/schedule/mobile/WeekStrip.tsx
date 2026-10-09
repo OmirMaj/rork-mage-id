@@ -184,7 +184,7 @@ export function WeekStrip({ selectedDate, onSelectDate }: WeekStripProps) {
             style={styles.stepperBtn}
             activeOpacity={0.6}
             accessibilityRole="button"
-            accessibilityLabel="Previous week"
+            accessibilityLabel="Previous Week"
           >
             <ChevronLeft size={15} color={colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -193,7 +193,7 @@ export function WeekStrip({ selectedDate, onSelectDate }: WeekStripProps) {
             style={styles.stepperBtn}
             activeOpacity={0.6}
             accessibilityRole="button"
-            accessibilityLabel="Next week"
+            accessibilityLabel="Next Week"
           >
             <ChevronRight size={15} color={colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>

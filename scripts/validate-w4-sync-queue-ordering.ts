@@ -352,7 +352,7 @@ console.log('\n#1 — a refused write stays on the phone until Retry or Discard:
     { id: 'b', label: 'RFI', reason: 'r2', at: 2, canRetry: false, recordKey: 'rfis:1' },
   ]);
   ok('one sheet line per record, retryable only if every write of it is',
-    lines.length === 1 && lines[0].canRetry === false && lines[0].writes === 2 && lines[0].line.startsWith('Not saved to MAGE — '),
+    lines.length === 1 && lines[0].canRetry === false && lines[0].writes === 2 && lines[0].line.startsWith('Not saved to MAGE: '),
     JSON.stringify(lines));
   const s = computeSyncStatus({ depths: { writes: 0, photos: 0, dictations: 0 }, failures: { count: 2, labels: ['x'], retryable: 2 }, readFailed: false, signedIn: true });
   ok('the red copy offers Retry and still says nothing is sent without it',
@@ -498,7 +498,7 @@ console.log('\n#8/#128 carry — the photo queue for one job:');
 console.log('\n#1 — the ledger cap trims notes, never an unsaved record:');
 {
   const w = (i: number): import('@/utils/syncLedger').SyncFailure => ({
-    id: `w${i}`, kind: 'write', label: 'Daily report', reason: 'refused', at: i, userId: 'u1',
+    id: `w${i}`, kind: 'write', label: 'Daily Report', reason: 'refused', at: i, userId: 'u1',
     table: 'daily_reports', recordId: `dr${i}`, operation: 'insert', row: { id: `dr${i}` },
   });
   const note = (i: number): import('@/utils/syncLedger').SyncFailure => ({

@@ -309,7 +309,7 @@ export function recoveredHeadline(v: RecoveredValue, windowLabel?: string): stri
   const money = formatRecoveredMoney(v.total);
   const suffix = windowLabel ? ` ${windowLabel}` : '';
   const co = v.count === 1 ? 'change order' : 'change orders';
-  return `MAGE found ${money} that was approved${suffix} — ${v.count} ${co} drafted from job-site notes.`;
+  return `MAGE found ${money} that was approved${suffix}: ${v.count} ${co} drafted from job-site notes.`;
 }
 
 /**

@@ -161,7 +161,7 @@ export function SchedulerHeader({
             value={String(overdueCount)}
             color={overdueCount > 0 ? Colors.pillLate : undefined}
           />
-          <KpiChip label="Finish driver" value={`${cpm.criticalPathDays}d`} />
+          <KpiChip label="Finish Driver" value={`${cpm.criticalPathDays}d`} />
         </ScrollView>
       </View>
     );

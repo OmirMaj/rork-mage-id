@@ -23,14 +23,14 @@
 
 import type { WriteOutcome } from '@/utils/offlineQueue';
 
-export const PORTAL_STILL_SAVING = 'Your portal is still saving — try again in a moment.';
+export const PORTAL_STILL_SAVING = 'Your portal is still saving. Try again in a moment.';
 
 /** A refusal with NO project write of ours pending cannot be "still saving":
  *  the policy also refuses anyone but the project owner, and a portal whose
  *  server portalId no longer matches (disabled, or re-enabled on another
  *  device). Neither clears by waiting, so the copy names both conditions
  *  instead of guessing one (leftovers review). */
-export const PORTAL_MESSAGE_REFUSED = 'The portal refused this message. Only the project owner can message the client, and only while the portal is on — check Client Portal setup.';
+export const PORTAL_MESSAGE_REFUSED = 'The portal refused this message. Only the project owner can message the client, and only while the portal is on. Check Client Portal setup.';
 
 /** Words for an RLS refusal of a GC portal message. "Still saving" only when
  *  this device had a project write for the job unconfirmed when the send

@@ -65,7 +65,7 @@ async function main() {
   {
     const h = harness(SENT);
     const out = await remindInvoice({ ...base, projectName: 'Sample — Kitchen Remodel', qboError: FLAG }, h.deps);
-    eq('kind sample, the shared sample line', [out.kind, out.title, out.message], ['sample', 'Sample job', SAMPLE_NOTHING_SENT]);
+    eq('kind sample, the shared sample line', [out.kind, out.title, out.message], ['sample', 'Sample Job', SAMPLE_NOTHING_SENT]);
     eq('no confirm, no spinner, no send', h.log, []);
   }
 
@@ -92,7 +92,7 @@ async function main() {
   console.log('\n3. the server\'s answer, in the screen\'s words');
   {
     let out = await remindInvoice(base, harness({ success: false, error: 'This invoice hasn’t finished syncing yet.' }).deps);
-    eq('a failed call shows the server\'s reason', [out.kind, out.title, out.message], ['failed', 'Reminder not sent', 'This invoice hasn’t finished syncing yet.']);
+    eq('a failed call shows the server\'s reason', [out.kind, out.title, out.message], ['failed', 'Reminder Not Sent', 'This invoice hasn’t finished syncing yet.']);
     out = await remindInvoice(base, harness({ success: false }).deps);
     eq('…or the fallback', out.message, REMIND_FAILED_FALLBACK);
     out = await remindInvoice(base, harness(new Error('network down')).deps);
@@ -100,7 +100,7 @@ async function main() {
     out = await remindInvoice(base, harness(new Error('This invoice was voided by the client portal owner.')).deps);
     eq('…a thrown sentence written for a person is shown as it is', [out.kind, out.message], ['failed', 'This invoice was voided by the client portal owner.']);
     out = await remindInvoice(base, harness({ success: true, outcome: 'skipped', reason: 'no_recipient' }).deps);
-    eq('no_recipient has its own kind and sentence', [out.kind, out.title, out.message], ['no_recipient', 'No reminder sent', REMIND_NO_RECIPIENT]);
+    eq('no_recipient has its own kind and sentence', [out.kind, out.title, out.message], ['no_recipient', 'No Reminder Sent', REMIND_NO_RECIPIENT]);
     const last = 1_000_000_000_000 - 5 * 3_600_000;
     out = await remindInvoice({ ...base, lastReminderMs: last }, harness({ success: true, outcome: 'skipped', reason: 'too_soon' }).deps);
     eq('other skips use reminderBlockMessage with the last-sent time', [out.kind, out.message], ['skipped', reminderBlockMessage('too_soon', last, 1_000_000_000_000)]);
@@ -129,8 +129,8 @@ async function main() {
     eq('the confirm button → true', await confirmViaAlert(press(1))('t', 'm', 'Send anyway'), true);
     eq('dismissed (Android back / web Escape) → false', await confirmViaAlert(press('dismiss'))('t', 'm', 'Send anyway'), false);
     let labels: string[] = [];
-    await confirmViaAlert((_t, _m, b) => { labels = (b ?? []).map(x => x.text ?? ''); b?.[0]?.onPress?.(); })('t', 'm', 'Send anyway');
-    eq('buttons: Cancel, then the label', labels, ['Cancel', 'Send anyway']);
+    await confirmViaAlert((_t, _m, b) => { labels = (b ?? []).map(x => x.text ?? ''); b?.[0]?.onPress?.(); })('t', 'm', 'Send Anyway');
+    eq('buttons: Cancel, then the label', labels, ['Cancel', 'Send Anyway']);
   }
 
   console.log('\n6. the extraction is verbatim, and invoice.tsx calls it');
@@ -151,7 +151,7 @@ async function main() {
     ok('…nor re-implements the skip wording', !/res\.outcome === 'skipped'|No client email is on file/.test(region));
     ok('…mirrors the patch and toasts only a real send', /if \(out\.patch\) updateInvoice\(existingInvoice\.id, out\.patch\);/.test(region) && /out\.kind === 'sent'/.test(region) && /nailIt\(out\.message\)/.test(region));
     ok('the button still asks the QuickBooks question before calling it (so qboClosedConfirmed: true is honest)',
-      /qboClosedConfirmed: true/.test(region) && /if \(!qboClosedFlag\) \{ void handleSendReminder\(\); return; \}[\s\S]{0,700}'Send anyway'/.test(inv));
+      /qboClosedConfirmed: true/.test(region) && /if \(!qboClosedFlag\) \{ void handleSendReminder\(\); return; \}[\s\S]{0,700}'Send Anyway'/.test(inv));
     const helper = read('utils/remindInvoice.ts').replace(/\/\/.*$/gm, '');
     ok('the helper is pure (no react-native, no supabase value import)', !/from 'react-native'|from '@\/lib\/supabase'/.test(helper) && /import type \{ SendReminderResult \}/.test(helper));
   }

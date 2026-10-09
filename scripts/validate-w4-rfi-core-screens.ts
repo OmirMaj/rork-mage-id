@@ -78,7 +78,7 @@ if (P) {
   ok('an untouched field takes live, no conflict', P.rebaseFormOnLiveWithConflicts(opened, opened, live).conflicts.length === 0);
   ok('the same text on both sides is not a conflict', P.rebaseFormOnLiveWithConflicts(opened, { ...form, response: live.response }, live).conflicts.length === 0);
   ok('rebaseFormOnLive is the same rebase', JSON.stringify(P.rebaseFormOnLive(opened, form, live)) === JSON.stringify(r.next));
-  ok('the reason names the choice', /keep theirs, or replace it with yours/.test(P.RFI_RESPONSE_CONFLICT_REASON));
+  ok('the reason names the choice', /Keep theirs, or replace it with yours/.test(P.RFI_RESPONSE_CONFLICT_REASON));
 }
 {
   const eff = RFI.slice(RFI.indexOf('const lastLiveRef = useRef(existingRFI)'), RFI.indexOf('const lastLiveRef = useRef(existingRFI)') + 2400);
@@ -89,11 +89,11 @@ if (P) {
     /: prev && mine\.trim\(\) !== liveResponse\.trim\(\) \? \{ theirs: liveResponse \} : null\)\);/.test(eff)
     && /const mine = String\(next\.response \?\? ''\);/.test(eff));
   const pf = RFI.slice(RFI.indexOf('const persistForm = useCallback'), RFI.indexOf('const navigation = useNavigation()'));
-  ok('rfi: persistForm refuses while the conflict stands, with the reason', /if \(responseConflict\) \{\s*showAlert\('Pick an answer first', RFI_RESPONSE_CONFLICT_REASON\);\s*return null;/.test(pf));
+  ok('rfi: persistForm refuses while the conflict stands, with the reason', /if \(responseConflict\) \{\s*showAlert\('Pick an Answer First', RFI_RESPONSE_CONFLICT_REASON\);\s*return null;/.test(pf));
   ok('rfi: both Save buttons are disabled while it stands, and say why',
     /testID="rfi-save-conflict"/.test(RFI) && /disabled=\{!!responseConflict\}[^>]*testID="rfi-save-in-place"/.test(RFI) && /disabled=\{!!responseConflict\}[^>]*testID="rfi-save"/.test(RFI));
   ok('rfi: the banner shows theirs with Keep theirs / Replace with mine',
-    /testID="rfi-response-conflict"/.test(RFI) && /setResponse\(responseConflict\.theirs\); setResponseConflict\(null\);/.test(RFI) && /label="Replace with mine"/.test(RFI));
+    /testID="rfi-response-conflict"/.test(RFI) && /setResponse\(responseConflict\.theirs\); setResponseConflict\(null\);/.test(RFI) && /label="Replace with Mine"/.test(RFI));
 }
 
 console.log('\n#29 only a queued INSERT means no number');
@@ -213,7 +213,7 @@ console.log('\n#98 create opens the RFI');
   ok('the create keeps the record', /const created = addRFI\(\{/.test(hs));
   ok('…and replaces to /rfi with its id (the leave gate opened first)',
     /allowLeave\.current = true;\s*router\.replace\(\{ pathname: '\/rfi', params: \{ projectId: created\.projectId, rfiId: created\.id \} \}\);/.test(hs));
-  ok('…with a toast that prints no guessed number', /nailIt\('RFI created — send it when ready'\)/.test(hs));
+  ok('…with a toast that prints no guessed number', /nailIt\('RFI created. Send it when ready.'\)/.test(hs));
   ok('an update still goes back', /router\.back\(\);/.test(hs));
 }
 

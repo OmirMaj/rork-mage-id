@@ -4,7 +4,7 @@
 // sure what category that would go under here". His live "piping" job is typed
 // plumbing, but its scope answer reads "Bathroom Remodel": the "What kind of
 // project?" chips had no trade jobs and no way out, the wizard seeded the raw
-// id 'plumbing' (which lit no chip), and the AI was then told "Project type:
+// id 'plumbing' (which lit no chip), and the AI was then told "Project Type:
 // Bathroom Remodel" and grounded Tile level with Plumbing.
 //
 // What this pins:
@@ -92,7 +92,7 @@ ok('an Other job reads HIS words', projectTypeLabel({ type: 'other', projectType
 ok('…cleaned (whitespace collapsed and trimmed)', projectTypeLabel({ type: 'other', projectTypeOther: '  Whole-house \n repipe ' }) === 'Whole-house repipe');
 ok('an Other job with no words (an old client) reads "Other", never "other"', projectTypeLabel({ type: 'other' }) === 'Other' && projectTypeLabel({ type: 'other', projectTypeOther: '   ' }) === 'Other');
 ok('words on a NON-other job are ignored (stale description never shows)', projectTypeLabel({ type: 'roofing', projectTypeOther: 'Whole-house repipe' }) === 'Roofing');
-ok('award_rfp\'s off-union id reads "Awarded bid"', projectTypeLabel({ type: 'awarded_rfp' }) === 'Awarded bid');
+ok('award_rfp\'s off-union id reads "Awarded bid"', projectTypeLabel({ type: 'awarded_rfp' }) === 'Awarded Bid');
 ok('an unknown id is title-cased, not printed raw', projectTypeLabel({ type: 'solar_carport' }) === 'Solar Carport');
 ok('no type / no project → ""', projectTypeLabel({ type: '' }) === '' && projectTypeLabel(null) === '' && projectTypeLabel(undefined) === '');
 
@@ -145,7 +145,7 @@ for (const [s, want] of [
   ['Whole-house repipe', 'plumbing'], ['PEX repipe', 'plumbing'], ['Copper repipe', 'plumbing'], ['Re-pipe the house', 'plumbing'],
   ['piping', 'plumbing'], ['Sewer line replacement', 'plumbing'],
   ['Rewire', 'electrical'], ['Whole house rewire', 'electrical'], ['Panel upgrade', 'electrical'], ['Service upgrade to 200A', 'electrical'],
-  ['Kitchen remodel with new plumbing', 'remodel'], ['Hardwood flooring', 'flooring'], ['Exterior paint', 'painting'], ['Driveway', 'concrete'],
+  ['Kitchen Remodel with new plumbing', 'remodel'], ['Hardwood flooring', 'flooring'], ['Exterior paint', 'painting'], ['Driveway', 'concrete'],
   ['Flooring', 'flooring'], ['plumbing', 'plumbing'], ['new_build', 'new_build'], ['Landscaping', 'landscape'], ['Renovation', 'renovation'],
 ] as const) ok(`"${s}" → ${want}`, map(s).type === want && map(s).projectTypeOther === undefined, JSON.stringify(map(s)));
 ok('"Bathroom tile" is NOT commercial any more (the old " ti" substring bug)', map('Bathroom tile job').type !== 'commercial' && oldMapProjectType('Bathroom tile job') === 'commercial');
@@ -235,7 +235,7 @@ ok('JUDGES: an "other" type margin is never a verdict basis (no history, like a 
   const r = tm.aggregateTypeMargin([closedJob('o1', 'other'), closedJob('o2', 'other')] as never, 'other', [tracedCommitment('o1'), tracedCommitment('o2')] as never, []);
   return r.avgMarginPct === null && r.jobCount === 0;
 })());
-ok('portfolio: the Other row is labelled "Other (mixed)"', prof.buildTypeProfitability([], [], []).rows.some((r: { type: string; label: string }) => r.type === 'other' && r.label === 'Other (mixed)'));
+ok('portfolio: the Other row is labelled "Other (mixed)"', prof.buildTypeProfitability([], [], []).rows.some((r: { type: string; label: string }) => r.type === 'other' && r.label === 'Other (Mixed)'));
 ok('an Other job is a residential bid category (not dropped from bid history)', bid.PROJECT_TYPE_TO_BID_CATEGORY.other === 'residential');
 
 // Surfaces that printed the raw id ("new_build") now print the label.
@@ -252,7 +252,7 @@ const RAW: Array<[string, RegExp]> = [
   ['utils/copilot/estimate/estimateGrounding.ts', /`, \$\{project\.type\}`/],
   // Fix round 1 (review): the sites the investigation's list missed.
   ['app/scope-sheet.tsx', /\{project\.type \|\| 'Project'\}/],
-  ['utils/scopeSheet.ts', /Project type: \$\{project\.type/],
+  ['utils/scopeSheet.ts', /Project Type: \$\{project\.type/],
   ['utils/permitRoadmap.ts', /PROJECT TYPE: \$\{project\.type/],
   ['app/budget-dashboard.tsx', /for a \$\{project\.type\} project/],
   ['utils/profitLeak/scopeSummary.ts', /meta\.push\(String\(project\.type\)\)/],
@@ -298,17 +298,17 @@ ok('the AI-only block reason names what to type and promises no job-list / PDF /
 
 const home = code(read('app/(tabs)/(home)/index.tsx'));
 ok('New Project: Other opens a description box capped at the column', /projectType === 'other' \? \(/.test(home) && /maxLength=\{PROJECT_TYPE_OTHER_MAX\}/.test(home));
-ok('New Project: Create refuses Other with no words, and says why', /const typeBlock = projectTypeBlockReason\(projectType, projectTypeOther\);\s*if \(typeBlock\) \{\s*showAlert\('Describe the project', typeBlock\);\s*return;/.test(home));
+ok('New Project: Create refuses Other with no words, and says why', /const typeBlock = projectTypeBlockReason\(projectType, projectTypeOther\);\s*if \(typeBlock\) \{\s*showAlert\('Describe the Project', typeBlock\);\s*return;/.test(home));
 ok('New Project: the words are saved only for Other', /\.\.\.\(projectType === 'other' \? \{ projectTypeOther: cleanProjectTypeOther\(projectTypeOther\) \} : \{\}\),/.test(home));
 const detail = code(read('app/project-detail.tsx'));
-ok('Edit project: Other opens a description box, seeded from the job', /editType === 'other' \? \(/.test(detail) && /setEditTypeOther\(project\.projectTypeOther \?\? ''\);/.test(detail));
-ok('Edit project: Save refuses Other with no words, and says why', /const typeBlock = projectTypeBlockReason\(editType, editTypeOther\);\s*if \(typeBlock\) \{\s*showAlert\('Describe the project', typeBlock\);\s*return;/.test(detail));
+ok('Edit project: Other opens a description box, seeded from the Job', /editType === 'other' \? \(/.test(detail) && /setEditTypeOther\(project\.projectTypeOther \?\? ''\);/.test(detail));
+ok('Edit project: Save refuses Other with no words, and says why', /const typeBlock = projectTypeBlockReason\(editType, editTypeOther\);\s*if \(typeBlock\) \{\s*showAlert\('Describe the Project', typeBlock\);\s*return;/.test(detail));
 ok('Edit project: leaving Other drops the words', /projectTypeOther: editType === 'other' \? cleanProjectTypeOther\(editTypeOther\) : undefined,/.test(detail));
 const row = code(read('components/ProjectRow.tsx'));
 const card = code(read('components/ProjectCard.tsx'));
 ok('job list (row + card): an Other job shows his words, with a wrench icon', /project\.type === 'other' \? \(/.test(row) && /projectTypeLabel\(project\)/.test(row) && /project\.type === 'other' \? projectTypeLabel\(project\) : 'Project'/.test(card) && /other: 'Wrench'/.test(row) && /other: 'Wrench'/.test(card));
 const stepper = code(read('components/ScopeQuestionStepper.tsx'));
-ok('scope stepper: an Other chip whose box is capped at the column', /Other \(describe it\)/.test(stepper) && /maxLength=\{SCOPE_TYPE_OTHER_MAX\}/.test(stepper) && sq.SCOPE_TYPE_OTHER_MAX === PROJECT_TYPE_OTHER_MAX);
+ok('scope stepper: an Other chip whose box is capped at the column', /Other \(Describe It\)/.test(stepper) && /maxLength=\{SCOPE_TYPE_OTHER_MAX\}/.test(stepper) && sq.SCOPE_TYPE_OTHER_MAX === PROJECT_TYPE_OTHER_MAX);
 
 // ── H. voice and copilot pickers ─────────────────────────────────────────────
 // Review: the copilot interview and both voice parsers still forced a closed
@@ -380,14 +380,14 @@ console.log('\nI. what a prospect / homeowner / the AI reads (fix round 2)');
   const vals = (tg?.choices ?? []).map(c => c.value);
   ok('copilot type question: Plumbing and Electrical are tap choices', vals.includes('plumbing') && vals.includes('electrical'), JSON.stringify(vals));
   ok('copilot type question: no wordless tap "other" (it would build a renovation)', !vals.includes('other'));
-  ok('copilot type question: says how to name something else (the mic, which mergeDraft turns into Other + his words)', /Something else — tap the mic and say it/.test(tg?.question ?? ''), tg?.question);
+  ok('copilot type question: says how to name something else (the mic, which mergeDraft turns into Other + his words)', /For something else, tap the mic and say it/.test(tg?.question ?? ''), tg?.question);
   const go = await import('../utils/copilot/gapOptions');
   const shown = go.optionsForGap(tg!).map(o => o.label);
   ok('the shell\'s tap buttons (optionsForGap) show Plumbing and Electrical', shown.includes('Plumbing') && shown.includes('Electrical'), JSON.stringify(shown));
   const tgPl = gaps.newProjectGaps({}, { data: { usualType: 'plumbing' } } as never).find(x => x.field === 'type');
   ok('a plumbing shop gets Plumbing as the SUGGESTED choice (there was no box to suggest before)', !!tgPl?.choices?.find(c => c.value === 'plumbing')?.recommended);
   const shell = read('components/copilot/CopilotShell.tsx');
-  ok('the mic that question points at is on screen during every question', /accessibilityLabel="Answer by voice"/.test(shell));
+  ok('the mic that question points at is on screen during every question', /accessibilityLabel="Answer by Voice"/.test(shell));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -134,7 +134,7 @@ describe('ProjectLevelCard — The Level on the project hub', () => {
     expect(r.getByTestId('project-level').props.accessibilityLabel).toBe('Schedule: 5 working days behind. Margin risk: moderate.');
     const bubble = r.getByTestId('project-level-vial-bubble', HIDDEN);
     expect(flat(bubble.props.style).backgroundColor).not.toBe('transparent');
-    const header = r.getByText('Project health');
+    const header = r.getByText('Project Health');
     expect(header.props.accessibilityRole).toBe('header');
     const legend = r.getByTestId('project-level-legend');
     expect(legend).toBeTruthy();

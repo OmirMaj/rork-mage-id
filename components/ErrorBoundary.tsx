@@ -119,7 +119,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 // values that work in both themes against a neutral background.
 function ErrorFallback({
   error, message, onReset, onGoHome,
-  primaryLabel = 'Restart at home',
+  primaryLabel = 'Restart at Home',
   primaryIcon = <Home size={16} color="#FFFFFF" strokeWidth={2} />,
 }: {
   error: Error | null;
@@ -191,11 +191,11 @@ function ErrorFallback({
           onPress={onReset}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Try again"
+          accessibilityLabel="Try Again"
           testID="error-boundary-retry"
         >
           <RefreshCw size={16} color="#1C4023" strokeWidth={2} />
-          <Text style={fallbackStyles.retryText}>Try again</Text>
+          <Text style={fallbackStyles.retryText}>Try Again</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -267,10 +267,10 @@ export function RouteErrorFallback({ error, retry }: { error: Error; retry: () =
     <View style={fallbackStyles.scroll} testID="route-error-fallback">
       <ErrorFallback
         error={error}
-        message="This screen ran into a problem. The rest of the app is fine — go back and try it again."
+        message="This screen ran into a problem. The rest of the app is fine. Go back and try it again."
         onReset={() => { void retry(); }}
         onGoHome={goBack}
-        primaryLabel="Go back"
+        primaryLabel="Go Back"
         primaryIcon={<ChevronLeft size={16} color="#FFFFFF" strokeWidth={2} />}
       />
     </View>

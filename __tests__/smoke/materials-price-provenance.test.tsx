@@ -207,7 +207,7 @@ describe('the price book states its own provenance', () => {
   });
 
   it('says plainly when it does not know the market', () => {
-    expect(catalogProvenanceLine(null, new Date(2026, 8, 6))).toContain('US average — no market set');
+    expect(catalogProvenanceLine(null, new Date(2026, 8, 6))).toContain('US average, no market set');
   });
 
   it('the "not a feed" sentence tells the contractor what to do about it', () => {
@@ -244,7 +244,7 @@ describe('resolvePricingMarket does not invent a market', () => {
       expect(m.resolved).toBe(false);
       expect(m.multiplier).toBe(1);
       expect(m.city).toBeNull();
-      expect(m.label).toBe('US average');
+      expect(m.label).toBe('US Average');
     }
   });
 
@@ -500,7 +500,7 @@ describe('the Materials screen renders what it is', () => {
     const tree = await mountRouteChecked('/materials');
     const text = collectText(tree.toJSON()).join('   ');
 
-    expect(text).toMatch(/Reference price book/);
+    expect(text).toMatch(/Reference Price Book/);
     expect(text).not.toMatch(/LIVE PRICING/i);
     expect(text).not.toMatch(/Prices updated/i);
     expect(text).not.toMatch(/Pull to refresh/i);

@@ -8,7 +8,7 @@
 //      PGRST202 and the alert blamed his connection — the switch could never
 //      turn on. A missing function now falls back to writing the setting; a
 //      refusal is worded as a refusal.
-//   2. The preview read every sent:false as "No projects to digest", even for
+//   2. The preview read every sent:false as "No Projects to Digest", even for
 //      an unsubscribed address or an Email switch that was off.
 // Executes the real pure helpers (the function's digestGate.ts and the app's
 // utils/digestSettingsCopy.ts) and pins the wiring.
@@ -48,16 +48,16 @@ console.log('morning-digest reports why it did not email');
   const reason = digestNotSentReason({ emailChannelOn: true, hasEmail: true, nothingToSay: false, emailStatus: status });
   const copy = morningPreviewCopy({ sent: false, reason });
   ok('unsubscribed GC preview: nothing sent, and the alert says he unsubscribed (not "No projects to digest")',
-    sends === 0 && copy.title === 'Your address unsubscribed' && !/projects/i.test(copy.title), JSON.stringify(copy));
+    sends === 0 && copy.title === 'Your address unsubscribed.' && !/projects/i.test(copy.title), JSON.stringify(copy));
 }
 
 console.log('\nthe preview alert names each reason');
 {
-  ok('sent → Preview sent', morningPreviewCopy({ sent: true }).title === 'Preview sent');
-  ok('email_off → Email is off', morningPreviewCopy({ sent: false, reason: 'email_off' }).title === 'Email is off');
-  ok('no_email → No email address', morningPreviewCopy({ sent: false, reason: 'no_email' }).title === 'No email address');
-  ok('send_failed → Preview not sent', morningPreviewCopy({ sent: false, reason: 'send_failed' }).title === 'Preview not sent');
-  ok('nothing_to_report → No projects to digest', morningPreviewCopy({ sent: false, reason: 'nothing_to_report' }).title === 'No projects to digest');
+  ok('sent → Preview sent', morningPreviewCopy({ sent: true }).title === 'Preview Sent');
+  ok('email_off → Email is off', morningPreviewCopy({ sent: false, reason: 'email_off' }).title === 'Email is off.');
+  ok('no_email → No email address', morningPreviewCopy({ sent: false, reason: 'no_email' }).title === 'No Email Address');
+  ok('send_failed → Preview not sent', morningPreviewCopy({ sent: false, reason: 'send_failed' }).title === 'Preview Not Sent');
+  ok('nothing_to_report → No projects to digest', morningPreviewCopy({ sent: false, reason: 'nothing_to_report' }).title === 'No Projects to Digest');
   ok('only nothing_to_report (or an older function with no reason) blames his projects',
     (['email_off', 'no_email', 'send_failed', 'suppressed_unsubscribed'] as const).every(r => !/project/i.test(morningPreviewCopy({ sent: false, reason: r }).title)));
 }
@@ -81,7 +81,7 @@ console.log('\nthe Email switch turn-ON is order-proof against the migration');
       && !ns.includes(RESUME_NETWORK_COPY.message) && !/'We could not reach the server\. Check your connection and try again\.'/.test(ns));
   ok('the preview alert comes from morningPreviewCopy, not a sent/no-projects ternary',
     /const copy = morningPreviewCopy\(data as \{ sent\?: unknown; reason\?: unknown \} \| null(?:, [^)]*)?\);\s*showAlert\(copy\.title, copy\.message\);/.test(ns)
-      && !/sent \? 'Preview sent' : 'No projects to digest'/.test(ns));
+      && !/sent \? 'Preview Sent' : 'No Projects to Digest'/.test(ns));
   const md = strip(read('supabase/functions/morning-digest/index.ts'));
   ok('morning-digest returns the reason with sent:false',
     /const reason = digestNotSentReason\(\{\s*emailChannelOn: channels\.email !== false,\s*hasEmail: !!profile\.email,\s*nothingToSay: hasNothingToSay,\s*emailStatus,\s*\}\);\s*return \{ ok: true, sent, pushed: pushStatus === 'sent', \.\.\.\(reason \? \{ reason \} : \{\}\) \};/.test(md));

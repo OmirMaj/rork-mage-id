@@ -738,6 +738,12 @@ console.log('\nAR spike — app.json (version, capabilities, permission text):')
   ok('and says no video is kept or uploaded', /no video is recorded, kept or uploaded/i.test(camera));
   ok('and says the tracking stops when he leaves the screen', /stops when you leave/i.test(camera));
   ok('the original photo clause is still there', /jobsite photos for daily reports/i.test(camera));
+  // The room scanner (modules/mage-room-scan) is linked into the same binary
+  // and uses the same permission. Its clause is pinned here too, so the one
+  // sentence the system shows stays true of BOTH camera uses: this screen
+  // keeps nothing, a room scan keeps the room's measurements on the phone.
+  ok('the camera purpose string covers a room scan', /When you scan a room on an iPhone with a LiDAR sensor/.test(camera) && /keeps the room's measurements/.test(camera));
+  ok('and says a scan records no video', /video of a scan is not recorded, kept or uploaded/.test(camera));
 
   ok('no location permission was widened for this (the spike never calls expo-location)',
     !/arkit|ar tracking|measuring screen/i.test(String(app.expo.ios.infoPlist.NSLocationWhenInUseUsageDescription ?? '')));

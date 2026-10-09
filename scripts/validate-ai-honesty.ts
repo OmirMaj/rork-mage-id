@@ -70,9 +70,9 @@ ok('both → learned count is the MEASURED count and the seeds are named separat
   const l = groundingChipLabel({ measured: 2, seeded: 3 });
   return l.includes('2 learned rates') && l.includes('3 rates you set') && !l.includes('5 learned');
 })());
-ok('nothing → market-averages default', groundingChipLabel({ measured: 0, seeded: 0 }) === 'Priced from market averages — MAGE has none of your rates yet');
+ok('nothing → market-averages default', groundingChipLabel({ measured: 0, seeded: 0 }) === 'Priced from market averages. MAGE has none of your rates yet.');
 ok('nothing → caller-supplied empty label wins', groundingChipLabel({ measured: 0, seeded: 0 }, { emptyLabel: 'cold' }) === 'cold');
-ok('negative / NaN counts are treated as zero', groundingChipLabel({ measured: NaN, seeded: -2 }) === 'Priced from market averages — MAGE has none of your rates yet');
+ok('negative / NaN counts are treated as zero', groundingChipLabel({ measured: NaN, seeded: -2 }) === 'Priced from market averages. MAGE has none of your rates yet.');
 
 console.log('\nestimateThinkingSteps (re-review B1 — the loader is a claim too):');
 ok('seeded-only counts select the STATED copy — "rates you set", never "your history"', (() => {
@@ -241,7 +241,7 @@ console.log('\nsource assertions:');
   ok('wizard (review B1): reset clears the stored bundle', /setGroundingUsed\(null\)/.test(wizard));
   ok('wizard (re-review A3): estimate_generated carries the RUN counts — used_learned_costs cannot fire for a seeded-only run', /estimateGroundingProps\(costDb, used\.counts\)/.test(wizard) && !/estimateGroundingProps\(costDb\)/.test(wizard) && /AnalyticsEvents\.ESTIMATE_GENERATED/.test(wizard) && /path: 'wizard_generated'/.test(wizard));
   ok('wizard (re-review A5): a run counter orphans a cancelled run — its result, its error and its finally', /const runRef = useRef\(0\)/.test(wizard) && /const runId = \+\+runRef\.current/.test(wizard) && (wizard.match(/if \(runRef\.current !== runId\) return;/g) ?? []).length >= 2 && /if \(runRef\.current === runId\) setLoading\(false\)/.test(wizard) && /const cancelGenerate = useCallback\(\(\) => \{\s*runRef\.current \+= 1;/.test(wizard));
-  ok('wizard (re-review A6): the loader subtitle does not claim retrieval', !/Pulling materials, labor/.test(wizard) && /nothing is pulled from a price list/.test(wizard));
+  ok('wizard (re-review A6): the loader subtitle does not claim retrieval', !/Pulling materials, labor/.test(wizard) && /Nothing is pulled from a price list/.test(wizard));
   ok('wizard (UX-F14/F18): no bare router.back() — a cold-start deep link into a gestureEnabled:false modal must still escape', !/router\.back\(\)/.test(wizard) && /useSafeBack\(\)/.test(wizard) && /safeBack\(\)/.test(wizard));
   const quick = src('components/AIQuickEstimate.tsx');
   ok('quick estimate: chip label comes from groundingChipLabel', /groundingChipLabel\(/.test(quick) && !/\$\{learnedRateCount\} learned rate/.test(quick));
@@ -273,7 +273,7 @@ console.log('\nsource assertions:');
   ok('estimator: an empty book says it has nothing measured rather than scoring anyway', /hasData \?/.test(full) && /No traced actuals yet/.test(full));
   const pred = src('components/AIInvoicePredictor.tsx');
   ok('invoice predictor: the chip is the same history object the prompt was built from', /paymentHistoryForInvoice\(invoice, allInvoices\)/.test(pred) && /totalInvoices: history\.paidInvoices/.test(pred) && (pred.match(/history\.summary/g) ?? []).length >= 2);
-  ok('invoice predictor: an absent predicted date renders as absent, not as a blank accent slot', /const predictedDate = result\.predictedPaymentDate\.trim\(\)/.test(pred) && /No date returned/.test(pred));
+  ok('invoice predictor: an absent predicted date renders as absent, not as a blank accent slot', /const predictedDate = result\.predictedPaymentDate\.trim\(\)/.test(pred) && /No Date Returned/.test(pred));
   const equip = src('components/AIEquipmentAdvice.tsx');
   ok('equipment advice: the chip cites the log rows and the rate it multiplied, and names the recall it cannot source', /utilization \{equipment\.utilizationLog\.length === 1 \? 'entry' : 'entries'\}/.test(equip) && /at your \$\{equipment\.dailyRate\.toLocaleString\(\)\}\/day rate/.test(equip) && /no equipment price feed/.test(equip));
   const ai = src('utils/aiService.ts');
@@ -281,7 +281,7 @@ console.log('\nsource assertions:');
   const code = src('app/(tabs)/construction-ai/index.tsx');
   ok('code check: the main prompt carries the anti-invention rule (was drill-in only)', (code.match(/Never invent a section number/g) ?? []).length >= 2);
   ok('code check: no "Looking up" copy — nothing was looked up', !/Looking up \{/.test(code) && !/Looking up \$\{/.test(code));
-  ok('code check: recall chip is rendered above the codes', /From model recall — verify with your AHJ/.test(code));
+  ok('code check: recall chip is rendered above the codes', /From model recall\. Verify with your AHJ/.test(code));
   ok('code check (review 6): loading steps recall, they do not scan or check', !/Scanning applicable codes/.test(code) && !/Checking local amendments/.test(code) && /Recalling the codes that apply/.test(code));
   const loader = src('components/CodeCheckLoader.tsx');
   ok('code check loader (review 6): default headline does not claim to read the code', !/Reading the code that governs/.test(loader) && /Recalling the code/.test(loader));
@@ -298,7 +298,7 @@ console.log('\nsource assertions:');
   ok('probe (re-review A1): the listener lives with the ticker and this query does not double-probe on web focus', /installForegroundGate\(client\)/.test(probe) && /removeForegroundGate\(\)/.test(probe) && /refetchOnWindowFocus: false/.test(probe));
   ok('probe (review 9): no per-observer refetchInterval — one ref-counted ticker, foreground-gated', !/refetchInterval:/.test(probe) && /acquireTicker/.test(probe) && /releaseTicker/.test(probe));
   const rail = src('components/DesktopActionRail.tsx');
-  ok('desktop rail (review 8): "All caught up" requires !sourceFailed, same copy as the card', /sourceFailed \?/.test(rail) && /Couldn't reach MAGE — showing what's on this/.test(rail));
+  ok('desktop rail (review 8): "All caught up" requires !sourceFailed, same copy as the card', /sourceFailed \?/.test(rail) && /Couldn't reach MAGE\. Showing what's on this/.test(rail));
 }
 
 // ── the estimate validator scores against HIS numbers, not "industry" ──────

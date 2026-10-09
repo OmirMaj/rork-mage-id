@@ -55,7 +55,7 @@ describe('cross-project double-booking on /last-planner', () => {
       mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall', title: 'Patch' })]),
     ]);
     await mountRouteChecked('/last-planner?projectId=p1');
-    await act(async () => { fireEvent.press(screen.getByText('This week')); });
+    await act(async () => { fireEvent.press(screen.getByText('This Week')); });
 
     expect(screen.getByText(/A crew is booked on two projects this week/)).toBeTruthy();
     const box = screen.getAllByRole('checkbox')[0];
@@ -63,7 +63,7 @@ describe('cross-project double-booking on /last-planner', () => {
     await act(async () => { fireEvent.press(box); });
     expect(screen.getAllByRole('checkbox')[0].props.accessibilityState.checked).toBe(false);
     expect(screen.getByText(/Ace Drywall is already committed to Ridgeline Job on/)).toBeTruthy();
-    const anyway = screen.getByText('Commit anyway');
+    const anyway = screen.getByText('Commit Anyway');
     await act(async () => { fireEvent.press(anyway); });
     await waitFor(() => expect(screen.getAllByRole('checkbox')[0].props.accessibilityState.checked).toBe(true));
   });
@@ -77,7 +77,7 @@ describe('cross-project double-booking on /last-planner', () => {
       mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall', title: 'Patch' })]),
     ]);
     await mountRouteChecked('/last-planner?projectId=p1');
-    await act(async () => { fireEvent.press(screen.getByText('This week')); });
+    await act(async () => { fireEvent.press(screen.getByText('This Week')); });
     const boxes = screen.getAllByRole('checkbox');
     expect(boxes.length).toBe(2);
     for (const b of boxes) {
@@ -87,18 +87,18 @@ describe('cross-project double-booking on /last-planner', () => {
     for (const b of screen.getAllByRole('checkbox')) {
       expect(b.props.accessibilityState.checked).toBe(false);
     }
-    expect(screen.getAllByText('Commit anyway').length).toBe(2);
+    expect(screen.getAllByText('Commit Anyway').length).toBe(2);
   });
 
   it('negative control: one project commits normally', async () => {
     await seed([mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })])]);
     await mountRouteChecked('/last-planner?projectId=p1');
-    await act(async () => { fireEvent.press(screen.getByText('This week')); });
+    await act(async () => { fireEvent.press(screen.getByText('This Week')); });
     expect(screen.queryByText(/A crew is booked on two projects this week/)).toBeNull();
     const box = screen.getAllByRole('checkbox')[0];
     await act(async () => { fireEvent.press(box); });
     await waitFor(() => expect(screen.getAllByRole('checkbox')[0].props.accessibilityState.checked).toBe(true));
-    expect(screen.queryByText('Commit anyway')).toBeNull();
+    expect(screen.queryByText('Commit Anyway')).toBeNull();
   });
 });
 
@@ -151,7 +151,7 @@ describe.each(CLOCKS)('Last Planner and /summary are on the same week at %s', (_
   it('Last Planner opens on that week and blocks the double-booked commit', async () => {
     await seed(twoJobs(monday));
     await mountRouteChecked('/last-planner?projectId=p1', { now });
-    await act(async () => { fireEvent.press(screen.getByText('This week')); });
+    await act(async () => { fireEvent.press(screen.getByText('This Week')); });
     expect(screen.getAllByText(weekLabel).length).toBeGreaterThan(0);
     expect(screen.getByText(/A crew is booked on two projects this week/)).toBeTruthy();
     const box = screen.getAllByRole('checkbox')[0];
@@ -179,7 +179,7 @@ describe.each(CLOCKS)('Last Planner and /summary are on the same week at %s', (_
   it('work dated the week AFTER is not this week on Last Planner', async () => {
     await seed(twoJobs(weekAfter()));
     await mountRouteChecked('/last-planner?projectId=p1', { now });
-    await act(async () => { fireEvent.press(screen.getByText('This week')); });
+    await act(async () => { fireEvent.press(screen.getByText('This Week')); });
     expect(screen.getAllByText(weekLabel).length).toBeGreaterThan(0);
     expect(screen.queryByText(/A crew is booked on two projects this week/)).toBeNull();
   });

@@ -467,7 +467,7 @@ async function main() {
   const list = del.match(/COLLABORATOR_FIELD_TABLES\s*=\s*\[([\s\S]*?)\];/)?.[1] ?? '';
   ok("delete-account hands code_checks and takeoff_docs to the job's owner", list.includes("'code_checks'") && list.includes("'takeoff_docs'"));
   const ledger = read('utils', 'syncLedger.ts');
-  ok('the "Not saved" sheet names both tables', ledger.includes("code_checks: 'Saved code check'") && ledger.includes("takeoff_docs: 'Desktop takeoff'"));
+  ok('the "Not saved" sheet names both tables', ledger.includes("code_checks: 'Saved Code Check'") && ledger.includes("takeoff_docs: 'Desktop Takeoff'"));
 
 
   // ── 7. list-3 follow-ups (lane R3F) ──────────────────────────────────────

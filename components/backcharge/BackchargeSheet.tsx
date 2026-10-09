@@ -30,7 +30,7 @@ import { backchargeSheetSubtitle } from '@/utils/backchargeCopy';
 import { useBackcharges } from '@/hooks/useBackcharges';
 import type { Commitment, Project, ProjectPhoto, PunchItem, Subcontractor } from '@/types';
 
-export const NO_LABOR_RATE_TEXT = 'No labor rate on file — type the amount';
+export const NO_LABOR_RATE_TEXT = 'No labor rate on file. Type the amount';
 
 export interface BackchargeSheetProps {
   visible: boolean;
@@ -103,7 +103,7 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
       } else {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-          showAlert('Camera access needed', 'Open Settings, then MAGE ID, then Camera to allow it.');
+          showAlert('Camera Access Needed', 'Open Settings, then MAGE ID, then Camera to allow it.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: false, exif: false });
@@ -119,13 +119,13 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
         uri,
         timestamp: now,
         tag: 'Backcharge',
-        location: `Backcharge — ${sub.companyName}${reason.trim() ? `: ${reason.trim()}` : ''}`,
+        location: `Backcharge, ${sub.companyName}${reason.trim() ? `: ${reason.trim()}` : ''}`,
         createdAt: now,
       };
       addProjectPhoto(saved);
       setPhoto({ uri: saved.uri, photoId: saved.id, punchItemId: null });
     } catch {
-      showAlert("Couldn't attach the photo", 'Try again, or pick one from a punch item.');
+      showAlert("Couldn't Attach the Photo", 'Try again, or pick one from a punch item.');
     }
   }, [addProjectPhoto, project.id, sub.companyName, reason]);
 
@@ -173,7 +173,7 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
       <TextInput
         value={reason}
         onChangeText={setReason}
-        placeholder="e.g. Cleanup after drywall — 2 dumpsters of debris"
+        placeholder="Cleanup after drywall, 2 dumpsters of debris"
         placeholderTextColor={t.textMuted}
         style={styles.input}
         testID="backcharge-reason"
@@ -183,7 +183,7 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
       <SegmentedControl
         options={[
           { value: 'typed', label: 'Type $' },
-          { value: 'hours', label: 'Hours × your labor rate', disabled: rateCents == null },
+          { value: 'hours', label: 'Hours × Your Labor Rate', disabled: rateCents == null },
         ]}
         value={mode}
         onChange={(v) => setMode(v as AmountMode)}
@@ -237,14 +237,14 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
       <Text style={styles.label}>Photo</Text>
       {photo ? (
         <View style={styles.photoRow}>
-          <Image source={{ uri: photo.uri }} style={styles.thumb} accessibilityLabel="Backcharge photo" />
+          <Image source={{ uri: photo.uri }} style={styles.thumb} accessibilityLabel="Backcharge Photo" />
           <Text style={styles.muted}>
             {photo.photoId ? 'Saved to this project’s photos.' : 'From the punch item’s photo.'}
           </Text>
         </View>
       ) : null}
       <Button
-        label={photo ? 'Replace photo' : 'Take or pick a photo'}
+        label={photo ? 'Replace Photo' : 'Take or Pick a Photo'}
         variant="secondary"
         size="sm"
         onPress={() => { void takePhoto(); }}
@@ -275,7 +275,7 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
 
       {commitments.length > 0 ? (
         <View style={styles.block}>
-          <Text style={styles.label}>Against commitment (optional)</Text>
+          <Text style={styles.label}>Against Commitment (Optional)</Text>
           <View style={styles.chips}>
             {commitments.map(c => (
               <TouchableOpacity

@@ -30,9 +30,9 @@ interface Props {
 }
 
 const SEVERITY_STYLES = {
-  high: { bg: Colors.errorLight, border: '#C84038', icon: AlertTriangle, label: 'High risk', textColor: '#D32F2F' },
-  medium: { bg: '#FFF8E1', border: Colors.warning, icon: MageAIMark, label: 'Medium risk', textColor: Colors.warningDark },
-  low: { bg: Colors.successLight, border: Colors.success, icon: CheckCircle2, label: 'Low risk', textColor: Colors.successDark },
+  high: { bg: Colors.errorLight, border: '#C84038', icon: AlertTriangle, label: 'High Risk', textColor: '#D32F2F' },
+  medium: { bg: '#FFF8E1', border: Colors.warning, icon: MageAIMark, label: 'Medium Risk', textColor: Colors.warningDark },
+  low: { bg: Colors.successLight, border: Colors.success, icon: CheckCircle2, label: 'Low Risk', textColor: Colors.successDark },
 } as const;
 
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -114,12 +114,12 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
         style={styles.initCard}
         onPress={() => void loadOrAnalyze()}
         accessibilityRole="button"
-        accessibilityLabel="Check schedule risks"
+        accessibilityLabel="Check Schedule Risks"
         testID="schedule-risk-run"
       >
         <MageAIMark size={18} color={themeColors.accent} />
         <View style={styles.initTextCol}>
-          <Text style={styles.initText}>{error ? 'Tap to check risks again' : 'Tap to check schedule risks'}</Text>
+          <Text style={styles.initText}>{error ? 'Tap to Check Risks Again' : 'Tap to Check Schedule Risks'}</Text>
           {error ? <Text style={styles.initError}>{error}</Text> : null}
         </View>
       </TouchableOpacity>
@@ -150,7 +150,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <MageAIMark size={16} color={themeColors.accent} />
-          <Text style={styles.headerTitle}>Risk forecast</Text>
+          <Text style={styles.headerTitle}>Risk Forecast</Text>
         </View>
         <TouchableOpacity
           onPress={() => void loadOrAnalyze(true)}
@@ -216,14 +216,14 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
 
       <View style={styles.confidenceRow}>
         <View style={styles.confItem}>
-          <Text style={styles.confLabel}>Completion confidence</Text>
+          <Text style={styles.confLabel}>Completion Confidence</Text>
           <Text style={[styles.confValue, { color: (result.overallConfidence ?? 0) >= 70 ? themeColors.success : Colors.warning }]}>
             {result.overallConfidence ?? 0}%
           </Text>
         </View>
         {result.predictedEndDate ? (
           <View style={styles.confItem}>
-            <Text style={styles.confLabel}>Predicted finish</Text>
+            <Text style={styles.confLabel}>Predicted Finish</Text>
             <Text style={styles.confValue}>{result.predictedEndDate}</Text>
           </View>
         ) : null}

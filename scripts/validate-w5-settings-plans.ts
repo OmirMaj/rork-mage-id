@@ -16,6 +16,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { REQUIRED_TIER, type FeatureKey } from '../utils/featureTiers';
 import { planFeatureLines, planFeatureBlurb } from '../utils/planFeatureCopy';
+import { manageSubscriptionRoute, APPLE_SUBSCRIPTIONS_IOS_URL, GOOGLE_PLAY_SUBSCRIPTIONS_URL } from '../utils/manageSubscription';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -34,7 +35,7 @@ const cardsAt = src.indexOf("id: 'free' as const");
 const cardsEnd = src.indexOf("id: 'enterprise' as const");
 const cards = cardsAt > -1 && cardsEnd > cardsAt ? src.slice(cardsAt, cardsEnd) : '';
 ok('the Free/Pro/Business card block was found', cards.length > 0);
-ok("Pro card lists 'Unlimited projects' + planCardLines('pro')", /features: \['Unlimited projects', \.\.\.planCardLines\('pro'\)\]/.test(cards));
+ok("Pro card lists 'More Than One Project' + planCardLines('pro')", /features: \['More Than One Project', \.\.\.planCardLines\('pro'\)\]/.test(cards));
 ok("Business card lists 'Everything in Pro' + planCardLines('business')", /features: \['Everything in Pro', \.\.\.planCardLines\('business'\)\]/.test(cards));
 ok('planCardLines reads planFeatureLines and filters the extra lines by lineTier',
   /\.\.\.planFeatureLines\(tier\),\s*\.\.\.SETTINGS_EXTRA_PLAN_LINES\.filter\(\(l\) => lineTier\(l\) === tier\)/.test(src));
@@ -68,16 +69,30 @@ ok('the FAQ says every plan syncs', /every plan syncs/.test(src));
 ok('prices come from constants/pricing (no typed $29/$79/$150)', !/'\$29\/mo'|'\$79\/mo'|'\$150\/mo'/.test(src) && /listPriceLabel\(t\)/.test(src));
 
 console.log('\n── Manage Subscription follows where the plan came from (#176) ──');
-ok('the row reads planSource (CONTRACT 1)', /const \{ planSource[^}]*\} = useSubscription\(\);/.test(src));
-ok("the store deep link is only for planSource 'store' on iOS/Android",
-  /if \(planSource === 'store' && \(Platform\.OS === 'ios' \|\| Platform\.OS === 'android'\)\)/.test(src));
-ok('no apps.apple.com link for the web', !/'https:\/\/apps\.apple\.com\/account\/subscriptions'/.test(src));
-ok('a hand-granted plan: "Your plan was turned on by MAGE ID" + mailto help@mageid.app',
-  /label: 'Your plan was turned on by MAGE ID'/.test(src)
-  && /'mailto:help@mageid\.app\?subject=Change%20my%20MAGE%20ID%20plan'/.test(src)
-  && /Email help@mageid\.app to change or cancel\. Nothing is deleted\./.test(src));
+// WEBCANCEL (2026-10-09): the route moved out of the screen into
+// utils/manageSubscription (pure; run here), the words into
+// hooks/useManageSubscriptionCopy and the row into
+// components/ManageSubscriptionRow. scripts/validate-manage-subscription.ts
+// holds the full set of states; these are the #176 pins, kept.
+const rowSrc = stripComments(read('components/ManageSubscriptionRow.tsx'));
+const hookSrc = stripComments(read('hooks/useManageSubscriptionCopy.ts'));
+ok('the row reads where the plan came from (the entitlement’s store, CONTRACT 1)',
+  /const store = sub\.planStore \?\? null;/.test(rowSrc) && /<ManageSubscriptionRow testID="manage-subscription" \/>/.test(src));
+const route = (os: string, store: string | null, managementURL: string | null = null) =>
+  manageSubscriptionRoute({ os, tier: 'business', store, managementURL, isOwner: false });
+ok("the store deep link is only for the phone's own store",
+  route('ios', 'APP_STORE').url === APPLE_SUBSCRIPTIONS_IOS_URL && route('android', 'PLAY_STORE').url === GOOGLE_PLAY_SUBSCRIPTIONS_URL
+  && route('ios', null).url === null && route('ios', 'PLAY_STORE').url === null && route('android', 'APP_STORE').url === null && route('android', null).url === null
+  && route('web', 'APP_STORE').url !== APPLE_SUBSCRIPTIONS_IOS_URL);
+ok('on the web an apps.apple.com link is only for an App Store plan',
+  /^https:\/\/apps\.apple\.com\//.test(route('web', 'APP_STORE').url ?? '')
+  && [null, 'PLAY_STORE', 'RC_BILLING', 'STRIPE', 'PROMOTIONAL'].every((st) => !/apple\.com/.test(route('web', st).url ?? '')));
+ok('a hand-granted plan: "Your Plan Was Turned On by MAGE ID" + mailto help@mageid.app',
+  route('web', null).kind === 'by-hand' && route('web', null).url === 'mailto:help@mageid.app?subject=Change%20my%20MAGE%20ID%20plan'
+  && /'office\.manageSub\.byHand\.label', 'Your Plan Was Turned On by MAGE ID'/.test(hookSrc)
+  && /Email help@mageid\.app to change or cancel\. Nothing is deleted\./.test(hookSrc));
 ok('never "no support call needed"', !/no support call needed/.test(src));
-ok('the Free-card downgrade alert uses the same branch', /showAlert\('Switch to Free', planChangeRoute\.downgradeMessage\)/.test(src));
+ok('the Free-card downgrade alert uses the same branch', /showAlert\('Switch to Free', manageSubscription\.lines\.downgrade\)/.test(src) && /const manageSubscription = useManageSubscription\(\);/.test(src));
 ok('the downgrade copy no longer sends him to support@', !/To downgrade to Free[^']*support@mageid\.app/.test(src));
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -66,13 +66,13 @@ ok('the edge function\'s min error names $0.50', /\$0\.50/.test(payLinkFailureRe
 ok('any other Stripe error is quoted, never swallowed', payLinkFailureReason('card_declined') === 'Stripe said: card_declined');
 ok('no error text still gives a reason', payLinkFailureReason(undefined).length > 10);
 ok('the replacement toast says "without a Pay button" and how to add one',
-  /^Sent — without a Pay button: .+\. Open Invoice #7 and tap Generate Payment Link/.test(sentWithoutPayButtonMessage(7, 'x')));
+  /^Sent without a Pay button: .+\. Open Invoice #7 and tap Generate Payment Link/.test(sentWithoutPayButtonMessage(7, 'x')));
 // A limit never passes on retry, so its toast must not send him to the button.
 for (const [label, amt] of [['over $999,999.99', 1_200_000], ['under $0.50', 0.49]] as const) {
   const reason = payLinkAmountBlock(amt) ?? '';
   const msg = sentWithoutPayButtonMessage(7, reason);
   ok(`${label}: the toast names the limit and does NOT say "tap Generate Payment Link"`,
-    msg.startsWith('Sent — without a Pay button: ') && msg.includes(reason) && !/Generate Payment Link/.test(msg), msg);
+    msg.startsWith('Sent without a Pay button: ') && msg.includes(reason) && !/Generate Payment Link/.test(msg), msg);
   ok(`${label}: the edge function's own limit error reads the same (not retryable)`,
     !/Generate Payment Link/.test(sentWithoutPayButtonMessage(7, payLinkFailureReason(amt > 1 ? 'Amount exceeds Stripe maximum' : 'Minimum charge amount is $0.50'))));
 }
@@ -110,7 +110,7 @@ ok('…even before the invoice is overdue (while he can still fix it)',
 ok('a paid invoice still says paid, not no_recipient', reminderEligibility({ ...base, amountPaid: 1000, hasRecipient: false }).reason !== 'no_recipient');
 ok('a recipient → eligible', reminderEligibility({ ...base, hasRecipient: true }).eligible);
 ok('unknown recipient (cron parity) is not blocked here', reminderEligibility({ ...base }).eligible);
-ok('the card copy says reminders are off and why', /Automatic reminders are off — no client email/.test(reminderBlockMessage('no_recipient')));
+ok('the card copy says reminders are off and why', /Automatic reminders are off: no client email/.test(reminderBlockMessage('no_recipient')));
 
 console.log('\nthe screen is wired to the rules');
 // Wave 4 #34: the send body is runConfirmSend; handleConfirmSend only wraps it
@@ -143,7 +143,7 @@ ok('handleConfirmSend: the portal post uses the latest-callback ref, after the e
 ok('handleConfirmSend: the post is gated on the tick AND a live portal', /if \(postToPortal && portalEnabled\)/.test(confirm));
 ok('the Send sheet offers "Also post to client portal", ticked by default',
   /useState\(true\)/.test(SCREEN.slice(SCREEN.indexOf('const [postToPortal'), SCREEN.indexOf('const [postToPortal') + 60))
-  && /Also post to client portal/.test(SCREEN));
+  && /Also Post to Client Portal/.test(SCREEN));
 ok('the send stores the recipient for reminders (new and existing branches)',
   /billToEmail: sendRecipientEmail\.trim\(\)/.test(confirm) && /updateInvoice\(workingInvoice\.id, \{ status: 'sent', dueDate, \.\.\.billTo \}\)/.test(confirm) && /updateInvoice\(existingInvoice\.id, \{\s*\.\.\.billTo,/.test(confirm));
 ok('the PDF send stores its recipient too', /billToEmail: sentTo/.test(pdf));

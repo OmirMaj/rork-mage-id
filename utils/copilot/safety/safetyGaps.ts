@@ -19,9 +19,9 @@ export function safetyGaps(draft: SafetyDraft, _grounding: Grounding): Gap[] {
       question: 'Did it need more than first aid? That decides if it’s OSHA-recordable.',
       groundedDefault: { value: 'first_aid', basis: 'first aid only is not recordable' },
       choices: [
-        { label: 'First aid only', value: 'first_aid', recommended: true, basis: 'not OSHA-recordable' },
-        { label: 'Needed a doctor / ER', value: 'medical_beyond_first_aid', basis: 'OSHA-recordable' },
-        { label: 'No treatment needed', value: 'none' },
+        { label: 'First Aid Only', value: 'first_aid', recommended: true, basis: 'not OSHA-recordable' },
+        { label: 'Needed a Doctor / ER', value: 'medical_beyond_first_aid', basis: 'OSHA-recordable' },
+        { label: 'No Treatment Needed', value: 'none' },
       ],
     });
   }

@@ -233,7 +233,7 @@ export function PlanZoneEditor({
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Edit zones</Text>
+        <Text style={styles.headerTitle}>Edit Zones</Text>
         <Text style={styles.headerHint}>Drag to draw · tap to edit</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <X size={18} color={colors.text} strokeWidth={1.75} />
@@ -312,12 +312,12 @@ export function PlanZoneEditor({
       >
         <View style={[styles.promptOverlay, fName.overlay]}>
           <View style={[styles.promptBox, { paddingBottom: insets.bottom + 12 }, fName.card]}>
-            <Text style={styles.promptTitle}>Name this zone</Text>
+            <Text style={styles.promptTitle}>Name This Zone</Text>
             <TextInput
               style={styles.promptInput}
               value={nameInput}
               onChangeText={setNameInput}
-              placeholder="e.g. Kitchen"
+              placeholder="Kitchen"
               placeholderTextColor={colors.textMuted}
               autoFocus
               returnKeyType="done"
@@ -328,7 +328,7 @@ export function PlanZoneEditor({
                 <Text style={styles.promptCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.promptConfirm, { backgroundColor: colors.accentFill }, fName.footerButton]} onPress={confirmNewZone}>
-                <Text style={styles.promptConfirmText}>Add zone</Text>
+                <Text style={styles.promptConfirmText}>Add Zone</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -353,7 +353,7 @@ export function PlanZoneEditor({
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, fZoneEdit.card]}>
           {/* Sheet header */}
           <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle}>Edit zone</Text>
+            <Text style={styles.sheetTitle}>Edit Zone</Text>
             <TouchableOpacity onPress={saveZoneEdit}>
               <Check size={18} color={colors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -372,7 +372,7 @@ export function PlanZoneEditor({
           {/* Link tasks */}
           <View style={styles.linkHeader}>
             <Link2 size={14} color={colors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.fieldLabel}>Linked tasks</Text>
+            <Text style={styles.fieldLabel}>Linked Tasks</Text>
           </View>
           {tasks.length === 0 ? (
             <Text style={styles.noTasks}>No schedule tasks yet.</Text>
@@ -407,7 +407,7 @@ export function PlanZoneEditor({
               activeOpacity={0.7}
             >
               <Trash2 size={14} color="#FF3B30" strokeWidth={1.75} />
-              <Text style={styles.deleteBtnText}>Delete zone</Text>
+              <Text style={styles.deleteBtnText}>Delete Zone</Text>
             </TouchableOpacity>
           )}
         </View>

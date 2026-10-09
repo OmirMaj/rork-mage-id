@@ -16,6 +16,7 @@
 // dependency) running on the native driver where possible.
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useRfpAttachmentUrls } from '@/utils/rfpAttachmentUrls';
 import {
   View,
   Text,
@@ -274,7 +275,7 @@ export default function ClientHome() {
                 {greeting.text}{firstName ? `, ${firstName}` : ''}
               </Text>
             </View>
-            <Text style={styles.title}>Your portfolio</Text>
+            <Text style={styles.title}>Your Portfolio</Text>
             <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
           </View>
         </FadeRise>
@@ -305,7 +306,7 @@ export default function ClientHome() {
                 <Plus size={20} color="#FFF" strokeWidth={2.6} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.heroCtaTitle}>Post a project</Text>
+                <Text style={styles.heroCtaTitle}>Post a Project</Text>
                 <Text style={styles.heroCtaBody}>
                   From a kitchen remodel to a full gut. We alert MAGE ID contractors who cover your area and show you how many that was.
                 </Text>
@@ -344,7 +345,7 @@ export default function ClientHome() {
               />
               <StatTile
                 icon={MageAIMark}
-                label="New bids"
+                label="New Bids"
                 value={totals.newBids}
                 accent={themeColors.accent}
                 lit={totals.newBids > 0}
@@ -375,7 +376,7 @@ export default function ClientHome() {
                   My RFPs now shows the real alerted count (audit round 2, #8). */}
               <Text style={styles.emptyBody}>
                 Post your scope. We alert MAGE ID contractors who cover your area and show you how many that was.
-                Compare side-by-side, pick the build you like, and track the work — one app, your whole portfolio.
+                Compare side-by-side, pick the build you like, and track the work. One app for your whole portfolio.
               </Text>
             </View>
           </FadeRise>
@@ -388,7 +389,7 @@ export default function ClientHome() {
           <View style={styles.section}>
             <FadeRise delay={200}>
               <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>Out for bid</Text>
+                <Text style={styles.sectionTitle}>Out for Bid</Text>
                 <View style={styles.sectionCountPill}>
                   <Text style={styles.sectionCountText}>{partitioned.open.length}</Text>
                 </View>
@@ -413,7 +414,7 @@ export default function ClientHome() {
           <View style={styles.section}>
             <FadeRise delay={240}>
               <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>In progress</Text>
+                <Text style={styles.sectionTitle}>In Progress</Text>
                 <View style={[styles.sectionCountPill, { backgroundColor: themeColors.success + '20' }]}>
                   <Text style={[styles.sectionCountText, { color: themeColors.success }]}>
                     {partitioned.awarded.length}
@@ -489,7 +490,12 @@ function RfpCard({
   // Image silently renders nothing and the hero looks like a blank cream
   // strip instead of the branded placeholder.
   const [photoFailed, setPhotoFailed] = React.useState(false);
-  const showPhoto = !!heroPhoto && !photoFailed;
+  // The stored value (a legacy public URL or a bare path) is never handed to
+  // the <Image>: it is signed first, and shows the placeholder until it is.
+  const heroRefs = useMemo(() => (heroPhoto ? [heroPhoto] : []), [heroPhoto]);
+  const attachmentUrl = useRfpAttachmentUrls(heroRefs);
+  const heroUri = attachmentUrl(heroPhoto);
+  const showPhoto = !!heroUri && !photoFailed;
 
   return (
     <TouchableOpacity
@@ -505,7 +511,7 @@ function RfpCard({
       <View style={styles.rfpHeroWrap}>
         {showPhoto ? (
           <Image
-            source={{ uri: heroPhoto as string }}
+            source={{ uri: heroUri }}
             style={styles.rfpHero}
             resizeMode="cover"
             onError={() => setPhotoFailed(true)}
@@ -582,7 +588,7 @@ function RfpCard({
           {isAwarded
             ? 'Your contractor has your details and will send your project portal link.'
             : row.response_count === 0
-              ? 'Awaiting first bid'
+              ? 'Awaiting First Bid'
               : `${row.response_count} bid${row.response_count === 1 ? '' : 's'} in`}
           {!isAwarded && row.unreviewed_count > 0 ? `  ·  ${row.unreviewed_count} need review` : ''}
         </Text>
@@ -594,7 +600,7 @@ function RfpCard({
               styles.rfpResponseChipText,
               row.unreviewed_count > 0 ? { color: accent } : null,
             ]}>
-              {row.unreviewed_count > 0 ? 'Review bids' : 'View details'}
+              {row.unreviewed_count > 0 ? 'Review Bids' : 'View Details'}
             </Text>
             {row.unreviewed_count > 0 && (
               <View style={[styles.unreadDot, { backgroundColor: accent }]}>

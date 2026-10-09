@@ -138,12 +138,12 @@ export function SaveAnswerSheet({
       visible={visible}
       onClose={onClose}
       size="form"
-      title={t('office.permitPath.save.title', 'Save answer')}
+      title={t('office.permitPath.save.title', 'Save Answer')}
       subtitle={jurisdiction.name}
       dismissible={!saving}
       testID={testID}
       primaryAction={{
-        label: t('office.permitPath.save.save', 'Save answer'),
+        label: t('office.permitPath.save.save', 'Save Answer'),
         onPress: () => { void save(); },
         disabled: !check.ok,
         disabledReason: check.ok ? undefined : check.reason,
@@ -151,7 +151,7 @@ export function SaveAnswerSheet({
         testID: id('save'),
       }}
     >
-      <Text style={styles.label}>{t('office.permitPath.save.what', 'What they said')}</Text>
+      <Text style={styles.label}>{t('office.permitPath.save.what', 'What They Said')}</Text>
       <TextInput
         style={[styles.input, styles.multiline]}
         value={answerText}
@@ -159,7 +159,7 @@ export function SaveAnswerSheet({
         multiline
         placeholder={t('office.permitPath.save.whatHint', 'In their words')}
         placeholderTextColor={colors.textMuted}
-        accessibilityLabel={t('office.permitPath.save.what', 'What they said')}
+        accessibilityLabel={t('office.permitPath.save.what', 'What They Said')}
         testID={id('answer')}
       />
 
@@ -174,24 +174,24 @@ export function SaveAnswerSheet({
         testID={id('date')}
       />
 
-      <Text style={styles.label}>{t('office.permitPath.save.name', 'Their name')}</Text>
+      <Text style={styles.label}>{t('office.permitPath.save.name', 'Their Name')}</Text>
       <TextInput
         style={styles.input}
         value={saidByName}
         onChangeText={setSaidByName}
         maxLength={120}
-        accessibilityLabel={t('office.permitPath.save.name', 'Their name')}
+        accessibilityLabel={t('office.permitPath.save.name', 'Their Name')}
         testID={id('name')}
       />
-      <Text style={styles.label}>{t('office.permitPath.save.role', 'Their title')}</Text>
+      <Text style={styles.label}>{t('office.permitPath.save.role', 'Their Title')}</Text>
       <TextInput
         style={styles.input}
         value={saidByRole}
         onChangeText={setSaidByRole}
         maxLength={120}
-        placeholder={t('office.permitPath.save.roleHint', 'e.g. plans examiner')}
+        placeholder={t('office.permitPath.save.roleHint', 'Plans examiner')}
         placeholderTextColor={colors.textMuted}
-        accessibilityLabel={t('office.permitPath.save.role', 'Their title')}
+        accessibilityLabel={t('office.permitPath.save.role', 'Their Title')}
         testID={id('role')}
       />
 
@@ -216,7 +216,7 @@ export function SaveAnswerSheet({
         })}
       </ChipRail>
 
-      <Text style={styles.label}>{t('office.permitPath.save.link', 'Link (optional)')}</Text>
+      <Text style={styles.label}>{t('office.permitPath.save.link', 'Link (Optional)')}</Text>
       <TextInput
         style={styles.input}
         value={sourceUrl}
@@ -226,7 +226,7 @@ export function SaveAnswerSheet({
         keyboardType="url"
         placeholder="https://"
         placeholderTextColor={colors.textMuted}
-        accessibilityLabel={t('office.permitPath.save.link', 'Link (optional)')}
+        accessibilityLabel={t('office.permitPath.save.link', 'Link (Optional)')}
         testID={id('link')}
       />
       {linkBad ? <Text style={styles.error}>{t('office.permitPath.save.linkBad', 'Links start with https://')}</Text> : null}

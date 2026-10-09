@@ -105,21 +105,21 @@ export function DashboardTab({ hasBudget }: {
           (220 px minimum, up to 4), so a tile never stretches past its data. */}
       <TileGrid preset="kpi" phoneStyle={[styles.statRow, isPhone && styles.statRowPhone]}>
         <StatCard
-          label="Health score"
+          label="Health Score"
           value={String(healthScore)}
           valueColor={healthColor}
-          delta={cpm.slipDaysVsBaseline == null ? 'No baseline' : cpm.slipDaysVsBaseline === 0 ? 'On baseline' : `${cpm.slipDaysVsBaseline > 0 ? '↘' : '↑'} ${Math.abs(cpm.slipDaysVsBaseline)}d ${cpm.slipDaysVsBaseline > 0 ? 'slip' : 'ahead'}`}
+          delta={cpm.slipDaysVsBaseline == null ? 'No Baseline' : cpm.slipDaysVsBaseline === 0 ? 'On Baseline' : `${cpm.slipDaysVsBaseline > 0 ? '↘' : '↑'} ${Math.abs(cpm.slipDaysVsBaseline)}d ${cpm.slipDaysVsBaseline > 0 ? 'slip' : 'ahead'}`}
           phone={isPhone}
         />
         <StatCard
-          label="Critical path"
+          label="Critical Path"
           value={`${cpm.criticalPathDays}d`}
           delta={`${critical.length} task${critical.length === 1 ? '' : 's'}`}
           phone={isPhone}
         />
         <StatCard
           label="Budget"
-          value="Not linked"
+          value="Not Linked"
           delta="Link an estimate to track cost"
           phone={isPhone}
         />
@@ -138,7 +138,7 @@ export function DashboardTab({ hasBudget }: {
         {hideEvPlaceholder ? null : (
         <View style={[styles.chartCard, isPhone ? styles.chartCardPhone : { flex: 1.4 }]}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Earned value</Text>
+            <Text style={styles.chartTitle}>Earned Value</Text>
             <View style={styles.legend}>
               <Legend color={Colors.tradeColors.general} label="EV" />
               <Legend color={t.textSecondary} label="PV" />
@@ -154,7 +154,7 @@ export function DashboardTab({ hasBudget }: {
 
         <View style={[styles.chartCard, isPhone ? styles.chartCardPhone : { flex: 1 }]}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Tasks by status</Text>
+            <Text style={styles.chartTitle}>Tasks by Status</Text>
             <Text style={styles.chartHint}>{stats.total} total</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -182,7 +182,7 @@ export function DashboardTab({ hasBudget }: {
       {/* Critical-path activities list */}
       <View style={[styles.cpList, isDesktop && styles.cpListDesktop]}>
         <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>Critical path tasks</Text>
+          <Text style={styles.chartTitle}>Critical Path Tasks</Text>
           <Text style={styles.chartHint}>{critical.length} tasks · {cpm.criticalPathDays}d total</Text>
         </View>
         {critical.length === 0 && (
@@ -195,7 +195,7 @@ export function DashboardTab({ hasBudget }: {
               <Text style={styles.cpName} numberOfLines={1}>{t.title}</Text>
               <Text style={styles.cpTrade}>{tradeLabel(tradeKeyForTask(t)).toUpperCase()}</Text>
             </View>
-            <Text style={styles.cpFloat}>No float</Text>
+            <Text style={styles.cpFloat}>No Float</Text>
             <Text style={styles.cpDue}>{t.deadline ? formatCalendarDay(t.deadline, { month: 'short', day: 'numeric' }) : '—'}</Text>
           </View>
         ))}

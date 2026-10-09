@@ -332,7 +332,7 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
     // The controlled view is the Timeline split, with no local layout bar and
     // no Gantt toolbar (its zoom / Fit / Today come through ganttRef).
     expect(r.queryByTestId('gantt-split-grid')).not.toBeNull();
-    expect(r.queryByText('Living plan')).toBeNull();
+    expect(r.queryByText('Living Plan')).toBeNull();
     expect(r.queryByText('Fit')).toBeNull();
     // The colour toggle moved to the 24 px footer strip.
     expect(r.queryByTestId('gantt-colormode-trade')).not.toBeNull();
@@ -358,11 +358,11 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
     await settle();
     await layoutRow(r, 1448);
     const header = () => textsOf(r.getByTestId('gantt-split-grid') as unknown as Inst);
-    expect(header().slice(0, 4)).toEqual(['Task name', 'Dur.', 'Start', 'Finish']);
+    expect(header().slice(0, 4)).toEqual(['Task Name', 'Dur.', 'Start', 'Finish']);
 
     r.rerender(<Wrap><SchedulerTabShell {...shellProps(PRO)} /></Wrap>);
     await settle();
-    expect(header().slice(0, 5)).toEqual(['#', 'Task name', 'Dur.', 'Start', 'Finish']);
+    expect(header().slice(0, 5)).toEqual(['#', 'Task Name', 'Dur.', 'Start', 'Finish']);
   });
 
   it('compact density: 32 px rows under a 48 px header, in the grid and the Gantt alike', async () => {
@@ -457,11 +457,11 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
   it('the Overview drops the "link a budget" EV card only when hasBudget is false', async () => {
     const r = render(<Wrap><SchedulerTabShell {...shellProps({ desktopChrome: 'toolbar', view: 'overview', hasBudget: false })} /></Wrap>);
     await settle();
-    expect(r.queryByText('Earned value')).toBeNull();
-    expect(r.queryByText('Tasks by status')).not.toBeNull();
+    expect(r.queryByText('Earned Value')).toBeNull();
+    expect(r.queryByText('Tasks by Status')).not.toBeNull();
     r.rerender(<Wrap><SchedulerTabShell {...shellProps({ desktopChrome: 'toolbar', view: 'overview' })} /></Wrap>);
     await settle();
-    expect(r.queryByText('Earned value')).not.toBeNull();
+    expect(r.queryByText('Earned Value')).not.toBeNull();
   });
 
   it('a right-click menu opens at the pointer as a 220-280 px popover, pulled inside the window', async () => {
@@ -489,10 +489,10 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
     fireEvent.press(r.getByText('Plan ▾'));
     await settle();
     expect(r.queryByText('Timeline')).toBeNull();
-    expect(r.queryByText('Add task')).not.toBeNull();
+    expect(r.queryByText('Add Task')).not.toBeNull();
     fireEvent.press(r.getByText('Share ▾'));
     await settle();
-    expect(r.queryByText('Today & lookahead (classic)')).not.toBeNull();
+    expect(r.queryByText('Today and Lookahead (Classic)')).not.toBeNull();
   });
 
   it('SchedulerMenuBar: no openClassic, no classic item; the views stay without actionsOnly', async () => {

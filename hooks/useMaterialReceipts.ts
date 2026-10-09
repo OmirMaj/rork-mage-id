@@ -63,12 +63,12 @@ export function receiptSavedMessage(outcome: 'saving' | MaterialReceiptSaveOutco
     case 'saving':
       return 'Saving…';
     case 'synced':
-      return 'Saved to your account — it counts on the web and your other devices. The prices fed your Cost Database; snap another or head back.';
+      return 'Saved to your account. It counts on the web and your other devices. The prices fed your Cost Database; snap another or head back.';
     case 'queued':
-      return "Saved on this phone — it uploads to your account when you're back online. Signing out before then removes it.";
+      return "Saved on this phone. It uploads to your account when you're back online. Signing out before then removes it.";
     case 'failed':
     default:
-      return "Saved on this phone only — it won't show on the web or other devices yet, and signing out removes it.";
+      return "Saved on this phone only. It won't show on the web or other devices yet, and signing out removes it.";
   }
 }
 

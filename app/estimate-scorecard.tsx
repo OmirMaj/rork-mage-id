@@ -84,8 +84,8 @@ function ScorecardInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate scorecard · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Where your bids are off</Text>
+          <Text style={styles.headerEyebrow}>Estimate Scorecard · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Where Your Bids Are Off</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -93,7 +93,7 @@ function ScorecardInner() {
       {card.tradesRated === 0 ? (
         <EmptyState
           icon={<Library size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No bid-vs-actual history yet"
+          title="No Bid-vs-Actual History Yet"
           message="Close a project that had a cost estimate, with commitments linked to its estimate lines. Once a scope has both a bid and a measured cost, it shows up here, and every project after that sharpens it."
         />
       ) : (
@@ -103,7 +103,7 @@ function ScorecardInner() {
         >
           {/* ── the number ─────────────────────────────────────────── */}
           <View style={styles.hero}>
-            <Text style={styles.heroEyebrow}>Left on the table</Text>
+            <Text style={styles.heroEyebrow}>Left on the Table</Text>
             <Text style={styles.heroValue}>{money(card.underbidDollars)}</Text>
             <Text style={styles.heroSub}>
               across {card.jobsAnalyzed} closed {card.jobsAnalyzed === 1 ? 'project' : 'projects'}:
@@ -131,7 +131,7 @@ function ScorecardInner() {
 
             {/* Netting is the trap this screen refuses to fall into. */}
             <Text style={styles.heroNote}>
-              These don&rsquo;t cancel out. Padding one trade while starving another is two
+              These don’t cancel out. Padding one trade while starving another is two
               problems, not zero. The padded bids cost you projects you never won.
             </Text>
           </View>
@@ -146,7 +146,7 @@ function ScorecardInner() {
             </>
           ) : (
             <View style={styles.calmCard}>
-              <Text style={styles.calmTitle}>No systematic bias yet</Text>
+              <Text style={styles.calmTitle}>No Systematic Bias Yet</Text>
               <Text style={styles.calmBody}>
                 Every trade with enough history is bidding within a few percent of what it
                 actually costs. Individual projects still vary, but nothing is
@@ -158,7 +158,7 @@ function ScorecardInner() {
           {/* Everything else, for completeness — rated but not a pattern. */}
           {card.trades.length > patterns.length ? (
             <>
-              <Text style={styles.sectionTitle}>Everything else</Text>
+              <Text style={styles.sectionTitle}>Everything Else</Text>
               {card.trades.filter(x => !x.isPattern).map(tr => (
                 <TradeRow key={tr.key} tr={tr} styles={styles} t={t} muted />
               ))}

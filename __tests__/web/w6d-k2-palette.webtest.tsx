@@ -227,8 +227,8 @@ describe('d6r K2: the Cmd+K command palette (desktop web)', () => {
     const input = await openPalette();
     await typeInto(input, 'post');
     const text = byTestId('command-palette').textContent ?? '';
-    expect(text).not.toContain('Post a project');
-    expect(text).not.toContain('My projects');
+    expect(text).not.toContain('Post a Project');
+    expect(text).not.toContain('My Projects');
     expect(lanes()).not.toContain('actions');
     expect(lanes()).not.toContain('projects');
   });
@@ -237,7 +237,7 @@ describe('d6r K2: the Cmd+K command palette (desktop web)', () => {
     mockRole = 'client';
     const input = await openPalette();
     await typeInto(input, 'post');
-    expect(byTestId('command-palette').textContent ?? '').toContain('Post a project');
+    expect(byTestId('command-palette').textContent ?? '').toContain('Post a Project');
   });
 
   it('the Ask row opens the Ask dock, seeded with the query', async () => {

@@ -37,7 +37,7 @@ import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 function statusConfig(t: ThemeColors): Record<string, { label: string; color: string }> {
   return {
     available: { label: 'Available', color: t.success },
-    in_use: { label: 'In use', color: t.info },
+    in_use: { label: 'In Use', color: t.info },
     maintenance: { label: 'Maintenance', color: t.warningLabel },
     retired: { label: 'Retired', color: neutralInk(t) },
   };
@@ -132,12 +132,12 @@ export default function EquipmentDetailScreen() {
     const hours = Math.max(0, parseFloat(logHours) || 0);
     const cost = (hours / EQUIPMENT_HOURS_PER_DAY) * rate;
     const money = cost.toLocaleString(undefined, { maximumFractionDigits: 2 });
-    return `Charged to ${logProject.name} at $${rate.toLocaleString()}/day — ${EQUIPMENT_HOURS_PER_DAY} hours is one day, so ${hours} h adds $${money} to that project's cost.`;
+    return `Charged to ${logProject.name} at $${rate.toLocaleString()}/day. ${EQUIPMENT_HOURS_PER_DAY} hours is one day, so ${hours} h adds $${money} to that project's cost.`;
   }, [logProject, equip, logHours]);
 
   const handleSave = useCallback(() => {
     if (!equip || !editName.trim()) {
-      showAlert('Add a name', 'Enter an equipment name.');
+      showAlert('Add a Name', 'Enter an equipment name.');
       return;
     }
     updateEquipment(equip.id, {
@@ -173,14 +173,14 @@ export default function EquipmentDetailScreen() {
     if (!equip) return;
     const hours = parseFloat(logHours) || 0;
     if (hours <= 0) {
-      showAlert('Check the hours', 'Enter hours as a number.');
+      showAlert('Check the Hours', 'Enter hours as a number.');
       return;
     }
     // The button that opens this modal is disabled and says why, so this is the
     // last gate rather than the first — but it is a money write, and the cost of
     // being wrong is hours that exist on the machine and nowhere in the books.
     if (!logProject) {
-      showAlert('No project selected', 'Assign this machine to a project before logging hours, or the time is charged to nothing.');
+      showAlert('No Project Selected', 'Assign this machine to a project before logging hours, or the time is charged to nothing.');
       return;
     }
     logUtilization({
@@ -206,8 +206,8 @@ export default function EquipmentDetailScreen() {
   if (!equip) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Not found' }} />
-        <Text style={styles.emptyText}>Equipment not found</Text>
+        <Stack.Screen options={{ title: 'Not Found' }} />
+        <Text style={styles.emptyText}>Equipment Not Found</Text>
       </View>
     );
   }
@@ -253,10 +253,10 @@ export default function EquipmentDetailScreen() {
           </View>
         </View>
 
-        <Text style={styles.fieldLabel}>Serial number</Text>
+        <Text style={styles.fieldLabel}>Serial Number</Text>
         <TextInput style={styles.input} value={editSerialNumber} onChangeText={setEditSerialNumber} placeholder="Optional" placeholderTextColor={themeColors.textMuted} />
 
-        <Text style={styles.fieldLabel}>Daily rate ($)</Text>
+        <Text style={styles.fieldLabel}>Daily Rate ($)</Text>
         <TextInput style={styles.input} value={editDailyRate} onChangeText={setEditDailyRate} placeholder="350" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
 
         <Text style={styles.fieldLabel}>Status</Text>
@@ -282,7 +282,7 @@ export default function EquipmentDetailScreen() {
           </View>
         )}
 
-        <Text style={styles.fieldLabel}>Assigned project</Text>
+        <Text style={styles.fieldLabel}>Assigned Project</Text>
         <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowProjectPicker(!showProjectPicker)}>
           <Text style={styles.pickerBtnText}>
             {editProjectId ? (projects.find(p => p.id === editProjectId)?.name ?? 'Unknown') : 'None'}
@@ -313,7 +313,7 @@ export default function EquipmentDetailScreen() {
           textAlignVertical="top"
         />
 
-        <Text style={styles.sectionTitle}>Maintenance schedule</Text>
+        <Text style={styles.sectionTitle}>Maintenance Schedule</Text>
         {equip.maintenanceSchedule.length === 0 ? (
           <Text style={styles.noDataText}>No maintenance items scheduled.</Text>
         ) : (
@@ -331,7 +331,7 @@ export default function EquipmentDetailScreen() {
           ))
         )}
 
-        <Text style={styles.sectionTitle}>Utilization (last 30 days)</Text>
+        <Text style={styles.sectionTitle}>Utilization (Last 30 Days)</Text>
         {last30Days.length === 0 ? (
           <Text style={styles.noDataText}>No utilization logged yet.</Text>
         ) : (
@@ -367,7 +367,7 @@ export default function EquipmentDetailScreen() {
           testID="log-usage-open"
         >
           <Clock size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.logBtnText}>Log today's use</Text>
+          <Text style={styles.logBtnText}>Log Today's Use</Text>
         </TouchableOpacity>
         {logBlockedReason ? (
           <Text style={styles.logBlockedText} testID="log-usage-blocked">{logBlockedReason}</Text>
@@ -382,12 +382,12 @@ export default function EquipmentDetailScreen() {
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-equipment">
           <Save size={18} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.saveBtnText}>Save changes</Text>
+          <Text style={styles.saveBtnText}>Save Changes</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
           <Trash2 size={16} color={"#C84038"} strokeWidth={1.75} />
-          <Text style={styles.deleteBtnText}>Delete equipment</Text>
+          <Text style={styles.deleteBtnText}>Delete Equipment</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -395,12 +395,12 @@ export default function EquipmentDetailScreen() {
         <View style={[styles.modalOverlay, fLog.overlay]}>
           <View style={[styles.modalCard, fLog.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Log usage</Text>
+              <Text style={styles.modalTitle}>Log Usage</Text>
               <TouchableOpacity onPress={() => setShowLogModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.fieldLabel}>Hours used</Text>
+            <Text style={styles.fieldLabel}>Hours Used</Text>
             <TextInput style={styles.input} value={logHours} onChangeText={setLogHours} keyboardType="numeric" placeholder="8" placeholderTextColor={themeColors.textMuted} />
             {/* Directly under the field that drives it: which job this lands on
                 and what it costs there, recomputed as the hours are typed and
@@ -409,10 +409,10 @@ export default function EquipmentDetailScreen() {
             {chargePreview ? (
               <Text style={styles.modalChargeNote} testID="log-usage-charge-note">{chargePreview}</Text>
             ) : null}
-            <Text style={styles.fieldLabel}>Operator name</Text>
+            <Text style={styles.fieldLabel}>Operator Name</Text>
             <TextInput style={styles.input} value={logOperator} onChangeText={setLogOperator} placeholder="Optional" placeholderTextColor={themeColors.textMuted} />
             <TouchableOpacity style={styles.saveBtn} onPress={handleLogUse} activeOpacity={0.85}>
-              <Text style={styles.saveBtnText}>Log usage</Text>
+              <Text style={styles.saveBtnText}>Log Usage</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -63,7 +63,7 @@ describe('crew member language row (W3 ESTICKET)', () => {
     const r = render(<Row value={null} onChange={onChange} testID="crew-edit-language" />);
     expect(r.getByTestId('crew-edit-language')).toBeTruthy();
     expect(r.getByText('Language')).toBeTruthy();
-    expect(r.getByText('Not set')).toBeTruthy();
+    expect(r.getByText('Not Set')).toBeTruthy();
     expect(r.getByText('English')).toBeTruthy();
     expect(r.getByText('Español')).toBeTruthy();
     expect(r.getByText('Used for texts and invites we send them.')).toBeTruthy();

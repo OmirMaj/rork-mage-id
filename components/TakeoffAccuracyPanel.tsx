@@ -40,7 +40,7 @@ function pctError(ai: number, user: number): number {
 function getCategoryStats(takeoff: TakeoffResult, overrides: Record<string, number>): CategoryStat[] {
   const groups: { key: string; section: string; items: { id: string; value: number }[] }[] = [
     { key: 'walls', section: 'Walls (LF)', items: takeoff.walls.map(w => ({ id: w.id, value: w.lengthFt })) },
-    { key: 'floor', section: 'Floor areas (SF)', items: takeoff.floorAreas.map(f => ({ id: f.id, value: f.areaSqFt })) },
+    { key: 'floor', section: 'Floor Areas (SF)', items: takeoff.floorAreas.map(f => ({ id: f.id, value: f.areaSqFt })) },
     { key: 'doors', section: 'Doors (EA)', items: takeoff.doors.map(d => ({ id: d.id, value: d.count })) },
     { key: 'windows', section: 'Windows (EA)', items: takeoff.windows.map(w => ({ id: w.id, value: w.count })) },
     { key: 'finish', section: 'Finishes', items: takeoff.finishes.map(f => ({ id: f.id, value: f.quantity })) },
@@ -82,7 +82,7 @@ function TakeoffAccuracyPanelImpl({ takeoff, overrides }: TakeoffAccuracyPanelPr
   return (
     <View style={styles.card}>
       <View style={styles.head}>
-        <Text style={styles.title}>Your corrections</Text>
+        <Text style={styles.title}>Your Corrections</Text>
         <Text style={styles.sub}>{totalEdited} edit{totalEdited === 1 ? '' : 's'} across {stats.length} categor{stats.length === 1 ? 'y' : 'ies'}.</Text>
       </View>
       <View style={styles.list}>

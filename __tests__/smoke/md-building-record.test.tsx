@@ -38,7 +38,7 @@ jest.mock('@/contexts/ThemeContext', () => {
 let mockMd: Record<string, unknown> = {};
 jest.mock('@/hooks/useMdBuildingRecord', () => ({
   useMdBuildingRecord: () => mockMd,
-  MD_NO_MATCH_TEXT: 'No Baltimore parcel found at this address — nothing was checked.',
+  MD_NO_MATCH_TEXT: 'No Baltimore parcel found at this address, so nothing was checked.',
 }));
 // BuildingRecordCard's NYC hook: inert (no NYC job here).
 jest.mock('@/hooks/useBuildingRecord', () => ({
@@ -151,7 +151,7 @@ describe('Baltimore building record card', () => {
     // The zoning district PDF the City's zoning layer links (spec GOAL).
     expect(screen.getByTestId('mdrecord-link-0')).toBeTruthy();
     expect(screen.getByText('R-6 zoning district (PDF)')).toBeTruthy();
-    expect(screen.getByText('Change building')).toBeTruthy();
+    expect(screen.getByText('Change Building')).toBeTruthy();
     expect(allText()).not.toMatch(/No open notices listed/);
     expect(allText()).not.toMatch(/No open (interior\/exterior|exterior|interior) notices/);
     expect(allText()).not.toMatch(/\bclean\b|no violations|not vacant|not historic|no flood risk/i);

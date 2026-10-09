@@ -31,7 +31,7 @@ const NYC_ID = '7a1e0001-0000-4000-8000-000000000001';
 const HEMP_ID = '7a1e0002-0000-4000-8000-000000000002';
 const NONE_ID = '7a1e0003-0000-4000-8000-000000000003';
 
-const STATION_TITLES = ['Scope', 'Checks', 'Drawings and who stamps them', 'Filing', 'Plan review', 'Permit issued', 'Work and inspections', 'Sign-off'];
+const STATION_TITLES = ['Scope', 'Checks', 'Drawings and Who Stamps Them', 'Filing', 'Plan Review', 'Permit Issued', 'Work and Inspections', 'Sign-off'];
 
 function job(id: string, name: string, street: string, city: string, zip: string, lines: string[]): Project {
   return {

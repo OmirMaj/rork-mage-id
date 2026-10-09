@@ -240,9 +240,9 @@ console.log('\n(b) paymentsFooter and the cells:');
   ok('…the KPI Received / Pending / fees are stats.received / stats.pending / stats.totalFees',
     /key: 'received', label: 'Received', value: formatMoney\(stats\.received, 2\)/.test(ps)
     && /key: 'pending',\s*label: 'Pending',\s*value: formatMoney\(stats\.pending, 2\)/.test(ps)
-    && /key: 'fees', label: 'Est\. fees', value: formatMoney\(stats\.totalFees, 2\)/.test(ps));
+    && /key: 'fees', label: 'Est\. Fees', value: formatMoney\(stats\.totalFees, 2\)/.test(ps));
   ok('…the Pending cell says so when the buckets do not reconcile',
-    /!ar\.reconciles\s*\?\s*'A\/R buckets differ from Pending — see Reports'/.test(ps));
+    /!ar\.reconciles\s*\?\s*'A\/R buckets differ from Pending. See Reports'/.test(ps));
   ok('…the footer is paymentsFooter(selectedTab, filtered, stats)', /paymentsFooter\(selectedTab, filtered, stats\)/.test(ps));
   const table = ps.slice(ps.indexOf('<DataTable<PaymentRow>'), ps.indexOf('/>', ps.indexOf('renderCard=', ps.indexOf('<DataTable<PaymentRow>'))));
   ok('…the register has NO searchText (the footers are tab totals)', !!table && !/searchText/.test(table), table.slice(0, 80));
@@ -267,7 +267,7 @@ console.log('\n(e) invoice lines:');
   const table = inv.slice(inv.indexOf('<DataTable<InvoiceLineItem>'), inv.indexOf('renderCard=', inv.indexOf('<DataTable<InvoiceLineItem>')));
   ok('…READ-ONLY: the table has no editable cell and its hotkeys are off (it shares a page with InvoiceLog)',
     !!table && /hotkeys=\{false\}/.test(table) && !/TextInput|onChangeText/.test(table));
-  ok('…bulk Remove says why when the invoice is locked', /disabledReason: isLocked \? 'Sent invoices are locked — void and reissue to change lines\.' : null/.test(inv));
+  ok('…bulk Remove says why when the invoice is locked', /disabledReason: isLocked \? 'Sent invoices are locked\. Void and reissue to change lines\.' : null/.test(inv));
   ok('…the invoice.totals TutorialTarget still directly follows the Line Items section',
     /<\/View>\s*\{\/\* The wrapper carries the card's outer margins[\s\S]{0,200}\*\/\}\s*<TutorialTarget id="invoice\.totals" style=\{styles\.totalsTarget\}>/.test(read('app/invoice.tsx')));
 
@@ -298,13 +298,13 @@ console.log('\n(f) source pins:');
 {
   const block = paySrc.slice(from, to + END.length);
   const hash = createHash('sha256').update(block).digest('hex');
-  ok('payments: the feed\'s sentinel block is byte-identical to the base (439e119a)',
-    hash === 'aa16270ed02531b47afdf2d914da58ff44646bb7b385a584f8edc47c596e4f9d', hash);
+  ok('payments: the feed\'s sentinel block is byte-identical to the base (439e119a, with the copy lane 2 Title Case labels and dash rewrites)',
+    hash === 'f8d760eaccee048374d5e18e58d35fad90e2f53327cc24c3f3409a76a869f0bd', hash);
 
   const lw = read('app/lien-waivers.tsx');
   const lwc = code(lw);
-  ok('lien: "No waivers yet" still renders only when the read did not fail, once',
-    lwc.includes('{!loading && !loadError && waivers.length === 0 && (') && (lwc.match(/No waivers yet/g) ?? []).length === 1);
+  ok('lien: "No Waivers Yet" still renders only when the read did not fail, once',
+    lwc.includes('{!loading && !loadError && waivers.length === 0 && (') && (lwc.match(/No Waivers Yet/g) ?? []).length === 1);
   ok('lien: pull-to-refresh and the access gate view are kept',
     lw.includes('refreshControl={<RefreshControl') && /function LienWaiverGateView\(/.test(lw));
   ok('lien: the phone list keeps onMarkVoid={() => { void handleVoid(w); }}', lw.includes('onMarkVoid={() => { void handleVoid(w); }}'));

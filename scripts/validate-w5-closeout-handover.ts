@@ -176,7 +176,7 @@ ok('#52 the swallowing fetchers are gone from the screen',
 ok('#52 reads re-run on focus (useFocusEffect), not only on [projectId]', /useFocusEffect\(load\)/.test(src) && !/useEffect\(/.test(src));
 ok('#52 out-of-order responses are dropped by a request counter', /req !== requestRef\.current/.test(src));
 ok('#52 the spinner is only for a new project, not a re-focus', /shownForRef\.current !== projectId/.test(src));
-ok("#52 a failed read renders the neutral \"Couldn't load\" row", /HANDOVER_LOAD_FAILED = "Couldn't load — check your signal\. Tap to retry\."/.test(read('app/handover.tsx')));
+ok("#52 a failed read renders the neutral \"Couldn't load\" row", /HANDOVER_LOAD_FAILED = "Couldn't load\. Check your signal, then tap to retry\."/.test(read('app/handover.tsx')));
 ok('#52 failed rows for selections, binder and waivers', (src.match(/failedRow\('/g) ?? []).length === 3);
 ok("#52 a failed row's status is 'unknown' (neutral), never done / open",
   /key, label, icon, status: 'unknown', detail: HANDOVER_LOAD_FAILED/.test(src));

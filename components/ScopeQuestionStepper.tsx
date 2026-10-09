@@ -183,7 +183,7 @@ export function ScopeQuestionStepper({
                     accessibilityState={{ selected: otherActive }}
                     testID={`${testIDPrefix}-type-other`}
                   >
-                    <Text style={[styles.chipText, otherActive && styles.chipTextActive]}>Other (describe it)</Text>
+                    <Text style={[styles.chipText, otherActive && styles.chipTextActive]}>Other (Describe It)</Text>
                   </TouchableOpacity>
                   {otherActive ? (
                     <View style={styles.otherWrap}>
@@ -192,12 +192,12 @@ export function ScopeQuestionStepper({
                         // typed — even a word that happens to equal a chip.
                         value={otherPicked || !isScopeTypeChip(typed) ? typed : ''}
                         onChangeText={(v) => onChange('projectType', v)}
-                        placeholder="Describe the project, e.g. Whole-house repipe"
+                        placeholder="Whole-house repipe"
                         placeholderTextColor={themeColors.textMuted}
                         maxLength={SCOPE_TYPE_OTHER_MAX}
                         autoFocus={otherPicked && !typed}
                         style={styles.input}
-                        accessibilityLabel="Describe the project"
+                        accessibilityLabel="Describe the Project"
                         testID={`${testIDPrefix}-type-other-input`}
                       />
                       <Text style={styles.hint}>Your words are sent to the AI as the project type.</Text>

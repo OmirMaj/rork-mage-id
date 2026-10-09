@@ -240,13 +240,13 @@ function DraftComposer({
       const url = `mailto:${recipients.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       await Linking.openURL(url);
     } catch {
-      showAlert('No mail app', 'Copy the draft instead and paste it into your email.');
+      showAlert('No Mail App', 'Copy the draft instead and paste it into your email.');
     }
   }, [routing.toEmail, subject, body]);
 
   const copy = useCallback(async () => {
     const ok = await copyToClipboard(`Subject: ${subject}\n\n${body}`);
-    showAlert(ok ? 'Copied' : 'Copy failed', ok ? 'The draft is on your clipboard.' : 'Select the text and copy it by hand.');
+    showAlert(ok ? 'Copied' : 'Copy Failed', ok ? 'The draft is on your clipboard.' : 'Select the text and copy it by hand.');
   }, [subject, body]);
 
   const hasDraft = subject.trim().length > 0 || body.trim().length > 0;
@@ -255,13 +255,13 @@ function DraftComposer({
     : routing.toFallback;
   const emailLine = routing.toEmail
     ? routing.toEmail
-    : 'MAGE has no email for them — pick them from your contacts.';
+    : 'MAGE has no email for them. Pick them from your contacts.';
 
   return (
     <View style={hideTrigger ? undefined : styles.wrap}>
       {hideTrigger ? null : (
         <Button
-          label="Draft a question"
+          label="Draft a Question"
           variant="secondary"
           size="sm"
           iconLeft={<MessageSquare size={14} color={colors.text} strokeWidth={2} />}
@@ -273,7 +273,7 @@ function DraftComposer({
         visible={open}
         onClose={close}
         size="wide"
-        title="Draft a question"
+        title="Draft a Question"
         subtitle={topic ? `About ${topic}. MAGE doesn’t send it; you do.` : 'MAGE doesn’t send it; you do.'}
         testID={testID ? `${testID}-sheet` : undefined}
         primaryAction={{
@@ -295,14 +295,14 @@ function DraftComposer({
           style={[styles.input, styles.multiline]}
           value={question}
           onChangeText={setQuestion}
-          placeholder="e.g. Is a separate plumbing filing needed for the kitchen relocation?"
+          placeholder="Is a separate plumbing filing needed for the kitchen relocation?"
           placeholderTextColor={colors.textMuted}
           multiline
           accessibilityLabel="What do you need to ask?"
           testID={testID ? `${testID}-question` : undefined}
         />
         <Button
-          label={hasDraft ? 'Draft again' : 'Draft it'}
+          label={hasDraft ? 'Draft Again' : 'Draft It'}
           size="sm"
           onPress={() => { void draft(); }}
           loading={drafting}
@@ -368,7 +368,7 @@ function TownDraftQuestion({
   useEffect(() => {
     if (!failed || !open) return;
     showAlert(
-      'Town not found',
+      'Town Not Found',
       lookup.status === 'error'
         ? "Couldn't reach the Census geocoder, so MAGE couldn't tell which town issues permits here. Try again in a moment."
         : (answer?.headline ?? "MAGE couldn't tell which town issues permits at this address. Check the project's address, then try again."),

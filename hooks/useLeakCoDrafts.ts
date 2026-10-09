@@ -116,7 +116,7 @@ export function useLeakCoDrafts(): void {
             ? `$${Math.round(draft.changeAmount / 1000)}K`
             : `$${Math.round(draft.changeAmount)}`;
           recordDidForYou(
-            `Drafted CO #${draft.number} for ${dollarStr} from ${when}'s report — review & send`,
+            `Drafted CO #${draft.number} for ${dollarStr} from ${when}'s report. Review and send it.`,
             project.id,
           );
 

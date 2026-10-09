@@ -216,7 +216,7 @@ describe('Lien waivers log (real DOM, 1512)', () => {
     const detail = byId(el, 'lien-waivers-split-detail');
     expect(detail).not.toBeNull();
     expect(detail!.textContent).toMatch(/Volt Electric/);
-    expect(detail!.textContent).toMatch(/Mark received/);
+    expect(detail!.textContent).toMatch(/Mark Received/);
     // Beside the list, not instead of it.
     expect(byId(el, 'lien-waivers-split-divider')).not.toBeNull();
     expect(byId(el, 'lien-waivers-table')).not.toBeNull();

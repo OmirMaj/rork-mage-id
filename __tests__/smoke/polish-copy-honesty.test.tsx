@@ -63,28 +63,28 @@ async function render(url: string, world: 'empty' | 'populated', tier?: string) 
 describe('/handover resolves its own project instead of dead-ending', () => {
   it('with no projectId and a real project on file, offers the picker', async () => {
     const text = await render('/handover', 'populated');
-    expect(text).not.toContain('Project not found');
-    expect(text).toContain('Pick a project');
+    expect(text).not.toContain('Project Not Found');
+    expect(text).toContain('Pick a Project');
     expect(text.join(' ')).toContain('Harlow Residence');
   });
 
   it('with no projects at all, names the feature and offers to create one', async () => {
     const text = await render('/handover', 'empty');
-    expect(text).not.toContain('Project not found');
-    expect(text).toContain('No projects yet');
-    expect(text).toContain('Create a project');
+    expect(text).not.toContain('Project Not Found');
+    expect(text).toContain('No Projects Yet');
+    expect(text).toContain('Create a Project');
   });
 
   it('a dead projectId says the project is gone, which is not the same as no id', async () => {
     const text = await render('/handover?projectId=deleted-last-month', 'populated');
     expect(text.join(' ')).toContain('no longer exists');
-    expect(text).toContain('Pick a project');
+    expect(text).toContain('Pick a Project');
   });
 
   it('a real projectId still renders the checklist, not the picker', async () => {
     const text = await render(`/handover?projectId=${PROJECT_ID}`, 'populated');
-    expect(text).not.toContain('Pick a project');
-    expect(text).toContain('Closeout items');
+    expect(text).not.toContain('Pick a Project');
+    expect(text).toContain('Closeout Items');
   });
 
   // Found while reviewing the picker fix, in the same file: the checklist's
@@ -169,8 +169,8 @@ describe('/handover resolves its own project instead of dead-ending', () => {
     });
     await waitFor(() => {
       const text = collectText(tree.toJSON());
-      expect(text).not.toContain('Pick a project');
-      expect(text).toContain('Closeout items');
+      expect(text).not.toContain('Pick a Project');
+      expect(text).toContain('Closeout Items');
     });
   });
 });
@@ -189,8 +189,8 @@ describe('/safety-certifications issues no compliance verdict on an empty roster
     expect(joined).not.toMatch(/certifications? (are |is )?current/i);
     expect(joined).not.toMatch(/\d+ certifications? (on file|expiring)/i);
     // The empty state is what speaks instead, and it still offers the action.
-    expect(text).toContain('No certifications yet');
-    expect(text).toContain('Add first certification');
+    expect(text).toContain('No Certifications Yet');
+    expect(text).toContain('Add First Certification');
   });
 
   // The branches a render can never reach, pinned on the pure function the
@@ -208,11 +208,11 @@ describe('/safety-certifications issues no compliance verdict on an empty roster
 
     it('is green ONLY when every card has a date and none of them lapse', () => {
       expect(certRosterBanner(14, 0, 0)).toEqual({
-        text: '14 certifications on file — none expiring in the next 30 days',
+        text: '14 certifications on file, none expiring in the next 30 days',
         tone: 'clean',
       });
       expect(certRosterBanner(1, 0, 0)?.text).toBe(
-        '1 certification on file — none expiring in the next 30 days',
+        '1 certification on file, none expiring in the next 30 days',
       );
     });
 
@@ -223,12 +223,12 @@ describe('/safety-certifications issues no compliance verdict on an empty roster
       // the zero-record guard exists to stop, one level down.
       const all = certRosterBanner(5, 0, 5);
       expect(all?.text).toBe(
-        '5 certifications on file, none with an expiry date — nothing here for us to watch.',
+        '5 certifications on file, none with an expiry date. Nothing here for us to watch.',
       );
       expect(all?.tone).toBe('attention');
       const some = certRosterBanner(5, 0, 2);
       expect(some?.text).toBe(
-        '5 certifications on file — none of the 3 with a date expire in the next 30 days. 2 have no expiry date.',
+        '5 certifications on file. None of the 3 with a date expire in the next 30 days. 2 have no expiry date.',
       );
       expect(some?.tone).toBe('attention');
       expect(certRosterBanner(5, 0, 1)?.text).toContain('1 has no expiry date');
@@ -248,7 +248,7 @@ describe('/business prints no crew-load rate it cannot measure', () => {
   it('says there is no schedule rather than three 0% bars', async () => {
     const text = await render('/business', 'populated');
     const joined = text.join(' ');
-    expect(joined).toContain('Crew load');
+    expect(joined).toContain('Crew Load');
     // The window labels only render alongside the percentages, so their
     // absence is proof the bars are gone rather than just recoloured.
     expect(joined).not.toContain('Next 4 weeks');
@@ -288,7 +288,7 @@ describe('/discover/tools marks the rows a free contractor cannot open', () => {
     // Sanity: the rows themselves are still there. A badge that appeared
     // because the grid collapsed would satisfy the two lines above.
     expect(text).toContain('Cost X-Ray');
-    expect(text).toContain('Plan intelligence');
+    expect(text).toContain('Plan Intelligence');
   });
 
   it('badges nothing for a user whose tier clears every gate', async () => {

@@ -209,7 +209,7 @@ export default function SharedScheduleScreen() {
         // Composer not available — show the body the user can paste.
         const { subject, body } = composeSubReply(args);
         showAlert(
-          'Couldn\'t open mail or messages',
+          'Couldn\'t Open Mail or Messages',
           `Copy this text into your messaging app:\n\nTo: ${payload.gc?.email ?? payload.gc?.phone ?? '(your contractor)'}\n\nSubject: ${subject}\n\n${body}`,
         );
       }
@@ -256,7 +256,7 @@ export default function SharedScheduleScreen() {
         <Stack.Screen options={{ title: 'Schedule' }} />
         <Lock size={28} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.title}>
-          {stillLoading ? 'Loading schedule…' : 'Couldn\'t open this schedule'}
+          {stillLoading ? 'Loading schedule…' : 'Couldn\'t Open This Schedule'}
         </Text>
         <Text style={styles.body}>
           {stillLoading
@@ -303,7 +303,7 @@ export default function SharedScheduleScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.subBannerTitle}>Confirming as: {subName}</Text>
             <Text style={styles.subBannerBody}>
-              Tap a task to confirm or request a reschedule. The reply opens in your email or messaging app — no account needed.
+              Tap a task to confirm or request a reschedule. The reply opens in your email or messaging app. No account needed.
             </Text>
           </View>
         </View>
@@ -314,7 +314,7 @@ export default function SharedScheduleScreen() {
         subTasks.length === 0 ? (
           <View style={[styles.body, styles.centered]}>
             <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
-            <Text style={styles.title}>No tasks assigned to {subName}</Text>
+            <Text style={styles.title}>No Tasks Assigned to {subName}</Text>
             <Text style={styles.body}>
               The schedule was shared with you but no tasks are tagged for {subName}. Ask {payload.gc?.name || 'your contractor'} if you think this is wrong.
             </Text>
@@ -343,7 +343,7 @@ export default function SharedScheduleScreen() {
                     {confirmed ? (
                       <View style={[styles.subBtn, styles.subBtnDone]}>
                         <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
-                        <Text style={[styles.subBtnText, { color: themeColors.success }]}>Confirmation drafted</Text>
+                        <Text style={[styles.subBtnText, { color: themeColors.success }]}>Confirmation Drafted</Text>
                       </View>
                     ) : (
                       <TouchableOpacity
@@ -390,7 +390,7 @@ export default function SharedScheduleScreen() {
                         >
                           <Activity size={14} color={themeColors.accent} strokeWidth={1.75} />
                           <Text style={[styles.subBtnText, { color: themeColors.accent }]}>
-                            {last ? 'Update today\'s progress' : 'Log today\'s update'}
+                            {last ? 'Update Today\'s Progress' : 'Log Today\'s Update'}
                           </Text>
                         </TouchableOpacity>
                       </View>

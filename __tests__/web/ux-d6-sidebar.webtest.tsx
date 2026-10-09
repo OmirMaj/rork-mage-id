@@ -3,7 +3,7 @@
  * with RFIs and Submittals moved behind "More for this job" AND their live
  * counts carried along.
  *
- *   - THIS JOB reads Estimate, Proposal & contract, Change Orders, Invoices,
+ *   - THIS JOB reads Estimate, Proposal and Contract, Change Orders, Invoices,
  *     Daily Reports, Schedule, Punch List (document order);
  *   - with "More for this job" shut, an overdue RFI is still visible: the
  *     toggle carries the count, its red dot, and the spoken breakdown;
@@ -217,7 +217,7 @@ const TOGGLE = 'MORE FOR THIS JOB';
 const order = (ids: string[]) => ids.map(id => q(id)).filter((n): n is HTMLElement => !!n);
 
 describe('D6: THIS JOB order', () => {
-  it('reads Estimate, Proposal & contract, Change Orders, Invoices, Daily Reports, Schedule, Punch List', async () => {
+  it('reads Estimate, Proposal and Contract, Change Orders, Invoices, Daily Reports, Schedule, Punch List', async () => {
     await mount();
     const want = ['sidebar-estimate', 'sidebar-contract', 'sidebar-change-order', 'sidebar-invoice', 'sidebar-daily-report', 'sidebar-schedule', 'sidebar-punch-list'];
     const nodes = order(want);
@@ -226,7 +226,7 @@ describe('D6: THIS JOB order', () => {
       // DOCUMENT_POSITION_FOLLOWING = 4
       expect(nodes[i - 1].compareDocumentPosition(nodes[i]) & 4).toBe(4);
     }
-    expect(byTestId('sidebar-contract').textContent).toContain('Proposal & contract');
+    expect(byTestId('sidebar-contract').textContent).toContain('Proposal and Contract');
     // RFIs and Submittals are behind the shut toggle.
     expect(q('sidebar-rfi')).toBeNull();
     expect(q('sidebar-submittal')).toBeNull();
@@ -241,14 +241,14 @@ describe('D6: the counts that moved behind "More for this job"', () => {
     expect(byTestId(`sidebar-section-count-${TOGGLE}`).textContent).toBe('3');
     expect(q(`sidebar-section-count-dot-${TOGGLE}`)).not.toBeNull();
     expect(byTestId(`sidebar-section-${TOGGLE}`).getAttribute('aria-label'))
-      .toBe('More for this project, collapsed, RFIs 2 open, 1 overdue; Submittals 1 open');
+      .toBe('More for This Project, collapsed, RFIs 2 open, 1 overdue; Submittals 1 open');
   });
 
   it('nothing open: no toggle count at all (never a 0)', async () => {
     mockWorld.rfis = [RFI('answered', PAST)];
     await mount();
     expect(q(`sidebar-section-count-${TOGGLE}`)).toBeNull();
-    expect(byTestId(`sidebar-section-${TOGGLE}`).getAttribute('aria-label')).toBe('More for this project, collapsed');
+    expect(byTestId(`sidebar-section-${TOGGLE}`).getAttribute('aria-label')).toBe('More for This Project, collapsed');
   });
 
   it('an unloaded RFI read gives no RFI part (the submittal part still counts)', async () => {

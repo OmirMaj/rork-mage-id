@@ -11,7 +11,7 @@
 //   - aiService's dailyReportPromptDay and AIDailyReportGen's
 //     scheduleDraftBlockedReason, lifted and run against the real calendarDate;
 //   - utils/pdfGenerator for real (native modules stubbed): the DFR PDF's
-//     "Filed by" row and the CO PDF's client-approval line.
+//     "Filed By" row and the CO PDF's client-approval line.
 // Wiring that only exists inside the component or the migration is pinned by
 // source, each pin naming the defect it stops from coming back. The migration
 // itself (20260920140000) is executed twice in PGlite by the lane's harness
@@ -136,10 +136,10 @@ console.log('\n#63 who filed it:');
   ok('every PDF path passes filedByName (print, share, filed copy)', (code.match(/filedByName: filedBy\.document \?\? undefined/g) ?? []).length === 3);
   const html = pdf.buildDFRHtml({ id: 'r', projectId: 'p', date: '2026-09-15', weather: {}, manpower: [], workPerformed: 'x', materialsDelivered: [], issuesAndDelays: '', photos: [], status: 'sent', createdAt: '', updatedAt: '' } as never,
     { id: 'p', name: 'Maple', location: '' } as never, { companyName: 'Acme' } as never, { filedByName: 'Luis <R>' });
-  ok('the DFR PDF prints a "Filed by" row, escaped', /Filed by/.test(html) && html.includes('Luis &lt;R&gt;'));
+  ok('the DFR PDF prints a "Filed by" row, escaped', /Filed By/.test(html) && html.includes('Luis &lt;R&gt;'));
   const html2 = pdf.buildDFRHtml({ id: 'r', projectId: 'p', date: '2026-09-15', weather: {}, manpower: [], workPerformed: 'x', materialsDelivered: [], issuesAndDelays: '', photos: [], status: 'sent', createdAt: '', updatedAt: '' } as never,
     { id: 'p', name: 'Maple', location: '' } as never, { companyName: 'Acme' } as never, {});
-  ok('…and none when the caller names nobody', !/Filed by/.test(html2));
+  ok('…and none when the caller names nobody', !/Filed by/i.test(html2));
   ok('#62: the PDF never prints the record\'s status (a sent report never reads "draft")', !/>\s*draft\s*</i.test(html) && !/>\s*sent\s*</i.test(html));
 }
 
@@ -147,7 +147,7 @@ console.log('\n#122 someone else\'s case is never blind-written:');
 {
   const r = P.dfrCaseNotYoursReason;
   const base = { caseVisible: false, caseDeleted: false, isOwner: false, savedHadIncident: true, filedByUserId: 'gc', viewerId: 'fm', authorPossessive: 'the project owner’s' };
-  ok('foreman on the GC\'s report, case not visible → locked with the reason', /^This case is in the project owner.s injury log — tell the GC\./.test(r(base) ?? ''), r(base));
+  ok('foreman on the GC\'s report, case not visible → locked with the reason', /^This case is in the project owner.s injury log\. Tell the GC\./.test(r(base) ?? ''), r(base));
   ok('case visible → null', r({ ...base, caseVisible: true }) === null);
   ok('his own report → null (his insert is his case)', r({ ...base, filedByUserId: 'fm' }) === null);
   ok('the owner → null (he sees every case on his job)', r({ ...base, isOwner: true }) === null);
@@ -266,7 +266,7 @@ console.log('\n#58 the homeowner update on a submitted report:');
   ok('the button renders only while the update differs from what is saved', /\{hsEditableWhenLocked && hsUpdateDirty && \(/.test(code) && /testID="hs-save-update"/.test(code));
   const back = code.slice(code.indexOf('const handleBack = useCallback('), code.indexOf('if (!project) {'));
   ok('the back guard asks about an unsaved update BEFORE the sent-report early exit', back.indexOf('if (hsUpdateDirty) {') > -1 && back.indexOf('if (hsUpdateDirty) {') < back.indexOf("if (!isDirty || existingReport?.status === 'sent') { goBack(); return; }"));
-  ok('…and offers "Save update", never "Save draft", on a sent report', /text: t\('field\.dfr\.saveUpdate', 'Save update'\), onPress: \(\) => handleSaveHomeownerUpdate\(goBack\)/.test(back));
+  ok('…and offers "Save update", never "Save draft", on a sent report', /text: t\('field\.dfr\.saveUpdate', 'Save Update'\), onPress: \(\) => handleSaveHomeownerUpdate\(goBack\)/.test(back));
   ok('a field/viewer seat on a sent report is told the owner decides', /testID="hs-locked-owner-decides"/.test(code));
 }
 
@@ -277,7 +277,7 @@ console.log('\n#62 a submitted report can be printed / shared again:');
   ok('web prints (the synchronous tab), the phone shares generateDFRPDF with the send path\'s inputs', /if \(Platform\.OS === 'web'\) \{ handlePrintCopy\(\); return; \}/.test(fn)
     && /generateDFRPDF\(doc, project, brandingOrBlank\(\), \{\s*photos: await resolveDfrPhotosForDocument\(doc\.photos, galleryPhotos\),\s*incidentClassification: documentClassification,/.test(fn));
   ok('…and saves nothing, stamps nothing', !/updateDailyReport|handleSave|addDailyReport/.test(fn));
-  ok('…a failure says so', /showAlert\(t\('field\.dfr\.couldNotMakeThe', 'Could not make the PDF'\)/.test(fn));
+  ok('…a failure says so', /showAlert\(t\('field\.dfr\.couldNotMakeThe', 'Could Not Make the PDF'\)/.test(fn));
   ok('the document record of a sent report is "sent"', /status: existingReport\?\.status === 'sent' \? 'sent' : 'draft',/.test(code));
 }
 
@@ -296,7 +296,7 @@ console.log('\n#76 Draft CO: client-facing description, one line per item:');
   const leak = code.slice(code.indexOf('const handleDraftLeakCO = useCallback('), code.indexOf('const scheduleTasks = useMemo'));
   ok('the Draft-CO handler sends prefillLines + the neutral description, not the old string', /prefillDescription: prefill\.prefillDescription,\s*prefillLines: prefill\.prefillLines,/.test(leak)
     && !/NEEDS PRICE: \$\{/.test(leak) && !/~\$\$\{/.test(leak) && !/reportQuote/.test(leak) && !/prefillAmount/.test(leak));
-  ok('…still owner-only (#41)', /if \(!isProjectOwner\) \{ showAlert\(t\('field\.dfr\.changeOrders', 'Change orders'\), t\('field\.dfr\.leak\.gcCreatesCos', 'Your GC creates change orders — this goes to them as a field issue in this report\.'\)\); return; \}/.test(leak));
+  ok('…still owner-only (#41)', /if \(!isProjectOwner\) \{ showAlert\(t\('field\.dfr\.changeOrders', 'Change Orders'\), t\('field\.dfr\.leak\.gcCreatesCos', 'Your GC creates change orders\. This goes to them as a field issue in this report\.'\)\); return; \}/.test(leak));
 }
 
 console.log('\n#41 (time-labor handoff) the roster reads the GC\'s shift-alert hours:');
@@ -322,9 +322,9 @@ console.log('\n#60/#59/#133 the "report filed" notification:');
   const legacy = w({ author_name: 'Luis' });
   ok('an old trigger (no status, no day) makes neither promise', legacy?.pushBody === 'Luis filed a daily report. Open it to check what your client can see.', legacy?.pushBody);
   ok('a garbled or instant day is never printed as a guess', /filed a daily report\./.test(w({ report_date: '2026-09-14T12:00:00Z', portal_status: 'draft' })?.pushBody ?? '') && /filed a daily report\./.test(w({ report_date: '2026-02-31', portal_status: 'draft' })?.pushBody ?? ''));
-  ok('the email has a "Report date" row and the portal state', JSON.stringify(draft?.rows) === JSON.stringify([['Filed by', 'Luis'], ['Report date', 'Mon, Sep 14'], ['Client portal', 'Not shown — waiting on you']]), draft?.rows);
+  ok('the email has a "Report date" row and the portal state', JSON.stringify(draft?.rows) === JSON.stringify([['Filed By', 'Luis'], ['Report Date', 'Mon, Sep 14'], ['Client Portal', 'Not shown. Waiting on you.']]), draft?.rows);
   ok('the subject names the day too', draft?.emailSubject === 'Luis filed the report for Mon, Sep 14 · Henderson');
-  ok('#73 the decline email names "Revise & re-issue"', /use Revise & re-issue on the change order if it still applies/.test(NOTIFY) && /use Revise & re-issue on the change order if appropriate/.test(NOTIFY));
+  ok('#73 the decline email names "Revise and Re-Issue", the button on the change order', /use Revise and Re-Issue on the change order if it still applies/.test(NOTIFY) && /use Revise and Re-Issue on the change order if appropriate/.test(NOTIFY));
   ok('the safety lane\'s case order is kept', /case 'pro_response_received':\s*case 'safety_incident_filed':\s*case 'punch_marked_ready': \{/.test(NOTIFY));
 }
 

@@ -181,7 +181,7 @@ console.log('\nProject Files screen:');
   const PF = readFileSync('utils/projectFiles.ts', 'utf8');
   ok('…against the same ceiling uploadProjectFile enforces',
     /export const PROJECT_FILE_MAX_BYTES = 100 \* 1024 \* 1024;/.test(PF) && /if \(size > PROJECT_FILE_MAX_BYTES\) \{/.test(PF));
-  ok('Open failures are shown, not voided', /showAlert\("Couldn't open the file"/.test(B));
+  ok('Open failures are shown, not voided', /showAlert\("Couldn't Open the File"/.test(B));
   // Raw source: the comment stripper would eat the `\/\/` inside the regex.
   const D = readFileSync('utils/projectDocuments.ts', 'utf8');
   const body = D.slice(D.indexOf('export async function openSavedDocument'), D.indexOf('export async function openSavedDocument') + 300);

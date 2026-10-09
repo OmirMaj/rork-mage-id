@@ -421,7 +421,7 @@ export default function PersonaSwitchOverlay({
           </Animated.View>
 
           <Animated.View style={{ opacity: labelOpacity, transform: [{ translateY: labelTranslate }], alignItems: 'center' }}>
-            <Animated.Text style={styles.eyebrow}>Switching workspace</Animated.Text>
+            <Animated.Text style={styles.eyebrow}>Switching Workspace</Animated.Text>
             <Animated.Text style={styles.label} numberOfLines={1}>{label}</Animated.Text>
           </Animated.View>
 

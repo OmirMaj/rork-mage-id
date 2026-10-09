@@ -333,7 +333,7 @@ for (const route of ['/post-bid', '/smart-proposal']) {
 // Before wave 6b every project-tool row pushed a bare route ('/rfi'), so the
 // job the PM was looking at was dropped and the tool asked for it again —
 // every tool, every time (web-PM audit, blocker). And no row was a link, so
-// Cmd-click and "Copy link" did nothing.
+// Cmd-click and "Copy Link" did nothing.
 {
   ok('rail rows are RowLinks (real <a> on web), not router.push handlers',
     /<RowLink\b/.test(sidebarSrc) && !/router\.push\(route as any\)/.test(sidebarSrc)
@@ -433,7 +433,7 @@ ok('Discover ▸ Tools has a tile for /construction-news',
 
 const registrySrc = read(join('utils', 'featureRegistry.ts'));
 ok('featureRegistry indexes /post-bid as what it actually is',
-  /id: 'post-bid', title: 'Post a bid'/.test(registrySrc) && !/'why lost'/.test(registrySrc),
+  /id: 'post-bid', title: 'Post a Bid'/.test(registrySrc) && !/'why lost'/.test(registrySrc),
   "app/post-bid.tsx self-titles 'Post a bid' and is a publish-a-solicitation form with a "
   + "monthly quota. Indexing it as 'Post-Bid Analysis' with win/loss synonyms sent a GC "
   + 'searching "why lost" into a form that publishes a public bid opportunity.');
@@ -1344,14 +1344,14 @@ console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer p
     && />⌘J</.test(side));
   ok('K3 Action Required is gated `!isMinimalPersona && isDesktopWeb` in both modes: first in the footer, before Settings on the rail',
     /<View style=\{styles\.accountSection\}>\s*<View style=\{styles\.footerDivider\} \/>\s*(\{\}\s*)?\{!isMinimalPersona && isDesktopWeb && <SidebarActionRequiredRow \/>\}\s*\{accountItems\.map/.test(side)
-    && /\{!isMinimalPersona && isDesktopWeb && \(\s*<RailTip label="Action required"[^>]*>\s*<SidebarActionRequiredRow collapsed \/>\s*<\/RailTip>\s*\)\}\s*\{settingsItem \? renderRailItem\(settingsItem\) : null\}/.test(side)
+    && /\{!isMinimalPersona && isDesktopWeb && \(\s*<RailTip label="Action Required"[^>]*>\s*<SidebarActionRequiredRow collapsed \/>\s*<\/RailTip>\s*\)\}\s*\{settingsItem \? renderRailItem\(settingsItem\) : null\}/.test(side)
     && (side.match(/<SidebarActionRequiredRow\b/g) ?? []).length === 2);
   ok('K3 Action Required opens the ATTENTION dock with the docked rail and closes it when it is showing',
     /const open = dock\.id === ATTENTION_DOCK_ID && dock\.showing;/.test(arSrc)
     && /if \(dock\.id === ATTENTION_DOCK_ID && dock\.showing\) \{\s*dock\.close\(\);\s*return;\s*\}/.test(arSrc)
     && /if \(!dock\.canShow\(ATTENTION_DOCK_ID\)\) return;/.test(arSrc)
     && /<DesktopActionRail variant="dock" \/>/.test(arSrc)
-    && /id: ATTENTION_DOCK_ID, title: 'Action required', width: SIDE_PANEL_DEFAULT/.test(arSrc)
+    && /id: ATTENTION_DOCK_ID, title: 'Action Required', width: SIDE_PANEL_DEFAULT/.test(arSrc)
     && /attentionBadgeLabel\(total, sourceFailed\)/.test(arSrc)
     && /testID="sidebar-action-required"/.test(arSrc));
   ok("K3 '+ New' is a 40×40 button beside the job switcher: newItem is gone and newButton exists",
@@ -1432,17 +1432,17 @@ console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer p
     .filter(l => !/^\s*\/\//.test(l) && l.includes(`section: '${section}'`))
     .map(l => /\bkey: '([^']+)'/.exec(l)?.[1] ?? '?');
   const jobOrder = rowsIn('THIS JOB');
-  ok(`D6 THIS JOB reads Estimate, Proposal & contract, Change Orders, Invoices, Daily Reports, Schedule, Punch List (${jobOrder.join(', ')})`,
+  ok(`D6 THIS JOB reads Estimate, Proposal and Contract, Change Orders, Invoices, Daily Reports, Schedule, Punch List (${jobOrder.join(', ')})`,
     jobOrder.join(',') === 'estimate,contract,change-order,invoice,daily-report,schedule,punch-list');
-  ok("D6 the contract row is labelled 'Proposal & contract' and the Estimate row carries the job (jobRoute)",
-    /\{ key: 'contract',\s*label: 'Proposal & contract',/.test(table)
+  ok("D6 the contract row is labelled 'Proposal and Contract' and the Estimate row carries the job (jobRoute)",
+    /\{ key: 'contract',\s*label: 'Proposal and Contract',/.test(table)
     && /\{ key: 'estimate',[^\n]*jobRoute: '\/\(tabs\)\/estimate\/full',[^\n]*section: 'THIS JOB'/.test(table));
-  ok(`D6 RFIs and Submittals sit in DOCUMENTS, the first "More for this project" group (${rowsIn('DOCUMENTS').join(', ')})`,
+  ok(`D6 RFIs and Submittals sit in DOCUMENTS, the first "More for This Project" group (${rowsIn('DOCUMENTS').join(', ')})`,
     rowsIn('DOCUMENTS').join(',') === 'rfi,submittal'
     && /const MORE_JOB_SECTIONS = \['DOCUMENTS', 'PLANNING', 'FIELD OPS', 'FINANCIALS', 'CLIENT'\];/.test(side)
     && /const COUNTED_MORE_SECTION = 'DOCUMENTS';/.test(side));
   ok('D6 the shut toggle carries the DOCUMENTS counts (combineRowCounts), the open DOCUMENTS rows carry their own',
-    /renderToggle\(MORE_TOGGLE, 'More for this project', moreOpen, MORE_JOB_SECTIONS,\s*moreOpen \? undefined : combineRowCounts\(itemsIn\(COUNTED_MORE_SECTION\)\.map\(item => countOf\(counts, item\.key\)\)/.test(side)
+    /renderToggle\(MORE_TOGGLE, 'More for This Project', moreOpen, MORE_JOB_SECTIONS,\s*moreOpen \? undefined : combineRowCounts\(itemsIn\(COUNTED_MORE_SECTION\)\.map\(item => countOf\(counts, item\.key\)\)/.test(side)
     && /renderNavItem\(item, false, sub === COUNTED_MORE_SECTION \? countOf\(counts, item\.key\) : undefined\)/.test(side)
     && /const renderToggle = \([^)]*count\?: RowCount\) =>/.test(side)
     && /testID=\{`sidebar-section-count-dot-\$\{toggle\}`\}/.test(side));
@@ -1455,10 +1455,10 @@ console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer p
   const menu = read(join('components', 'CreateMenu.tsx'));
   const rowOf = (label: string) => menu.split('\n').find(l => l.includes(`label: '${label}'`) && !/^\s*\/\//.test(l)) ?? '';
   const fieldRows: [string, string, RegExp | null][] = [
-    ['Clock in', 'time-tracking', /extraParams: \{ \[UX_PARAM\.clockIn\]: '1' \}/],
-    ['Delivery arrived', 'deliveries', /extraParams: \{ \[UX_PARAM\.arrived\]: '1' \}/],
-    ['Code check', 'construction-ai', /extraParams: \{ \[UX_PARAM\.source\]: SOURCE_PROJECT \}/],
-    ['Send lineup', 'tomorrow-lineup', null],
+    ['Clock In', 'time-tracking', /extraParams: \{ \[UX_PARAM\.clockIn\]: '1' \}/],
+    ['Delivery Arrived', 'deliveries', /extraParams: \{ \[UX_PARAM\.arrived\]: '1' \}/],
+    ['Code Check', 'construction-ai', /extraParams: \{ \[UX_PARAM\.source\]: SOURCE_PROJECT \}/],
+    ['Send Lineup', 'tomorrow-lineup', null],
   ];
   for (const [label, feature, flag] of fieldRows) {
     const line = rowOf(label);
@@ -1469,9 +1469,9 @@ console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer p
       && (!flag || flag.test(line)));
   }
   ok("D3 'Progress Billing' reads 'Progress draw' (the AIA words stay searchable)",
-    rowOf('Progress draw').includes("'progress billing'") && rowOf('Progress Billing') === '');
+    rowOf('Progress Draw').includes("'progress billing'") && rowOf('Progress Billing') === '');
   ok('D3 Sub portal invite asks which sub (subPicker) and pushes subPortalSetupHref(projectId, subId)',
-    /label: 'Sub portal invite'[^\n]*subPicker: true/.test(menu) && /router\.push\(subPortalSetupHref\(pid, sb\.id\)\)/.test(menu));
+    /label: 'Sub Portal Invite'[^\n]*subPicker: true/.test(menu) && /router\.push\(subPortalSetupHref\(pid, sb\.id\)\)/.test(menu));
   ok('D3 the phone default job is pickDefaultProjectId (never the resolver guess); desktop keeps the active job',
     /const pid = pickDefaultProjectId\(\{ activeProjectId, recentProjectIds, projects \}\);/.test(menu)
     && /const defaultJob = isDesktopWeb \? \(activeJob \? activeProject : null\) : phoneDefaultJob;/.test(menu));

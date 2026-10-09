@@ -49,7 +49,7 @@ import {
 
 export const START_DAY_BASIS_TITLE = 'These start days can be read two ways';
 export const START_DAY_BASIS_ACCEPT = 'Re-anchor';
-export const START_DAY_BASIS_DECLINE = 'Keep as-is';
+export const START_DAY_BASIS_DECLINE = 'Keep As-Is';
 
 /** `Fri Apr 3` for a day index, or `day 45` when the schedule has no anchor. */
 function dayLabel(projectStartDate: Date | null, day: number): string {
@@ -108,7 +108,7 @@ export function StartDayBasisNotice({
           about baselines and calendar indices and could not be checked. */}
       {model.rows.slice(0, 4).map((r) => (
         <Text key={r.id} style={s.evidence} numberOfLines={1}>
-          • {r.title} — now {dayLabel(projectStartDate, r.storedDay)}, or {dayLabel(projectStartDate, r.remappedDay)}
+          • {r.title}: now {dayLabel(projectStartDate, r.storedDay)}, or {dayLabel(projectStartDate, r.remappedDay)}
         </Text>
       ))}
       {model.rows.length > 4 && (

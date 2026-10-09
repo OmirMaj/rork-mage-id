@@ -180,7 +180,7 @@ export default function LeadsScreen() {
       visible={voiceOpen}
       onClose={() => setVoiceOpen(false)}
       onTranscriptReady={handleVoiceTranscript}
-      title="Capture a lead"
+      title="Capture a Lead"
       contextLine="speak it the way the homeowner described it"
       suggestions={[
         'John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand budget, wants to start in spring',
@@ -192,10 +192,10 @@ export default function LeadsScreen() {
   );
 
   const desktopActions: ToolbarAction[] = [
-    { key: 'import', label: 'Import clients', icon: Upload, onPress: () => router.push('/import-pipeline'), testID: 'leads-register-import' },
-    { key: 'add', label: 'Add by hand', icon: Plus, onPress: onNew, testID: 'leads-register-add' },
+    { key: 'import', label: 'Import Clients', icon: Upload, onPress: () => router.push('/import-pipeline'), testID: 'leads-register-import' },
+    { key: 'add', label: 'Add by Hand', icon: Plus, onPress: onNew, testID: 'leads-register-add' },
     {
-      key: 'voice', label: 'New lead by voice', icon: Mic, primary: true, onPress: () => setVoiceOpen(true),
+      key: 'voice', label: 'New Lead by Voice', icon: Mic, primary: true, onPress: () => setVoiceOpen(true),
       disabled: creating, disabledReason: creating ? 'Adding the last lead…' : null, testID: 'leads-register-voice',
     },
   ];
@@ -248,9 +248,9 @@ export default function LeadsScreen() {
                 />
                 {leadsLoaded && leads.length === 0 ? (
                   <Card testID="leads-register-empty">
-                    <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
+                    <Text style={styles.emptyBannerTitle}>No Leads in the Pipeline Yet</Text>
                     <Text style={[styles.emptyBannerBody, isDesktopWeb && styles.emptyBannerBodyDesktop]}>
-                      Capture every inquiry (client calls, web forms, referrals) so none slips past the first 24 hours. Use New lead by voice to dictate one, or Add by hand to type one in. Leads land in New and move through Qualified → Proposal → Won as you work them.
+                      Capture every inquiry (client calls, web forms, referrals) so none slips past the first 24 hours. Use New Lead by Voice to dictate one, or Add by Hand to type one in. Leads land in New and move through Qualified, Proposal and Won as you work them.
                     </Text>
                   </Card>
                 ) : null}
@@ -288,7 +288,7 @@ export default function LeadsScreen() {
                   onPress={() => router.push('/import-pipeline' as never)}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel="Import clients"
+                  accessibilityLabel="Import Clients"
                   testID="leads-import"
                 >
                   <Upload size={20} color={themeColors.accent} strokeWidth={1.75} />
@@ -304,31 +304,31 @@ export default function LeadsScreen() {
             <View style={styles.kpiBar}>
               <View style={styles.kpiBlock}>
                 <Text style={styles.kpiNum}>{kpi.total}</Text>
-                <Text style={styles.kpiLabel}>Open leads</Text>
+                <Text style={styles.kpiLabel}>Open Leads</Text>
               </View>
               <View style={styles.kpiDivider} />
               <View style={styles.kpiBlock}>
                 <Text style={[styles.kpiNum, kpi.outstanding > 0 && styles.kpiNumWarn]}>{kpi.outstanding}</Text>
-                <Text style={styles.kpiLabel}>Awaiting reply</Text>
+                <Text style={styles.kpiLabel}>Awaiting Reply</Text>
               </View>
               <View style={styles.kpiDivider} />
               <View style={styles.kpiBlock}>
                 <Text style={styles.kpiNum}>{kpi.avgResponseHours == null ? '—' : `${kpi.avgResponseHours}h`}</Text>
-                <Text style={styles.kpiLabel}>Avg first reply</Text>
+                <Text style={styles.kpiLabel}>Avg First Reply</Text>
               </View>
               <View style={styles.kpiDivider} />
               <View style={styles.kpiBlock}>
                 <Text style={styles.kpiNum}>{kpi.winRate}%</Text>
-                <Text style={styles.kpiLabel}>Win rate</Text>
+                <Text style={styles.kpiLabel}>Win Rate</Text>
               </View>
             </View>
 
             {leads.length === 0 && (
               <View style={styles.emptyBanner}>
                 <MageAIMark size={20} color={themeColors.accent} />
-                <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
+                <Text style={styles.emptyBannerTitle}>No Leads in the Pipeline Yet</Text>
                 <Text style={styles.emptyBannerBody}>
-                  Capture every inquiry (client calls, web forms, referrals) so none slips past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
+                  Capture every inquiry (client calls, web forms, referrals) so none slips past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by Hand to type one in. Leads land in the New column and move through Qualified, Proposal and Won as you work them.
                 </Text>
                 <TouchableOpacity
                   style={styles.emptyImportBtn}
@@ -337,7 +337,7 @@ export default function LeadsScreen() {
                   testID="leads-empty-import"
                 >
                   <Upload size={15} color="#FFF" strokeWidth={1.75} />
-                  <Text style={styles.emptyImportBtnText}>Import your existing clients</Text>
+                  <Text style={styles.emptyImportBtnText}>Import Your Existing Clients</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -386,7 +386,7 @@ export default function LeadsScreen() {
                 activeOpacity={0.85}
               >
                 <Plus size={18} color={themeColors.text} strokeWidth={1.75} />
-                <Text style={styles.fabSecondaryText}>Add by hand</Text>
+                <Text style={styles.fabSecondaryText}>Add by Hand</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.fabPrimary}
@@ -395,7 +395,7 @@ export default function LeadsScreen() {
                 activeOpacity={0.85}
               >
                 <Mic size={18} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.fabPrimaryText}>{creating ? 'Adding…' : 'New lead by voice'}</Text>
+                <Text style={styles.fabPrimaryText}>{creating ? 'Adding…' : 'New Lead by Voice'}</Text>
                 <MageAIMark size={12} color="#FFF" />
               </TouchableOpacity>
             </View>

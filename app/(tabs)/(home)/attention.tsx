@@ -68,7 +68,7 @@ export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary'
 
 /** Same wording as the rail and BrainWatchCard (RT-R1). */
 const UNREACHABLE_LINE =
-  `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+  `Couldn't reach MAGE. Showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}.`;
 
 const SEVERITY_RANK: Record<AttnSeverity, number> = { critical: 0, high: 1, medium: 2 };
 const SEVERITY_LABEL: Record<AttnSeverity, string> = { critical: 'Critical', high: 'High', medium: 'Medium' };
@@ -79,19 +79,19 @@ const KIND_LABEL: Record<AttnKind, string> = {
   permit: 'Permit',
   cert: 'Certificate',
   closeout: 'Closeout',
-  punch: 'Punch list',
-  changeOrder: 'Change order',
+  punch: 'Punch List',
+  changeOrder: 'Change Order',
   delivery: 'Delivery',
-  buildingAccess: 'Building access',
+  buildingAccess: 'Building Access',
   rfi: 'RFI',
   submittal: 'Submittal',
 };
 
 const VIEW_LABEL: Record<AttentionView, string> = {
-  needs: 'Needs you',
-  bill: 'Ready to bill',
-  logs: 'Daily-log gaps',
-  warranty: 'Warranty walks',
+  needs: 'Needs You',
+  bill: 'Ready to Bill',
+  logs: 'Daily Log Gaps',
+  warranty: 'Warranty Walks',
 };
 
 type SeverityFilter = 'all' | 'critical' | 'high';
@@ -197,28 +197,28 @@ export default function AttentionScreen() {
     { key: 'job', label: 'Job', flex: 1, minWidth: 240, sortValue: (r) => r.projectName.toLowerCase(), value: (r) => r.projectName },
     { key: 'co', label: 'CO #', width: 96, numeric: true, sortValue: (r) => r.coNumber, value: (r) => (r.coNumber > 0 ? `#${r.coNumber}` : null) },
     { key: 'amount', label: 'Amount', width: 128, numeric: true, sortValue: (r) => r.amount, value: (r) => formatMoney(r.amount) },
-    { key: 'age', label: 'Age (days)', width: 112, numeric: true, sortValue: (r) => r.ageDays, value: (r) => r.ageDays },
+    { key: 'age', label: 'Age (Days)', width: 112, numeric: true, sortValue: (r) => r.ageDays, value: (r) => r.ageDays },
   ], []);
 
   const logColumns = useMemo<DataTableColumn<DailyLogGapRow>[]>(() => [
     { key: 'job', label: 'Job', flex: 1, minWidth: 240, sortValue: (r) => r.projectName.toLowerCase(), value: (r) => r.projectName },
     {
       key: 'today',
-      label: 'Today filed?',
+      label: 'Filed Today?',
       width: 128,
       sortValue: (r) => (r.c.todayExpected && !r.c.todayFiled ? 0 : 1),
       // UX A5: a day with only a voice note is not filed — and not "No".
       value: (r) => (r.c.todayExpected
-        ? (r.c.todayFiled ? 'Yes' : dailyLogVoiceDraft(r)?.date === r.c.today ? 'Voice note only' : 'No')
-        : 'Not a work day'),
+        ? (r.c.todayFiled ? 'Yes' : dailyLogVoiceDraft(r)?.date === r.c.today ? 'Voice Note Only' : 'No')
+        : 'Not a Work Day'),
     },
-    { key: 'missing', label: 'Days missing', width: 128, numeric: true, sortValue: (r) => r.c.missedDays, value: (r) => r.c.missedDays },
+    { key: 'missing', label: 'Days Missing', width: 128, numeric: true, sortValue: (r) => r.c.missedDays, value: (r) => r.c.missedDays },
   ], []);
 
   const warrantyColumns = useMemo<DataTableColumn<WarrantyWalkAlert>[]>(() => [
     { key: 'job', label: 'Job', flex: 1, minWidth: 240, sortValue: (a) => a.project.name.toLowerCase(), value: (a) => a.project.name },
-    { key: 'walk', label: 'Walk due', width: 136, sortValue: (a) => a.walkDueDate, value: (a) => dayLabel(a.walkDueDate) },
-    { key: 'expires', label: 'Warranty expires', width: 152, sortValue: (a) => a.warrantyExpiresAt, value: (a) => dayLabel(a.warrantyExpiresAt) },
+    { key: 'walk', label: 'Walk Due', width: 136, sortValue: (a) => a.walkDueDate, value: (a) => dayLabel(a.walkDueDate) },
+    { key: 'expires', label: 'Warranty Expires', width: 152, sortValue: (a) => a.warrantyExpiresAt, value: (a) => dayLabel(a.warrantyExpiresAt) },
     {
       key: 'severity',
       label: 'Severity',
@@ -265,13 +265,13 @@ export default function AttentionScreen() {
         <View style={styles.empty} testID="attention-unreachable">
           <CloudOff size={22} color={t.warningLabel} strokeWidth={1.8} />
           <Text style={[styles.emptyTitle, { color: t.warningLabel }]}>{UNREACHABLE_LINE}</Text>
-          <Text style={styles.emptySubtitle}>Nothing cached needs attention; the live read failed.</Text>
+          <Text style={styles.emptySubtitle}>Nothing saved on this device needs attention, but the latest update didn't load.</Text>
         </View>
       ) : (
         <View style={styles.empty} testID="attention-all-clear">
           <CheckCircle2 size={22} color={t.success} strokeWidth={1.8} />
-          <Text style={styles.emptyTitle}>All caught up</Text>
-          <Text style={styles.emptySubtitle}>Nothing overdue on schedules, invoices, permits or certs.</Text>
+          <Text style={styles.emptyTitle}>All Caught Up</Text>
+          <Text style={styles.emptySubtitle}>Nothing overdue on schedules, invoices, permits or certificates.</Text>
         </View>
       )
     ) : (
@@ -303,7 +303,7 @@ export default function AttentionScreen() {
               // DataTable fades the rows that appear.
               onChange={(v) => { layoutNext(); setSeverity(v); }}
               variant="pill"
-              accessibilityLabel="Filter by severity"
+              accessibilityLabel="Filter by Severity"
               testID="attention-severity"
             />
           }
@@ -320,11 +320,11 @@ export default function AttentionScreen() {
             onPress={() => router.push('/waiting-on')}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={`Chase ${chaseable === 1 ? 'it' : `all ${chaseable}`} on Waiting on others`}
+            accessibilityLabel={`Chase ${chaseable === 1 ? 'it' : `all ${chaseable}`} on Waiting on Others`}
             testID="attention-open-waiting-on"
           >
             <Text style={styles.chaseLinkText}>
-              {chaseable === 1 ? 'Chase it on Waiting on others' : `Chase these ${chaseable} on Waiting on others`}
+              {chaseable === 1 ? 'Chase It on Waiting on Others' : `Chase these ${chaseable} on Waiting on Others`}
             </Text>
             <ChevronRight size={14} color={t.accent} strokeWidth={2} />
           </TouchableOpacity>
@@ -343,7 +343,7 @@ export default function AttentionScreen() {
         getRowHref={(r) => routeHref('/change-order', { projectId: r.projectId, coId: r.id })}
         defaultSort={{ key: 'amount', dir: 'desc' }}
         searchText={(r) => r.projectName}
-        searchPlaceholder="Search jobs"
+        searchPlaceholder="Search projects"
         renderCard={(r) => card(r.id, `${r.projectName} · CO #${r.coNumber}`, `${formatMoney(r.amount)} · ${r.ageDays} ${r.ageDays === 1 ? 'day' : 'days'} old`,
           routeHref('/change-order', { projectId: r.projectId, coId: r.id }))}
         testID="attention-bill-table"
@@ -352,7 +352,7 @@ export default function AttentionScreen() {
   } else if (view === 'logs' && logsLoading) {
     body = loadingLine;
   } else if (view === 'logs') {
-    body = logRows.length === 0 ? emptyLine('No active job owes a daily log, and none has a gap in the last 30 days.') : (
+    body = logRows.length === 0 ? emptyLine('No active project owes a daily log, and none has a gap in the last 30 days.') : (
       <DataTable<DailyLogGapRow>
         tableId="attention-logs"
         columns={logColumns}
@@ -360,7 +360,7 @@ export default function AttentionScreen() {
         rowKey={(r) => r.projectId}
         getRowHref={(r) => routeHref('/daily-report', cleanParams(dailyLogGapTarget(r)))}
         searchText={(r) => r.projectName}
-        searchPlaceholder="Search jobs"
+        searchPlaceholder="Search projects"
         renderCard={(r) => card(r.projectId, dailyLogGapLine(r), `${r.c.filedDays} of ${r.c.closedExpectedDays} working days logged`,
           routeHref('/daily-report', cleanParams(dailyLogGapTarget(r))))}
         testID="attention-logs-table"
@@ -376,7 +376,7 @@ export default function AttentionScreen() {
         getRowHref={(a) => routeHref('/warranty-walk', { projectId: a.project.id })}
         defaultSort={{ key: 'walk', dir: 'asc' }}
         searchText={(a) => a.project.name}
-        searchPlaceholder="Search jobs"
+        searchPlaceholder="Search projects"
         renderCard={(a) => card(a.project.id, `${a.project.name} · ${a.warrantyMonthsAssumed ? 'Warranty walk' : warrantyWalkTitle(a.warrantyMonths)}`,
           `Walk due ${dayLabel(a.walkDueDate)} · expires ${dayLabel(a.warrantyExpiresAt)}`,
           routeHref('/warranty-walk', { projectId: a.project.id }))}
@@ -387,7 +387,7 @@ export default function AttentionScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]} testID="attention-screen">
-      <Stack.Screen options={{ title: 'Needs attention' }} />
+      <Stack.Screen options={{ title: 'Needs Attention' }} />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
         keyboardShouldPersistTaps="handled"
@@ -404,7 +404,7 @@ export default function AttentionScreen() {
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
         ) : null}
-        <PageHeader title="Needs attention" hideSearch />
+        <PageHeader title="Needs Attention" hideSearch />
         <View style={styles.switchRow}>
           <SegmentedControl<AttentionView>
             options={(['needs', 'bill', 'logs', 'warranty'] as AttentionView[]).map((v) => ({
@@ -416,7 +416,7 @@ export default function AttentionScreen() {
             value={view}
             onChange={(next) => router.setParams({ view: next })}
             variant="pill"
-            accessibilityLabel="Which list"
+            accessibilityLabel="Which List"
             testID="attention-views"
           />
         </View>

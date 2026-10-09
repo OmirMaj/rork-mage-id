@@ -42,7 +42,7 @@ export function BidDriverRow({ driver }: { driver: BidDriver }) {
       <Text style={styles.detail}>{driver.detail}</Text>
       <View
         style={[styles.dot, { backgroundColor: dotColor }]}
-        accessibilityLabel={positive ? 'Positive factor' : 'Negative factor'}
+        accessibilityLabel={positive ? 'Positive Factor' : 'Negative Factor'}
       />
     </View>
   );

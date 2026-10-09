@@ -638,7 +638,7 @@ ok('the roster row renders the flags as chips', /certFlagsByMember\[member\.id\]
 const clockInBody = screen.slice(screen.indexOf('const handleClockIn = useCallback'), screen.indexOf('// ── Payroll export (#64'));
 ok('handleClockIn asks before clocking in a lapsed card, naming it',
   /lapsedCertConfirmText\(member\.name, certFlagsByMember\[member\.id\]/.test(clockInBody)
-  && /if \(warn\) \{[\s\S]*showAlert\(t\('field\.time\.certificationLapsed', 'Certification lapsed'\), warn[\s\S]*onPress: commit[\s\S]*return;\s*\}\s*commit\(\);/.test(clockInBody),
+  && /if \(warn\) \{[\s\S]*showAlert\(t\('field\.time\.certificationLapsed', 'Certification Lapsed'\), warn[\s\S]*onPress: commit[\s\S]*return;\s*\}\s*commit\(\);/.test(clockInBody),
   'the confirm must run before commit(), and commit() only after it or when nothing lapsed');
 
 console.log(`\n${pass} passed, ${fail} failed`);

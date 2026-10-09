@@ -127,11 +127,11 @@ export function LivingFloorPlan({
   if (!imageUri) {
     return (
       <View style={{ flex: 1, paddingTop: 24 }}>
-        <EmptyState icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />} title="No floor plan yet"
+        <EmptyState icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />} title="No Floor Plan Yet"
           message={clientMode
             ? 'Your contractor hasn’t added a floor plan to this link yet.'
             : 'Add a floor plan to start the living floor plan.'}
-          actionLabel={clientMode ? undefined : 'Add floor plan'}
+          actionLabel={clientMode ? undefined : 'Add Floor Plan'}
           onAction={onAddPlan ?? (() => {})} />
       </View>
     );
@@ -154,19 +154,19 @@ export function LivingFloorPlan({
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 24 }}>
         <View style={styles.head}>
-          <Text style={styles.title}>{clientMode ? 'Your floor plan' : 'Living floor plan'}</Text>
+          <Text style={styles.title}>{clientMode ? 'Your Floor Plan' : 'Living Floor Plan'}</Text>
           {!locked && !!onShare && (
             <TouchableOpacity style={styles.headBtn} onPress={onShare} testID="living-plan-share"
-              accessibilityRole="button" accessibilityLabel="Share this plan with the client">
+              accessibilityRole="button" accessibilityLabel="Share This Plan with the Client">
               <Share2 size={14} color={colors.accent} strokeWidth={1.75} />
               <Text style={styles.headBtnText}>Share</Text>
             </TouchableOpacity>
           )}
           {!locked && (
             <TouchableOpacity style={styles.headBtn} onPress={onEdit} testID="living-plan-edit"
-              accessibilityRole="button" accessibilityLabel="Edit zones">
+              accessibilityRole="button" accessibilityLabel="Edit Zones">
               <Pencil size={14} color={colors.accent} strokeWidth={1.75} />
-              <Text style={styles.headBtnText}>Edit zones</Text>
+              <Text style={styles.headBtnText}>Edit Zones</Text>
             </TouchableOpacity>
           )}
         </View>

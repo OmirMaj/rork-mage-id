@@ -204,7 +204,7 @@ export function computeCollectedToDate(
 /** Ledger key → the words a GC reads on screen. Order = the order he'd fill
  *  them in, which is the order the gap sentence lists them. */
 const LEDGER_LABELS: readonly (readonly [keyof ActualCostLedgers, string])[] = [
-  ['commitments', 'sub & PO payments'],
+  ['commitments', 'sub and PO payments'],
   ['receipts', 'material receipts'],
   ['timeEntries', 'crew hours'],
   ['equipment', 'equipment days'],
@@ -241,10 +241,10 @@ export function evaluateCostBasis(actual: ActualCostEvidence | undefined): EvmCo
 export function describeCostBasisGap(basis: EvmCostBasis): string {
   if (basis.grounded) return '';
   if (basis.reason === 'no_priced_cost') {
-    return `This job has ${basis.recordCount} cost record${basis.recordCount === 1 ? '' : 's'}, but none of them carry a dollar amount yet — a machine logged without a day rate, or a permit with no fee. Cost performance stays hidden until there are real dollars to measure: we don't substitute an average rate.`;
+    return `This job has ${basis.recordCount} cost record${basis.recordCount === 1 ? '' : 's'}, but none of them carry a dollar amount yet: a machine logged without a day rate, or a permit with no fee. Cost performance stays hidden until there are real dollars to measure: we don't substitute an average rate.`;
   }
   const list = basis.emptyLedgers.join(', ');
-  return `Nothing has been recorded as money paid OUT on this job — no ${list}. Cost performance (CPI, Cost Variance, Est. at Completion) measures what you've spent, so it stays hidden rather than showing a number built on the wrong money. Client payments are money IN and are never counted as cost.`;
+  return `Nothing has been recorded as money paid OUT on this job: no ${list}. Cost performance (CPI, Cost Variance, Est. at Completion) measures what you've spent, so it stays hidden rather than showing a number built on the wrong money. Client payments are money IN and are never counted as cost.`;
 }
 
 /**

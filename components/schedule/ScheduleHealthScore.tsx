@@ -130,7 +130,7 @@ function ScheduleHealthDetailImpl({ visible, onClose, result, onJumpToTask }: Sc
         <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, frame.card]}>
           {frame.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHead}>
-            <Text style={styles.modalTitle}>Schedule health</Text>
+            <Text style={styles.modalTitle}>Schedule Health</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 

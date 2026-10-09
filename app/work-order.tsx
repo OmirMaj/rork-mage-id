@@ -201,8 +201,8 @@ export default function WorkOrderScreen() {
           'Did you send it?',
           `MAGE can't see your ${channel === 'sms' ? 'messages' : 'email'}. Mark the job assigned only once the ${channel === 'sms' ? 'text' : 'email'} has actually gone to ${c.firstName?.trim() || 'the contractor'}.`,
           [
-            { text: 'Not sent', style: 'cancel' },
-            { text: 'Mark assigned', onPress: () => markAssigned(c) },
+            { text: 'Not Sent', style: 'cancel' },
+            { text: 'Mark Assigned', onPress: () => markAssigned(c) },
           ],
         );
         return;
@@ -210,7 +210,7 @@ export default function WorkOrderScreen() {
       markAssigned(c);
     } catch {
       showAlert(
-        channel === 'sms' ? "Couldn't open Messages" : "Couldn't open Mail",
+        channel === 'sms' ? "Couldn't Open Messages" : "Couldn't Open Mail",
         `Nothing was sent and the work order is unchanged. ${channel === 'sms' ? `Call or text ${c.phone}` : `Email ${c.email}`} yourself, then use "Mark assigned without sending".`,
       );
     }
@@ -232,7 +232,7 @@ export default function WorkOrderScreen() {
         // own follow-up alert instead of a fourth button here.
         ...(hasPhone && hasEmail
           ? [{
-              text: 'Text or email',
+              text: 'Text or Email',
               onPress: () => showAlert(`Send to ${name}`, 'Pick how. Your app opens with the job filled in; you press Send.', [
                 { text: `Text ${c.phone}`, onPress: () => { void sendVia(c, 'sms'); } },
                 { text: `Email ${c.email}`, onPress: () => { void sendVia(c, 'email'); } },
@@ -242,7 +242,7 @@ export default function WorkOrderScreen() {
           : hasPhone ? [{ text: `Text ${c.phone}`, onPress: () => { void sendVia(c, 'sms'); } }]
           : hasEmail ? [{ text: `Email ${c.email}`, onPress: () => { void sendVia(c, 'email'); } }]
           : []),
-        { text: 'Mark assigned without sending', onPress: () => markAssigned(c) },
+        { text: 'Mark Assigned Without Sending', onPress: () => markAssigned(c) },
         { text: 'Cancel', style: 'cancel' as const },
       ],
     );
@@ -298,7 +298,7 @@ export default function WorkOrderScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={8}><ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Work order</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Work Order</Text>
         </View>
         <View style={styles.missingWrap}>
           <AlertTriangle size={28} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -319,8 +319,8 @@ export default function WorkOrderScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityLabel="Back">
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Work order</Text>
-        <TouchableOpacity onPress={handleDelete} hitSlop={8} accessibilityLabel="Delete work order">
+        <Text style={styles.headerTitle} numberOfLines={1}>Work Order</Text>
+        <TouchableOpacity onPress={handleDelete} hitSlop={8} accessibilityLabel="Delete Work Order">
           <Trash2 size={18} color={themeColors.danger} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
@@ -380,7 +380,7 @@ export default function WorkOrderScreen() {
             accessibilityRole="button"
           >
             <Send size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.assignedText}>Posted for bids · see responses</Text>
+            <Text style={styles.assignedText}>Posted for Bids · See Responses</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         )}
@@ -400,7 +400,7 @@ export default function WorkOrderScreen() {
                 testID="wo-send-instead"
               >
                 <UserCheck size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
-                <Text style={styles.reachNoticeBtnText}>Send to a contractor instead</Text>
+                <Text style={styles.reachNoticeBtnText}>Send to a Contractor Instead</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -408,11 +408,11 @@ export default function WorkOrderScreen() {
 
         {/* Bridge — the demand → supply handoff. "Send to a contractor" is the
             main action: today it is the only one that reaches anybody. */}
-        <Text style={styles.sectionLabel}>Get it done</Text>
+        <Text style={styles.sectionLabel}>Get It Done</Text>
         <View style={styles.bridgeRow}>
           <TouchableOpacity style={[styles.bridgeBtn, styles.bridgeBtnPrimary]} onPress={() => setDispatchOpen(true)} activeOpacity={0.85} accessibilityRole="button" testID="wo-dispatch">
             <View style={styles.bridgeIcon}><UserCheck size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
-            <Text style={styles.bridgeTitle}>Send to a contractor</Text>
+            <Text style={styles.bridgeTitle}>Send to a Contractor</Text>
             <Text style={styles.bridgeSub}>Text or email the job from your phone</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -425,7 +425,7 @@ export default function WorkOrderScreen() {
             testID="wo-post-bids"
           >
             <View style={styles.bridgeIcon}><Send size={18} color={BIDS_GATE.open ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} /></View>
-            <Text style={[styles.bridgeTitle, !BIDS_GATE.open && { color: themeColors.textMuted }]}>Post for bids</Text>
+            <Text style={[styles.bridgeTitle, !BIDS_GATE.open && { color: themeColors.textMuted }]}>Post for Bids</Text>
             <Text style={styles.bridgeSub}>{BIDS_GATE.open ? POST_FOR_BIDS_REACH_SUBTITLE : BIDS_GATE.reason}</Text>
           </TouchableOpacity>
         </View>
@@ -459,7 +459,7 @@ export default function WorkOrderScreen() {
             {fDispatch.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={styles.modalHeadIcon}><Users size={15} color={Colors.textOnAccent} strokeWidth={1.75} /></View>
-              <Text style={styles.modalTitle}>{addingContractor ? 'Add a contractor' : 'Send to a contractor'}</Text>
+              <Text style={styles.modalTitle}>{addingContractor ? 'Add a Contractor' : 'Send to a Contractor'}</Text>
               <TouchableOpacity onPress={closeDispatch} hitSlop={8} accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             {addingContractor ? (
@@ -467,7 +467,7 @@ export default function WorkOrderScreen() {
                 <Text style={styles.modalNote}>Saved to your Contacts as a contractor (Sub). Then pick them from the list to send the job.</Text>
                 <Text style={styles.fieldLabel}>Name</Text>
                 <TextInput style={styles.input} value={ncName} onChangeText={setNcName} placeholder="Joe Rivera" placeholderTextColor={themeColors.textMuted} autoFocus testID="wo-new-contractor-name" />
-                <Text style={styles.fieldLabel}>Company (optional)</Text>
+                <Text style={styles.fieldLabel}>Company (Optional)</Text>
                 <TextInput style={styles.input} value={ncCompany} onChangeText={setNcCompany} placeholder="Rivera Plumbing" placeholderTextColor={themeColors.textMuted} />
                 <Text style={styles.fieldLabel}>Phone</Text>
                 <TextInput style={styles.input} value={ncPhone} onChangeText={setNcPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" testID="wo-new-contractor-phone" />
@@ -476,7 +476,7 @@ export default function WorkOrderScreen() {
                 {!!ncBlockedWhy && <Text style={styles.blockedWhy}>{ncBlockedWhy}</Text>}
                 <View style={styles.formBtnRow}>
                   <TouchableOpacity style={styles.formBtnGhost} onPress={() => setAddingContractor(false)} activeOpacity={0.8} accessibilityRole="button">
-                    <Text style={styles.formBtnGhostText}>Back to the list</Text>
+                    <Text style={styles.formBtnGhostText}>Back to the List</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.formBtn, !!ncBlockedWhy && styles.formBtnDisabled]}
@@ -488,7 +488,7 @@ export default function WorkOrderScreen() {
                     testID="wo-new-contractor-save"
                   >
                     <Check size={15} color={Colors.textOnAccent} strokeWidth={1.75} />
-                    <Text style={styles.formBtnText}>Save contractor</Text>
+                    <Text style={styles.formBtnText}>Save Contractor</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -536,7 +536,7 @@ export default function WorkOrderScreen() {
                   testID="wo-add-contractor"
                 >
                   <UserPlus size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
-                  <Text style={styles.addContractorText}>Add a contractor</Text>
+                  <Text style={styles.addContractorText}>Add a Contractor</Text>
                 </TouchableOpacity>
               </>
             )}

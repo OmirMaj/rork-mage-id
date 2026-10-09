@@ -157,11 +157,11 @@ console.log('\nhomeowner-weekly-digest/index.ts is wired to the rules:');
 
 {
   // The GC's "Send preview" button must say why nothing went out, not always
-  // "No invites yet", now that the function skips closed jobs / ended links.
+  // "No Invites Yet", now that the function skips closed jobs / ended links.
   const setup = strip(read('app/client-portal-setup.tsx'));
-  ok('Send preview names a closed project', /errs\.includes\('project_closed'\)[\s\S]{0,400}showAlert\('Project is closed'/.test(setup));
-  ok('…and promises the closing email only when the weekly recap is on', /showAlert\('Project is closed', portal\.weeklyDigest\?\.enabled\s*\?[^:]*one last email[\s\S]{0,120}:\s*'[^']*recap is off[^']*no closing email/.test(setup));
-  ok('Send preview names an ended portal link', /errs\.includes\('portal_link_ended'\)[\s\S]{0,40}showAlert\('Portal link has ended'/.test(setup));
+  ok('Send preview names a closed project', /errs\.includes\('project_closed'\)[\s\S]{0,400}showAlert\('Project is closed.'/.test(setup));
+  ok('…and promises the closing email only when the weekly recap is on', /showAlert\('Project is closed.', portal\.weeklyDigest\?\.enabled\s*\?[^:]*one last email[\s\S]{0,120}:\s*'[^']*recap is off[^']*no closing email/.test(setup));
+  ok('Send preview names an ended portal link', /errs\.includes\('portal_link_ended'\)[\s\S]{0,40}showAlert\('Portal link has ended.'/.test(setup));
 }
 
 {
@@ -213,8 +213,8 @@ console.log('\nhomeowner-weekly-digest/index.ts is wired to the rules:');
     /isEmailUnsubscribed\([^)]*'weekly_digest'\)\) \{[\s\S]{0,500}errors\.push\(DIGEST_RECIPIENT_UNSUBSCRIBED\);\s*continue;/.test(fn)
       && /const DIGEST_RECIPIENT_UNSUBSCRIBED = 'unsubscribed';/.test(fn));
   const setup = strip(read('app/client-portal-setup.tsx'));
-  ok('Send preview: all invites unsubscribed reads "Your client turned these emails off", not "No invites yet"',
-    /\} else if \(errs\.every\(e => e === 'unsubscribed'\)\) \{[\s\S]{0,40}showAlert\('Your client turned these emails off'/.test(setup)
+  ok('Send preview: all invites unsubscribed reads "Your Client Turned These Emails Off", not "No Invites Yet"',
+    /\} else if \(errs\.every\(e => e === 'unsubscribed'\)\) \{[\s\S]{0,40}showAlert\('Your client turned these emails off.'/.test(setup)
       && /const refusal = errs\.find\(e => e !== 'unsubscribed'\) \?\? errs\[0\];/.test(setup));
   ok('a never-published portal gets no portal button in the recap',
     /portalUnpublished = !snapRes\.error && snapRes\.data == null;/.test(fn) && /const portalUrl = portalUnpublished \? undefined : \(portalUrlFor\(portal, portalKey\) \?\? undefined\);/.test(fn));

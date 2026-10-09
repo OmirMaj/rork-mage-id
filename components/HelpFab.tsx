@@ -100,9 +100,9 @@ function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openS
 
   const handleEmail = useCallback(() => {
     setOpen(false);
-    const subject = encodeURIComponent('MAGE ID — need help with…');
+    const subject = encodeURIComponent('MAGE ID: need help with…');
     const body = encodeURIComponent(
-      `What screen are you on?\n\nWhat were you trying to do?\n\nWhat happened instead?\n\n— sent from MAGE ID ${helpEmailPlatformTag()}`,
+      `What screen are you on?\n\nWhat were you trying to do?\n\nWhat happened instead?\n\nSent from MAGE ID ${helpEmailPlatformTag()}`,
     );
     Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(() => {/* ignore */});
   }, []);
@@ -145,7 +145,7 @@ function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openS
               <Play size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Watch the demo videos</Text>
+              <Text style={styles.rowTitle}>Watch the Demo Videos</Text>
               <Text style={styles.rowSub}>90-second tour, full walkthrough, and a clip per feature.</Text>
             </View>
             <ExternalLink size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -164,7 +164,7 @@ function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openS
                 <BookOpen size={16} color={Colors.warningLabel} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Tutorials: practice on a sample project</Text>
+                <Text style={styles.rowTitle}>Tutorials: Practice on a Sample Project</Text>
                 <Text style={styles.rowSub}>Do the real thing once, on a sample. Each under a minute.</Text>
               </View>
             </TouchableOpacity>
@@ -175,8 +175,8 @@ function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openS
               <Mail size={16} color={themeColors.success} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Email support</Text>
-              <Text style={styles.rowSub}>{SUPPORT_EMAIL} — usually under 4 hours.</Text>
+              <Text style={styles.rowTitle}>Email Support</Text>
+              <Text style={styles.rowSub}>{SUPPORT_EMAIL}. Usually under 4 hours.</Text>
             </View>
             <ExternalLink size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>

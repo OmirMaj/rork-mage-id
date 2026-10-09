@@ -80,7 +80,7 @@ export function validatePaymentSplit(input: { deposit: RawPercent; progress: Raw
   for (const key of ['deposit', 'progress', 'final'] as const) {
     const parsed = parseWholeNumber(input[key]);
     if (parsed === 'missing') {
-      return { ok: false, reason: `Enter the ${STAGE_NAMES[key]} percent — a whole number from 0 to 100.` };
+      return { ok: false, reason: `Enter the ${STAGE_NAMES[key]} percent: a whole number from 0 to 100.` };
     }
     if (parsed === 'invalid' || parsed < PAYMENT_SPLIT_BOUNDS.min || parsed > PAYMENT_SPLIT_BOUNDS.max) {
       return { ok: false, reason: `The ${STAGE_NAMES[key]} needs to be a whole percent from 0 to 100.` };
@@ -89,7 +89,7 @@ export function validatePaymentSplit(input: { deposit: RawPercent; progress: Raw
   }
   const sum = values.deposit + values.progress + values.final;
   if (sum !== PAYMENT_SPLIT_BOUNDS.sum) {
-    return { ok: false, reason: `Adds up to ${sum}% — deposit, progress and final need to total 100%.` };
+    return { ok: false, reason: `Adds up to ${sum}%. Deposit, progress and final need to total 100%.` };
   }
   return { ok: true, split: { depositPct: values.deposit, progressPct: values.progress, finalPct: values.final } };
 }
@@ -98,7 +98,7 @@ export type WarrantyValidation = { ok: true; months: number } | { ok: false; rea
 
 export function validateWarrantyMonths(raw: RawPercent): WarrantyValidation {
   const parsed = parseWholeNumber(raw);
-  if (parsed === 'missing') return { ok: false, reason: 'Enter how many months you warrant your work — 1 to 120.' };
+  if (parsed === 'missing') return { ok: false, reason: 'Enter how many months you warrant your work: 1 to 120.' };
   if (parsed === 'invalid' || parsed < WARRANTY_MONTHS_BOUNDS.min || parsed > WARRANTY_MONTHS_BOUNDS.max) {
     return { ok: false, reason: 'The warranty needs to be a whole number of months from 1 to 120.' };
   }
@@ -351,8 +351,8 @@ export type PaymentStageKey = 'deposit' | 'progress' | 'final';
 
 export const PAYMENT_STAGE_COPY: Record<PaymentStageKey, { label: string; detail: string }> & { depositNone: string } = {
   deposit: { label: 'Deposit', detail: 'Due on signing' },
-  progress: { label: 'Progress payments', detail: 'Billed as work is completed' },
-  final: { label: 'Final payment', detail: 'Due at substantial completion' },
+  progress: { label: 'Progress Payments', detail: 'Billed as work is completed' },
+  final: { label: 'Final Payment', detail: 'Due at substantial completion' },
   depositNone: 'No deposit',
 };
 
@@ -658,7 +658,7 @@ export function isValidStamp(x: unknown): x is ProposalPaymentTerms {
 /** Whether the client has accepted this project's proposal, as last read. */
 export type AcceptanceState = 'none' | 'accepted' | 'unknown';
 
-export const ACCEPTANCE_UNKNOWN_REASON = 'Couldn’t check whether your client already accepted — try again.';
+export const ACCEPTANCE_UNKNOWN_REASON = 'Couldn’t check whether your client already accepted. Try again.';
 
 /**
  * The stamp to write when he publishes, confirms, or uses his current terms.
@@ -679,7 +679,7 @@ export function nextProposalStamp(input: {
   if (!isValidStamp(existing)) return { stamp: fresh };
   if (sameSplit(existing, split)) return { stamp: { ...pickSplit(existing), confirmedAt: existing.confirmedAt } };
   if (acceptance === 'accepted') {
-    return { refused: `Your client accepted this proposal on ${splitLabel(existing)} — those terms can’t change.` };
+    return { refused: `Your client accepted this proposal on ${splitLabel(existing)}. Those terms can’t change.` };
   }
   if (acceptance === 'unknown') return { refused: ACCEPTANCE_UNKNOWN_REASON };
   return { stamp: fresh };

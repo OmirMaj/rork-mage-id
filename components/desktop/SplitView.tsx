@@ -12,7 +12,7 @@
 //                               the divider drags and the position is saved
 //                               per split id (`mageid_split_<id>`).
 //   container < 1100 (desktop)  one pane: the record REPLACES the list, with a
-//                               "Back to list" link. The list stays mounted,
+//                               "Back to List" link. The list stays mounted,
 //                               only hidden, so its search / sort / scroll and
 //                               its j/k survive the round trip. While hidden
 //                               it gets NO other key (SplitListHiddenContext):
@@ -168,7 +168,7 @@ export function SplitView(props: SplitViewProps) {
 }
 
 function DesktopSplitView({
-  splitId, list, detail, openId, onClose, emptyDetail, backLabel = 'Back to list', collapseWhenEmpty = false, style, testID,
+  splitId, list, detail, openId, onClose, emptyDetail, backLabel = 'Back to List', collapseWhenEmpty = false, style, testID,
 }: SplitViewProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -207,7 +207,7 @@ function DesktopSplitView({
   // own search / selection first (priority 1). No j/k here — see the header.
   useHotkeys(
     [
-      { combo: 'escape', label: 'Close the record', group: 'List', enabled: hasRecord, handler: onClose },
+      { combo: 'escape', label: 'Close the Record', group: 'List', enabled: hasRecord, handler: onClose },
     ],
   );
 
@@ -264,7 +264,7 @@ function DesktopSplitView({
           {...(Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}
           style={[styles.divider, RESIZE_CURSOR]}
           accessibilityRole="adjustable"
-          accessibilityLabel="Resize the list"
+          accessibilityLabel="Resize the List"
           testID={testID ? `${testID}-divider` : undefined}
         >
           <View style={styles.dividerLine} />

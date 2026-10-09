@@ -34,6 +34,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { describeError } from '@/utils/errorCopy';
+import { rfpAttachmentDisplayName, signRfpAttachment, useRfpAttachmentUrls } from '@/utils/rfpAttachmentUrls';
 
 interface RfpRow {
   id: string;
@@ -56,6 +57,8 @@ interface RfpRow {
   awarded_response_id: string | null;
   awarded_at: string | null;
 }
+
+const NO_ATTACHMENTS: readonly string[] = [];
 
 export default function RfpDetailScreen() {
   const { colors: themeColors } = useTheme();
@@ -124,6 +127,8 @@ export default function RfpDetailScreen() {
   // Pre-bid Q&A — public by default so every prospective bidder gets the
   // same info. The homeowner answers; contractors ask.
   const queryClient = useQueryClient();
+  // The posting's photos, as short-lived signed links (the bucket is private).
+  const attachmentUrl = useRfpAttachmentUrls(rfp?.photo_urls ?? NO_ATTACHMENTS);
   const { data: questions } = useQuery({
     queryKey: ['rfp-questions', bidId],
     enabled: !!bidId && isSupabaseConfigured,
@@ -134,7 +139,7 @@ export default function RfpDetailScreen() {
   const [submittingQ, setSubmittingQ] = useState(false);
   const handleAsk = useCallback(async () => {
     if (!bidId || !newQuestion.trim() || newQuestion.trim().length < 8) {
-      showAlert('Question too short', 'Add a few more words so the client has something to answer.');
+      showAlert('Question Too Short', 'Add a few more words so the client has something to answer.');
       return;
     }
     setSubmittingQ(true);
@@ -144,7 +149,7 @@ export default function RfpDetailScreen() {
         setNewQuestion('');
         void queryClient.invalidateQueries({ queryKey: ['rfp-questions', bidId] });
       } else {
-        showAlert('Could not post', 'Try again in a moment.');
+        showAlert('Could Not Post', 'Try again in a moment.');
       }
     } finally {
       setSubmittingQ(false);
@@ -157,7 +162,7 @@ export default function RfpDetailScreen() {
       try {
         const ok = await answerBidQuestion(q.id, text);
         if (ok) void queryClient.invalidateQueries({ queryKey: ['rfp-questions', bidId] });
-        else showAlert('Could not post', 'Try again in a moment.');
+        else showAlert('Could Not Post', 'Try again in a moment.');
       } catch (e) {
         const copy = describeError(e, { action: 'post the answer' });
         showAlert(copy.title, copy.body);
@@ -186,8 +191,13 @@ export default function RfpDetailScreen() {
     router.push({ pathname: '/rfp-responses-review' as never, params: { bidId } as never });
   }, [bidId, router]);
 
-  const openAttachment = useCallback((url: string) => {
-    Linking.openURL(url).catch(() => showAlert('Could not open', 'The attachment link is broken.'));
+  // A fresh signed link at the tap: the bucket is private and a link minted at
+  // page load may have expired (utils/rfpAttachmentUrls).
+  const openAttachment = useCallback((stored: string) => {
+    void signRfpAttachment(stored).then((url) => {
+      if (!url) { showAlert('Could Not Open', 'The attachment link is broken.'); return; }
+      Linking.openURL(url).catch(() => showAlert('Could Not Open', 'The attachment link is broken.'));
+    });
   }, []);
 
   // Back has to work even when this screen is the bottom of the stack. Both
@@ -240,15 +250,15 @@ export default function RfpDetailScreen() {
   );
 
   if (!bidId) {
-    return renderShell('Project not found', (
+    return renderShell('Project Not Found', (
       <>
         <AlertTriangle size={22} color={Colors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.stateTitle}>Couldn’t open that link</Text>
+        <Text style={styles.stateTitle}>Couldn’t Open That Link</Text>
         <Text style={styles.stateText}>
           It is missing a project reference. Open the project again from your MAGE ID Bids tab.
         </Text>
         <TouchableOpacity style={styles.stateBtn} onPress={handleBack} accessibilityRole="button" testID="rfp-detail-back">
-          <Text style={styles.stateBtnText}>Go back</Text>
+          <Text style={styles.stateBtnText}>Go Back</Text>
         </TouchableOpacity>
       </>
     ));
@@ -264,10 +274,10 @@ export default function RfpDetailScreen() {
   }
 
   if (loadFailed) {
-    return renderShell('Could not load', (
+    return renderShell('Could Not Load', (
       <>
         <AlertTriangle size={22} color={Colors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.stateTitle}>Couldn’t load this project</Text>
+        <Text style={styles.stateTitle}>Couldn’t Load This Project</Text>
         <Text style={styles.stateText}>
           You may be offline or on a weak connection. Nothing was lost.
         </Text>
@@ -283,7 +293,7 @@ export default function RfpDetailScreen() {
           ) : (
             <>
               <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.stateBtnText}>Try again</Text>
+              <Text style={styles.stateBtnText}>Try Again</Text>
             </>
           )}
         </TouchableOpacity>
@@ -292,7 +302,7 @@ export default function RfpDetailScreen() {
   }
 
   if (!rfp) {
-    return renderShell('No longer available', (
+    return renderShell('No Longer Available', (
       <>
         <FileText size={22} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.stateTitle}>This project is no longer available</Text>
@@ -300,7 +310,7 @@ export default function RfpDetailScreen() {
           The client may have awarded it, closed it, or taken it down.
         </Text>
         <TouchableOpacity style={styles.stateBtn} onPress={handleBack} accessibilityRole="button" testID="rfp-detail-back">
-          <Text style={styles.stateBtnText}>Go back</Text>
+          <Text style={styles.stateBtnText}>Go Back</Text>
         </TouchableOpacity>
       </>
     ));
@@ -328,9 +338,9 @@ export default function RfpDetailScreen() {
         {/* Hero photo gallery */}
         {rfp.photo_urls && rfp.photo_urls.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gallery}>
-            {rfp.photo_urls.map(url => (
-              <TouchableOpacity key={url} onPress={() => openAttachment(url)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add image">
-                <Image source={{ uri: url }} style={styles.galleryImage} resizeMode="cover" />
+            {rfp.photo_urls.map(stored => (
+              <TouchableOpacity key={stored} onPress={() => openAttachment(stored)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add Image">
+                <Image source={{ uri: attachmentUrl(stored) || undefined }} style={styles.galleryImage} resizeMode="cover" />
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -348,7 +358,7 @@ export default function RfpDetailScreen() {
             {isOpen && (
               <View style={[styles.pill, { backgroundColor: themeColors.accent + '20' }]}>
                 <Clock size={10} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: themeColors.accent }]}>Open for bids</Text>
+                <Text style={[styles.pillText, { color: themeColors.accent }]}>Open for Bids</Text>
               </View>
             )}
             {rfp.verified_only && (
@@ -361,7 +371,7 @@ export default function RfpDetailScreen() {
                     USING(true) to authenticated and bid_responses has no
                     verification predicate. "ONLY" claimed a restriction that does
                     not exist, to both the homeowner and every bidder. */}
-                <Text style={[styles.pillText, { color: themeColors.accent }]}>Verified pros notified</Text>
+                <Text style={[styles.pillText, { color: themeColors.accent }]}>Alerted Contractors With a License on File</Text>
               </View>
             )}
             {/* address_verified is written by the HOMEOWNER'S device when its
@@ -372,13 +382,13 @@ export default function RfpDetailScreen() {
             {rfp.address_verified && (
               <View style={[styles.pill, { backgroundColor: themeColors.surfaceAlt }]}>
                 <MapPin size={10} color={themeColors.textSecondary} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: themeColors.textSecondary }]}>Address found on map</Text>
+                <Text style={[styles.pillText, { color: themeColors.textSecondary }]}>Address Found on Map</Text>
               </View>
             )}
             {!rfp.address_verified && (
               <View style={[styles.pill, { backgroundColor: Colors.warning + '15' }]}>
                 <MapPinOff size={10} color={Colors.warningLabel} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: Colors.warningLabel }]}>Address not on map</Text>
+                <Text style={[styles.pillText, { color: Colors.warningLabel }]}>Address Not on Map</Text>
               </View>
             )}
           </View>
@@ -418,7 +428,7 @@ export default function RfpDetailScreen() {
         {/* Scope */}
         {rfp.scope_description && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Scope of work</Text>
+            <Text style={styles.cardLabel}>Scope of Work</Text>
             <Text style={styles.scope}>{rfp.scope_description}</Text>
           </View>
         )}
@@ -426,14 +436,14 @@ export default function RfpDetailScreen() {
         {/* Drawings */}
         {rfp.drawing_urls && rfp.drawing_urls.length > 0 && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Plans and documents</Text>
+            <Text style={styles.cardLabel}>Plans and Documents</Text>
             <View style={styles.drawingList}>
-              {rfp.drawing_urls.map(url => {
-                const name = url.split('/').pop()?.replace(/^\d+_/, '') ?? 'attachment';
+              {rfp.drawing_urls.map(stored => {
+                const name = rfpAttachmentDisplayName(stored);
                 return (
-                  <TouchableOpacity key={url} style={styles.drawingItem} onPress={() => openAttachment(url)}>
+                  <TouchableOpacity key={stored} style={styles.drawingItem} onPress={() => openAttachment(stored)}>
                     <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.drawingName} numberOfLines={1}>{decodeURIComponent(name)}</Text>
+                    <Text style={styles.drawingName} numberOfLines={1}>{name}</Text>
                     <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 );
@@ -446,7 +456,7 @@ export default function RfpDetailScreen() {
         <View style={styles.qaCard}>
           <View style={styles.qaHead}>
             <HelpCircle size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.qaTitle}>Questions and answers</Text>
+            <Text style={styles.qaTitle}>Questions and Answers</Text>
             {(questions?.length ?? 0) > 0 && (
               <View style={styles.qaCount}>
                 <Text style={styles.qaCountText}>{questions!.length}</Text>
@@ -510,7 +520,7 @@ export default function RfpDetailScreen() {
                     </View>
                   ) : isOwner ? (
                     <TouchableOpacity style={styles.qaAnswerCta} onPress={() => handleAnswer(q)}>
-                      <Text style={styles.qaAnswerCtaText}>Answer →</Text>
+                      <Text style={styles.qaAnswerCtaText}>Answer</Text>
                     </TouchableOpacity>
                   ) : (
                     <Text style={styles.qaPending}>Waiting on the client’s answer</Text>
@@ -525,7 +535,7 @@ export default function RfpDetailScreen() {
         {!isOwner && isOpen && !existingResponse && (
           <TouchableOpacity style={styles.primaryCta} onPress={handleSubmit} activeOpacity={0.85}>
             <Send size={16} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.primaryCtaText}>Submit your estimate</Text>
+            <Text style={styles.primaryCtaText}>Submit Your Estimate</Text>
           </TouchableOpacity>
         )}
 
@@ -555,7 +565,7 @@ export default function RfpDetailScreen() {
           <View style={styles.ownerActions}>
             <TouchableOpacity style={[styles.primaryCta, { flex: 1 }]} onPress={handleReview}>
               <FileText size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.primaryCtaText}>Review bids</Text>
+              <Text style={styles.primaryCtaText}>Review Bids</Text>
             </TouchableOpacity>
             {/* Edit button removed pre-launch — the in-place edit flow isn't
                 built yet, and a button that says "Editing coming soon" is

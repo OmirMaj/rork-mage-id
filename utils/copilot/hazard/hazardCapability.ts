@@ -23,7 +23,7 @@ const asScale = (v: unknown, fallback: HazardScale): HazardScale => {
 
 export const hazardCapability: CopilotCapability<HazardDraft, HazardApplied> = {
   id: 'hazard',
-  label: 'Flag a hazard',
+  label: 'Flag a Hazard',
   aiFeature: 'voiceCapture',
   maxQuestions: 2,
   askThreshold: 0.4,
@@ -40,7 +40,7 @@ export const hazardCapability: CopilotCapability<HazardDraft, HazardApplied> = {
     voiceTitle: 'Flag a hazard',
     composeEyebrow: 'SOMETHING UNSAFE',
     composeQuestion: 'What did you spot?',
-    composeHint: 'Describe the hazard — I’ll score it and log a corrective action.',
+    composeHint: 'Describe the hazard. I’ll score it and log a corrective action.',
     reviewHeadline: 'Here’s your hazard, ready to log.',
     reviewSub: 'Review the risk, then save. It lands on the hazard board so it gets assigned and fixed.',
     buildingLabel: 'Scoring the hazard…',

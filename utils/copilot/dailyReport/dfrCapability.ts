@@ -21,13 +21,13 @@ export interface DFRApplied {
 
 export const dailyReportCapability: CopilotCapability<DFRDraft, DFRApplied> = {
   id: 'daily_report',
-  label: 'Log a daily report',
+  label: 'Log a Daily Report',
   aiFeature: 'dailyReport',
   maxQuestions: 2,
   askThreshold: 0.4,
   suggestions: [
     'Four framers on site, finished the second-floor walls, poured the garage slab, no issues',
-    'Slow day — rain held up the roofers, plumber roughed in two baths',
+    'Slow day, rain held up the roofers, plumber roughed in two baths',
   ],
   topicChecklist: [
     { label: 'Crew', hint: 'who was on site' },
@@ -94,8 +94,8 @@ export const dailyReportCapability: CopilotCapability<DFRDraft, DFRApplied> = {
     const reportId = createId('dfr');
 
     const issues = draft.cleanDay === true
-      ? 'No issues — clean day.'
-      : (parsed.issuesAndDelays || (draft.cleanDay === false ? 'An issue was flagged — see notes.' : ''));
+      ? 'No issues. Clean day.'
+      : (parsed.issuesAndDelays || (draft.cleanDay === false ? 'An issue was flagged. See notes.' : ''));
 
     const report: DailyFieldReport = {
       id: reportId,

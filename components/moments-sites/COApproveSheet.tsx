@@ -138,8 +138,8 @@ export function coApproveConfirmCopy(number: number | null, amount: number, mone
   return {
     title: `Approve ${label}?`,
     message: amount < 0
-      ? `This credits ${money(Math.abs(amount))} back to the contract. Mark it approved only if your client agreed to it — there is no client signature on this path.`
-      : `This commits ${money(amount)} to the contract. Mark it approved only if your client agreed to it — there is no client signature on this path.`,
+      ? `This credits ${money(Math.abs(amount))} back to the contract. Mark it approved only if your client agreed to it. There is no client signature on this path.`
+      : `This commits ${money(amount)} to the contract. Mark it approved only if your client agreed to it. There is no client signature on this path.`,
   };
 }
 // <<< co-approve-copy

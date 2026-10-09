@@ -34,9 +34,9 @@ interface Props {
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
 const REC_STYLES = {
-  rent: { label: 'Keep renting', Icon: RefreshCw, color: "#1565C0", bg: Colors.infoLight },
-  buy: { label: 'Buy it', Icon: Tag, color: Colors.successDark, bg: Colors.successLight },
-  lease: { label: 'Consider leasing', Icon: ClipboardList, color: Colors.warningLabel, bg: Colors.warningLight },
+  rent: { label: 'Keep Renting', Icon: RefreshCw, color: "#1565C0", bg: Colors.infoLight },
+  buy: { label: 'Buy It', Icon: Tag, color: Colors.successDark, bg: Colors.successLight },
+  lease: { label: 'Consider Leasing', Icon: ClipboardList, color: Colors.warningLabel, bg: Colors.warningLight },
 } as const;
 
 /** The arithmetic, or the one sentence saying what is missing. */
@@ -199,7 +199,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
       <View style={styles.header}>
         <MageAIMark size={12} color={themeColors.accent} />
         <Text style={styles.headerTitle}>Rent or buy: {equipment.name}</Text>
-        <Text style={styles.aiTag}>AI draft</Text>
+        <Text style={styles.aiTag}>AI Draft</Text>
       </View>
 
       <View style={[styles.recBadge, { backgroundColor: rec.bg }]}>
@@ -224,11 +224,11 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
                   own (types/index.ts:3460, and 'owned' is the default the add
                   form starts on). Labelling both "Rent paid" told an owner they
                   had spent money they never spent. */}
-              <Text style={styles.statLabel}>{equipment.type === 'rented' ? 'Rent paid' : 'At your day rate'}</Text>
+              <Text style={styles.statLabel}>{equipment.type === 'rented' ? 'Rent Paid' : 'At Your Day Rate'}</Text>
               <Text style={styles.statValue}>${Math.round(usage.costAtDayRate).toLocaleString()}</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statLabel}>Days used</Text>
+              <Text style={styles.statLabel}>Days Used</Text>
               <Text style={styles.statValue}>{usage.daysUsed < 10 ? usage.daysUsed.toFixed(1) : Math.round(usage.daysUsed).toLocaleString()}</Text>
             </View>
             <View style={styles.statItem}>
@@ -246,7 +246,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
             {usage.spanDays} {usage.spanDays === 1 ? 'day' : 'days'}, at your ${equipment.dailyRate.toLocaleString()}/day rate
             {equipment.type === 'rented'
               ? '.'
-              : ' — what those days are worth at the rate you set, not rent you paid: this machine is marked Owned.'}
+              : '. That is what those days are worth at the rate you set, not rent you paid: this machine is marked Owned.'}
             {usage.jobsNamed ? '' : ' No entry names a job, so the split across jobs is unknown.'}
           </Text>
         </>

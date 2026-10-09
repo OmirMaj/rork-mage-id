@@ -192,7 +192,7 @@ export function useClientDocumentGate() {
   const refuseUntilLoaded = useCallback(() => {
     const notice = profileGateNotice({ failed: settingsLoadFailed || sourceFailed });
     showAlert(notice.title, notice.message, [
-      { text: 'Not now', style: 'cancel' },
+      { text: 'Not Now', style: 'cancel' },
       { text: 'Retry', onPress: retryRemoteReads },
     ]);
   }, [settingsLoadFailed, sourceFailed, retryRemoteReads]);
@@ -374,7 +374,7 @@ export function useClientDocumentGate() {
       } else if (effect === 'save_terms' && res.answers.split) {
         if (!savePaymentTerms({ split: res.answers.split })) {
           latchRef.current = null;
-          setHint('Couldn’t save these terms — check the three percents and try again.');
+          setHint('Couldn’t save these terms. Check the three percents and try again.');
           return;
         }
         if (!hadSplit) {
@@ -399,7 +399,7 @@ export function useClientDocumentGate() {
       } else if (effect === 'save_warranty' && res.answers.warrantyMonths != null) {
         if (!savePaymentTerms({ warrantyMonths: res.answers.warrantyMonths })) {
           latchRef.current = null;
-          setHint('Couldn’t save the warranty — enter a whole number of months from 1 to 120.');
+          setHint('Couldn’t save the warranty. Enter a whole number of months from 1 to 120.');
           return;
         }
       }

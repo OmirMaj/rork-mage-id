@@ -118,13 +118,13 @@ console.info('\n#41 — no punch rows without Punch List');
   ok('…with their photos (the gallery one by id)', r.dfrPhotos.some(p => p.id === 'g-web') && r.dfrPhotos.some(p => p.uri === 'file:///cam/1.jpg'));
   const s = mod.triageSummary({ punch: 0, rfi: 0, dfrObservations: r.dfrObservations, punchRefiled: r.punchRefiled, progress: 0 });
   ok('the summary says they were filed as observations because Punch List is on Business',
-    /3 punch findings were filed as daily-report observations — Punch List is on Business/.test(s), s);
+    /3 punch findings were filed as daily-report observations\. Punch list is on Business/.test(s), s);
   ok('…and never names the Punch List as a place to review them', !/in the project's Punch List/.test(s));
   ok('…nor "Review them on the project screen"', !/project screen/.test(s));
   const withPunch = mod.buildTriageRecords({ ...base, canPunch: true, punch: [entry({})], rfi: [], dfr: [], progress: [] });
   ok('canPunch true → the punch item is made and nothing is refiled', withPunch.punchItems.length === 1 && withPunch.punchRefiled === 0 && withPunch.dfrLines.length === 0);
   const s2 = mod.triageSummary({ punch: 1, rfi: 2, dfrObservations: 1, punchRefiled: 0, progress: 1 });
-  ok('the summary names each real destination', /1 punch item — in the project's Punch List/.test(s2) && /2 RFIs — in the project's RFIs/.test(s2) && /today's draft daily report/.test(s2) && /project's Photos/.test(s2), s2);
+  ok('the summary names each real destination', /1 punch item in the project's Punch List/.test(s2) && /2 RFIs in the project's RFIs/.test(s2) && /today's draft daily report/.test(s2) && /project's Photos/.test(s2), s2);
   ok('nothing kept → the nothing-to-apply sentence', /Nothing to apply/.test(mod.triageSummary({ punch: 0, rfi: 0, dfrObservations: 0, punchRefiled: 0, progress: 0 })));
 }
 
@@ -139,8 +139,8 @@ console.info('\nscreen wiring');
   ok('ReviewEntry carries sourcePhotoId from a gallery pick only', /sourcePhotoId: src\?\.fromProject \? src\.id : undefined/.test(s));
   ok('the picked photo is read once per entry (uri and id together)', /photoUri: src\?\.uri \?\? ''/.test(s));
   ok('the Punch chip is blocked with the reason, not silently moved',
-    /cls === 'punch' && !canPunch/.test(s) && /'Punch list is on Business'/.test(s));
-  ok('the punch bucket says where its entries will go', /these will be filed as observations in today\\'s daily report/.test(s));
+    /cls === 'punch' && !canPunch/.test(s) && /'Punch List Is on Business'/.test(s));
+  ok('the punch bucket says where its entries will go', /These will be filed as observations in today\\'s daily report/.test(s));
   ok('the old "Review them on the project screen" is gone', !/Review them on the project screen/.test(s));
   ok('the DFR draft merge dedupes by id', /mergeDfrPhotos\(existingDraft\.photos/.test(s));
   ok('the analyze error is the server refusal first', /const refusal = showAiRefusal\(err, router\)/.test(s));

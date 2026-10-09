@@ -12,7 +12,7 @@ import type { CpmResult } from './cpm';
  * task that could really slip 4.
  */
 export function floatPhrase(totalFloat: number): string {
-  if (totalFloat <= 0) return 'On the critical path — no slack';
+  if (totalFloat <= 0) return 'On the critical path, no slack';
   return `Can slip ${totalFloat} ${totalFloat === 1 ? 'day' : 'days'}`;
 }
 

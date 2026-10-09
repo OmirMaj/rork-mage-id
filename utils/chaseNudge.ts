@@ -236,13 +236,13 @@ export interface SendNudgeInput {
 }
 
 export const DID_YOU_SEND_TITLE = 'Did you send it?';
-export const DID_YOU_SEND_YES = 'Log as sent';
-export const DID_YOU_SEND_NO = 'Not sent';
+export const DID_YOU_SEND_YES = 'Log as Sent';
+export const DID_YOU_SEND_NO = 'Not Sent';
 
 /**
  * Hand one drafted follow-up out of the app. Resolves how it left ('share' /
  * 'clipboard') — the caller logs the chase with that — or null when nothing
- * left (a cancel, a "Not sent", a failure). Never throws.
+ * left (a cancel, a "Not Sent", a failure). Never throws.
  */
 export async function sendNudge(input: SendNudgeInput, deps: SendNudgeDeps): Promise<ChaseVia | null> {
   deps.haptic?.();
@@ -293,7 +293,7 @@ export async function sendNudge(input: SendNudgeInput, deps: SendNudgeDeps): Pro
   const via: ChaseVia | null = outcome === 'copied' ? 'clipboard' : null;
   if (!couldOpenSheet) {
     deps.showAlert(
-      outcome === 'copied' ? 'Follow-up copied' : 'Could not copy',
+      outcome === 'copied' ? 'Follow-Up Copied' : 'Could Not Copy',
       outcome === 'copied'
         ? (to ? 'Your mail app did not open, so the follow-up is on your clipboard. Paste it into an email or text.'
           : 'No address is on file for them, so the follow-up is on your clipboard. Paste it into your email or text to send it.')
@@ -302,7 +302,7 @@ export async function sendNudge(input: SendNudgeInput, deps: SendNudgeDeps): Pro
     return via;
   }
   deps.showAlert(
-    outcome === 'copied' ? 'Follow-up copied instead' : 'Could not open share',
+    outcome === 'copied' ? 'Follow-Up Copied Instead' : 'Could Not Open Share',
     outcome === 'copied' ? 'Sharing was unavailable, so the follow-up is on your clipboard.'
       : 'Copy the follow-up from the item instead.',
   );

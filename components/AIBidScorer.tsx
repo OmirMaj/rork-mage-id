@@ -22,10 +22,10 @@ const SIZE_OPTIONS = ['Under $100K', '$100K-$500K', '$500K-$2M', '$2M-$10M', '$1
 const CERTS = ['SDVOSB', 'HUBZone', '8(a)', 'WOSB', 'MBE', 'DBE', 'MWBE', 'SBE'];
 
 function getMatchBadge(score: number): { label: string; color: string; bg: string } {
-  if (score >= 90) return { label: 'Great match', color: Colors.successDark, bg: Colors.successLight };
-  if (score >= 70) return { label: 'Good match', color: Colors.infoDark, bg: Colors.infoLight };
-  if (score >= 50) return { label: 'Partial match', color: Colors.warningDark, bg: Colors.warningLight };
-  return { label: 'Low match', color: '#757575', bg: '#F5F5F5' };
+  if (score >= 90) return { label: 'Great Match', color: Colors.successDark, bg: Colors.successLight };
+  if (score >= 70) return { label: 'Good Match', color: Colors.infoDark, bg: Colors.infoLight };
+  if (score >= 50) return { label: 'Partial Match', color: Colors.warningDark, bg: Colors.warningLight };
+  return { label: 'Low Match', color: '#757575', bg: '#F5F5F5' };
 }
 
 export function AIMatchBadge({ score }: { score: number }) {
@@ -96,7 +96,7 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
       <SheetScrim frame={fP} onPress={onClose} />
       <View style={[setupStyles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }, fP.card]}>
         <View style={setupStyles.header}>
-          <Text style={setupStyles.title}>Bid-matching profile</Text>
+          <Text style={setupStyles.title}>Bid-Matching Profile</Text>
           <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={setupStyles.content}>
@@ -126,7 +126,7 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
             ))}
           </View>
 
-          <Text style={setupStyles.sectionTitle}>Preferred project size</Text>
+          <Text style={setupStyles.sectionTitle}>Preferred Project Size</Text>
           <View style={setupStyles.chipRow}>
             {SIZE_OPTIONS.map(s => (
               <TouchableOpacity
@@ -153,7 +153,7 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
           </View>
 
           <TouchableOpacity style={setupStyles.saveBtn} onPress={handleSave}>
-            <Text style={setupStyles.saveBtnText}>Save profile</Text>
+            <Text style={setupStyles.saveBtnText}>Save Profile</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>

@@ -27,11 +27,11 @@ export interface ScheduleOnRampProps {
 
 const HERO_COPY: Record<'estimate' | 'interview', { title: string; subtitle: string }> = {
   estimate: {
-    title: 'Build from your estimate',
+    title: 'Build from Your Estimate',
     subtitle: 'MAGE drafts the tasks from your estimate. You adjust them.',
   },
   interview: {
-    title: 'Answer a few quick questions',
+    title: 'Answer a Few Quick Questions',
     subtitle: 'MAGE asks a few questions, then builds it.',
   },
 };
@@ -47,7 +47,7 @@ export function ScheduleOnRamp({ hasEstimate, canBuildByVoice, onPick }: Schedul
   return (
     <View style={styles.wrap}>
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>Build a schedule</Text>
+        <Text style={styles.eyebrow}>Build a Schedule</Text>
         <Text style={styles.sub}>You can change everything later.</Text>
 
         {/* ── Hero (recommended) ── */}
@@ -78,11 +78,11 @@ export function ScheduleOnRamp({ hasEstimate, canBuildByVoice, onPick }: Schedul
           activeOpacity={0.85}
           testID="onramp-blank"
           accessibilityRole="button"
-          accessibilityLabel="Start blank"
+          accessibilityLabel="Start Blank"
         >
           <Plus size={16} color={t.accent} />
           <View style={styles.secondaryText}>
-            <Text style={styles.secondaryTitle}>Start blank</Text>
+            <Text style={styles.secondaryTitle}>Start Blank</Text>
             <Text style={styles.secondarySubtitle}>Creates an empty schedule on this project. Add tasks inside it.</Text>
           </View>
         </TouchableOpacity>
@@ -94,9 +94,9 @@ export function ScheduleOnRamp({ hasEstimate, canBuildByVoice, onPick }: Schedul
           activeOpacity={0.7}
           testID="onramp-more-toggle"
           accessibilityRole="button"
-          accessibilityLabel={moreOpen ? 'Fewer ways' : 'More ways'}
+          accessibilityLabel={moreOpen ? 'Fewer Ways' : 'More Ways'}
         >
-          <Text style={styles.moreToggleText}>More ways</Text>
+          <Text style={styles.moreToggleText}>More Ways</Text>
           {moreOpen
             ? <ChevronUp size={14} color={t.textSecondary} />
             : <ChevronDown size={14} color={t.textSecondary} />}
@@ -111,10 +111,10 @@ export function ScheduleOnRamp({ hasEstimate, canBuildByVoice, onPick }: Schedul
               activeOpacity={0.8}
               testID="onramp-template"
               accessibilityRole="button"
-              accessibilityLabel="Start from a template"
+              accessibilityLabel="Start from a Template"
             >
               <LayoutTemplate size={15} color={t.textSecondary} />
-              <Text style={styles.moreRowText}>Start from a template</Text>
+              <Text style={styles.moreRowText}>Start from a Template</Text>
             </TouchableOpacity>
 
             {canBuildByVoice && (
@@ -124,10 +124,10 @@ export function ScheduleOnRamp({ hasEstimate, canBuildByVoice, onPick }: Schedul
                 activeOpacity={0.8}
                 testID="onramp-voice"
                 accessibilityRole="button"
-                accessibilityLabel="Build by voice"
+                accessibilityLabel="Build by Voice"
               >
                 <Mic size={15} color={t.textSecondary} />
-                <Text style={styles.moreRowText}>Build by voice</Text>
+                <Text style={styles.moreRowText}>Build by Voice</Text>
               </TouchableOpacity>
             )}
 
@@ -137,10 +137,10 @@ export function ScheduleOnRamp({ hasEstimate, canBuildByVoice, onPick }: Schedul
               activeOpacity={0.8}
               testID="onramp-example"
               accessibilityRole="button"
-              accessibilityLabel="Load an example schedule"
+              accessibilityLabel="Load an Example Schedule"
             >
               <BookOpen size={15} color={t.textSecondary} />
-              <Text style={styles.moreRowText}>Load an example schedule</Text>
+              <Text style={styles.moreRowText}>Load an Example Schedule</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -149,10 +149,10 @@ export function ScheduleOnRamp({ hasEstimate, canBuildByVoice, onPick }: Schedul
               activeOpacity={0.8}
               testID="onramp-manual"
               accessibilityRole="button"
-              accessibilityLabel="Add tasks manually"
+              accessibilityLabel="Add Tasks Manually"
             >
               <Plus size={15} color={t.textSecondary} />
-              <Text style={styles.moreRowText}>Add tasks manually</Text>
+              <Text style={styles.moreRowText}>Add Tasks Manually</Text>
             </TouchableOpacity>
           </View>
         )}

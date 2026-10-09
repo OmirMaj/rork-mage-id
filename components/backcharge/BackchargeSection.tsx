@@ -62,9 +62,9 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
   const confirmVoid = useCallback((b: Backcharge) => {
     showAlert(
       'Void this backcharge?',
-      `${b.reason} — ${formatCents(b.amountCents)}. It will not come off any bill.`,
+      `${b.reason}: ${formatCents(b.amountCents)}. It will not come off any bill.`,
       [
-        { text: 'Keep it', style: 'cancel' },
+        { text: 'Keep It', style: 'cancel' },
         { text: 'Void', style: 'destructive', onPress: () => voidOne(b.id) },
       ],
     );
@@ -77,8 +77,8 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
       companyName: settings?.branding?.companyName ?? '',
       items: open,
     });
-    const r = await shareText({ message, title: `Backcharges — ${project.name}` });
-    setShareMsg(r === 'copied' ? 'Notice copied — paste it into your message.' : r === 'failed' ? 'Couldn’t open the share sheet on this device.' : null);
+    const r = await shareText({ message, title: `Backcharges: ${project.name}` });
+    setShareMsg(r === 'copied' ? 'Notice copied. Paste it into your message.' : r === 'failed' ? 'Couldn’t open the share sheet on this device.' : null);
   }, [sub, project.name, settings, open]);
 
   return (
@@ -90,7 +90,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
         ) : null}
       </View>
       <Text style={styles.subtitle}>
-        Damage, cleanup or rework you paid for — taken off {sub.companyName}’s next bill.{storage ? ' ' : null}
+        Damage, cleanup or rework you paid for, taken off {sub.companyName}’s next bill.{storage ? ' ' : null}
         {storage?.retry ? (
           <Text
             style={styles.retry}
@@ -113,7 +113,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
           return (
             <View key={b.id} style={[styles.row, i > 0 && styles.divider]} testID={`backcharge-row-${b.id}`}>
               {thumb ? (
-                <Image source={{ uri: thumb }} style={styles.thumb} accessibilityLabel="Backcharge photo" />
+                <Image source={{ uri: thumb }} style={styles.thumb} accessibilityLabel="Backcharge Photo" />
               ) : (
                 <View style={[styles.thumb, styles.thumbEmpty]}>
                   <Camera size={16} color={t.textMuted} strokeWidth={1.75} />
@@ -157,7 +157,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
       </Card>
       <View style={styles.actions}>
         <Button
-          label="New backcharge"
+          label="New Backcharge"
           variant="secondary"
           size="sm"
           disabled={!loaded}

@@ -79,7 +79,7 @@ export function MobileTomorrowCard({
       {block.canSend ? (
         <>
           <Button
-            label={lineupOpen ? 'Send lineup' : `Send lineup · needs ${plan}`}
+            label={lineupOpen ? 'Send Lineup' : `Send lineup · needs ${plan}`}
             variant={lineupOpen ? 'primary' : 'secondary'}
             fullWidth
             iconLeft={lineupOpen

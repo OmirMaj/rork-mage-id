@@ -76,9 +76,10 @@ export const APP_STORAGE_PREFIXES: readonly string[] = [
 ];
 
 /**
- * App-owned keys that are DEVICE-scoped, not tenant-scoped, and therefore
- * deliberately survive a tenant switch. Every addition here is a decision to
- * leave something behind for the next user, so each one carries its reason.
+ * App-owned keys that deliberately survive a tenant switch AND a sign-out: the
+ * device-scoped ones, and one owner-keyed store of records still owed to the
+ * server. Every addition here is a decision to leave something behind for the
+ * next user, so each one carries its reason.
  */
 export const DEVICE_SCOPED_KEYS: readonly string[] = [
   // Light/dark preference (contexts/ThemeContext.tsx). A display setting for the
@@ -95,6 +96,22 @@ export const DEVICE_SCOPED_KEYS: readonly string[] = [
   // Rotation is what unlinks the two identities; deleting the key here would
   // race that rotation for no extra privacy.
   'mage_analytics_distinct_id',
+  // Acceptance records still owed to the server (utils/legalAcceptanceCore
+  // LEGAL_STORE_KEY): "this account agreed to these Terms on this screen" and
+  // the two notices, kept until public.legal_acceptances has them. NOT
+  // device-scoped: it is keyed by account. It is here because this list is the
+  // one class the sweep keeps through a change of account and a sign-out, and
+  // an owed record has to outlive both: person A agrees with no signal (or
+  // before the table exists), signs out, person B signs in, and A's record
+  // must still be there to send when A comes back. Swept, the only evidence
+  // that A agreed is gone for good; nothing can re-create it.
+  // What the next person on the phone could read from it: account ids (random
+  // uuids), document versions, SHA-256 hashes of published text, a surface
+  // name and a time. No name, no email, no project data, nothing typed by
+  // anyone. Every entry is read and sent only on its owner's own session
+  // (pendingLegalEntries, and the recorder checks the session before each
+  // send), and the store is capped at 12 accounts.
+  'mageid_legal_acceptance_v1',
 ];
 
 /**

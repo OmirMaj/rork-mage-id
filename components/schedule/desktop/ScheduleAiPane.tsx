@@ -118,7 +118,7 @@ export function ScheduleAiPane(p: ScheduleAiPaneProps) {
     <SidePanel
       open={p.open}
       onClose={p.onClose}
-      title="Schedule assistant"
+      title="Schedule Assistant"
       // Fixed at PANE (440) in every view, with no drag edge and no stored
       // width: GanttTab's Split slot reserves exactly 440, and a dragged width
       // made the pane jump between views (wave 6d, C5). No panelId: SidePanel

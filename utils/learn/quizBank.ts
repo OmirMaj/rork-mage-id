@@ -80,7 +80,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'To the client on file'], ['b', 'Only to you, not a client'], ['c', 'Nowhere until you connect email']],
       correctId: 'b',
       why: "A sample job's report is locked to your own address, so nothing reaches a client.",
-      source: { file: DFR, mustContain: 'this goes to you, not a client.' },
+      source: { file: DFR, mustContain: 'This goes to you, not a client.' },
     },
     {
       id: 'q2',
@@ -104,7 +104,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'You type it, or say it in your voice note'], ['b', 'It is copied from the last report'], ['c', 'The app looks it up from a weather service']],
       correctId: 'a',
       why: 'You type what you saw, or say it in your voice note and it fills in. Copy from does not carry old weather forward.',
-      source: { file: DFR, mustContain: "t('field.dfr.topic.weather', 'Weather on site')" },
+      source: { file: DFR, mustContain: "t('field.dfr.topic.weather', 'Weather on Site')" },
     },
     {
       id: 'q5',
@@ -166,7 +166,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Emails the client and makes a pay link'], ['b', 'Sends the invoice to you, with no pay link'], ['c', 'Saves it without sending anything']],
       correctId: 'b',
       why: 'A sample invoice goes only to you, so you see what a client gets. No pay link is made.',
-      source: { file: 'utils/sampleGuard.ts', mustContain: 'this goes to you, not a client. No pay link is made.' },
+      source: { file: 'utils/sampleGuard.ts', mustContain: 'This goes to you, not a client. No pay link is made.' },
     },
     {
       id: 'q2',
@@ -190,7 +190,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Make a new pay link'], ['b', 'Record payment with the amount'], ['c', 'Send a reminder']],
       correctId: 'b',
       why: 'Record payment logs the money received against the invoice.',
-      source: { file: INVOICE, mustContain: '>Record payment</Text>' },
+      source: { file: INVOICE, mustContain: '>Record Payment</Text>' },
     },
     {
       id: 'q5',
@@ -233,7 +233,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Apply it, then fix it by hand'], ['b', 'Ask again tomorrow'], ['c', 'Tap Not that and discard it']],
       correctId: 'c',
       why: 'Discard drops the proposal. The schedule stays as it was.',
-      source: { file: DIFF, mustContain: 'Not that — discard' },
+      source: { file: DIFF, mustContain: 'Not That, Discard' },
     },
     {
       id: 'q5',
@@ -319,7 +319,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Run the whole takeoff again for free'], ['b', 'Drop rows you don’t trust, and restore them later'], ['c', 'Send the rows to a sub']],
       correctId: 'b',
       why: 'Dropping weak rows keeps them out of your buyout. Restore all brings them back.',
-      source: { file: TAKEOFF, mustContain: 'Restore all' },
+      source: { file: TAKEOFF, mustContain: 'Restore All' },
     },
     {
       id: 'q5',
@@ -327,7 +327,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Convert to estimate'], ['b', 'Run again'], ['c', 'Generate sub-trade buyout packages']],
       correctId: 'a',
       why: 'Convert to estimate carries the counts into an estimate.',
-      source: { file: TAKEOFF, mustContain: '>Convert to estimate</Text>' },
+      source: { file: TAKEOFF, mustContain: '>Convert to Estimate</Text>' },
     },
   ]),
 
@@ -346,7 +346,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'They mean the same thing'], ['b', 'Sources back the answer. Also checked were read, not used'], ['c', 'Also checked are paid sources']],
       correctId: 'b',
       why: 'Only Sources are what the answer rests on.',
-      source: { file: CAI_ASK, mustContain: 'Also checked' },
+      source: { file: CAI_ASK, mustContain: 'Also Checked' },
     },
     {
       id: 'q3',
@@ -424,7 +424,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Column C, Scheduled'], ['b', 'Column E, This period'], ['c', 'Column I, Retainage']],
       correctId: 'b',
       why: 'Column E is this period’s work. Completed and stored adds it to the work before it.',
-      source: { file: AIA, mustContain: "label: 'E This period'" },
+      source: { file: AIA, mustContain: "label: 'E This Period'" },
     },
     {
       id: 'q2',
@@ -432,7 +432,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Edit lines'], ['b', 'Print as saved'], ['c', 'Renumber']],
       correctId: 'a',
       why: 'Item, description and scheduled value can be typed only while Edit lines is on.',
-      source: { file: AIA, mustContain: "{sovEditing ? 'Done' : 'Edit lines'}" },
+      source: { file: AIA, mustContain: "{sovEditing ? 'Done' : 'Edit Lines'}" },
     },
     {
       id: 'q3',
@@ -440,7 +440,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'As a new blank pay app'], ['b', 'Straight into editing every line'], ['c', 'As the saved record, with editing the draft as its own tap']],
       correctId: 'c',
       why: 'A saved pay app opens as stored. Tap to edit it while it is still a draft.',
-      source: { file: AIA, mustContain: 'Edit this draft pay app' },
+      source: { file: AIA, mustContain: 'Edit This Draft Pay App' },
     },
     {
       id: 'q4',
@@ -467,7 +467,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Yes, any time'], ['b', 'No, it needs a signature first'], ['c', 'Only if it has photos']],
       correctId: 'b',
       why: 'An unsigned ticket is a note. Get it signed before the crew leaves.',
-      source: { file: TICKET, mustContain: 'an unsigned ticket cannot become a change order' },
+      source: { file: TICKET, mustContain: 'An unsigned ticket cannot become a change order' },
     },
     {
       id: 'q2',
@@ -483,7 +483,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Get signature'], ['b', 'Void ticket'], ['c', 'Price this ticket']],
       correctId: 'c',
       why: 'Price this ticket adds the rates, so the ticket can be billed.',
-      source: { file: TICKET, mustContain: "'Price this ticket'" },
+      source: { file: TICKET, mustContain: "'Price This Ticket'" },
     },
     {
       id: 'q4',
@@ -534,7 +534,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Print the daily report'], ['b', 'Export payroll CSV for a pay period'], ['c', 'Share the project link']],
       correctId: 'b',
       why: 'The payroll export gives you the shifts for a pay period as a CSV file.',
-      source: { file: CLOCK, mustContain: 'Export payroll CSV for a pay period' },
+      source: { file: CLOCK, mustContain: 'Export Payroll CSV for a Pay Period' },
     },
     {
       id: 'q5',
@@ -577,7 +577,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Shooting now and describing later'], ['b', 'Sending photos to the client'], ['c', 'Closing items with a photo']],
       correctId: 'a',
       why: 'Photo walk keeps the camera open. Pin the items afterward with Pin items.',
-      source: { file: PUNCH, mustContain: 'Photo walk: shoot now, describe later' },
+      source: { file: PUNCH, mustContain: 'Photo Walk: Shoot Now, Describe Later' },
     },
     {
       id: 'q5',
@@ -612,7 +612,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Nothing, the plans don’t have it'], ['b', 'Upgrade to see the answer'], ['c', 'Rephrase it, or index new sheets']],
       correctId: 'c',
       why: 'Try other words, or add sheets that have not been indexed yet.',
-      source: { file: ASK_PLANS, mustContain: 'try rephrasing, or index new sheets below' },
+      source: { file: ASK_PLANS, mustContain: 'Try rephrasing, or index new sheets below' },
     },
     {
       id: 'q4',
@@ -628,7 +628,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Check each against the sheet, then tick the ones to use'], ['b', 'Accept them all at once'], ['c', 'Type every number by hand']],
       correctId: 'a',
       why: 'The numbers are read by AI, so you confirm each one before it is used.',
-      source: { file: ASK_PLANS, mustContain: 'check each against the sheet' },
+      source: { file: ASK_PLANS, mustContain: 'Check each against the sheet' },
     },
   ]),
 
@@ -639,7 +639,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'The payment schedule'], ['b', 'The start date and length, from your schedule'], ['c', 'The scope of work']],
       correctId: 'b',
       why: 'It fills the start date and duration from your project schedule.',
-      source: { file: CONTRACT, mustContain: 'Use my schedule' },
+      source: { file: CONTRACT, mustContain: 'Use My Schedule' },
     },
     {
       id: 'q2',
@@ -655,7 +655,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'Sign & send'], ['b', 'Save draft'], ['c', 'Sign together now']],
       correctId: 'c',
       why: 'Sign together now has you both sign on this phone, with no email.',
-      source: { file: CONTRACT, mustContain: 'label="Sign together now"' },
+      source: { file: CONTRACT, mustContain: 'label="Sign Together Now"' },
     },
     {
       id: 'q4',
@@ -682,7 +682,7 @@ export const QUIZ_BANKS: Record<SkillTopicId, QuizBank> = {
       choices: [['a', 'You type all of it in'], ['b', 'Your client fills it in'], ['c', 'It is compiled from the project’s records']],
       correctId: 'c',
       why: 'Finishes, trades and warranties on file are pulled in from the project.',
-      source: { file: BINDER, mustContain: 'Auto-compiled from this project' },
+      source: { file: BINDER, mustContain: 'Auto-Compiled from This Project' },
     },
     {
       id: 'q2',

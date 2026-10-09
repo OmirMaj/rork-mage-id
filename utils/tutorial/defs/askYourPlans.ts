@@ -26,7 +26,7 @@ function openedSheet(ctx: CopyCtx): string | null {
 export const askYourPlans: TutorialDef = {
   id: 'ask-your-plans',
   version: 1,
-  title: 'Ask your plans a question',
+  title: 'Ask Your Plans a Question',
   seconds: 35,
   endsWith: 'An answer that cites the sheet it came from',
   group: 'site',
@@ -123,9 +123,9 @@ export const askYourPlans: TutorialDef = {
     pathname: '/plans',
     projectParam: 'projectId',
     params: { ask: '1' },
-    realJobLabel: name => `Ask the plans for ${name} →`,
+    realJobLabel: name => `Ask the Plans for ${name}`,
     feature: 'ask_your_plans',
-    paywallLabel: 'Ask your plans comes with Business — see plans',
+    paywallLabel: 'Ask Your Plans comes with Business. See plans.',
     roles: ['owner', 'editor'],
   },
 };

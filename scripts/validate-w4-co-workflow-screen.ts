@@ -70,7 +70,7 @@ if (B) {
   ok('approved: "Your client approved this change at 8%"', /^Your client approved this change at 8% sales tax/.test(B.coTaxNote('approved', 8, 8)));
   for (const s of ['submitted', 'under_review', 'revised'] as St[]) {
     const n = B.coTaxNote(s, 8, 8);
-    ok(`${s}: "Sent at 8% — the rate your client is being asked to approve", no approval claim`, /^Sent at 8% sales tax — the rate your client is being asked to approve/.test(n) && !/approved this/.test(n), n);
+    ok(`${s}: "Sent at 8% — the rate your client is being asked to approve", no approval claim`, /^Sent at 8% sales tax, the rate your client is being asked to approve/.test(n) && !/approved this/.test(n), n);
   }
   for (const s of ['rejected', 'void'] as St[]) {
     const n = B.coTaxNote(s, 8, 8);
@@ -149,7 +149,7 @@ if (B) {
   ok('revised: In Review, may advance (to Approved only)', rev.current === 'under_review' && rev.canAdvance);
   ok('the screen passes onAdvance only when canAdvance', /onAdvance=\{pipe\.canAdvance \?/.test(CODE) && !/function mapCOStatus/.test(CODE));
   const gate = (s: St) => B.coPortalSendGate({ status: s, lineCount: 1, numberHold: null, priceRefusal: null });
-  ok('portal gate refuses rejected with the Revise & re-issue reason', !gate('rejected').canSend && /Revise & re-issue/.test(gate('rejected').reason ?? ''));
+  ok('portal gate refuses rejected with the Revise & re-issue reason', !gate('rejected').canSend && /Revise and Re-Issue/.test(gate('rejected').reason ?? ''));
   ok('portal gate refuses void', !gate('void').canSend && /void/.test(gate('void').reason ?? ''));
   ok('portal gate still refuses a draft, allows a submitted CO', !gate('draft').canSend && gate('submitted').canSend);
   let k = 0;
@@ -170,7 +170,7 @@ if (B) {
 console.log('\n#74 the CO PDF can be shared from the screen');
 if (B) {
   ok('unsaved → disabled, "Save the change order first"', !B.coPdfAction({ saved: false, dirty: false, numberHold: null }).enabled && /Save the change order first/.test(B.coPdfAction({ saved: false, dirty: false, numberHold: null }).reason ?? ''));
-  ok('dirty → "PDF of last saved version"', B.coPdfAction({ saved: true, dirty: true, numberHold: null }).label === 'PDF of last saved version');
+  ok('dirty → "PDF of Last Saved Version"', B.coPdfAction({ saved: true, dirty: true, numberHold: null }).label === 'PDF of Last Saved Version');
   ok('provisional number → disabled with the reason', !B.coPdfAction({ saved: true, dirty: false, numberHold: 'still reaching MAGE' }).enabled);
   ok('saved + confirmed → Share PDF', B.coPdfAction({ saved: true, dirty: false, numberHold: null }).enabled);
   const L = [{ id: 'a', name: 'A', quantity: 1, unitPrice: 10, total: 10 }];
@@ -240,7 +240,7 @@ if (B && A) {
     // W2 integration: it also clears the "approved without signing" mark (a pipeline approve is not that action).
     /const confirmApprove = useCallback\(\(co: ChangeOrder\) => \{\s*setApproveUnsigned\(null\);\s*setApproveSheetCO\(co\);\s*\}, \[\]\);/.test(CODE)
       && /<COApproveSheet\b[\s\S]{0,400}moneyLine=\{copy\.message\}/.test(CODE));
-  ok('revised offers Mark approved (through the same confirm)', /existingCO\.status === 'under_review' \|\| existingCO\.status === 'revised' \? 'Mark approved'/.test(CODE));
+  ok('revised offers Mark approved (through the same confirm)', /existingCO\.status === 'under_review' \|\| existingCO\.status === 'revised' \? 'Mark Approved'/.test(CODE));
 }
 
 // ── #77/#141 the screen never prints a guessed number ──────────────────────

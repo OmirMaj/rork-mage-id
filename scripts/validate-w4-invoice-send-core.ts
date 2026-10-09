@@ -65,7 +65,7 @@ ok('fmtMoney (estimates) still whole dollars — not changed globally', layout.f
   });
   ok('title says $1,250.50 due', html.includes('$1,250.50 due'));
   ok('the Pay button says $1,250.50', html.includes('Pay securely · $1,250.50') || html.includes('Pay securely &middot; $1,250.50'));
-  ok('the Amount due row says $1,250.50', /Amount due[\s\S]{0,400}\$1,250\.50/.test(html));
+  ok('the Amount due row says $1,250.50', /Amount Due[\s\S]{0,400}\$1,250\.50/.test(html));
   ok('"$1,251" appears nowhere in the email', !html.includes('$1,251'));
   const co = svc.slice(b, svc.indexOf('export function', b + 10));
   ok('the CO builder uses the same cents formatter', /const money = \(n: number\) => fmtMoneyCents\(n\)/.test(co));
@@ -90,7 +90,7 @@ for (const [n, r] of [['queued', core.INVOICE_INSERT_QUEUED_REASON], ['unconfirm
   ok(`${n}: the message has no "tap Generate Payment Link"`, !/Generate Payment Link/.test(core.sentWithoutPayButtonMessage(7, r)));
 }
 ok('a Stripe error still suggests the button', /Generate Payment Link/.test(core.sentWithoutPayButtonMessage(7, 'Stripe said: rate limited')));
-ok('the queued reason never says "saved on this phone only"', !/saved on this phone only/.test(core.INVOICE_INSERT_QUEUED_REASON));
+ok('the queued reason never says "saved on this phone only"', !/saved on this phone only/i.test(core.INVOICE_INSERT_QUEUED_REASON));
 ok('the refused message says it was NOT sent', /was not sent/.test(core.invoiceInsertRefusedMessage(7)) && /Nothing went to your client/.test(core.invoiceInsertRefusedMessage(7)));
 ok('the queued reason claims only what is known (no "you\'re offline")', !/offline/i.test(core.INVOICE_INSERT_QUEUED_REASON) && /sync queue/.test(core.INVOICE_INSERT_QUEUED_REASON));
 for (const [n, m] of [['refused', core.invoiceInsertRefusedMessage(7)], ['unsaved', core.invoiceUnsavedOnServerMessage(7)]] as const) {

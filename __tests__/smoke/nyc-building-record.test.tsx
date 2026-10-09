@@ -211,7 +211,7 @@ describe('NYC building record', () => {
     const queueBefore = await AsyncStorage.getItem('mageid_offline_queue');
 
     await act(async () => {
-      fireEvent.changeText(screen.getByPlaceholderText('e.g. BP-2026-04521'), 'B00123456-I1');
+      fireEvent.changeText(screen.getByPlaceholderText('BP-2026-04521'), 'B00123456-I1');
     });
     await settle();
     await press(screen.getByTestId('permit-check-dob'));

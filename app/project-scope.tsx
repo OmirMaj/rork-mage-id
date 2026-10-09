@@ -107,7 +107,7 @@ export default function ProjectScopeScreen() {
     return (
       <View style={[styles.root, { paddingTop: insets.top + 40 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.missingTitle}>Project not found</Text>
+        <Text style={styles.missingTitle}>Project Not Found</Text>
         <Text style={styles.missingBody}>It may have been deleted. Go back and pick a project.</Text>
         <TouchableOpacity style={styles.primaryBtn} onPress={() => router.back()}>
           <Text style={styles.primaryBtnText}>Back</Text>
@@ -125,11 +125,11 @@ export default function ProjectScopeScreen() {
             <ChevronLeft size={24} color={c.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.eyebrow}>Project scope</Text>
+            <Text style={styles.eyebrow}>Project Scope</Text>
             <Text style={styles.projName} numberOfLines={1}>{project.name}</Text>
           </View>
-          <TouchableOpacity onPress={skip} hitSlop={12} testID="scope-skip" accessibilityRole="button" accessibilityLabel="Skip for now">
-            <Text style={styles.skipText}>Skip for now</Text>
+          <TouchableOpacity onPress={skip} hitSlop={12} testID="scope-skip" accessibilityRole="button" accessibilityLabel="Skip for Now">
+            <Text style={styles.skipText}>Skip for Now</Text>
           </TouchableOpacity>
         </View>
 
@@ -163,7 +163,7 @@ export default function ProjectScopeScreen() {
             testID="scope-next"
           >
             {isLast ? <Check size={18} color="#FFF" strokeWidth={1.75} /> : <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />}
-            <Text style={styles.nextBtnText}>{isLast ? 'Save scope' : 'Next'}</Text>
+            <Text style={styles.nextBtnText}>{isLast ? 'Save Scope' : 'Next'}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

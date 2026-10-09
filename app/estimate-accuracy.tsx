@@ -96,8 +96,8 @@ function EstimateAccuracyInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate accuracy · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Bid vs actual'}</Text>
+          <Text style={styles.headerEyebrow}>Estimate Accuracy · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Bid vs Actual'}</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -107,9 +107,9 @@ function EstimateAccuracyInner() {
       ) : noEstimateAnywhere ? (
         <EmptyState
           icon={<Scale size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No estimate yet"
+          title="No Estimate Yet"
           message="Bid vs. actual compares each line of a project's estimate to what you signed and paid. None of your projects has an estimate with lines yet. Build one, then come back."
-          actionLabel="Build an estimate"
+          actionLabel="Build an Estimate"
           onAction={() => router.push('/estimate-wizard' as never)}
         />
       ) : !project || !report || !report.hasEstimate ? (
@@ -117,7 +117,7 @@ function EstimateAccuracyInner() {
           {candidates.length > 0 && (
             <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
               <EstimateJobPicker
-                label="Measure another project"
+                label="Measure Another Project"
                 jobs={candidates}
                 selectedId={projectId}
                 onPick={(id) => router.setParams({ projectId: id })}
@@ -127,7 +127,7 @@ function EstimateAccuracyInner() {
           )}
           <EmptyState
             icon={<Scale size={36} color={t.accent} strokeWidth={1.6} />}
-            title={!project ? 'Project not found' : 'No estimate to measure'}
+            title={!project ? 'Project Not Found' : 'No Estimate to Measure'}
             message={
               !project
                 ? 'This link points to a project that isn\u2019t on this device any more. Pick a project above, or go back.'
@@ -142,7 +142,7 @@ function EstimateAccuracyInner() {
                     'Record sub payments. Actuals flow onto each line automatically.',
                   ]
             }
-            actionLabel={!project ? 'Back' : 'Open buyout'}
+            actionLabel={!project ? 'Back' : 'Open Buyout'}
             onAction={() =>
               !project
                 ? router.back()
@@ -196,7 +196,7 @@ function EstimateAccuracyInner() {
               <Text style={styles.discloseText}>
                 {report.coveragePct.toFixed(0)}% of committed cost is traced to estimate lines.
                 {report.untracedCommitmentCount > 0
-                  ? ` ${report.untracedCommitmentCount} commitment${report.untracedCommitmentCount === 1 ? '' : 's'} (${formatMoney(report.untracedCommitted)}) couldn't be linked — link them on the commitment to sharpen this.`
+                  ? ` ${report.untracedCommitmentCount} commitment${report.untracedCommitmentCount === 1 ? '' : 's'} (${formatMoney(report.untracedCommitted)}) couldn't be linked. Link them on the commitment to sharpen this.`
                   : ''}
               </Text>
             </View>
@@ -206,13 +206,13 @@ function EstimateAccuracyInner() {
             <View style={styles.disclose}>
               <Info size={15} color={t.textMuted} strokeWidth={1.75} />
               <Text style={styles.discloseText}>
-                No actuals yet — showing bid vs committed. Record sub/PO payments and the actual column fills in per line.
+                No actuals yet. Showing bid vs committed. Record sub/PO payments and the actual column fills in per line.
               </Text>
             </View>
           )}
 
           {/* By trade */}
-          <Text style={styles.sectionTitle}>By trade</Text>
+          <Text style={styles.sectionTitle}>By Trade</Text>
           {report.byTrade.map(tr => {
             const ref = report.hasActuals && tr.actual > 0 ? tr.actual : tr.committed;
             const vp = variancePct(ref, tr.bid);
@@ -228,14 +228,14 @@ function EstimateAccuracyInner() {
                     <Text style={[styles.varText, { color: overallVarColor(ref - tr.bid) }]}>{pctStr(vp)}</Text>
                   </View>
                 ) : (
-                  <Text style={styles.tradePending}>Not signed</Text>
+                  <Text style={styles.tradePending}>Not Signed</Text>
                 )}
               </View>
             );
           })}
 
           {/* Per line */}
-          <Text style={[styles.sectionTitle, { marginTop: 18 }]}>Every line</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 18 }]}>Every Line</Text>
           {report.lines.map(l => (
             <LineCard key={l.materialId} line={l} hasActuals={report.hasActuals} t={t} styles={styles} />
           ))}
@@ -285,7 +285,7 @@ function LineCard({
             <Text style={[styles.varText, { color: varColor }]}>{pctStr(vp)}</Text>
           </View>
         ) : (
-          <Text style={styles.linePending}>Not signed</Text>
+          <Text style={styles.linePending}>Not Signed</Text>
         )}
       </View>
       <View style={styles.lineNums}>

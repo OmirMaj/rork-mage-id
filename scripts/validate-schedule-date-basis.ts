@@ -994,7 +994,7 @@ console.log('\nan empty calendar export says WHY it is empty:');
   {
     const src = stripComments(read('utils/scheduleExportIcal.ts'));
     const undatedAt = src.indexOf('if (undatedSchedule)');
-    const emptyAt = src.indexOf("'Nothing to export'");
+    const emptyAt = src.indexOf("'Nothing to Export'");
     ok('the undated branch returns BEFORE the "no tasks yet" branch can fire',
       undatedAt >= 0 && emptyAt >= 0 && undatedAt < emptyAt,
       `undated@${undatedAt} empty@${emptyAt}`);

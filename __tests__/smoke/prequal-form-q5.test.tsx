@@ -84,14 +84,14 @@ describe('prequal form (Q5)', () => {
     await act(async () => { resolve({ data: true, error: null }); });
     await waitFor(() => expect(alertTitles()).toContain('Submitted'));
     expect(mockShowAlert.mock.calls.find(c => c[0] === 'Submitted')?.[1]).toMatch(/sent to Hanover Builders/);
-    expect(screen.getByText('Submitted — awaiting review')).toBeTruthy();
+    expect(screen.getByText('Submitted. Awaiting review.')).toBeTruthy();
   });
 
   it('a refused submit says "Not submitted", never "Submitted", and closes the form', async () => {
     serve('invited', () => ({ data: false, error: null }));
     await open();
     await act(async () => { fireEvent.press(screen.getByTestId('prequal-submit')); });
-    await waitFor(() => expect(alertTitles()).toContain('Not submitted'));
+    await waitFor(() => expect(alertTitles()).toContain('Not Submitted'));
     expect(alertTitles()).not.toContain('Submitted');
     expect(screen.getByText('Link closed. Ask your contractor for a fresh link.')).toBeTruthy();
     expect(screen.getByTestId('prequal-locked')).toBeTruthy();
@@ -104,7 +104,7 @@ describe('prequal form (Q5)', () => {
     await waitFor(() => expect(mockShowAlert).toHaveBeenCalled());
     expect(alertTitles()).not.toContain('Submitted');
     expect(screen.getByTestId('prequal-submit')).toBeTruthy();
-    expect(screen.queryByText('Submitted — awaiting review')).toBeNull();
+    expect(screen.queryByText('Submitted. Awaiting review.')).toBeNull();
   });
 
   // Fake timers for the two autosave cases: the 800ms debounce is advanced,
@@ -114,8 +114,8 @@ describe('prequal form (Q5)', () => {
     try {
       serve('approved', () => ({ data: false, error: null }));
       await open();
-      expect(screen.getByText('Approved — answers locked')).toBeTruthy();
-      const years = screen.getByPlaceholderText('e.g. 8');
+      expect(screen.getByText('Approved, Answers Locked')).toBeTruthy();
+      const years = screen.getByPlaceholderText('8');
       expect(years.props.editable).toBe(false);
       expect(screen.getByPlaceholderText('2026-12-31').props.editable).toBe(false);
       // Even an edit that got through (a paste, an old keyboard) is ignored.
@@ -123,8 +123,8 @@ describe('prequal form (Q5)', () => {
       await act(async () => { jest.advanceTimersByTime(1500); });
       expect(submitCalls()).toHaveLength(0);
       expect(mockShowAlert).not.toHaveBeenCalled();
-      expect(screen.getByPlaceholderText('e.g. 8').props.value).toBe('5');
-      expect(screen.queryByText('Add license')).toBeNull();
+      expect(screen.getByPlaceholderText('8').props.value).toBe('5');
+      expect(screen.queryByText('Add License')).toBeNull();
     } finally {
       jest.useRealTimers();
     }
@@ -135,12 +135,12 @@ describe('prequal form (Q5)', () => {
     try {
       serve('invited', () => ({ data: false, error: null }));
       await open();
-      await act(async () => { fireEvent.changeText(screen.getByPlaceholderText('e.g. 8'), '9'); });
+      await act(async () => { fireEvent.changeText(screen.getByPlaceholderText('8'), '9'); });
       await act(async () => { jest.advanceTimersByTime(900); });
       await waitFor(() => expect(submitCalls()).toHaveLength(1));
-      await waitFor(() => expect(alertTitles()).toEqual(["Couldn't save"]));
+      await waitFor(() => expect(alertTitles()).toEqual(["Couldn't Save"]));
       await waitFor(() => expect(screen.getByTestId('prequal-locked')).toBeTruthy());
-      await act(async () => { screen.getByPlaceholderText('e.g. 8').props.onChangeText('10'); });
+      await act(async () => { screen.getByPlaceholderText('8').props.onChangeText('10'); });
       await act(async () => { jest.advanceTimersByTime(1500); });
       expect(submitCalls()).toHaveLength(1);
       expect(mockShowAlert).toHaveBeenCalledTimes(1);
@@ -152,9 +152,9 @@ describe('prequal form (Q5)', () => {
   it('an unreadable COI date is named under the field and stops the submit', async () => {
     serve('invited', () => ({ data: true, error: null }), { insurance: { cglPerOccurrence: 1000000, cglAggregate: 2000000, workersCompActive: true, hasCG2010: true, coiExpiry: 'next March' } });
     await open();
-    expect(screen.getByText('Not a date we can read — use YYYY-MM-DD, e.g. 2026-12-31')).toBeTruthy();
+    expect(screen.getByText('Not a date we can read. Use YYYY-MM-DD, like 2026-12-31.')).toBeTruthy();
     await act(async () => { fireEvent.press(screen.getByTestId('prequal-submit')); });
-    expect(alertTitles()).toEqual(['Check the dates']);
+    expect(alertTitles()).toEqual(['Check the Dates']);
     expect(submitCalls()).toHaveLength(0);
   });
 
@@ -176,7 +176,7 @@ describe('prequal form (Q5)', () => {
     // no blur
     await act(async () => { fireEvent.press(screen.getByTestId('prequal-submit')); });
     await waitFor(() => expect(submitCalls()).toHaveLength(1));
-    expect(alertTitles()).not.toContain('Check the dates');
+    expect(alertTitles()).not.toContain('Check the Dates');
     expect(submitCalls()[0][1].p_insurance.coiExpiry).toBe('2099-12-31');
     await waitFor(() => expect(alertTitles()).toContain('Submitted'));
     expect(screen.getByPlaceholderText('2026-12-31').props.value).toBe('2099-12-31');
@@ -185,14 +185,14 @@ describe('prequal form (Q5)', () => {
   it('a half-typed date shows no error until the field is left', async () => {
     serve('invited', () => ({ data: true, error: null }));
     await open();
-    const ERR = 'Not a date we can read — use YYYY-MM-DD, e.g. 2026-12-31';
+    const ERR = 'Not a date we can read. Use YYYY-MM-DD, like 2026-12-31.';
     await act(async () => { fireEvent.changeText(screen.getByPlaceholderText('2026-12-31'), '2026-1'); });
     expect(screen.queryByText(ERR)).toBeNull();
     await act(async () => { fireEvent(screen.getByPlaceholderText('2026-12-31'), 'blur'); });
     expect(screen.getByText(ERR)).toBeTruthy();
     // Submit still refuses it, named.
     await act(async () => { fireEvent.press(screen.getByTestId('prequal-submit')); });
-    expect(alertTitles()).toEqual(['Check the dates']);
+    expect(alertTitles()).toEqual(['Check the Dates']);
     expect(submitCalls()).toHaveLength(0);
   });
 });

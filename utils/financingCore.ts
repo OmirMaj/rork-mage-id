@@ -74,7 +74,7 @@ export function portalFinancingRedirectUrl(
 
 /** What the GC reads in his own portal preview, where there is no access key. */
 export function portalFinancingPreviewNote(partnerName: string): string {
-  return `Your client sees a "Check financing options" button here that sends them to ${partnerName.trim() || 'your lender'}. `
+  return `Your client sees a "Check Financing Options" button here that sends them to ${partnerName.trim() || 'your lender'}. `
     + 'It works from the portal link you send them, not from this preview.';
 }
 
@@ -96,7 +96,7 @@ export function referralRefreshPatch(
 export const FINANCING_EXPLAINER =
   'Bring your own lender. MAGE ID is not a lender and has no lending partner. Sign up with a lender '
   + 'that gives contractors a prequalification link, paste it below, and your invoice emails and '
-  + 'client portal get a "Check financing options" button that sends your client to that lender. '
+  + 'client portal get a "Check Financing Options" button that sends your client to that lender. '
   + 'Approval, rates, fees and when you get paid are between you, your client and the lender. '
   + 'MAGE ID charges nothing for this and earns nothing from it. Available on every plan.';
 
@@ -125,10 +125,10 @@ export function financingReferralSummary(counts: { created: number; clicked: num
 
 /** Financing is on: the one line under the Pay link. */
 export function invoiceFinancingOnLine(partnerName: string): string {
-  return `Financing is on: invoice emails you send and your client portal offer "Check financing options" from ${partnerName.trim()}. `
+  return `Financing is on: invoice emails you send and your client portal offer "Check Financing Options" from ${partnerName.trim()}. `
     + 'MAGE ID is not a lender and is not paid for referrals.';
 }
 
 /** Financing is off: a link to Payments, where he brings his own lender. */
 export const INVOICE_FINANCING_SETUP_LINE =
-  'Want to offer your client monthly payments? Bring your own lender — set it up in Payments →';
+  'Want to offer your client monthly payments? Bring your own lender. Set it up in Payments';

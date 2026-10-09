@@ -74,7 +74,7 @@ console.log('\n#115 · the panel:');
   ok('the old id-only key is gone', !/const cacheKey = `sub_eval_\$\{sub\.id\}`;/.test(ev));
   ok('a grounding chip renders under the title', /\{grounding\.readChip\}/.test(ev));
   ok('the green-check track record only renders with history', /result\.trackRecord && grounding\?\.hasHistory \? \(/.test(ev));
-  ok('without history a neutral line says there is no track record', /No signed commitments on record in MAGE ID — no track record to summarize yet\./.test(ev));
+  ok('without history a neutral line says there is no track record', /No signed commitments on record in MAGE ID, so there is no track record to summarize yet\./.test(ev));
   const subs = src('app/(tabs)/subs/index.tsx');
   ok('the Subs sheet passes the grounding as projectContext and grounding',
     /projectContext=\{evalGrounding\.context\}/.test(subs) && /grounding=\{evalGrounding\}/.test(subs));
@@ -105,7 +105,7 @@ console.log('\n#17 (carry) · deleting a paid sub:');
   ok('it looks for commitments with paidToDate > 0', /c\.subcontractorId === sub\.id && \(c\.paidToDate \?\? 0\) > 0/.test(del));
   ok('…and paid sub-portal invoices', /\.from\('sub_submitted_invoices'\)[\s\S]*?\.eq\('subcontractor_id', sub\.id\)[\s\S]*?\.eq\('status', 'paid'\)/.test(del));
   ok('…and warns that the 1099 export loses the TIN and address', /They'll still appear on the 1099 export, but their TIN and address will be gone/.test(del));
-  ok('…with keeping them the cancel (easy) choice', /\{ text: 'Keep them', style: 'cancel' \}/.test(del));
+  ok('…with keeping them the cancel (easy) choice', /\{ text: 'Keep Them', style: 'cancel' \}/.test(del));
   ok('a failed invoice check is said out loud, not read as "none"', /Couldn’t check this sub’s portal invoices/.test(del));
 }
 

@@ -15,7 +15,7 @@ export const PDF_DROP_MAX_BYTES = 500 * 1024 * 1024;
 export const PDF_DROP_COPY = {
   none: 'Drop a PDF plan set here.',
   many: 'One PDF at a time.',
-  notPdf: 'Only PDFs can be dropped here — add images from Plans.',
+  notPdf: 'Only PDFs can be dropped here. Add images from Plans.',
   tooBig: 'Plan PDFs must be under 500 MB. Try splitting it by discipline.',
 } as const;
 
@@ -51,7 +51,7 @@ export function dragHasFiles(types: readonly string[] | null | undefined): boole
 /** The done line after a drop. Pages arrive unnumbered, named as Plans names
  *  them — the numbering happens in Plans. */
 export function pdfDropDoneLine(n: number): string {
-  return `${n} ${n === 1 ? 'sheet' : 'sheets'} added — number the sheets in Plans`;
+  return `${n} ${n === 1 ? 'sheet' : 'sheets'} added. Number the sheets in Plans.`;
 }
 
 /** "Saving <n> sheets…" */

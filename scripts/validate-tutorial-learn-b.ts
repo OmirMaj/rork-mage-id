@@ -353,9 +353,9 @@ ok('formatCents: whole dollars drop the cents, others keep two', formatCents(27_
 console.log('copy');
 {
   const want: Record<string, [string, string, number]> = {
-    'takeoff-to-estimate': ['Count a plan and price it', 'Counts from sheet A-101 turned into estimate lines', 45],
-    'ask-your-plans': ['Ask your plans a question', 'An answer that cites the sheet it came from', 35],
-    'construction-ai-ask': ['Ask Construction AI about your job', "An answer built from the job's own records", 35],
+    'takeoff-to-estimate': ['Count a Plan and Price It', 'Counts from sheet A-101 turned into estimate lines', 45],
+    'ask-your-plans': ['Ask Your Plans a Question', 'An answer that cites the sheet it came from', 35],
+    'construction-ai-ask': ['Ask Construction AI About Your Job', "An answer built from the job's own records", 35],
   };
   for (const def of LANE_B_DEFS) {
     const w = want[def.id];

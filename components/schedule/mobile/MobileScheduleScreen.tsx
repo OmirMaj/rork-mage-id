@@ -91,7 +91,7 @@ import { useTutorialSandboxId } from '@/utils/tutorial/store';
 // by TaskDetailSheet's jump-to-plan action. Renaming the key would be a
 // behaviour change dressed up as a copy fix.
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
-const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', 'Living plan'], ['progress', 'Progress'], ['team', 'Team']];
+const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', 'Living Plan'], ['progress', 'Progress'], ['team', 'Team']];
 
 // ---------------------------------------------------------------------------
 // The phone's schedule audit entry.
@@ -134,7 +134,7 @@ const ROW_FIELD_KEY_LABEL: Record<string, string> = {
  *  (its % slider, title, crew and notes inputs) — a peer change to one of these
  *  cannot show in the open sheet, so the screen says so. */
 const SHEET_DRAFT_KEYS: readonly string[] = ['progress', 'title', 'crew', 'notes'];
-const FIELD_NOT_SAVED = (what: string) => `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.`;
+const FIELD_NOT_SAVED = (what: string) => `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only. Ask the project owner for editor access to move dates or change tasks.`;
 
 /**
  * Before/after snapshots holding only what really changed. summarizeTaskDiff
@@ -185,7 +185,7 @@ export function describeMobileScheduleEdit(input: {
   if (total === 0) return null;
 
   const finishMoved = finishBefore !== finishAfter && finishBefore > 0 && finishAfter > 0;
-  const finishClause = finishMoved ? ` — finish ${formatFinish(finishBefore)} → ${formatFinish(finishAfter)}` : '';
+  const finishClause = finishMoved ? `, finish ${formatFinish(finishBefore)} to ${formatFinish(finishAfter)}` : '';
 
   if (total === 1 && !reason) {
     if (created.length === 1) {
@@ -651,7 +651,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   const wholePlanWriteBlocked = useMemo<string | null>(() => {
     if (writePath === 'row') return null;
     return writePath === 'field_rpc'
-      ? 'Field access can’t move schedule dates or lock a plan. Your progress, status, notes and actual start/finish still save — ask the project owner for editor access to do this.'
+      ? 'Field access can’t move schedule dates or lock a plan. Your progress, status, notes and actual start/finish still save. Ask the project owner for editor access to do this.'
       : VIEWER_SCHEDULE_NOTICE;
   }, [writePath]);
 
@@ -1091,7 +1091,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           ? calendarDayToDate(anchor.date, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
           : `day ${d}`);
         const who = snap.waitsOn ? `it waits on ${snap.waitsOn}` : 'its links and constraints hold it later';
-        setScheduleNotice(`${stamped.title || 'This task'} can’t start ${fmtDay(snap.requestedCalendarDay)} — ${who}, so it stays on ${fmtDay(snap.scheduledCalendarDay)}. To bring it earlier, shorten or unlink ${snap.waitsOn ?? 'what it depends on'}.`);
+        setScheduleNotice(`${stamped.title || 'This task'} can’t start ${fmtDay(snap.requestedCalendarDay)}: ${who}, so it stays on ${fmtDay(snap.scheduledCalendarDay)}. To bring it earlier, shorten or unlink ${snap.waitsOn ?? 'what it depends on'}.`);
       } else {
         setScheduleNotice(null);
       }
@@ -1165,18 +1165,18 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     // A catch-up re-dates every task that is behind — dates end to end, so
     // there is no field-access version of it. Refused BEFORE the confirmation,
     // or the alert below would announce a move the server never made (#25).
-    if (wholePlanWriteBlocked) { showAlert('Schedule not changed', wholePlanWriteBlocked); setShowFinishSheet(false); return; }
+    if (wholePlanWriteBlocked) { showAlert('Schedule Not Changed', wholePlanWriteBlocked); setShowFinishSheet(false); return; }
     const before = tasks;
     saveTasks(catchUp.tasks, { reason: 'Brought the plan up to date' });
     setShowFinishSheet(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const moved = catchUp.changes.length;
     showAlert(
-      'Plan brought up to date',
+      'Plan Brought Up to Date',
       `${moved} task${moved === 1 ? '' : 's'} re-dated so the work that is left starts today. Finished work kept its actual dates, and nothing moved earlier.`,
       [
         { text: 'Undo', style: 'cancel', onPress: () => saveTasks(before, { reason: 'Undid "Bring the plan up to date"' }) },
-        { text: 'Keep it' },
+        { text: 'Keep It' },
       ],
     );
   }, [catchUp, tasks, saveTasks, wholePlanWriteBlocked]);
@@ -1269,7 +1269,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
         user: auditUser,
         kind: 'baseline_capture',
-        summary: `Locked the plan as baseline ${snap.name}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+        summary: `Locked the plan as baseline ${snap.name}${finishLabel ? `, finish ${finishLabel}` : ''}`,
       }));
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1280,7 +1280,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   const requestLockPlan = useCallback(() => {
     if (!activeSchedule) return;
     // Access first, so nobody confirms a re-lock that the server refuses (#25).
-    if (wholePlanWriteBlocked) { showAlert('Plan not locked', wholePlanWriteBlocked); return; }
+    if (wholePlanWriteBlocked) { showAlert('Plan Not Locked', wholePlanWriteBlocked); return; }
     if (!activeBaseline) { lockPlan(activeSchedule); return; }
     const lockedOn = new Date(activeBaseline.savedAt)
       .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -1299,7 +1299,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   const applyStartDate = useCallback((pickedIso: string) => {
     if (!selectedProject || !activeSchedule) return;
     const day = parseCalendarDay(pickedIso);
-    if (!day) { showAlert('Check the date', 'Pick a day from the calendar.'); return; }
+    if (!day) { showAlert('Check the Date', 'Pick a day from the calendar.'); return; }
     const iso = toCalendarDayString(day);
     const nextTasks = activeSchedule.tasks;
     const cpm = runCpm(nextTasks, {
@@ -1329,7 +1329,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
         user: auditUser,
         kind: 'reflow',
-        summary: `Start date ${activeSchedule.startDate ? `moved ${activeSchedule.startDate} → ${iso}` : `set to ${iso}`}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+        summary: `Start date ${activeSchedule.startDate ? `moved ${activeSchedule.startDate} to ${iso}` : `set to ${iso}`}${finishLabel ? `, finish ${finishLabel}` : ''}`,
       }));
     }
     // THE MOMENT TO LOCK. A start date plus a task list is the first time this
@@ -1342,10 +1342,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     if (writePath === 'row' && nextTasks.length > 0 && (activeSchedule.baselines?.length ?? 0) === 0 && finishLabel) {
       showAlert(
         'Lock this as the plan?',
-        `Every task now has a date, and the finish is ${finishLabel} — the date you are promising. Lock it, and later the schedule can say how many days behind or ahead of this plan you are, not just how the pace looks.`,
+        `Every task now has a date, and the finish is ${finishLabel}, the date you are promising. Lock it, and later the schedule can say how many days behind or ahead of this plan you are, not only how the pace looks.`,
         [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Lock the plan', onPress: () => lockPlan(nextSchedule) },
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'Lock the Plan', onPress: () => lockPlan(nextSchedule) },
         ],
       );
     }
@@ -1362,9 +1362,9 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
         <EmptyState
           icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />}
-          title="No project yet"
+          title="No Project Yet"
           message="Create a project to build its schedule."
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as never)}
         />
       </View>
@@ -1409,7 +1409,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
             live one. A rebuild still exists (Copilot hub, the Schedule tab), and
             schedule-review's Accept now says what a replace loses first. */}
         {hasEstimate && tasks.length === 0 && (
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/copilot?capabilityId=schedule&projectId=${selectedProject.id}`)} accessibilityLabel="Build schedule by voice" testID="open-copilot-schedule">
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/copilot?capabilityId=schedule&projectId=${selectedProject.id}`)} accessibilityLabel="Build Schedule by Voice" testID="open-copilot-schedule">
             <Mic size={19} color={colors.accent} strokeWidth={2} />
           </TouchableOpacity>
         )}
@@ -1420,7 +1420,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         <TouchableOpacity
           style={styles.iconBtn}
           onPress={() => (isUndated ? setShowStartDatePicker(true) : setShowCalendar(true))}
-          accessibilityLabel={isUndated ? UNDATED_SCHEDULE_CTA : 'Jump to date'}
+          accessibilityLabel={isUndated ? UNDATED_SCHEDULE_CTA : 'Jump to Date'}
           testID="open-calendar"
         >
           <CalendarDays size={19} color={isUndated ? colors.warningLabel : colors.text} strokeWidth={1.75} />
@@ -1429,13 +1429,13 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
             the Schedule Import feature — Schedule Pro (its desktop home) shows a
             "best on a bigger screen" redirect on phones, so without this button
             the feature is unreachable on iOS (the primary target). */}
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/schedule-import?projectId=${selectedProject.id}`)} accessibilityLabel="Import schedule" testID="open-schedule-import">
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/schedule-import?projectId=${selectedProject.id}`)} accessibilityLabel="Import Schedule" testID="open-schedule-import">
           <FileInput size={19} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.iconBtn}
           onPress={() => (isUndated ? setShowStartDatePicker(true) : setShowExport(true))}
-          accessibilityLabel={isUndated ? UNDATED_SCHEDULE_CTA : 'Export schedule'}
+          accessibilityLabel={isUndated ? UNDATED_SCHEDULE_CTA : 'Export Schedule'}
           testID="open-export"
           disabled={tasks.length === 0}
         >
@@ -1493,7 +1493,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       ) : writePath === 'row' && rowConflictNotice ? (
         <View style={styles.rowConflict} testID="schedule-row-conflict-notice" accessibilityRole="alert">
           <Text style={styles.rowConflictText}>{rowConflictNotice}</Text>
-          <TouchableOpacity onPress={() => setRowConflictNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss notice" hitSlop={8}>
+          <TouchableOpacity onPress={() => setRowConflictNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss Notice" hitSlop={8}>
             <Text style={styles.rowConflictDismiss}>Dismiss</Text>
           </TouchableOpacity>
         </View>
@@ -1520,7 +1520,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       {scheduleNotice ? (
         <View style={styles.rowConflict} testID="schedule-snap-notice" accessibilityRole="alert">
           <Text style={styles.rowConflictText}>{scheduleNotice}</Text>
-          <TouchableOpacity onPress={() => setScheduleNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss notice" hitSlop={8}>
+          <TouchableOpacity onPress={() => setScheduleNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss Notice" hitSlop={8}>
             <Text style={styles.rowConflictDismiss}>Dismiss</Text>
           </TouchableOpacity>
         </View>
@@ -1562,19 +1562,19 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           hasEstimate ? (
             <EmptyState
               icon={<Mic size={36} color={colors.accent} strokeWidth={1.75} />}
-              title="No schedule yet"
+              title="No Schedule Yet"
               message="Say the scope out loud. MAGE asks a few questions, then builds the schedule, or you can add work packages by hand."
-              actionLabel="Build by voice"
+              actionLabel="Build by Voice"
               onAction={() => router.push(`/copilot?capabilityId=schedule&projectId=${selectedProject.id}`)}
-              secondaryLabel="Add manually"
+              secondaryLabel="Add Manually"
               onSecondaryAction={() => setShowAdd(true)}
             />
           ) : (
             <EmptyState
               icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />}
-              title="No schedule yet"
+              title="No Schedule Yet"
               message="Add work packages to start building the schedule. Add an estimate first to build it by voice."
-              actionLabel="New work package"
+              actionLabel="New Work Package"
               onAction={() => setShowAdd(true)}
             />
           )
@@ -1590,11 +1590,11 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
                 onPress={() => openEditor(undefined)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Tell the copilot what to change"
+                accessibilityLabel="Tell the Copilot What to Change"
                 testID="mobile-schedule-copilot-bar"
               >
                 <Mic size={16} color={colors.accent} strokeWidth={1.75} />
-                <Text style={styles.copilotBarText} numberOfLines={1}>Tell me what to change</Text>
+                <Text style={styles.copilotBarText} numberOfLines={1}>Tell Me What to Change</Text>
               </TouchableOpacity>
               );
               // Tutorial: the editor's front door (run only).
@@ -1783,7 +1783,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       <DatePickerModal
         visible={showStartDatePicker}
         value={anchor.iso ?? ''}
-        title="Schedule start date"
+        title="Schedule Start Date"
         allowFuture
         onClose={() => setShowStartDatePicker(false)}
         onChange={(iso) => applyStartDate(iso.slice(0, 10))}
@@ -1896,7 +1896,7 @@ function FinishDateSheet({
       <View style={[styles.pickerSheet, { paddingBottom: insets.bottom + 16 }]} testID="schedule-finish-sheet">
         <View style={styles.pickerGrab} />
         <View style={styles.pickerHead}>
-          <Text style={styles.pickerTitle}>Finish date</Text>
+          <Text style={styles.pickerTitle}>Finish Date</Text>
           <TouchableOpacity onPress={onClose} style={styles.pickerClose} accessibilityRole="button" accessibilityLabel="Close">
             <X size={18} color={colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -1905,13 +1905,13 @@ function FinishDateSheet({
         <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
           <View style={[styles.finishHero, { backgroundColor: colors[verdictToneTokens(verdict.tone).soft] }]}>
             <Text style={[styles.finishDate, { color: colors[verdictToneTokens(verdict.tone).ink] }]}>
-              {finishDateLabel === '—' ? 'No finish date' : finishDateLabel}
+              {finishDateLabel === '—' ? 'No Finish Date' : finishDateLabel}
             </Text>
             <Text style={styles.finishVerdict}>{verdict.headline}</Text>
             {!!verdict.detail && <Text style={styles.finishDetail}>{verdict.detail}</Text>}
           </View>
 
-          <Text style={styles.section}>What&apos;s driving the finish date</Text>
+          <Text style={styles.section}>What’s Driving the Finish Date</Text>
           <View style={styles.finishCard}>
             {chain.length === 0 ? (
               <Text style={styles.finishEmpty}>
@@ -1942,13 +1942,13 @@ function FinishDateSheet({
             })}
           </View>
 
-          <Text style={styles.section}>Update the plan</Text>
+          <Text style={styles.section}>Update the Plan</Text>
           <View style={styles.finishCard}>
             {!hasDataDate ? (
               <>
                 {/* A blocked button says why, and offers the one fix. */}
                 <Text style={styles.finishEmpty}>
-                  {UNDATED_SCHEDULE_TITLE}, so there is no “today” to catch up to — day numbers alone cannot say what is late.
+                  {UNDATED_SCHEDULE_TITLE}, so there is no “today” to catch up to. Day numbers alone cannot say what is late.
                 </Text>
                 <TouchableOpacity
                   style={[styles.finishBtn, styles.finishBtnDisabled]}
@@ -1959,7 +1959,7 @@ function FinishDateSheet({
                   testID="catch-up-disabled"
                 >
                   <RefreshCw size={16} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Bring the plan up to date</Text>
+                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Bring the Plan Up to Date</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.finishLink}
@@ -1986,12 +1986,12 @@ function FinishDateSheet({
                   testID="catch-up-blocked-by-access"
                 >
                   <RefreshCw size={16} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Bring the plan up to date</Text>
+                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Bring the Plan Up to Date</Text>
                 </TouchableOpacity>
               </>
             ) : changeCount === 0 ? (
               <Text style={styles.finishEmpty}>
-                Nothing is behind as of today — the plan already matches the field.
+                Nothing is behind as of today. The plan already matches the field.
               </Text>
             ) : (
               <>
@@ -2001,7 +2001,7 @@ function FinishDateSheet({
                     : 'Work downstream of what has actually happened has not been re-dated yet.'}
                   {' '}Starting what is left today moves {changeCount} task{changeCount === 1 ? '' : 's'}
                   {afterFinishLabel && finishDateLabel !== '—'
-                    ? ` and the finish ${finishDateLabel} → ${afterFinishLabel}.`
+                    ? ` and the finish ${finishDateLabel} to ${afterFinishLabel}.`
                     : '.'}
                 </Text>
                 <Text style={styles.finishNote}>
@@ -2012,11 +2012,11 @@ function FinishDateSheet({
                   activeOpacity={0.85}
                   onPress={onApplyCatchUp}
                   accessibilityRole="button"
-                  accessibilityLabel="Bring the plan up to date"
+                  accessibilityLabel="Bring the Plan Up to Date"
                   testID="catch-up-apply"
                 >
                   <RefreshCw size={16} color={colors.accentLabel} strokeWidth={2} />
-                  <Text style={styles.finishBtnText}>Bring the plan up to date</Text>
+                  <Text style={styles.finishBtnText}>Bring the Plan Up to Date</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -2041,7 +2041,7 @@ function FinishDateSheet({
                   testID="lock-plan-disabled"
                 >
                   <Lock size={16} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Lock this plan as the baseline</Text>
+                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Lock This Plan as the Baseline</Text>
                 </TouchableOpacity>
               </>
             ) : writeBlockedReason ? (
@@ -2056,12 +2056,12 @@ function FinishDateSheet({
                   testID="lock-plan-blocked-by-access"
                 >
                   <Lock size={16} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Lock this plan as the baseline</Text>
+                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Lock This Plan as the Baseline</Text>
                 </TouchableOpacity>
                 {!!activeBaseline && (
                   <Text style={styles.finishNote}>
                     {`${activeBaseline.name}, locked ${new Date(activeBaseline.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
-                    {baselineFinishLabel ? ` — planned finish ${baselineFinishLabel}.` : '.'}
+                    {baselineFinishLabel ? `, planned finish ${baselineFinishLabel}.` : '.'}
                   </Text>
                 )}
               </>
@@ -2078,28 +2078,28 @@ function FinishDateSheet({
                   activeOpacity={0.85}
                   onPress={onLockPlan}
                   accessibilityRole="button"
-                  accessibilityLabel="Lock this plan as the baseline"
+                  accessibilityLabel="Lock This Plan as the Baseline"
                   testID="lock-plan"
                 >
                   <Lock size={16} color={colors.accentLabel} strokeWidth={2} />
-                  <Text style={styles.finishBtnText}>Lock this plan as the baseline</Text>
+                  <Text style={styles.finishBtnText}>Lock This Plan as the Baseline</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <Text style={styles.finishBody}>
                   {`${activeBaseline.name}, locked ${new Date(activeBaseline.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
-                  {baselineFinishLabel ? ` — planned finish ${baselineFinishLabel}.` : '.'}
+                  {baselineFinishLabel ? `, planned finish ${baselineFinishLabel}.` : '.'}
                 </Text>
                 <TouchableOpacity
                   style={styles.finishLink}
                   activeOpacity={0.7}
                   onPress={onLockPlan}
                   accessibilityRole="button"
-                  accessibilityLabel="Re-lock with today's plan"
+                  accessibilityLabel="Re-Lock with Today's Plan"
                   testID="relock-plan"
                 >
-                  <Text style={styles.finishLinkAccent}>Re-lock with today’s plan</Text>
+                  <Text style={styles.finishLinkAccent}>Re-Lock with Today’s Plan</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -2114,7 +2114,7 @@ function FinishDateSheet({
             testID="open-schedule-history"
           >
             <History size={16} color={colors.textSecondary} strokeWidth={2} />
-            <Text style={styles.prowName}>Schedule history</Text>
+            <Text style={styles.prowName}>Schedule History</Text>
             <ChevronRight size={16} color={colors.textMuted} strokeWidth={2} />
           </TouchableOpacity>
         </ScrollView>
@@ -2155,7 +2155,7 @@ function ProjectPickerSheet({ visible, projects, selectedProjectId, onSelect, on
       <Animated.View style={[styles.pickerSheet, { paddingBottom: insets.bottom + 16 }, rise]} testID="schedule-project-picker">
         <View style={styles.pickerGrab} />
         <View style={styles.pickerHead}>
-          <Text style={styles.pickerTitle}>Switch project</Text>
+          <Text style={styles.pickerTitle}>Switch Project</Text>
           <TouchableOpacity onPress={onClose} style={styles.pickerClose} accessibilityRole="button" accessibilityLabel="Close">
             <X size={18} color={colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -2228,11 +2228,11 @@ function LivingFloorPlanContainer({
   // no login for the recipient. See utils/planShareToken.ts.
   const handleShare = useCallback(async () => {
     if (!firstSheet) {
-      showAlert('Share floor plan', 'Add a floor plan first, then draw the rooms you want your client to see.');
+      showAlert('Share Floor Plan', 'Add a floor plan first, then draw the rooms you want your client to see.');
       return;
     }
     if (zones.length === 0) {
-      showAlert('Share floor plan', 'Draw at least one zone (tap "Edit zones") so there’s something for your client to watch fill in.');
+      showAlert('Share Floor Plan', 'Draw at least one zone (tap "Edit zones") so there’s something for your client to watch fill in.');
       return;
     }
     const [{ buildPlanSharePayload, encodePlanShareToken, PLAN_SHARE_MAX_PHOTOS }, { isPhotoShareable }] =
@@ -2278,8 +2278,8 @@ function LivingFloorPlanContainer({
       sheetUrl,
     });
     if (planNotSynced) {
-      showAlert('Share floor plan', planUnsigned
-        ? 'Couldn’t get a link for this plan — check your signal and try again.'
+      showAlert('Share Floor Plan', planUnsigned
+        ? 'Couldn’t get a link for this plan. Check your signal and try again.'
         : 'This plan hasn’t synced yet, so the link would open blank. Wait until the offline-sync pill shows "Synced," then try again.');
       return;
     }
@@ -2290,13 +2290,13 @@ function LivingFloorPlanContainer({
     const extras: string[] = [];
     if (droppedLocal > 0) extras.push(`${droppedLocal} photo${droppedLocal === 1 ? '' : 's'} skipped (not yet synced)`);
     if (droppedExcess > 0) extras.push(`Oldest ${droppedExcess} left out (limit ${PLAN_SHARE_MAX_PHOTOS})`);
-    if (droppedUnsigned > 0) extras.push(`${droppedUnsigned} photo${droppedUnsigned === 1 ? '' : 's'} skipped (couldn’t get a link — try again online)`);
+    if (droppedUnsigned > 0) extras.push(`${droppedUnsigned} photo${droppedUnsigned === 1 ? '' : 's'} skipped (couldn’t get a link, try again online)`);
     if (droppedWithdrawn > 0) extras.push(`${droppedWithdrawn} photo${droppedWithdrawn === 1 ? '' : 's'} left out (draft or recalled from the client portal)`);
     const detail = extras.length > 0 ? `\n\n${extras.join(' · ')}` : '';
     if (ok) {
-      showAlert('Floor plan link copied', `Paste it into a text or email. Your client sees rooms, trades, and photos — never costs or task detail.${detail}`);
+      showAlert('Floor Plan Link Copied', `Paste it into a text or email. Your client sees rooms, trades, and photos, never costs or task detail.${detail}`);
     } else {
-      showAlert('Floor plan link', `${url}${detail}`);
+      showAlert('Floor Plan Link', `${url}${detail}`);
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [firstSheet, zones, project, settings?.branding?.companyName, pins, photos]);

@@ -72,7 +72,7 @@ function DesktopShellHotkeys() {
       handler: () => openAsk(),
       when: () => dock.content == null && dock.canShow(ASK_DOCK_ID),
     },
-    { combo: '?', label: 'Keyboard shortcuts', group: 'App', handler: openShortcutSheet },
+    { combo: '?', label: 'Keyboard Shortcuts', group: 'App', handler: openShortcutSheet },
     ...chords.map((c): HotkeyBinding => ({
       combo: c.combo,
       label: c.label,

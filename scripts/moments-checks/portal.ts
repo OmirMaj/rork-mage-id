@@ -445,7 +445,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
   let calls = 0;
   const hold = async (head: any) => { key(head, 'keydown', ' '); await wait(MOMENT_TIMING.holdFill + 150); };
 
-  const a = makeLine(async () => { calls++; return { status: 'confirmed', seal: { label: 'Signed. This contract is binding.', chip: 'Binding', closing: true, recordedAt: '2026-09-27T18:41:00Z', recordedTemplate: 'Recorded {date}, {time} (server time).' } }; });
+  const a = makeLine(async () => { calls++; return { status: 'confirmed', seal: { label: 'Signed. Keep a copy for your records.', chip: 'Signed', closing: true, recordedAt: '2026-09-27T18:41:00Z', recordedTemplate: 'Recorded {date}, {time} (server time).' } }; });
   ok('E1 the head is a focusable button with the label, and the line starts idle', a.head?.tagName === 'BUTTON' && a.head.getAttribute('aria-label')?.includes('+$4,200.00') && a.host.querySelector('[data-state="idle"]'));
   await hold(a.head);
   const busySeal = a.host.querySelector('.mp-seal');
@@ -454,7 +454,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
   const seal = a.host.querySelector('.mp-seal');
   ok('E1 EXECUTED: a confirmed answer draws the seal (two arcs, check, chip, record line with the server time)',
     !!seal && seal.querySelectorAll('.mp-arc').length === 2 && !!seal.querySelector('.mp-check')
-    && seal.querySelector('.mp-chip')?.textContent === 'Binding' && /\(server time\)\.$/.test(seal.querySelector('.mp-seal-record')?.textContent ?? '')
+    && seal.querySelector('.mp-chip')?.textContent === 'Signed' && /\(server time\)\.$/.test(seal.querySelector('.mp-seal-record')?.textContent ?? '')
     && !/MAGE ID/.test(seal.textContent));
   await wait(MOMENT_TIMING.holdMs + 100);
   ok('E1 EXECUTED: onDone fires after the result hold', (a.done() as { status?: string } | null)?.status === 'confirmed');
@@ -593,9 +593,9 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     ok('E2 EXECUTED: while the RPC runs the button keeps its words, locked, with a busy line', signBtn(s.d)?.textContent === label && signBtn(s.d).disabled === true && /Waiting for the server/.test(signLine(s.d)));
     await wait(60);
     const host = s.d.querySelector('[data-contract-seal="c-1"]');
-    ok('E2 EXECUTED: {ok: true} draws the closing seal with "Binding" and "Signed. This contract is binding." and no Recorded line yet',
-      !!host?.querySelector('.mp-seal[data-moment-seal="closing"]') && host.querySelector('.mp-chip')?.textContent === 'Binding'
-      && /Signed\. This contract is binding\./.test(host.textContent) && host.querySelector('.mp-seal-record')?.hidden === true
+    ok('E2 EXECUTED: {ok: true} draws the closing seal with "Binding" and "Signed. Keep a copy for your records." and no Recorded line yet',
+      !!host?.querySelector('.mp-seal[data-moment-seal="closing"]') && host.querySelector('.mp-chip')?.textContent === 'Signed'
+      && /Signed\. Keep a copy for your records\./.test(host.textContent) && host.querySelector('.mp-seal-record')?.hidden === true
       && !/notified/i.test(s.d.getElementById('sec-contract')?.textContent ?? ''),
       host?.outerHTML?.slice(0, 600));
     await wait(1800 + 400);
@@ -661,8 +661,8 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     const alerts: string[] = [];
     s.w.alert = (m: string) => alerts.push(m);
     const fine = s.d.querySelector('#sec-contract [data-contract-fine-print]');
-    ok('E4 English: the counter-sign is the line ("Slide along the line to make it binding"), no tap button, and the fine print names the slide',
-      !!lineHead(s.d) && !signBtn(s.d) && /Slide along the line to make it binding/.test(lineOf(s.d).textContent)
+    ok('E4 English: the counter-sign is the line ("Slide along the line to sign"), no tap button, and the fine print names the slide',
+      !!lineHead(s.d) && !signBtn(s.d) && /Slide along the line to sign/.test(lineOf(s.d).textContent)
       && fine?.getAttribute('data-contract-fine-print') === 'slide' && fine.textContent === SLIDE_FINE,
       `errors: ${s.errors.join(' | ')}; ${s.d.getElementById('sec-contract')?.innerHTML.slice(-1500)}`);
     if (!lineHead(s.d)) { s.close(); return; }
@@ -677,8 +677,8 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
       posts(s) === 1 && !s.d.querySelector('.mp-seal') && !!lineOf(s.d).querySelector('[data-state="busy"]') && s.d.getElementById('contract-name-c-1').readOnly === true);
     await wait(MOMENT_TIMING.minBusy + 150);
     const seal = lineOf(s.d)?.querySelector('.mp-seal[data-moment-seal="closing"]');
-    ok('E4 EXECUTED: {ok: true} closes the ring on the line: "Binding", "Signed. This contract is binding.", no Recorded line yet, no "notified"',
-      !!seal && seal.querySelector('.mp-chip')?.textContent === 'Binding' && /Signed\. This contract is binding\./.test(seal.textContent)
+    ok('E4 EXECUTED: {ok: true} closes the ring on the line: "Binding", "Signed. Keep a copy for your records.", no Recorded line yet, no "notified"',
+      !!seal && seal.querySelector('.mp-chip')?.textContent === 'Signed' && /Signed\. Keep a copy for your records\./.test(seal.textContent)
       && seal.querySelector('.mp-seal-record')?.hidden === true && !/notified/i.test(s.d.getElementById('sec-contract')?.textContent ?? ''),
       lineOf(s.d)?.outerHTML.slice(0, 900));
     await wait(MOMENT_TIMING.holdMs + 600);

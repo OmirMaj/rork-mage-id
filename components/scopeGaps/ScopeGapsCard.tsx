@@ -257,7 +257,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
   const suppressed = result.gaps.filter(g => g.state === 'suppressed');
   const mine = result.gaps.filter(g => g.state === 'already_covered' || g.state === 'n_a');
   const grounding = groundingFactsFor(result.resolved);
-  const chip = grounding.grounded ? grounding.chipLabel : 'Edition unknown — confirm with your AHJ.';
+  const chip = grounding.grounded ? grounding.chipLabel : 'Edition unknown. Confirm with your AHJ.';
   const subLabel = CODE_SCOPE_RULES_REVIEW.status === 'founder_reviewed'
     ? `Reviewed ${CODE_SCOPE_RULES_REVIEW.reviewedOn}. Family-level, never a code section. Your AHJ decides.`
     : SCOPE_GAPS_STARTER_LABEL;
@@ -273,13 +273,13 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
     if (props.mode === 'cart') {
       if (added[rule.id]) return <Text style={styles.okText}>Added to this estimate.</Text>;
       const reason = !gap.priced
-        ? 'No price of yours yet — add it in the estimator with your price.'
+        ? 'No price of yours yet. Add it in the estimator with your price.'
         : gap.quantity == null ? `Enter ${unitWord} first.`
           : !props.onAddLine ? 'This screen can’t add lines to an estimate.' : null;
       return (
         <View style={styles.actionBlock}>
           <Button
-            label="Add line" size="sm" variant="secondary" disabled={!!reason}
+            label="Add Line" size="sm" variant="secondary" disabled={!!reason}
             onPress={() => { if (props.onAddLine?.(gap)) setAdded(a => ({ ...a, [rule.id]: true })); }}
             testID={`scopegaps-add-${rule.id}`}
           />
@@ -291,7 +291,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
       return (
         <View style={styles.actionBlock}>
           <Button
-            label="Open the estimator" size="sm" variant="secondary"
+            label="Open the Estimator" size="sm" variant="secondary"
             onPress={() => router.replace(routeHref('/(tabs)/estimate/full', { projectId: projectId! }))}
             testID={`scopegaps-estimator-${rule.id}`}
           />
@@ -321,13 +321,13 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
     return (
       <View style={styles.actionBlock}>
         <Button
-          label="Add to change-order draft" size="sm" variant="secondary"
+          label="Add to Change-Order Draft" size="sm" variant="secondary"
           disabled={!!reason || busyId !== null} loading={busyId === key}
           onPress={() => { void draftCo(gap); }}
           testID={bldg ? `scopegaps-bldg-${rule.id}-draft` : `scopegaps-draft-${rule.id}`}
         />
         {reason ? <Text style={styles.reason}>{reason}</Text> : null}
-        {!reason && !gap.priced ? <Text style={styles.reason}>Drafts at $0 — price it on the change order.</Text> : null}
+        {!reason && !gap.priced ? <Text style={styles.reason}>Drafts at $0. Price it on the change order.</Text> : null}
         {rowMsg[key] ? <Text style={styles.errorText}>{rowMsg[key]}</Text> : null}
       </View>
     );
@@ -397,7 +397,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
         ) : null}
         {renderAction(gap)}
         <View style={styles.inlineRow}>
-          <Button label="Already covered" size="sm" variant="ghost" onPress={() => mark(key, 'already_covered')} testID={`scopegaps-bldg-${rule.id}-covered`} />
+          <Button label="Already Covered" size="sm" variant="ghost" onPress={() => mark(key, 'already_covered')} testID={`scopegaps-bldg-${rule.id}-covered`} />
           <Button label="N/A" size="sm" variant="ghost" onPress={() => mark(key, 'n_a')} testID={`scopegaps-bldg-${rule.id}-na`} />
         </View>
       </View>
@@ -418,7 +418,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
     return (
       <View key={rule.id} style={styles.row} testID={`scopegaps-row-${rule.id}`}>
         <Text style={styles.requires}>{rule.requires}</Text>
-        <Text style={styles.meta}>{`Why: ${gap.triggeredBy} → ${rule.family}: ${rule.topic}`}</Text>
+        <Text style={styles.meta}>{`Why: ${gap.triggeredBy} triggers ${rule.family}: ${rule.topic}`}</Text>
         {gap.jurisdictionNote ? <Text style={styles.meta}>{gap.jurisdictionNote}</Text> : null}
         <View style={styles.inlineRow}>
           <TextInput
@@ -437,7 +437,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
         <Text style={styles.price}>{priceLine}</Text>
         {renderAction(gap)}
         <View style={styles.inlineRow}>
-          <Button label="Already covered" size="sm" variant="ghost" onPress={() => mark(rule.id, 'already_covered')} testID={`scopegaps-covered-${rule.id}`} />
+          <Button label="Already Covered" size="sm" variant="ghost" onPress={() => mark(rule.id, 'already_covered')} testID={`scopegaps-covered-${rule.id}`} />
           <Button label="N/A" size="sm" variant="ghost" onPress={() => mark(rule.id, 'n_a')} testID={`scopegaps-na-${rule.id}`} />
         </View>
       </View>
@@ -475,7 +475,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
       <Card>
         <View style={styles.inlineRow}>
           <ListChecks size={18} color={t.textSecondary} />
-          <Text style={styles.cardHeading}>Code items your scope usually triggers</Text>
+          <Text style={styles.cardHeading}>Code Items Your Scope Usually Triggers</Text>
         </View>
         <Text style={styles.meta}>{subLabel}</Text>
         <Text style={styles.chip}>{chip}</Text>
@@ -499,7 +499,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
               value={cartJobKind}
               onChange={switchJobKind}
               size="sm"
-              accessibilityLabel="Job kind"
+              accessibilityLabel="Job Kind"
               testID="scopegaps-jobkind"
             />
             <Text style={styles.meta}>{CART_NOTE}</Text>
@@ -514,7 +514,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
             {gaps.map(renderGap)}
             {group('in', `${inScope.length} already in your estimate`, inScope, g => g.coverage.explain)}
             {group('off', `${suppressed.length} rule${s(suppressed.length)} don't apply here`, suppressed, g => g.suppressedReason ?? '')}
-            {group('mine', `${mine.length} marked by you`, mine, g => (g.state === 'n_a' ? 'N/A' : 'Already covered'), true)}
+            {group('mine', `${mine.length} marked by you`, mine, g => (g.state === 'n_a' ? 'N/A' : 'Already Covered'), true)}
             {result.totalCents > 0 || result.needsPriceCount > 0 ? (
               <Text style={styles.footer}>
                 {[

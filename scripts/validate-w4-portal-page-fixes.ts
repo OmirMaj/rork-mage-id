@@ -232,9 +232,9 @@ ok('#136 Outstanding / Balance / Invoiced / Paid tiles to the cent, count-up inc
   && /label: 'Balance', value: fmtMoney\(bal, \{dec:2\}\)[^\n]*cents: true/.test(html)
   && /if \(fmt === 'money2'\) return fmtMoney\(v, \{dec:2\}\);/.test(html)
   && /s\.cents \? 'money2' : 'money'/.test(html));
-ok('#136 the spend bar (headline, Paid, Due now, Retainage held) to the cent',
-  /Due now <strong>' \+ fmtMoney\(outstanding, \{dec:2\}\)/.test(html)
-  && /Retainage held <strong>' \+ fmtMoney\(retHeld, \{dec:2\}\)/.test(html)
+ok('#136 the spend bar (headline, Paid, Due Now, Retainage Held) to the cent',
+  /Due Now <strong>' \+ fmtMoney\(outstanding, \{dec:2\}\)/.test(html)
+  && /Retainage Held <strong>' \+ fmtMoney\(retHeld, \{dec:2\}\)/.test(html)
   && /fmtMoney\(paid, \{dec:2\}\) \+ ' <span class="spend-of">of<\/span> ' \+ fmtMoney\(billed, \{dec:2\}\)/.test(html));
 ok('#136 the decision row to the cent, a credit CO signed',
   /\? \(d\.amount > 0 \? '\+' : ''\) \+ fmtSigned\(d\.amount\)\s*: fmtMoney\(d\.amount, \{dec:2\}\)/.test(html));
@@ -448,7 +448,7 @@ ok('#72 the pending Client approver is stamped in the same plan (status, signer,
 const pB = plan(rowB, 'approved', [sealA, sealB, pA.entry!], sent);
 ok('another row\'s sealed decision for THIS send → portal_decision_conflict, no flip, no approver stamp',
   pB.entry?.action === 'portal_decision_conflict' && pB.status === null && pB.approvers === null
-  && pB.entry?.id === 'audit-portal-bbbbbbbb' && /confirm with your client/.test(pB.entry?.detail ?? ''));
+  && pB.entry?.id === 'audit-portal-bbbbbbbb' && /Confirm with your client/.test(pB.entry?.detail ?? ''));
 const pB2 = plan(rowB, 'approved', [sealB, { id: 'audit-portal-aaaaaaaa', action: 'approved_via_portal', actor: 'Jane', timestamp: '2026-09-20T12:00:00Z' }], sent);
 ok('another row\'s applied key (legacy path) is a conflict too', pB2.entry?.action === 'portal_decision_conflict' && pB2.status === null);
 const resent = plan(rowB, 'submitted', [sealA, sealB], { approvers, sentAt: '2026-09-20T12:02:00Z' });

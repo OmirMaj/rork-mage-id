@@ -242,7 +242,7 @@ export default function RetentionScreen() {
     if (writeQueue != null) return;
     if (plan.allocations.length === 0) {
       showAlert(
-        'Nothing to release',
+        'Nothing to Release',
         releaseMode === 'percent'
           ? `${emptyPercentReason(plan)} Enter a lower target, or release a dollar figure instead.`
           : 'Enter an amount above zero. There must be retainage still held to release it.',
@@ -257,7 +257,7 @@ export default function RetentionScreen() {
     });
     if (result.outcomes.length === 0) {
       showAlert(
-        'Nothing released',
+        'Nothing Released',
         'These invoices changed after this preview, so none of the amounts still fit inside what is held. Reopen the release and try again.',
       );
       return;
@@ -301,7 +301,7 @@ export default function RetentionScreen() {
       const { lines } = writeQueue;
       setWriteQueue(null);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert('Retainage released', lines.join('\n\n'));
+      showAlert('Retainage Released', lines.join('\n\n'));
       return;
     }
     updateInvoice(write.invoiceId, write.patch);
@@ -357,8 +357,8 @@ export default function RetentionScreen() {
         whenToUse={[
           'When a contract says the client holds 5% or 10% until substantial completion',
           'At closeout, to see exactly what is still owed to you across every project',
-          'Mid-project, when the contract steps the withholding down — release part of it and leave the rest',
-          'Before you release retainage to a sub — hold theirs until yours is released',
+          'Mid-project, when the contract steps the withholding down: release part of it and leave the rest',
+          'Before you release retainage to a sub: hold theirs until yours is released',
         ]}
       />
 
@@ -373,7 +373,7 @@ export default function RetentionScreen() {
             <Lock size={28} color={Colors.warningLabel} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroAmount}>{formatCurrencyPrecise(totals.totalPending)}</Text>
-          <Text style={styles.heroLabel}>Retainage pending release</Text>
+          <Text style={styles.heroLabel}>Retainage Pending Release</Text>
           {totals.projectsWithRetention > 0 && (
             <Text style={styles.heroMeta}>
               Across {totals.projectsWithRetention} project{totals.projectsWithRetention === 1 ? '' : 's'}
@@ -396,7 +396,7 @@ export default function RetentionScreen() {
           <View style={[styles.metricCard, { borderColor: Colors.warning + '40' }]}>
             <Lock size={14} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.metricValue}>{formatCurrency(totals.totalHeld)}</Text>
-            <Text style={styles.metricLabel}>Total held</Text>
+            <Text style={styles.metricLabel}>Total Held</Text>
           </View>
           <View style={[styles.metricCard, { borderColor: themeColors.success + '40' }]}>
             <Unlock size={14} color={themeColors.success} strokeWidth={1.75} />
@@ -418,7 +418,7 @@ export default function RetentionScreen() {
             number, and called. */}
         {projectRetention.length > 0 && (
           <Text style={styles.basisNote} testID="retention-basis-note">
-            Held on the work value — the invoice subtotal, before sales tax. Multiplying the percentage by
+            Held on the work value: the invoice subtotal, before sales tax. Multiplying the percentage by
             an invoice total that includes tax gives a larger number; that is not what is being held.
           </Text>
         )}
@@ -427,9 +427,9 @@ export default function RetentionScreen() {
         {projectRetention.length === 0 && (
           <View style={styles.emptyState}>
             <Lock size={36} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No retainage held yet</Text>
+            <Text style={styles.emptyTitle}>No Retainage Held Yet</Text>
             <Text style={styles.emptyBody}>
-              When you set a Retention % on an invoice (e.g. 10%), that amount is held back by the client until punch list is cleared or substantial completion. It will appear here so you can track and release it.
+              When you set a Retention % on an invoice (10%, for example), that amount is held back by the client until punch list is cleared or substantial completion. It will appear here so you can track and release it.
             </Text>
             <TouchableOpacity style={styles.emptyBtn} onPress={() => router.back()} activeOpacity={0.8}>
               <ArrowLeft size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -551,11 +551,11 @@ export default function RetentionScreen() {
               {expanded && (
                 <View style={styles.expandedSection}>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Contract billed</Text>
+                    <Text style={styles.detailLabel}>Contract Billed</Text>
                     <Text style={styles.detailValue}>{formatCurrencyPrecise(pr.totalContract)}</Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={[styles.detailLabel, { color: Colors.warningLabel }]}>Retainage held</Text>
+                    <Text style={[styles.detailLabel, { color: Colors.warningLabel }]}>Retainage Held</Text>
                     <Text style={[styles.detailValue, { color: Colors.warningLabel }]}>{formatCurrencyPrecise(pr.retentionHeld)}</Text>
                   </View>
                   <View style={styles.detailRow}>
@@ -563,7 +563,7 @@ export default function RetentionScreen() {
                     <Text style={[styles.detailValue, { color: themeColors.success }]}>{formatCurrencyPrecise(pr.retentionReleased)}</Text>
                   </View>
                   <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: themeColors.line, paddingTop: 8, marginTop: 4 }]}>
-                    <Text style={styles.detailLabelBold}>Pending release</Text>
+                    <Text style={styles.detailLabelBold}>Pending Release</Text>
                     <Text style={[styles.detailValueBold, { color: isComplete ? themeColors.success : themeColors.danger }]}>
                       {formatCurrencyPrecise(pr.retentionPending)}
                     </Text>
@@ -653,7 +653,7 @@ export default function RetentionScreen() {
                   <Text style={styles.modalMeta}>
                     Held <Text style={styles.modalMetaStrong}>{formatCurrencyPrecise(releaseRow.summary.pending)}</Text>
                     {releaseRow.summary.pendingPercent != null
-                      ? ` — ${releaseRow.summary.pendingPercent.toFixed(2)}% of ${formatCurrency(releaseRow.summary.workValue)} of work value`
+                      ? `, ${releaseRow.summary.pendingPercent.toFixed(2)}% of ${formatCurrency(releaseRow.summary.workValue)} of work value`
                       : ''}
                     {releaseRow.summary.released > 0
                       ? `  ·  ${formatCurrencyPrecise(releaseRow.summary.released)} already released`
@@ -672,7 +672,7 @@ export default function RetentionScreen() {
                         testID={`retention-mode-${m}`}
                       >
                         <Text style={[styles.modeChipText, releaseMode === m && styles.modeChipTextOn]}>
-                          {m === 'percent' ? 'Step down to a %' : 'Release a $ amount'}
+                          {m === 'percent' ? 'Step Down to a %' : 'Release a $ Amount'}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -680,14 +680,14 @@ export default function RetentionScreen() {
 
                   {releaseMode === 'percent' ? (
                     <>
-                      <Text style={styles.modalFieldLabel}>Hold this much going forward</Text>
+                      <Text style={styles.modalFieldLabel}>Hold This Much Going Forward</Text>
                       <View style={styles.inputRow}>
                         <TextInput
                           style={[styles.modalInput, { flex: 1 }]}
                           value={releasePercentInput}
                           onChangeText={setReleasePercentInput}
                           keyboardType="decimal-pad"
-                          placeholder="e.g. 5"
+                          placeholder="5"
                           placeholderTextColor={themeColors.textMuted}
                           testID="retention-percent-input"
                         />
@@ -712,7 +712,7 @@ export default function RetentionScreen() {
                     </>
                   ) : (
                     <>
-                      <Text style={styles.modalFieldLabel}>Amount to release</Text>
+                      <Text style={styles.modalFieldLabel}>Amount to Release</Text>
                       <View style={styles.inputRow}>
                         <TextInput
                           style={[styles.modalInput, { flex: 1 }]}
@@ -758,7 +758,7 @@ export default function RetentionScreen() {
                         </View>
                       ))}
                       <View style={[styles.previewRow, styles.previewTotalRow]}>
-                        <Text style={styles.previewLabelBold}>Still held after</Text>
+                        <Text style={styles.previewLabelBold}>Still Held After</Text>
                         <Text style={styles.previewValueBold}>
                           {formatCurrencyPrecise(plan.pendingAfter)}
                           {plan.pendingPercentAfter != null
@@ -810,17 +810,17 @@ export default function RetentionScreen() {
                     </Text>
                   )}
 
-                  <Text style={styles.modalFieldLabel}>Note (optional)</Text>
+                  <Text style={styles.modalFieldLabel}>Note (Optional)</Text>
                   <TextInput
                     style={styles.modalInput}
                     value={releaseNote}
                     onChangeText={setReleaseNote}
-                    placeholder="e.g. Substantial completion, punch list cleared"
+                    placeholder="Substantial completion, punch list cleared"
                     placeholderTextColor={themeColors.textMuted}
                   />
 
                   <Text style={styles.modalHint}>
-                    Releasing makes the money collectible — it does not record a payment. Settled invoices
+                    Releasing makes the money collectible. It does not record a payment. Settled invoices
                     reopen with the payment clock restarted from today.
                   </Text>
 
@@ -865,7 +865,7 @@ export default function RetentionScreen() {
         <View style={[styles.modalOverlay, fSources.overlay]}>
           <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSources.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Retainage is not one event</Text>
+              <Text style={styles.modalTitle}>Retainage is not one event.</Text>
               <TouchableOpacity onPress={() => setSourcesOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>

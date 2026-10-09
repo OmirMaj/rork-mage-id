@@ -3,28 +3,28 @@
 exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) Android 1000 x 700 (native tablet) renders exactly as before 1`] = `
 {
   "lines": 710,
-  "sha256": "c8e03966d59fca220a83b8be5557ae9d852ebf2dc74bd383e6318fd6ccb5f640",
+  "sha256": "1bf368c6fd071a7eff60be1399809201d007675c06fc29925b6152c27148e9e3",
 }
 `;
 
 exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) iOS 390 (phone branch) renders exactly as before 1`] = `
 {
   "lines": 349,
-  "sha256": "b9d4286cfa600c597b18304738e5696905421a04a4599147149761740e27e2a1",
+  "sha256": "33d5259416d320b582991c8252bcea7f929eada97fe91b777d40aa9fc7acd221",
 }
 `;
 
 exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) native 1512 (the Pro canvas on a device that is not a browser) renders exactly as before 1`] = `
 {
   "lines": 792,
-  "sha256": "9699faa51c7c36da66cda187e424e2646696dfa32f22357802b863867450e662",
+  "sha256": "95317e9eff04c35503146e8783bc1782a57ae1a16cce28140cda15bd1c43514f",
 }
 `;
 
 exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) web 820 (tablet split, local layout bar) renders exactly as before 1`] = `
 {
   "lines": 705,
-  "sha256": "e9d09dc3e500a2deddf40767487d8f7e9b5522eed40dbb6ce0b8be026c5f267b",
+  "sha256": "a5e0f4cbd3357db779d34025f234141254930cdb1bdd54ec8900e84ea3ec7b31",
 }
 `;
 

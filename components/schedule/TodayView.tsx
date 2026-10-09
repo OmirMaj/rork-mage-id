@@ -292,12 +292,12 @@ const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
                 {predsComplete ? (
                   <View style={s.predBadgeGreen}>
                     <CheckCircle2 size={10} color={t.successLabel} strokeWidth={1.75} />
-                    <Text style={s.predBadgeTextGreen}>Predecessors done</Text>
+                    <Text style={s.predBadgeTextGreen}>Predecessors Done</Text>
                   </View>
                 ) : predsInProgress ? (
                   <View style={s.predBadgeYellow}>
                     <Clock size={10} color={t.warningLabel} strokeWidth={1.75} />
-                    <Text style={s.predBadgeTextYellow}>Predecessors in progress</Text>
+                    <Text style={s.predBadgeTextYellow}>Predecessors in Progress</Text>
                   </View>
                 ) : (
                   <View style={s.predBadgeRed}>
@@ -572,7 +572,7 @@ function TodayView({
                 style={s.overdueResolveBtn}
                 onPress={() => onProgressUpdate(task, 100)}
               >
-                <Text style={s.overdueResolveBtnText}>Mark done</Text>
+                <Text style={s.overdueResolveBtnText}>Mark Done</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -669,7 +669,7 @@ function TodayView({
       {tomorrow.canSend && schedule.projectId ? (
         <>
           <Button
-            label={lineupOpen ? 'Send lineup' : `Send lineup · needs ${lineupTier.charAt(0).toUpperCase()}${lineupTier.slice(1)}`}
+            label={lineupOpen ? 'Send Lineup' : `Send lineup · needs ${lineupTier.charAt(0).toUpperCase()}${lineupTier.slice(1)}`}
             variant={lineupOpen ? 'primary' : 'secondary'}
             fullWidth
             iconLeft={lineupOpen

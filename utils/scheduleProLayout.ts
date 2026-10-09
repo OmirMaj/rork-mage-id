@@ -198,7 +198,7 @@ export const PRIMARY_VIEWS: readonly ProView[] = ['split', 'gantt', 'list', 'boa
 export const MORE_VIEWS: readonly ProView[] = ['workload', 'lanes', 'living', 'calendar'];
 export const VIEW_LABEL: Readonly<Record<ProView, string>> = {
   split: 'Split', gantt: 'Gantt', list: 'List', board: 'Board', overview: 'Overview',
-  workload: 'Workload', lanes: 'Lanes', living: 'Living plan', calendar: 'Calendar',
+  workload: 'Workload', lanes: 'Lanes', living: 'Living Plan', calendar: 'Calendar',
 };
 
 // ─── Toolbar row 2: collapse instead of overflowing (wave 6d, C4) ──────────

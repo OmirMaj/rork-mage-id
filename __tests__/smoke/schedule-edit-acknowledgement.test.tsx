@@ -116,7 +116,7 @@ describe('schedule editor review — honest acknowledgement', () => {
       <ScheduleDiffView ops={[]} dropped={[{ summary: 'addTask — no valid duration' }]} ctx={CTX} onApply={jest.fn()} onDiscard={jest.fn()} />,
       { wrapper: Wrapper },
     );
-    expect(r.getByText('Nothing to apply')).toBeTruthy();
+    expect(r.getByText('Nothing to Apply')).toBeTruthy();
     expect(r.getByTestId('schedule-edit-understood').props.children).toBe('Understood 0 of 1 change');
   });
 });

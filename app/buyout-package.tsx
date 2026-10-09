@@ -91,6 +91,7 @@ import { subCoiExpiryAcross } from '@/utils/projectContextPure';
 import { matchSubForPhase } from '@/utils/subTradeMatch';
 import { normalizeTradeKey } from '@/utils/laborSamples';
 import { leveledBidTotal, leveledBuyoutSavings, packageBuyoutSavings, uncoveredScopeOf, openExcludedScope, awardedCommitmentOf } from '@/utils/projectFinancials';
+import { TemplateNotice } from '@/components/ProtectNotices';
 
 // Invite timestamps are instants (timestamptz), shown here as the day they
 // fall on in the reader's own zone — which is what a GC means by "sent Tuesday".
@@ -262,7 +263,7 @@ export default function BuyoutPackageScreen() {
     const delivered = await deliverPendingBidInvites(rows, new Set([packageId]));
     const sent = delivered.filter(r => r.emailed);
     if (sent.length > 0) {
-      setDeliveredNote(`Emailed ${sent.map(r => r.email).join(', ')} — ${sent.length === 1 ? 'that invite was' : 'those invites were'} saved offline and ${sent.length === 1 ? 'has' : 'have'} now uploaded.`);
+      setDeliveredNote(`Emailed ${sent.map(r => r.email).join(', ')}. ${sent.length === 1 ? 'That invite was' : 'Those invites were'} saved offline and ${sent.length === 1 ? 'has' : 'have'} now uploaded.`);
     }
     const refused = delivered.filter(r => !r.emailed && r.reason);
     if (refused.length > 0) {
@@ -387,7 +388,7 @@ export default function BuyoutPackageScreen() {
     if (invitingRef.current) return;
     const uid = user?.id;
     if (!uid) {
-      showAlert('Sign in first', 'An invite is filed against your account, so it needs a signed-in session. Sign in and try again.');
+      showAlert('Sign In First', 'An invite is filed against your account, so it needs a signed-in session. Sign in and try again.');
       return;
     }
     // A scope-less invite is worse than no invite: the sub gets an email headed
@@ -397,7 +398,7 @@ export default function BuyoutPackageScreen() {
     // reason and says so; this is the defensive half of that gate.
     if (!scopeText) {
       showAlert(
-        'No scope to send',
+        'No Scope to Send',
         'This package has no scope of work written, so the invitation would ask the sub to price a name and an address, and the bid page would tell them to call you for the details. Write the scope first. If the package has estimate items linked, one tap fills it in.',
       );
       return;
@@ -421,10 +422,10 @@ export default function BuyoutPackageScreen() {
     ];
     if (recipients.length === 0) {
       showAlert(
-        'No email addresses',
+        'No Email Addresses',
         rejected.length > 0
           ? `Couldn't read ${rejected.slice(0, 3).join(', ')} as an email address. One address per line, or separated by commas.`
-          : "Pick subs from your roster above, or type their email addresses — one per line, or separated by commas.",
+          : "Pick subs from your roster above, or type their email addresses, one per line or separated by commas.",
       );
       return;
     }
@@ -436,8 +437,8 @@ export default function BuyoutPackageScreen() {
     const { fresh, alreadyLive } = splitAlreadyInvited(recipients, invites, Date.now());
     if (fresh.length === 0) {
       showAlert(
-        'They already have a link',
-        `${alreadyLive.slice(0, 3).join(', ')} ${alreadyLive.length === 1 ? 'is' : 'are'} already invited to this package and the link still works. Use the copy button next to their name to send it again — a second invite would let the same sub file two bids.`,
+        'They already have a link.',
+        `${alreadyLive.slice(0, 3).join(', ')} ${alreadyLive.length === 1 ? 'is' : 'are'} already invited to this package and the link still works. Use the copy button next to their name to send it again. A second invite would let the same sub file two bids.`,
       );
       return;
     }
@@ -478,17 +479,17 @@ export default function BuyoutPackageScreen() {
       if (synced.length > 0) {
         lines.push(
           mailed.length === synced.length
-            ? `${synced.length} invite${synced.length === 1 ? '' : 's'} sent. Each sub gets a link that shows the scope and takes their number — no account, no app, and nothing for you to re-key.`
+            ? `${synced.length} invite${synced.length === 1 ? '' : 's'} sent. Each sub gets a link that shows the scope and takes their number. No account, no app, and nothing for you to re-key.`
             // Not "sent": the row is filed and the link is live, but the mail
             // hand-off did not happen, and telling him otherwise means he waits
             // on bids from subs who were never contacted.
-            : `${synced.length} invite${synced.length === 1 ? '' : 's'} ready. The link shows the scope and takes their number — no account, no app, nothing for you to re-key.`,
+            : `${synced.length} invite${synced.length === 1 ? '' : 's'} ready. The link shows the scope and takes their number. No account, no app, nothing for you to re-key.`,
         );
       }
       if (queued.length > 0) {
         // Honest about WHEN (#14): the email goes once the row uploads, and
         // only while this package or the Buyout list is open to send it.
-        lines.push(`${queued.length} invite${queued.length === 1 ? '' : 's'} saved on this phone — you're offline, so nothing has gone to ${queued.length === 1 ? 'that sub' : 'those subs'} yet. The email goes out once ${queued.length === 1 ? 'it uploads' : 'they upload'} (with this package or the Buyout list open); until then ${queued.length === 1 ? 'it shows' : 'they show'} below as "On this phone" and the link won't open.`);
+        lines.push(`${queued.length} invite${queued.length === 1 ? '' : 's'} saved on this phone. You're offline, so nothing has gone to ${queued.length === 1 ? 'that sub' : 'those subs'} yet. The email goes out once ${queued.length === 1 ? 'it uploads' : 'they upload'} (with this package or the Buyout list open); until then ${queued.length === 1 ? 'it shows' : 'they show'} below as "On this phone" and the link won't open.`);
       }
       if (failed.length > 0) {
         lines.push(`${failed.length} couldn't be filed: ${failed.map(f => f.email).join(', ')}. Try again in a minute.`);
@@ -497,7 +498,7 @@ export default function BuyoutPackageScreen() {
       if (synced.length > 0 && mailed.length === 0) {
         lines.push('The email didn’t go out, so nothing has reached them yet. Copy each link from the list below and text or email it over.');
       } else if (synced.length > mailed.length) {
-        lines.push(`${synced.length - mailed.length} of those emails did not hand off — copy those links from the list below and send them yourself.`);
+        lines.push(`${synced.length - mailed.length} of those emails did not hand off. Copy those links from the list below and send them yourself.`);
       }
       // Name the ones notify refused for a reason he must act on differently
       // (#94): re-sending to an unsubscribed sub mails nobody.
@@ -518,13 +519,13 @@ export default function BuyoutPackageScreen() {
       setPickedSubIds([]);
       await loadInvites();
       if (Platform.OS !== 'web' && failed.length === 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert(failed.length > 0 ? 'Some invites did not go' : 'Subs invited', lines.join('\n\n'));
+      showAlert(failed.length > 0 ? 'Some invites did not go.' : 'Subs Invited', lines.join('\n\n'));
     } catch (e) {
       // Nothing below sendBidInvites throws today, but a silent rejection here
       // would leave the sheet open with no spinner and no message — the GC taps
       // Send again and files a second token for every sub.
       console.warn('[buyout] invite send failed', e);
-      showAlert('Couldn’t send invitations', 'Couldn’t send some invitations. Check the list below before you try again.');
+      showAlert('Couldn’t Send Invitations', 'Couldn’t send some invitations. Check the list below before you try again.');
       await loadInvites();
     } finally {
       invitingRef.current = false;
@@ -545,7 +546,7 @@ export default function BuyoutPackageScreen() {
     if (remindingRef.current) return;
     const uid = user?.id;
     if (!uid) {
-      showAlert('Sign in first', 'Reminders go out against your account, so they need a signed-in session.');
+      showAlert('Sign In First', 'Reminders go out against your account, so they need a signed-in session.');
       return;
     }
     // A pending invite has no live link to chase until it uploads.
@@ -573,7 +574,7 @@ export default function BuyoutPackageScreen() {
       setRemindedIds(sent.map(r => r.inviteId));
       const lines: string[] = [];
       if (sent.length > 0) {
-        lines.push(`Re-sent the invitation to ${sent.length} sub${sent.length === 1 ? '' : 's'}: ${sent.map(r => r.email).join(', ')}. Same link as before — they can still only file one bid.`);
+        lines.push(`Re-sent the invitation to ${sent.length} sub${sent.length === 1 ? '' : 's'}: ${sent.map(r => r.email).join(', ')}. Same link as before, so they can still only file one bid.`);
       }
       const missed = results.filter(r => !r.emailed);
       if (missed.length > 0) {
@@ -581,7 +582,7 @@ export default function BuyoutPackageScreen() {
         // and an unsubscribed sub is named, because chasing him again by email
         // can never arrive (#94).
         for (const r of missed) lines.push(notEmailedSentence(r.email, r.reason));
-        lines.push('Their link still works — copy it from the list and text it over.');
+        lines.push('Their link still works. Copy it from the list and text it over.');
       }
       setNotEmailed(prev => {
         const next = { ...prev };
@@ -593,7 +594,7 @@ export default function BuyoutPackageScreen() {
       });
       setPendingInvites(await loadPendingBidInvites());
       if (Platform.OS !== 'web' && sent.length > 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert(sent.length > 0 ? 'Chased' : 'Nothing was emailed', lines.join('\n\n'));
+      showAlert(sent.length > 0 ? 'Chased' : 'Nothing was emailed.', lines.join('\n\n'));
     } finally {
       remindingRef.current = false;
       setReminding(false);
@@ -603,7 +604,7 @@ export default function BuyoutPackageScreen() {
   const handleCopyInviteLink = useCallback(async (invite: BidInviteRecord) => {
     const ok = await copyToClipboard(bidInviteUrl(invite.inviteToken));
     showAlert(
-      ok ? 'Link copied' : 'Couldn’t copy the link',
+      ok ? 'Link Copied' : 'Couldn’t Copy the Link',
       ok
         ? `Text or email this to ${invite.subEmail}. It opens the scope for this package and takes their bid.`
         : 'Your browser blocked the clipboard. Long-press to select the link instead.',
@@ -651,16 +652,16 @@ export default function BuyoutPackageScreen() {
   const handleAddBid = useCallback(() => {
     if (!pkg) return;
     if (!newVendor.trim()) {
-      showAlert('Add the vendor', 'Enter who the bid is from.');
+      showAlert('Add the Vendor', 'Enter who the bid is from.');
       return;
     }
     // Separators and "$" stripped before Number() — "4,800" used to store NaN,
     // which the server's NOT NULL amount then refused in the queue (#95).
     const amount = parseBidAmountInput(newAmount);
     if (amount == null) {
-      showAlert('Needs an amount', newAmount.trim()
+      showAlert('Needs an Amount', newAmount.trim()
         ? `Couldn't read "${newAmount.trim()}" as a dollar amount. Type the total, like 4800 or 4,800.50.`
-        : "Type the bid's total in dollars — a bid without one can't be compared or awarded.");
+        : "Type the bid's total in dollars. A bid without one can't be compared or awarded.");
       return;
     }
     addBidPackageBid({
@@ -709,7 +710,7 @@ export default function BuyoutPackageScreen() {
     }
     const amount = parseBidAmountInput(amountDraft);
     if (amount == null) {
-      showAlert('Needs an amount', amountEditMode === 'excludedPrice'
+      showAlert('Needs an Amount', amountEditMode === 'excludedPrice'
         ? 'Type your price for the excluded scope in dollars, like 3200 or 3,200.50.'
         : "Type the bid's total in dollars, like 4800 or 4,800.50.");
       return;
@@ -740,8 +741,8 @@ export default function BuyoutPackageScreen() {
     const who = bid.vendorName || 'this sub';
     if (bid.status === 'awarded' || pkg.awardedBidId === bid.id) {
       showAlert(
-        "Can't delete the awarded bid",
-        `${who}'s bid is the one this package was awarded on — the commitment and the buyout savings are built from it. It stays.`,
+        "Can't Delete the Awarded Bid",
+        `${who}'s bid is the one this package was awarded on. The commitment and the buyout savings are built from it. It stays.`,
       );
       return;
     }
@@ -752,14 +753,14 @@ export default function BuyoutPackageScreen() {
     }
     showAlert('Delete this bid?', lines.join('\n\n'), [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete bid', style: 'destructive', onPress: () => deleteBidPackageBid(bid.id) },
+      { text: 'Delete Bid', style: 'destructive', onPress: () => deleteBidPackageBid(bid.id) },
     ]);
   }, [pkg, deleteBidPackageBid]);
 
   // ── AI leveling ─────────────────────────────────────────────
   const handleLevel = useCallback(async () => {
     if (!pkg || bids.length < 2) {
-      showAlert('Add another bid', 'Add at least two bids to level them.');
+      showAlert('Add Another Bid', 'Add at least two bids to level them.');
       return;
     }
     // Bid Leveling is a Pro+ feature — too compute-expensive to give away
@@ -796,7 +797,7 @@ export default function BuyoutPackageScreen() {
       // silently worked. Empty summary + every adjustment at confidence 0
       // is the failure signature.
       if (result.summary === '' && result.adjustments.every(a => a.confidence === 0)) {
-        showAlert('Couldn’t level the bids', 'Try again in a minute, or compare the bids by hand.');
+        showAlert('Couldn’t Level the Bids', 'Try again in a minute, or compare the bids by hand.');
       } else {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -833,7 +834,7 @@ export default function BuyoutPackageScreen() {
     // An award ProjectContext is certain to refuse must not walk him through
     // the compliance and risk-override dialogs first (#95).
     if (bidAmountOf(bid) == null) {
-      showAlert('Needs an amount', `${bid.vendorName || 'This bid'} has no dollar amount, so it can't be awarded. Tap the amount on the card to add it first.`);
+      showAlert('Needs an Amount', `${bid.vendorName || 'This bid'} has no dollar amount, so it can't be awarded. Tap the amount on the card to add it first.`);
       return;
     }
     // Round 2: a needs-price bid's leveled cost is UNKNOWN (its adjustment is a
@@ -879,7 +880,7 @@ export default function BuyoutPackageScreen() {
       if (!packet) {
         // A note, not a blocker: the prequal form is a separate invite the bid
         // invite never mentioned. Offered as one tap below ("Request prequal").
-        notes.push(`No prequal packet on file for ${sub.companyName} — paperwork you may have chosen not to run on this project, not an insurance gap.`);
+        notes.push(`No prequal packet on file for ${sub.companyName}: paperwork you may have chosen not to run on this project, not an insurance gap.`);
       } else {
         // Q5: the packet's STATUS decides, not a re-run of the auto-review on
         // whatever it holds — invited-but-unfilled is pending (a note), and the
@@ -897,7 +898,7 @@ export default function BuyoutPackageScreen() {
     lines.push(`Leveled total: ${formatMoney(total)}`);
     if (sellBasis) {
       // A budget stored at SELL makes his own markup read as savings (#11).
-      lines.push('Buyout savings: not shown — this package\'s budget includes your markup. Review the budget on this screen.');
+      lines.push('Buyout savings: not shown. This package\'s budget includes your markup. Review the budget on this screen.');
     } else {
       lines.push(`Buyout ${savings >= 0 ? 'savings' : 'overrun'} vs. budget at cost: ${formatMoney(Math.abs(savings))}`);
     }
@@ -906,7 +907,7 @@ export default function BuyoutPackageScreen() {
       // his to buy — the commitment is the sub's bid, not the leveled total.
       // No commitment is booked for that scope (it is not bought yet); the
       // package hero and Job Costing carry it as uncommitted, estimated scope.
-      lines.push(`Commitment: ${formatMoney(bid.amount)} (the sub's bid). ${formatMoney(uncovered)} (est.) for ${bid.excludes || 'the scope this bid excludes'} is not in it — still yours to buy, not counted as savings.`);
+      lines.push(`Commitment: ${formatMoney(bid.amount)} (the sub's bid). ${formatMoney(uncovered)} (est.) for ${bid.excludes || 'the scope this bid excludes'} is not in it. It is still yours to buy, not counted as savings.`);
     }
     if (allowanceItems.length > 0) {
       lines.push('');
@@ -931,7 +932,7 @@ export default function BuyoutPackageScreen() {
       if (!commitmentId) {
         // awardBidPackage refuses a bid with no amount or from another package
         // and used to do so in silence — the dialog closed and nothing happened.
-        showAlert('Not awarded', `${bid.vendorName || 'This bid'} could not be awarded — it has no dollar amount on this device. Fix the amount on the card and award again.`);
+        showAlert('Not Awarded', `${bid.vendorName || 'This bid'} could not be awarded. It has no dollar amount on this device. Fix the amount on the card and award again.`);
         return;
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -946,7 +947,7 @@ export default function BuyoutPackageScreen() {
           // The answer to "no prequal packet" is one tap, not a trip to another
           // screen: prequal-manager opens its invite sheet for this sub.
           ...(sub && !packet ? [{
-            text: 'Request prequal', style: 'default' as const,
+            text: 'Request Prequal', style: 'default' as const,
             onPress: () => router.push({ pathname: '/prequal-manager', params: { inviteSubId: sub.id } } as never),
           }] : []),
           { text: 'Award', style: 'default', onPress: doAward },
@@ -954,7 +955,7 @@ export default function BuyoutPackageScreen() {
       );
     } else {
       showAlert(
-        'Review compliance before award',
+        'Review Compliance Before Award',
         [
           ...lines,
           '',
@@ -968,21 +969,21 @@ export default function BuyoutPackageScreen() {
           // The unlinked case has a fix that takes one tap, so offer it here
           // rather than sending him down the destructive path to work around a
           // blocker that is really a missing join.
-          ...(!sub ? [{ text: 'Pick the sub', style: 'default' as const, onPress: () => setLinkTargetBidId(bid.id) }] : []),
+          ...(!sub ? [{ text: 'Pick the Sub', style: 'default' as const, onPress: () => setLinkTargetBidId(bid.id) }] : []),
           // Same for a missing or lapsed COI: the vault is where the fix lives.
           // Opens on THIS sub's certificates (#23), not the whole vault.
           ...(sub && award && (award.coi === 'none' || award.coi === 'expired')
-            ? [{ text: 'Open COI vault', style: 'default' as const, onPress: () => router.push({ pathname: '/coi-vault', params: { subId: sub.id } } as never) }]
+            ? [{ text: 'Open COI Vault', style: 'default' as const, onPress: () => router.push({ pathname: '/coi-vault', params: { subId: sub.id } } as never) }]
             : []),
           {
-            text: 'Review override',
+            text: 'Review Override',
             style: 'destructive',
             onPress: () => showAlert(
-              'Confirm risk override',
+              'Confirm Risk Override',
               `Award ${sub?.companyName ?? bid.vendorName ?? 'this sub'} despite:\n\n${blockers.map(b => '• ' + b).join('\n')}\n\nThis is the GC's compliance risk and will be recorded.`,
               [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Award & accept risk', style: 'destructive', onPress: doAward },
+                { text: 'Award and Accept Risk', style: 'destructive', onPress: doAward },
               ],
             ),
           },
@@ -1006,14 +1007,14 @@ export default function BuyoutPackageScreen() {
     if (!pkg || !pkg.awardedBidId || !project) return;
     const winningBid = bids.find(b => b.id === pkg.awardedBidId);
     if (!winningBid) {
-      showAlert('No awarded bid', 'Award a bid before generating the subcontract.');
+      showAlert('No Awarded Bid', 'Award a bid before generating the subcontract.');
       return;
     }
     const commitment = awardedCommitmentOf(pkg, commitments);
     if (!commitment || !commitment.number) {
       showAlert(
-        'No subcontract number yet',
-        'Subcontract number assigned on award — the award\'s commitment isn\'t on this device yet, so there is no number to print. Open the project once it has synced and try again.',
+        'No Subcontract Number Yet',
+        'The subcontract number is assigned on award. The award\'s commitment isn\'t on this device yet, so there is no number to print. Open the project once it has synced and try again.',
       );
       return;
     }
@@ -1046,12 +1047,12 @@ export default function BuyoutPackageScreen() {
           bondsRequired: 'none',
           lienWaiverRequired: true,
           exhibits: [
-            'Exhibit A — Scope of work + drawings list',
-            'Exhibit B — Schedule of values',
-            'Exhibit C — Project schedule (current baseline)',
-            'Exhibit D — Insurance requirements (signed COI)',
-            'Exhibit E — Lien waiver templates (conditional/unconditional)',
-            'Exhibit F — Safety plan acknowledgment',
+            'Exhibit A: Scope of work + drawings list',
+            'Exhibit B: Schedule of values',
+            'Exhibit C: Project schedule (current baseline)',
+            'Exhibit D: Insurance requirements (signed COI)',
+            'Exhibit E: Lien waiver templates (conditional/unconditional)',
+            'Exhibit F: Safety plan acknowledgment',
           ],
           specialConditions: undefined,
         };
@@ -1061,7 +1062,7 @@ export default function BuyoutPackageScreen() {
         console.error('[Buyout] A401 generate failed:', err);
         // A blocked PDF window on web says so (CONTRACT 25); no success haptic.
         console.warn('[buyout] subcontract PDF failed:', rawErrorMessage(err));
-        showAlert('Couldn’t generate subcontract', pdfFailureMessage(err, describeError(err, { action: 'generate the subcontract' }).body));
+        showAlert('Couldn’t Generate Subcontract', pdfFailureMessage(err, describeError(err, { action: 'generate the subcontract' }).body));
       }
     };
     const retainage = resolveRetainagePercent({
@@ -1071,22 +1072,22 @@ export default function BuyoutPackageScreen() {
     });
     if (retainage.needsAsk) {
       showAlert(
-        'Retainage on this subcontract',
+        'Retainage on This Subcontract',
         `No retainage rate is on file for ${project.name} (not on its contract terms, an invoice or a pay app). The subcontract can print the retainage line blank for you and ${winningBid.vendorName ?? 'the sub'} to fill in, or you can record the project's rate first.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Set it on the project', style: 'default', onPress: () => router.push({ pathname: '/project-detail' as never, params: { id: project.id } as never }) },
-          { text: 'Print it blank', style: 'default', onPress: () => { void render(null); } },
+          { text: 'Set It on the Project', style: 'default', onPress: () => router.push({ pathname: '/project-detail' as never, params: { id: project.id } as never }) },
+          { text: 'Print It Blank', style: 'default', onPress: () => { void render(null); } },
         ],
       );
       return;
     }
     showAlert(
-      'Retainage on this subcontract',
-      `${retainage.percent}% — ${retainage.label}. A sub's rate can be lower than the project's. If yours for ${winningBid.vendorName ?? 'this sub'} differs, print it blank and write it in.`,
+      'Retainage on This Subcontract',
+      `${retainage.percent}%, ${retainage.label}. A sub's rate can be lower than the project's. If yours for ${winningBid.vendorName ?? 'this sub'} differs, print it blank and write it in.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Print it blank', style: 'default', onPress: () => { void render(null); } },
+        { text: 'Print It Blank', style: 'default', onPress: () => { void render(null); } },
         { text: `Use ${retainage.percent}%`, style: 'default', onPress: () => { void render(retainage.percent); } },
       ],
     );
@@ -1134,7 +1135,7 @@ export default function BuyoutPackageScreen() {
       <>
         <Stack.Screen options={{ title: 'Package' }} />
         <View style={styles.notFound}>
-          <Text style={styles.notFoundText}>Package not found</Text>
+          <Text style={styles.notFoundText}>Package Not Found</Text>
         </View>
       </>
     );
@@ -1221,22 +1222,22 @@ export default function BuyoutPackageScreen() {
       <Text style={styles.heroName}>{pkg.name}</Text>
       <View style={styles.heroBudgetRow}>
         <View style={styles.heroBudgetCell}>
-          <Text style={styles.heroBudgetLabel}>{sellBasis ? 'Budget (includes markup)' : 'Budget at cost'}</Text>
+          <Text style={styles.heroBudgetLabel}>{sellBasis ? 'Budget (Includes Markup)' : 'Budget at Cost'}</Text>
           <Text style={styles.heroBudgetValue}>{formatMoney(pkg.estimateBudget)}</Text>
         </View>
         {sellBasis ? (
           <View style={styles.heroBudgetCell}>
-            <Text style={styles.heroBudgetLabel}>Buyout savings</Text>
+            <Text style={styles.heroBudgetLabel}>Buyout Savings</Text>
             <Text style={[styles.heroBudgetValue, { color: Colors.warningLabel }]}>Review</Text>
           </View>
         ) : heroNeedsPrice ? (
           <View style={styles.heroBudgetCell}>
-            <Text style={styles.heroBudgetLabel}>Buyout savings</Text>
+            <Text style={styles.heroBudgetLabel}>Buyout Savings</Text>
             <Text style={[styles.heroBudgetLabel, { color: Colors.warningLabel }]} testID="leveling-hero-needs-price">{SAVINGS_NEEDS_PRICE}</Text>
           </View>
         ) : heroSavings != null ? (
           <View style={styles.heroBudgetCell}>
-            <Text style={styles.heroBudgetLabel}>Buyout {heroSavings >= 0 ? 'savings' : 'overrun'}</Text>
+            <Text style={styles.heroBudgetLabel}>Buyout {heroSavings >= 0 ? 'Savings' : 'Overrun'}</Text>
             <Text style={[styles.heroBudgetValue, { color: heroSavings >= 0 ? themeColors.success : themeColors.danger }]}>
               {heroSavings >= 0 ? '+' : ''}{formatMoney(heroSavings)}
             </Text>
@@ -1246,7 +1247,7 @@ export default function BuyoutPackageScreen() {
           </View>
         ) : (
           <View style={styles.heroBudgetCell}>
-            <Text style={styles.heroBudgetLabel}>Bids received</Text>
+            <Text style={styles.heroBudgetLabel}>Bids Received</Text>
             <Text style={styles.heroBudgetValue}>{bids.length}</Text>
           </View>
         )}
@@ -1262,25 +1263,25 @@ export default function BuyoutPackageScreen() {
       <View style={styles.warningCard}>
         <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.warningTitle}>Budget includes markup — review</Text>
+          <Text style={styles.warningTitle}>Budget Includes Markup: Review</Text>
           <Text style={styles.warningBody}>
-            This package was budgeted at the estimate&apos;s sell price ({formatMoney(pkg.estimateBudget)}), so a sub who bids your cost would show your own markup as buyout savings — and that figure would print on the client&apos;s estimate as Bulk Savings. Savings are hidden until the budget is at cost{costBudget != null ? ` (${formatMoney(costBudget)} for its linked lines)` : ''}.
+            This package was budgeted at the estimate&apos;s sell price ({formatMoney(pkg.estimateBudget)}), so a sub who bids your cost would show your own markup as buyout savings, and that figure would print on the client&apos;s estimate as Bulk Savings. Savings are hidden until the budget is at cost{costBudget != null ? ` (${formatMoney(costBudget)} for its linked lines)` : ''}.
           </Text>
           {costBudget != null && (
             <TouchableOpacity
               style={styles.warningActionBtn}
               onPress={() => showAlert(
                 'Set the budget to cost?',
-                `${formatMoney(pkg.estimateBudget)} → ${formatMoney(costBudget)}, the cost of the ${pkg.linkedEstimateItemIds.length} estimate line${pkg.linkedEstimateItemIds.length === 1 ? '' : 's'} this package covers, before your markup. Buyout savings are then measured against what the work costs you.`,
+                `${formatMoney(pkg.estimateBudget)} to ${formatMoney(costBudget)}, the cost of the ${pkg.linkedEstimateItemIds.length} estimate line${pkg.linkedEstimateItemIds.length === 1 ? '' : 's'} this package covers, before your markup. Buyout savings are then measured against what the work costs you.`,
                 [
                   { text: 'Cancel', style: 'cancel' },
-                  { text: 'Set to cost', style: 'default', onPress: () => updateBidPackage(pkg.id, { estimateBudget: costBudget }) },
+                  { text: 'Set to Cost', style: 'default', onPress: () => updateBidPackage(pkg.id, { estimateBudget: costBudget }) },
                 ],
               )}
               activeOpacity={0.85}
               testID="budget-to-cost"
             >
-              <Text style={styles.warningActionText}>Set the budget to cost · {formatMoney(costBudget)}</Text>
+              <Text style={styles.warningActionText}>Set the Budget to Cost · {formatMoney(costBudget)}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1308,11 +1309,11 @@ export default function BuyoutPackageScreen() {
         <View style={styles.warningCard}>
           <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.warningTitle}>Coverage risk · {bids.length} bid{bids.length === 1 ? '' : 's'} in</Text>
+            <Text style={styles.warningTitle}>Coverage Risk · {bids.length} bid{bids.length === 1 ? '' : 's'} in</Text>
             <Text style={styles.warningBody}>
               Industry best practice is 3+ qualified bids per package.
               {coverage.awaiting > 0
-                ? ` ${coverage.awaiting} invited sub${coverage.awaiting === 1 ? ' hasn’t' : 's haven’t'} answered yet — chase them, or invite more.`
+                ? ` ${coverage.awaiting} invited sub${coverage.awaiting === 1 ? ' hasn’t' : 's haven’t'} answered yet. Chase them, or invite more.`
                 : ' Invite more subs before awarding.'}
             </Text>
             {/* Same gate as the section button below — a second door
@@ -1328,12 +1329,12 @@ export default function BuyoutPackageScreen() {
               accessibilityRole="button"
               accessibilityState={{ disabled: !scopeText }}
               accessibilityLabel={scopeText
-                ? 'Invite subs to bid'
-                : 'Invite subs to bid — unavailable until this package has a scope of work'}
+                ? 'Invite Subs to Bid'
+                : 'Invite subs to bid, unavailable until this package has a scope of work'}
             >
               <Mail size={13} color={scopeText ? Colors.warningLabel : themeColors.textMuted} strokeWidth={1.75} />
               <Text style={[styles.warningActionText, !scopeText && { color: themeColors.textMuted }]}>
-                {scopeText ? 'Invite subs to bid' : 'Write the scope first, then invite'}
+                {scopeText ? 'Invite Subs to Bid' : 'Write the Scope First, Then Invite'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1343,7 +1344,7 @@ export default function BuyoutPackageScreen() {
         <View style={styles.warningCard}>
           <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.warningTitle}>Stale package · {daysSinceOpened} days open</Text>
+            <Text style={styles.warningTitle}>Stale Package · {daysSinceOpened} days open</Text>
             <Text style={styles.warningBody}>Material pricing usually holds for 30 days. Award soon or rebid to avoid expired numbers.</Text>
           </View>
         </View>
@@ -1360,7 +1361,7 @@ export default function BuyoutPackageScreen() {
     <>
       <View style={styles.section}>
         <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>Scope of work</Text>
+          <Text style={styles.sectionTitle}>Scope of Work</Text>
           <Text style={styles.sectionSub}>{scopeText ? 'What the subs are pricing' : 'Not written yet'}</Text>
         </View>
         {scopeText ? (
@@ -1373,7 +1374,7 @@ export default function BuyoutPackageScreen() {
               testID="scope-edit"
             >
               <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.scopeEditText}>Edit the scope</Text>
+              <Text style={styles.scopeEditText}>Edit the Scope</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -1392,7 +1393,7 @@ export default function BuyoutPackageScreen() {
                   testID="scope-generate"
                 >
                   <FileText size={14} color="#FFF" strokeWidth={1.75} />
-                  <Text style={styles.scopeGenText}>Write it from the estimate items</Text>
+                  <Text style={styles.scopeGenText}>Write It from the Estimate Items</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -1400,7 +1401,7 @@ export default function BuyoutPackageScreen() {
                 onPress={() => { setScopeDraft(''); setShowScopeEdit(true); }}
                 activeOpacity={0.85}
               >
-                <Text style={styles.scopeEditText}>Type it</Text>
+                <Text style={styles.scopeEditText}>Type It</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1424,7 +1425,7 @@ export default function BuyoutPackageScreen() {
             ) : (
               <>
                 <MageAIMark size={16} color="#FFF" />
-                <Text style={styles.levelBtnText}>{levelingResult ? 'Level again' : 'Level the bids'}</Text>
+                <Text style={styles.levelBtnText}>{levelingResult ? 'Level Again' : 'Level the Bids'}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -1434,7 +1435,7 @@ export default function BuyoutPackageScreen() {
             activeOpacity={0.85}
           >
             <Scale size={15} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.levelLinkBtnText}>Open leveling board</Text>
+            <Text style={styles.levelLinkBtnText}>Open Leveling Board</Text>
             <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -1443,14 +1444,14 @@ export default function BuyoutPackageScreen() {
             activeOpacity={0.85}
           >
             <Briefcase size={15} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.levelLinkBtnText}>Score this bid</Text>
+            <Text style={styles.levelLinkBtnText}>Score This Bid</Text>
             <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
           {!!levelingResult?.summary && (
             <View style={styles.levelingSummary}>
               <View style={styles.levelingSummaryHead}>
                 <MageAIMark size={14} color={themeColors.accent} />
-                <Text style={styles.levelingSummaryHeadText}>AI leveling summary</Text>
+                <Text style={styles.levelingSummaryHeadText}>AI Leveling Summary</Text>
               </View>
               <Text style={styles.levelingSummaryBody}>{levelingResult.summary}</Text>
               {!!levelingResult.recommendedWinnerReason && (
@@ -1472,7 +1473,7 @@ export default function BuyoutPackageScreen() {
   const invitesSection = pkg.status !== 'awarded' && (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>Invited to bid</Text>
+        <Text style={styles.sectionTitle}>Invited to Bid</Text>
         <Text style={styles.sectionSub}>
           {invitesFailed && invites.length === 0
             ? 'Not loaded'
@@ -1484,7 +1485,7 @@ export default function BuyoutPackageScreen() {
         <View style={[styles.warningCard, { marginBottom: 8 }]}>
           <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
           <Text style={[styles.warningBody, { flex: 1, marginTop: 0 }]}>
-            Couldn&apos;t reach the server to check your invitations, so this list may be out of date — it is not a claim that nobody was invited.
+            Couldn&apos;t reach the server to check your invitations, so this list may be out of date. It is not a claim that nobody was invited.
           </Text>
         </View>
       )}
@@ -1501,7 +1502,7 @@ export default function BuyoutPackageScreen() {
         <Text style={[styles.dueRowText, dueState === 'overdue' && { color: themeColors.danger, fontWeight: '700' }]}>
           {pkg.dueDate
             ? `${bidDueLabel(pkg.dueDate, Date.now())} · ${formatCalendarDay(pkg.dueDate, { weekday: 'short', month: 'short', day: 'numeric' })}`
-            : 'No bid date on this package — nothing here can tell you it is late.'}
+            : 'No bid date on this package, so nothing here can tell you it is late.'}
         </Text>
       </View>
 
@@ -1547,19 +1548,19 @@ export default function BuyoutPackageScreen() {
                 <Text style={styles.inviteWho} numberOfLines={1}>{inv.subName || inv.subEmail}</Text>
                 <Text style={styles.inviteMeta} numberOfLines={2}>
                   {inv.localOnly
-                    ? 'On this phone — will email when it uploads'
+                    ? 'On this phone. Will email when it uploads.'
                     : <>
                         {sentDay ? `Sent ${sentDay}` : 'Sent'}
                         {remindedIds.includes(inv.id) ? ' · re-sent just now' : ''}
                         {state === 'awaiting' && expiryDay ? ` · link good through ${expiryDay}` : ''}
                         {state === 'responded' && !bidGone ? ' · their number is in the matrix below' : ''}
-                        {bidGone ? ' · their bid was deleted — re-invite them for a new number' : ''}
+                        {bidGone ? ' · their bid was deleted, re-invite them for a new number' : ''}
                       </>}
                 </Text>
                 {!!unmailedWhy && (
                   <Text style={[styles.inviteMeta, { color: Colors.warningLabel, fontWeight: '700' }]} numberOfLines={2}>
                     {unmailedWhy === 'suppressed_unsubscribed'
-                      ? 'Not emailed — they unsubscribed from invitation emails. Copy the link and text it.'
+                      ? 'Not emailed. They unsubscribed from invitation emails. Copy the link and text it.'
                       : NOT_EMAILED_ROW}
                   </Text>
                 )}
@@ -1568,11 +1569,11 @@ export default function BuyoutPackageScreen() {
                     knows who it is with, and a sub portal. Saying which
                     ones are anonymous is how he notices. */}
                 {!inv.subcontractorId && (
-                  <Text style={styles.inviteMeta} numberOfLines={1}>Not on your roster — bids back from here arrive unlinked</Text>
+                  <Text style={styles.inviteMeta} numberOfLines={1}>Not on your roster, so bids back from here arrive unlinked</Text>
                 )}
               </View>
               <View style={[styles.invitePill, pillStyle]}>
-                <Text style={[styles.invitePillText, { color: pillInk }]}>{inv.localOnly ? 'Not uploaded' : inviteStateLabel(state)}</Text>
+                <Text style={[styles.invitePillText, { color: pillInk }]}>{inv.localOnly ? 'Not Uploaded' : inviteStateLabel(state)}</Text>
               </View>
               {/* A pending invite's link answers bid_invite_denied until
                   it uploads — no copy button to hand out a dead link. */}
@@ -1601,12 +1602,12 @@ export default function BuyoutPackageScreen() {
         accessibilityRole="button"
         accessibilityState={{ disabled: !scopeText }}
         accessibilityLabel={scopeText
-          ? 'Invite subs to bid'
-          : 'Invite subs to bid — unavailable until this package has a scope of work'}
+          ? 'Invite Subs to Bid'
+          : 'Invite subs to bid, unavailable until this package has a scope of work'}
       >
         <Mail size={15} color={scopeText ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
         <Text style={[styles.inviteBtnText, !scopeText && { color: themeColors.textMuted }]}>
-          {invites.length === 0 ? 'Invite subs to bid' : 'Invite more subs'}
+          {invites.length === 0 ? 'Invite Subs to Bid' : 'Invite More Subs'}
         </Text>
         {scopeText && <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />}
       </TouchableOpacity>
@@ -1680,7 +1681,7 @@ export default function BuyoutPackageScreen() {
                     {isWinner && (
                       <View style={styles.winnerBadge}>
                         <Trophy size={10} color="#FFF" strokeWidth={1.75} />
-                        <Text style={styles.winnerBadgeText}>AI pick</Text>
+                        <Text style={styles.winnerBadgeText}>AI Pick</Text>
                       </View>
                     )}
                     {isLowest && !isWinner && (
@@ -1696,7 +1697,7 @@ export default function BuyoutPackageScreen() {
                     )}
                     {invitedBidIds.has(bid.id) && (
                       <View style={styles.invitedBadge}>
-                        <Text style={styles.invitedBadgeText}>Entered by sub</Text>
+                        <Text style={styles.invitedBadgeText}>Entered by Sub</Text>
                       </View>
                     )}
                     {outlier && (
@@ -1713,8 +1714,8 @@ export default function BuyoutPackageScreen() {
                       <AlertTriangle size={Type.caption2.fontSize} color={Colors.warningLabel} strokeWidth={2} style={{ marginTop: 1 }} />
                       <Text style={[styles.outlierHint, { flex: 1 }]}>
                         {outlier.kind === 'low'
-                          ? 'Significantly below the median — review for missing scope before awarding.'
-                          : 'Significantly above the median — sub may have priced in protection or unfamiliarity.'}
+                          ? 'Significantly below the median. Review for missing scope before awarding.'
+                          : 'Significantly above the median. The sub may have priced in protection or unfamiliarity.'}
                       </Text>
                     </View>
                   )}
@@ -1752,7 +1753,7 @@ export default function BuyoutPackageScreen() {
                   </View>
                 )}
                 <View style={styles.bidAmountCell}>
-                  <Text style={[styles.bidAmountLabel, { color: themeColors.text, fontWeight: '700' }]}>Leveled total</Text>
+                  <Text style={[styles.bidAmountLabel, { color: themeColors.text, fontWeight: '700' }]}>Leveled Total</Text>
                   {needsPrice ? (
                     <Text style={[styles.bidAmountLabel, { color: themeColors.warningLabel, fontWeight: '700' }]}>{LABEL_NEEDS_PRICE}</Text>
                   ) : (
@@ -1822,7 +1823,7 @@ export default function BuyoutPackageScreen() {
                   testID={`needs-amount-${bid.id}`}
                 >
                   <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
-                  <Text style={[styles.needsAmountText, { color: themeColors.danger }]}>Needs an amount — tap to add it</Text>
+                  <Text style={[styles.needsAmountText, { color: themeColors.danger }]}>Needs an amount. Tap to add it.</Text>
                 </TouchableOpacity>
               ))}
               {/* Who this bid is actually FROM, as a record rather than a
@@ -1843,7 +1844,7 @@ export default function BuyoutPackageScreen() {
                     onPress={() => router.push({ pathname: '/sub-scorecard', params: { subId: bid.subcontractorId } } as never)}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.subScorecardBtnText}>See this sub&apos;s scorecard →</Text>
+                    <Text style={styles.subScorecardBtnText}>See This Sub&apos;s Scorecard</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -1854,7 +1855,7 @@ export default function BuyoutPackageScreen() {
                   testID={`link-bid-${bid.id}`}
                 >
                   <Link2 size={13} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.bidLinkBtnText}>Link this bid to a sub</Text>
+                  <Text style={styles.bidLinkBtnText}>Link This Bid to a Sub</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1873,7 +1874,7 @@ export default function BuyoutPackageScreen() {
         activeOpacity={0.85}
       >
         <Briefcase size={16} color={themeColors.accent} strokeWidth={1.75} />
-        <Text style={styles.openCommitmentText}>Open project · view this commitment</Text>
+        <Text style={styles.openCommitmentText}>Open Project · View This Commitment</Text>
         <ChevronUp size={16} color={themeColors.accent} style={{ transform: [{ rotate: '90deg' }] }} strokeWidth={1.75} />
       </TouchableOpacity>
     </View>
@@ -1885,6 +1886,7 @@ export default function BuyoutPackageScreen() {
   // countersignature before NTP.
   const a401 = pkg.status === 'awarded' && pkg.awardedBidId && (
     <View style={styles.section}>
+      <TemplateNotice testID="subcontract-template-notice" style={{ marginBottom: 8 }} />
       <TouchableOpacity
         style={styles.openCommitmentBtn}
         onPress={handleGenerateSubcontract}
@@ -1892,7 +1894,7 @@ export default function BuyoutPackageScreen() {
         testID="generate-a401"
       >
         <FileDown size={16} color={themeColors.accent} strokeWidth={1.75} />
-        <Text style={styles.openCommitmentText}>Generate A401-style subcontract PDF</Text>
+        <Text style={styles.openCommitmentText}>Generate A401-Style Subcontract PDF</Text>
       </TouchableOpacity>
     </View>
   );
@@ -1902,7 +1904,7 @@ export default function BuyoutPackageScreen() {
     <View style={styles.section}>
       <TouchableOpacity onPress={handleDeletePackage} style={styles.deletePkgBtn} activeOpacity={0.7}>
         <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
-        <Text style={styles.deletePkgText}>Delete this package</Text>
+        <Text style={styles.deletePkgText}>Delete This Package</Text>
       </TouchableOpacity>
     </View>
   );
@@ -1930,11 +1932,11 @@ export default function BuyoutPackageScreen() {
           <View style={[styles.fabRow, { bottom: insets.bottom + 18 }, isDesktop && styles.fabRowDesktop]}>
             <TouchableOpacity style={styles.fabSecondary} onPress={() => setShowAddBid(true)} activeOpacity={0.85}>
               <Plus size={16} color={themeColors.text} strokeWidth={1.75} />
-              <Text style={styles.fabSecondaryText}>Add by hand</Text>
+              <Text style={styles.fabSecondaryText}>Add by Hand</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.fabPrimary} onPress={() => setVoiceOpen(true)} activeOpacity={0.85}>
               <Mic size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.fabPrimaryText}>Add bid by voice</Text>
+              <Text style={styles.fabPrimaryText}>Add Bid by Voice</Text>
               <MageAIMark size={12} color="#FFF" />
             </TouchableOpacity>
           </View>
@@ -1961,7 +1963,7 @@ export default function BuyoutPackageScreen() {
           <SheetScrim frame={fAddBid} onPress={() => { setShowAddBid(false); setAddBidNote(null); }} />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fAddBid.card, fAddBid.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Log a bid</Text>
+              <Text style={styles.modalTitle}>Log a Bid</Text>
               <TouchableOpacity onPress={() => { setShowAddBid(false); setAddBidNote(null); }} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -1974,9 +1976,9 @@ export default function BuyoutPackageScreen() {
                 </View>
               )}
               <Text style={styles.fieldLabel}>Vendor *</Text>
-              <TextInput style={styles.input} value={newVendor} onChangeText={setNewVendor} placeholder="e.g. Joe's Plumbing" placeholderTextColor={themeColors.textMuted} autoFocus />
+              <TextInput style={styles.input} value={newVendor} onChangeText={setNewVendor} placeholder="Joe's Plumbing" placeholderTextColor={themeColors.textMuted} autoFocus />
               <Text style={styles.fieldLabel}>Amount *</Text>
-              <TextInput style={styles.input} value={newAmount} onChangeText={setNewAmount} placeholder="Total dollar bid, e.g. 4,800.50" placeholderTextColor={themeColors.textMuted} keyboardType="decimal-pad" autoFocus={!!addBidNote && !!newVendor} testID="add-bid-amount" />
+              <TextInput style={styles.input} value={newAmount} onChangeText={setNewAmount} placeholder="4,800.50" placeholderTextColor={themeColors.textMuted} keyboardType="decimal-pad" autoFocus={!!addBidNote && !!newVendor} testID="add-bid-amount" />
               <Text style={styles.fieldLabel}>Includes</Text>
               <TextInput style={[styles.input, styles.multilineInput]} value={newIncludes} onChangeText={setNewIncludes} placeholder="What's covered (drives leveling)" placeholderTextColor={themeColors.textMuted} multiline />
               <Text style={styles.fieldLabel}>Excludes</Text>
@@ -1987,7 +1989,7 @@ export default function BuyoutPackageScreen() {
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddBid} activeOpacity={0.85}>
                 <Save size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.saveBtnText}>Save bid</Text>
+                <Text style={styles.saveBtnText}>Save Bid</Text>
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
@@ -2012,13 +2014,13 @@ export default function BuyoutPackageScreen() {
               <Text style={styles.fieldLabel}>
                 {amountEditMode === 'excludedPrice'
                   ? `Your price for ${bids.find(b => b.id === amountEditBidId)?.excludes?.trim() || 'the excluded scope'} *`
-                  : 'Bid total *'}
+                  : 'Bid Total *'}
               </Text>
               <TextInput
                 style={styles.input}
                 value={amountDraft}
                 onChangeText={setAmountDraft}
-                placeholder={amountEditMode === 'excludedPrice' ? 'e.g. 3,200' : 'e.g. 4,800.50'}
+                placeholder={amountEditMode === 'excludedPrice' ? '3,200' : '4,800.50'}
                 placeholderTextColor={themeColors.textMuted}
                 keyboardType="decimal-pad"
                 autoFocus
@@ -2028,7 +2030,7 @@ export default function BuyoutPackageScreen() {
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveAmount} activeOpacity={0.85} testID="bid-amount-save">
                 <Save size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.saveBtnText}>{amountEditMode === 'excludedPrice' ? 'Save your price' : 'Save amount'}</Text>
+                <Text style={styles.saveBtnText}>{amountEditMode === 'excludedPrice' ? 'Save Your Price' : 'Save Amount'}</Text>
               </TouchableOpacity>
               {amountEditMode === 'excludedPrice' && amountEditBidId ? (
                 // The other honest answer: the excluded scope costs nothing
@@ -2055,7 +2057,7 @@ export default function BuyoutPackageScreen() {
           <SheetScrim frame={fInvite} onPress={() => setShowInvite(false)} />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fInvite.card, fInvite.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Invite subs to bid</Text>
+              <Text style={styles.modalTitle}>Invite Subs to Bid</Text>
               <TouchableOpacity onPress={() => setShowInvite(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -2074,7 +2076,7 @@ export default function BuyoutPackageScreen() {
                 <>
                   <View style={styles.rosterHead}>
                     <Users size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                    <Text style={styles.fieldLabel}>Your subs{pkg.phase || pkg.name ? ` · ${(pkg.phase || pkg.name).toLowerCase()} first` : ''}</Text>
+                    <Text style={styles.fieldLabel}>Your Subs{pkg.phase || pkg.name ? ` · ${(pkg.phase || pkg.name).toLowerCase()} first` : ''}</Text>
                   </View>
                   <View style={styles.rosterList}>
                     {roster.map(s => {
@@ -2099,7 +2101,7 @@ export default function BuyoutPackageScreen() {
                           accessibilityState={{ checked: picked, disabled: !hasEmail }}
                           accessibilityLabel={hasEmail
                             ? `${s.companyName}, ${s.trade}, ${complianceLabel(status, s)}`
-                            : `${s.companyName} — no email address on file, so they cannot be invited`}
+                            : `${s.companyName}, no email address on file, so they cannot be invited`}
                           testID={`invite-roster-${s.id}`}
                         >
                           <View style={[styles.rosterCheck, picked && styles.rosterCheckOn]}>
@@ -2111,7 +2113,7 @@ export default function BuyoutPackageScreen() {
                               {/* Never a guess: no email is the reason he cannot
                                   be invited, said out loud rather than a row
                                   that silently does nothing when tapped. */}
-                              {hasEmail ? s.email : 'No email on file — add one on the Subs tab to invite them'}
+                              {hasEmail ? s.email : 'No email on file. Add one on the Subs tab to invite them.'}
                             </Text>
                             {(isMatch || packageMatch?.subId === s.id) && (
                               <Text style={styles.rosterMatch} numberOfLines={1}>
@@ -2129,7 +2131,7 @@ export default function BuyoutPackageScreen() {
                 </>
               )}
 
-              <Text style={styles.fieldLabel}>{roster.length > 0 ? 'Anyone else — by email' : 'Sub email addresses *'}</Text>
+              <Text style={styles.fieldLabel}>{roster.length > 0 ? 'Anyone Else, by Email' : 'Sub Email Addresses *'}</Text>
               <TextInput
                 style={[styles.input, styles.multilineInput]}
                 value={inviteEmails}
@@ -2142,13 +2144,13 @@ export default function BuyoutPackageScreen() {
                 keyboardType="email-address"
                 testID="invite-emails-input"
               />
-              <Text style={styles.inviteHint}>One per line, or separated by commas — a pasted &quot;Joe Smith &lt;joe@ace.com&gt;&quot; works too. An address that matches a sub on your roster is linked to them automatically. Each link lands in the list on this screen as well, so if the email can&apos;t go out you can copy it and text it over. Links stop working after 30 days, the same window material pricing holds for.</Text>
+              <Text style={styles.inviteHint}>One per line, or separated by commas. A pasted &quot;Joe Smith &lt;joe@ace.com&gt;&quot; works too. An address that matches a sub on your roster is linked to them automatically. Each link lands in the list on this screen as well, so if the email can&apos;t go out you can copy it and text it over. Links stop working after 30 days, the same window material pricing holds for.</Text>
               {/* What the sub is actually told, stated plainly: the email's
                   "Bids due" row and the bid page's banner (#99) both read
                   this package's date. */}
               {!!pkg.dueDate && (
                 <Text style={styles.inviteHint}>
-                  Bids due {formatCalendarDay(pkg.dueDate, { weekday: 'long', month: 'short', day: 'numeric' })} — their email and the bid page both show this date. Chase from this screen if it gets close.
+                  Bids due {formatCalendarDay(pkg.dueDate, { weekday: 'long', month: 'short', day: 'numeric' })}. Their email and the bid page both show this date. Chase from this screen if it gets close.
                 </Text>
               )}
             </ScrollView>
@@ -2168,7 +2170,7 @@ export default function BuyoutPackageScreen() {
                 ) : (
                   <>
                     <Mail size={16} color="#FFF" strokeWidth={1.75} />
-                    <Text style={styles.saveBtnText}>Send invitations</Text>
+                    <Text style={styles.saveBtnText}>Send Invitations</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -2185,7 +2187,7 @@ export default function BuyoutPackageScreen() {
           <SheetScrim frame={fScope} onPress={() => setShowScopeEdit(false)} />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fScope.card, fScope.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Scope of work</Text>
+              <Text style={styles.modalTitle}>Scope of Work</Text>
               <TouchableOpacity onPress={() => setShowScopeEdit(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -2198,7 +2200,7 @@ export default function BuyoutPackageScreen() {
                 style={[styles.input, styles.scopeInput]}
                 value={scopeDraft}
                 onChangeText={setScopeDraft}
-                placeholder={'e.g.\n• 3/4" PEX supply — 420 LF\n• Fixture rough-in — 11 EA'}
+                placeholder={'• 3/4" PEX supply, 420 LF\n• Fixture rough-in, 11 EA'}
                 placeholderTextColor={themeColors.textMuted}
                 multiline
                 testID="scope-input"
@@ -2210,14 +2212,14 @@ export default function BuyoutPackageScreen() {
                   activeOpacity={0.85}
                 >
                   <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.scopeEditText}>Re-write it from the {packageItems.length} linked estimate line{packageItems.length === 1 ? '' : 's'}</Text>
+                  <Text style={styles.scopeEditText}>Re-Write It from the {packageItems.length} linked estimate line{packageItems.length === 1 ? '' : 's'}</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveScope} activeOpacity={0.85} testID="scope-save">
                 <Save size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.saveBtnText}>Save scope</Text>
+                <Text style={styles.saveBtnText}>Save Scope</Text>
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
@@ -2254,7 +2256,7 @@ export default function BuyoutPackageScreen() {
                       onPress={() => {
                         if (!linkTargetBidId) return;
                         updateBidPackageBid(linkTargetBidId, { subcontractorId: s.id });
-                        setLinkNotes(prev => ({ ...prev, [linkTargetBidId]: `Linked to ${s.companyName} — you picked them for this bid.` }));
+                        setLinkNotes(prev => ({ ...prev, [linkTargetBidId]: `Linked to ${s.companyName}. You picked them for this bid.` }));
                         // Never auto-overwrite a link the GC made by hand.
                         autoLinkedRef.current.add(linkTargetBidId);
                         setLinkTargetBidId(null);
@@ -2280,7 +2282,7 @@ export default function BuyoutPackageScreen() {
                 activeOpacity={0.85}
               >
                 <Users size={14} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.scopeEditText}>Add a sub on the Subs tab</Text>
+                <Text style={styles.scopeEditText}>Add a Sub on the Subs Tab</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>

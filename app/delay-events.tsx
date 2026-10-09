@@ -74,9 +74,9 @@ const METHODS: DelayNoticeMethod[] = [
 const NOTICE_KINDS: DelayNotice['kind'][] = ['initial', 'supplemental', 'reservation_of_rights'];
 
 const NOTICE_KIND_LABEL: Record<DelayNotice['kind'], string> = {
-  initial: 'Initial notice',
-  supplemental: 'Follow-up notice',
-  reservation_of_rights: 'Reservation of rights',
+  initial: 'Initial Notice',
+  supplemental: 'Follow-Up Notice',
+  reservation_of_rights: 'Reservation of Rights',
 };
 
 const EVIDENCE_ICON: Record<DelayEvidenceKind, typeof FileText> = {
@@ -92,13 +92,13 @@ const EVIDENCE_ICON: Record<DelayEvidenceKind, typeof FileText> = {
 
 const EVIDENCE_KIND_LABEL: Record<DelayEvidenceKind, string> = {
   photo: 'Photo',
-  daily_report: 'Daily report',
+  daily_report: 'Daily Report',
   rfi: 'RFI',
-  weather_log: 'Weather delay log',
-  field_ticket: 'Field ticket',
+  weather_log: 'Weather Delay Log',
+  field_ticket: 'Field Ticket',
   comm_event: 'Communication',
-  schedule_audit: 'Schedule change',
-  change_order: 'Change order',
+  schedule_audit: 'Schedule Change',
+  change_order: 'Change Order',
 };
 
 /**
@@ -197,7 +197,7 @@ function auditPointerWarning(status: AuditPointerStatus, hasNote: boolean): stri
     ? 'The text shown is the note copied when it was attached.'
     : 'No note was copied when it was attached, so nothing about the change can be shown.';
   if (status === 'not_found') {
-    return `This schedule change isn't in your account's schedule history — it may have been recorded under another account, or on a device that never synced. ${copy}`;
+    return `This schedule change isn't in your account's schedule history. It may have been recorded under another account, or on a device that never synced. ${copy}`;
   }
   if (status === 'unverifiable') {
     return `Couldn't check your account's schedule history (offline or signed out), and this change isn't on this device. ${copy}`;
@@ -349,11 +349,11 @@ export default function DelayEventsScreen() {
   // ── Save a delay event ────────────────────────────────────────────────────
   const saveEvent = useCallback(() => {
     if (!projectId) {
-      showAlert('Pick a project first', 'A delay event has to belong to a project.');
+      showAlert('Pick a Project First', 'A delay event has to belong to a project.');
       return;
     }
     if (!formDesc.trim()) {
-      showAlert('Describe the delay', 'One sentence is enough — what happened, and to what.');
+      showAlert('Describe the Delay', 'One sentence is enough: what happened, and to what.');
       return;
     }
     const now = new Date().toISOString();
@@ -486,7 +486,7 @@ export default function DelayEventsScreen() {
         kind: 'weather_log',
         id: w.id,
         capturedAt: w.appliedAt,
-        note: `${w.dates.length} evidenced day${w.dates.length === 1 ? '' : 's'} · source: ${w.source}${w.source === 'mixed' ? ' (some days simulated — excluded)' : ''}`,
+        note: `${w.dates.length} evidenced day${w.dates.length === 1 ? '' : 's'} · source: ${w.source}${w.source === 'mixed' ? ' (some days simulated, excluded)' : ''}`,
       });
     }
     // Schedule changes lead the list (their own order — see
@@ -537,13 +537,13 @@ export default function DelayEventsScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <CalendarClock size={15} color={t.accent} strokeWidth={2} />
-          <Text style={styles.headerTitle} numberOfLines={1}>Delay register</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Delay Register</Text>
         </View>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => { haptic(); resetForm(); setShowLogModal(true); }}
           accessibilityRole="button"
-          accessibilityLabel="Log a delay"
+          accessibilityLabel="Log a Delay"
           testID="delay-log-new"
         >
           <Plus size={20} color={t.accent} strokeWidth={2.2} />
@@ -553,7 +553,7 @@ export default function DelayEventsScreen() {
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           <View style={styles.hero}>
-            <Text style={styles.eyebrow}>{project?.name ?? 'No project'}</Text>
+            <Text style={styles.eyebrow}>{project?.name ?? 'No Project'}</Text>
             <Text style={styles.heroStat}>
               {events.length === 0
                 ? 'No delays logged'
@@ -571,7 +571,7 @@ export default function DelayEventsScreen() {
             onPress={() => { haptic(); setShowPeriodModal(true); }}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Set the contract notice period"
+            accessibilityLabel="Set the Contract Notice Period"
             testID="notice-period-card"
           >
             <View style={styles.cardTop}>
@@ -583,7 +583,7 @@ export default function DelayEventsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>
                   {period.days === null
-                    ? 'Set your notice window'
+                    ? 'Set Your Notice Window'
                     : `${period.days}-day written notice${period.assumed ? ` · ${ASSUMED_LABEL}` : ''}`}
                 </Text>
                 <Text style={styles.cardMeta}>
@@ -624,7 +624,7 @@ export default function DelayEventsScreen() {
             <View style={styles.emptyCard}>
               <Text style={styles.emptyText}>
                 Nothing logged yet. Log a delay from here, from a daily report&apos;s
-                Issues &amp; Delays, or when you apply a weather reschedule.
+                Issues and Delays, or when you apply a weather reschedule.
               </Text>
             </View>
           ) : (
@@ -660,7 +660,7 @@ export default function DelayEventsScreen() {
                     </View>
 
                     <View style={styles.metaRow}>
-                      <Text style={styles.metaChip}>First observed {e.firstObservedDate}</Text>
+                      <Text style={styles.metaChip}>First Observed {e.firstObservedDate}</Text>
                       <Text style={styles.metaChip}>{e.claimedDays}d claimed</Text>
                       {typeof e.concurrentDays === 'number' && e.concurrentDays > 0 && (
                         <Text style={styles.metaChip}>{e.concurrentDays}d concurrent</Text>
@@ -711,12 +711,12 @@ export default function DelayEventsScreen() {
             <TouchableOpacity style={styles.backBtn} onPress={() => setShowLogModal(false)} accessibilityRole="button" accessibilityLabel="Close">
               <ChevronLeft size={22} color={t.text} strokeWidth={2} />
             </TouchableOpacity>
-            <View style={styles.headerTitleWrap}><Text style={styles.headerTitle} numberOfLines={1}>Log a delay</Text></View>
+            <View style={styles.headerTitleWrap}><Text style={styles.headerTitle} numberOfLines={1}>Log a Delay</Text></View>
             <View style={styles.backBtn} />
           </View>
           <ScrollView contentContainerStyle={styles.scroll}>
             <View style={[styles.content, isDesktop && styles.contentDesktop]}>
-              <Text style={styles.fieldLabel}>What caused it</Text>
+              <Text style={styles.fieldLabel}>What Caused It</Text>
               <View style={styles.chipWrap}>
                 {CAUSES.map((c) => (
                   <TouchableOpacity
@@ -731,7 +731,7 @@ export default function DelayEventsScreen() {
                 ))}
               </View>
 
-              <Text style={styles.fieldLabel}>Date you first knew</Text>
+              <Text style={styles.fieldLabel}>Date You First Knew</Text>
               <Text style={styles.fieldHint}>
                 The countdown runs from this date, not the day you typed it up.
               </Text>
@@ -745,7 +745,7 @@ export default function DelayEventsScreen() {
                 testID="delay-first-observed"
               />
 
-              <Text style={styles.fieldLabel}>What happened</Text>
+              <Text style={styles.fieldLabel}>What Happened</Text>
               <TextInput
                 style={[styles.input, styles.inputArea]}
                 value={formDesc}
@@ -757,7 +757,7 @@ export default function DelayEventsScreen() {
                 testID="delay-description"
               />
 
-              <Text style={styles.fieldLabel}>Days claimed</Text>
+              <Text style={styles.fieldLabel}>Days Claimed</Text>
               <TextInput
                 style={styles.input}
                 value={formClaimed}
@@ -768,7 +768,7 @@ export default function DelayEventsScreen() {
                 testID="delay-claimed-days"
               />
 
-              <Text style={styles.fieldLabel}>Days another delay ran concurrently</Text>
+              <Text style={styles.fieldLabel}>Days Another Delay Ran Concurrently</Text>
               <Text style={styles.fieldHint}>
                 Optional. If one of your own delays overlapped this one, enter the overlapping
                 days.
@@ -796,11 +796,11 @@ export default function DelayEventsScreen() {
                 style={styles.primaryBtn}
                 onPress={saveEvent}
                 accessibilityRole="button"
-                accessibilityLabel="Save delay event"
+                accessibilityLabel="Save Delay Event"
                 testID="delay-save"
               >
                 <Check size={15} color={Colors.textOnAccent} strokeWidth={2.4} />
-                <Text style={styles.primaryBtnText}>Log it</Text>
+                <Text style={styles.primaryBtnText}>Log It</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -847,7 +847,7 @@ export default function DelayEventsScreen() {
                 )}
 
                 {/* SUGGEST, NEVER CONCLUDE. */}
-                <Text style={styles.fieldLabel}>Your classification</Text>
+                <Text style={styles.fieldLabel}>Your Classification</Text>
                 <Text style={styles.fieldHint}>
                   MAGE suggests a starting point from the cause. The call is yours.
                 </Text>
@@ -911,11 +911,11 @@ export default function DelayEventsScreen() {
                   style={styles.primaryBtn}
                   onPress={() => { haptic(); setShowNoticeForm(true); }}
                   accessibilityRole="button"
-                  accessibilityLabel="Record a notice"
+                  accessibilityLabel="Record a Notice"
                   testID="delay-record-notice"
                 >
                   <Send size={15} color={Colors.textOnAccent} strokeWidth={2.2} />
-                  <Text style={styles.primaryBtnText}>Record a notice</Text>
+                  <Text style={styles.primaryBtnText}>Record a Notice</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -948,7 +948,7 @@ export default function DelayEventsScreen() {
             <TouchableOpacity style={styles.backBtn} onPress={() => setShowEvidencePicker(false)} accessibilityRole="button" accessibilityLabel="Close">
               <ChevronLeft size={22} color={t.text} strokeWidth={2} />
             </TouchableOpacity>
-            <View style={styles.headerTitleWrap}><Text style={styles.headerTitle} numberOfLines={1}>Attach evidence</Text></View>
+            <View style={styles.headerTitleWrap}><Text style={styles.headerTitle} numberOfLines={1}>Attach Evidence</Text></View>
             <View style={styles.backBtn} />
           </View>
           <ScrollView contentContainerStyle={styles.scroll}>
@@ -1024,7 +1024,7 @@ function NoticePeriodModal({
       <View style={[styles.sheetBackdrop, fPeriod.overlay]}>
         <View style={[styles.sheet, fPeriod.card]}>
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle} numberOfLines={1}>Written-notice period</Text>
+            <Text style={styles.sheetTitle} numberOfLines={1}>Written-Notice Period</Text>
             <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}>
               <XIcon size={18} color={t.textSecondary} strokeWidth={2} />
             </TouchableOpacity>
@@ -1055,10 +1055,10 @@ function NoticePeriodModal({
                 style={styles.chip}
                 onPress={() => onPick(ASSUMED_NOTICE_PERIOD_DAYS, true)}
                 accessibilityRole="button"
-                accessibilityLabel="I don't know"
+                accessibilityLabel="I Don't Know"
                 testID="notice-period-unknown"
               >
-                <Text style={styles.chipText}>I don&apos;t know</Text>
+                <Text style={styles.chipText}>I Don’t Know</Text>
               </TouchableOpacity>
             </View>
 
@@ -1067,7 +1067,7 @@ function NoticePeriodModal({
               deadline &quot;{ASSUMED_LABEL}&quot;.
             </Text>
 
-            <Text style={styles.fieldLabel}>Or enter it exactly</Text>
+            <Text style={styles.fieldLabel}>Or Enter It Exactly</Text>
             <View style={styles.inlineRow}>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
@@ -1082,13 +1082,13 @@ function NoticePeriodModal({
                 style={styles.secondaryBtn}
                 onPress={() => { const n = toInt(custom); if (n > 0) onPick(n, false); }}
                 accessibilityRole="button"
-                accessibilityLabel="Save custom notice period"
+                accessibilityLabel="Save Custom Notice Period"
               >
                 <Text style={styles.secondaryBtnText}>Save</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.fieldLabel}>Delivery your contract requires</Text>
+            <Text style={styles.fieldLabel}>Delivery Your Contract Requires</Text>
             <Text style={styles.fieldHint}>
               If your agreement names how notice has to go out, record it here and MAGE will
               flag any notice you log through a different channel.
@@ -1167,7 +1167,7 @@ function NoticeFormModal({
   const save = () => {
     if (violations.length > 0) {
       showAlert(
-        'This notice needs more',
+        'This notice needs more.',
         `Add ${violations.join(', and ')}.`,
       );
       return;
@@ -1185,14 +1185,14 @@ function NoticeFormModal({
           <TouchableOpacity style={styles.backBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
             <ChevronLeft size={22} color={t.text} strokeWidth={2} />
           </TouchableOpacity>
-          <View style={styles.headerTitleWrap}><Text style={styles.headerTitle} numberOfLines={1}>Record a notice</Text></View>
+          <View style={styles.headerTitleWrap}><Text style={styles.headerTitle} numberOfLines={1}>Record a Notice</Text></View>
           <View style={styles.backBtn} />
         </View>
         <ScrollView contentContainerStyle={styles.scroll}>
           <View style={styles.content}>
             <Text style={styles.fieldHint}>{RECORDING_IS_NOT_SERVING}</Text>
 
-            <Text style={styles.fieldLabel}>What kind</Text>
+            <Text style={styles.fieldLabel}>What Kind</Text>
             <View style={styles.chipWrap}>
               {NOTICE_KINDS.map((k) => (
                 <TouchableOpacity
@@ -1209,12 +1209,12 @@ function NoticeFormModal({
             </View>
             {kind === 'supplemental' && (
               <Text style={styles.fieldHint}>
-                A later notice on the same delay — for example when the first one went
+                A later notice on the same delay, for example when the first one went
                 unanswered. Recorded alongside the first, not in place of it.
               </Text>
             )}
 
-            <Text style={styles.fieldLabel}>How it went out</Text>
+            <Text style={styles.fieldLabel}>How It Went Out</Text>
             <View style={styles.chipWrap}>
               {METHODS.map((m) => (
                 <TouchableOpacity
@@ -1231,7 +1231,7 @@ function NoticeFormModal({
             </View>
             {methodWarn && <Text style={styles.warnLine}>{methodWarn}</Text>}
 
-            <Text style={styles.fieldLabel}>Who you sent it to</Text>
+            <Text style={styles.fieldLabel}>Who You Sent It To</Text>
             <TextInput
               style={styles.input}
               value={recipient}
@@ -1243,7 +1243,7 @@ function NoticeFormModal({
 
             {kind !== 'reservation_of_rights' ? (
               <>
-                <Text style={styles.fieldLabel}>Days of extension requested</Text>
+                <Text style={styles.fieldLabel}>Days of Extension Requested</Text>
                 <Text style={styles.fieldHint}>
                   Required. Record the number of days you asked for.
                 </Text>
@@ -1251,7 +1251,7 @@ function NoticeFormModal({
                   style={styles.input}
                   value={days}
                   onChangeText={setDays}
-                  placeholder="e.g. 8"
+                  placeholder="8"
                   placeholderTextColor={t.textMuted}
                   keyboardType="number-pad"
                   testID="notice-days-requested"
@@ -1261,7 +1261,7 @@ function NoticeFormModal({
               <>
                 {/* Three structured fields rather than a checkbox and a notes
                     box, so the record says which claim and how much. */}
-                <Text style={styles.fieldLabel}>Which claim you are reserving</Text>
+                <Text style={styles.fieldLabel}>Which Claim You Are Reserving</Text>
                 <Text style={styles.fieldHint}>
                   Name it specifically, and state an amount in dollars, days, or both.
                 </Text>
@@ -1275,7 +1275,7 @@ function NoticeFormModal({
                   textAlignVertical="top"
                   testID="notice-reserved-description"
                 />
-                <Text style={styles.fieldLabel}>Amount reserved ($)</Text>
+                <Text style={styles.fieldLabel}>Amount Reserved ($)</Text>
                 <TextInput
                   style={styles.input}
                   value={resAmount}
@@ -1285,7 +1285,7 @@ function NoticeFormModal({
                   keyboardType="number-pad"
                   testID="notice-reserved-amount"
                 />
-                <Text style={styles.fieldLabel}>Days reserved</Text>
+                <Text style={styles.fieldLabel}>Days Reserved</Text>
                 <TextInput
                   style={styles.input}
                   value={resDays}
@@ -1306,11 +1306,11 @@ function NoticeFormModal({
               style={[styles.primaryBtn, violations.length > 0 && styles.primaryBtnDisabled]}
               onPress={save}
               accessibilityRole="button"
-              accessibilityLabel="Save notice"
+              accessibilityLabel="Save Notice"
               testID="notice-save"
             >
               <Check size={15} color={Colors.textOnAccent} strokeWidth={2.4} />
-              <Text style={styles.primaryBtnText}>Record it</Text>
+              <Text style={styles.primaryBtnText}>Record It</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -1356,7 +1356,7 @@ function EvidenceStrip({
               onPress={() => onRemove(r)}
               hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
               accessibilityRole="button"
-              accessibilityLabel="Remove evidence"
+              accessibilityLabel="Remove Evidence"
             >
               <XIcon size={13} color={t.textMuted} strokeWidth={2} />
             </TouchableOpacity>
@@ -1367,11 +1367,11 @@ function EvidenceStrip({
         style={styles.secondaryBtn}
         onPress={onAdd}
         accessibilityRole="button"
-        accessibilityLabel="Attach evidence"
+        accessibilityLabel="Attach Evidence"
         testID="delay-attach-evidence"
       >
         <Paperclip size={13} color={t.accent} strokeWidth={2.2} />
-        <Text style={styles.secondaryBtnText}>Attach evidence</Text>
+        <Text style={styles.secondaryBtnText}>Attach Evidence</Text>
       </TouchableOpacity>
     </View>
   );

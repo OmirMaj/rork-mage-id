@@ -591,7 +591,7 @@ expectTrue('handoff says who compiled it, not that the homeowner owns it',
 expectTrue('handoff carries NO money at all', !handoff.includes('$'));
 expectTrue('handoff carries no canary figure', ALL_CANARIES.every((n) => !handoff.includes(String(n))));
 expect('empty passport still produces a handoff header',
-  buildPassportHandoff(empty).split('\n')[0], 'HOME PASSPORT — this home');
+  buildPassportHandoff(empty).split('\n')[0], 'HOME PASSPORT: this home');
 
 // ─────────────────────────────────────────────────────────────────────
 console.log('\ncomponents/passport design-system compliance:');

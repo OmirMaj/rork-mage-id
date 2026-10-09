@@ -577,7 +577,7 @@ export const CATALOG_SOURCE_LABEL = 'US retail and contractor-yard list prices';
 
 /** The one sentence that must accompany a catalog price anywhere it is shown. */
 export const CATALOG_NOT_A_FEED =
-  'Not a live feed — confirm with your supplier before you bid.';
+  'Not a live feed. Confirm with your supplier before you bid.';
 
 /** Past this age the screen stops being polite about it. */
 export const CATALOG_STALE_AFTER_MONTHS = 6;
@@ -614,7 +614,7 @@ export function catalogProvenanceLine(
 ): string {
   const months = catalogAgeMonths(now);
   const age = months <= 0 ? 'compiled this month' : months === 1 ? '1 month old' : `${months} months old`;
-  const market = marketLabel ? `adjusted for ${marketLabel}` : 'US average — no market set';
+  const market = marketLabel ? `adjusted for ${marketLabel}` : 'US average, no market set';
   return `List prices · ${catalogCompiledLabel()} · ${age} · ${market}`;
 }
 
@@ -650,7 +650,7 @@ export interface PricingMarket {
 }
 
 export const US_AVERAGE_MARKET: PricingMarket = {
-  city: null, regionId: null, label: 'US average', multiplier: 1, resolved: false,
+  city: null, regionId: null, label: 'US Average', multiplier: 1, resolved: false,
 };
 
 /** The two-letter state in a free-text location, or null. */

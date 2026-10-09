@@ -63,9 +63,9 @@ function directionColor(direction: CalibrationDirection, t: ThemeColors): string
 
 function confidenceLabel(c: CalibrationConfidence): string {
   switch (c) {
-    case 'high': return 'High confidence';
-    case 'medium': return 'Medium confidence';
-    case 'low': return 'Low confidence';
+    case 'high': return 'High Confidence';
+    case 'medium': return 'Medium Confidence';
+    case 'low': return 'Low Confidence';
   }
 }
 
@@ -103,8 +103,8 @@ function EstimateCalibrationInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate calibration · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Bias across projects</Text>
+          <Text style={styles.headerEyebrow}>Estimate Calibration · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Bias Across Projects</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -112,21 +112,21 @@ function EstimateCalibrationInner() {
       {!report.hasData ? (
         <EmptyState
           icon={<SlidersHorizontal size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No measured projects yet"
+          title="No Measured Projects Yet"
           message="Calibration turns bid vs. actual on finished projects into a correction per category. A project still running only shows how far through it you are, so it is left out. To start:"
           steps={[
             'Build estimates with cost and markup on your projects.',
             'Award buyout so commitments link back to estimate lines.',
             'Close the project and settle the subs. A deposit is not a cost.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
         <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
           {/* Overall calibration hero */}
           <View style={[styles.hero, { borderColor: heroColor }]}>
-            <Text style={styles.heroLabel}>Overall calibration</Text>
+            <Text style={styles.heroLabel}>Overall Calibration</Text>
             <Text style={[styles.heroHeadline, { color: heroColor }]}>{headline}</Text>
             <Text style={styles.heroSub}>
               {`Weighted across ${report.summary.categoryCount} ${report.summary.categoryCount === 1 ? 'category' : 'categories'} with real actuals on ${report.summary.totalJobs} ${report.summary.totalJobs === 1 ? 'job' : 'jobs'}.`}
@@ -137,7 +137,7 @@ function EstimateCalibrationInner() {
           </View>
 
           {/* Per-category corrections */}
-          <Text style={styles.sectionTitle}>By category, worst first</Text>
+          <Text style={styles.sectionTitle}>By Category, Worst First</Text>
           {report.categories.map(c => (
             <CategoryCard
               key={c.category}
@@ -158,7 +158,7 @@ function EstimateCalibrationInner() {
             means a scope bust or an unlinked commitment, not a pricing habit.
             When you apply them on an estimate, a line already priced at the rate
             your projects measured is left alone, and a line below it moves only up to
-            that rate — the factor is measured against your old bids, and your cost
+            that rate. The factor is measured against your old bids, and your cost
             book has already moved toward the same actuals.
           </Text>
 
@@ -168,7 +168,7 @@ function EstimateCalibrationInner() {
             activeOpacity={0.8}
           >
             <Scale size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.linkRowText}>Open your cost history</Text>
+            <Text style={styles.linkRowText}>Open Your Cost History</Text>
             <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         </ScrollView>
@@ -205,7 +205,7 @@ function CategoryCard({
       </View>
 
       <View style={styles.cardMetaRow}>
-        <Text style={styles.cardMeta}>{formatMoney(c.estimatedTotal)} bid → {formatMoney(c.actualTotal)} actual</Text>
+        <Text style={styles.cardMeta}>{formatMoney(c.estimatedTotal)} bid, {formatMoney(c.actualTotal)} actual</Text>
         <View style={[styles.confChip, { backgroundColor: t.line }]}>
           <Text style={styles.confChipText}>{confidenceLabel(c.confidence)} · {c.jobs} {c.jobs === 1 ? 'project' : 'projects'}</Text>
         </View>

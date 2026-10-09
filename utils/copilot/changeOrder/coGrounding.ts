@@ -9,7 +9,7 @@ export async function buildCOGrounding(c: CopilotContext): Promise<Grounding> {
   const contractValue = typeof project?.linkedEstimate?.grandTotal === 'number' ? project.linkedEstimate.grandTotal : 0;
 
   const facts: string[] = [];
-  if (contractValue > 0) facts.push(`Current contract is $${contractValue.toLocaleString()} — the CO adjusts this total.`);
+  if (contractValue > 0) facts.push(`Current contract is $${contractValue.toLocaleString()}. The CO adjusts this total.`);
   if (project?.name) facts.push(`Change order for ${project.name}.`);
 
   return { facts, data: { contractValue } };

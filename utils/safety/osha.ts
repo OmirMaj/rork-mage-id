@@ -115,17 +115,17 @@ export const DFR_SEVERITY_TO_REGISTER_SEVERITY: Record<IncidentSeverity, SafetyI
 
 /** Field-readable names for the four register types. */
 export const DFR_INCIDENT_TYPE_LABEL: Record<IncidentType, string> = {
-  injury: 'Injury or illness',
-  near_miss: 'Near miss',
-  property: 'Property damage',
+  injury: 'Injury or Illness',
+  near_miss: 'Near Miss',
+  property: 'Property Damage',
   environmental: 'Environmental',
 };
 
 /** Field-readable names for the three treatment levels. */
 export const DFR_TREATMENT_LABEL: Record<Treatment, string> = {
   none: 'None',
-  first_aid: 'First aid only',
-  medical_beyond_first_aid: 'Medical beyond first aid',
+  first_aid: 'First Aid Only',
+  medical_beyond_first_aid: 'Medical Beyond First Aid',
 };
 
 /** A determination plus the single 1904 criterion that decided it. */
@@ -147,27 +147,27 @@ export interface RecordabilityVerdict {
  */
 export function describeRecordability(input: IncidentClassInput): RecordabilityVerdict {
   const recordable = isOshaRecordable(input);
-  if (input.fatality) return { recordable, reason: t('safety.osha.reasonFatality', 'Recordable — fatality.') };
+  if (input.fatality) return { recordable, reason: t('safety.osha.reasonFatality', 'Recordable: fatality.') };
   if (!isInjuryOrIllnessCase(input)) {
     // One whole sentence per type (never a translated label in a frame); the
     // English equals the label-built sentence it always was.
     const reason =
-      input.type === 'near_miss' ? t('safety.osha.reasonNearMiss', 'Not recordable — near miss, no injury.')
-        : input.type === 'property' ? t('safety.osha.reasonProperty', 'Not recordable — property damage, no injury.')
-          : input.type === 'environmental' ? t('safety.osha.reasonEnvironmental', 'Not recordable — environmental, no injury.')
-            : `Not recordable — ${DFR_INCIDENT_TYPE_LABEL[input.type].toLowerCase()}, no injury.`;
+      input.type === 'near_miss' ? t('safety.osha.reasonNearMiss', 'Not recordable: near miss, no injury.')
+        : input.type === 'property' ? t('safety.osha.reasonProperty', 'Not recordable: property damage, no injury.')
+          : input.type === 'environmental' ? t('safety.osha.reasonEnvironmental', 'Not recordable: environmental, no injury.')
+            : `Not recordable: ${DFR_INCIDENT_TYPE_LABEL[input.type].toLowerCase()}, no injury.`;
     return { recordable, reason };
   }
-  if (input.daysAway > 0) return { recordable, reason: t('safety.osha.reasonDaysAway', 'Recordable — days away from work.') };
-  if (hasRestriction(input)) return { recordable, reason: t('safety.osha.reasonRestricted', 'Recordable — restricted work or job transfer.') };
-  if (input.lostConsciousness) return { recordable, reason: t('safety.osha.reasonConsciousness', 'Recordable — loss of consciousness.') };
+  if (input.daysAway > 0) return { recordable, reason: t('safety.osha.reasonDaysAway', 'Recordable: days away from work.') };
+  if (hasRestriction(input)) return { recordable, reason: t('safety.osha.reasonRestricted', 'Recordable: restricted work or job transfer.') };
+  if (input.lostConsciousness) return { recordable, reason: t('safety.osha.reasonConsciousness', 'Recordable: loss of consciousness.') };
   if (input.treatment === 'medical_beyond_first_aid') {
-    return { recordable, reason: t('safety.osha.reasonMedical', 'Recordable — medical treatment beyond first aid.') };
+    return { recordable, reason: t('safety.osha.reasonMedical', 'Recordable: medical treatment beyond first aid.') };
   }
   if (input.treatment === 'first_aid') {
-    return { recordable, reason: t('safety.osha.reasonFirstAid', 'Not recordable — first aid only, no days away, no restriction.') };
+    return { recordable, reason: t('safety.osha.reasonFirstAid', 'Not recordable: first aid only, no days away, no restriction.') };
   }
-  return { recordable, reason: t('safety.osha.reasonNoTreatment', 'Not recordable — no treatment, no days away, no restriction.') };
+  return { recordable, reason: t('safety.osha.reasonNoTreatment', 'Not recordable: no treatment, no days away, no restriction.') };
 }
 
 /**

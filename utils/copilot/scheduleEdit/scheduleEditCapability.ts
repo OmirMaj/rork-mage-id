@@ -61,7 +61,7 @@ export const SCHEDULE_EDIT_SCHEMA_HINT = {
 
 export const scheduleEditCapability: CopilotCapability<ScheduleEditDraft, ScheduleEditApplied> = {
   id: 'scheduleEdit',
-  label: 'Edit the schedule',
+  label: 'Edit the Schedule',
   aiFeature: 'scheduleCopilot',
   maxQuestions: 0,
   askThreshold: 1,
@@ -73,7 +73,7 @@ export const scheduleEditCapability: CopilotCapability<ScheduleEditDraft, Schedu
     voiceTitle: 'Edit the schedule',
     composeEyebrow: 'CHANGE THE SCHEDULE',
     composeQuestion: 'What should change?',
-    composeHint: 'Say the change — push a task, add a milestone, re-level the crew. I’ll show the ripple before it sticks.',
+    composeHint: 'Say the change: push a task, add a milestone, re-level the crew. I’ll show the ripple before it sticks.',
     reviewHeadline: 'Here’s the change.',
     reviewSub: 'Review the ripple, then apply.',
     buildingLabel: 'Applying the change…',
@@ -143,7 +143,7 @@ export const scheduleEditCapability: CopilotCapability<ScheduleEditDraft, Schedu
     if (commitRefused(wrote)) {
       // The host's reason is a full sentence ("You have view-only access…").
       const why = typeof wrote === 'string' ? [wrote] : ['Nothing was saved.'];
-      return { done: true, landed: [], notLanded: [...why, ...lines.map(l => `Not saved — ${l}`), ...notLanded, ...skipped] };
+      return { done: true, landed: [], notLanded: [...why, ...lines.map(l => `Not saved: ${l}`), ...notLanded, ...skipped] };
     }
     return { done: true, landed: lines, notLanded: [...notLanded, ...skipped] };
   },

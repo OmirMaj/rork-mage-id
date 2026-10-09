@@ -59,8 +59,8 @@ import type { FollowUpPortfolioRefusal, FollowUpReads } from '@/utils/followUp/e
 
 /** His words for each check, for the coverage line and the row icon. */
 const RULE_LABEL: Record<string, string> = {
-  coi_expires_before_sub_is_on_site: 'Insurance against the schedule',
-  work_started_without_commitment: 'Work started with no contract',
+  coi_expires_before_sub_is_on_site: 'Insurance Against the Schedule',
+  work_started_without_commitment: 'Work Started with No Contract',
 };
 
 const RULE_ICON: Record<string, typeof ShieldAlert> = {
@@ -99,17 +99,17 @@ function basisLine(basis: FollowUpBasis, targetDate: string | undefined): string
   const on = targetDate ? formatCalendarDay(targetDate, { month: 'short', day: 'numeric' }) : null;
   switch (basis.kind) {
     case 'stated':
-      return on ? `${on} — from ${basis.field}` : `From ${basis.field}, which has no date on it`;
+      return on ? `${on}, from ${basis.field}` : `From ${basis.field}, which has no date on it`;
     case 'derived':
-      return on ? `${on} — derived from ${basis.from}` : `Derived from ${basis.from}`;
+      return on ? `${on}, derived from ${basis.from}` : `Derived from ${basis.from}`;
     case 'learned':
       return on
-        ? `${on} — learned from ${basis.n} past ${basis.of}`
+        ? `${on}, learned from ${basis.n} past ${basis.of}`
         : `Learned from ${basis.n} past ${basis.of}`;
     case 'none':
       // G2 in prose. There is no deadline here, so there is nothing to be late
       // for, and the row must not borrow urgency it has not earned.
-      return 'No deadline — nobody is late. This is exposure, not a due date.';
+      return 'No deadline, so nobody is late. This is exposure, not a due date.';
   }
 }
 
@@ -182,7 +182,7 @@ export function PreventiveFollowUps({
       seen.add(key);
       const why = missing.map(m => MISSING_COPY[m] ?? `${m} is unavailable`).join('; ');
       const label = RULE_LABEL[r.ruleId] ?? r.ruleId;
-      out.push(`${label} did not run on ${r.projectName} — ${why || r.detail}.`);
+      out.push(`${label} did not run on ${r.projectName}: ${why || r.detail}.`);
     }
     return out;
   }, [refusals]);
@@ -204,7 +204,7 @@ export function PreventiveFollowUps({
     <View style={styles.section}>
       <View style={styles.sectionHead}>
         <TriangleAlert size={14} color={t.warningLabel} strokeWidth={2.25} />
-        <Text style={styles.sectionEyebrow}>About to go wrong</Text>
+        <Text style={styles.sectionEyebrow}>About to Go Wrong</Text>
       </View>
       <Text style={styles.sectionSub}>
         {items.length > 0
@@ -219,7 +219,7 @@ export function PreventiveFollowUps({
         <Info size={12} color={t.textMuted} strokeWidth={2} />
         <Text style={styles.groundingText}>
           {loading
-            ? 'Still loading your subs, schedules and contracts — nothing has been checked yet.'
+            ? 'Still loading your subs, schedules and contracts. Nothing has been checked yet.'
             : jobCount === 0
               ? 'No open projects to check. These checks run on projects that aren’t finished or closed.'
               : `Checked ${checkedCount} of ${totalChecks} ${totalChecks === 1 ? 'check' : 'checks'} across ${jobCount} open ${jobCount === 1 ? 'project' : 'projects'}.`}
@@ -304,7 +304,7 @@ export function PreventiveFollowUps({
 
               {item.preExisting && (
                 <Text style={styles.preExisting}>
-                  Already true when this check first ran — shown quietly on purpose, not ranked as new.
+                  Already true when this check first ran. Shown quietly on purpose, not ranked as new.
                 </Text>
               )}
 
@@ -351,7 +351,7 @@ export function PreventiveFollowUps({
                     testID={`preventive-nudge-${item.id}`}
                   >
                     <Send size={13} color={t.accent} strokeWidth={2.25} />
-                    <Text style={styles.sendText}>{chased ? 'Send again' : 'Send warning'}</Text>
+                    <Text style={styles.sendText}>{chased ? 'Send Again' : 'Send Warning'}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
@@ -360,7 +360,7 @@ export function PreventiveFollowUps({
                 // send it to, or there is nobody to send it to but you.
                 <Text style={styles.noNudge}>
                   {item.ball === 'gc'
-                    ? 'No message to send — this one is your move, not somebody else’s.'
+                    ? 'No message to send. This one is your move, not somebody else’s.'
                     : 'No message drafted: MAGE has no name for who to send it to. Add a contact on the record above and it will draft one.'}
                 </Text>
               )}

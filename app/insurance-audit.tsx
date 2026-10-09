@@ -147,7 +147,7 @@ export default function InsuranceAuditScreen() {
   // built from half the sources would be a wrong number said as a fact.
   const ready = subInvoices !== null || !!loadError;
   const exportBlockedReason = periodInvalid
-    ? 'The start date is after the end date — fix the period first.'
+    ? 'The start date is after the end date. Fix the period first.'
     : audit.exportBlockedReason
       ?? (subInvoices === null ? 'Loading sub-portal payments…'
         : !hasRows ? 'No sub payments in this period to export.' : null);
@@ -159,44 +159,44 @@ export default function InsuranceAuditScreen() {
   }, [gcName]);
   const sendDraft = useCallback(async (s: AuditSubRow) => {
     const message = drafts[s.subcontractorId] ?? requestMessageFor(s, s.needsCertificate, gcName);
-    const outcome = await shareText({ message, title: "Workers' comp certificate" });
-    if (outcome === 'copied') showAlert('Message copied', "Sharing isn't available here, so the message is on your clipboard. Paste it into a text or email.");
-    else if (outcome === 'failed') showAlert("Couldn't open sharing", message);
+    const outcome = await shareText({ message, title: "Workers' Comp Certificate" });
+    if (outcome === 'copied') showAlert('Message Copied', "Sharing isn't available here, so the message is on your clipboard. Paste it into a text or email.");
+    else if (outcome === 'failed') showAlert("Couldn't Open Sharing", message);
   }, [drafts, gcName]);
 
   const fileStem = `insurance-audit-${period.start}-to-${period.end}`;
   const [busy, setBusy] = useState<'csv' | 'pdf' | null>(null);
   const exportCsv = useCallback(async () => {
-    if (exportBlockedReason) { showAlert('Export not ready', exportBlockedReason); return; }
+    if (exportBlockedReason) { showAlert('Export Not Ready', exportBlockedReason); return; }
     setBusy('csv');
     try {
       const uri = await deliverTextFile(`${fileStem}.csv`, toCsv(audit), 'text/csv;charset=utf-8');
       if (uri && await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Insurance audit CSV' });
+        await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Insurance Audit CSV' });
       }
     } catch (err) {
       const copy = describeError(err, { action: 'build the CSV' });
-      showAlert('Export failed', copy.body);
+      showAlert('Export Failed', copy.body);
     } finally {
       setBusy(null);
     }
   }, [audit, exportBlockedReason, fileStem]);
   const exportPdf = useCallback(async () => {
-    if (exportBlockedReason) { showAlert('Export not ready', exportBlockedReason); return; }
+    if (exportBlockedReason) { showAlert('Export Not Ready', exportBlockedReason); return; }
     const html = toPdfHtml(audit, settings?.branding, gcName);
     if (Platform.OS === 'web') {
       // Synchronously inside the tap, or the browser treats it as a pop-up.
-      try { openPrintWindowOrThrow(html); } catch (err) { showAlert('PDF not opened', pdfFailureMessage(err, "Couldn't open the PDF.")); }
+      try { openPrintWindowOrThrow(html); } catch (err) { showAlert('PDF Not Opened', pdfFailureMessage(err, "Couldn't open the PDF.")); }
       return;
     }
     setBusy('pdf');
     try {
       const uri = await printHtmlDocument(html);
       if (uri && await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Insurance audit PDF', UTI: 'com.adobe.pdf' });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Insurance Audit PDF', UTI: 'com.adobe.pdf' });
       }
     } catch (err) {
-      showAlert('PDF failed', pdfFailureMessage(err, "Couldn't build the PDF."));
+      showAlert('PDF Failed', pdfFailureMessage(err, "Couldn't build the PDF."));
     } finally {
       setBusy(null);
     }
@@ -209,8 +209,8 @@ export default function InsuranceAuditScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScreenHeader
         variant="tool"
-        eyebrow="Workers' comp audit"
-        title="Insurance audit pack"
+        eyebrow="Workers' Comp Audit"
+        title="Insurance Audit Pack"
         subtitle="Every sub payment against the certificate that should cover it"
         onBack={() => router.back()}
         testID="insaudit-header"
@@ -227,16 +227,16 @@ export default function InsuranceAuditScreen() {
             );
           })}
           <TouchableOpacity onPress={() => setMode({ kind: 'custom' })} style={[styles.chip, mode.kind === 'custom' && styles.chipOn]} testID="insaudit-custom" accessibilityRole="button" accessibilityState={{ selected: mode.kind === 'custom' }}>
-            <Text style={[styles.chipText, mode.kind === 'custom' && styles.chipTextOn]}>Policy year</Text>
+            <Text style={[styles.chipText, mode.kind === 'custom' && styles.chipTextOn]}>Policy Year</Text>
           </TouchableOpacity>
         </View>
         {mode.kind === 'custom' ? (
           <View style={styles.customRow}>
-            <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking('start')} testID="insaudit-start" accessibilityRole="button" accessibilityLabel="Policy start date">
+            <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking('start')} testID="insaudit-start" accessibilityRole="button" accessibilityLabel="Policy Start Date">
               <CalendarDays size={14} color={t.textSecondary} strokeWidth={1.75} />
               <Text style={styles.dateBtnText}>From {formatCalendarDay(customStart)}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking('end')} testID="insaudit-end" accessibilityRole="button" accessibilityLabel="Policy end date">
+            <TouchableOpacity style={styles.dateBtn} onPress={() => setPicking('end')} testID="insaudit-end" accessibilityRole="button" accessibilityLabel="Policy End Date">
               <CalendarDays size={14} color={t.textSecondary} strokeWidth={1.75} />
               <Text style={styles.dateBtnText}>To {formatCalendarDay(customEnd)}</Text>
             </TouchableOpacity>
@@ -263,9 +263,9 @@ export default function InsuranceAuditScreen() {
           <Text style={styles.headline} testID="insaudit-headline">{audit.headline}</Text>
           {hasRows ? (
             <View style={styles.statRow}>
-              <Stat label="Paid in period" value={formatCents(audit.paidTotalCents)} styles={styles} />
-              <Stat label="No WC certificate on the date" value={formatCents(audit.uncoveredWcCents)} styles={styles} tone={audit.uncoveredWcCents > 0 ? t.dangerLabel : undefined} testID="insaudit-uncovered" />
-              <Stat label="Can't tell from the records" value={formatCents(audit.cantTellWcCents)} styles={styles} tone={audit.cantTellWcCents > 0 ? t.warningLabel : undefined} testID="insaudit-canttell" />
+              <Stat label="Paid in Period" value={formatCents(audit.paidTotalCents)} styles={styles} />
+              <Stat label="No WC Certificate on the Date" value={formatCents(audit.uncoveredWcCents)} styles={styles} tone={audit.uncoveredWcCents > 0 ? t.dangerLabel : undefined} testID="insaudit-uncovered" />
+              <Stat label="Can't Tell from the Records" value={formatCents(audit.cantTellWcCents)} styles={styles} tone={audit.cantTellWcCents > 0 ? t.warningLabel : undefined} testID="insaudit-canttell" />
             </View>
           ) : null}
           <Text style={styles.note} testID="insaudit-sources-note">{AUDIT_SOURCES_NOTE}</Text>
@@ -287,7 +287,7 @@ export default function InsuranceAuditScreen() {
 
         {audit.undatedPayments.length > 0 ? (
           <Card style={styles.card} testID="insaudit-undated">
-            <Text style={styles.subName}>Undated — can&apos;t be tested against a certificate</Text>
+            <Text style={styles.subName}>Undated: can&apos;t be tested against a certificate</Text>
             <Text style={styles.muted}>These payments have no usable date, so they may fall outside this period. They are counted in &quot;can&apos;t tell&quot;, never as covered.</Text>
             {audit.undatedPayments.map(p => (
               <Text key={p.key} style={styles.body}>{formatCents(p.amountCents, true)} · {p.source === 'portal' ? 'Sub-portal invoice' : 'Bill you recorded'}{p.reference ? ` ${p.reference}` : ''}</Text>
@@ -298,7 +298,7 @@ export default function InsuranceAuditScreen() {
 
         <View style={styles.exportRow}>
           <Button label="Export CSV" variant="primary" onPress={() => { void exportCsv(); }} disabled={!!exportBlockedReason} loading={busy === 'csv'} iconLeft={<FileSpreadsheet size={15} color="#FFF" strokeWidth={1.75} />} testID="insaudit-export-csv" />
-          <Button label="Export PDF for the auditor" variant="secondary" onPress={() => { void exportPdf(); }} disabled={!!exportBlockedReason} loading={busy === 'pdf'} iconLeft={<FileText size={15} color={t.accent} strokeWidth={1.75} />} testID="insaudit-export-pdf" />
+          <Button label="Export PDF for the Auditor" variant="secondary" onPress={() => { void exportPdf(); }} disabled={!!exportBlockedReason} loading={busy === 'pdf'} iconLeft={<FileText size={15} color={t.accent} strokeWidth={1.75} />} testID="insaudit-export-pdf" />
         </View>
         {exportBlockedReason ? <Text style={styles.muted} testID="insaudit-export-blocked">{exportBlockedReason}</Text> : null}
       </ScrollView>
@@ -307,7 +307,7 @@ export default function InsuranceAuditScreen() {
         visible={picking !== null}
         value={picking === 'end' ? customEnd : customStart}
         allowFuture
-        title={picking === 'end' ? 'Policy year ends' : 'Policy year starts'}
+        title={picking === 'end' ? 'Policy Year Ends' : 'Policy Year Starts'}
         onClose={() => setPicking(null)}
         onChange={(iso) => {
           // The picker emits noon-UTC of the picked day: the date part IS the day.
@@ -365,7 +365,7 @@ function SubCard({ s, draft, onOpenDraft, onEditDraft, onSend, styles, t }: {
       {s.commitmentNote ? <Text style={styles.muted}>{s.commitmentNote}</Text> : null}
       {s.needsCertificate.length > 0 ? (
         draft === undefined ? (
-          <Button label="Ask for the certificate" variant="secondary" size="sm" onPress={onOpenDraft} testID={`insaudit-ask-${s.subcontractorId}`} />
+          <Button label="Ask for the Certificate" variant="secondary" size="sm" onPress={onOpenDraft} testID={`insaudit-ask-${s.subcontractorId}`} />
         ) : (
           <View style={styles.draft}>
             <TextInput
@@ -377,7 +377,7 @@ function SubCard({ s, draft, onOpenDraft, onEditDraft, onSend, styles, t }: {
               testID={`insaudit-draft-${s.subcontractorId}`}
             />
             {!s.phone && !s.email ? <Text style={styles.muted}>No phone or email on file. The share sheet opens so you can pick how to send it.</Text> : null}
-            <Button label="Share message" variant="primary" size="sm" onPress={onSend} iconLeft={<Send size={13} color="#FFF" strokeWidth={1.75} />} testID={`insaudit-send-${s.subcontractorId}`} />
+            <Button label="Share Message" variant="primary" size="sm" onPress={onSend} iconLeft={<Send size={13} color="#FFF" strokeWidth={1.75} />} testID={`insaudit-send-${s.subcontractorId}`} />
           </View>
         )
       ) : null}

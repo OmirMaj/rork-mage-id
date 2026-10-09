@@ -68,7 +68,7 @@ eq('All N picks every available worker', toggleAllCrew(['a'], crew), ['a', 'b', 
 eq('All N again clears', toggleAllCrew(['a', 'b', 'c'], crew), []);
 eq('All N on an empty roster picks nobody', toggleAllCrew([], []), []);
 eq('a pick that went on the clock drops out', livePicks(['a', 'z'], crew), ['a']);
-eq('no job → disabled with PICK_JOB_FIRST', clockInButton(3, false), { label: 'Clock in', disabled: true, reason: PICK_JOB_FIRST });
+eq('no job → disabled with PICK_JOB_FIRST', clockInButton(3, false), { label: 'Clock In', disabled: true, reason: PICK_JOB_FIRST });
 eq('job, nobody ticked → disabled', clockInButton(0, true).disabled, true);
 eq('job + 6 ticked → "Clock in 6"', clockInButton(6, true), { label: 'Clock in 6', disabled: false, reason: null });
 eq('chip label', allCrewChipLabel(6, false), 'All 6 on this project');

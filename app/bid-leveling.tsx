@@ -155,8 +155,8 @@ function BidLevelingInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Bid leveling · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{pkg?.name ?? 'Level bids'}</Text>
+          <Text style={styles.headerEyebrow}>Bid Leveling · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{pkg?.name ?? 'Level Bids'}</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -164,7 +164,7 @@ function BidLevelingInner() {
       {!pkg || !report || !report.hasBids ? (
         <EmptyState
           icon={<Scale size={36} color={t.accent} strokeWidth={1.6} />}
-          title={!pkg ? 'Package not found' : 'No bids to level yet'}
+          title={!pkg ? 'Package Not Found' : 'No Bids to Level Yet'}
           message={
             !pkg
               ? 'Open this from a buyout package to compare its bids side by side.'
@@ -191,7 +191,7 @@ function BidLevelingInner() {
               <View style={[styles.recoCard, { borderColor: t.success + '55' }]}>
                 <View style={styles.recoHead}>
                   <Trophy size={16} color={t.success} strokeWidth={1.75} />
-                  <Text style={styles.recoLabel}>{recNeedsPrice ? CLOSE_CALL_REASON.replace(/\.$/, '') : 'Best value'}</Text>
+                  <Text style={styles.recoLabel}>{recNeedsPrice ? CLOSE_CALL_REASON.replace(/\.$/, '') : 'Best Value'}</Text>
                 </View>
                 <Text style={styles.recoVendor}>{rec.vendor}</Text>
                 {/* A close call has no leveled total yet: its 0 is a placeholder,
@@ -213,7 +213,7 @@ function BidLevelingInner() {
           {/* AI level CTA + summary */}
           <TouchableOpacity style={[styles.aiBtn, aiBusy && { opacity: 0.7 }]} onPress={aiLevel} disabled={aiBusy} activeOpacity={0.85} testID="bid-ai-level">
             {aiBusy ? <ActivityIndicator size="small" color={t.accent} /> : <MageAIMark size={16} color={t.accent} />}
-            <Text style={styles.aiBtnText}>{aiBusy ? 'Leveling exclusions…' : 'Level the exclusions'}</Text>
+            <Text style={styles.aiBtnText}>{aiBusy ? 'Leveling exclusions…' : 'Level the Exclusions'}</Text>
           </TouchableOpacity>
           {aiMsg && <Text style={styles.aiMsg}>{aiMsg}</Text>}
 
@@ -224,16 +224,16 @@ function BidLevelingInner() {
             activeOpacity={0.85}
           >
             <Star size={14} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.decisionBtnText}>Score this bid</Text>
+            <Text style={styles.decisionBtnText}>Score This Bid</Text>
           </TouchableOpacity>
 
           <View style={styles.kpiRow}>
             <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Budget</Text><Text style={styles.kpiValue}>{formatMoney(report.budget)}</Text></View>
             {report.bids.length - report.unknownCount < 2 && report.unknownCount > 0 ? (
               // Fewer than two known leveled costs: there is no spread to show yet.
-              <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Field spread</Text><Text style={styles.kpiValue}>—</Text><Text style={styles.kpiSub}>{LABEL_NEEDS_PRICE}</Text></View>
+              <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Field Spread</Text><Text style={styles.kpiValue}>—</Text><Text style={styles.kpiSub}>{LABEL_NEEDS_PRICE}</Text></View>
             ) : (
-              <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Field spread</Text><Text style={styles.kpiValue}>{formatMoney(report.spread)}</Text><Text style={styles.kpiSub}>{Math.round(report.spreadPct * 100)}% of median</Text></View>
+              <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Field Spread</Text><Text style={styles.kpiValue}>{formatMoney(report.spread)}</Text><Text style={styles.kpiSub}>{Math.round(report.spreadPct * 100)}% of median</Text></View>
             )}
           </View>
 
@@ -241,12 +241,12 @@ function BidLevelingInner() {
             <View style={styles.warn}>
               <AlertTriangle size={15} color={t.danger} strokeWidth={1.75} />
               <Text style={styles.warnText}>
-                <Text style={{ fontWeight: '800', color: t.danger }}>{report.outlierCount}</Text> bid{report.outlierCount === 1 ? '' : 's'} suspiciously low vs the field — likely missing scope. Read the exclusions before awarding.
+                <Text style={{ fontWeight: '800', color: t.danger }}>{report.outlierCount}</Text> bid{report.outlierCount === 1 ? '' : 's'} suspiciously low vs the field, likely missing scope. Read the exclusions before awarding.
               </Text>
             </View>
           )}
 
-          <Text style={styles.sectionTitle}>Ranked by leveled cost</Text>
+          <Text style={styles.sectionTitle}>Ranked by Leveled Cost</Text>
           {report.bids.map(b => (
             <BidRow
               key={b.bid.id}
@@ -265,8 +265,8 @@ function BidLevelingInner() {
 
           <Text style={styles.note}>
             Leveled cost = the bid plus an adjustment for the scope it excludes, so every bid is
-            compared on the same scope. &ldquo;Best value&rdquo; is the lowest leveled cost that isn&apos;t a
-            suspicious lowball. Terms/availability are shown per bid — confirm schedule before you award.
+            compared on the same scope. “Best Value” is the lowest leveled cost that isn&apos;t a
+            suspicious lowball. Terms/availability are shown per bid. Confirm schedule before you award.
           </Text>
         </ScrollView>
       )}
@@ -309,9 +309,9 @@ function BidRow({
         <View style={{ flex: 1 }}>
           <Text style={styles.bidVendor} numberOfLines={1}>{b.vendor}</Text>
           <View style={styles.badgeRow}>
-            {isWinner && <Badge label="Best value" color={t.success} styles={styles} />}
-            {b.isCheapestRaw && <Badge label="Cheapest bid" color={t.accent} styles={styles} icon={<BadgeDollarSign size={10} color={t.accent} strokeWidth={1.75} />} />}
-            {b.outlierLow && <Badge label="Suspiciously low" color={t.danger} styles={styles} />}
+            {isWinner && <Badge label="Best Value" color={t.success} styles={styles} />}
+            {b.isCheapestRaw && <Badge label="Cheapest Bid" color={t.accent} styles={styles} icon={<BadgeDollarSign size={10} color={t.accent} strokeWidth={1.75} />} />}
+            {b.outlierLow && <Badge label="Suspiciously Low" color={t.danger} styles={styles} />}
             {basisChip && (
               <Badge
                 label={basisChip.label}
@@ -341,7 +341,7 @@ function BidRow({
         </View>
       </View>
       {b.excludes.length > 0 && (
-        <Text style={styles.bidExcludes}><Text style={{ fontWeight: '700', color: t.accentHot }}>Excludes:</Text> {b.excludes}{saved.text ? ` — leveled: ${saved.text}` : ''}</Text>
+        <Text style={styles.bidExcludes}><Text style={{ fontWeight: '700', color: t.accentHot }}>Excludes:</Text> {b.excludes}{saved.text ? ` · leveled: ${saved.text}` : ''}</Text>
       )}
       {needsAnswer && (
         <View style={styles.needsAnswerRow}>
@@ -352,7 +352,7 @@ function BidRow({
       {b.terms.length > 0 && <Text style={styles.bidTerms}>Terms: {b.terms}</Text>}
       {onScorecard && (
         <TouchableOpacity onPress={onScorecard} style={styles.scorecardLink} activeOpacity={0.75}>
-          <Text style={styles.scorecardLinkText}>See this sub's scorecard →</Text>
+          <Text style={styles.scorecardLinkText}>See This Sub's Scorecard</Text>
         </TouchableOpacity>
       )}
     </View>

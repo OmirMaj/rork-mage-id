@@ -233,7 +233,6 @@ const VOICE_RULES: VoiceRule[] = [
 /** Hits that stay, each with its reason. `contains` must appear in the hit's context. */
 export const VOICE_ALLOW: { rel: string; rule: string; contains: string; reason: string }[] = [
   { rel: 'who-built-this.html', rule: 'pronoun', contains: 'he disappears', reason: 'quotes a buyer\'s fear about the named founder, not a user' },
-  { rel: 'switch.html', rule: 'daily-log', contains: 'Schedule, Daily Logs and Documents', reason: 'names Buildertrend\'s own export modules, which is how a leaving customer finds them in Buildertrend' },
   { rel: 'changelog.html', rule: 'honest', contains: 'run twelve honestly', reason: 'the DCMA item in "Building now" is pinned by validate-marketing-claims and is out of this lane (WEBFIX spec: leave it as it is)' },
 ];
 
@@ -381,7 +380,7 @@ export function aiLimitsFrom(paywallSrc: string): Record<string, CapRow> {
   const block = /const AI_LIMITS[^=]*=\s*\[([\s\S]*?)\n\];/.exec(paywallSrc)?.[1] ?? '';
   for (const m of block.matchAll(/label:\s*'([^']+)'[^}]*?business:\s*'([^']+)'[^}]*?enterprise:\s*'([^']+)'/g)) {
     const key = /^Daily AI/.test(m[1]) ? 'daily' : /^Advanced/.test(m[1]) ? 'advanced' : /^Drawing/.test(m[1]) ? 'drawing'
-      : /^Photo analyses/.test(m[1]) ? 'photo' : /^PDF takeoff/.test(m[1]) ? 'pdf' : m[1];
+      : /^Photo analyses/i.test(m[1]) ? 'photo' : /^PDF takeoff/i.test(m[1]) ? 'pdf' : m[1];
     out[key] = { business: Number(m[2]), enterprise: Number(m[3]) };
   }
   return out;

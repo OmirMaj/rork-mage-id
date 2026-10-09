@@ -48,7 +48,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import { platformFeeLabel, stripeProcessingCopy, PAYOUT_TIMING_COPY, PAYOUT_TIMING_SHORT } from '@/utils/platformFees';
 import { useFinancingReferrals } from '@/hooks/useFinancingReferrals';
 import ProfileLoadNotice from '@/components/ProfileLoadNotice';
-import { financingDisclosure } from '@/utils/financing';
+import { financingDisclosure, FINANCING_FIGURES_ENABLED } from '@/utils/financing';
 import {
   FINANCING_EXPLAINER, FINANCING_TOGGLE_LABEL, FINANCING_TRACKING_LIMIT, financingReferralSummary,
 } from '@/utils/financingCore';
@@ -112,19 +112,19 @@ export default function PaymentsSetupScreen() {
     // Switched on without a lender's name, the offer would silently never
     // appear (financingConfigLive needs one) — say why instead.
     if (enabled && !finPartner.trim()) {
-      showAlert('Lender name needed', "Add your lender's name. Your client sees it on the button and in the note under it.");
+      showAlert('Lender Name Needed', "Add your lender's name. Your client sees it on the button and in the note under it.");
       return;
     }
     if (enabled && !/^https:\/\//i.test(url)) {
-      showAlert('Check the link', "Your lender's prequalification link must start with https://.");
+      showAlert('Check the Link', "Your lender's prequalification link must start with https://.");
       return;
     }
     if (finApr.trim() && !Number.isFinite(Number(finApr))) {
-      showAlert('Check the number', 'Example APR must be a number (e.g. 9.99).');
+      showAlert('Check the Number', 'Example APR must be a number (for example 9.99).');
       return;
     }
     if (finTerm.trim() && !Number.isFinite(Number(finTerm))) {
-      showAlert('Check the number', 'Example term must be a whole number of months (e.g. 60).');
+      showAlert('Check the Number', 'Example term must be a whole number of months (for example 60).');
       return;
     }
     const cfg: FinancingConfig = {
@@ -186,7 +186,7 @@ export default function PaymentsSetupScreen() {
 
   const handleStart = useCallback(async () => {
     if (!user?.id || !user?.email) {
-      showAlert('Sign in first', 'Sign in to set up payments.');
+      showAlert('Sign In First', 'Sign in to set up payments.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -219,7 +219,7 @@ export default function PaymentsSetupScreen() {
           return;
         }
         console.warn('[PaymentsSetup] start refused:', res.error);
-        showAlert('Couldn’t start setup', res.error ?? 'Stripe didn’t respond. Try again in a moment.');
+        showAlert('Couldn’t Start Setup', res.error ?? 'Stripe didn’t respond. Try again in a moment.');
         return;
       }
 
@@ -277,13 +277,13 @@ export default function PaymentsSetupScreen() {
         // No-op — we'll show the pending card.
       } else if (post.status === 'incomplete') {
         showAlert(
-          'Setup not finished',
+          'Setup Not Finished',
           'You can come back any time and pick up where you left off.',
         );
       }
     } catch (err) {
       console.error('[PaymentsSetup] start failed:', err);
-      showAlert('Couldn’t start setup', 'Try again.');
+      showAlert('Couldn’t Start Setup', 'Try again.');
     } finally {
       setStarting(false);
     }
@@ -338,7 +338,7 @@ export default function PaymentsSetupScreen() {
         )}
 
         <View style={styles.card}>
-          <Text style={styles.heroTitle}>Client financing</Text>
+          <Text style={styles.heroTitle}>Client Financing</Text>
           <Text style={styles.heroSub}>
             {FINANCING_EXPLAINER}
           </Text>
@@ -358,15 +358,19 @@ export default function PaymentsSetupScreen() {
             placeholder="Lender's prequalification link (https://…)" autoCapitalize="none" keyboardType="url" placeholderTextColor={themeColors.textMuted} />
           <TextInput style={styles.finInput} value={finRefCode} onChangeText={setFinRefCode}
             placeholder="Your referral code with the lender (optional)" autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
-          <View style={styles.finAprRow}>
+{/* No monthly figure or rate is shown to a client (FINANCING_FIGURES_ENABLED,
+              utils/financing.ts), so the example rate and term are not asked for. */}
+          {FINANCING_FIGURES_ENABLED ? (
+                    <View style={styles.finAprRow}>
             <TextInput style={[styles.finInput, { flex: 1 }]} value={finApr} onChangeText={setFinApr}
               placeholder="Example APR % (optional)" keyboardType="decimal-pad" placeholderTextColor={themeColors.textMuted} />
             <TextInput style={[styles.finInput, { flex: 1 }]} value={finTerm} onChangeText={setFinTerm}
               placeholder="Example term (months)" keyboardType="number-pad" placeholderTextColor={themeColors.textMuted} />
           </View>
+          ) : null}
 
           <TouchableOpacity style={styles.cta} onPress={() => saveFinancing(finEnabled)} testID="financing-save">
-            <Text style={styles.ctaText}>Save financing settings</Text>
+            <Text style={styles.ctaText}>Save Financing Settings</Text>
           </TouchableOpacity>
 
           <Text style={styles.finDisclosure}>
@@ -408,7 +412,7 @@ function NotConnectedCard({
       <View style={[styles.heroIcon, { backgroundColor: themeColors.accent + '15' }]}>
         <Wallet size={28} color={themeColors.accent} strokeWidth={1.75} />
       </View>
-      <Text style={styles.heroTitle}>Get paid faster</Text>
+      <Text style={styles.heroTitle}>Get Paid Online</Text>
       <Text style={styles.heroSub}>
         Connect your bank through Stripe's own sign-up form. Clients tap "Pay" in your invoice
         email and the money goes to your Stripe account.
@@ -433,7 +437,7 @@ function NotConnectedCard({
           <>
             <MageAIMark size={16} color="#fff" />
             <Text style={styles.ctaText}>
-              {status === 'incomplete' ? 'Continue setup' : 'Set up payments'}
+              {status === 'incomplete' ? 'Continue Setup' : 'Set Up Payments'}
             </Text>
           </>
         )}
@@ -461,7 +465,7 @@ function PendingCard({ onRefresh, refreshing }: { onRefresh: () => void; refresh
       <View style={[styles.heroIcon, { backgroundColor: Colors.warning + '15' }]}>
         <Clock size={28} color={Colors.warningLabel} strokeWidth={1.75} />
       </View>
-      <Text style={styles.heroTitle}>Stripe is reviewing your info</Text>
+      <Text style={styles.heroTitle}>Stripe Is Reviewing Your Info</Text>
       <Text style={styles.heroSub}>
         Your details have been submitted. Stripe usually verifies and enables payments within
         an hour, sometimes a few minutes. You'll get an email when it's done.
@@ -475,7 +479,7 @@ function PendingCard({ onRefresh, refreshing }: { onRefresh: () => void; refresh
         {refreshing ? <ActivityIndicator color="#fff" /> : (
           <>
             <RefreshCw size={16} color="#fff" strokeWidth={1.75} />
-            <Text style={styles.ctaText}>Check status</Text>
+            <Text style={styles.ctaText}>Check Status</Text>
           </>
         )}
       </TouchableOpacity>
@@ -492,7 +496,7 @@ function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: 
       <View style={[styles.heroIcon, { backgroundColor: themeColors.success + '15' }]}>
         <CheckCircle2 size={28} color={themeColors.success} strokeWidth={1.75} />
       </View>
-      <Text style={styles.heroTitle}>Payments connected</Text>
+      <Text style={styles.heroTitle}>Payments Connected</Text>
       <Text style={styles.heroSub}>
         Every invoice you send now includes a Pay button. {PAYOUT_TIMING_COPY}
       </Text>
@@ -505,7 +509,7 @@ function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: 
           </Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statLabel}>Platform fee</Text>
+          <Text style={styles.statLabel}>Platform Fee</Text>
           <Text style={styles.statValue}>{platformFeeLabel(tier)}</Text>
         </View>
       </View>

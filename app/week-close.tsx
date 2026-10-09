@@ -79,7 +79,7 @@ function WeekCloseInner() {
   // reader who has learned what it means on one surface should not have to learn
   // it again on another.
   const unreachableLine =
-    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+    `Couldn't reach MAGE. Showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}.`;
 
   // Stamp last-seen on mount — hides the home card until next week.
   // LOCAL date via the shared helper: WeekCloseCard compares ISO weeks of
@@ -177,7 +177,7 @@ function WeekCloseInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'Friday close',
+          title: 'Friday Close',
           headerShown: true,
           presentation: 'modal',
           headerRight: () => (
@@ -234,10 +234,10 @@ function WeekCloseInner() {
           onPress={markDone}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel="Close this week"
+          accessibilityLabel="Close This Week"
         >
           <CheckCircle2 size={16} color="#FFF" strokeWidth={2} />
-          <Text style={styles.doneBtnText}>Close this week</Text>
+          <Text style={styles.doneBtnText}>Close This Week</Text>
         </TouchableOpacity>
       </ScrollView>
     </>

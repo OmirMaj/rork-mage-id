@@ -61,7 +61,7 @@ export function BriefingHero({ greetingName, attentionCount, activeCount, onOpen
             onPress={onOpenTools}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityRole="button"
-            accessibilityLabel="More tools"
+            accessibilityLabel="More Tools"
             testID="summary-tools-button"
           >
             <MoreHorizontal size={20} color={colors.textSecondary} strokeWidth={1.75} />

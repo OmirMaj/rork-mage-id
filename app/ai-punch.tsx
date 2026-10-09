@@ -241,7 +241,7 @@ function AiPunchScreenInner() {
       const isPicked = prev.find(p => p.id === id);
       if (isPicked) return prev.filter(p => p.id !== id);
       if (prev.length >= 12) {
-        showAlert(t('field.punch.ai.max12Photos', 'Max 12 photos'), t('field.punch.ai.pickTheClearestShots', 'Pick the clearest shots. Each run reads up to 12 photos.'));
+        showAlert(t('field.punch.ai.max12Photos', 'Max 12 Photos'), t('field.punch.ai.pickTheClearestShots', 'Pick the clearest shots. Each run reads up to 12 photos.'));
         return prev;
       }
       return [...prev, { id, uri, fromProject: true }];
@@ -251,12 +251,12 @@ function AiPunchScreenInner() {
   const handlePickFromCameraRoll = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      showAlert(t('field.punch.ai.photoAccessNeeded', 'Photo access needed'), t('field.punch.ai.grantPhotoAccessIn', 'Grant photo access in Settings to pick photos.'));
+      showAlert(t('field.punch.ai.photoAccessNeeded', 'Photo Access Needed'), t('field.punch.ai.grantPhotoAccessIn', 'Grant photo access in Settings to pick photos.'));
       return;
     }
     const remaining = 12 - pickedPhotos.length;
     if (remaining <= 0) {
-      showAlert(t('field.punch.ai.max12Photos', 'Max 12 photos'), t('field.punch.ai.removeAPhotoBefore', 'Remove a photo before adding more.'));
+      showAlert(t('field.punch.ai.max12Photos', 'Max 12 Photos'), t('field.punch.ai.removeAPhotoBefore', 'Remove a photo before adding more.'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -276,11 +276,11 @@ function AiPunchScreenInner() {
   const handleTakePhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      showAlert(t('field.punch.ai.cameraAccessNeeded', 'Camera access needed'), t('field.punch.ai.grantCameraPermissionIn', 'Grant camera permission in Settings.'));
+      showAlert(t('field.punch.ai.cameraAccessNeeded', 'Camera Access Needed'), t('field.punch.ai.grantCameraPermissionIn', 'Grant camera permission in Settings.'));
       return;
     }
     if (pickedPhotos.length >= 12) {
-      showAlert(t('field.punch.ai.max12Photos', 'Max 12 photos'), t('field.punch.ai.removeAPhotoBefore2', 'Remove a photo before taking more.'));
+      showAlert(t('field.punch.ai.max12Photos', 'Max 12 Photos'), t('field.punch.ai.removeAPhotoBefore2', 'Remove a photo before taking more.'));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
@@ -291,11 +291,11 @@ function AiPunchScreenInner() {
   // ── Step 2: analyze ──────────────────────────────────────────
   const handleAnalyze = useCallback(async () => {
     if (writeBlock) {
-      showAlert(t('field.punch.ai.cantAddItems', "Can't add items"), writeBlock);
+      showAlert(t('field.punch.ai.cantAddItems', "Can't Add Items"), writeBlock);
       return;
     }
     if (pickedPhotos.length === 0) {
-      showAlert(t('field.punch.ai.pickAtLeastOne', 'Pick at least one photo first'));
+      showAlert(t('field.punch.ai.pickAtLeastOne', 'Pick at Least One Photo First'));
       return;
     }
     // Photo Analysis is a Pro+ feature — vision API calls are 2-3x the cost
@@ -329,14 +329,14 @@ function AiPunchScreenInner() {
     // whole fix and this early return becomes the bug.
     if (collaboratorGranted && !tierMeetsRequirement(subscriptionTier, 'pro')) {
       showAlert(
-        t('field.punch.ai.punchFromPhotosIs', 'Punch from photos is on the Pro plan'),
+        t('field.punch.ai.punchFromPhotosIs', 'Punch from Photos is on the Pro plan.'),
         t('field.punch.ai.youWereInvitedTo', 'You were invited to this project, so you can work its punch list. Reading photos runs on your own plan, which is Free. Ask the project owner to run it, or see plans.'),
         // Keep the upgrade path one tap away: the old (wrong) "buy Pro" prompt
         // at least deep-linked here, and losing that would trade one dead end
         // for another.
         [
-          { text: t('field.punch.ai.notNow', 'Not now'), style: 'cancel' },
-          { text: t('field.punch.ai.seePlans', 'See plans'), onPress: () => router.push('/paywall') },
+          { text: t('field.punch.ai.notNow', 'Not Now'), style: 'cancel' },
+          { text: t('field.punch.ai.seePlans', 'See Plans'), onPress: () => router.push('/paywall') },
         ],
       );
       return;
@@ -454,11 +454,11 @@ function AiPunchScreenInner() {
   const handleSaveOne = useCallback(async (item: ReviewableItem, presetStamp?: PhotoGeoStamp | null) => {
     if (!project || item.saved) return;
     if (writeBlock) {
-      showAlert(t('field.punch.ai.cantSave', "Can't save"), writeBlock);
+      showAlert(t('field.punch.ai.cantSave', "Can't Save"), writeBlock);
       return;
     }
     if (!item.editedDescription.trim()) {
-      showAlert(t('field.punch.ai.addADescription', 'Add a description'));
+      showAlert(t('field.punch.ai.addADescription', 'Add a Description'));
       return;
     }
     let stamp: PhotoGeoStamp | null = null;
@@ -475,7 +475,7 @@ function AiPunchScreenInner() {
     if (!project) return;
     // LS-5: belt and braces — the button is off for a viewer, and so is this.
     if (writeBlock) {
-      showAlert(t('field.punch.ai.cantSave', "Can't save"), writeBlock);
+      showAlert(t('field.punch.ai.cantSave', "Can't Save"), writeBlock);
       return;
     }
     const pending = reviewItems.filter(r => !r.saved && !r.discarded);
@@ -525,9 +525,9 @@ function AiPunchScreenInner() {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow={t('field.punch.ai.eyebrow', 'Punch from photos · MAGE ID')} title={t('field.punch.ai.punchFromPhotos', 'Punch from photos')} />
+        <ToolHeader eyebrow={t('field.punch.ai.eyebrow', 'Punch from Photos · MAGE ID')} title={t('field.punch.ai.punchFromPhotos', 'Punch from Photos')} />
         <ToolProjectPicker
-          toolName={t('field.punch.ai.punchFromPhotos', 'Punch from photos')}
+          toolName={t('field.punch.ai.punchFromPhotos', 'Punch from Photos')}
           message={t('field.punch.ai.pickerMessage', 'Turn walkthrough photos into punch items. MAGE drafts them, and you review and save them to the project.')}
           projects={projects}
           onPick={setPickedProjectId}
@@ -540,7 +540,7 @@ function AiPunchScreenInner() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <ToolHeader eyebrow={t('field.punch.ai.eyebrow', 'Punch from photos · MAGE ID')} title={project.name} />
+        <ToolHeader eyebrow={t('field.punch.ai.eyebrow', 'Punch from Photos · MAGE ID')} title={project.name} />
         <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }}>
           {/* Hero — mirrors Construction AI's centered icon-circle pattern
               (round 56px primary-tint circle + 24pt title + muted centered
@@ -550,7 +550,7 @@ function AiPunchScreenInner() {
             <View style={styles.heroIconWrap}>
               <MageAIMark size={28} color={themeColors.accent} />
             </View>
-            <Text style={styles.heroTitle}>{t('field.punch.ai.punchFromPhotos', 'Punch from photos')}</Text>
+            <Text style={styles.heroTitle}>{t('field.punch.ai.punchFromPhotos', 'Punch from Photos')}</Text>
             <Text style={styles.heroSub}>
               {reviewItems.length > 0
                 ? t('field.punch.ai.reviewWhatMageFound', 'Review what MAGE found. Edit, save or discard each item.')
@@ -571,7 +571,7 @@ function AiPunchScreenInner() {
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handlePickFromCameraRoll} activeOpacity={0.85}>
                     <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.sourceBtnText}>{t('field.punch.ai.photoLibrary', 'Photo library')}</Text>
+                    <Text style={styles.sourceBtnText}>{t('field.punch.ai.photoLibrary', 'Photo Library')}</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.sectionSub}>{t('field.punch.ai.of12Picked', '{length} of 12 picked', { length: pickedPhotos.length })}</Text>
@@ -580,7 +580,7 @@ function AiPunchScreenInner() {
               {/* Picked photos preview */}
               {pickedPhotos.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>{t('field.punch.ai.pickedPhotos', 'Picked photos')}</Text>
+                  <Text style={styles.sectionTitle}>{t('field.punch.ai.pickedPhotos', 'Picked Photos')}</Text>
                   <View style={styles.thumbGrid}>
                     {pickedPhotos.map(p => (
                       <View key={p.id} style={styles.thumbWrap}>
@@ -605,10 +605,10 @@ function AiPunchScreenInner() {
               {projectPhotos.length > 0 && (
                 <View style={styles.section}>
                   <View style={styles.galleryHead}>
-                    <Text style={styles.sectionTitle}>{t('field.punch.ai.orPickFromProject', 'Or pick from project gallery')}</Text>
+                    <Text style={styles.sectionTitle}>{t('field.punch.ai.orPickFromProject', 'Or Pick from Project Gallery')}</Text>
                     {projectPhotos.length > 30 && (
                       <TouchableOpacity onPress={() => setShowAllGallery(s => !s)} hitSlop={10}>
-                        <Text style={styles.galleryToggle}>{showAllGallery ? t('field.punch.ai.showRecent', 'Show recent') : t('field.punch.ai.showAll', 'Show all {length}', { length: projectPhotos.length })}</Text>
+                        <Text style={styles.galleryToggle}>{showAllGallery ? t('field.punch.ai.showRecent', 'Show Recent') : t('field.punch.ai.showAll', 'Show all {length}', { length: projectPhotos.length })}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -652,10 +652,10 @@ function AiPunchScreenInner() {
                   onPress={() => { setError(null); setReviewItems([]); }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel={t('field.punch.ai.pickPhotosAgain', 'Pick photos again')}
+                  accessibilityLabel={t('field.punch.ai.pickPhotosAgain', 'Pick Photos Again')}
                 >
                   <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.retryBtnText}>{t('field.punch.ai.pickPhotosAgain', 'Pick photos again')}</Text>
+                  <Text style={styles.retryBtnText}>{t('field.punch.ai.pickPhotosAgain', 'Pick Photos Again')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -700,7 +700,7 @@ function AiPunchScreenInner() {
                     <View style={styles.reviewBody}>
                       <View style={styles.reviewMetaRow}>
                         <View style={[styles.confidenceDot, { backgroundColor: item.confidence >= 80 ? themeColors.success : Colors.warning }]} />
-                        <Text style={styles.reviewMeta}>{t('field.punch.ai.aiConfidence', 'AI confidence {confidence}%', { confidence: item.confidence })}</Text>
+                        <Text style={styles.reviewMeta}>{t('field.punch.ai.aiConfidence', 'AI self-rating {confidence}%', { confidence: item.confidence })}</Text>
                       </View>
                       <TextInput
                         style={styles.reviewInput}
@@ -742,7 +742,7 @@ function AiPunchScreenInner() {
                         ) : (
                           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
                             <Check size={Type.caption1.fontSize} color={themeColors.success} strokeWidth={2.5} />
-                            <Text style={[styles.savedFlag, { flex: 0, textAlign: 'left' }]}>{t('field.punch.ai.savedToPunchList', 'Saved to punch list')}</Text>
+                            <Text style={[styles.savedFlag, { flex: 0, textAlign: 'left' }]}>{t('field.punch.ai.savedToPunchList', 'Saved to Punch List')}</Text>
                           </View>
                         )}
                       </View>
@@ -801,7 +801,7 @@ function AiPunchScreenInner() {
               onPress={() => router.replace({ pathname: '/punch-list' as never, params: { projectId: project.id } as never })}
               activeOpacity={0.85}
             >
-              <Text style={styles.fabPrimaryText}>{t('field.punch.ai.openPunchList', 'Open punch list')}</Text>
+              <Text style={styles.fabPrimaryText}>{t('field.punch.ai.openPunchList', 'Open Punch List')}</Text>
               <ChevronRight size={16} color="#FFF" strokeWidth={1.75} />
             </TouchableOpacity>
           )}

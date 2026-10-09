@@ -520,7 +520,7 @@ export function planCoScheduleReflow(
   return {
     status: 'ready',
     message:
-      `"${anchor.title}" absorbs ${pluralDays(impactDays)} (${anchor.durationDays}d → ${anchor.durationDays + impactDays}d). ` +
+      `"${anchor.title}" absorbs ${pluralDays(impactDays)} (${anchor.durationDays}d to ${anchor.durationDays + impactDays}d). ` +
       `${shifts.length} downstream task${shifts.length === 1 ? '' : 's'} shift and the finish moves ` +
       `${finishDeltaDays === 0 ? 'not at all' : `${finishDeltaDays > 0 ? '+' : ''}${pluralDays(Math.abs(finishDeltaDays))}`}.`,
     impactDays,
@@ -639,7 +639,7 @@ export function applyCoScheduleReflow(
     summary:
       `CO #${co.number} approved: +${pluralDays(plan.impactDays)} on "${plan.anchorTaskTitle}" ` +
       `(${describeAnchorReason(plan.anchorReason)}). ${plan.shifts.length} task(s) shifted, ` +
-      `finish ${plan.finishBefore} → ${plan.finishAfter}.`,
+      `finish ${plan.finishBefore} to ${plan.finishAfter}.`,
     before: {
       anchorDurationDays: plan.anchorDurationBefore,
       projectFinishDay: plan.finishBefore,
@@ -665,7 +665,7 @@ export function applyCoScheduleReflow(
     timestamp: now,
     detail:
       `+${pluralDays(plan.impactDays)} applied to "${plan.anchorTaskTitle}" ` +
-      `(${describeAnchorReason(plan.anchorReason)}); finish ${plan.finishBefore} → ${plan.finishAfter}.`,
+      `(${describeAnchorReason(plan.anchorReason)}); finish ${plan.finishBefore} to ${plan.finishAfter}.`,
   };
 
   const coPatch: Partial<ChangeOrder> = {
@@ -694,7 +694,7 @@ export function buildDeferredCoAuditEntry(
     action: CO_REFLOW_UNANCHORED_ACTION,
     actor: opts.actor ?? 'anonymous',
     timestamp: opts.now ?? new Date().toISOString(),
-    detail: `${pluralDays(normalizeImpactDays(impactDays))} not applied to the schedule yet — approved in the client portal; review and place them from the project.`,
+    detail: `${pluralDays(normalizeImpactDays(impactDays))} not applied to the schedule yet. Approved in the client portal; review and place them from the project.`,
   };
 }
 
@@ -715,6 +715,6 @@ export function buildUnanchoredCoAuditEntry(
     action: CO_REFLOW_UNANCHORED_ACTION,
     actor: opts.actor ?? 'anonymous',
     timestamp: opts.now ?? new Date().toISOString(),
-    detail: `${pluralDays(plan.impactDays)} not applied to the schedule — ${plan.message}`,
+    detail: `${pluralDays(plan.impactDays)} not applied to the schedule. ${plan.message}`,
   };
 }

@@ -62,7 +62,7 @@ function collectText(node: unknown, out: string[] = []): string[] {
 }
 
 /** Rendered by CashFlowSetup's header — present only while the sheet is up. */
-const SHEET_MARKER = 'Set up cash flow';
+const SHEET_MARKER = 'Set Up Cash Flow';
 /** Rendered by the cash-flow screen's own FeatureHeader — present while the
  *  screen is mounted, whether or not it is the screen on top. */
 const SCREEN_MARKER = 'When will money come in?';
@@ -73,8 +73,8 @@ const SCREEN_MARKER = 'When will money come in?';
 const PUSHED_MARKER = 'The budget dashboard tracks earned value (CPI / SPI) for one project at a time.';
 /** CashFlowSetup step titles. Step 0 is what a fresh open shows; step 1 is
  *  where the round-trip below leaves the wizard. */
-const STEP_0_TITLE = 'Current bank balance';
-const STEP_1_TITLE = 'Recurring expenses';
+const STEP_0_TITLE = 'Current Bank Balance';
+const STEP_1_TITLE = 'Recurring Expenses';
 
 describe('cash flow — a native sheet is dismissed when the screen is not the one on top', () => {
   it('auto-opens the setup wizard on a fresh account (the premise of the bug)', async () => {

@@ -179,7 +179,7 @@ export default function DatePickerModal({
         <View style={styles.card}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>{title ?? t('field.chrome.datePicker.title', 'Pick a date')}</Text>
+            <Text style={styles.title}>{title ?? t('field.chrome.datePicker.title', 'Pick a Date')}</Text>
             <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel={t('field.chrome.datePicker.close', 'Close')}>
               <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>

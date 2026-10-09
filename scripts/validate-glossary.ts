@@ -23,7 +23,7 @@ for (const [mapKey, e] of entries) {
 }
 
 // getGlossaryEntry behaves
-ok('getGlossaryEntry returns a known term', getGlossaryEntry('change_order')?.term === 'Change order');
+ok('getGlossaryEntry returns a known term', getGlossaryEntry('change_order')?.term === 'Change Order');
 ok('getGlossaryEntry returns null for unknown', getGlossaryEntry('not_a_real_term') === null);
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -107,14 +107,14 @@ export function computeMarginRisk({
   const m = le.original.marginPct;
   const thinMargin: RiskFactor = {
     key: 'thin_margin',
-    label: 'Thin bid margin',
+    label: 'Thin Bid Margin',
     risk: clamp01((0.18 - m) / 0.18),
     weight: 1.4,
     contribution: 0,
     detail: `Bid at ${pct1(m)} margin`,
     recommendation:
       m < 0.1
-        ? 'Razor-thin to start — protect scope and price every change.'
+        ? 'Razor-thin to start. Protect scope and price every change.'
         : 'Little cushion; defend margin on buyout and COs.',
   };
 
@@ -122,7 +122,7 @@ export function computeMarginRisk({
   const erosionMag = Math.max(0, -le.marginErosionPoints);
   const erosion: RiskFactor = {
     key: 'erosion',
-    label: 'Margin eroding',
+    label: 'Margin Eroding',
     risk: clamp01(erosionMag / 6),
     weight: 1.5,
     contribution: 0,
@@ -135,7 +135,7 @@ export function computeMarginRisk({
   const cov = jc.commitmentCoverage; // 0–100
   const buyoutExposure: RiskFactor = {
     key: 'buyout_exposure',
-    label: 'Unbought-out scope',
+    label: 'Unbought-Out Scope',
     risk: isClosed ? 0 : clamp01((75 - cov) / 75),
     weight: 1.0,
     contribution: 0,
@@ -150,7 +150,7 @@ export function computeMarginRisk({
   const allowanceShare = openAllowance / grandTotal;
   const allowance: RiskFactor = {
     key: 'allowances',
-    label: 'Open allowances',
+    label: 'Open Allowances',
     risk: clamp01(allowanceShare / 0.15),
     weight: 1.0,
     contribution: 0,
@@ -166,7 +166,7 @@ export function computeMarginRisk({
   const overrun = jc.budget > 0 ? Math.max(0, jc.projectedFinal - jc.budget) / jc.budget : 0;
   const overrunTrend: RiskFactor = {
     key: 'overrun',
-    label: 'Cost-overrun trend',
+    label: 'Cost-Overrun Trend',
     risk: clamp01(overrun / 0.05),
     weight: 1.2,
     contribution: 0,
@@ -184,7 +184,7 @@ export function computeMarginRisk({
   const pendingShare = le.pendingChangeOrders / contract;
   const scopeVolatility: RiskFactor = {
     key: 'scope_volatility',
-    label: 'Unsigned change orders',
+    label: 'Unsigned Change Orders',
     risk: clamp01(pendingShare / 0.1),
     weight: 0.6,
     contribution: 0,
@@ -192,14 +192,14 @@ export function computeMarginRisk({
       le.pendingChangeOrders > 0
         ? `${money(le.pendingChangeOrders)} in unapproved change orders`
         : 'No pending change orders',
-    recommendation: 'Get pending COs signed — unbanked scope is margin at risk.',
+    recommendation: 'Get pending COs signed. Unbanked scope is margin at risk.',
   };
 
   // 7 — Overcommitted subs: commitments signed above their linked estimate.
   const overCount = jc.overcommittedCommitments.length;
   const overcommitted: RiskFactor = {
     key: 'overcommitted',
-    label: 'Overcommitted subs',
+    label: 'Overcommitted Subs',
     risk: clamp01(overCount / 3),
     weight: 0.8,
     contribution: 0,
@@ -236,9 +236,9 @@ export function computeMarginRisk({
 
 export function riskBandLabel(band: RiskBand): string {
   switch (band) {
-    case 'low': return 'Low risk';
-    case 'moderate': return 'Moderate risk';
-    case 'elevated': return 'Elevated risk';
-    case 'high': return 'High risk';
+    case 'low': return 'Low Risk';
+    case 'moderate': return 'Moderate Risk';
+    case 'elevated': return 'Elevated Risk';
+    case 'high': return 'High Risk';
   }
 }

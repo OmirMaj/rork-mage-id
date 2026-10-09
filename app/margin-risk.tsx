@@ -92,17 +92,17 @@ function MarginRiskInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Margin risk' }} />
+        <Stack.Screen options={{ title: 'Margin Risk' }} />
         <EmptyState
           icon={<ShieldAlert size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No project to score yet"
+          title="No Project to Score Yet"
           message="The margin risk score weighs the signals that predict whether a project will lose margin. To see one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Build an estimate with markup so there is a margin to protect.',
             'Tap Margin risk to see the score and what is driving it.',
           ]}
-          actionLabel="Open projects"
+          actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -121,7 +121,7 @@ function MarginRiskInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Margin risk · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Margin Risk · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -133,7 +133,7 @@ function MarginRiskInner() {
             style={styles.loading}
             testID="margin-risk-loading"
             accessibilityRole="progressbar"
-            accessibilityLabel="Loading crew hours and receipts"
+            accessibilityLabel="Loading Crew Hours and Receipts"
           >
             <ActivityIndicator size="small" color={t.accent} />
             <Text style={styles.loadingText}>Loading crew hours and receipts before scoring…</Text>
@@ -141,7 +141,7 @@ function MarginRiskInner() {
         ) : !risk?.hasBasis ? (
           <View style={styles.infoCard}>
             <ShieldAlert size={26} color={t.accent} strokeWidth={1.7} />
-            <Text style={styles.infoTitle}>No margin to score yet</Text>
+            <Text style={styles.infoTitle}>No Margin to Score Yet</Text>
             <Text style={styles.infoBody}>
               This project&apos;s estimate doesn&apos;t carry a cost-and-markup split, so there&apos;s
               no bid margin to protect. Apply markup on the estimate and the risk score
@@ -152,7 +152,7 @@ function MarginRiskInner() {
           <>
             {/* Score hero */}
             <View style={[styles.hero, { borderColor: bandColor }]}>
-              <Text style={styles.heroLabel}>Margin risk score</Text>
+              <Text style={styles.heroLabel}>Margin Risk Score</Text>
               <View style={styles.heroScoreRow}>
                 <Text style={[styles.heroScore, { color: bandColor }]}>{risk.score}</Text>
                 <Text style={styles.heroOutOf}>/ 100</Text>
@@ -166,7 +166,7 @@ function MarginRiskInner() {
               </View>
               <Text style={styles.heroSub}>
                 {risk.topFactors.length > 0
-                  ? `${risk.topFactors.length} factor${risk.topFactors.length === 1 ? '' : 's'} driving risk — act on the top ones below.`
+                  ? `${risk.topFactors.length} factor${risk.topFactors.length === 1 ? '' : 's'} driving risk. Act on the top ones below.`
                   : 'No meaningful risk signals right now. Keep buyout and COs tight.'}
               </Text>
             </View>
@@ -174,7 +174,7 @@ function MarginRiskInner() {
             {/* Top factors with recommendations */}
             {risk.topFactors.length > 0 && (
               <>
-                <Text style={styles.sectionTitle}>What to act on</Text>
+                <Text style={styles.sectionTitle}>What to Act On</Text>
                 {risk.topFactors.map(f => (
                   <FactorCard key={f.key} f={f} t={t} styles={styles} />
                 ))}
@@ -182,7 +182,7 @@ function MarginRiskInner() {
             )}
 
             {/* Full breakdown */}
-            <Text style={styles.sectionTitle}>All factors</Text>
+            <Text style={styles.sectionTitle}>All Factors</Text>
             <View style={styles.breakdownCard}>
               {risk.factors.map((f, i) => {
                 const fc = f.risk >= 0.6 ? t.danger : f.risk >= 0.3 ? t.accentHot : f.risk >= 0.15 ? t.accent : t.textMuted;
@@ -203,7 +203,7 @@ function MarginRiskInner() {
 
             <Text style={styles.note}>
               Score blends seven weighted signals from your estimate, change orders,
-              commitments, and invoices. It is a guide, not a guarantee — pair it with the
+              commitments, and invoices. It is a guide, not a guarantee. Pair it with the
               Living Estimate for the dollar detail.
             </Text>
 
@@ -213,7 +213,7 @@ function MarginRiskInner() {
               activeOpacity={0.8}
             >
               <Activity size={16} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.linkRowText}>Open the living estimate</Text>
+              <Text style={styles.linkRowText}>Open the Living Estimate</Text>
               <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </>

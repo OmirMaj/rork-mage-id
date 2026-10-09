@@ -40,9 +40,9 @@ export type ConstraintCategory =
   | 'prior_work' | 'inspection' | 'selection' | 'access' | 'other';
 
 export const CONSTRAINT_LABELS: Record<ConstraintCategory, string> = {
-  materials: 'Materials', labor: 'Labor / crew', equipment: 'Equipment',
-  permit: 'Permit', design_info: 'Design info / RFI', prior_work: 'Prior work',
-  inspection: 'Inspection', selection: 'Owner selection', access: 'Site access',
+  materials: 'Materials', labor: 'Labor / Crew', equipment: 'Equipment',
+  permit: 'Permit', design_info: 'Design Info / RFI', prior_work: 'Prior Work',
+  inspection: 'Inspection', selection: 'Owner Selection', access: 'Site Access',
   other: 'Other',
 };
 
@@ -66,10 +66,10 @@ export type VarianceReason =
   | 'owner_decision' | 'permit' | 'inspection' | 'scope_change' | 'other';
 
 export const VARIANCE_LABELS: Record<VarianceReason, string> = {
-  prereq: 'Prior work not done', materials: 'Materials late', labor: 'Crew unavailable',
-  weather: 'Weather', rework: 'Rework / quality', owner_decision: 'Owner decision pending',
-  permit: 'Permit / approval', inspection: 'Failed / pending inspection',
-  scope_change: 'Scope change', other: 'Other',
+  prereq: 'Prior Work Not Done', materials: 'Materials Late', labor: 'Crew Unavailable',
+  weather: 'Weather', rework: 'Rework / Quality', owner_decision: 'Owner Decision Pending',
+  permit: 'Permit / Approval', inspection: 'Failed / Pending Inspection',
+  scope_change: 'Scope Change', other: 'Other',
 };
 
 export interface WeeklyCommitment {

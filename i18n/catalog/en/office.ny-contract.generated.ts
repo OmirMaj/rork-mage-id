@@ -7,8 +7,8 @@ import type { EnCatalog } from '../../types';
 export const EN: EnCatalog = {
   "office.nyContract.alert.body": { one: "{count} item on the New York checklist is missing. You can still send it.", other: "{count} items on the New York checklist are missing. You can still send it." },
   "office.nyContract.alert.continue": "Continue",
-  "office.nyContract.alert.review": "Review the list",
-  "office.nyContract.alert.title": "Some New York items are missing",
+  "office.nyContract.alert.review": "Review the List",
+  "office.nyContract.alert.title": "Some New York items are missing.",
   "office.nyContract.allFound": "Nothing missing. Check the flagged items with your counsel.",
   "office.nyContract.counsel": "To be confirmed by counsel",
   "office.nyContract.disclaimer": "This is a checklist, not legal advice.",
@@ -21,5 +21,5 @@ export const EN: EnCatalog = {
   "office.nyContract.status.found": "Found",
   "office.nyContract.status.missing": "Missing",
   "office.nyContract.summary": "{missing} missing · {check} to check",
-  "office.nyContract.title": "New York contract checklist",
+  "office.nyContract.title": "New York Contract Checklist",
 };

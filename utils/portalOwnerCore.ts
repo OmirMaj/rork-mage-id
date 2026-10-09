@@ -368,7 +368,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
       ...base,
       gap: 'no_activity',
       headline:
-        `Nothing was logged on this project between ${formatDateRange(periodFrom, periodTo)} — ` +
+        `Nothing was logged on this project between ${formatDateRange(periodFrom, periodTo)}: ` +
         'no photos, daily reports, or completed milestones. Ask your contractor what this billing period covers before you pay.',
     };
   }
@@ -387,7 +387,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
   let headline = `${subject}.`;
   if (photoCount > 0 && photoFrom && photoTo) {
     const range = photoFrom === photoTo ? formatCalendarDate(photoFrom) : `${formatCalendarDate(photoFrom)}–${formatCalendarDate(photoTo)}`;
-    headline = `${subject} — ${photoCount} ${plural(photoCount, 'photo')} from ${range}.`;
+    headline = `${subject}: ${photoCount} ${plural(photoCount, 'photo')} from ${range}.`;
   }
 
   // ── Bullets: only facts we counted. Each maps 1:1 to rows the portal shows.
@@ -407,7 +407,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
   }
   if (photoCount > 0 && photoFrom && photoTo) {
     const range = photoFrom === photoTo ? formatCalendarDate(photoFrom, true) : formatDateRange(photoFrom, photoTo);
-    bullets.push(`${photoCount} ${plural(photoCount, 'photo')} taken ${photoFrom === photoTo ? 'on' : 'between'} ${range} — see the Photos section.`);
+    bullets.push(`${photoCount} ${plural(photoCount, 'photo')} taken ${photoFrom === photoTo ? 'on' : 'between'} ${range}. See the Photos section.`);
   }
 
   return {
@@ -538,13 +538,13 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     push({
       id: 'contract',
       kind: 'contract',
-      title: 'Contract waiting for your signature',
+      title: 'Contract Waiting for Your Signature',
       // NOTE: `detail` never bakes a live day count. The static portal caches
       // this list in a snapshot and re-ages it in the browser, so the elapsed
       // number lives in `waitingDays` / `daysOverdue` (rendered in the badge)
       // and the prose only ever states a fixed DATE. Otherwise a week-old
       // snapshot would read "3 days past due" next to a badge saying 10.
-      detail: 'Review the scope, payment schedule, and warranty, then counter-sign to make it binding.',
+      detail: 'Review the scope, payment schedule, and warranty, then counter-sign.',
       urgency: 'waiting',
       waitingDays,
       target: 'sec-contract',
@@ -585,7 +585,7 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
       // what this page can and cannot do, and names the thing to ask for.
       detail: input.coApprovalEnabled
         ? 'Review the scope and the change to your contract total, then sign to approve or decline with a reason.'
-        : 'Signing is switched off for this portal, so there is no approve button here. Reply in Messages with your answer, then ask your contractor to send this one for signature — a message is not a signed change to your contract.',
+        : 'Signing is switched off for this portal, so there is no approve button here. Reply in Messages with your answer, then ask your contractor to send this one for signature. A message is not a signed change to your contract.',
       urgency: 'waiting',
       waitingDays,
       amount,
@@ -608,14 +608,14 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     } else if (urgency === 'due_soon') {
       detail = `Due ${formatCalendarDate(dueDate!, true)}. Picking now keeps the crew and the delivery on schedule.`;
     } else if (dueDate) {
-      detail = `Due ${formatCalendarDate(dueDate, true)}. Pick when you're ready — earlier is easier to schedule.`;
+      detail = `Due ${formatCalendarDate(dueDate, true)}. Pick when you're ready. Earlier is easier to schedule.`;
     } else {
       detail = 'Pick a finish so your contractor can order it and hold the schedule.';
     }
     push({
       id: sel.id,
       kind: 'selection',
-      title: `${category} — pick your option`,
+      title: `${category}: pick your option`,
       detail,
       urgency,
       dueDate: dueDate ?? undefined,

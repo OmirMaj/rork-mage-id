@@ -161,9 +161,9 @@ console.log('\nA1 — today\'s photos in one tap:');
   ok('a gallery photo keeps its id, storage path and capture GPS', conv.id === 'g' && conv.storagePath === 'u/p/g.jpg' && conv.latitude === 40.7 && conv.locationLabel === 'Site');
 
   const dr = code('app/daily-report.tsx');
-  const iWork = dr.indexOf("t('field.dfr.workPerformed', 'Work performed')}</Text>");
+  const iWork = dr.indexOf("t('field.dfr.workPerformed', 'Work Performed')}</Text>");
   const iPhotos = dr.indexOf("t('field.dfr.photos10', 'Photos ({length}/10)'");
-  const iMats = dr.indexOf("t('field.dfr.materialsDelivered', 'Materials delivered')}</Text>");
+  const iMats = dr.indexOf("t('field.dfr.materialsDelivered', 'Materials Delivered')}</Text>");
   ok('Photos renders directly under Work Performed', iWork > 0 && iPhotos > iWork && iMats > iPhotos, `${iWork} ${iPhotos} ${iMats}`);
   ok('the chip is in the Photos card and needs the tap', /testID="dfr-add-todays-photos"/.test(dr) && /onPress=\{handleAddTodaysPhotos\}/.test(dr));
   ok('both one-tap plans read the ticket-free list, never the raw day photos',
@@ -178,7 +178,7 @@ console.log('\nA1 — today\'s photos in one tap:');
   ok('the door is above the first field and holds Say it + From today\'s photos', iDoor > 0 && iVoice > iDoor && iPhotoChoice > iVoice && iFirstField > iPhotoChoice);
   ok('the photo draft keeps its own gate and metering (not the dictation parser)',
     /<AIDFRFromPhotos[\s\S]{0,400}isLocked=\{voiceBlocked\}/.test(dr) && /recordAIUsage\('fast', 'voiceCapture'\)/.test(dr));
-  ok('each choice shows its own lock', /voiceBlocked\s*\n?\s*\? <Lock/.test(dr) && /label=\{t\('field\.dfr\.dictateTheDay', 'Dictate the day'\)\}/.test(dr));
+  ok('each choice shows its own lock', /voiceBlocked\s*\n?\s*\? <Lock/.test(dr) && /label=\{t\('field\.dfr\.dictateTheDay', 'Dictate the Day'\)\}/.test(dr));
   ok('the save does not mirror a gallery photo back as a duplicate', (dr.match(/inGallery\.has\(p\.id\)/g) ?? []).length === 2);
   ok('A5: the form save clears the voice marker', /updateDailyReport\(savedRecord\.id, withVoiceOriginCleared\(\{/.test(dr));
 }

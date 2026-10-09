@@ -60,7 +60,7 @@ export const ASSEMBLIES: AssemblyItem[] = [
   },
   {
     id: 'asm-drywall-hang-finish',
-    name: 'Hang & Finish Drywall',
+    name: 'Hang and Finish Drywall',
     category: 'drywall',
     description: 'Install 1/2" drywall including taping, mudding (3 coats), and sanding to Level 4 finish',
     unit: 'per SF',
@@ -214,7 +214,7 @@ export const ASSEMBLIES: AssemblyItem[] = [
     id: 'asm-plumb-bathroom',
     name: 'Plumb Bathroom (rough-in)',
     category: 'plumbing',
-    description: 'Complete rough-in plumbing for standard bathroom — toilet, sink, tub/shower',
+    description: 'Complete rough-in plumbing for standard bathroom: toilet, sink, tub/shower',
     unit: 'per EA',
     materialsPerUnit: [
       { materialId: 'p7', name: '1/2" PEX-A Pipe', quantityPerUnit: 0.5, unit: 'roll', wasteFactor: 0.10 },
@@ -232,7 +232,7 @@ export const ASSEMBLIES: AssemblyItem[] = [
     id: 'asm-plumb-kitchen',
     name: 'Plumb Kitchen (rough-in)',
     category: 'plumbing',
-    description: 'Rough-in plumbing for kitchen — sink, dishwasher, ice maker line',
+    description: 'Rough-in plumbing for kitchen: sink, dishwasher, ice maker line',
     unit: 'per EA',
     materialsPerUnit: [
       { materialId: 'p7', name: '1/2" PEX-A Pipe', quantityPerUnit: 0.3, unit: 'roll', wasteFactor: 0.10 },
@@ -249,7 +249,7 @@ export const ASSEMBLIES: AssemblyItem[] = [
     id: 'asm-paint-interior',
     name: 'Paint Interior (2 coats)',
     category: 'paint',
-    description: 'Prime and paint interior walls — 2 coats latex eggshell over primer',
+    description: 'Prime and paint interior walls, 2 coats latex eggshell over primer',
     unit: 'per SF',
     materialsPerUnit: [
       { materialId: 'pa1', name: 'Interior Latex Paint Eggshell', quantityPerUnit: 0.003, unit: 'gallon', wasteFactor: 0.10 },
@@ -328,7 +328,7 @@ export const ASSEMBLIES: AssemblyItem[] = [
     id: 'asm-deck-composite',
     name: 'Build Composite Deck',
     category: 'decking',
-    description: 'Complete composite deck build — framing, decking, railing, stairs',
+    description: 'Complete composite deck build: framing, decking, railing, stairs',
     unit: 'per SF',
     materialsPerUnit: [
       { materialId: 'dk1', name: 'Composite Deck Board Trex', quantityPerUnit: 0.125, unit: 'each', wasteFactor: 0.10 },
@@ -347,7 +347,7 @@ export const ASSEMBLIES: AssemblyItem[] = [
     id: 'asm-deck-wood',
     name: 'Build PT Wood Deck',
     category: 'decking',
-    description: 'Complete pressure-treated wood deck — framing, decking, basic railing',
+    description: 'Complete pressure-treated wood deck: framing, decking, basic railing',
     unit: 'per SF',
     materialsPerUnit: [
       { materialId: 'dk3', name: 'PT Deck Board 5/4x6', quantityPerUnit: 0.125, unit: 'each', wasteFactor: 0.10 },
@@ -447,7 +447,7 @@ export const ASSEMBLIES: AssemblyItem[] = [
     id: 'asm-demo-interior',
     name: 'Interior Demolition',
     category: 'general',
-    description: 'Demo interior walls, flooring, and fixtures — includes haul-off',
+    description: 'Demo interior walls, flooring, and fixtures, haul-off included',
     unit: 'per SF',
     materialsPerUnit: [],
     laborPerUnit: [

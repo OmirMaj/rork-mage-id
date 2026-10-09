@@ -104,6 +104,21 @@ export interface EmailWrapOpts {
   accent?: string;
   /** Unsubscribe context — drives footer link + List-Unsubscribe header. */
   unsubscribe?: UnsubscribeOpts;
+  /**
+   * The company this email is sent FOR, when the reader is that company's
+   * client or sub (a payment reminder, a document). Prints the Notice To
+   * Recipients in the footer. Leave unset on mail MAGE ID sends in its own
+   * name (digests, sign-in links). Same wording as utils/recipientNotice.ts,
+   * which Deno cannot import; scripts/validate-protections.ts pins them equal.
+   */
+  preparedBy?: string;
+}
+
+/** The Notice To Recipients. Byte-equal to recipientNoticeText() in utils/recipientNotice.ts. */
+export function recipientNoticeText(company: string | null | undefined): string {
+  const c = String(company ?? '').replace(/\s+/g, ' ').trim();
+  const who = !c || /^mage\s*id$/i.test(c) ? 'the sender' : c;
+  return `Prepared by ${who} using MAGE ID software. MAGE ID did not prepare, review or check this document and makes no statement to the reader about its contents.`;
 }
 
 // ─── HTML helpers ────────────────────────────────────────────────────
@@ -535,7 +550,11 @@ export function buildPreferencesUrl(email: string): string {
 function footerHtml(opts: {
   sender?: { name?: string; email?: string; phone?: string };
   unsubscribe?: UnsubscribeOpts;
+  preparedBy?: string;
 }): string {
+  const noticeLine = opts.preparedBy
+    ? `<p data-recipient-notice="1" style="margin:0 0 10px;font-family:${FONT_STACK};font-size:13px;color:${INK};line-height:1.5;">${escapeHtml(recipientNoticeText(opts.preparedBy))}</p>`
+    : '';
   const senderLine = (opts.sender?.name || opts.sender?.email || opts.sender?.phone)
     ? `<p style="margin:0 0 6px;font-family:${FONT_STACK};font-size:12px;color:${STONE};line-height:1.5;">Sent by <strong style="color:${INK}">${escapeHtml(opts.sender?.name ?? '')}</strong>${opts.sender?.email ? ` · ${escapeHtml(opts.sender.email)}` : ''}${opts.sender?.phone ? ` · ${escapeHtml(opts.sender.phone)}` : ''}. Replies go to them, not us.</p>`
     : '';
@@ -553,6 +572,7 @@ function footerHtml(opts: {
   return `
     <tr><td style="padding:22px 32px 28px;background:#FAFAF7;border-top:1px solid ${HAIRLINE};">
       ${senderLine}
+      ${noticeLine}
       <p style="margin:0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;">
         Powered by <a href="${PORTAL_BASE_URL}" style="color:${INK};font-weight:700;text-decoration:none;">MAGE ID</a> — the operating system for general contractors.
       </p>
@@ -634,7 +654,7 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
           ${ctaHtml}
           ${secondaryHtml}
         </td></tr>
-        ${footerHtml({ sender: opts.sender, unsubscribe: opts.unsubscribe })}
+        ${footerHtml({ sender: opts.sender, unsubscribe: opts.unsubscribe, preparedBy: opts.preparedBy })}
       </table>
     </td></tr>
   </table>

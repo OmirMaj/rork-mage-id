@@ -70,8 +70,8 @@ const VOICE_ACTION_SUGGESTIONS = [
   'Log 3 hours framing, floor 2 drywall 80%, 40 sheets of drywall delivered.',
   'Punch list: master bath, light fixture loose.',
   'Submit an RFI to the architect about the steel beam size.',
-  'Client wants the heat pump upgrade — change order for forty-five hundred.',
-  'Invoice them for demolition — twenty-eight hundred lump.',
+  'Client wants the heat pump upgrade, change order for forty-five hundred.',
+  'Invoice them for demolition, twenty-eight hundred lump.',
   'Submittal: light fixture cut sheets, spec twenty-six fifty-one zero zero.',
   'New lead: John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand.',
   'New project: Smith kitchen remodel at 123 Main, eighty thousand.',
@@ -254,7 +254,7 @@ export default function UniversalMicButton({
   const handleTranscript = useCallback(async (transcript: string) => {
     setAutoStartArmed(false);
     if (!transcript || transcript.trim().length === 0) {
-      setError('Didn\'t catch that — try again.');
+      setError('Didn\'t catch that. Try again.');
       setStep('idle');
       return;
     }
@@ -349,7 +349,7 @@ export default function UniversalMicButton({
         // terminal — so a voice CO there would appear, then vanish. Say where
         // the scope belongs instead.
         if (proj.myRole) {
-          setError('Your GC creates change orders on this project — log it in a daily report as a field issue.');
+          setError('Your GC creates change orders on this project. Log it in a daily report as a field issue.');
           setStep('reviewing');
           return;
         }
@@ -610,7 +610,7 @@ export default function UniversalMicButton({
             // silently lost on the next reload.
             const writePath = scheduleWritePathForRole(proj.myRole);
             if (writePath === 'none') {
-              summaryParts.push(`schedule not updated — you have view-only access to ${proj.name}`);
+              summaryParts.push(`schedule not updated: you have view-only access to ${proj.name}`);
             } else if (writePath === 'field_rpc') {
               const patches: FieldTaskPatch[] = updatedTasks
                 .filter(t => workProgress.some(w => w.taskId === t.id))
@@ -628,7 +628,7 @@ export default function UniversalMicButton({
                 });
               const sent = await sendFieldTaskPatches(supabase, proj.id, patches);
               if (!sent.ok) {
-                summaryParts.push(`schedule not updated — ${sent.message}`);
+                summaryParts.push(`schedule not updated: ${sent.message}`);
               } else {
                 // Local copy = what the server now holds (see QuickFieldUpdate).
                 ctx.updateProject(proj.id, {
@@ -708,7 +708,7 @@ export default function UniversalMicButton({
       }
     } catch (e) {
       console.warn('[UniversalMic] create failed', e);
-      setError('Couldn\'t save that — try again.');
+      setError('Couldn\'t save that. Try again.');
       setStep('reviewing');
     }
   }, [parsed, project, projectsList.length, ctx, router, handleClose, capGate, addManualEntry]);
@@ -723,16 +723,16 @@ export default function UniversalMicButton({
     : parsed?.kind === 'lead' ? UserPlus
     : parsed?.kind === 'field_update' ? ListChecks
     : AlertTriangle;
-  const kindLabel = parsed?.kind === 'rfi' ? 'Request for information'
-    : parsed?.kind === 'co' ? 'Change order draft'
-    : parsed?.kind === 'note' ? 'Field note'
-    : parsed?.kind === 'punch' ? 'Punch item'
-    : parsed?.kind === 'project' ? 'New project'
-    : parsed?.kind === 'invoice' ? 'Invoice draft'
+  const kindLabel = parsed?.kind === 'rfi' ? 'Request for Information'
+    : parsed?.kind === 'co' ? 'Change Order Draft'
+    : parsed?.kind === 'note' ? 'Field Note'
+    : parsed?.kind === 'punch' ? 'Punch Item'
+    : parsed?.kind === 'project' ? 'New Project'
+    : parsed?.kind === 'invoice' ? 'Invoice Draft'
     : parsed?.kind === 'submittal' ? 'Submittal'
-    : parsed?.kind === 'lead' ? 'New lead'
-    : parsed?.kind === 'field_update' ? 'Field update'
-    : 'Not sure yet';
+    : parsed?.kind === 'lead' ? 'New Lead'
+    : parsed?.kind === 'field_update' ? 'Field Update'
+    : 'Not Sure Yet';
   const kindCTA = parsed?.kind === 'rfi' ? 'RFI'
     : parsed?.kind === 'co' ? 'change order'
     : parsed?.kind === 'note' ? 'note'
@@ -768,7 +768,7 @@ export default function UniversalMicButton({
           style={[styles.fab, { bottom: insets.bottom + 70 + 52 + 12 + (Platform.OS === 'web' ? 48 : 0) }]}
           onPress={handleOpen}
           activeOpacity={0.85}
-          accessibilityLabel="Voice action"
+          accessibilityLabel="Voice Action"
           testID="universal-mic-fab"
         >
           <Mic size={20} color="#FFF" strokeWidth={1.75} />
@@ -782,7 +782,7 @@ export default function UniversalMicButton({
           testID="universal-mic-inline"
         >
           <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.inlineBtnText}>Voice action</Text>
+          <Text style={styles.inlineBtnText}>Voice Action</Text>
         </TouchableOpacity>
       )}
 
@@ -791,8 +791,8 @@ export default function UniversalMicButton({
           <View style={[styles.modalCard, fMic.card]}>
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalEyebrow}>Draft by voice</Text>
-                <Text style={styles.modalTitle}>Voice action</Text>
+                <Text style={styles.modalEyebrow}>Draft by Voice</Text>
+                <Text style={styles.modalTitle}>Voice Action</Text>
               </View>
               <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
             </View>
@@ -831,7 +831,7 @@ export default function UniversalMicButton({
                       onPress={() => setShowAllJobs(v => !v)}
                       accessibilityRole="button"
                       accessibilityState={{ expanded: showAllJobs }}
-                      accessibilityLabel="More projects"
+                      accessibilityLabel="More Projects"
                       testID="voice-job-more"
                     >
                       <Text style={styles.pickerChipText}>More…</Text>
@@ -864,7 +864,7 @@ export default function UniversalMicButton({
               <Text style={styles.projectHint}>Drafting on <Text style={styles.projectHintEmph}>{project.name}</Text></Text>
             )}
             {!project && projectsList.length === 0 && (
-              <Text style={styles.projectHintWarn}>No projects yet — say &quot;new project: Smith kitchen at 123 Main, eighty thousand&quot; to create one.</Text>
+              <Text style={styles.projectHintWarn}>No projects yet. Say &quot;new project: Smith kitchen at 123 Main, eighty thousand&quot; to create one.</Text>
             )}
             {!project && !projectId && projectsList.length > 0 && jobChips.all.length > 0 && (
               <Text style={styles.projectHintWarn}>{PICK_JOB_FIRST}</Text>
@@ -933,7 +933,7 @@ export default function UniversalMicButton({
                       <PreviewField label="Question" value={parsed.question || '—'} multi />
                       <View style={styles.previewMetaRow}>
                         <PreviewField label="Priority" value={humanizeEnum(parsed.priority || 'normal')} small />
-                        <PreviewField label="Assigned to" value={parsed.assignedTo || '—'} small />
+                        <PreviewField label="Assigned To" value={parsed.assignedTo || '—'} small />
                       </View>
                     </View>
                   )}
@@ -953,9 +953,9 @@ export default function UniversalMicButton({
                           </View>
                         ))
                       ) : parsed.changeAmount > 0 ? (
-                        <PreviewField label="Change amount" value={`$${parsed.changeAmount.toLocaleString()}`} small />
+                        <PreviewField label="Change Amount" value={`$${parsed.changeAmount.toLocaleString()}`} small />
                       ) : (
-                        <Text style={styles.previewNote}>No price detected — you can add line items on the next screen.</Text>
+                        <Text style={styles.previewNote}>No price detected. You can add line items on the next screen.</Text>
                       )}
                     </View>
                   )}
@@ -980,7 +980,7 @@ export default function UniversalMicButton({
 
                   {parsed.kind === 'project' && (
                     <View style={styles.previewBody}>
-                      <PreviewField label="Project name" value={parsed.projectName || '—'} />
+                      <PreviewField label="Project Name" value={parsed.projectName || '—'} />
                       <View style={styles.previewMetaRow}>
                         <PreviewField label="Type" value={projectTypeLabel(projectTypeFromParsedType(parsed.projectType) ?? { type: 'renovation' })} small />
                         <PreviewField label="Location" value={parsed.projectLocation || '—'} small />
@@ -1002,7 +1002,7 @@ export default function UniversalMicButton({
                           </View>
                         ))
                       ) : (
-                        <Text style={styles.previewNote}>No line items detected — you can add them on the next screen.</Text>
+                        <Text style={styles.previewNote}>No line items detected. You can add them on the next screen.</Text>
                       )}
                       {!!parsed.invoiceNotes && <PreviewField label="Notes" value={parsed.invoiceNotes} multi />}
                     </View>
@@ -1012,9 +1012,9 @@ export default function UniversalMicButton({
                     <View style={styles.previewBody}>
                       <PreviewField label="Title" value={parsed.submittalTitle || '—'} multi />
                       <View style={styles.previewMetaRow}>
-                        <PreviewField label="Spec section" value={parsed.submittalSpecSection || '—'} small />
-                        <PreviewField label="Submitted by" value={parsed.submittalSubmittedBy || '—'} small />
-                        <PreviewField label="Required by" value={parsed.submittalRequiredDate || '—'} small />
+                        <PreviewField label="Spec Section" value={parsed.submittalSpecSection || '—'} small />
+                        <PreviewField label="Submitted By" value={parsed.submittalSubmittedBy || '—'} small />
+                        <PreviewField label="Required By" value={parsed.submittalRequiredDate || '—'} small />
                       </View>
                     </View>
                   )}
@@ -1038,7 +1038,7 @@ export default function UniversalMicButton({
 
                   {parsed.kind === 'field_update' && (
                     <View style={styles.previewBody}>
-                      {!!parsed.fieldWorkPerformed && <PreviewField label="Work performed" value={parsed.fieldWorkPerformed} multi />}
+                      {!!parsed.fieldWorkPerformed && <PreviewField label="Work Performed" value={parsed.fieldWorkPerformed} multi />}
                       {(parsed.fieldTimeEntries ?? []).filter(t => (t.hours ?? 0) > 0).map((t, i) => (
                         <View key={`t${i}`} style={styles.lineItemRow}>
                           <Text style={styles.lineItemName} numberOfLines={1}>Time · {t.trade || 'General'}</Text>
@@ -1058,7 +1058,7 @@ export default function UniversalMicButton({
                         && (parsed.fieldTimeEntries ?? []).length === 0
                         && (parsed.fieldScheduleUpdates ?? []).length === 0
                         && (parsed.fieldMaterials ?? []).length === 0 && (
-                        <Text style={styles.previewNote}>Nothing detected to log — try again with hours, task progress, or materials.</Text>
+                        <Text style={styles.previewNote}>Nothing detected to log. Try again with hours, task progress, or materials.</Text>
                       )}
                     </View>
                   )}
@@ -1070,7 +1070,7 @@ export default function UniversalMicButton({
                           <Text style={styles.unsureText}>{parsed.clarifyQuestion}</Text>
                           <View style={styles.clarifyChipRow}>
                             {/* A few common one-word answers as quick-tap chips */}
-                            {['Invoice', 'Change order', 'Note', 'RFI'].map(answer => (
+                            {['Invoice', 'Change Order', 'Note', 'RFI'].map(answer => (
                               <TouchableOpacity
                                 key={answer}
                                 style={styles.clarifyChip}
@@ -1112,7 +1112,7 @@ export default function UniversalMicButton({
 
                 <View style={styles.ctaRow}>
                   <TouchableOpacity style={styles.ctaSecondary} onPress={reset}>
-                    <Text style={styles.ctaSecondaryText}>Try again</Text>
+                    <Text style={styles.ctaSecondaryText}>Try Again</Text>
                   </TouchableOpacity>
                   {parsed.kind !== 'unsure' && (
                     <TouchableOpacity
@@ -1141,7 +1141,7 @@ export default function UniversalMicButton({
       <UpgradeSheet
         visible={!!upgradeLimit}
         limit={upgradeLimit}
-        featureLabel="Voice capture"
+        featureLabel="Voice Capture"
         onClose={() => setUpgradeLimit(null)}
       />
     </>

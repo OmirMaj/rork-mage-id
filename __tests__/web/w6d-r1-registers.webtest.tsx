@@ -146,7 +146,7 @@ describe('Contacts register (real DOM, 1512)', () => {
     expect(split.open).not.toHaveBeenCalled();
     const [title, , buttons] = lastAlert();
     expect(title).toBe('Discard changes?');
-    expect(buttons!.map((b) => b.text)).toEqual(['Keep editing', 'Discard']);
+    expect(buttons!.map((b) => b.text)).toEqual(['Keep Editing', 'Discard']);
     await act(async () => { buttons![1].onPress?.(); });
     expect(split.open).toHaveBeenCalledWith('con-2');
   });
@@ -177,7 +177,7 @@ describe('Contacts register (real DOM, 1512)', () => {
     await click(byId(el, 'contacts-register-csv')!);
     const call = (deliverTextFile as jest.Mock).mock.calls[0];
     expect(call[0]).toBe(`contacts-${localDay(new Date())}.csv`);
-    expect(String(call[1]).split('\r\n')[0]).toContain('Name,First name,Last name,Company,Role');
+    expect(String(call[1]).split('\r\n')[0]).toContain('Name,First Name,Last Name,Company,Role');
   });
 
   it("'n' outside a field opens New", async () => {
@@ -233,7 +233,7 @@ describe('Crew register (real DOM, 1512)', () => {
     const { el } = await mount(crew({ updateCrewMember }));
     await click(byId(el, 'crew-register-table-row-m1-check')!);
     await click(byId(el, 'crew-register-table-row-m2-check')!);
-    await bulkButton(el, 'crew-register-table', 'Mark inactive');
+    await bulkButton(el, 'crew-register-table', 'Mark Inactive');
     await act(async () => { await Promise.resolve(); });
     expect(updateCrewMember.mock.calls.map((c) => c[0]).sort()).toEqual(['m1', 'm2']);
     expect(updateCrewMember.mock.calls.every((c) => c[1].status === 'inactive')).toBe(true);
@@ -242,7 +242,7 @@ describe('Crew register (real DOM, 1512)', () => {
   it('while the roster read is loading the empty table says Loading…, never "No crew yet"', async () => {
     const { el } = await mount(crew({ members: [], loading: true }));
     expect(el.textContent).toContain('Loading…');
-    expect(el.textContent).not.toMatch(/No crew yet/);
+    expect(el.textContent).not.toMatch(/No Crew Yet/);
   });
 
   it('Export CSV names the file crew-YYYY-MM-DD.csv (local day)', async () => {

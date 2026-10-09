@@ -1,5 +1,5 @@
 /**
- * Baltimore "Draft a question" and Department card (lane AIDRAFT) —
+ * Baltimore "Draft a Question" and Department card (lane AIDRAFT) —
  * BEHAVIOUR ONLY, no snapshot.
  *
  * Rendered on their own with the building-record hook, the place lookup and
@@ -166,7 +166,7 @@ describe('Baltimore: Draft a question and the Department card', () => {
     mockLookup = { status: 'done', place: CITY_PLACE };
     render(<DepartmentCard project={project('md-c', 'Baltimore, MD')} testID="dc" />);
     expect(screen.getByText('E-Permits portal')).toBeTruthy();
-    expect(screen.queryByText('DOB NOW portal')).toBeNull();
+    expect(screen.queryByText('DOB NOW Portal')).toBeNull();
     expect(mockLookupCalls.length).toBeGreaterThan(0);
   });
 
@@ -185,7 +185,7 @@ describe('Baltimore: Draft a question and the Department card', () => {
     const p = project('ny-e', '12 Nowhere Row, Hamletville, NY 11299', { street: '12 Nowhere Row', city: 'Hamletville', state: 'NY', zip: '11299' });
     render(<DepartmentCard project={p} testID="dc" />);
     expect(screen.getByTestId('dc-headline').props.children).toMatch(/New York City \(from the map pin\)/);
-    expect(screen.getByText('DOB NOW portal')).toBeTruthy();
+    expect(screen.getByText('DOB NOW Portal')).toBeTruthy();
     expect(screen.getByText(/on nyc\.gov$/)).toBeTruthy();
   });
 

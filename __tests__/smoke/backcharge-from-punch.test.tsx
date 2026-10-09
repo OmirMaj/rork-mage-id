@@ -94,7 +94,7 @@ describe('Backcharge the sub, from a punch item', () => {
     const alerts = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await openEdit('punch-1');
     expect(screen.getByTestId('backcharge-from-punch')).toBeTruthy();
-    expect(screen.getByText('Backcharge the sub')).toBeTruthy();
+    expect(screen.getByText('Backcharge the Sub')).toBeTruthy();
     expect(disabled('backcharge-from-punch-button')).toBe(false);
     expect(screen.queryByTestId('backcharge-from-punch-why')).toBeNull();
     expect(screen.queryByTestId('backcharge-sheet')).toBeNull();
@@ -126,7 +126,7 @@ describe('Backcharge the sub, from a punch item', () => {
     }));
     expect(screen.queryByTestId('backcharge-sheet')).toBeNull();
     expect(alerts).toHaveBeenCalledWith(
-      'Backcharge saved',
+      'Backcharge Saved',
       'It comes off Vega Painting’s next bill only when you apply it on their sub page. Nothing was sent.',
       undefined,
       undefined,

@@ -298,7 +298,7 @@ ok('marketing/paid/index.html is noindex', /<meta name="robots" content="noindex
 ok('…never names the Stripe session', !/CHECKOUT_SESSION_ID|session_id|cs_(live|test)_/i.test(paid));
 ok('…loads no analytics and reads nothing from its address', !/posthog|location\.(search|href|hash)|URLSearchParams|document\.referrer/i.test(paid));
 ok('…says what is true on every pay-link path (submitted to Stripe; the contractor sees it in MAGE ID once it clears — an AIA pay app with no invoice sends no notice)',
-  /Payment submitted to Stripe/.test(paid) && /Your contractor sees this payment in MAGE ID once it clears\./.test(paid) && !/\bnotif(y|ied|ication)|gets a notice/i.test(paid) && !/!/.test(paid.replace(/<!--[\s\S]*?-->|<!doctype html>/gi, '')));
+  /Payment Submitted to Stripe/.test(paid) && /Your contractor sees this payment in MAGE ID once it clears\./.test(paid) && !/\bnotif(y|ied|ication)|gets a notice/i.test(paid) && !/!/.test(paid.replace(/<!--[\s\S]*?-->|<!doctype html>/gi, '')));
 // Every pay link (an invoice or an AIA pay app) redirects here, so a receipt
 // promise on this page is only true if the webhook emails one on BOTH paths.
 // It does not today (handleAiaPayAppCompleted sends none), so the page must

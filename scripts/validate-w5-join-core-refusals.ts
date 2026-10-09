@@ -74,10 +74,10 @@ console.log('\nthe sheet and the toast');
 ok('a known reason passes through humanDropReason as his words', humanDropReason(FREE_PLAN_PROJECT_CAP_REASON) === FREE_PLAN_PROJECT_CAP_REASON && humanDropReason(SAFETY_RECORDS_DELETE_REASON) === SAFETY_RECORDS_DELETE_REASON);
 ok('isKnownRefusalReason knows exactly the two', isKnownRefusalReason(FREE_PLAN_PROJECT_CAP_REASON) && isKnownRefusalReason(SAFETY_RECORDS_DELETE_REASON) && !isKnownRefusalReason('the server refused it'));
 ok('the cap toast says what to do (Retry after upgrading or deleting a job)', /Retry once you have upgraded or deleted a job/.test(knownRefusalToast(FREE_PLAN_PROJECT_CAP_REASON) ?? ''));
-ok('the safety toast offers Mark Closed', /mark the job Closed instead/.test(knownRefusalToast(SAFETY_RECORDS_DELETE_REASON) ?? ''));
+ok('the safety toast offers Mark Closed', /Mark the job Closed instead/.test(knownRefusalToast(SAFETY_RECORDS_DELETE_REASON) ?? ''));
 ok('no toast for any other reason', knownRefusalToast('terminal error or retry exhaustion') === null);
 ok('both sentences are listed once each', Object.values(KNOWN_REFUSAL_REASON).length === 2);
-ok('a public_profiles line reads "Project page" (portfolio)', labelForTable('public_profiles') === 'Project page');
+ok('a public_profiles line reads "Project page" (portfolio)', labelForTable('public_profiles') === 'Project Page');
 
 console.log('\nthe queue — flush and live path (source; executed in __tests__/sync/offline-queue.test.ts)');
 {

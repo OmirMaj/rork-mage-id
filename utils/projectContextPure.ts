@@ -1544,7 +1544,7 @@ export function localSafetyIncidentCount(
  * never queued as a write that can only ever fail.
  */
 export const PORTAL_OWNER_DECIDES_REASON = 'The project owner decides what the homeowner sees. Ask them to send this to the client portal.';
-export const PORTAL_ACCESS_UNKNOWN_REASON = 'Couldn’t check your access to this project’s client portal — check your signal and try again.';
+export const PORTAL_ACCESS_UNKNOWN_REASON = 'Couldn’t check your access to this project’s client portal. Check your signal and try again.';
 export function portalWriteRefusal(input: {
   project: { ownerUserId?: string | null; myRole?: ProjectRole | undefined } | undefined;
   userId: string | null | undefined;
@@ -2203,8 +2203,8 @@ export function planProDocEdit<T extends { updatedAt: string; serverUpdatedAt?: 
       : 'keep its review cycles and status';
     return {
       ok: false,
-      title: a.kind === 'rfi' ? 'Not reopened yet' : 'Not changed yet',
-      reason: `This phone does not have the server's latest copy (your last change may still be syncing). Try again in a moment — to ${what} now, the server would ${kept}, and this screen would disagree with it.`,
+      title: a.kind === 'rfi' ? 'Not Reopened Yet' : 'Not Changed Yet',
+      reason: `This phone does not have the server's latest copy (your last change may still be syncing). Try again in a moment. To ${what} now, the server would ${kept}, and this screen would disagree with it.`,
     };
   }
   const next = {
@@ -2504,12 +2504,12 @@ export function submittalCycleQueueHold(queue: readonly QueueEntryLike[], id: st
 export function closeCycleHoldReason(hold: 'insert' | 'cycle_patch' | 'network', cycleNo: number): string {
   if (hold === 'insert') return `This submittal hasn't reached the server yet, so Cycle ${cycleNo} can't be closed there. Close it once it syncs.`;
   if (hold === 'cycle_patch') return `A change to this submittal's review log is still syncing. Try closing Cycle ${cycleNo} again in a moment.`;
-  return `Closing Cycle ${cycleNo} needs a connection — the server closes it so no other copy is overwritten. Try again once you have signal.`;
+  return `Closing Cycle ${cycleNo} needs a connection. The server closes it so no other copy is overwritten. Try again once you have signal.`;
 }
 
 const SUBMITTAL_STATUS_WORDS: Record<string, string> = {
   pending: 'Pending', in_review: 'In review', approved: 'Approved', approved_as_noted: 'Approved as noted',
-  revise_resubmit: 'Revise & resubmit', rejected: 'Rejected',
+  revise_resubmit: 'Revise and resubmit', rejected: 'Rejected',
 };
 
 /**
@@ -2521,7 +2521,7 @@ const SUBMITTAL_STATUS_WORDS: Record<string, string> = {
 export function alreadyClosedCycleReason(res: { cycle_number?: unknown; status?: unknown }, fallbackNo: number): string {
   const n = typeof res.cycle_number === 'number' && Number.isFinite(res.cycle_number) ? res.cycle_number : fallbackNo;
   const word = typeof res.status === 'string' ? SUBMITTAL_STATUS_WORDS[res.status] ?? res.status : '';
-  return `The reviewer already returned Cycle ${n}${word ? ` (${word})` : ''} through the reply link, so nothing was added — their stamp is on the log now. If yours differs, start a new cycle.`;
+  return `The reviewer already returned Cycle ${n}${word ? ` (${word})` : ''} through the reply link, so nothing was added. Their stamp is on the log now. If yours differs, start a new cycle.`;
 }
 
 /**
@@ -2697,7 +2697,7 @@ export function ownerClientPortalAfterLoad(
  * a flush dropped it before the ledger existed), so it was kept on the phone
  * with nothing left that would ever send it — and no sync badge said so.
  */
-export const LOCAL_ONLY_PROJECT_REASON = 'This job is only on this phone — it never reached MAGE. Retry sends it; Discard removes it from this phone.';
+export const LOCAL_ONLY_PROJECT_REASON = 'This job is only on this phone. It never reached MAGE. Retry sends it; Discard removes it from this phone.';
 
 /** The ledger line id for a local-only job — stable, so a later load that
  *  finds the same job records the same line (mergeFailures dedupes by id). */

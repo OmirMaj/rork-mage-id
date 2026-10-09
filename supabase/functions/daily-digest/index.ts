@@ -149,23 +149,23 @@ interface EventGroup {
 }
 
 const EVENT_LABELS: Record<string, { label: string; emoji?: string; cta?: string }> = {
-  portal_message:        { label: 'Client messages',     cta: 'client-messages' },
-  budget_proposal:       { label: 'Budget proposals',    cta: 'project-detail' },
-  co_approval:           { label: 'Change-order decisions', cta: 'change-order' },
-  contract_signed:       { label: 'Contracts signed',    cta: 'contract' },
-  selection_chosen:      { label: 'Selections picked',   cta: 'selections' },
-  sub_invoice_submitted: { label: 'Sub invoices in',     cta: 'sub-portals' },
-  sub_invoice_reviewed:  { label: 'Sub invoices acted on', cta: 'sub-portals' },
-  nearby_rfp_posted:     { label: 'New nearby RFPs',     cta: 'rfp-detail' },
-  rfp_awarded:           { label: 'RFPs awarded',        cta: 'project-detail' },
-  bid_question_asked:    { label: 'Bid questions',       cta: 'rfp-detail' },
-  bid_question_answered: { label: 'Bid Q&A answered',    cta: 'rfp-detail' },
-  closeout_binder_sent:  { label: 'Closeouts delivered', cta: 'closeout-binder' },
+  portal_message:        { label: 'Client Messages',     cta: 'client-messages' },
+  budget_proposal:       { label: 'Budget Proposals',    cta: 'project-detail' },
+  co_approval:           { label: 'Change-Order Decisions', cta: 'change-order' },
+  contract_signed:       { label: 'Contracts Signed',    cta: 'contract' },
+  selection_chosen:      { label: 'Selections Picked',   cta: 'selections' },
+  sub_invoice_submitted: { label: 'Sub Invoices In',     cta: 'sub-portals' },
+  sub_invoice_reviewed:  { label: 'Sub Invoices Acted On', cta: 'sub-portals' },
+  nearby_rfp_posted:     { label: 'New Nearby RFPs',     cta: 'rfp-detail' },
+  rfp_awarded:           { label: 'RFPs Awarded',        cta: 'project-detail' },
+  bid_question_asked:    { label: 'Bid Questions',       cta: 'rfp-detail' },
+  bid_question_answered: { label: 'Bid Q&A Answered',    cta: 'rfp-detail' },
+  closeout_binder_sent:  { label: 'Closeouts Delivered', cta: 'closeout-binder' },
   // Wave 5 (CONTRACT 8): raised only by their AFTER triggers through notify,
   // which writes the outbox row this digest counts.
-  bid_invite_received:   { label: 'Sub bids received',   cta: 'buyout-package' },
-  lien_waiver_signed:    { label: 'Lien waivers signed', cta: 'lien-waivers' },
-  prequal_submitted:     { label: 'Prequalification packets submitted', cta: 'prequal-manager' },
+  bid_invite_received:   { label: 'Sub Bids Received',   cta: 'buyout-package' },
+  lien_waiver_signed:    { label: 'Lien Waivers Signed', cta: 'lien-waivers' },
+  prequal_submitted:     { label: 'Prequalification Packets Submitted', cta: 'prequal-manager' },
 };
 
 /** A sub-typed name as one clipped line ('' when absent). The card escapes it. */
@@ -233,7 +233,7 @@ function buildDigestEmail(opts: {
   }).join('');
 
   const statCardHtml = totalEvents > 0
-    ? emailStatCard(statRows + emailStatRow('Total updates', String(totalEvents), { emphasize: true }))
+    ? emailStatCard(statRows + emailStatRow('Total Updates', String(totalEvents), { emphasize: true }))
     : '';
 
   // No quiet-day branch. processGc returns before it ever reaches this
@@ -283,9 +283,9 @@ function buildDigestEmail(opts: {
 
   return wrapEmailHtml({
     preheader: `${date} · ${totalEvents} update${totalEvents === 1 ? '' : 's'} across your projects.`,
-    eyebrow: 'Daily digest',
+    eyebrow: 'Daily Digest',
     title: `${totalEvents} update${totalEvents === 1 ? '' : 's'} today`,
-    subtitle: `${date} — client and sub activity across your jobs.`,
+    subtitle: `${date}: client and sub activity across your jobs.`,
     bodyHtml,
     cta: { label: 'Open MAGE ID', href: APP_BASE },
     companyName: companyName ?? undefined,
@@ -351,7 +351,7 @@ async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' |
   });
 
   // totalEvents is always > 0 here — processGc returned above otherwise.
-  const subject = `Daily digest · ${totalEvents} update${totalEvents === 1 ? '' : 's'} on your jobs`;
+  const subject = `Daily Digest · ${totalEvents} update${totalEvents === 1 ? '' : 's'} on your jobs`;
 
   let resp: unknown = null;
   // Checked before EVERY send, not once per run: he may have tapped

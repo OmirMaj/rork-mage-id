@@ -102,7 +102,7 @@ export function ProjectOverviewColumns({
   const scheduleRows: Row[] = [];
   const la = pulse.lookahead;
   if (la.reason === NO_SCHEDULE_REASON) {
-    scheduleRows.push({ key: 'build', text: 'No schedule yet — Build schedule', target: { onPress: onBuildSchedule } });
+    scheduleRows.push({ key: 'build', text: 'No schedule yet. Build schedule', target: { onPress: onBuildSchedule } });
   } else {
     for (const r of la.rows) {
       scheduleRows.push({
@@ -182,7 +182,7 @@ function OverviewCard({ title, viewAll, rows, styles, testID, style }: {
         <Text style={styles.title} numberOfLines={1} accessibilityRole="header">{title}</Text>
         {viewAll ? (
           <TargetSurface target={viewAll} style={styles.viewAll} label={`View all: ${title}`} testID={`${testID}-view-all`}>
-            <Text style={styles.viewAllText}>View all</Text>
+            <Text style={styles.viewAllText}>View All</Text>
           </TargetSurface>
         ) : null}
       </View>

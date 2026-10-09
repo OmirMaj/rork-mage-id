@@ -467,7 +467,7 @@ const evil = '<script>alert(1)</script>';
   ok('the daily-log excerpt is escaped', html.includes('Issues and delays: &lt;script&gt;'));
   for (const src of Object.values(P.COPROOF_COPY.sources)) ok(`source sentence present: "${src.slice(0, 40)}…"`, html.includes(H_esc(src)));
   ok('the coBodyHtml sentinel appears exactly once', html.split(SENTINEL).length === 2);
-  const order = ['Proof packet', SENTINEL, '>Approval record<', '>Money check<', '>Schedule impact<', '>Photos<', '>Daily logs<', '>RFIs<', '>Messages<', '>Linked records<', 'Change order #12 proof packet'];
+  const order = ['Proof Packet', SENTINEL, '>Approval record<', '>Money check<', '>Schedule impact<', '>Photos<', '>Daily logs<', '>RFIs<', '>Messages<', '>Linked records<', 'Change order #12 proof packet'];
   const pos = order.map(s => html.indexOf(s));
   ok('sections print in the contract order', pos.every((p, i) => p >= 0 && (i === 0 || p > pos[i - 1])), JSON.stringify(pos));
   ok('the how-built box says no AI', html.includes(H_esc('Nothing in it was written by AI.')));

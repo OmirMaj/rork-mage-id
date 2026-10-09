@@ -42,15 +42,15 @@ const text = (s: string | null | undefined): string | null => (typeof s === 'str
 
 export const CONTACT_CSV_COLUMNS: readonly RegisterCsvColumn<Contact>[] = [
   { key: 'name', label: 'Name', csvValue: (c) => text(contactDisplayName(c)) },
-  { key: 'first', label: 'First name', csvValue: (c) => text(c.firstName) },
-  { key: 'last', label: 'Last name', csvValue: (c) => text(c.lastName) },
+  { key: 'first', label: 'First Name', csvValue: (c) => text(c.firstName) },
+  { key: 'last', label: 'Last Name', csvValue: (c) => text(c.lastName) },
   { key: 'company', label: 'Company', csvValue: (c) => text(c.companyName) },
   { key: 'role', label: 'Role', csvValue: (c) => text(c.role) },
   { key: 'email', label: 'Email', csvValue: (c) => text(c.email) },
   { key: 'phone', label: 'Phone', csvValue: (c) => text(c.phone) },
   { key: 'address', label: 'Address', csvValue: (c) => text(c.address) },
   // A real count (0 is "linked to no project", which is known).
-  { key: 'projects', label: 'Linked projects', csvValue: (c) => (Array.isArray(c.linkedProjectIds) ? c.linkedProjectIds.length : null) },
+  { key: 'projects', label: 'Linked Projects', csvValue: (c) => (Array.isArray(c.linkedProjectIds) ? c.linkedProjectIds.length : null) },
   { key: 'notes', label: 'Notes', csvValue: (c) => text(c.notes) },
 ];
 
@@ -60,8 +60,8 @@ export const CREW_CSV_COLUMNS: readonly RegisterCsvColumn<CrewRegisterRow>[] = [
   { key: 'id', label: 'ID', csvValue: (r) => CREW_ID_LABEL[r.idBadge] },
   { key: 'trades', label: 'Trades', csvValue: (r) => text(r.trades) },
   { key: 'certs', label: 'Certifications', csvValue: (r) => r.certCount },
-  { key: 'certExpiring', label: 'Certs expiring', csvValue: (r) => r.certExpiring },
-  { key: 'certExpired', label: 'Certs expired', csvValue: (r) => r.certExpired },
+  { key: 'certExpiring', label: 'Certs Expiring', csvValue: (r) => r.certExpiring },
+  { key: 'certExpired', label: 'Certs Expired', csvValue: (r) => r.certExpired },
   { key: 'projects', label: 'Projects', csvValue: (r) => r.projectCount },
   { key: 'claimed', label: 'Claimed', csvValue: (r) => (r.claimed ? 'Yes' : 'No') },
   { key: 'phone', label: 'Phone', csvValue: (r) => text(r.phone) },

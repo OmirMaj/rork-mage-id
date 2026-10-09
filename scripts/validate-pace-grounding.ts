@@ -87,7 +87,7 @@ const threeFraming = [
 expect('exact fact line: band + jobs + confidence + optimistic bias',
   buildPaceFacts(threeFraming),
   {
-    facts: ['Framing actually takes you ~8 working days on your small jobs (<2,000 SF; 3 jobs, medium confidence) — you plan 14% optimistic.'],
+    facts: ['Framing actually takes you ~8 working days on your small jobs (<2,000 SF; 3 jobs, medium confidence), you plan 14% optimistic.'],
     tradeCount: 1,
   });
 
@@ -106,7 +106,7 @@ ok('conservative bias clause',
     proj('P1', 1800, [doneTask('d1', 'demo', 10, 8)]),
     proj('P2', 1800, [doneTask('d2', 'demo', 10, 8)]),
     proj('P3', 1800, [doneTask('d3', 'demo', 10, 8)]),
-  ]).facts[0].endsWith('— you plan 20% conservative.'));
+  ]).facts[0].endsWith(', you plan 20% conservative.'));
 
 // On-plan (|bias| < 5%) → no bias clause.
 ok('no bias clause when planning is on-pace',
@@ -136,7 +136,7 @@ const spreadBands = buildPaceFacts([
 expect('bands too thin → trade-wide |all fact',
   spreadBands,
   {
-    facts: ['Framing actually takes you ~8 working days across your jobs (3 jobs, medium confidence) — you plan 14% optimistic.'],
+    facts: ['Framing actually takes you ~8 working days across your jobs (3 jobs, medium confidence), you plan 14% optimistic.'],
     tradeCount: 1,
   });
 

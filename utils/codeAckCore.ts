@@ -5,7 +5,7 @@
 // handed in. utils/codeAck.ts wires AsyncStorage; components/CodeAckHost.tsx
 // (mounted once in app/_layout.tsx) hands over the app's alert and the
 // signed-in account id. Modelled on utils/aiConsentCore.ts, much smaller:
-// there is one answer ("I understand"), no "no", and no server record.
+// there is one answer ("I understand") and no "no".
 //
 // WHEN IT IS ASKED. Before a building-code AI request goes out (Code Check and
 // its drill-in, Plan Review, the plan sweep, Ask's construction answers,
@@ -15,8 +15,11 @@
 //
 // WHAT IS RECORDED, AND WHERE. One AsyncStorage key holding
 // { v, at, account }: the notice version, the ISO date-time of the tap and
-// the account that tapped. It is on this device only. No server write in v1:
-// a server-side row is the stronger proof and is a follow-up. The key is
+// the account that tapped. The device key is the cache that keeps the notice
+// from being asked twice. The proof is a row in public.legal_acceptances (kind
+// 'code_answer_ack'), written through the host's `acknowledged` callback
+// (components/CodeAckHost.tsx, utils/legalAcceptance recordCodeAck): the server
+// stamps who and when. The key is
 // under the `mageid_` prefix (utils/localCacheKeys APP_STORAGE_PREFIXES), so
 // the tenant-switch sweep removes it at sign-out and the next person on the
 // phone is asked for themselves; a record for another account is never taken.
@@ -60,6 +63,10 @@ export interface CodeAckHost {
   accountId: () => string | null;
   /** Shows the notice. Resolves true only when "I understand" was tapped. */
   prompt: () => Promise<boolean>;
+  /** Called once after a fresh tap, with who tapped and when: the host saves
+   *  the server record (utils/legalAcceptance recordCodeAck). Optional, best
+   *  effort; a throw here never undoes the acknowledgement. */
+  acknowledged?: (account: string | null, at: Date, version: number) => void;
 }
 
 /** A stored value → a record, or null for anything that is not one. */
@@ -159,13 +166,16 @@ export function createCodeAckGate(deps: { storage: CodeAckStorage; now?: () => D
     if (!host) return false;
     const who = account();
     const ask = host.prompt;
+    const tell = host.acknowledged;
     asking = true;
     try {
       let yes = false;
       try { yes = (await ask()) === true; } catch { yes = false; }
       if (!yes) return false;
       acked = who ?? '';
-      try { await deps.storage.setItem(CODE_ACK_STORAGE_KEY, serializeCodeAck(who, now())); } catch { /* stands for this session */ }
+      const at = now();
+      try { await deps.storage.setItem(CODE_ACK_STORAGE_KEY, serializeCodeAck(who, at)); } catch { /* stands for this session */ }
+      try { tell?.(who, at, CODE_ACK_VERSION); } catch { /* the server record is best effort */ }
       return true;
     } finally {
       asking = false;

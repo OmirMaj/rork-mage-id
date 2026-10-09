@@ -111,7 +111,7 @@ function esc(s: string): string {
 /** Lightweight branded HTML for the email path. */
 export function buildCrewEmailHtml(g: CrewDispatchGroup, ctx: DispatchContext): string {
   const items = g.tasks
-    .map(tk => `<li style="margin:0 0 6px;font-size:15px;color:#1f2937;">${esc(tk.title)}${tk.startLabel ? ` <span style="color:#6b7280;">— ${esc(tk.startLabel)}</span>` : ''}</li>`)
+    .map(tk => `<li style="margin:0 0 6px;font-size:15px;color:#1f2937;">${esc(tk.title)}${tk.startLabel ? ` <span style="color:#6b7280;">· ${esc(tk.startLabel)}</span>` : ''}</li>`)
     .join('');
   return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;padding:8px 4px;">
   <p style="font-size:16px;color:#111827;margin:0 0 4px;">${g.key !== 'unassigned' ? `Hi ${esc(g.name)},` : 'Hi,'}</p>
@@ -122,5 +122,5 @@ export function buildCrewEmailHtml(g: CrewDispatchGroup, ctx: DispatchContext): 
 }
 
 export function dispatchSubject(ctx: DispatchContext): string {
-  return `Your work this week — ${ctx.projectName}`;
+  return `Your work this week: ${ctx.projectName}`;
 }

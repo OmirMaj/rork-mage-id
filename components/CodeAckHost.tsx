@@ -14,6 +14,7 @@ import { useEffect, useRef } from 'react';
 import { showAlert } from '@/utils/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { askCodeAckOnce, readCodeAck, setCodeAckHost } from '@/utils/codeAck';
+import { recordCodeAck } from '@/utils/legalAcceptance';
 
 export default function CodeAckHost() {
   const { user } = useAuth();
@@ -23,12 +24,20 @@ export default function CodeAckHost() {
     setCodeAckHost({
       accountId: () => userId.current,
       prompt: () => askCodeAckOnce(showAlert),
+      // The saved record (public.legal_acceptances). Best effort, never awaited.
+      acknowledged: (account, at, version) => recordCodeAck(account, version, at.getTime()),
     });
     return () => setCodeAckHost(null);
   }, []);
   // Read the stored acknowledgement as soon as the account is known, so an
   // acknowledged contractor's tap never waits on storage (codeAckKnown()).
   const id = user?.id ?? null;
-  useEffect(() => { void readCodeAck(); }, [id]);
+  // An acknowledgement given on this phone before the server record existed is
+  // sent once too (the recorder keeps one entry per account and version).
+  useEffect(() => {
+    void readCodeAck().then((rec) => {
+      if (rec && id && rec.account === id) recordCodeAck(id, rec.v, Date.parse(rec.at));
+    }).catch(() => { /* asked again at the next code request */ });
+  }, [id]);
   return null;
 }

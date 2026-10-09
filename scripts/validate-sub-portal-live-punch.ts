@@ -132,21 +132,21 @@ const html = read('marketing', 'sub-portal', 'index.html');
     ],
   });
   const out = sec.innerHTML;
-  check('#109 "Waiting on Acme Builders to verify" is its own group, after "Still on you"',
-    out.indexOf('Still on you') > -1 && out.indexOf('Waiting on Acme Builders to verify') > out.indexOf('Still on you'));
+  check('#109 "Waiting on Acme Builders to verify" is its own group, after "Still on You"',
+    out.indexOf('Still on You') > -1 && out.indexOf('Waiting on Acme Builders to verify') > out.indexOf('Still on You'));
   check('#109 the header counts on-him and waiting separately', /2 still on you · 1 waiting on Acme Builders to verify/.test(out));
   check('#109 a capped list says "Showing 3 of 75"', /Showing 3 of 75/.test(out));
   check('#107 a pinned row says the sheet; an unpinned one says so', /On sheet A-101/.test(out) && /Not pinned on a plan/.test(out));
   check('#107 the photo is not drawn (private bucket) and the row says the contractor has one',
     !/<img/.test(out) && /Photo on file with Acme Builders/.test(out));
-  check('#113 a free-text due date is flagged, not printed as a date', /not a date, ask your contractor/.test(out) && /Due Oct 20, 2026/.test(out));
+  check('#113 a free-text due date is flagged, not printed as a date', /is not a date\. Ask your contractor\./.test(out) && /Due Oct 20, 2026/.test(out));
   check('#16 open rows get Mark fixed; the waiting row does not',
     (out.match(/data-punch-fix="/g) ?? []).length === 2 && !/data-punch-fix="c"/.test(out));
   check('the sub note is escaped (labelled as the note sent with his last mark, #47)', /Note sent with your last mark: done &lt;b&gt;/.test(out));
   check('#17 live rows say they are live', /Live from Acme Builders/.test(out));
   api.renderPunch({ company: { name: 'Acme' }, snapshotAt: '2026-09-01T00:00:00Z', punchItems: [{ id: 'z', description: 'x', status: 'open' }] });
   check('#17 a hash-only (frozen) list says "As of <date>" and that it is the copy in the link, not live',
-    /As of (Sep 1|Aug 31), 2026 — the copy saved in this link, not the live list/.test(sec.innerHTML), sec.innerHTML.slice(0, 300));
+    /As of (Sep 1|Aug 31), 2026, the copy saved in this link, not the live list/.test(sec.innerHTML), sec.innerHTML.slice(0, 300));
 }
 
 console.log('\napp/sub-portal-setup.tsx (#17):');

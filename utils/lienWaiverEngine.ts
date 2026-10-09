@@ -427,7 +427,7 @@ export async function shareLienWaiverPDF(
 ): Promise<void> {
   const html = buildLienWaiverHtml(waiver, branding, ctx);
   const projectName = ctx.projectName;
-  const title = `${WAIVER_LABELS[waiver.waiverType].short} Lien Waiver — ${projectName}`;
+  const title = `${WAIVER_LABELS[waiver.waiverType].short} Lien Waiver: ${projectName}`;
   if (Platform.OS === 'web') {
     // CONTRACT 25 (#147): a blocked pop-up THROWS, so the screen says so
     // through pdfFailureMessage instead of a success haptic over nothing.
@@ -652,13 +652,13 @@ export async function requestLienWaiverSignature(
   const formLine = lienWaiverFormLabel(waiver, ctx);
   const html = wrapEmailHtml({
     preheader: `${companyName} is asking you to sign a ${meta.short.toLowerCase()} lien waiver for ${ctx.projectName}.`,
-    eyebrow: 'Lien waiver',
+    eyebrow: 'Lien Waiver',
     title: ctx.projectName,
     subtitle: `${companyName} has prepared a ${meta.long.toLowerCase()} for your signature.`,
     bodyHtml: [
       `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
          Open the link below to read the waiver and sign it yourself. Nothing to install, no account to create.
-         You are signing the exact document shown on the page — read it before you sign.
+         You are signing the exact document shown on the page. Read it before you sign.
        </p>`,
       emailDivider(),
       // `Through` is a CALENDAR DAY, formatted as one. The raw 'YYYY-MM-DD'
@@ -678,10 +678,10 @@ export async function requestLienWaiverSignature(
        </p>`,
       `<p style="margin:14px 0 0 0;font-size:12px;line-height:19px;color:#8B9099;">
          A lien waiver gives up rights. If you have not been paid the amount above, do not sign an unconditional
-         waiver — reply to this email instead.
+         waiver. Reply to this email instead.
        </p>`,
     ].join(''),
-    cta: { label: 'Read and sign', href: signUrl },
+    cta: { label: 'Read and Sign', href: signUrl },
     companyName,
     project: { name: ctx.projectName, location: ctx.projectAddress },
     sender: { name: opts?.senderName ?? branding.contactName, email: opts?.senderEmail ?? branding.email, phone: branding.phone },
@@ -689,7 +689,7 @@ export async function requestLienWaiverSignature(
 
   const result = await sendEmail({
     to: recipient,
-    subject: `${ctx.projectName} — please sign a lien waiver for ${companyName}`,
+    subject: `${ctx.projectName}: please sign a lien waiver for ${companyName}`,
     html,
     replyTo: opts?.senderEmail ?? branding.email,
     fromCompanyName: companyName,

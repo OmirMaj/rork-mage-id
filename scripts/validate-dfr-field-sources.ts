@@ -128,8 +128,8 @@ console.log('\n#10 crew roster from the time clock:');
   ok('the screen shows the warning on the roster, after save, and before send',
     /const liveHoursWarning = useMemo\(\(\) => liveClockHoursWarning\(clockCrew, manpower\), \[clockCrew, manpower\]\);/.test(DFR)
     && /testID="dfr-live-hours-warning"/.test(DFR)
-    && /if \(!silent && liveHoursWarning\) showAlert\(t\('field\.dfr\.savedWithHoursSo', 'Saved with hours so far'\), liveHoursWarning\);/.test(DFR)
-    && /if \(liveHoursWarning\) \{\s*showAlert\(t\('field\.dfr\.crewStillOnThe', 'Crew still on the clock'\)/.test(DFR));
+    && /if \(!silent && liveHoursWarning\) showAlert\(t\('field\.dfr\.savedWithHoursSo', 'Saved with Hours Until Now'\), liveHoursWarning\);/.test(DFR)
+    && /if \(liveHoursWarning\) \{\s*showAlert\(t\('field\.dfr\.crewStillOnThe', 'Crew Still on the Clock'\)/.test(DFR));
   ok('open-shift hours keep counting while the screen is open',
     /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs, overtimeRule, shiftAlertHours\)/.test(DFR)
     && /setInterval\(\(\) => setLiveNowMs\(Date\.now\(\)\), 60_000\)/.test(DFR));
@@ -182,8 +182,8 @@ console.log('\n#11 receipts into the daily report:');
   const damaged = receipt({ id: 'r1', hasDamage: true, damageNotes: '2 trusses cracked at top chord' });
   const lines = receiptLinesForDay([damaged], deliveries, P, '2026-09-17');
   ok('REPRO: the damaged truss load is in Materials delivered, with PO, signer and damage',
-    lines.materials[0] === 'roof trusses — ABC Lumber (PO PO-7), received by Mike — DAMAGED: 2 trusses cracked at top chord', lines.materials[0]);
-  ok('REPRO: ...and in Issues & Delays', lines.damage.length === 1 && /Damaged delivery: roof trusses from ABC Lumber — 2 trusses cracked at top chord \(received by Mike\)/.test(lines.damage[0]), lines.damage[0]);
+    lines.materials[0] === 'roof trusses, ABC Lumber (PO PO-7), received by Mike. DAMAGED: 2 trusses cracked at top chord', lines.materials[0]);
+  ok('REPRO: ...and in Issues & Delays', lines.damage.length === 1 && /Damaged delivery: roof trusses from ABC Lumber: 2 trusses cracked at top chord \(received by Mike\)/.test(lines.damage[0]), lines.damage[0]);
   ok('an undamaged load is not an issue', receiptLinesForDay([receipt({ id: 'r2' })], deliveries, P, '2026-09-17').damage.length === 0);
   ok('a receipt with no scheduled delivery names the supplier', receiptMaterialLine(receipt({ deliveryId: undefined, poNumber: undefined }), undefined) === 'ABC Lumber, received by Mike');
   ok('damage with no notes still says damage was noted', /DAMAGED: damage noted at receiving/.test(receiptMaterialLine(receipt({ hasDamage: true }), deliveries[0])));
@@ -236,7 +236,7 @@ console.log('\nsafety handoff — the DFR verdict reads the restricted-day count
   ok('the box shows on while days are counted, and unticking is refused with the reason',
     /const restrictedShownOn = hasRestriction\(incidentClassInput\);/.test(DFR)
     && /onPress=\{toggleRestrictedDuty\}/.test(DFR)
-    && /'Restricted days are counted'/.test(DFR));
+    && /'Restricted days are counted.'/.test(DFR));
 }
 
 // The roster re-seeds every minute while someone is on the clock. Ids must be

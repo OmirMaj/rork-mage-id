@@ -36,9 +36,9 @@ export default function TakeoffFirstRun({ projectId, jobs, onPickJob, onDropFile
     return (
       <View style={styles.wrap} testID="takeoffws-firstrun-nojob">
         <View style={styles.col}>
-          <Text style={styles.title} accessibilityRole="header">Pick a project to take off</Text>
+          <Text style={styles.title} accessibilityRole="header">Pick a Project to Take Off</Text>
           {jobs.length > 0 ? (
-            <EstimateJobPicker label="Take off for" jobs={jobs} selectedId={undefined} onPick={onPickJob} testID="takeoffws-firstrun-jobs" />
+            <EstimateJobPicker label="Take Off For" jobs={jobs} selectedId={undefined} onPick={onPickJob} testID="takeoffws-firstrun-jobs" />
           ) : (
             <Text style={styles.steps}>No project has an estimate yet. Start one in Estimate, then come back to measure its plans.</Text>
           )}
@@ -57,10 +57,10 @@ export default function TakeoffFirstRun({ projectId, jobs, onPickJob, onDropFile
           style={styles.primary}
           onPress={() => router.push({ pathname: '/plans', params: { projectId } })}
           accessibilityRole="button"
-          accessibilityLabel="Upload plans"
+          accessibilityLabel="Upload Plans"
           testID="takeoffws-upload-plans"
         >
-          <Text style={styles.primaryText}>Upload plans</Text>
+          <Text style={styles.primaryText}>Upload Plans</Text>
         </TouchableOpacity>
         {droppable ? <Text style={styles.steps} testID="takeoffws-firstrun-drop-hint">or drop a PDF here</Text> : null}
         <Text style={styles.steps}>1 Set scale (K) · 2 Pick a condition · 3 Click to measure</Text>

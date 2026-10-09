@@ -116,7 +116,7 @@
   <main class="card" role="main">
     <div class="head">
       <div class="name">MAGE&nbsp;ID</div>
-      <div class="chip">Email preferences</div>
+      <div class="chip">Email Preferences</div>
     </div>
     <div class="body">
       <p class="eyebrow" id="eyebrow">Unsubscribe</p>
@@ -126,15 +126,15 @@
       </p>
 
       <div class="actions" id="actionsBlock">
-        <button class="btn-primary" id="confirmBtn" type="button">Confirm unsubscribe</button>
-        <button class="btn-secondary" id="cancelBtn" type="button">Keep me subscribed</button>
+        <button class="btn-primary" id="confirmBtn" type="button">Confirm Unsubscribe</button>
+        <button class="btn-secondary" id="cancelBtn" type="button">Keep Me Subscribed</button>
       </div>
 
       <div id="successBlock" class="hidden">
         <p class="ok">You're unsubscribed.</p>
         <p>Your <span id="successCategory">notifications</span> have been turned off for <span class="target" id="successEmail">your address</span>. You'll still receive critical account or contract emails — anything time-sensitive that we wouldn't suppress for legal reasons.</p>
         <div class="actions">
-          <button class="btn-secondary" id="undoBtn" type="button">Undo — keep sending these</button>
+          <button class="btn-secondary" id="undoBtn" type="button">Undo and Keep Sending These</button>
         </div>
         <p id="undoStatus" class="hidden"></p>
         <p>You can also turn any category back on from the <a id="prefsLink" href="#">email preferences page</a>.</p>
@@ -146,7 +146,7 @@
       </div>
 
       <div class="footer">
-        Powered by <a href="https://mageid.app">MAGE ID</a> — the operating system for general contractors.
+        Powered by <a href="https://mageid.app">MAGE ID</a>, the operating system for general contractors.
       </div>
     </div>
   </main>
@@ -218,7 +218,7 @@
             var doc = docs ? docs.items.filter(function (it) { return it.key === qs.key; })[0] : null;
             if (doc) {
               documentKey = true;
-              $eyebrow.textContent = 'From your contractor';
+              $eyebrow.textContent = 'From Your Contractor';
               $title.textContent = 'These emails come from your contractor directly';
               $lede.textContent = 'The ' + doc.noun + ' sent to ' + qs.email + ' are part of your job, not notifications. ' + docs.note;
               $actionsBlock.classList.add('hidden');
@@ -269,7 +269,7 @@
           }
         }).catch(function () {
           $undoBtn.disabled = false;
-          $undoBtn.textContent = 'Try undo again';
+          $undoBtn.textContent = 'Try Undo Again';
           $undoStatus.className = 'err';
           $undoStatus.textContent = 'Could not turn it back on. Try again, or use the email preferences page.';
         });
@@ -308,7 +308,7 @@
         }).catch(function () {
           $confirmBtn.disabled = false;
           $cancelBtn.disabled = false;
-          $confirmBtn.textContent = 'Try again';
+          $confirmBtn.textContent = 'Try Again';
           $errorBlock.classList.remove('hidden');
         });
       });

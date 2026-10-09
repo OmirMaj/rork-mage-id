@@ -87,7 +87,7 @@ const RAIL_AUTO_OPEN_MIN_WIDTH = 1280;
 const ASPECT_CACHE = new Map<string, number>();
 
 const SIZE_READING = 'Reading the sheet size…';
-const SIZE_FAILED = 'Couldn’t read this sheet’s image — measuring is off for it.';
+const SIZE_FAILED = 'Couldn’t read this sheet’s image. Measuring is off for it.';
 
 const money = (n: number) => formatMoneyFull(n);
 const DRAW_KINDS: readonly TakeoffTool[] = ['area', 'linear', 'count'];
@@ -409,7 +409,7 @@ export default function TakeoffWorkspace() {
       nth.set(m.sheetId, n);
       const what = m.kind === 'area' ? 'Area' : m.kind === 'linear' ? 'Line' : 'Count';
       const q = measurementQuantity(m, m.kind === 'count' ? null : calFor(m.sheetId));
-      const qty = q == null ? 'not measured — no scale' : qtyLabel(m.kind, q);
+      const qty = q == null ? 'not measured (no scale)' : qtyLabel(m.kind, q);
       return { id: m.id, text: `${sheetLabel(m.sheetId)} · ${what} ${n} · ${qty}` };
     });
   }, [doc.measurements, filter, active, sheetOrder, calFor, sheetLabel]);
@@ -529,7 +529,7 @@ export default function TakeoffWorkspace() {
       lastPush: { at, projectId: project.id, before: r.beforeGrand, after: r.afterGrand, added: r.added, updated: r.updated },
     }));
   }, [pushReason, project, lines, doc.pushed, updateProject, record]);
-  usePrimaryAction(push, { label: 'Push to estimate', disabled: !!pushReason, reason: pushReason, enabled: !!project });
+  usePrimaryAction(push, { label: 'Push to Estimate', disabled: !!pushReason, reason: pushReason, enabled: !!project });
   const openEstimate = useCallback(() => {
     if (project) router.push({ pathname: '/(tabs)/estimate/full', params: { projectId: project.id } });
   }, [project, router]);
@@ -546,7 +546,7 @@ export default function TakeoffWorkspace() {
     const add = preview ? preview.afterGrand - preview.beforeGrand : 0;
     markupLine = `Markup ${pct}% · Sell ${add < 0 ? '−' : '+'}${money(Math.abs(add))} with this push`;
   } else if (est) {
-    markupLine = 'This total is your cost — the estimate has no markup yet';
+    markupLine = 'This total is your cost. The estimate has no markup yet';
   }
   const skippedLines = useMemo(() => {
     const n = (r: string) => skipped.filter((s) => s.reason === r).length;
@@ -554,17 +554,17 @@ export default function TakeoffWorkspace() {
     const noRate = n('no_rate');
     const notMeasured = n('not_measured');
     const noQty = n('no_quantity');
-    if (noRate) out.push(`${noRate} ${plural(noRate, 'has', 'have')} no rate yet — not pushed`);
-    if (notMeasured) out.push(`${notMeasured} not measured (no scale on the sheet) — not pushed`);
-    if (noQty) out.push(`${noQty} ${plural(noQty, 'has', 'have')} nothing measured — not pushed`);
+    if (noRate) out.push(`${noRate} ${plural(noRate, 'has', 'have')} no rate yet, not pushed`);
+    if (notMeasured) out.push(`${notMeasured} not measured (no scale on the sheet), not pushed`);
+    if (noQty) out.push(`${noQty} ${plural(noQty, 'has', 'have')} nothing measured, not pushed`);
     // The AI label rides into the estimate: say so before he pushes.
     const aiLines = lines.filter((l) => l.aiRead).length;
-    if (aiLines) out.push(`${aiLines} ${plural(aiLines, 'line is an', 'lines are')} AI read, not measured — pushed as “… — AI read, not measured”`);
+    if (aiLines) out.push(`${aiLines} ${plural(aiLines, 'line is an', 'lines are')} AI read, not measured, pushed as “… (AI read, not measured)”`);
     return out;
   }, [skipped, lines]);
   const lp = doc.lastPush && project && doc.lastPush.projectId === project.id ? doc.lastPush : null;
   const result = lp
-    ? { line: `Estimate updated ${money(lp.before)} → ${money(lp.after)}`, counts: lp.updated + lp.added === 0 ? 'Already up to date — nothing changed' : `${lp.updated} updated, ${lp.added} added` }
+    ? { line: `Estimate updated ${money(lp.before)} to ${money(lp.after)}`, counts: lp.updated + lp.added === 0 ? 'Already up to date, nothing changed' : `${lp.updated} updated, ${lp.added} added` }
     : null;
   const pushLabel = `Push ${lines.length} ${plural(lines.length, 'line', 'lines')} to estimate`;
 
@@ -621,8 +621,8 @@ export default function TakeoffWorkspace() {
     { combo: 'a', handler: () => chooseTool('area'), label: 'Area', group: 'Takeoff' },
     { combo: 'l', handler: () => chooseTool('linear'), label: 'Linear', group: 'Takeoff' },
     { combo: 'c', handler: () => chooseTool('count'), label: 'Count', group: 'Takeoff' },
-    { combo: 'k', handler: () => chooseTool('scale'), label: 'Set the scale', group: 'Takeoff' },
-    { combo: 'enter', handler: finish, when: () => live.current.draftPts.length > 0, label: 'Finish the shape', group: 'Takeoff' },
+    { combo: 'k', handler: () => chooseTool('scale'), label: 'Set the Scale', group: 'Takeoff' },
+    { combo: 'enter', handler: finish, when: () => live.current.draftPts.length > 0, label: 'Finish the Shape', group: 'Takeoff' },
     {
       combo: 'escape',
       handler: () => {
@@ -632,20 +632,20 @@ export default function TakeoffWorkspace() {
         else setTool('select');
       },
       when: () => { const c = live.current; return c.draftPts.length > 0 || !!c.selectedId || c.tool !== 'select'; },
-      label: 'Cancel the shape / back to Select',
+      label: 'Cancel the Shape / Back to Select',
       group: 'Takeoff',
     },
     {
       combo: 'backspace',
       handler: () => { if (live.current.draftPts.length) setDraftPts((p) => p.slice(0, -1)); else deleteSelected(); },
       when: () => live.current.draftPts.length > 0 || !!live.current.selectedId,
-      label: 'Remove the last point / delete the shape',
+      label: 'Remove the Last Point / Delete the Shape',
       group: 'Takeoff',
     },
     { combo: 'mod+z', handler: undo, label: 'Undo', group: 'Takeoff' },
     { combo: 'mod+shift+z', handler: redo, label: 'Redo', group: 'Takeoff' },
-    { combo: 'n', handler: newCondition, label: 'New condition', group: 'Takeoff' },
-    { combo: '/', handler: focusFilter, label: 'Filter conditions', group: 'Takeoff' },
+    { combo: 'n', handler: newCondition, label: 'New Condition', group: 'Takeoff' },
+    { combo: '/', handler: focusFilter, label: 'Filter Conditions', group: 'Takeoff' },
     // Esc typed IN the filter box clears it and hands the keys back (it outranks the Esc above).
     {
       combo: 'escape',
@@ -654,15 +654,15 @@ export default function TakeoffWorkspace() {
       priority: 2,
     },
     ...digitKeys,
-    { combo: 'plus', handler: () => zoomBy(1.25), label: 'Zoom in', group: 'Takeoff' },
+    { combo: 'plus', handler: () => zoomBy(1.25), label: 'Zoom In', group: 'Takeoff' },
     { combo: '=', handler: () => zoomBy(1.25) },
-    { combo: '-', handler: () => zoomBy(0.8), label: 'Zoom out', group: 'Takeoff' },
+    { combo: '-', handler: () => zoomBy(0.8), label: 'Zoom Out', group: 'Takeoff' },
     { combo: '0', handler: fit, label: 'Fit', group: 'Takeoff' },
-    { combo: 'shift+g', handler: () => setGrayscale((g) => !g), label: 'Grayscale plan on/off', group: 'Takeoff' },
-    { combo: '[', handler: toggleRail, label: 'Sheet list', group: 'Takeoff' },
-    { combo: ']', handler: togglePanel, label: 'Conditions panel', group: 'Takeoff' },
-    { combo: 'arrowup', handler: () => flip(-1), label: 'Previous sheet', group: 'Takeoff' },
-    { combo: 'arrowdown', handler: () => flip(1), label: 'Next sheet', group: 'Takeoff' },
+    { combo: 'shift+g', handler: () => setGrayscale((g) => !g), label: 'Grayscale Plan On/Off', group: 'Takeoff' },
+    { combo: '[', handler: toggleRail, label: 'Sheet List', group: 'Takeoff' },
+    { combo: ']', handler: togglePanel, label: 'Conditions Panel', group: 'Takeoff' },
+    { combo: 'arrowup', handler: () => flip(-1), label: 'Previous Sheet', group: 'Takeoff' },
+    { combo: 'arrowdown', handler: () => flip(1), label: 'Next Sheet', group: 'Takeoff' },
   ], { scope: 'page', enabled: !!active });
 
   // ── render ─────────────────────────────────────────────────────────────
@@ -677,7 +677,7 @@ export default function TakeoffWorkspace() {
           <ChevronLeft size={20} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         {active && !railOpen ? (
-          <TouchableOpacity onPress={toggleRail} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Show sheet list ([)" testID="takeoffws-rail-open">
+          <TouchableOpacity onPress={toggleRail} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Show Sheet List ([)" testID="takeoffws-rail-open">
             <PanelLeftOpen size={16} color={t.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : null}
@@ -690,7 +690,7 @@ export default function TakeoffWorkspace() {
           <View style={styles.pill} accessibilityHint={scale === 'recheck' ? PLAN_SCALE_RECHECK_COPY : undefined} testID="takeoffws-scale-pill">
             {scale === 'ready' ? <View style={[styles.dot, { backgroundColor: t.success }]} /> : null}
             <Text style={[styles.pillText, scale !== 'ready' && { color: t.warningLabel }]}>
-              {scale === 'ready' ? 'Scale set' : scale === 'none' ? 'Set scale (K)' : 'Re-check scale'}
+              {scale === 'ready' ? 'Scale Set' : scale === 'none' ? 'Set Scale (K)' : 'Re-Check Scale'}
             </Text>
           </View>
         ) : null}
@@ -712,7 +712,7 @@ export default function TakeoffWorkspace() {
           </>
         ) : null}
         {active && !panelOpen ? (
-          <TouchableOpacity onPress={togglePanel} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Show conditions (])" testID="takeoffws-panel-open">
+          <TouchableOpacity onPress={togglePanel} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Show Conditions (])" testID="takeoffws-panel-open">
             <PanelRightOpen size={16} color={t.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : null}
@@ -837,34 +837,34 @@ function ScaleDialog({ onSave, onClose }: { onSave: (ft: number) => void; onClos
   const styles = useThemedStyles(makeStyles);
   const [text, setText] = useState('');
   const ft = parseDecimalInput(text);
-  const reason = ft != null && ft > 0 ? null : 'Type the real length in feet (e.g. 12 or 12.5).';
+  const reason = ft != null && ft > 0 ? null : 'Type the real length in feet (for example 12 or 12.5).';
   const save = useCallback(() => { if (ft != null && ft > 0) onSave(ft); }, [ft, onSave]);
   useHotkeys([
     { combo: 'escape', handler: onClose, label: 'Close', group: 'Scale' },
-    { combo: 'enter', handler: save, allowInInput: true, label: 'Save the scale', group: 'Scale' },
+    { combo: 'enter', handler: save, allowInInput: true, label: 'Save the Scale', group: 'Scale' },
   ], { scope: 'dialog' });
   return (
     <Sheet
       visible
       onClose={onClose}
       size="dialog"
-      title="Set the scale"
+      title="Set the Scale"
       subtitle="How long is the line you just clicked, in real feet?"
-      primaryAction={{ label: 'Save scale', onPress: save, disabled: !!reason, disabledReason: text.trim() ? reason ?? undefined : undefined, testID: 'takeoffws-scale-save' }}
+      primaryAction={{ label: 'Save Scale', onPress: save, disabled: !!reason, disabledReason: text.trim() ? reason ?? undefined : undefined, testID: 'takeoffws-scale-save' }}
       secondaryAction={{ label: 'Cancel', onPress: onClose }}
       testID="takeoffws-scale-dialog"
     >
       <TextInput
         value={text}
         onChangeText={setText}
-        placeholder="Feet, e.g. 24"
+        placeholder="24"
         placeholderTextColor={t.textMuted}
         keyboardType="decimal-pad"
         style={styles.input}
-        accessibilityLabel="Real length in feet"
+        accessibilityLabel="Real Length in Feet"
         testID="takeoffws-scale-feet"
       />
-      <Text style={styles.hint}>Saved to this sheet — Plan Viewer and the phone use the same scale.</Text>
+      <Text style={styles.hint}>Saved to this sheet. Plan Viewer and the phone use the same scale.</Text>
     </Sheet>
   );
 }

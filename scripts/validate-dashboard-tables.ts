@@ -239,7 +239,7 @@ console.log('app/job-costing.tsx — the desktop tables read the helpers:');
     const order = [
       "' · entered by you, synced'", "' · entered here, not synced yet'",
       "' · every cost recorded on this project", "' · subs paid + material receipts only",
-      '— nothing paid out yet, though', "' — nothing recorded yet.",
+      ': nothing paid out yet, though', "': nothing recorded yet.",
     ].map(at);
     ok('the phone row still prints the six-branch cost sentence the tag abbreviates, in the same order',
       order.every(i => i >= 0) && order.every((i, n) => n === 0 || i > order[n - 1]), JSON.stringify(order));
@@ -365,7 +365,7 @@ console.log('app/job-costing.tsx — the desktop tables read the helpers:');
     // The card's words and inks, as the phone prints them (app/reports.tsx).
     const cardWord = (r: typeof aging.rows[number]) => {
       const isRetainageOnly = r.outstanding <= 0.5;
-      return isRetainageOnly ? 'Retainage only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`;
+      return isRetainageOnly ? 'Retainage Only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`;
     };
     for (const r of aging.rows) {
       const c = agingCells(r);
@@ -383,7 +383,7 @@ console.log('app/job-costing.tsx — the desktop tables read the helpers:');
       tone('0-30') === 'warn' && tone('31-60') === 'warn' && tone('61-90') === 'bad' && tone('90+') === 'bad' && tone('current') === 'muted');
     const REP = read('app/reports.tsx');
     ok("…and the card still prints exactly that word ternary and that ink ternary",
-      REP.includes("{isRetainageOnly ? 'Retainage only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`}")
+      REP.includes("{isRetainageOnly ? 'Retainage Only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`}")
         && /isRetainageOnly\s+\? styles\.bucketPillMuted :\s*r\.bucket === 'current'\s+\? styles\.bucketPillMuted :\s*r\.bucket === '0-30'\s+\? styles\.bucketPillWarn :\s*r\.bucket === '31-60'\s+\? styles\.bucketPillWarn :\s*styles\.bucketPillBad;/.test(REP));
   }
   const af = agingFooter(aging.totals);

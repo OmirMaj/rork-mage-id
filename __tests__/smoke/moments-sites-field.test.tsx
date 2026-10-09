@@ -170,7 +170,7 @@ describe('moments C1: clocking out', () => {
     // Back to NOW exactly: the mount's settle() moved the fake clock 6 s on.
     setClock(NOW);
     await pump();
-    const buttons = screen.getAllByText('Clock out');
+    const buttons = screen.getAllByText('Clock Out');
     expect(buttons.length).toBeGreaterThan(0);
     fireEvent.press(buttons[0]);
     await pump(3);

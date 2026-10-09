@@ -167,7 +167,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                 <MageAIMark size={18} color={Colors.surface} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.headerTitle}>Review your cart</Text>
+                <Text style={styles.headerTitle}>Review Your Cart</Text>
                 <Text style={styles.headerSub}>{headerSubtitle}</Text>
               </View>
             </View>
@@ -188,7 +188,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.fieldLabel}>Project description</Text>
+            <Text style={styles.fieldLabel}>Project Description</Text>
             <TextInput
               style={styles.textArea}
               value={description}
@@ -229,7 +229,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
               ) : (
                 <>
                   {result ? <RefreshCw size={16} color={Colors.surface} strokeWidth={1.75} /> : <MageAIMark size={16} color={Colors.surface} />}
-                  <Text style={styles.generateBtnText}>{result ? 'Regenerate' : 'Generate suggestions'}</Text>
+                  <Text style={styles.generateBtnText}>{result ? 'Regenerate' : 'Generate Suggestions'}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -246,7 +246,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                   if (Platform.OS !== 'web') void Haptics.selectionAsync();
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel suggestions"
+                accessibilityLabel="Cancel Suggestions"
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
@@ -272,7 +272,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
               <View style={styles.recBlock}>
                 <View style={styles.recHeader}>
                   <MageAIMark size={14} color={Colors.warningLabel} />
-                  <Text style={styles.recHeaderText}>Overall recommendations</Text>
+                  <Text style={styles.recHeaderText}>Overall Recommendations</Text>
                 </View>
                 {result.overallRecommendations.map((r, idx) => (
                   <View key={idx} style={styles.recRow}>
@@ -287,7 +287,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
               <View style={styles.laborBlock}>
                 <View style={styles.recHeader}>
                   <HardHat size={14} color={Colors.accent} strokeWidth={1.75} />
-                  <Text style={styles.recHeaderText}>Labor estimate range</Text>
+                  <Text style={styles.recHeaderText}>Labor Estimate Range</Text>
                 </View>
                 <Text style={styles.laborRange}>
                   {formatMoney(result.laborEstimateRange.low, 0)} – {formatMoney(result.laborEstimateRange.high, 0)}
@@ -301,7 +301,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
             {result && result.perItem.length > 0 && (
               <View style={{ marginTop: 8 }}>
                 <Text style={styles.sectionTitle}>
-                  Per-item suggestions ({result.perItem.length})
+                  Per-Item Suggestions ({result.perItem.length})
                 </Text>
                 {result.perItem.map(s => {
                   const current = lookupCurrent(s.materialId);
@@ -345,7 +345,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                               <Text style={[styles.applyBtnText, { color: Colors.successLabel }]}>Applied</Text>
                             </>
                           ) : (
-                            <Text style={styles.applyBtnText}>Apply qty</Text>
+                            <Text style={styles.applyBtnText}>Apply Qty</Text>
                           )}
                         </TouchableOpacity>
                       </View>
@@ -379,7 +379,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                               <Text style={[styles.applyBtnText, { color: Colors.successLabel }]}>Applied</Text>
                             </>
                           ) : (
-                            <Text style={styles.applyBtnText}>Apply markup</Text>
+                            <Text style={styles.applyBtnText}>Apply Markup</Text>
                           )}
                         </TouchableOpacity>
                       </View>

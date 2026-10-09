@@ -19,6 +19,8 @@ import { sampleInvoiceBannerHtml, samplePaySpecimenHtml } from '@/utils/invoiceS
 import { PAYOUT_TIMING_SHORT } from '@/utils/platformFees';
 import { readEdgeError, edgeErrorStatus } from '@/utils/edgeError';
 import { SAMPLE_DOC_NOT_SENT } from '@/utils/sampleGuard';
+import { dfrWeatherSourceLine } from '@/utils/weatherService';
+import { OPENWEATHER_CREDIT, OPENWEATHER_URL } from '@/utils/contentCredits';
 
 export interface SendEmailParams {
   to: string;
@@ -305,7 +307,7 @@ export function buildMailtoUrl(opts: {
   body: string;
 }): string {
   const body = opts.body.length > MAILTO_BODY_LIMIT
-    ? `${opts.body.slice(0, MAILTO_BODY_LIMIT).trimEnd()}\n\n[…trimmed — open the full version in MAGE ID]`
+    ? `${opts.body.slice(0, MAILTO_BODY_LIMIT).trimEnd()}\n\n[…trimmed. Open the full version in MAGE ID]`
     : opts.body;
   return `mailto:${encodeURIComponent(opts.to)}?subject=${encodeURIComponent(opts.subject)}&body=${encodeURIComponent(body)}`;
 }
@@ -436,7 +438,7 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
       // No mail client on the web can be handed a file by a mailto:, so say so
       // rather than letting the recipient discover the missing PDF.
       const attachmentNote = attachmentCount > 0
-        ? `\n\n---\n[${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'} could NOT be included in this draft — attach the file${attachmentCount === 1 ? '' : 's'} yourself before sending.]`
+        ? `\n\n---\n[${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'} could NOT be included in this draft. Attach the file${attachmentCount === 1 ? '' : 's'} yourself before sending.]`
         : '';
       const body = `${htmlToPlainText(params.html)}${attachmentNote}`;
       const opened = openMailtoWeb(buildMailtoUrl({ to: params.to, subject: params.subject, body }));
@@ -452,7 +454,7 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
       return {
         success: false,
         outcome: 'composer_opened',
-        error: `Not sent. We opened a draft in your email app${attachmentCount > 0 ? ' without the attachment' : ''} — review it and press Send there.`,
+        error: `Not sent. We opened a draft in your email app${attachmentCount > 0 ? ' without the attachment' : ''}. Review it and press Send there.`,
         attachmentsDropped: attachmentCount,
       };
     }
@@ -519,11 +521,11 @@ export function buildWelcomeEmailHtml(opts: {
   } = opts;
 
   const features = [
-    { title: 'Estimates from your own prices', body: 'Regional material list prices, local cost adjustments and AI quick estimates from a photo.' },
-    { title: 'Daily reports by voice', body: 'Say what happened on site. MAGE drafts the weather, manpower, work performed and issues.' },
-    { title: 'Get paid in the app', body: `A Pay button on every invoice. ${PAYOUT_TIMING_SHORT}.` },
-    { title: 'Plans, RFIs, change orders and submittals', body: 'The full document workflow on your phone. Export RFI logs and closeout packets to PDF.' },
-    { title: 'Cash-flow forecast', body: 'See a cash shortfall weeks before it happens.' },
+    { title: 'Estimates from Your Own Prices', body: 'Regional material list prices, local cost adjustments and AI quick estimates from a photo.' },
+    { title: 'Daily Reports by Voice', body: 'Say what happened on site. MAGE drafts the weather, manpower, work performed and issues.' },
+    { title: 'Get Paid in the App', body: `A Pay button on every invoice. ${PAYOUT_TIMING_SHORT}.` },
+    { title: 'Plans, RFIs, Change Orders and Submittals', body: 'The full document workflow on your phone. Export RFI logs and closeout packets to PDF.' },
+    { title: 'Cash-Flow Forecast', body: 'See a cash shortfall weeks before it happens.' },
   ];
   const featuresHtml = features.map(f => `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px;">
@@ -598,9 +600,9 @@ export function buildInvoiceEmailHtml(opts: {
   const formattedDue = new Date(dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const stats = `
     ${emailStatRow('Project', projectName)}
-    ${emailStatRow('Due date', formattedDue)}
+    ${emailStatRow('Due Date', formattedDue)}
     ${emailStatRow('Terms', paymentTerms)}
-    ${emailStatRow('Amount due', fmtMoneyCents(totalDue), { emphasize: true })}
+    ${emailStatRow('Amount Due', fmtMoneyCents(totalDue), { emphasize: true })}
   `;
 
   const bodyHtml = sample
@@ -620,7 +622,7 @@ export function buildInvoiceEmailHtml(opts: {
   `;
 
   return wrapEmailHtml({
-    preheader: `${sample ? 'SAMPLE — sent to you only. ' : ''}Invoice #${invoiceNumber} for ${projectName} — ${fmtMoneyCents(totalDue)} due ${formattedDue}.`,
+    preheader: `${sample ? 'SAMPLE, sent to you only. ' : ''}Invoice #${invoiceNumber} for ${projectName}: ${fmtMoneyCents(totalDue)} due ${formattedDue}.`,
     eyebrow: `${sample ? 'Sample · ' : ''}Invoice #${invoiceNumber}`,
     title: `${fmtMoneyCents(totalDue)} due`,
     subtitle: `Invoice #${invoiceNumber} for ${projectName}.`,
@@ -686,7 +688,7 @@ export function buildChangeOrderEmailHtml(opts: {
   const formattedHeadline = signed(headline);
 
   const rows: string[] = [
-    emailStatRow('Change order', `#${escapeHtml(coNumber)}`),
+    emailStatRow('Change Order', `#${escapeHtml(coNumber)}`),
     emailStatRow('Project', escapeHtml(projectName)),
   ];
   // #129: AIA G701 order. Only when the caller knows the original sum — an
@@ -694,21 +696,21 @@ export function buildChangeOrderEmailHtml(opts: {
   // mislabelled one.
   if (finite(opts.originalContractSum)) {
     const prior = finite(opts.priorApprovedChangesTotal) ? opts.priorApprovedChangesTotal : 0;
-    rows.push(emailStatRow('Original contract sum', money(opts.originalContractSum)));
-    if (prior !== 0) rows.push(emailStatRow('Net change by prior approved COs', signed(prior)));
-    rows.push(emailStatRow('Contract sum prior to this CO', money(opts.originalContractSum + prior)));
+    rows.push(emailStatRow('Original Contract Sum', money(opts.originalContractSum)));
+    if (prior !== 0) rows.push(emailStatRow('Net Change by Prior Approved COs', signed(prior)));
+    rows.push(emailStatRow('Contract Sum Prior to This CO', money(opts.originalContractSum + prior)));
   }
-  rows.push(emailStatRow(hasTax ? 'This change (pre-tax)' : 'Change amount', signed(changeAmount), hasTax ? undefined : { emphasize: true, valueColor: amountColor }));
+  rows.push(emailStatRow(hasTax ? 'This Change (Pre-Tax)' : 'Change Amount', signed(changeAmount), hasTax ? undefined : { emphasize: true, valueColor: amountColor }));
   if (hasTax) {
-    rows.push(emailStatRow(`Sales tax${finite(opts.taxRatePct) ? ` (${escapeHtml(opts.taxRatePct)}%)` : ''}`, signed(taxAmount)));
-    rows.push(emailStatRow('CO total incl. tax', signed(totalWithTax), { emphasize: true, valueColor: amountColor }));
+    rows.push(emailStatRow(`Sales Tax${finite(opts.taxRatePct) ? ` (${escapeHtml(opts.taxRatePct)}%)` : ''}`, signed(taxAmount)));
+    rows.push(emailStatRow('CO Total Incl. Tax', signed(totalWithTax), { emphasize: true, valueColor: amountColor }));
   }
-  rows.push(emailStatRow(hasTax ? 'New contract total (pre-tax)' : 'New contract total', money(newContractTotal), { emphasize: !hasTax }));
+  rows.push(emailStatRow(hasTax ? 'New Contract Total (Pre-Tax)' : 'New Contract Total', money(newContractTotal), { emphasize: !hasTax }));
 
   // #35: never "approve in one tap" — the portal signs through an e-sign
   // consent step, and without a link there is no portal to point at at all.
   const howTo = portalUrl
-    ? `Review and sign it in your project portal with the button below${portalNeedsPasscode ? ' — the portal asks for the passcode we gave you' : ''}, or reply to this email with your decision.`
+    ? `Review and sign it in your project portal with the button below${portalNeedsPasscode ? ' (the portal asks for the passcode we gave you)' : ''}, or reply to this email with your decision.`
     : 'Reply to this email with your decision.';
 
   const bodyHtml = `
@@ -726,7 +728,7 @@ export function buildChangeOrderEmailHtml(opts: {
     title: `${formattedHeadline} change request`,
     subtitle: `Change order #${coNumber} for ${projectName}.`,
     bodyHtml,
-    cta: portalUrl ? { label: 'Review and sign change order', href: portalUrl } : undefined,
+    cta: portalUrl ? { label: 'Review and Sign Change Order', href: portalUrl } : undefined,
     companyName,
     project: { name: projectName },
     contactName, contactEmail,
@@ -771,11 +773,11 @@ export function buildPortalInviteEmailHtml(opts: {
   const sectionsHtml = visibleSections.length > 0
     ? `
       ${emailStatRow('Project', projectName)}
-      ${emailStatRow('You can see', visibleSections.join(' · '))}
+      ${emailStatRow('You Can See', visibleSections.join(' · '))}
     `
     : `
       ${emailStatRow('Project', projectName)}
-      ${emailStatRow('You can see', 'Project overview and messages')}
+      ${emailStatRow('You Can See', 'Project overview and messages')}
     `;
 
   // The passcode box is an ATTENTION callout ("keep it private"), so it wears
@@ -788,7 +790,7 @@ export function buildPortalInviteEmailHtml(opts: {
       ? emailQuote(welcomeMessage)
       : `<p style="margin:0 0 14px;font-size:15px;color:#4A5159;line-height:1.6;">
            You've been invited to your private project portal for <strong style="color:#0B0D10;">${projectName}</strong>.
-           One link, always up to date — open it from any phone, tablet, or browser.
+           One link, always up to date. Open it from any phone, tablet, or browser.
          </p>`}
     ${emailStatCard(sectionsHtml)}
     ${passcode ? `
@@ -798,7 +800,7 @@ export function buildPortalInviteEmailHtml(opts: {
             <p style="margin:0 0 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.4px;color:#B84A00;text-transform:uppercase;">Passcode required</p>
             <p style="margin:0 0 4px;font-family:-apple-system,BlinkMacSystemFont,'SF Mono',Menlo,Consolas,monospace;font-size:22px;font-weight:800;color:#0B0D10;letter-spacing:4px;">${escapeHtml(passcode)}</p>
             <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:12px;color:#4A5159;line-height:1.5;">
-              Enter this passcode when prompted. Keep it private — it unlocks every detail your contractor has shared.
+              Enter this passcode when prompted. Keep it private. It unlocks every detail your contractor has shared.
             </p>
           </td>
         </tr>
@@ -816,11 +818,11 @@ export function buildPortalInviteEmailHtml(opts: {
 
   return wrapEmailHtml({
     preheader: `Your private project portal for ${projectName}. Open it anytime, from any device.`,
-    eyebrow: 'Project portal',
+    eyebrow: 'Project Portal',
     title: projectName,
     subtitle: `Live updates from ${companyName}, anytime and from any device.`,
     bodyHtml,
-    cta: { label: 'Open my portal', href: portalUrl },
+    cta: { label: 'Open My Portal', href: portalUrl },
     companyName,
     project: { name: projectName },
     contactName, contactEmail, contactPhone,
@@ -873,8 +875,10 @@ export function buildDailyReportEmailHtml(opts: {
   recipientName: string;
   projectName: string;
   date: string;
-  /** The strings the form recorded, unchanged. See dfrWeatherLine. */
-  weather: { conditions: string; temperature: string; wind?: string };
+  /** The strings the form recorded, unchanged. See dfrWeatherLine. When the
+   *  app read them from OpenWeather (`isManual: false` + `source` + `readAt`),
+   *  the email also prints where they came from and OpenWeather's credit. */
+  weather: { conditions: string; temperature: string; wind?: string; isManual?: boolean; source?: string; readAt?: string };
   totalManpower: number;
   totalManHours: number;
   workPerformed: string;
@@ -914,32 +918,36 @@ export function buildDailyReportEmailHtml(opts: {
   const formatted = dayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const { isToday } = dfrDayWording(reportDay, opts.today ?? todayCalendarDay());
   const weatherLine = dfrWeatherLine(weather);
+  const weatherSource = dfrWeatherSourceLine(weather, reportDay);
+  const weatherSourceRow = weatherSource
+    ? emailStatRow('Weather Source', `${escapeHtml(weatherSource)}. <a href="${OPENWEATHER_URL}" style="color:#4A5159;">${escapeHtml(OPENWEATHER_CREDIT)}</a>`)
+    : '';
   const text = (v: string) => `<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;white-space:pre-wrap;">${escapeHtml(v)}</p>`;
   const heading = (v: string, color = '#0B0D10') => `<p style="margin:18px 0 6px;font-weight:700;color:${color};">${escapeHtml(v)}</p>`;
 
   const crewRows = manpower.filter(m => (m.trade || m.company) && m.headcount > 0);
   const crewHtml = crewRows.length > 0
-    ? heading('Crew on site') + emailStatCard(crewRows.map(m => emailStatRow(
+    ? heading('Crew on Site') + emailStatCard(crewRows.map(m => emailStatRow(
         [m.trade, m.company].map(v => (v || '').trim()).filter(Boolean).join(' — ') || 'Crew',
         escapeHtml(`${m.headcount} × ${m.hoursWorked} h = ${m.headcount * m.hoursWorked} h`),
       )).join(''))
     : '';
   const materials = materialsDelivered.map(m => (m || '').trim()).filter(Boolean);
   const materialsHtml = materials.length > 0
-    ? heading('Materials delivered') + `<ul style="margin:0 0 14px;padding-left:18px;color:#4A5159;line-height:1.55;">${materials.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`
+    ? heading('Materials Delivered') + `<ul style="margin:0 0 14px;padding-left:18px;color:#4A5159;line-height:1.55;">${materials.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`
     : '';
   const incidentHtml = incident
     ? heading('Incident', '#C2410C') + emailStatCard([
         incident.severity ? emailStatRow('Severity', escapeHtml(incident.severity.replace(/_/g, ' '))) : '',
         incident.classification ? emailStatRow('Classification', escapeHtml(incident.classification)) : '',
-        emailStatRow('Injury reported', incident.injuriesReported ? 'Yes' : 'No'),
+        emailStatRow('Injury Reported', incident.injuriesReported ? 'Yes' : 'No'),
       ].join('')) + (incident.description ? text(incident.description) : '')
         + (incident.correctiveAction ? `<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;white-space:pre-wrap;"><strong>Corrective action:</strong> ${escapeHtml(incident.correctiveAction)}</p>` : '')
     : '';
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const photosLine = photoCount > 0
     ? `<p style="margin:0 0 6px;color:#4A5159;font-size:13px;">${escapeHtml(filedPdfUrl
-        ? `${plural(photoCount, 'photo')} ${photoCount === 1 ? 'is' : 'are'} in the full report — open it with the button below${filedPdfLinkDays ? ` (the link works for ${filedPdfLinkDays} days)` : ''}.`
+        ? `${plural(photoCount, 'photo')} ${photoCount === 1 ? 'is' : 'are'} in the full report. Open it with the button below${filedPdfLinkDays ? ` (the link works for ${filedPdfLinkDays} days)` : ''}.`
         : `${plural(photoCount, 'photo')} ${photoCount === 1 ? 'is' : 'are'} on this report. Reply if you need ${photoCount === 1 ? 'it' : 'them'} sent over.`)}</p>`
     : '';
 
@@ -948,24 +956,25 @@ export function buildDailyReportEmailHtml(opts: {
     ${message ? emailQuote(message) : `<p style="margin:0 0 6px;">${escapeHtml(isToday ? "Today's daily report is below." : `The daily report for ${formatted} is below.`)}</p>`}
     ${emailStatCard(`
       ${emailStatRow('Weather', escapeHtml(weatherLine))}
+      ${weatherSourceRow}
       ${emailStatRow('Manpower', escapeHtml(plural(totalManpower, 'worker')))}
       ${emailStatRow('Man-hours', escapeHtml(`${totalManHours} hrs`), { emphasize: true })}
     `)}
     ${crewHtml}
-    ${workPerformed ? heading('Work performed') + text(workPerformed) : ''}
+    ${workPerformed ? heading('Work Performed') + text(workPerformed) : ''}
     ${materialsHtml}
-    ${issuesAndDelays ? heading('Issues and delays', '#C2410C') + text(issuesAndDelays) : ''}
+    ${issuesAndDelays ? heading('Issues and Delays', '#C2410C') + text(issuesAndDelays) : ''}
     ${incidentHtml}
     ${photosLine}
   `;
 
   return wrapEmailHtml({
     preheader: `${formatted} · ${weatherLine} · ${plural(totalManpower, 'crew member')} · ${totalManHours} man-hours.`,
-    eyebrow: 'Daily report',
+    eyebrow: 'Daily Report',
     title: formatted,
     subtitle: isToday ? `Today's report for ${projectName}.` : `Daily report for ${projectName}.`,
     bodyHtml,
-    cta: filedPdfUrl ? { label: 'Open the full report (PDF)', href: filedPdfUrl } : undefined,
+    cta: filedPdfUrl ? { label: 'Open the Full Report (PDF)', href: filedPdfUrl } : undefined,
     companyName,
     project: { name: projectName },
     contactName, contactEmail,
@@ -1010,15 +1019,15 @@ export function buildEstimateEmailHtml(opts: {
       : '<p style="margin:0 0 6px;">Here is a summary of your estimate. Reply if you would like the full itemized breakdown.</p>'}
     ${emailStatCard(`
       ${emailStatRow('Project', projectName)}
-      ${emailStatRow('Line items', `${itemCount} items`)}
-      ${emailStatRow('Estimated total', fmtMoney(grandTotal), { emphasize: true })}
+      ${emailStatRow('Line Items', `${itemCount} items`)}
+      ${emailStatRow('Estimated Total', fmtMoney(grandTotal), { emphasize: true })}
     `)}
     ${financingHtml ?? ''}
     <p style="margin:0;color:#4A5159;font-size:13px;">Reply with questions, or let me know when you'd like to walk through the numbers together.</p>
   `;
 
   return wrapEmailHtml({
-    preheader: `Estimate for ${projectName} — ${fmtMoney(grandTotal)} across ${itemCount} items.`,
+    preheader: `Estimate for ${projectName}: ${fmtMoney(grandTotal)} across ${itemCount} items.`,
     eyebrow: 'Estimate',
     title: fmtMoney(grandTotal),
     subtitle: `Estimate for ${projectName}.`,
@@ -1053,7 +1062,7 @@ export function buildGenericDocumentEmailHtml(opts: {
   `;
 
   return wrapEmailHtml({
-    preheader: `${documentType} for ${projectName} — ${fileName}`,
+    preheader: `${documentType} for ${projectName}: ${fileName}`,
     eyebrow: documentType,
     title: documentType,
     subtitle: `For ${projectName}.`,
@@ -1109,9 +1118,9 @@ export function buildRFIEmailHtml(opts: {
 
   const stats: string[] = [];
   stats.push(emailStatRow('Priority', RFI_PRIORITY_LABEL[priority || 'normal'] ?? 'Normal', { valueColor: priorityAccent }));
-  if (formattedDue) stats.push(emailStatRow('Response needed by', formattedDue, { emphasize: priority === 'urgent' }));
-  if (submittedBy) stats.push(emailStatRow('Submitted by', submittedBy));
-  if (linkedDrawing) stats.push(emailStatRow('Linked drawing', linkedDrawing));
+  if (formattedDue) stats.push(emailStatRow('Response Needed By', formattedDue, { emphasize: priority === 'urgent' }));
+  if (submittedBy) stats.push(emailStatRow('Submitted By', submittedBy));
+  if (linkedDrawing) stats.push(emailStatRow('Linked Drawing', linkedDrawing));
 
   const bodyHtml = `
     ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
@@ -1125,13 +1134,13 @@ export function buildRFIEmailHtml(opts: {
   `;
 
   return wrapEmailHtml({
-    preheader: `RFI #${rfiNumber}: ${subject}${formattedDue ? ` — needed by ${formattedDue}` : ''}.`,
+    preheader: `RFI #${rfiNumber}: ${subject}${formattedDue ? `, needed by ${formattedDue}` : ''}.`,
     eyebrow: `RFI #${rfiNumber} · ${RFI_PRIORITY_LABEL[priority || 'normal'] ?? 'Normal'}`,
     title: subject,
     subtitle: `Request for information on ${projectName}.`,
     accent: priorityAccent,
     bodyHtml,
-    cta: replyPortalUrl ? { label: 'Open reply portal', href: replyPortalUrl } : undefined,
+    cta: replyPortalUrl ? { label: 'Open Reply Portal', href: replyPortalUrl } : undefined,
     companyName,
     project: { name: projectName },
     contactName, contactEmail, contactPhone,

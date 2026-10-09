@@ -78,7 +78,7 @@ export default function ScenariosModal({
   const handleCreate = useCallback(() => {
     const name = newName.trim();
     if (!name) {
-      showAlert('Add a name', 'Enter a name so you can tell saved plans apart.');
+      showAlert('Add a Name', 'Enter a name so you can tell saved plans apart.');
       return;
     }
     const scenario: ScheduleScenario = {
@@ -126,7 +126,7 @@ export default function ScenariosModal({
               // itself reversible.
               const backup: ScheduleScenario = {
                 id: `scn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                name: `Before restore — ${new Date().toLocaleDateString()}`,
+                name: `Before restore: ${new Date().toLocaleDateString()}`,
                 note: 'Auto-saved before restoring a saved plan.',
                 createdAt: new Date().toISOString(),
                 tasks: schedule.tasks.map((t) => ({ ...t })) as ScheduleTask[],
@@ -195,7 +195,7 @@ export default function ScenariosModal({
               <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>Saved plans</Text>
+            <Text style={styles.title}>Saved Plans</Text>
             <View style={{ width: 56 }} />
           </View>
           <View style={styles.paywallWrap}>
@@ -222,7 +222,7 @@ export default function ScenariosModal({
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Saved plans</Text>
+          <Text style={styles.title}>Saved Plans</Text>
           <TouchableOpacity
             style={styles.newBtn}
             onPress={() => setShowCreate(true)}
@@ -256,7 +256,7 @@ export default function ScenariosModal({
           >
             <View style={styles.rowHeader}>
               <Text style={[styles.rowName, activeId === null && styles.rowNameActive]}>
-                Live plan
+                Live Plan
               </Text>
               {activeId === null && <Check size={16} color={themeColors.accent} strokeWidth={1.75} />}
             </View>
@@ -301,7 +301,7 @@ export default function ScenariosModal({
                   style={styles.restoreBtn}
                   onPress={() => handleRestore(s)}
                   activeOpacity={0.7}
-                  testID={`scenarios-restore-${s.id}`} accessibilityRole="button" accessibilityLabel="Restore this plan">
+                  testID={`scenarios-restore-${s.id}`} accessibilityRole="button" accessibilityLabel="Restore This Plan">
                   <RotateCcw size={14} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -332,10 +332,10 @@ export default function ScenariosModal({
         >
           <View style={[styles.createOverlay, createFrame.overlay]}>
             <View style={[styles.createCard, createFrame.card]}>
-              <Text style={styles.createTitle}>Save this plan</Text>
+              <Text style={styles.createTitle}>Save This Plan</Text>
               <Text style={styles.createHint}>
                 Saves a frozen copy of the schedule as it is now. The copy can{"'"}t
-                be edited — keep working in the live plan, and restore this copy
+                be edited. Keep working in the live plan, and restore this copy
                 any time.
               </Text>
 
@@ -344,13 +344,13 @@ export default function ScenariosModal({
                 style={styles.input}
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="e.g. Before re-sequencing framing"
+                placeholder="Before re-sequencing framing"
                 placeholderTextColor={themeColors.textMuted}
                 autoFocus
                 testID="scenarios-new-name"
               />
 
-              <Text style={styles.fieldLabel}>Note (optional)</Text>
+              <Text style={styles.fieldLabel}>Note (Optional)</Text>
               <TextInput
                 style={[styles.input, styles.inputMulti]}
                 value={newNote}

@@ -152,7 +152,7 @@ async function main() {
     const lw = T('lien_waiver_signed', { signer_name: 'Ana Rivera', sub_company: 'Rivera Drywall', waiver_type: 'conditional_progress', through_date: '2026-09-15', paid_amount: 18400 }, 'Henderson');
     ok('waiver: names the sub, the type and the exact amount', lw?.pushBody === 'Rivera Drywall signed their conditional progress lien waiver for $18,400.00.', lw?.pushBody);
     ok('waiver: the through day is read as that calendar day', lw?.rows.some(([k, v]) => k === 'Through' && v === 'Sep 15, 2026') === true, JSON.stringify(lw?.rows));
-    ok('waiver: the signer is shown when it differs from the company', lw?.rows.some(([k, v]) => k === 'Signed by' && v === 'Ana Rivera') === true);
+    ok('waiver: the signer is shown when it differs from the company', lw?.rows.some(([k, v]) => k === 'Signed By' && v === 'Ana Rivera') === true);
     const lwBare = T('lien_waiver_signed', { through_date: 'yesterday', waiver_type: 'DROP TABLE' }, null);
     ok('waiver: an unreadable day / type prints nothing guessed', !!lwBare && !lwBare.rows.some(([k]) => k === 'Through' || k === 'Waiver') && lwBare.title === 'A subcontractor signed their lien waiver', JSON.stringify(lwBare));
     const pq = T('prequal_submitted', { sub_name: null }, null);

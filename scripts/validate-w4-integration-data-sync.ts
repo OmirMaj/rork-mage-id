@@ -39,11 +39,11 @@ const slice = (src: string, start: string, end: string) => {
 
 const A = 'user-a';
 const refusedInsert: SyncFailure = {
-  id: 'direct-1', kind: 'write', label: 'Daily report', reason: 'the server refused it', at: 100, userId: A,
+  id: 'direct-1', kind: 'write', label: 'Daily Report', reason: 'the server refused it', at: 100, userId: A,
   table: 'daily_reports', recordId: 'dr1', operation: 'insert', row: { id: 'dr1', project_id: 'p1', notes: 'morning draft', weather: 'sun' }, queuedAt: 100,
 };
 const incoming = (op: SyncFailure['operation'], row: Record<string, unknown> | undefined, extra: Partial<SyncFailure> = {}): SyncFailure => ({
-  id: `parked-${op}`, kind: 'write', label: 'Daily report', reason: 'waiting behind an earlier change that was not saved', at: 100, userId: A,
+  id: `parked-${op}`, kind: 'write', label: 'Daily Report', reason: 'waiting behind an earlier change that was not saved', at: 100, userId: A,
   table: 'daily_reports', recordId: 'dr1', operation: op, ...(row ? { row } : {}), queuedAt: 100, ...extra,
 });
 
@@ -91,7 +91,7 @@ console.log('\nB. the ledger names the money, and counts records:');
   ok("a payment append's line names its amount", labelForWrite('invoices', append) === 'Invoice payment of $5,000.00', labelForWrite('invoices', append));
   ok('...to the cent', labelForWrite('invoices', { fn: 'invoice_append_payment', args: { p_entry: { amount: 0.1 + 0.2 } } }) === 'Invoice payment of $0.30'
     && labelForWrite('invoices', { fn: 'invoice_append_payment', args: { p_entry: { amount: 1234567.891 } } }) === 'Invoice payment of $1,234,567.89');
-  ok('any other write keeps the table label', labelForWrite('invoices') === 'Invoice' && labelForWrite('daily_reports') === 'Daily report');
+  ok('any other write keeps the table label', labelForWrite('invoices') === 'Invoice' && labelForWrite('daily_reports') === 'Daily Report');
   const ledger: SyncFailure[] = [
     { id: 'p1', kind: 'write', label: 'x', reason: 'r', at: 1, userId: A, table: 'invoices', recordId: 'inv1', operation: 'rpc', rpc: append },
     { id: 'p2', kind: 'write', label: 'x', reason: 'r', at: 2, userId: A, table: 'invoices', recordId: 'inv1', operation: 'update', row: { id: 'inv1' } },
@@ -144,8 +144,8 @@ console.log('\nD. screens and context:');
   const SET = read('app', '(tabs)', 'settings', 'index.tsx');
   const so = slice(SET, 'const confirmSignOut = useCallback(', '}, [logout, router, signingOut]);');
   ok('the sign-out confirm counts unsaved records and says signing out deletes them',
-    /countOwnUnsavedRecords\(\)/.test(so) && /Signing out deletes/.test(so) && /'Review Not saved', onPress: \(\) => requestSyncSheet\(\)/.test(so)
-      && /unsaved > 0 \? 'Delete and sign out'/.test(so));
+    /countOwnUnsavedRecords\(\)/.test(so) && /Signing out deletes/.test(so) && /'Review Not Saved', onPress: \(\) => requestSyncSheet\(\)/.test(so)
+      && /unsaved > 0 \? 'Delete and Sign Out'/.test(so));
   const INV = read('app', 'invoice.tsx');
   // Wave-next W2 (moments B3): the unsaved-append check is read while the
   // record sheet is open (the slide's disabled reason, before any write); the

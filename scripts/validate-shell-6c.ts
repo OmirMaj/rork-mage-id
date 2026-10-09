@@ -231,8 +231,8 @@ console.log('\n3. source pins');
   ok('a property manager gets PM_NAV_ITEMS, a client CLIENT_NAV_ITEMS',
     /isMinimalPersona \? \(userRole === 'property_manager' \? PM_NAV_ITEMS : CLIENT_NAV_ITEMS\) : NAV_ITEMS/.test(side)
     && /const minimalSections = isPropertyManager \? PM_SECTIONS : CLIENT_SECTIONS;/.test(side));
-  ok('Construction news sits under SETUP & TOOLS',
-    /\{ key: 'construction-news', label: 'Construction news', icon: Newspaper,\s+route: '\/construction-news', section: 'SETUP & TOOLS', feature: 'construction-news' \}/.test(side));
+  ok('Construction News sits under SETUP & TOOLS',
+    /\{ key: 'construction-news', label: 'Construction News', icon: Newspaper,\s+route: '\/construction-news', section: 'SETUP & TOOLS', feature: 'construction-news' \}/.test(side));
   {
     const navBlock = side.slice(side.indexOf('const NAV_ITEMS'), side.indexOf('const JOB_SECTION'));
     const workspace = (navBlock.match(/section: 'WORKSPACE'/g) ?? []).length;
@@ -249,8 +249,8 @@ console.log('\n3. source pins');
   }
   ok('collapsed mode: driven by useSidebarRail(), with a Collapse button and an Expand chevron',
     /const \{ collapsed, toggle: toggleRail \} = useSidebarRail\(\);/.test(side) && /if \(collapsed\) \{/.test(side)
-    && /accessibilityLabel="Collapse sidebar"/.test(side) && /<PanelLeftClose\b/.test(side)
-    && /accessibilityLabel="Expand sidebar"/.test(side) && /<PanelLeftOpen\b/.test(side));
+    && /accessibilityLabel="Collapse Sidebar"/.test(side) && /<PanelLeftClose\b/.test(side)
+    && /accessibilityLabel="Expand Sidebar"/.test(side) && /<PanelLeftOpen\b/.test(side));
   {
     const rail = side.slice(side.indexOf('if (collapsed) {'), side.indexOf('\n  return (\n', side.indexOf('if (collapsed) {')));
     ok('the collapsed rail hides JobSwitcher, RECENT, More-for-this-job and the collapsible groups',
@@ -311,7 +311,7 @@ console.log('\n3. source pins');
   const settings = read('app/(tabs)/settings/index.tsx');
   const OPEN = "{userRole !== 'property_manager' && (<>";
   const CLOSE = '</>)}';
-  for (const header of ['Estimate defaults', 'PDF naming', 'Your costs', 'Supplier marketplace']) {
+  for (const header of ['Estimate Defaults', 'PDF Naming', 'Your Costs', 'Supplier Marketplace']) {
     const at = settings.indexOf(`<Text style={styles.sectionHeader}>${header}</Text>`);
     const open = settings.lastIndexOf(OPEN, at);
     const closeBefore = settings.lastIndexOf(CLOSE, at);
@@ -461,9 +461,9 @@ console.log('\nd6r K1 — the Ask dock, the dock API it stands on, and the keybo
   ok('K1 no chord starts with, or uses, a key DataTable owns (j, k, x, /)',
     G_CHORDS.every((c) => parseCombo(c.combo).every((st) => !RESERVED_SINGLE_KEYS.includes(st.key))));
   const expected: Record<string, string> = {
-    'g h': 'Projects', 'g b': 'Summary', 'g o': 'Job overview', 'g s': 'Schedule', 'g d': 'Daily reports',
-    'g r': 'RFIs', 'g u': 'Submittals', 'g c': 'Change orders', 'g i': 'Invoices', 'g p': 'Punch list',
-    'g w': 'Waiting on others', 'g n': 'Inbox', 'g a': 'Action required',
+    'g h': 'Projects', 'g b': 'Summary', 'g o': 'Job Overview', 'g s': 'Schedule', 'g d': 'Daily Reports',
+    'g r': 'RFIs', 'g u': 'Submittals', 'g c': 'Change Orders', 'g i': 'Invoices', 'g p': 'Punch List',
+    'g w': 'Waiting on Others', 'g n': 'Inbox', 'g a': 'Action Required',
   };
   ok('K1 the chord letters and labels are the approved set (D5)',
     eq(Object.fromEntries(G_CHORDS.map((c) => [c.combo, c.label])), expected));
@@ -651,7 +651,7 @@ console.log('\nd6r K1 — the Ask dock, the dock API it stands on, and the keybo
   ok('K1 the dock variant fills the panel and leads with "Needs you now"; the rail keeps its width and title',
     /style=\{\[styles\.rail, variant === 'dock' \? styles\.railDock : \{ width \}\]\}/.test(rail)
     && /railDock: \{ flex: 1, borderLeftWidth: 0 \},/.test(rail)
-    && /variant === 'dock'\s*\? <Text style=\{styles\.dockLead\}>Needs you now<\/Text>\s*: <Text style=\{styles\.headerTitle\}>Action required<\/Text>/.test(rail));
+    && /variant === 'dock'\s*\? <Text style=\{styles\.dockLead\}>Needs you now<\/Text>\s*: <Text style=\{styles\.headerTitle\}>Action Required<\/Text>/.test(rail));
   ok("K1 every 'See all' closes the dock in the dock variant (spread — the rail's RowLinks are unchanged)",
     /const seeAllPress = docked \? dock\.close : undefined;/.test(rail)
     && (rail.match(/onSeeAll=\{seeAllPress\}/g) ?? []).length === 3
@@ -670,12 +670,12 @@ console.log('\nd6r K1 — the Ask dock, the dock API it stands on, and the keybo
   ok('K1 r3: Cmd+J opens Ask only on an EMPTY dock the host can show Ask in',
     /when: \(\) => dock\.content == null && dock\.canShow\(ASK_DOCK_ID\),/.test(keys) && /combo: 'mod\+j', label: 'Ask MAGE', group: 'App',/.test(keys));
   ok("K1 ShellHotkeys: '?' opens the sheet; the chords go through chordTarget + routeHref at GLOBAL scope",
-    /\{ combo: '\?', label: 'Keyboard shortcuts', group: 'App', handler: openShortcutSheet \}/.test(keys)
+    /\{ combo: '\?', label: 'Keyboard Shortcuts', group: 'App', handler: openShortcutSheet \}/.test(keys)
     && /router\.push\(routeHref\(t\.pathname, t\.params\)\)/.test(keys) && /useHotkeys\(bindings, \{ scope: 'global' \}\);/.test(keys)
     && /chordsFor\(userRole\)/.test(keys));
   const sheet = code(read('components/desktop/ShortcutSheet.tsx'));
   ok('K1 ShortcutSheet: a <Sheet size="form"> that snapshots hotkeys.list() on open (never a live store)',
-    /<Sheet size="form" title="Keyboard shortcuts"/.test(sheet) && /if \(visible\) setRows\(hotkeys\.list\(\)\);/.test(sheet)
+    /<Sheet size="form" title="Keyboard Shortcuts"/.test(sheet) && /if \(visible\) setRows\(hotkeys\.list\(\)\);/.test(sheet)
     && !/useSyncExternalStore\([^)]*hotkeys/.test(sheet));
   ok('K1 ShortcutSheet: dialog-scope and disabled rows are left out; App, Go to, Navigation lead',
     /if \(r\.scope === 'dialog' \|\| !r\.enabled\) continue;/.test(sheet) && /const GROUP_ORDER = \['App', 'Go to', 'Navigation'\];/.test(sheet));

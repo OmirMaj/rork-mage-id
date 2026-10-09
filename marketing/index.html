@@ -690,7 +690,7 @@
   <section class="dark sec" id="compare"><div class="wrap">
     <div><p class="kick">Side by side</p>
     <h2 class="h">How's it different from what you use today?</h2>
-    <p class="seclede">Pick your current app. We'll be fair about what it does well — then show you the six things it structurally can't do, no matter how many features it ships.</p></div>
+    <p class="seclede">Most contractors still run on spreadsheets and gut feel. Here is what MAGE ID does next to that. If you use another app today, check its own site for what it includes.</p></div>
 
     <div class="compare">
       <div class="cmp-ctl">
@@ -771,7 +771,7 @@
     <div class="card">
       <p class="l">Your people</p>
       <h3>Small-to-mid GCs · $500K–$5M a year · remodels, fit-outs, ground-up.</h3>
-      <p>You live and die on the bid, and you've been burned by what you couldn't see — behind the drywall on a remodel, above the ceiling on a fit-out. You're too small for Procore's enterprise machine and overcharged by Buildertrend for storage you don't need. MAGE is the first tool built to price your unknowns and get sharper with every job you finish.</p>
+      <p>You live and die on the bid, and you've been burned by what you couldn't see — behind the drywall on a remodel, above the ceiling on a fit-out. MAGE is the first tool built to price your unknowns and get sharper with every job you finish.</p>
     </div>
   </div></section>
 
@@ -1101,26 +1101,11 @@
   ];
   // caps: 8 icon values (yes/part/no) then price string
   var APPS = {
-    buildertrend:{name:'Buildertrend', good:'Client portal, scheduling, and doc storage for established builders.',
-      caps:['yes','yes','no','no','no','no','no','no'], price:'$$$',
-      verdict:'A deep — and pricey — filing cabinet. It organizes your business. It never learns it.'},
-    jobtread:{name:'JobTread', good:'Modern estimating with cost catalogs and a clean sales pipeline.',
-      caps:['yes','yes','no','no','no','no','no','no'], price:'$$',
-      verdict:'A sharp <em>static</em> catalog someone has to maintain. Your costs, in MAGE, are alive and self-updating.'},
-    procore:{name:'Procore', good:'Enterprise commercial projects, compliance, and deep integrations.',
-      caps:['part','yes','no','no','no','no','no','no'], price:'$$$$',
-      verdict:'Priced for a company with a procurement department. If your whole year is $1–5M, the licence is a line item you will feel.'},
-    jack:{name:'JACK', good:'Simple, mobile-first job management for small crews.',
-      caps:['yes','yes','no','no','no','no','no','no'], price:'$$',
-      verdict:'Same species as the rest — a system of record. The entire point of MAGE is that it\'s a brain.'},
-    houzz:{name:'Houzz Pro', good:'Lead generation and a polished client-facing project view.',
-      caps:['part','part','no','no','no','no','no','no'], price:'$$',
-      verdict:'Great for <em>finding</em> the job. Not built to price it, or run it, intelligently.'},
     sheets:{name:'Spreadsheets & gut feel', good:'Free, flexible, and honestly what most contractors still run on.',
       caps:['part','part','no','no','no','no','no','no'], price:'Free',
       verdict:'You already do this math in your head. MAGE does it sharper — and, unlike you at 9pm, it remembers every job.'},
   };
-  var ORDER = ['buildertrend','jobtread','procore','jack','houzz','sheets'];
+  var ORDER = ['sheets'];
   var MAGE = {caps:['yes','yes','yes','yes','yes','yes','yes','yes'], price:'$29/mo'};
 
   var sel = document.getElementById('cmpSel'), panel = document.getElementById('cmpPanel');

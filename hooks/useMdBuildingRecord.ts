@@ -64,8 +64,8 @@ export interface MdBuildingRecordState {
 const HOUR_MS = 60 * 60 * 1000;
 export const MD_BUILDING_RECORD_STALE_MS = 12 * HOUR_MS;
 
-export const MD_NO_MATCH_TEXT = 'No Baltimore parcel found at this address — nothing was checked.';
-const UNREADABLE_TEXT = 'The building lookup returned something MAGE could not read — nothing was checked.';
+export const MD_NO_MATCH_TEXT = 'No Baltimore parcel found at this address, so nothing was checked.';
+const UNREADABLE_TEXT = 'The building lookup returned something MAGE could not read, so nothing was checked.';
 
 function finite(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;

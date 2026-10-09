@@ -348,7 +348,7 @@ export function milestoneBlockMessage(
       // contract" on projects that were not, and a refusal a GC can disprove
       // is a refusal he learns to work around.
       if (!ceiling) {
-        return 'Billing this milestone would take the total invoiced past the contract value. Check the invoices on this project first — if the contract value has changed, update it here and the schedule will follow.';
+        return 'Billing this milestone would take the total invoiced past the contract value. Check the invoices on this project first. If the contract value has changed, update it here and the schedule will follow.';
       }
       const m = (n: number) => `$${roundHalfAwayFromZero(n, 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       // NOTHING LEFT IS A DIFFERENT SENTENCE (review round 6). The remedy
@@ -363,9 +363,9 @@ export function milestoneBlockMessage(
       // refusal above zero. Say the one true remedy instead: the work that is
       // left is not contract scope.
       if (ceiling.remaining <= 0.005) {
-        return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving nothing to bill against it — this milestone is ${m(amount)}. Work beyond the contract belongs on a change order, which bills on its own ledger; if the contract value itself has changed, update the contract value here and the schedule will follow.`;
+        return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving nothing to bill against it. This milestone is ${m(amount)}. Work beyond the contract belongs on a change order, which bills on its own ledger; if the contract value itself has changed, update the contract value here and the schedule will follow.`;
       }
-      return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving ${m(ceiling.remaining)} — this milestone is ${m(amount)}. Billing it would take the total past the contract. Bill the remainder from Bill from estimate, or update the contract value here if it has changed and the schedule will follow.`;
+      return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving ${m(ceiling.remaining)}. This milestone is ${m(amount)}. Billing it would take the total past the contract. Bill the remainder from Bill from estimate, or update the contract value here if it has changed and the schedule will follow.`;
     }
   }
 }
@@ -846,7 +846,7 @@ export function milestoneBillEffect(
   if (!bill.billable) {
     return {
       kind: 'refuse',
-      title: 'Can’t bill this milestone',
+      title: 'Can’t Bill This Milestone',
       message: bill.reason
         ? milestoneBlockMessage(bill.reason, bill.ceiling, bill.amount)
         : 'This milestone can’t be invoiced right now.',
@@ -980,7 +980,7 @@ export function recordPaymentDecision(
 ): RecordPaymentDecision {
   const parsed = parse(typed);
   if (parsed == null || !Number.isFinite(parsed)) {
-    return { kind: 'refuse', title: 'Couldn’t read that amount', message: 'Type it like 12500.00 or 12,500.00.' };
+    return { kind: 'refuse', title: 'Couldn’t Read That Amount', message: 'Type it like 12500.00 or 12,500.00.' };
   }
   const amount = toCents(parsed);
   if (amount <= 0) {
@@ -991,7 +991,7 @@ export function recordPaymentDecision(
     return {
       kind: 'confirm',
       amount,
-      title: 'More than the balance',
+      title: 'More Than the Balance',
       message: `This is ${fmt(toCents(amount - balance))} more than the ${fmt(balance)} balance. Record ${fmt(amount)} anyway?`,
     };
   }
@@ -1054,10 +1054,10 @@ export function targetDunningStage(days: number): number {
 }
 
 export function dunningStageLabel(stage: number): string {
-  if (stage >= 3) return 'Final notice';
-  if (stage === 2) return 'Second notice';
-  if (stage === 1) return 'First reminder';
-  return 'No reminder sent';
+  if (stage >= 3) return 'Third Reminder';
+  if (stage === 2) return 'Second Reminder';
+  if (stage === 1) return 'First Reminder';
+  return 'No Reminder Sent';
 }
 
 /**
@@ -1248,7 +1248,7 @@ export function reminderBlockMessage(reason: ReminderBlockReason, lastSentMs?: n
       return 'Send this invoice to the client before chasing payment on it.';
     case 'paid':
     case 'nothing_outstanding':
-      return 'This invoice is fully paid — nothing to chase.';
+      return 'This invoice is fully paid. Nothing to chase.';
     case 'bad_due_date':
       return 'This invoice has no valid due date, so we cannot tell whether it is overdue.';
     case 'not_overdue':
@@ -1268,7 +1268,7 @@ export function reminderBlockMessage(reason: ReminderBlockReason, lastSentMs?: n
     case 'not_project_owner':
       return "Reminders go out under the project owner's name, and this invoice was not created from the owner's account, so no reminder is sent for it.";
     case 'no_recipient':
-      return 'Automatic reminders are off — no client email on this invoice or project. Send the invoice to the client by email (or add a portal invitee) and reminders start.';
+      return 'Automatic reminders are off: no client email on this invoice or project. Send the invoice to the client by email (or add a portal invitee) and reminders start.';
     // The server owns this string's input, so a value the client doesn't know
     // yet is possible across an OTA/edge-function version skew. Never render
     // "undefined" at the GC.
@@ -1349,7 +1349,7 @@ export function payLinkReasonIsRetryable(reason: string): boolean {
 /** #36 — the PDF send's "no Pay button" when Stripe genuinely is not connected
  *  (the check answered). Its next step is Payments setup, not a retry. */
 export const STRIPE_NOT_CONNECTED_REASON =
-  "your Stripe account isn't connected, so invoices go out without a Pay button — set it up in Settings → Payments";
+  "your Stripe account isn't connected, so invoices go out without a Pay button. Set it up in Settings > Payments";
 
 /**
  * #39 / #36 — why a send carries no Pay button because the invoice row is not
@@ -1362,9 +1362,9 @@ export const STRIPE_NOT_CONNECTED_REASON =
  * sent at all — see invoiceInsertRefusedMessage.
  */
 export const INVOICE_INSERT_QUEUED_REASON =
-  "the invoice is still waiting in this phone's sync queue and is not on the server yet — once it syncs, send it again (or add a payment link from the invoice) so the client gets a Pay button";
+  "the invoice is still waiting in this phone's sync queue and is not on the server yet. Once it syncs, send it again (or add a payment link from the invoice) so the client gets a Pay button";
 export const INVOICE_INSERT_UNCONFIRMED_REASON =
-  "the invoice couldn't be confirmed on the server yet, so there was nothing to attach a payment link to — check the sync status, then send it again";
+  "the invoice couldn't be confirmed on the server yet, so there was nothing to attach a payment link to. Check the sync status, then send it again";
 
 /**
  * #39: the server REFUSED the new invoice's insert. Nothing was emailed — an
@@ -1373,7 +1373,7 @@ export const INVOICE_INSERT_UNCONFIRMED_REASON =
  * on screen so he can try again once the job has synced.
  */
 export function invoiceInsertRefusedMessage(invoiceNumber: number): string {
-  return `Invoice #${invoiceNumber} was not sent. The server refused to save it — usually because this project is still syncing from when you were offline, or your access to it changed. Nothing went to your client. ${INVOICE_UNSAVED_NEXT_STEP}`;
+  return `Invoice #${invoiceNumber} was not sent. The server refused to save it, usually because this project is still syncing from when you were offline, or your access to it changed. Nothing went to your client. ${INVOICE_UNSAVED_NEXT_STEP}`;
 }
 
 /**
@@ -1398,7 +1398,7 @@ export function invoiceUnsavedOnServerMessage(invoiceNumber: number): string {
 
 /** #83 — the server-side refusal (create-payment-link 409 'payment_pending'). */
 export const PAYMENT_PENDING_MINT_REASON =
-  "the client's bank payment for this invoice is still processing — a new link now would invite a second payment";
+  "the client's bank payment for this invoice is still processing, and a new link now would invite a second payment";
 
 /**
  * #36 — what the Stripe Connect status check actually answered. A FAILED
@@ -1436,7 +1436,7 @@ export function payLinkFailureReason(error: string | undefined | null): string {
   // here is either an insert still on the wire or one the server rejected —
   // this screen cannot tell which, so the copy names both.
   if (/payment_pending/i.test(e)) return PAYMENT_PENDING_MINT_REASON;
-  if (/not found/i.test(e)) return "the server doesn't have this invoice yet — it may still be saving, or the save may have failed (check the sync status)";
+  if (/not found/i.test(e)) return "the server doesn't have this invoice yet. It may still be saving, or the save may have failed (check the sync status)";
   if (/maximum|999,999/i.test(e)) return STRIPE_OVER_MAX_REASON;
   if (/minimum|0\.50/i.test(e)) return STRIPE_UNDER_MIN_REASON;
   return e ? `Stripe said: ${e}` : "Stripe couldn't create the link";
@@ -1447,8 +1447,8 @@ export function payLinkFailureReason(error: string | undefined | null): string {
  * button did not. One message for the new-invoice Send and the PDF send.
  */
 export function sentWithoutPayButtonMessage(invoiceNumber: number, reason: string): string {
-  if (!payLinkReasonIsRetryable(reason)) return `Sent — without a Pay button: ${reason}.`;
-  return `Sent — without a Pay button: ${reason}. Open Invoice #${invoiceNumber} and tap Generate Payment Link to add one.`;
+  if (!payLinkReasonIsRetryable(reason)) return `Sent without a Pay button: ${reason}.`;
+  return `Sent without a Pay button: ${reason}. Open Invoice #${invoiceNumber} and tap Generate Payment Link to add one.`;
 }
 
 /**
@@ -1563,7 +1563,7 @@ export function reminderCarriesPortalLink(
 // (20260920030000_invoices_owner_insert.sql).
 
 export const INVOICE_OWNER_ONLY_REASON =
-  "Only the project's owner bills the client — their invoices and Pay link go to their bank.";
+  "Only the project's owner bills the client. Their invoices and Pay link go to their bank.";
 
 export type InvoiceRoleGate = 'open' | 'loading' | 'error' | 'paused' | 'collaborator' | 'no_access';
 
@@ -1608,16 +1608,16 @@ export function invoiceRoleBlockedCopy(
       return { title: '', body: 'Checking your role on this project…' };
     case 'error':
       return {
-        title: 'Couldn’t check your role on this project',
+        title: 'Couldn’t Check Your Role on This Project',
         body: 'MAGE couldn’t load who is on this project, so it can’t tell whether you can bill the client here. Check your connection and try again.',
       };
     case 'paused':
       return {
-        title: 'Waiting for a connection',
+        title: 'Waiting for a Connection',
         body: `${(pausedReason ?? '').trim() || "You're offline and this phone has not seen your role on this project yet."} Invoices open once MAGE can check who owns the project.`,
       };
     case 'collaborator':
-      return { title: 'Only the project owner bills', body: `${INVOICE_OWNER_ONLY_REASON} Ask the project's owner to send this invoice.` };
+      return { title: 'Only the project owner bills.', body: `${INVOICE_OWNER_ONLY_REASON} Ask the project's owner to send this invoice.` };
     default:
       return { title: 'You’re not on this project', body: `This project is not shared with you. ${INVOICE_OWNER_ONLY_REASON}` };
   }
@@ -1660,9 +1660,9 @@ export function invoiceTaxSeed(o: {
 export function invoiceTaxSourceLabel(seed: InvoiceTaxSeed, touched: boolean): string {
   if (touched) return 'set on this invoice';
   switch (seed.source) {
-    case 'contract': return `${seed.rate}% — per contract`;
-    case 'none': return 'none — per contract (milestone billed as agreed)';
-    case 'settings': return seed.rate > 0 ? `from Settings (${seed.rate}%)` : 'none — no tax rate in Settings';
+    case 'contract': return `${seed.rate}% per contract`;
+    case 'none': return 'none, per contract (milestone billed as agreed)';
+    case 'settings': return seed.rate > 0 ? `from Settings (${seed.rate}%)` : 'none, no tax rate in Settings';
     default: return 'saved on this invoice';
   }
 }

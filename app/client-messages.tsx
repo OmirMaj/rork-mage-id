@@ -601,11 +601,11 @@ export default function ClientMessagesScreen() {
   const showMessageActions = useCallback((messageBody: string, fileNames: string[] = []) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
     showAlert(
-      'Message actions',
+      'Message Actions',
       undefined,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Convert to change order', onPress: () => handleConvertToCO(messageBody, fileNames) },
+        { text: 'Convert to Change Order', onPress: () => handleConvertToCO(messageBody, fileNames) },
       ],
     );
   }, [handleConvertToCO]);
@@ -625,7 +625,7 @@ export default function ClientMessagesScreen() {
         <Stack.Screen options={{ title: 'Messages', ...headerBack }} />
         <Text style={styles.muted}>Project not found</Text>
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-          <Text style={styles.backBtnTxt}>Go back</Text>
+          <Text style={styles.backBtnTxt}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -643,7 +643,7 @@ export default function ClientMessagesScreen() {
           style={styles.backBtn}
           onPress={() => router.replace({ pathname: '/client-portal-setup', params: { id: project.id } })}
         >
-          <Text style={styles.backBtnTxt}>Back to portal setup</Text>
+          <Text style={styles.backBtnTxt}>Back to Portal Setup</Text>
         </TouchableOpacity>
       </View>
     );
@@ -682,7 +682,7 @@ export default function ClientMessagesScreen() {
         {display.length === 0 ? (
           <View style={styles.empty}>
             <MessageSquare size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No messages yet</Text>
+            <Text style={styles.emptyTitle}>No Messages Yet</Text>
             <Text style={styles.emptyHint}>
               Send a first message so your client knows how to reach you.
             </Text>

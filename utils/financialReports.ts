@@ -930,7 +930,7 @@ export function wipReportToCSV(report: WIPReport): string {
     // lie, and this line is what stops the TOTAL above reading as the whole
     // book.
     const memo = new Array(headers.length).fill('');
-    memo[0] = `NO COST BASIS — ${report.totals.noCostBasisCount} contract`
+    memo[0] = `NO COST BASIS: ${report.totals.noCostBasisCount} contract`
       + `${report.totals.noCostBasisCount === 1 ? ' carries' : 's carry'} a contract value with no cost `
       + `estimate, no signed commitment and nothing spent. ${report.totals.noCostBasisCount === 1 ? 'It is' : 'They are'} EXCLUDED from the projected `
       + 'profit total and the margin above, because a contract with no cost basis has no '

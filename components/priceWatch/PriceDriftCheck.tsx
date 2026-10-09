@@ -19,7 +19,7 @@
 //   • "Keep these prices" — remembered on this device under
 //     PRICE_WATCH_KEPT_KEY (the receipt card's own memory, swept at sign-out),
 //     then onKeep().
-//   • The continue button names the action — "Send anyway" / "Sign at these
+//   • The continue button names the action — "Send Anyway" / "Sign at these
 //     prices" — and only calls onContinue(). NOTHING IS SENT OR SIGNED HERE.
 //
 // Unread is not clear: until the projects, the receipts and the Keep memory
@@ -132,7 +132,7 @@ export interface PriceDriftCheckProps {
   presentation?: 'card' | 'sheet';
   /** Sheet only: whether it is open. Default true. */
   visible?: boolean;
-  /** Names the continue button: 'send' → "Send anyway", 'sign' → "Sign at these prices". */
+  /** Names the continue button: 'send' → "Send Anyway", 'sign' → "Sign at These Prices". */
   action: 'send' | 'sign';
   /** After the reprice write, with the check it applied (grandAfterCents is the new total). */
   onReprice?: (result: DriftAtSend) => void;
@@ -169,7 +169,7 @@ export function PriceDriftCheck({
     onKeep?.();
   }, [check, onKeep]);
 
-  const continueLabel = action === 'sign' ? 'Sign at these prices' : 'Send anyway';
+  const continueLabel = action === 'sign' ? 'Sign at These Prices' : 'Send Anyway';
 
   if (repriced) {
     // The estimate now carries the receipt prices, so the check itself is
@@ -185,7 +185,7 @@ export function PriceDriftCheck({
         <Sheet
           visible={visible}
           onClose={() => onCancel?.()}
-          title="Prices updated"
+          title="Prices Updated"
           testID="pricewatch-drift-sheet"
           primaryAction={{ label: 'Done', onPress: () => onCancel?.(), testID: 'pricewatch-drift-done' }}
         >
@@ -219,8 +219,8 @@ export function PriceDriftCheck({
   );
   const buttons = (
     <View style={[styles.actions, presentation === 'sheet' && styles.actionsStack]}>
-      <Button label="Reprice to today's receipts" variant="primary" size="sm" fullWidth={presentation === 'sheet'} onPress={reprice} testID="pricewatch-drift-reprice" />
-      <Button label="Keep these prices" variant="secondary" size="sm" fullWidth={presentation === 'sheet'} onPress={keep} testID="pricewatch-drift-keep" />
+      <Button label="Reprice to Today's Receipts" variant="primary" size="sm" fullWidth={presentation === 'sheet'} onPress={reprice} testID="pricewatch-drift-reprice" />
+      <Button label="Keep These Prices" variant="secondary" size="sm" fullWidth={presentation === 'sheet'} onPress={keep} testID="pricewatch-drift-keep" />
       <Button label={continueLabel} variant="secondary" size="sm" fullWidth={presentation === 'sheet'} onPress={onContinue} testID="pricewatch-drift-continue" />
     </View>
   );
@@ -230,7 +230,7 @@ export function PriceDriftCheck({
       <Sheet
         visible={visible}
         onClose={() => onCancel?.()}
-        title={action === 'sign' ? 'Check prices before you sign' : 'Check prices before you send'}
+        title={action === 'sign' ? 'Check Prices Before You Sign' : 'Check Prices Before You Send'}
         subtitle={check.summary}
         testID="pricewatch-drift-sheet"
         footer={<View style={styles.sheetFooter}>{buttons}</View>}
@@ -244,7 +244,7 @@ export function PriceDriftCheck({
   return (
     <View testID="pricewatch-drift-card" style={styles.wrap}>
       <Card pad={Tokens.spacing.md} radius="md">
-        <EyebrowLabel tone="neutral" showDot={false}>Price watch</EyebrowLabel>
+        <EyebrowLabel tone="neutral" showDot={false}>Price Watch</EyebrowLabel>
         <Text style={styles.title}>{check.summary}</Text>
         {lines}
         {preview}

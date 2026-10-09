@@ -414,7 +414,7 @@ ok(scanClient400Code.name, scanClient400Code.test(clientSrc));
 }
 ok('the client never sends a name the server would refuse', /const holderName = cleanHolderName\(input\.holderName\);\s*if \(!holderName\) return \{ ok: false, reason: 'rejected'/.test(code(clientSrc)));
 ok('a failed check offers Try again and Practice the tutorial again (startTutorial … entry: \'hub\')',
-  sc.includes("'Practice the tutorial again'") && /startTutorial\(topicId, \{ entry: 'hub' \}\)/.test(sc));
+  sc.includes("'Practice the Tutorial Again'") && /startTutorial\(topicId, \{ entry: 'hub' \}\)/.test(sc));
 ok('pending awards retry on focus and on the foreground', /useFocusEffect\(/.test(sc) && /AppState\.addEventListener\('change'/.test(sc) && /retryPendingAwards\(/.test(sc));
 ok('the screen clears the Brain FAB', /BRAIN_FAB_CLEARANCE/.test(sc));
 ok('no tier gate on the check (free on every plan)', !/useTierAccess|requireTier|Paywall/.test(sc));
@@ -429,12 +429,12 @@ const hc = code(hostSrc);
 ok("finaleAction 'quiz': FINISH, then push /skills-check with the topic",
   /if \(key === 'quiz'\) \{[\s\S]{0,300}dispatchTutorial\(\{ type: 'FINISH'[\s\S]{0,120}push\(\{ pathname: '\/skills-check', params: \{ topic \} \}\)/.test(hc));
 ok('the door is offered only with a bank and no current certificate', /QUIZ_BANKS\[topic\.id\]\?\.questions\.length > 0/.test(hc) && /currentCertificate\(topic\.id, certs\) \? null : topic\.id/.test(hc));
-ok("the finale's quiz label is literal t('settings.learn.finaleQuiz', 'Take the skills check')", hc.includes("t('settings.learn.finaleQuiz', 'Take the skills check')"));
+ok("the finale's quiz label is literal t('settings.learn.finaleQuiz', 'Take the Skills Check')", hc.includes("t('settings.learn.finaleQuiz', 'Take the Skills Check')"));
 const fc = code(finaleSrc);
 ok('FinaleCard draws the quiz button above Done', fc.indexOf('tutorial-finale-quiz') > 0 && fc.indexOf('tutorial-finale-quiz') < fc.indexOf('tutorial-finale-done'));
 const hb = code(hubSrc);
 ok('the hub lines: passed / take it, from checkAvailability', /checkAvailability\(c\.id, progress, TUTORIAL_DEFS, certs, QUIZ_BANKS\)/.test(hb)
-  && hb.includes("'Skills check: passed'") && hb.includes("'Skills check: take it'") && /pathname: '\/skills-check', params: \{ topic: id \}/.test(hb));
+  && hb.includes("'Skills Check: Passed'") && hb.includes("'Skills Check: Take It'") && /pathname: '\/skills-check', params: \{ topic: id \}/.test(hb));
 ok('the hub view stays prop-driven (checks default to none)', /checks = \{\}/.test(hb));
 ok("desktop: 'skills-check' is a 'form' page", /'skills-check': 'form'/.test(read('utils/desktopPage.ts')));
 ok('question / choice / why text renders from data, never t(q.key …)', !/t\(\s*(q|question|c|choice)\.(key|whyKey)/.test(code(read('components/learn/QuizQuestionCard.tsx')) + sc));

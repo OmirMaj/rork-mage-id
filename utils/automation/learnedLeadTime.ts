@@ -310,8 +310,8 @@ function rangeDetail(l: LearnedLead): string {
   // The booked value is clamped to >= 1 day; when that is NOT what his record
   // measured, the chip says both numbers rather than passing the clamp off as
   // the measurement.
-  const clamp = l.medianRaw !== l.days ? `, median ${l.medianRaw}d — booked at ${l.days}d` : '';
-  const spread = l.dispersed ? ' — wide spread, treat as unsettled' : '';
+  const clamp = l.medianRaw !== l.days ? `, median ${l.medianRaw}d, booked at ${l.days}d` : '';
+  const spread = l.dispersed ? ', wide spread, treat as unsettled' : '';
   return `${span} across ${what}${clamp}${spread}`;
 }
 
@@ -493,7 +493,7 @@ function belowFloorNote(observed: number, onFile: number): string {
       : 'no permit history here yet';
   }
   const openTail = open > 0 ? `, ${open} still open` : '';
-  return `${observed} completed review${observed === 1 ? '' : 's'} on file — under ${LEARNED_LEAD_FLOOR}, too few to learn from${openTail}`;
+  return `${observed} completed review${observed === 1 ? '' : 's'} on file, under ${LEARNED_LEAD_FLOOR}, too few to learn from${openTail}`;
 }
 
 /**

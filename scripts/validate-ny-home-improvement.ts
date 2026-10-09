@@ -29,6 +29,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isTitleCase } from './copy-title-case';
 
 const ROOT = process.env.VALIDATE_ROOT
   ? resolve(process.env.VALIDATE_ROOT)
@@ -126,7 +127,7 @@ assert(statusOf(check(draft(), null), 'a-name') === 'missing', 'null branding �
 
 assert(statusOf(check(draft({ startDate: undefined })), 'b-dates') === 'missing', 'no start date → b-dates missing');
 assert(statusOf(check(draft({ durationDays: 0 })), 'b-dates') === 'missing', 'duration 0 → b-dates missing');
-assert(statusOf(check(draft({ scopeText: 'Kitchen remodel' })), 'c-scope') === 'missing', 'scope under 20 characters → missing');
+assert(statusOf(check(draft({ scopeText: 'Kitchen Remodel' })), 'c-scope') === 'missing', 'scope under 20 characters → missing');
 assert(statusOf(check(draft({ contractValue: 0 })), 'c-price') === 'missing', 'value 0 → c-price missing');
 assert(statusOf(check(draft({ paymentSchedule: [] })), 'f-schedule') === 'missing', 'no schedule → f-schedule missing');
 assert(statusOf(check(draft({ paymentSchedule: [THREE[0]] })), 'f-schedule') === 'found', 'one payment → f-schedule found');
@@ -198,8 +199,12 @@ const he = strings.filter((s) => /\b(he|him|his|she|her)\b/i.test(s));
 assert(he.length === 0, `no he/his/she/her (${he.join(' | ') || 'none'})`);
 const lower = strings.filter((s) => !/^\{\w+\}/.test(s) && /^[a-z]/.test(s));
 assert(lower.length === 0, `sentence case: every string starts upper case (${lower.join(' | ') || 'none'})`);
-const titleCase = strings.filter((s) => (s.match(/\s[A-Z][a-z]+/g) ?? []).filter((w) => !/^\s(New|York|City|I)$/.test(w)).length >= 2);
-assert(titleCase.length === 0, `no title case (${titleCase.join(' | ') || 'none'})`);
+// docs/VOICE.md section 3 (2026-10-05): a label (a title, a button, an alert title) is Title Case and
+// validate-copy-voice R15 owns that. What this check still holds is that a SENTENCE is never typed in
+// Title Case: a string with end punctuation, or longer than a label, must read as a sentence.
+const isLabel = (s: string) => !/[.?!:…]$/.test(s) && s.split(/\s+/).length <= 8 && isTitleCase(s);
+const titleCase = strings.filter((s) => !isLabel(s) && (s.match(/\s[A-Z][a-z]+/g) ?? []).filter((w) => !/^\s(New|York|City|I)$/.test(w)).length >= 2);
+assert(titleCase.length === 0, `no title case outside labels (${titleCase.join(' | ') || 'none'})`);
 const banned = strings.filter((s) => /\b(compliant|compliance|approved|guarantee|licence|homeowner)\b/i.test(s) || /—.*—/.test(s));
 assert(banned.length === 0, `never "compliant", "approved", British "licence", "homeowner" or two dashes (${banned.join(' | ') || 'none'})`);
 assert(!/['"]Found wording — /.test(cmpCode), 'no em dash in a status label');
@@ -226,7 +231,7 @@ assert(lockAt > 0 && termsAt > lockAt && nyAt > termsAt && askAt > nyAt && drift
 assert(/if \(nyMissing > 0 && nyAckRef\.current !== c\.id\) \{/.test(press), 'the gate checks missing > 0 and the per-contract acknowledgement');
 assert(!/toCheck/.test(press), 'the gate never reads the to-check count');
 assert(/onContinue: \(\) => \{ nyAckRef\.current = c\.id; signPressRef\.current\(\); \}/.test(press), '"Continue" acknowledges and re-runs the whole press');
-assert(/onReview: \(\) => \{[^}]*setNyReveal\(/.test(press) && !/onReview: \(\) => \{[^}]*(setSignatureModal|signPressRef)/.test(press), '"Review the list" reveals the card and signs nothing');
+assert(/onReview: \(\) => \{[^}]*setNyReveal\(/.test(press) && !/onReview: \(\) => \{[^}]*(setSignatureModal|signPressRef)/.test(press), '"Review the List" reveals the card and signs nothing');
 assert(/signPressRef\.current = handleSignPress;/.test(contract), 'signPressRef follows handleSignPress');
 assert(/askNyMissingItems\(nyMissing, \{[\s\S]*?\}\);\s*return;/.test(press), 'the warning returns before the pad');
 

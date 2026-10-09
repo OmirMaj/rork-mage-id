@@ -203,14 +203,14 @@ function doc(over: Partial<DocumentRegisterRow>): DocumentRegisterRow {
   check('anything else → /project-detail { id: projectId }', r(doc({ id: 'misc-1', type: 'contract' })) === JSON.stringify({ pathname: '/project-detail', params: { id: 'p1' } }));
 
   const rows = [
-    doc({ status: { bucket: 'at_risk', label: 'Failed check', tone: 'danger' } }),
+    doc({ status: { bucket: 'at_risk', label: 'Failed Check', tone: 'danger' } }),
     doc({ status: { bucket: 'done', label: 'Approved', tone: 'success' } }),
     doc({ status: { bucket: 'done', label: 'Paid', tone: 'success' } }),
     doc({ status: { bucket: 'void', label: 'Denied', tone: 'muted' } }),
   ];
   const c = documentChipCounts(rows);
   check('chip counts: all 4 (void included), at risk 1, done 2', c.all === 4 && c.at_risk === 1 && c.done === 2 && c.expired === 0, JSON.stringify(c));
-  check('chips are the phone\'s six, in its words', DOCUMENT_CHIPS.map((x) => x.label).join('|') === 'All|At risk|Waiting|Saved|Done|Expired');
+  check('chips are the phone\'s six, in its words', DOCUMENT_CHIPS.map((x) => x.label).join('|') === 'All|At Risk|Waiting|Saved|Done|Expired');
   check("'all' matches void; a bucket only its own", documentChipMatches(rows[3], 'all') && !documentChipMatches(rows[3], 'done') && documentChipMatches(rows[1], 'done'));
   const nowMs = Date.UTC(2026, 8, 25);
   check('expiring in 10 days → soon', documentExpiringSoon(doc({ expiresAt: new Date(nowMs + 10 * DAY).toISOString() }), nowMs));
@@ -218,7 +218,7 @@ function doc(over: Partial<DocumentRegisterRow>): DocumentRegisterRow {
   check('expiring in 29 days → soon', documentExpiringSoon(doc({ expiresAt: new Date(nowMs + 29 * DAY).toISOString() }), nowMs));
   check('already past → not soon', !documentExpiringSoon(doc({ expiresAt: new Date(nowMs - DAY).toISOString() }), nowMs));
   check('an expired or void row never warns', !documentExpiringSoon(doc({ expiresAt: new Date(nowMs + 5 * DAY).toISOString(), status: { bucket: 'expired', label: 'Expired', tone: 'danger' } }), nowMs));
-  check("Type: a submittal says 'Submittal', a pay app the phone tag 'Pay app' (never 'AIA Billing': it is AIA-style, not an AIA form)", documentTypeLabel(doc({ id: 'submittal-1' })) === 'Submittal' && documentTypeLabel(doc({ type: 'aia_billing' })) === 'Pay app');
+  check("Type: a submittal says 'Submittal', a pay app the phone tag 'Pay app' (never 'AIA Billing': it is AIA-style, not an AIA form)", documentTypeLabel(doc({ id: 'submittal-1' })) === 'Submittal' && documentTypeLabel(doc({ type: 'aia_billing' })) === 'Pay App');
 }
 
 // ── 5. CSV — unknown is an empty cell ──────────────────────────────────────
@@ -306,8 +306,8 @@ function phoneArm(src: string, opener: RegExp): string {
 
   const dReg = stripComments(read('components/registers/DeliveriesRegister.tsx'));
   check("deliveries register: bulk Mark received is off, with its reason",
-    /export const DELIVERY_BULK_RECEIVE_REASON = 'Receive each load on its own — the damage question is asked for every delivery\.';/.test(dReg)
-    && /label: 'Mark received', run: \(\) => \{\}, disabledReason: DELIVERY_BULK_RECEIVE_REASON/.test(dReg));
+    /export const DELIVERY_BULK_RECEIVE_REASON = 'Receive each load on its own\. The damage question is asked for every delivery\.';/.test(dReg)
+    && /label: 'Mark Received', run: \(\) => \{\}, disabledReason: DELIVERY_BULK_RECEIVE_REASON/.test(dReg));
   check('deliveries register: bulk Confirm runs one delivery per render', /useOneAtATime\(/.test(dReg) && /run: confirmSelected/.test(dReg));
   check('deliveries register: Late sits above the horizon (above: late table, then the control)', dReg.indexOf("tableId=\"reg-deliveries-late\"") > 0
     && dReg.indexOf("tableId=\"reg-deliveries-late\"") < dReg.indexOf('<SegmentedControl') && /hotkeys=\{false\}/.test(dReg));

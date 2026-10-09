@@ -196,7 +196,7 @@ export function findQuietTrades(
         companies: t.companies,
         lastSeen: t.lastSeen,
         reportedDaysSince: d,
-        message: `${who} last on site ${t.lastSeen} — ${d} reported ${d === 1 ? 'day' : 'days'} ago`,
+        message: `${who} last on site ${t.lastSeen}, ${d} reported ${d === 1 ? 'day' : 'days'} ago`,
       };
     })
     .sort((a, b) => b.reportedDaysSince - a.reportedDaysSince);

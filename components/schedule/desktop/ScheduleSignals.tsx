@@ -86,7 +86,7 @@ export function ScheduleSignals(props: ScheduleSignalsProps) {
             onPress={onCleanupStaleRefs}
             style={styles.chip}
             accessibilityRole="button"
-            accessibilityLabel={`${staleRefCount} stale estimate reference${staleRefCount === 1 ? '' : 's'} — clean up`}
+            accessibilityLabel={`${staleRefCount} stale estimate reference${staleRefCount === 1 ? '' : 's'}, clean up`}
             testID="cleanup-stale-estimate-refs"
           >
             <Eraser size={12} color={t.accentLabel} strokeWidth={1.75} />

@@ -82,9 +82,9 @@ export function useTakeoffPdfDrop(projectId: string | null | undefined): Takeoff
 
   const importFile = useCallback(async (file: File): Promise<string[]> => {
     if (!pid) return [];
-    if (blockReason) { showAlert('Can’t add sheets', blockReason); return []; }
+    if (blockReason) { showAlert('Can’t Add Sheets', blockReason); return []; }
     const verdict = pdfDropVerdict([{ name: file.name, type: file.type, size: file.size }]);
-    if (!verdict.ok) { showAlert('Can’t add that file', verdict.reason); return []; }
+    if (!verdict.ok) { showAlert('Can’t Add That File', verdict.reason); return []; }
 
     // Same file already imported? Rendering it again charges the month's
     // takeoff pages again — ask BEFORE the upload, with Plans' sentence.
@@ -93,11 +93,11 @@ export function useTakeoffPdfDrop(projectId: string | null | undefined): Takeoff
     if (prior.length > 0) {
       const again = await new Promise<boolean>((resolve) => {
         showAlert(
-          'Already imported',
+          'Already Imported',
           `“${baseName}” is already on this project (${prior.length} sheet${prior.length === 1 ? '' : 's'}). Importing it again uses takeoff pages again and replaces those sheets with the new copy. Pins stay on the old sheets.`,
           [
             { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-            { text: 'Import again', onPress: () => resolve(true) },
+            { text: 'Import Again', onPress: () => resolve(true) },
           ],
           { cancelable: true, onDismiss: () => resolve(false) },
         );

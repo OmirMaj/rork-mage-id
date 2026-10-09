@@ -232,9 +232,9 @@ async function main() {
   const rfiSrc = code('app/rfi.tsx');
   const viewerOff = /const viewerSaveOff = writeBlock \? \{ disabled: true \} : null;/.test(rfiSrc);
   ok('rfi Create/Update button is disabled on writeBlock', viewerOff && /disabled=\{!!responseConflict\} \{\.\.\.viewerSaveOff\}[^\n]*testID="rfi-save"/.test(rfiSrc));
-  // rfi "Save changes" (handleSaveInPlace -> persistForm) has two entry points,
+  // rfi "Save Changes" (handleSaveInPlace -> persistForm) has two entry points,
   // both off for a viewer: the button (above) and the desktop Cmd+S hotkey.
-  ok('rfi Save changes button is disabled on writeBlock', viewerOff && /disabled=\{!!responseConflict\} \{\.\.\.viewerSaveOff\}[^\n]*testID="rfi-save-in-place"/.test(rfiSrc));
+  ok('rfi Save Changes button is disabled on writeBlock', viewerOff && /disabled=\{!!responseConflict\} \{\.\.\.viewerSaveOff\}[^\n]*testID="rfi-save-in-place"/.test(rfiSrc));
   ok('rfi Cmd+S / Cmd+Enter is disabled on writeBlock and says why', /disabled: !!responseConflict \|\| !!writeBlock,\s*reason: writeBlock \?\? RFI_RESPONSE_CONFLICT_REASON,/.test(rfiSrc));
   ok('rfi sends are blocked on writeBlock', /const sendBlock = existingRFI \? \(writeBlock \?\?/.test(rfiSrc));
   ok('submittal Create/Update button is disabled on writeBlock', /disabled=\{writeBlock \? true : undefined\}[^\n]*testID="submittal-save"/.test(code('app/submittal.tsx')));
@@ -247,7 +247,7 @@ async function main() {
     // control is guarded rather than hidden.)
     const pIdx = punchSrc.indexOf('<StatusPipeline');
     const pipe = pIdx > -1 ? punchSrc.slice(pIdx, punchSrc.indexOf('/>', punchSrc.indexOf('updatePunchItem(editingItem.id, patch)', pIdx))) : '';
-    ok('punch edit-sheet StatusPipeline advance returns early on recordWriteBlock before it writes', pipe.length > 0 && /onAdvance=\{\(next\) => \{/.test(pipe) && guardedBefore(pipe.slice(pipe.indexOf('onAdvance=')), 'recordWriteBlock', /updatePunchItem\(/) && /if \(recordWriteBlock\) \{\s*showAlert\(t\('field\.punch\.cantChangeStatus', "Can't change status"\), recordWriteBlock\);\s*return;/.test(pipe));
+    ok('punch edit-sheet StatusPipeline advance returns early on recordWriteBlock before it writes', pipe.length > 0 && /onAdvance=\{\(next\) => \{/.test(pipe) && guardedBefore(pipe.slice(pipe.indexOf('onAdvance=')), 'recordWriteBlock', /updatePunchItem\(/) && /if \(recordWriteBlock\) \{\s*showAlert\(t\('field\.punch\.cantChangeStatus', "Can't Change Status"\), recordWriteBlock\);\s*return;/.test(pipe));
     // The row rail's Reject opens a note modal; a viewer is told why up front
     // instead of typing a note that cannot be saved.
     const rIdx = punchSrc.indexOf('onReject: item => {');
@@ -308,8 +308,8 @@ async function main() {
     const f = fresh.bidsFeedFreshness;
     const now = Date.parse('2026-09-27T12:00:00Z');
     const empty = f([], now);
-    ok('no rows → "Not checked", never fresh / never 0', empty.label === 'Not checked' && empty.notChecked && !empty.stale && empty.ageHours === null);
-    ok('rows without fetched_at → "Not checked"', f([{ fetched_at: null }, {}], now).label === 'Not checked');
+    ok('no rows → "Not checked", never fresh / never 0', empty.label === 'Not Checked' && empty.notChecked && !empty.stale && empty.ageHours === null);
+    ok('rows without fetched_at → "Not checked"', f([{ fetched_at: null }, {}], now).label === 'Not Checked');
     const june = f([{ fetched_at: '2026-06-22T22:00:26Z' }, { fetched_at: '2026-04-11T02:24:30Z' }], now);
     ok('prod today (newest 2026-06-22) → stale, "Updated 96 days ago"', june.stale && june.label === 'Updated 96 days ago' && june.newestFetchedAt === '2026-06-22T22:00:26.000Z', JSON.stringify(june));
     ok('3 hours old → not stale, "Updated 3 hours ago"', (() => { const x = f([{ fetched_at: '2026-09-27T09:00:00Z' }], now); return !x.stale && x.label === 'Updated 3 hours ago'; })());

@@ -37,7 +37,7 @@ function clipName(s: string, max = 30): string {
 export const punchListClose: TutorialDef = {
   id: 'punch-list-close',
   version: 1,
-  title: 'Add, assign and close a punch item',
+  title: 'Add, Assign and Close a Punch Item',
   seconds: 40,
   endsWith: "A closed item on the sample's punch list",
   group: 'site',
@@ -64,7 +64,7 @@ export const punchListClose: TutorialDef = {
       assist: 'punchList.useSampleLine',
       checkpoint: true,
       success: {
-        title: 'Punch item added',
+        title: 'Punch Item Added',
         sub: () => "It's open on the sample's punch list. Nobody is notified.",
       },
     },
@@ -95,7 +95,7 @@ export const punchListClose: TutorialDef = {
       gesture: 'tap',
       until: { signal: 'punchList.closed' },
       success: {
-        title: 'Punch item closed',
+        title: 'Punch Item Closed',
         sub: () => 'The close date is stamped for the closeout record.',
       },
     },
@@ -117,9 +117,9 @@ export const punchListClose: TutorialDef = {
   handoff: {
     pathname: '/punch-list',
     projectParam: 'projectId',
-    realJobLabel: name => `Open ${name}'s punch list →`,
+    realJobLabel: name => `Open ${name}'s Punch List`,
     feature: 'punch_list_closeout',
-    paywallLabel: 'Punch lists come with Business — see plans',
+    paywallLabel: 'Punch Lists Come with Business: See Plans',
     roles: ['owner', 'editor', 'field'],
   },
 };

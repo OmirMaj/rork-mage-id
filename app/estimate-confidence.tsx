@@ -159,7 +159,7 @@ function EstimateConfidenceInner() {
     const delta = calibPreview.newGrandTotal - calibPreview.oldGrandTotal;
     showAlert(
       'Apply your cost corrections?',
-      `${calibPreview.changedCount} line${calibPreview.changedCount > 1 ? 's' : ''} across ${calibPreview.changedCategories.join(', ')} will be repriced from your cost history${calibPreview.cappedToBookRate > 0 ? ` (${calibPreview.cappedToBookRate} only up to your measured rate, not past it)` : ''}.${skippedCopy ? `\n\n${skippedCopy}` : ''}\n\n${formatMoney(calibPreview.oldGrandTotal)} → ${formatMoney(calibPreview.newGrandTotal)}  (${delta >= 0 ? '+' : ''}${formatMoney(delta)})\n\nThe prior estimate is snapshotted so you can restore it.`,
+      `${calibPreview.changedCount} line${calibPreview.changedCount > 1 ? 's' : ''} across ${calibPreview.changedCategories.join(', ')} will be repriced from your cost history${calibPreview.cappedToBookRate > 0 ? ` (${calibPreview.cappedToBookRate} only up to your measured rate, not past it)` : ''}.${skippedCopy ? `\n\n${skippedCopy}` : ''}\n\n${formatMoney(calibPreview.oldGrandTotal)} to ${formatMoney(calibPreview.newGrandTotal)}  (${delta >= 0 ? '+' : ''}${formatMoney(delta)})\n\nThe prior estimate is snapshotted so you can restore it.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -186,8 +186,8 @@ function EstimateConfidenceInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate confidence · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Price check'}</Text>
+          <Text style={styles.headerEyebrow}>Estimate Confidence · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Price Check'}</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -197,9 +197,9 @@ function EstimateConfidenceInner() {
       ) : noEstimateAnywhere ? (
         <EmptyState
           icon={<ShieldCheck size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No estimate yet"
+          title="No Estimate Yet"
           message="Estimate risk checks each line of a project's estimate against your cost history. None of your projects has an estimate with lines yet. Build one, then come back."
-          actionLabel="Build an estimate"
+          actionLabel="Build an Estimate"
           onAction={() => router.push('/estimate-wizard' as never)}
         />
       ) : !project || !report || !report.hasEstimate ? (
@@ -207,7 +207,7 @@ function EstimateConfidenceInner() {
           {candidates.length > 0 && (
             <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
               <EstimateJobPicker
-                label="Check another project"
+                label="Check Another Project"
                 jobs={candidates}
                 selectedId={projectId}
                 onPick={(id) => router.setParams({ projectId: id })}
@@ -217,7 +217,7 @@ function EstimateConfidenceInner() {
           )}
           <EmptyState
             icon={<ShieldCheck size={36} color={t.accent} strokeWidth={1.6} />}
-            title={!project ? 'Project not found' : 'No estimate to check'}
+            title={!project ? 'Project Not Found' : 'No Estimate to Check'}
             message={
               !project
                 ? 'This link points to a project that isn\u2019t on this device any more. Pick a project above, or go back.'
@@ -245,7 +245,7 @@ function EstimateConfidenceInner() {
             </View>
             <View style={styles.heroBody}>
               <Text style={styles.heroTitle}>
-                {report.score >= 70 ? 'Well-backed estimate' : report.score >= 40 ? 'Partly proven' : 'Thin on history'}
+                {report.score >= 70 ? 'Well-Backed Estimate' : report.score >= 40 ? 'Partly Proven' : 'Thin on History'}
               </Text>
               <Text style={styles.heroSub}>
                 {Math.round(report.backedPct * 100)}% of this estimate ({formatMoney(report.backedCost)}) is priced in line with your proven costs.
@@ -258,7 +258,7 @@ function EstimateConfidenceInner() {
               <CheckCircle2 size={15} color={t.success} strokeWidth={1.9} />
               <Text style={styles.discloseText}>
                 Your cost corrections are already applied to this estimate. Restore the previous
-                version from the estimate&rsquo;s history if you want them off.
+                version from the estimate’s history if you want them off.
               </Text>
             </View>
           )}
@@ -281,7 +281,7 @@ function EstimateConfidenceInner() {
             >
               <Wand2 size={20} color={t.accent} strokeWidth={1.9} />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text }}>Apply your cost corrections</Text>
+                <Text style={{ fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text }}>Apply Your Cost Corrections</Text>
                 <Text style={{ fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 2 }}>
                   {calibPreview.changedCount} line{calibPreview.changedCount > 1 ? 's' : ''} · {formatMoney(calibPreview.oldGrandTotal)} → {formatMoney(calibPreview.newGrandTotal)}
                 </Text>
@@ -312,7 +312,7 @@ function EstimateConfidenceInner() {
             <View style={styles.sumCard}>
               <HelpCircle size={15} color={t.textMuted} strokeWidth={1.75} />
               <Text style={styles.sumNum}>{formatMoney(report.noHistoryExposure)}</Text>
-              <Text style={styles.sumLabel}>no history · {report.noHistoryCount} line{report.noHistoryCount === 1 ? '' : 's'}</Text>
+              <Text style={styles.sumLabel}>No history · {report.noHistoryCount} line{report.noHistoryCount === 1 ? '' : 's'}</Text>
             </View>
           </View>
 

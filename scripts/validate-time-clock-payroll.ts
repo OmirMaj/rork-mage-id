@@ -70,7 +70,7 @@ console.log('\n#64 one pay period, finished shifts only:');
   expect('finished shifts in the week only — last week is not repaid', sel.rows.map(e => e.id), ['mon', 'oak', 'thu-eve']);
   expect('open shifts come back separately, never as 0.00 h rows', sel.open.map(e => e.id), ['open-mike']);
   expect('the job filter', P.selectPayrollEntries(entries, '2026-09-14', '2026-09-20', { projectId: OAK }).rows.map(e => e.id), ['oak']);
-  expect('open note names them', P.openShiftsNote(sel.open), '1 crew still on the clock (Mike) — not included');
+  expect('open note names them', P.openShiftsNote(sel.open), '1 crew still on the clock (Mike), not included');
   const period = { start: '2026-09-14', end: '2026-09-20' };
   expect('file name carries the period, no locale slashes', P.payrollFileName(period, 'Henderson Rd #2'), 'time-entries-2026-09-14-to-2026-09-20-henderson-rd-2.csv');
   expect('title carries the period', P.payrollTitle(period, null), 'Time entries 2026-09-14 to 2026-09-20');
@@ -97,7 +97,7 @@ console.log('\n#65/#151/#63 the CSV:');
   // A legacy row filed under no real job (#155) never reached the server —
   // the file must say so, as the screen does (reviewer, round 1).
   const legacy = P.buildTimeEntriesCSV([shift({ id: 'u', projectId: 'unassigned', projectName: 'Unassigned' })], rule).split('\n')[1] ?? '';
-  ok('a not-synced legacy row is marked in the Logged by column', legacy.split(',')[11] === 'Not synced \u2014 this device only', legacy);
+  ok('a not-synced legacy row is marked in the Logged by column', legacy.split(',')[11] === 'Not synced (this device only)', legacy);
   ok('…and a synced own row stays blank there', P.payrollLoggedByCell(shift({ id: 's' })) === '');
   const many: TimeEntry[] = [0, 1, 2, 3, 4].map(i => shift({
     id: `d${i}`, clockIn: at(`2026-09-${String(7 + i).padStart(2, '0')}`, '06:00'), clockOut: at(`2026-09-${String(7 + i).padStart(2, '0')}`, '16:30'), breakMinutes: 30, totalHours: 10,

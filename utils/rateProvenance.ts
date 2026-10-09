@@ -119,7 +119,7 @@ export function provenanceClaimModel(
   }
   // seeded — the contractor's own stated rate, nothing measured. Neutral tone,
   // and it never cites a job count, because there are none.
-  return { provenance: 'seeded', label: 'Your rate', tone: 'stated', jobCount: 0 };
+  return { provenance: 'seeded', label: 'Your Rate', tone: 'stated', jobCount: 0 };
 }
 
 /**

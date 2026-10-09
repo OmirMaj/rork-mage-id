@@ -11,7 +11,7 @@
 //   1. Create Proposal (utils/contractEngine.buildProposalFromRevision) built
 //      the proposal's scope from EVERY revision line name — so
 //      "• Possible knob-and-tube behind panel — 1 ea" was published to the
-//      portal's 'Scope of work' and printed on the contract PDF.
+//      portal's 'Scope of Work' and printed on the contract PDF.
 //   2. Every accepted tell also makes a field-verify punch item
 //      ('Verify before demo/order: <tell>', xray.clientVisible false, no
 //      listType → a formal punch item), and the client portal's punch list and
@@ -80,7 +80,7 @@ const items = [
 const grandTotal = 7250.25;
 const project = {
   id: 'p1', name: 'Maple St Reno', type: 'renovation', status: 'in_progress', location: '12 Maple St',
-  description: 'Kitchen remodel', ...stamp,
+  description: 'Kitchen Remodel', ...stamp,
 } as unknown as Proj;
 const revision = {
   id: 'rev1', projectId: 'p1', revNumber: 2, grandTotal,
@@ -95,9 +95,9 @@ ok('the proposal scope names no GC-only finding',
   !draft.scopeText.includes(TELL) && !draft.scopeText.includes(TELL2),
   draft.scopeText);
 ok('the GC-only lines fold into ONE lump-sum Contingency bullet',
-  (draft.scopeText.match(/• Contingency — lump sum/g) ?? []).length === 1, draft.scopeText);
+  (draft.scopeText.match(/• Contingency, lump sum/g) ?? []).length === 1, draft.scopeText);
 ok('the contingency bullet carries no quantity (a quantity could hint at the finding)',
-  !/• Contingency — \d/.test(draft.scopeText) && !/40 lf/.test(draft.scopeText), draft.scopeText);
+  !/• Contingency, \d/.test(draft.scopeText) && !/40 lf/.test(draft.scopeText), draft.scopeText);
 ok('a client-visible line is still listed with its quantity',
   draft.scopeText.includes('• Kitchen cabinets — 12 lf'), draft.scopeText);
 ok('the proposal price is the revision total, to the cent (nothing moved)',
@@ -125,7 +125,7 @@ const snap = buildPortalSnapshot({
 });
 const json = JSON.stringify(snap);
 ok('the snapshot really publishes the proposal scope (so the check below can see a leak)',
-  json.includes('Kitchen cabinets') && json.includes('Contingency — lump sum'),
+  json.includes('Kitchen cabinets') && json.includes('Contingency, lump sum'),
   'the contract block is missing from the snapshot — this fixture no longer exercises the scope path');
 ok('the serialized portal snapshot carries neither tell', !json.includes(TELL) && !json.includes(TELL2),
   'a GC-only Cost X-Ray finding reached the homeowner payload');

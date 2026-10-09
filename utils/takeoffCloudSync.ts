@@ -33,11 +33,11 @@ export type TakeoffSyncVerdict = 'ok' | 'local' | 'seat' | 'seat_unknown';
 export const TAKEOFF_SAVE_LINES: Record<TakeoffSaveState, string> = {
   local: 'Saved on this browser',
   seat: 'Saved on this browser. Your role on this project can’t save takeoffs to the account.',
-  syncing: 'Saved on this browser — syncing to your account',
-  synced: 'Saved to your account — open it on any computer',
-  offline: 'Saved on this browser — it syncs to your account when you’re back online',
-  failed: 'Saved on this browser — couldn’t reach your account; it will sync when it can',
-  refused: 'Saved on this browser only — your account didn’t accept this save',
+  syncing: 'Saved on this browser. Syncing to your account.',
+  synced: 'Saved to your account. Open it on any computer.',
+  offline: 'Saved on this browser. It syncs to your account when you’re back online.',
+  failed: 'Saved on this browser. Couldn’t reach your account; it will sync when it can.',
+  refused: 'Saved on this browser only. Your account didn’t accept this save.',
 };
 
 /**
@@ -53,7 +53,7 @@ export const SEAT_UNKNOWN_LINE: Record<SeatReadStatus, TakeoffSaveState> = {
 };
 
 /** Appended to a conflict notice when this browser's earlier copy was backed up. */
-export const TAKEOFF_BACKUP_SUFFIX = ' This browser’s earlier copy is kept — you can restore it.';
+export const TAKEOFF_BACKUP_SUFFIX = ' This browser’s earlier copy is kept. You can restore it.';
 
 export const TAKEOFF_SYNC_META_PREFIX = 'mageid_takeoff_sync::';
 export const TAKEOFF_CONFLICT_PREFIX = 'mageid_takeoff_conflict::';

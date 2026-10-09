@@ -37,7 +37,7 @@ import type { CrewMember } from '@/types';
 import type { IdBadge } from '@/utils/crew/verifiedBadge';
 
 /** Bulk Delete stays off: the phone's delete is a one-member decision. */
-export const CREW_BULK_DELETE_REASON = 'Delete crew one at a time — it offers Mark inactive first and purges a kept ID photo.';
+export const CREW_BULK_DELETE_REASON = 'Delete crew one at a time. It offers Mark Inactive first and purges a kept ID photo.';
 
 const ID_TONE: Readonly<Record<IdBadge, StatusTone>> = {
   id_verified: 'success',
@@ -129,13 +129,13 @@ export function CrewRegister({
   ) : all.length === 0 ? (
     <EmptyState
       icon={<IdCard size={28} color={t.accent} strokeWidth={1.75} />}
-      title="No crew yet"
+      title="No Crew Yet"
       message={
         certifications.length > 0
-          ? `Add your first crew member to build a verified roster. Looking for a certification? ${certifications.length} ${certifications.length === 1 ? 'is' : 'are'} on file under Safety — certifications are tracked separately from the roster.`
-          : 'Add your first crew member to build a verified roster.'
+          ? `Add your first crew member to start your roster. Looking for a certification? ${certifications.length} ${certifications.length === 1 ? 'is' : 'are'} on file under Safety. Certifications are tracked separately from the roster.`
+          : 'Add your first crew member to start your roster.'
       }
-      actionLabel="Add crew member"
+      actionLabel="Add Crew Member"
       onAction={onNew}
       secondaryLabel={certifications.length > 0 ? 'Open certifications' : undefined}
       onSecondaryAction={certifications.length > 0 ? onOpenCertifications : undefined}
@@ -143,7 +143,7 @@ export function CrewRegister({
   ) : (
     <EmptyState
       icon={<IdCard size={28} color={t.accent} strokeWidth={1.75} />}
-      title="Nothing under this filter"
+      title="Nothing Under This Filter"
       message="Pick another chip, or All."
     />
   );
@@ -156,7 +156,7 @@ export function CrewRegister({
       csvStem="crew"
       csv={csv}
       onNew={onNew}
-      actions={[{ key: 'new', label: 'Add crew member', primary: true, icon: Plus, onPress: onNew, testID: 'crew-register-new' }]}
+      actions={[{ key: 'new', label: 'Add Crew Member', primary: true, icon: Plus, onPress: onNew, testID: 'crew-register-new' }]}
       record={{ split, param: 'crewId', pathname: '/crew', detail, noun: 'crew member' }}
       renderTable={({ activeKey, onRowOpen, getRowHref }) => (
           <DataTable<CrewRegisterRow>
@@ -183,8 +183,8 @@ export function CrewRegister({
               />
             )}
             bulkActions={[
-              { key: 'inactive', label: 'Mark inactive', run: markInactive },
-              { key: 'active', label: 'Mark active', run: markActive },
+              { key: 'inactive', label: 'Mark Inactive', run: markInactive },
+              { key: 'active', label: 'Mark Active', run: markActive },
               { key: 'csv', label: 'Export CSV', run: exportSelected },
               { key: 'delete', label: 'Delete', destructive: true, run: () => {}, disabledReason: CREW_BULK_DELETE_REASON },
             ]}

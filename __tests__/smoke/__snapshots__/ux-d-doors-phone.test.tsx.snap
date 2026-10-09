@@ -66,7 +66,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
               }
             }
           >
-            Project health
+            Project Health
           </Text>
           <View
             style={
@@ -808,7 +808,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                         ]
                       }
                     >
-                      Bid confidence 
+                      Bid Confidence 
                     </Text>
                     <Text
                       style={
@@ -979,7 +979,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
               }
             }
           >
-            Projected margin
+            Projected Margin
           </Text>
           <View
             style={
@@ -1149,7 +1149,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                 }
               }
             >
-              Margin risk
+              Margin Risk
             </Text>
             <Text
               style={
@@ -1167,7 +1167,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                 ]
               }
             >
-              Low risk
+              Low Risk
             </Text>
           </View>
           <View
@@ -1623,7 +1623,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                   ]
                 }
               >
-                Next step
+                Next Step
               </Text>
             </View>
             <Text
@@ -2317,7 +2317,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                 }
               }
             >
-              Ask MAGE to do anything
+              Ask MAGE to Do Anything
             </Text>
             <Text
               style={
@@ -2329,7 +2329,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                 }
               }
             >
-              Say it — daily report, RFI, change order, estimate…
+              Say it: daily report, RFI, change order, estimate…
             </Text>
           </View>
           <RNSVGSvgView
@@ -9258,7 +9258,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                           ]
                         }
                       >
-                        Not drafted
+                        Not Drafted
                       </Text>
                     </View>
                     <RNSVGSvgView
@@ -11714,7 +11714,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                 onTouchStart={[Function]}
               >
                 <View
-                  accessibilityLabel="Subs & pay, 3 items"
+                  accessibilityLabel="Subs and Pay, 3 items"
                   accessibilityRole="button"
                   accessibilityState={
                     {
@@ -11969,7 +11969,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                           }
                         }
                       >
-                        Subs & pay
+                        Subs and Pay
                       </Text>
                     </View>
                     <Text
@@ -14084,7 +14084,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                       ]
                     }
                   >
-                    People & Communication
+                    People and Communication
                   </Text>
                   <RNSVGSvgView
                     align="xMidYMid"
@@ -14730,7 +14730,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
                 }
               }
             >
-              Generate status report
+              Generate Status Report
             </Text>
           </View>
         </View>
@@ -14889,7 +14889,7 @@ exports[`Lane D golden: the job page of a job that is not live keeps the office 
               }
             }
           >
-            Edit project
+            Edit Project
           </Text>
         </View>
         <View

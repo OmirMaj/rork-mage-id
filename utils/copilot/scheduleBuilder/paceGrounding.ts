@@ -53,7 +53,7 @@ function factFor(e: PaceBookEntry): string {
   // Bias clause only when it rounds to a real signal (≥5%): >0 = actuals run
   // longer than plans (optimistic planner), <0 = plans are padded (conservative).
   const pct = Math.round(e.bias * 100);
-  const bias = Math.abs(pct) >= 5 ? ` — you plan ${Math.abs(pct)}% ${pct > 0 ? 'optimistic' : 'conservative'}` : '';
+  const bias = Math.abs(pct) >= 5 ? `, you plan ${Math.abs(pct)}% ${pct > 0 ? 'optimistic' : 'conservative'}` : '';
   return `${labelFor(e.trade)} actually takes you ~${formatDays(e.actualMean)} working days ${where}${bias}.`;
 }
 

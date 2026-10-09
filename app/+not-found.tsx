@@ -13,15 +13,15 @@ export default function NotFoundScreen() {
   const styles = useThemedStyles(makeStyles);
   return (
     <>
-      <Stack.Screen options={{ title: "Not found" }} />
+      <Stack.Screen options={{ title: "Not Found" }} />
       <View style={styles.container}>
         <View style={styles.iconContainer}>
           <AlertTriangle size={32} color={themeColors.accent} strokeWidth={1.75} />
         </View>
-        <Text style={styles.title}>Page not found</Text>
+        <Text style={styles.title}>Page Not Found</Text>
         <Text style={styles.subtitle}>This screen doesn&apos;t exist.</Text>
         <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go to home</Text>
+          <Text style={styles.linkText}>Go to Home</Text>
         </Link>
       </View>
     </>

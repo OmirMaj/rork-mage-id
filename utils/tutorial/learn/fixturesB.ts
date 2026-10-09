@@ -114,8 +114,8 @@ export interface SampleTakeoffItem {
  *  kitchen-cabinet rate for an outlet. */
 export const SAMPLE_TAKEOFF_KINDS: Record<SampleTakeoffKind, { label: string; csiDivision: string; section: 'floor' | 'fixture' }> = {
   flooring: { label: 'Flooring', csiDivision: '09 Flooring', section: 'floor' },
-  outlets: { label: 'Electrical outlets', csiDivision: '26 Electrical', section: 'fixture' },
-  plumbing: { label: 'Plumbing fixtures', csiDivision: '22 Plumbing', section: 'fixture' },
+  outlets: { label: 'Electrical Outlets', csiDivision: '26 Electrical', section: 'fixture' },
+  plumbing: { label: 'Plumbing Fixtures', csiDivision: '22 Plumbing', section: 'fixture' },
 };
 
 function takeoffItem(kind: SampleTakeoffKind, room: SampleRoom, quantity: number): SampleTakeoffItem {

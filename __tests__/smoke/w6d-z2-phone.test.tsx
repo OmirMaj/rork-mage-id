@@ -138,14 +138,35 @@ const GOLDEN_CLOCK = new Date('2026-09-25T14:31:00.000Z').getTime();
 const outerFs = require('node:fs') as { readFileSync: { constructor: FunctionConstructor } };
 const OuterDate = outerFs.readFileSync.constructor('return Date')() as DateConstructor;
 
-// wttr.in's j1 body for the jobsite. `nearest_area` is where wttr actually
-// read the weather — what the chip should name.
-const WTTR_BODY = {
-  current_condition: [{
-    temp_F: '61', temp_C: '16', weatherDesc: [{ value: 'Partly cloudy' }], windspeedMiles: '8', winddir16Point: 'NW',
-  }],
-  nearest_area: [{ areaName: [{ value: 'Park Slope' }], region: [{ value: 'New York' }], country: [{ value: 'United States of America' }] }],
+// The ZONE is pinned as well as the clock. The daily report's weather line
+// prints the wall clock and the UTC offset of the device that took the reading
+// ("From OpenWeather at 10:31 AM UTC-4."), and both come from the process time
+// zone (utils/weatherService.ts stores -getTimezoneOffset() with the reading).
+// With only the instant pinned, golden b1 held "UTC-4" because the machine that
+// recorded it sits in New York: any other machine, CI in UTC, or a zone whose
+// clocks have changed, printed another time and offset and broke the hash.
+// jest hands each test file a COPY of process.env, so the zone is set on the
+// real process (the same outer-realm reach as OuterDate above); Node re-reads
+// TZ on that assignment. It is put back when this file ends, because the
+// worker goes on to run other suites.
+const outerProcess = outerFs.readFileSync.constructor('return process')() as NodeJS.Process;
+const GOLDEN_ZONE = 'America/New_York';
+const ZONE_BEFORE = outerProcess.env.TZ;
+outerProcess.env.TZ = GOLDEN_ZONE;
+afterAll(() => {
+  if (ZONE_BEFORE === undefined) delete outerProcess.env.TZ;
+  else outerProcess.env.TZ = ZONE_BEFORE;
+});
+
+// What OpenWeather's current-conditions endpoint answers for the jobsite. The
+// service's transport is replaced below, so no request leaves the test.
+const OPENWEATHER_NOW = {
+  name: 'Park Slope', main: { temp: 61.3 }, weather: [{ main: 'Clouds', description: 'scattered clouds' }], wind: { speed: 8.2, deg: 315 },
 };
+/** Every location the daily report asked the weather service about. */
+const currentAsks: unknown[] = [];
+/** False: the service answers nothing (no key, no signal). */
+let currentAnswers = true;
 const PARK_SLOPE = '124 Park Slope, Brooklyn NY';
 
 const realFetch = global.fetch;
@@ -154,7 +175,7 @@ function mockWttr() {
   global.fetch = jest.fn(async (input: unknown) => {
     const url = String(input);
     fetchCalls.push(url);
-    const body = /wttr\.in\/124%20Park%20Slope/.test(url) ? WTTR_BODY : {};
+    const body = {};
     return {
       ok: true, status: 200, statusText: 'OK',
       headers: { get: () => null },
@@ -163,6 +184,13 @@ function mockWttr() {
       clone() { return this; },
     };
   }) as unknown as typeof fetch;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ws = require('@/utils/weatherService') as typeof import('@/utils/weatherService');
+  ws.__setCurrentWeatherTransportForTests(async (location) => {
+    currentAsks.push(location);
+    // Calculated a minute ago on the screen's own clock.
+    return currentAnswers ? { cod: 200, dt: Math.floor(new Date().getTime() / 1000) - 60, ...OPENWEATHER_NOW } : null;
+  });
 }
 
 let nowSpy: jest.SpyInstance | null = null;
@@ -172,6 +200,8 @@ beforeEach(() => {
   nowSpy = jest.spyOn(Date, 'now').mockReturnValue(NOW);
   outerNowSpy = OuterDate === Date ? null : jest.spyOn(OuterDate, 'now').mockReturnValue(GOLDEN_CLOCK);
   fetchCalls.length = 0;
+  currentAsks.length = 0;
+  currentAnswers = true;
   allowConsoleErrors();
 });
 afterEach(() => {
@@ -182,6 +212,8 @@ afterEach(() => {
   restoreOS?.();
   restoreOS = null;
   global.fetch = realFetch;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  (require('@/utils/weatherService') as typeof import('@/utils/weatherService')).__setCurrentWeatherTransportForTests(null);
 });
 
 // ── What a snapshot records ────────────────────────────────────────────────
@@ -346,31 +378,52 @@ function mountReschedule() {
 
 // ── 1. GOLDEN, phone ───────────────────────────────────────────────────────
 describe('Z2 golden — the phone is unchanged (390 × 844 iOS)', () => {
+  it('the zone is pinned: the golden clock reads 10:31 AM, UTC-4, on any machine and in any season', () => {
+    const at = new Date(GOLDEN_CLOCK);
+    expect(at.getTimezoneOffset()).toBe(240);
+    expect([at.getHours(), at.getMinutes()]).toEqual([10, 31]);
+    expect(new OuterDate(GOLDEN_CLOCK).getTimezoneOffset()).toBe(240);
+  });
+
   jest.setTimeout(120000);
 
   it('(a) contract with a draft (the Save draft / Sign & send row)', async () => {
     const tree = await phoneRoute(`/contract?${P}`);
-    expect(screen.getByText('Save draft')).toBeTruthy();
+    expect(screen.getByText('Save Draft')).toBeTruthy();
     expect(fingerprint('a-contract-draft', tree.toJSON())).toMatchSnapshot();
   });
 
-  // Content rights (2026-10-03): the daily report no longer asks wttr.in (no
-  // license, and it sent the jobsite address), so a jobsite address fetches
-  // nothing and nothing is pre-filled. NAMED DELTA in both goldens below: the
-  // "Auto-fetch" button is gone (3 dump lines; b1 also loses the reading it
-  // used to show). Those two snapshots need one re-record; the W6D_DUMP_DIR
-  // diff against the base daily-report.tsx shows those lines are the only change.
-  // (The test name keeps its old wording: it is the snapshot key.)
+  // Lane DFRWEATHER (2026-10-06): the daily report fills today's weather by
+  // itself again, from OpenWeather's current conditions through
+  // utils/weatherService.ts (content rights, 2026-10-03, had removed the old
+  // read from an unlicensed service). NAMED DELTA in both goldens below, one
+  // re-record each: the Refresh control is back in the Weather header; b1 gains
+  // the reading, its "From OpenWeather at <time> <UTC offset>." line and OpenWeather's
+  // credit ("1 of 5 filled"); b2 (a country on its own is no location) gains
+  // the one quiet line and nothing else. The W6D_DUMP_DIR diff against the
+  // base daily-report.tsx shows those lines are the only change.
+  // (The test names keep their old wording: they are the snapshot keys.)
   it('(b1) daily-report, new report, jobsite 124 Park Slope (wttr answers)', async () => {
     const tree = await mountDailyReport(PARK_SLOPE);
     expect(fetchCalls.filter((u) => u.includes('wttr.in'))).toEqual([]);
-    expect(screen.queryByTestId('dfr-weather-provenance')).toBeNull();
+    expect(currentAsks).toHaveLength(1);
+    expect(screen.getByTestId('dfr-weather-provenance').props.children).toMatch(/^From OpenWeather at \d{1,2}:\d{2} [AP]M UTC(?:[+-]\d{1,2}(?::\d{2})?)?\.$/);
+    expect(screen.getByTestId('weather-credit')).toBeTruthy();
+    expect(screen.getByText('Weather data provided by OpenWeather')).toBeTruthy();
+    expect(screen.getByDisplayValue('61°F')).toBeTruthy();
+    expect(screen.getByDisplayValue('Scattered clouds')).toBeTruthy();
+    expect(screen.getByDisplayValue('8 mph NW')).toBeTruthy();
+    expect(screen.getByTestId('dfr-weather-refresh')).toBeTruthy();
+    expect(screen.queryByTestId('dfr-weather-quiet-line')).toBeNull();
     expect(fingerprint('b1-daily-report-park-slope', tree.toJSON())).toMatchSnapshot();
   });
 
   it("(b2) daily-report, new report, location 'United States'", async () => {
     const tree = await mountDailyReport('United States');
+    expect(currentAsks).toEqual([]);
     expect(screen.queryByTestId('dfr-weather-provenance')).toBeNull();
+    expect(screen.queryByTestId('weather-credit')).toBeNull();
+    expect(screen.getByTestId('dfr-weather-quiet-line').props.children).toBe('Live weather is not available right now. Type what you saw.');
     expect(fingerprint('b2-daily-report-united-states', tree.toJSON())).toMatchSnapshot();
   });
 
@@ -451,17 +504,95 @@ describe('Z2 deltas — the sanctioned copy and the weather place', () => {
     expect(text).not.toContain('Look up building codes, permits, and inspection requirements.');
   });
 
-  it('daily-report: a jobsite address is never sent to a weather service, and no fetch button is offered (content rights)', async () => {
+  it('daily-report: the jobsite goes to OpenWeather through the weather service only, never to another weather host', async () => {
     await mountDailyReport(PARK_SLOPE);
+    // The screen itself fetches nothing: the one read is the service's
+    // transport (replaced here), asked once, for the jobsite.
     expect(fetchCalls.filter((u) => /wttr\.in|weather/i.test(u))).toEqual([]);
-    expect(screen.queryByTestId('dfr-weather-provenance')).toBeNull();
+    expect(currentAsks).toEqual([{ city: PARK_SLOPE }]);
     expect(screen.queryByText('Auto-fetch')).toBeNull();
     expect(screen.queryByLabelText('Auto-fetch the weather for today')).toBeNull();
+    expect(screen.getByLabelText('Refresh the Weather from OpenWeather')).toBeTruthy();
   });
 
-  it("daily-report: a country-only location is never sent to wttr.in", async () => {
+  it('daily-report: when OpenWeather does not answer, nothing is filled and nothing is invented', async () => {
+    currentAnswers = false;
+    await mountDailyReport(PARK_SLOPE);
+    expect(currentAsks).toHaveLength(1);
+    expect(screen.queryByTestId('dfr-weather-provenance')).toBeNull();
+    expect(screen.queryByTestId('weather-credit')).toBeNull();
+    expect(screen.queryByDisplayValue('61°F')).toBeNull();
+    expect(screen.getByTestId('dfr-weather-quiet-line').props.children).toBe('Live weather is not available right now. Type what you saw.');
+  });
+
+  it('daily-report: typing a weather field makes it the super\'s, and the credit goes with the reading', async () => {
+    await mountDailyReport(PARK_SLOPE);
+    // DFR-DIRTY-AUTOFILL: the app's own reading is not unsaved work. The back
+    // button says so (its label is where the unsaved state is announced), and
+    // no draft of the app's reading was written.
+    expect(screen.getByLabelText('Back')).toBeTruthy();
+    expect(screen.queryByLabelText('Back. This report has unsaved changes.')).toBeNull();
+    const draftKeys = (await AsyncStorage.getAllKeys()).filter((k) => /dfr.*draft|draft.*dfr/i.test(k));
+    expect(draftKeys).toEqual([]);
+    fireEvent.changeText(screen.getByDisplayValue('61°F'), '58');
+    await pump(2);
+    expect(screen.getByLabelText('Back. This report has unsaved changes.')).toBeTruthy();
+    expect(screen.getByTestId('dfr-weather-provenance').props.children).toBe('Typed by hand.');
+    expect(screen.queryByTestId('weather-credit')).toBeNull();
+    expect(screen.getByDisplayValue('58')).toBeTruthy();
+  });
+
+  // Review finding 1 (2026-10-06): the "ask first" check runs at the tap, the
+  // answer arrives later. Words typed while the read is in flight were never
+  // asked about, so the answer is dropped.
+  it('daily-report: Refresh never replaces a temperature typed while it was reading', async () => {
+    await mountDailyReport(PARK_SLOPE);
+    expect(screen.getByDisplayValue('61°F')).toBeTruthy();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ws = require('@/utils/weatherService') as typeof import('@/utils/weatherService');
+    type Answer = Awaited<ReturnType<import('@/utils/weatherService').CurrentWeatherTransport>>;
+    const reading = (temp: number): Answer => ({ cod: 200, dt: Math.floor(new Date().getTime() / 1000) - 60, ...OPENWEATHER_NOW, main: { temp } });
+    /** A read that stays in flight until the test answers it. */
+    const hang = () => {
+      let answer: (v: Answer) => void = () => {};
+      // Replacing the transport also clears the 10-minute cache, so the next
+      // Refresh really asks.
+      ws.__setCurrentWeatherTransportForTests(() => new Promise<Answer>((resolve) => { answer = resolve; }));
+      return (v: Answer) => answer(v);
+    };
+
+    // Control: an untouched Refresh does land, so the drop below is the rule
+    // and not a read that never arrived.
+    let answer = hang();
+    fireEvent.press(screen.getByTestId('dfr-weather-refresh'));
+    await pump(2);
+    expect(screen.getByText('Reading')).toBeTruthy();
+    answer(reading(70.2));
+    await pump(2);
+    expect(screen.getByDisplayValue('70°F')).toBeTruthy();
+    expect(screen.getByTestId('dfr-weather-provenance').props.children).toMatch(/^From OpenWeather at /);
+
+    // The case: tap Refresh, type while it is reading, then the answer comes.
+    answer = hang();
+    fireEvent.press(screen.getByTestId('dfr-weather-refresh'));
+    await pump(2);
+    expect(screen.getByText('Reading')).toBeTruthy();
+    fireEvent.changeText(screen.getByDisplayValue('70°F'), '58');
+    await pump(2);
+    answer(reading(80.4));
+    await pump(3);
+    expect(screen.getByDisplayValue('58')).toBeTruthy();
+    expect(screen.queryByDisplayValue('80°F')).toBeNull();
+    expect(screen.getByTestId('dfr-weather-provenance').props.children).toBe('Typed by hand.');
+    expect(screen.queryByTestId('weather-credit')).toBeNull();
+    // The read is over: the control is offered again.
+    expect(screen.getByText('Refresh')).toBeTruthy();
+  });
+
+  it("daily-report: a country-only location is never sent to any weather service", async () => {
     await mountDailyReport('United States');
-    expect(fetchCalls.filter((u) => u.includes('wttr.in'))).toEqual([]);
+    expect(fetchCalls.filter((u) => /wttr\.in|weather/i.test(u))).toEqual([]);
+    expect(currentAsks).toEqual([]);
     expect(screen.queryByTestId('dfr-weather-provenance')).toBeNull();
   });
 

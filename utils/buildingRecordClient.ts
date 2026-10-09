@@ -26,7 +26,7 @@ import {
   type MdSide,
 } from '@/utils/buildingRecord';
 
-export const BUILDING_RECORD_NETWORK_ERROR = "Couldn't reach NYC Open Data — nothing was checked.";
+export const BUILDING_RECORD_NETWORK_ERROR = "Couldn't reach NYC Open Data. Nothing was checked.";
 
 function networkError(): BuildingRecordResponse {
   return { status: 'error', code: 'network', error: BUILDING_RECORD_NETWORK_ERROR };
@@ -51,7 +51,7 @@ export function fetchReviewBenchmark(borough: string): Promise<BuildingRecordRes
   return invokeBuildingRecord({ mode: 'benchmark', borough });
 }
 
-export const NJ_BUILDING_RECORD_NETWORK_ERROR = "Couldn't reach the New Jersey lookup — nothing was checked.";
+export const NJ_BUILDING_RECORD_NETWORK_ERROR = "Couldn't reach the New Jersey lookup. Nothing was checked.";
 
 /** The New Jersey modes (nj_resolve / nj_record) of the same function. Same
  *  two rules: the LITERAL name, and one fixed sentence for every failure. */
@@ -65,7 +65,7 @@ export async function fetchNjBuildingRecord(req: NjBuildingRecordRequest): Promi
   }
 }
 
-export const MD_BUILDING_RECORD_NETWORK_ERROR = "Couldn't reach the Baltimore lookup — nothing was checked.";
+export const MD_BUILDING_RECORD_NETWORK_ERROR = "Couldn't reach the Baltimore lookup. Nothing was checked.";
 
 /** The Maryland modes (md_resolve / md_record) of the same function. Same two
  *  rules: ONE literal invoke('building-record') for both modes, and one fixed

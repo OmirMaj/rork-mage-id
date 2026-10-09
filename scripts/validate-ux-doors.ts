@@ -157,18 +157,18 @@ console.log('\nux-doors validation (Lane D):');
   // W1 UXDOORS: the Voice door (flipped from "HELD with A3" once openVoice
   // took a projectId): native only, files to THIS job, starts recording.
   ok('D2 Voice door: native only (Platform.OS !== \'web\'), after Clock in, openVoice({ projectId: project.id, autoStart: true })',
-    /\{ key: 'clock-in', label: 'Clock in'[^\n]*\n[\s\S]{0,400}\.\.\.\(Platform\.OS !== 'web' \? \[\{\s*key: 'voice', label: 'Voice', Icon: Mic, lock: voiceLock,/.test(pd)
+    /\{ key: 'clock-in', label: 'Clock In'[^\n]*\n[\s\S]{0,400}\.\.\.\(Platform\.OS !== 'web' \? \[\{\s*key: 'voice', label: 'Voice', Icon: Mic, lock: voiceLock,/.test(pd)
     && /openVoice\(\{ projectId: project\.id, autoStart: true \}\);/.test(pd)
     && /const \{ openVoice \} = useSearch\(\);/.test(pd)
     && !/Voice is\s+HELD/.test(pd));
   ok('D2 Voice door: a seat that cannot file says why instead of recording (projectRecordWriteBlock)',
     /const voiceLock = projectRecordWriteBlock\(hubRole \?\? undefined\);/.test(pd)
-    && /if \(voiceLock\) \{ showAlert\("Can't record here", voiceLock\); return; \}/.test(pd));
+    && /if \(voiceLock\) \{ showAlert\("Can't Record Here", voiceLock\); return; \}/.test(pd));
   ok('D2 the Photo lock is project-aware (canAccessProject), like the lineup row',
     /const photoLock = canAccessProject\('photo_documentation'\) \? null : tileLockReason\('photos', hubRole,/.test(pd));
   ok('D2 a live job with no schedule / no estimate still has its create doors (moved into Field Ops / Money, same testIDs)',
-    /\.\.\.\(!project\.schedule \? \[\{ key: 'build-schedule', label: 'Build schedule', Icon: CalendarDays, testID: 'project-create-schedule-btn', onPress: buildSchedule \}\] : \[\]\),/.test(pd)
-    && /\[\{ key: 'create-estimate', label: 'Create estimate', Icon: Receipt, testID: 'project-create-estimate-btn', onPress: \(\) => router\.push\(routeHref\('\/estimate-wizard', \{ projectId: project\.id \}\)\) \}\]\),/.test(pd));
+    /\.\.\.\(!project\.schedule \? \[\{ key: 'build-schedule', label: 'Build Schedule', Icon: CalendarDays, testID: 'project-create-schedule-btn', onPress: buildSchedule \}\] : \[\]\),/.test(pd)
+    && /\[\{ key: 'create-estimate', label: 'Create Estimate', Icon: Receipt, testID: 'project-create-estimate-btn', onPress: \(\) => router\.push\(routeHref\('\/estimate-wizard', \{ projectId: project\.id \}\)\) \}\]\),/.test(pd));
   ok('D2 a live job WITH an estimate keeps its one-tap door into the estimate editor (Money: Estimate, same testID)',
     /money: hubPerms\.showMoney \? \[[\s\S]{0,200}\.\.\.\(hasAnyEstimate\s*\? \[\{ key: 'view-estimate', label: 'Estimate', Icon: Receipt, testID: 'project-view-estimate-btn', onPress: \(\) => router\.replace\(estimateFromJobHref\(project\.id\)\) \}\]\s*: \[\{ key: 'create-estimate'/.test(pd));
   ok('D2 a locked field door says why (tileLockReason) and names it in the a11y label',
@@ -192,7 +192,7 @@ console.log('\nux-doors validation (Lane D):');
     !/save a revision first/.test(pd) && !/create-proposal-disabled/.test(pd)
     && /const patch = snapshotPatch\(project, 'manual'\);/.test(pd)
     && /navigateFromTile\(\{ pathname: '\/contract', params: \{ projectId: id, fromRevision: revisionId \} \}\)/.test(pd)
-    && /From an older revision<\/Text>/.test(pd));
+    && /From an Older Revision<\/Text>/.test(pd));
   ok('D4 the edit sheet carries the client (validated, then editedPrimaryContact)',
     /testID="edit-client-email-input"/.test(pd) && /const clientProblem = clientFieldsProblem\(clientTyped\);/.test(pd)
     && /\.\.\.\(client\.changed \? \{ primaryContact: client\.next \} : \{\}\),/.test(pd));
@@ -308,7 +308,7 @@ console.log('\nux-doors validation (Lane D):');
   // for the tool's own — it keeps its glyph, hatched and muted (NavRow `locked`,
   // components/ui/toolList.tsx), and still says why in its subtitle.
   ok('ToolsSheet: a locked tap explains the plan with a See plans path (/paywall); the row is hatched as locked and says why',
-    /showAlert\(lineupDoor\.title, lineupDoor\.message, \[\s*\{ text: 'Not now', style: 'cancel' \},\s*\{ text: 'See plans', onPress: \(\) => onNavigate\('\/paywall'\) \},\s*\]\);/.test(ts)
+    /showAlert\(lineupDoor\.title, lineupDoor\.message, \[\s*\{ text: 'Not Now', style: 'cancel' \},\s*\{ text: 'See Plans', onPress: \(\) => onNavigate\('\/paywall'\) \},\s*\]\);/.test(ts)
     && /Icon=\{row\.Icon\}\s+locked=\{!!locked\}/.test(ts) && /subtitle=\{locked \? locked\.subtitle : row\.subtitle\}/.test(ts));
   ok('ToolsSheet: every other row still navigates by the registry route', /if \(row\.feature !== 'tomorrow-lineup'\) \{ onNavigate\(featureFor\(row\.feature\)\.route\); return; \}/.test(ts));
 }
@@ -354,9 +354,9 @@ console.log('\nux-doors validation (Lane D):');
     /dollarsToCents\(commitmentValue\(c as Commitment\)\)/.test(srcRows) && /dollarsToCents\(commitmentPaidToDate\(c as Commitment\)\)/.test(srcRows));
   const tile = read('components', 'project', 'SubsPayTile.tsx');
   ok('D5: the tile says "Approved bills" (the rollup counts approved-but-unpaid bills), never "Paid to date"; Get waiver is off when there is no waiver door',
-    />Approved bills</.test(tile) && !/Paid to date/.test(tile) && /disabled=\{!r\.waiverHref\}/.test(tile));
+    />Approved Bills</.test(tile) && !/Paid to date/.test(tile) && /disabled=\{!r\.waiverHref\}/.test(tile));
   ok('D5: no commitments → no rows, and the empty line reads "No subs on this project yet"',
-    subsPayRows({ projectId: 'p1', commitments: [], subs, subBills: [] }).length === 0 && SUBS_PAY_EMPTY.title === 'No subs on this project yet');
+    subsPayRows({ projectId: 'p1', commitments: [], subs, subBills: [] }).length === 0 && SUBS_PAY_EMPTY.title === 'No Subs on This Project Yet');
   ok('D5: every amount prints cents', centsLabel(450000) === '$4,500.00' && centsLabel(120050) === '$1,200.50' && dollarsToCents(Number.NaN) === 0);
 
   const pd = read('app', 'project-detail.tsx');
@@ -371,13 +371,13 @@ console.log('\nux-doors validation (Lane D):');
   // panel knows the key and titles it, and both headers read sectionTitle.
   ok('D5 desktop: the Subs & pay tile is not gated off desktop',
     !/!isDesktop \? \[\{ key: 'subsPay'/.test(pd)
-    && /\n\s*\{ key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, count: subsPayRowList\.length as number \| null \},/.test(pd));
+    && /\n\s*\{ key: 'subsPay' as SectionKey, label: 'Subs and Pay', icon: HandCoins, count: subsPayRowList\.length as number \| null \},/.test(pd));
   ok("D5 desktop: SECTION_TITLES.subsPay === 'Subs & pay' and sectionTitle reads it",
-    SECTION_TITLES.subsPay === 'Subs & pay' && sectionTitle('subsPay') === 'Subs & pay', SECTION_TITLES.subsPay);
+    SECTION_TITLES.subsPay === 'Subs and Pay' && sectionTitle('subsPay') === 'Subs and Pay', SECTION_TITLES.subsPay);
   ok("D5 desktop: PANEL_SECTION_KEYS has 'subsPay', so the desktop row opens the side panel",
     (PANEL_SECTION_KEYS as readonly string[]).includes('subsPay') && desktopTileTarget('subsPay', 'p1').kind === 'panel');
   ok('D5 desktop: both section headers print sectionTitle(activeTile), with no subsPay special case',
-    !/activeTile === 'subsPay' \? 'Subs & pay'/.test(pd)
+    !/activeTile === 'subsPay' \? 'Subs and Pay'/.test(pd)
     && /title=\{sectionTitle\(activeTile\)\}/.test(pd)
     && /<Text style=\{styles\.sectionModalTitle\} numberOfLines=\{1\}>\s*\{sectionTitle\(activeTile\)\}/.test(pd));
   ok('D5: the rows come from subsPayRows over the context\'s commitments; the bills are read only while the section is open',

@@ -178,7 +178,7 @@ describe('COI Vault register (real DOM, 1512)', () => {
     expect(split.open).not.toHaveBeenCalled();
     const [title, , buttons] = lastAlert();
     expect(title).toBe('Discard changes?');
-    expect(buttons!.map((b) => b.text)).toEqual(['Keep editing', 'Discard']);
+    expect(buttons!.map((b) => b.text)).toEqual(['Keep Editing', 'Discard']);
     await act(async () => { buttons![1].onPress?.(); });
     expect(split.open).toHaveBeenCalledWith('s1');
   });
@@ -204,9 +204,9 @@ describe('COI Vault register (real DOM, 1512)', () => {
   it('bulk Request renewal is disabled and says why', async () => {
     const { el } = await mount(vault());
     await click(byId(el, 'coi-vault-register-table-row-s2-check')!);
-    await bulkButton(el, 'coi-vault-register-table', 'Request renewal');
+    await bulkButton(el, 'coi-vault-register-table', 'Request Renewal');
     const [title, message] = lastAlert();
-    expect(title).toBe('Request renewal');
+    expect(title).toBe('Request Renewal');
     expect(message).toBe(COI_RENEWAL_REASON);
   });
 
@@ -216,7 +216,7 @@ describe('COI Vault register (real DOM, 1512)', () => {
     const call = (deliverTextFile as jest.Mock).mock.calls[0];
     expect(call[0]).toBe(`coi-vault-${localDay(new Date())}.csv`);
     const lines = String(call[1]).split(/\r?\n/);
-    expect(lines[0]).toContain('Sub,Trade,Check,Earliest expiry');
+    expect(lines[0]).toContain('Sub,Trade,Check,Earliest Expiry');
     expect(lines.join('\n')).not.toContain('—');
   });
 });

@@ -172,7 +172,7 @@ expect('duplicate field notes are collapsed', n.workNotes.length, 2);
 expect('period label reads as a date range', n.periodLabel, 'Jun 1 – Jun 30, 2026');
 expect('hasActivity + no gap when the period has content', [n.hasActivity, n.gap], [true, undefined]);
 ok('headline names the milestones and cites the photos',
-  n.headline === 'This billing period covers Framing complete and Rough electrical complete — 3 photos from Jun 3–Jun 7.',
+  n.headline === 'This billing period covers Framing complete and Rough electrical complete: 3 photos from Jun 3–Jun 7.',
   `got: ${n.headline}`);
 ok('no out-of-window work text leaks into the narrative',
   !JSON.stringify(n).includes('BEFORE WINDOW') && !JSON.stringify(n).includes('AFTER WINDOW'));
@@ -576,7 +576,7 @@ const portalHtml = read('marketing/portal/index.html');
   ok('portal invoice drawer does the same',
     /var invStatus = inv\.effectiveStatus \|\| inv\.status;/.test(portalHtml));
   ok('portal invoice drawer renders retainage as the pending amount (retentionAmount − retentionReleased)',
-    /inv\.retentionAmount - retentionReleased/.test(portalHtml) && /Retainage held/.test(portalHtml));
+    /inv\.retentionAmount - retentionReleased/.test(portalHtml) && /Retainage Held/.test(portalHtml));
   ok('…and never subtracts the ORIGINAL withholding',
     !/fmtMoney\(inv\.retentionAmount, \{dec:2\}\)/.test(portalHtml));
   // 2026-09-11 (AIA wave): these two used to pin the literal expressions
@@ -1067,7 +1067,7 @@ for (const status of ['sent', 'signed'] as const) {
     ...portalSettings, proposalApprovalEnabled: true,
     proposalPaymentTerms: { depositPct: 25, progressPct: 55, finalPct: 10, confirmedAt: '2026-09-17T12:00:00.000Z' },
   } as unknown as ClientPortalSettings).proposal;
-  expect('a stamp that does not total 100% is treated as not confirmed', bad?.paymentTermsPending, true);
+  expect('a stamp that does not total 100% is treated as Not Confirmed', bad?.paymentTermsPending, true);
 
   // THE FREEZE. His saved terms, his location and his tax rate all changing
   // must leave the published text byte-identical.
@@ -1706,7 +1706,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     // pushing esign-1 (MAGE's 10% deposit) or a proposal whose terms are not
     // confirmed can never be signed, whichever of web or OTA ships first.
     ok('esign-2 stamped: payment rows are drawn',
-      html.includes('How payment works') && html.includes('Deposit — Due on signing · 25%') && html.includes('$260,000'),
+      html.includes('How Payment Works') && html.includes('Deposit — Due on signing · 25%') && html.includes('$260,000'),
       html.slice(html.indexOf('prop-group-head'), html.indexOf('prop-group-head') + 900));
     const v1 = make(null)({ ...snapProposal, version: 'proposal-esign-1' }, true);
     ok('esign-1: NO accept or decline button', !v1.includes('data-proposal-accept') && !v1.includes('data-proposal-decline'), v1.slice(-400));
@@ -1764,7 +1764,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
 {
   const cv = read('app/client-view.tsx');
   ok('client-view renders the proposal the homeowner will see',
-    /title="Your proposal"/.test(cv) && /proposalBlock\.scope\.map/.test(cv));
+    /title="Your Proposal"/.test(cv) && /proposalBlock\.scope\.map/.test(cv));
   // It builds it with the SAME function the snapshot does. A hand-rolled
   // preview is a preview of something else.
   ok('…built with the shared buildPortalProposal, not re-derived',
@@ -1874,7 +1874,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     && /testID="proposal-terms-row"/.test(setup) && /testID="proposal-terms-use-current"/.test(setup)
     && /testID="proposal-terms-confirm"/.test(setup));
   ok('…with the locked, differs and unconfirmed sentences',
-    /these can&apos;t change/.test(setup) && /the terms your client was shown/.test(setup)
+    /These can’t change/.test(setup) && /the terms your client was shown/.test(setup)
     && /without payment terms and can&apos;t accept it yet/.test(setup)
     && /Your client will need to reload the page before accepting/.test(setup));
   ok('a stamp written elsewhere is adopted into local state',
@@ -1886,7 +1886,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
   ok('project-detail: "Terms needed" badge from proposalTermsState, only when the proposal is not blocked',
     /proposalTermsState\(\{ portal: project\?\.clientPortal/.test(pd)
     && /portalTerms\.state === 'unconfirmed'\s*\n\s*&& !proposalBlockReason\(project, portalBadgeContract \?\? undefined\)/.test(pd)
-    && /clientPortal: \{ label: 'Terms needed', tone: 'pending' \}/.test(pd));
+    && /clientPortal: \{ label: 'Terms Needed', tone: 'pending' \}/.test(pd));
   const a = pd.indexOf('const confirmPortalProposalTerms = useCallback(');
   const body = a >= 0 ? pd.slice(a, pd.indexOf('\n  }, [', a)) : '';
   ok('project-detail: the unconfirmed row stamps via updateProject with the two keys merged onto the saved portal',
@@ -1978,7 +1978,7 @@ console.log('\nportal owner — completion ask + message starters:');
     /msgInput\.value = opener;/.test(portalHtml)
     && !/data-msg-prompt[\s\S]{0,400}postPortalMessage/.test(portalHtml));
   ok('…under a heading that says what actually happens to them',
-    /Start a message — your contractor reads these/.test(portalHtml));
+    /Start a message\. Your contractor reads these\./.test(portalHtml));
   // Zuper converts a portal request into a job. MAGE does not, and must not
   // imply it.
   ok('nothing on the page claims a request becomes a job automatically',
@@ -2091,7 +2091,7 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
     project: henderson, portal: portalSettings,
     invoices: [inv({ id: 'sent1' }), inv({ id: 'draft1', status: 'draft', subtotal: 27_000, taxAmount: 0, totalDue: 27_000 })],
   });
-  expect('a DRAFT invoice the GC has never issued is not billed to the client',
+  expect('a DRAFT invoice the GC has never issued is not billed to the Client',
     withDraft.sections.budget!.outstanding, 10_800);
   expect('…nor counted as invoiced', withDraft.sections.budget!.invoicedToDate, 10_800);
 
@@ -2389,7 +2389,7 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
 // only in the GC's in-app preview; the homeowner's portal said nothing about
 // whether the job was on time. The page now computes it itself, against the
 // viewer's today — NOT from the snapshot, where a verdict frozen at publish
-// time would still say "On track" weeks later.
+// time would still say "On Track" weeks later.
 //
 // Held here, head-to-head:
 //   - the page's deriveSchedulePace vs utils/ownerConfidence ownerSchedulePace
@@ -2506,16 +2506,16 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
     const behind = { status: 'behind', pct: 20, expected: 0.6, finishISO: '2026-08-21' };
     win.__portalData = { project: { type: 'renovation' } };
     expect('behind, finish ahead → planned finish',
-      P.schedulePaceCopy(behind, new Date(2026, 6, 1, 9).getTime()).chip, 'Behind schedule · planned finish Aug 21');
+      P.schedulePaceCopy(behind, new Date(2026, 6, 1, 9).getTime()).chip, 'Behind Schedule · planned finish Aug 21');
     expect('behind, finish passed → was due',
-      P.schedulePaceCopy(behind, new Date(2026, 8, 1, 9).getTime()).chip, 'Behind schedule · was due Aug 21');
+      P.schedulePaceCopy(behind, new Date(2026, 8, 1, 9).getTime()).chip, 'Behind Schedule · was due Aug 21');
     expect('on track → finishing',
-      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On track · finishing Aug 21');
+      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On Track · finishing Aug 21');
     expect('the basis line names what the verdict rests on',
       P.schedulePaceCopy(behind, new Date(2026, 6, 1, 9).getTime()).basis, '20% of the work reported done · 60% of the scheduled time used');
     win.__portalData = { project: { type: 'commercial' } };
     expect('commercial projects get completion wording via the copy switch',
-      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On track · scheduled completion Aug 21');
+      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On Track · scheduled completion Aug 21');
     win.__portalData = undefined;
     ok('no chip copy ever says "now finishing" (the date is the plan, not a forecast)',
       !/now finishing/i.test(portalHtml.slice(fallbackStart, fallbackStop).split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n')));
@@ -2539,8 +2539,8 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
 
 // ── The portal HTML must not read the retired figure, anywhere ─────────────
 ok('portal no longer renders budget.pctComplete', !/pctComplete/.test(portalHtml));
-ok('portal labels the stat "Work complete", not "Project complete"',
-  portalHtml.includes("label: 'Work complete'") && !portalHtml.includes("label: 'Project complete'"));
+ok('portal labels the stat "Work Complete", not "Project Complete"',
+  portalHtml.includes("label: 'Work Complete'") && !/label: 'Project [Cc]omplete'/.test(portalHtml));
 ok('portal says "Not reported yet" instead of a fabricated 0%',
   portalHtml.includes("sub: 'Not reported yet'"));
 ok('the hero progress bar is gated on a real progress signal',
@@ -2622,7 +2622,7 @@ ok('the money bar no longer maxes cash-plus-balance against the pre-tax contract
   ok('the never-saved state tells the GC to Save instead of promising a sync',
     /const linkNeedsSave = linkPending && !project\?\.clientPortal\?\.enabled;/.test(setup)
     && /Tap Save to finish securing this link/.test(setup)
-    && /'Save this portal first'/.test(setup));
+    && /'Save This Portal First'/.test(setup));
   ok('the share link builder still appends the access token',
     /buildShortPortalUrl\(PORTAL_BASE_URL, portal\.portalId, undefined, portal\.accessToken\)/.test(setup));
 }
@@ -2713,7 +2713,7 @@ console.log('\nno portal URL is built by string-concatenating a portalId:');
   ok('…prints that same link (token masked), not a bare URL',
     /maskPortalLinkToken\(portalLink\.replace\(\/\^https:\\\/\\\/\/, ''\)\)/.test(detail));
   ok('…and refuses to copy when there is no key',
-    /'Secure link on its way'/.test(detail) && /if \(!portalEntitled\) \{ openPortalPaywall\(\); return; \}/.test(detail));
+    /'Secure Link on Its Way'/.test(detail) && /if \(!portalEntitled\) \{ openPortalPaywall\(\); return; \}/.test(detail));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

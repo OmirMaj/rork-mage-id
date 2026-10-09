@@ -154,10 +154,10 @@ export default function CopilotScreen() {
                 </Text>
                 <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={buildEstimateFirst} activeOpacity={0.9} testID="copilot-gate-build-estimate">
                   <Receipt size={18} color={Colors.textOnAccent} strokeWidth={2} />
-                  <Text style={styles.primaryText}>Build the estimate first</Text>
+                  <Text style={styles.primaryText}>Build the Estimate First</Text>
                 </TouchableOpacity>
                 <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => setChanging(true)} activeOpacity={0.8}>
-                  <Text style={styles.secondaryText}>Pick another project</Text>
+                  <Text style={styles.secondaryText}>Pick Another Project</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -175,14 +175,14 @@ export default function CopilotScreen() {
                     <Text style={styles.headline}>Couldn’t check your role on this project.</Text>
                     <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={roleState.refetch} activeOpacity={0.9}>
                       <RefreshCw size={16} color={Colors.textOnAccent} strokeWidth={2} />
-                      <Text style={styles.primaryText}>Try again</Text>
+                      <Text style={styles.primaryText}>Try Again</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <Text style={styles.headline}>{WARRANTY_OWNER_ONLY_COPY}</Text>
                 )}
                 <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => setChanging(true)} activeOpacity={0.8}>
-                  <Text style={styles.secondaryText}>Pick another project</Text>
+                  <Text style={styles.secondaryText}>Pick Another Project</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -251,12 +251,12 @@ function ProjectPicker({ styles, colors, candidates, loading, staleId, currentId
   if (candidates.length === 0) {
     return (
       <View style={styles.block} testID="copilot-picker-empty">
-        <Text style={styles.eyebrow}>No project yet</Text>
+        <Text style={styles.eyebrow}>No Project Yet</Text>
         <Text style={styles.headline}>Create a project first.</Text>
         <Text style={styles.muted}>This goes on a project, and you don’t have an open one. Nothing has been charged.</Text>
         <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={onNewProject} activeOpacity={0.9} testID="copilot-picker-new-project">
           <FolderPlus size={18} color={Colors.textOnAccent} strokeWidth={2} />
-          <Text style={styles.primaryText}>Start a project</Text>
+          <Text style={styles.primaryText}>Start a Project</Text>
         </TouchableOpacity>
       </View>
     );
@@ -272,14 +272,14 @@ function ProjectPicker({ styles, colors, candidates, loading, staleId, currentId
       {candidates.map((p) => (
         <TouchableOpacity accessibilityRole="button" key={p.id} style={[styles.card, p.id === currentId && styles.cardCurrent]} onPress={() => onPick(p.id)} activeOpacity={0.85} testID={`copilot-picker-${p.id}`}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardLabel} numberOfLines={1}>{p.name || 'Untitled project'}</Text>
+            <Text style={styles.cardLabel} numberOfLines={1}>{p.name || 'Untitled Project'}</Text>
             {!!p.location && <Text style={styles.muted} numberOfLines={1}>{p.location}</Text>}
           </View>
           <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
         </TouchableOpacity>
       ))}
       <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={onNewProject} activeOpacity={0.8}>
-        <Text style={styles.secondaryText}>Start a new project</Text>
+        <Text style={styles.secondaryText}>Start a New Project</Text>
       </TouchableOpacity>
     </View>
   );

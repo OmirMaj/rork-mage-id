@@ -156,7 +156,7 @@ export function paymentHistoryForInvoice(inv: Invoice, allInvoices: Invoice[]): 
     return {
       paidInvoices: 0,
       avgDaysLate: null,
-      summary: 'No prior paid invoices on this project — there is no payment record for this client yet.',
+      summary: 'No prior paid invoices on this project. There is no payment record for this client yet.',
     };
   }
   const lateDays = priorPaid.map(p => {
@@ -408,7 +408,7 @@ async function runPaymentPrediction(
       unforecastCount: 0,
       unforecastAmount: 0,
       headline: 'No unpaid invoices to forecast.',
-      topAction: 'Keep the cadence going — issue your next progress invoice when milestones complete.',
+      topAction: 'Keep the cadence going. Issue your next progress invoice when milestones complete.',
     } };
   }
 

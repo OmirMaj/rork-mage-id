@@ -1,86 +1,86 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`APPSET phone golden (iOS 390, text) /notifications-settings reads exactly as recorded 1`] = `
-"Stay in the loop
+"Stay in the Loop
 Push lands on your phone right away; email is the lasting record when push misses. Turn either off per category. Both are on by default.
-AI morning digest
+AI Morning Digest
 A 6 AM brief of today's tasks, yesterday's field notes, weather risks, and what needs you. Pulled fresh each morning from your projects.
-Send me a daily brief
-Couldn’t load your company profile — tap the switch to retry
-Friday close nudge
+Send Me a Daily Brief
+Couldn’t load your company profile. Tap the switch to retry.
+Friday Close Nudge
 A Friday 3 PM reminder to bill, chase, and close the week.
 Friday 3 PM close nudge
 On · Fridays at 3:00 PM local time
-What MAGE does on its own
+What MAGE Does on Its Own
 Each ability is earned from your graded record and turns off when the record slips. Nothing is sent without you.
-Pre-set durations from your pace
+Pre-Set Durations from Your Pace
 On. Draft schedules arrive with qualified trades already set to your measured pace (tap any badge to revert).
-No graded pace calls yet. Apply "Your pace" suggestions on draft schedules and finish those tasks — each graded call builds the record. A trade qualifies at 60% beat-or-tie over 5 calls.
-Draft change orders from leak scans
+No graded pace calls yet. Apply "Your pace" suggestions on draft schedules and finish those tasks. Each graded call builds the record. A trade qualifies at 60% beat-or-tie over 5 calls.
+Draft Change Orders from Leak Scans
 On. Priced leaks in daily reports become draft COs for your review (drafts only, never sent).
-No graded leak scans yet. Scan daily reports for leaks, then bill (or dismiss) the flagged items — drafting qualifies at 50% billed over 5 scans.
-Website → you
+No graded leak scans yet. Scan daily reports for leaks, then bill (or dismiss) the flagged items. Drafting qualifies at 50% billed over 5 scans.
+From Your Website
 When someone asks for a price on your website.
 Category
 Push
 Email
-Website leads
+Website Leads
 Someone asks for a price through your website quote form or Instant Estimate widget.
-Client → you
+From Your Client
 When the client does something on the portal.
 Category
 Push
 Email
-Client messages
+Client Messages
 Your client sends a message from the portal.
-Contract signed
+Contract Signed
 Your client counter-signs the construction agreement.
-Selection picked
+Selection Picked
 Your client picks a tile, fixture, or other allowance option.
-Budget proposals
+Budget Proposals
 Your client proposes a target budget from the portal.
-CO approvals
+CO Approvals
 Your client approves or declines a change order.
-Client payments
+Client Payments
 Your client pays an invoice through the portal, or a bank payment fails after checkout.
-Your team → you
+From Your Team
 When your field crew or a design pro sends something back.
 Category
 Push
 Email
-Field daily reports
+Field Daily Reports
 Someone on your team files a daily report on one of your projects.
-RFI & submittal responses
+RFI and Submittal Responses
 An architect, engineer, or reviewer answers an RFI or submittal you sent.
-Incident reports
+Incident Reports
 Someone you invited files an incident report on one of your projects.
-Subs → you
+From Your Subs
 When a sub does something through a link you sent them.
 Category
 Push
 Email
-Sub invoices
+Sub Invoices
 A subcontractor submits an invoice through their portal.
-Punch items ready
+Punch Items Ready
 A subcontractor marks a punch item ready for your review.
-Sub bids received
+Sub Bids Received
 A subcontractor files a bid through an invite link you sent.
-Lien waiver signed
+Lien Waiver Signed
 A subcontractor signs a lien waiver you requested.
-Prequalification submitted
+Prequalification Submitted
 A subcontractor submits the prequalification packet you sent them.
 Marketplace
 New RFPs nearby, awards, and pre-bid Q&A.
 Category
 Push
 Email
-New nearby RFPs
+New Nearby RFPs
 A client posts a project in your service area. These start once service-area setup is available, which it isn't yet.
-Pre-bid questions
+Pre-Bid Questions
 A contractor asks a question on an RFP you posted.
-RFP awarded to you
+RFP Awarded to You
 A client picks your bid for their project.
-How push works
+How Push Works
 Your iPhone registers when you sign in. If you miss notifications, sign out and back in to register it again. Push isn't supported on the web app, but every category still sends emails there."
 `;
 
@@ -91,10 +91,10 @@ dana@ridgelinebuilders.test
 Enterprise
 MAGE ID skills
 0 of 15
-Account type
+Account Type
 Contractor
 Switch between contractor and property-owner views
-AI usage
+AI Usage
 Today:
 0
 of
@@ -112,24 +112,24 @@ pages this month
 Daily AI resets at 8:00 PM · Takeoff pages reset Sep 30, 8:00 PM
 · Plan:
 Enterprise
-Location and units
+Location and Units
 Location
 US average, no market adjustment. Type a city and state (for example Houston, TX) or pick a market on the Materials tab. Saves when you leave the field.
 Units
 Imperial
 Appearance
-Estimate defaults
+Estimate Defaults
 Sales tax is applied to invoices and change orders. Contingency is added to every AI estimate at this percentage of the line items.
-Sales tax rate
+Sales Tax Rate
 %
-Contingency rate
+Contingency Rate
 %
-Estimate defaults saved
-How you get paid · Couldn’t load your profile — tap to retry
-PDF naming
+Estimate Defaults Saved
+How You Get Paid · Couldn’t Load your profile, tap to retry
+PDF Naming
 Name every PDF with your own format and a running number.
-Auto-name PDFs
-App theme
+Auto-Name PDFs
+App Theme
 Sets the accent color for buttons, links, chips and highlights. Each swatch shows how that color looks in your current theme. A few screens still show the MAGE brand color.
 MAGE green
 Walnut
@@ -141,95 +141,95 @@ Navy
 Burgundy
 Ochre
 Security
-App lock (Face ID / Touch ID)
+App Lock (Face ID or Touch ID)
 App lock isn’t available yet. Face ID sign-in is on the sign-in screen.
 Notifications
-Push & email preferences
+Push and Email Preferences
 Choose which portal events reach your phone or your email
 Payments
-Connect your bank to accept invoice payments in-app. Money goes to you, not us —
-your plan pays a 0.4% platform fee per transaction
+Connect your bank to accept invoice payments in-app. Money goes to you, not us.
+Your plan pays a 0.4% platform fee per transaction
 , plus Stripe's standard processing.
-Set up payments
-Payments dashboard
+Set Up Payments
+Payments Dashboard
 Integrations
 Connect other services. QuickBooks Online syncs your invoices, payments and clients.
 QuickBooks Online
-Status unavailable · Tap to retry
-Project pages and verification
+Status Unavailable · Tap to Retry
+Project Pages and Verification
 Publish a finished project as a public portfolio page you can link from your website or send to a prospect.
-Publish a project page
-Get verified
-Your costs
+Publish a Project Page
+Add Your License
+Your Costs
 Bring the rates you already know so estimates price from your numbers on day one.
-Add your rates
+Add Your Rates
 Paste or type your unit costs
-Cost history
-Contacts and email
+Cost History
+Contacts and Email
 Contacts
-Your data
-Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records (links valid 24h) to JSON or CSV.
-Export my data
-AI features
+Your Data
+Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records to JSON or CSV. Download links work for 24 hours.
+Export My Data
+AI Features
 You’ll be asked the first time you use an AI feature.
 Off
-Connect Claude (AI assistant)
-Import data
-Supplier marketplace
+Connect Claude (AI Assistant)
+Import Data
+Supplier Marketplace
 Register as a supplier to list your materials on the MAGE ID marketplace and sell directly to contractors.
-Register as a supplier
+Register as a Supplier
 List your materials for sale
-Subscription plan
+Subscription Plan
 You're on Enterprise, the top plan.
 Free
 $0/mo
 1 project of your own (finished jobs still count)
-Estimate wizard
-Basic schedule builder
-Daily reports
-Syncs across your devices
+Estimate Wizard
+Basic Schedule Builder
+Daily Reports
+Sync Across Your Devices
 Not on Free: AI estimates, cash flow, change orders and invoicing, AIA-style G702/G703, plan viewer, RFIs and submittals
 Pro
 $29/mo list
-Unlimited projects
-AI cost estimator
-Cash-flow forecast and budget health
-Schedule builder with Gantt and PDF export
-Change orders and invoicing
-AIA-style G702/G703 pay apps
-Plan viewer, sheet pins and markup
-RFIs and submittals
-Client portal for your clients
-Photo documentation and AI photo triage
-Lien waivers
-Equipment tracking
+More Than One Project
+AI Cost Estimator
+Cash Flow Forecast and Budget Health
+Schedule Builder with Gantt and PDF Export
+Change Orders and Invoicing
+AIA-Style G702/G703 Pay Apps
+Plan Viewer, Sheet Pins and Markup
+RFIs and Submittals
+Client Portal for Your Clients
+Photo Documentation and AI Photo Triage
+Lien Waivers
+Equipment Tracking
 Business
 $79/mo list
 Everything in Pro
-Sub management
-Punch list and closeout packets
-Safety management — JHAs, incidents, OSHA log
-Crew profiles and certifications
-WIP reporting and full budget dashboard
+Sub Management
+Punch List and Closeout Packets
+Safety Management: JHAs, Incidents and OSHA Log
+Crew Profiles and Certifications
+WIP Reporting and Full Budget Dashboard
 Cost X-Ray
-Ask your plans
-Unlimited marketplace bid responses
-Bid advisor (take, hold or walk)
-Track record: how each forecast turned out
-QuickBooks 2-way sync
+Ask Your Plans
+Marketplace Bids Past the Free Monthly Cap
+Bid Advisor (Take, Hold or Walk)
+Track Record: How Each Forecast Turned Out
+QuickBooks 2-Way Sync
 Enterprise
 $150/mo list
 Current
 Everything in Business
-Highest AI usage limits
-100 drawing analyses/mo
-200 photo analyses/mo
-4,500 text AI calls/mo
-Concierge onboarding
+Highest AI Usage Limits
+100 drawing analyses per month
+200 photo analyses per month
+4,500 text AI calls per month
+Concierge Onboarding
 Enterprise plan
-Help and support
+Help and Support
 Tutorials
-Contact support
+Contact Support
 FAQ
 How do I create my first project?
 What’s the difference between Free, Pro and Business?
@@ -248,13 +248,13 @@ Version
 OTA embedded · smoke-test
 1.0.0
 Legal
-Privacy policy
-Terms of service
-Do not sell my info (CA)
-Danger zone
-Reset this device
+Privacy Policy
+Terms of Service
+Do Not Sell My Info (CA)
+Danger Zone
+Reset This Device
 Clears MAGE ID's saved copy on this device. Your projects stay on your account and reload.
-Delete account
+Delete Account
 Permanently remove your account and the projects you own. Work you logged on other contractors' jobs stays with those jobs. This can't be undone.
 Deleting your account can't be undone.
 Summary

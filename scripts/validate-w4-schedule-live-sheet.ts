@@ -163,8 +163,8 @@ check('#90 the gate uses the live role then myRole, like schedule-review',
   /const projectRole = useProjectRole\(project\?\.id\);\s*const saveBlockedReason = scheduleWriteBlockedReason\(scheduleWritePathForRole\(projectRole \?\? project\?\.myRole\)\);/.test(wiz));
 check('#90 the picker annotates jobs he cannot build on', (wiz.match(/<SeatNote role=\{p\.myRole\} \/>/g) ?? []).length === 2);
 const review = src('app/schedule-review.tsx');
-check('#90 schedule-review uses the same shared wording', /showAlert\('Schedule not saved', scheduleWriteBlockedReason\)/.test(review) && /scheduleWriteBlockedReasonFor\(scheduleWritePath\)/.test(review));
-check('#90 the title is "Schedule not saved"', SCHEDULE_NOT_SAVED_TITLE === 'Schedule not saved');
+check('#90 schedule-review uses the same shared wording', /showAlert\('Schedule Not Saved', scheduleWriteBlockedReason\)/.test(review) && /scheduleWriteBlockedReasonFor\(scheduleWritePath\)/.test(review));
+check('#90 the title is "Schedule Not Saved"', SCHEDULE_NOT_SAVED_TITLE === 'Schedule Not Saved');
 
 // ── #91 ──────────────────────────────────────────────────────────────────
 const tab = src('app/(tabs)/schedule/index.tsx');

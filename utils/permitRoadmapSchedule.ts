@@ -79,7 +79,7 @@ export function roadmapFlags(
       const message = overdue
         ? lead.hardDate
           ? `${insp.title}: book-by date passed (${lead.days}d lead, ${lead.sourceLabel})`
-          : `${insp.title}: book-by date passed IF the ~${lead.days}d lead is right — ${lead.sourceLabel}, confirm with the AHJ`
+          : `${insp.title}: book-by date passed IF the ~${lead.days}d lead is right (${lead.sourceLabel}), confirm with the AHJ`
         : `${insp.title}: book by ${when} (${lead.days}d lead, ${lead.sourceLabel})`;
       out.push({
         kind: 'inspection',

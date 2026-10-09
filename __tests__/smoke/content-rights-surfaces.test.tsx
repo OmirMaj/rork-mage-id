@@ -33,7 +33,7 @@ jest.mock('@/contexts/ThemeContext', () => {
 let mockMd: Record<string, unknown> = {};
 jest.mock('@/hooks/useMdBuildingRecord', () => ({
   useMdBuildingRecord: () => mockMd,
-  MD_NO_MATCH_TEXT: 'No Baltimore parcel found at this address — nothing was checked.',
+  MD_NO_MATCH_TEXT: 'No Baltimore parcel found at this address, so nothing was checked.',
 }));
 
 // eslint-disable-next-line import/first

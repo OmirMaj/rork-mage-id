@@ -97,7 +97,7 @@ export function purchaseFailureKind(rawMessage: string, planSellable: boolean): 
  * an unfinished build). The web keeps the label as written.
  */
 export function storeSafeLabel(label: string, os: string): string {
-  return os === 'web' ? label : label.replace(/\s*\([A-Za-z]+: beta\)/g, '');
+  return os === 'web' ? label : label.replace(/\s*\([A-Za-z]+: beta\)/gi, '');
 }
 
 /** The one honest sentence when no plan loaded from the store. */
@@ -116,6 +116,33 @@ export function autoRenewText(os: string): string {
   return `Subscriptions auto-renew until canceled. Manage or cancel in your ${account} settings at least 24 hours before the renewal date. Payment is charged to your ${payer} on confirmation of purchase.`;
 }
 export const AUTO_RENEW_IOS = autoRenewText('ios');
+
+/**
+ * The facts a buyer reads BEFORE the buy button, on every purchase screen:
+ * what is charged, how often, that it renews, what a free trial turns into,
+ * and how to cancel. Plain words, one wording (PROTECT-TEXT, 2026-10-09). The
+ * auto-renew sentence above stays where Apple's review expects it; this one
+ * sits above the buttons so nobody has to scroll past them to learn it.
+ *
+ * WEBCANCEL (2026-10-09): the web sentence used to say "email help@mageid.app"
+ * and nothing else, because Settings had no other route. Settings, Manage
+ * Subscription now opens the billing page RevenueCat reports for a plan bought
+ * on the web (utils/manageSubscription), so the sentence names that row. The
+ * email stays in it as the fallback, because that is what the row shows when
+ * RevenueCat reports no page. The phone sentences are unchanged: a store plan
+ * is cancelled in the store account, which is where the row sends him.
+ */
+export function renewalFactsText(os: string, trialDays = 0): string {
+  const cancel = os === 'ios'
+    ? 'To cancel, open your App Store account settings at least 24 hours before the renewal date.'
+    : os === 'android'
+      ? 'To cancel, open your Google Play account settings at least 24 hours before the renewal date.'
+      : 'You can cancel any time from Settings, Manage Subscription. If no billing page opens there, email help@mageid.app.';
+  const trial = trialDays > 0
+    ? ` The ${trialDays}-day free trial becomes a paid plan at that price when it ends, unless you cancel before then.`
+    : '';
+  return `Each paid plan is billed at the price and period shown on it. It renews automatically at that price until you cancel.${trial} ${cancel}`;
+}
 // --- END storeOffer ---
 
 /**
@@ -203,10 +230,10 @@ const selectRestoredId = restoredRunId;
 // Viewer and RFIs/Submittals as Business (both unlock on Pro), while the Pro
 // list sold Daily Field Reports and Price Alerts, which are open on Free — a
 // $29 buyer steered to $79. The lines now come from utils/planFeatureCopy,
-// which places each one by REQUIRED_TIER. Only 'Unlimited projects' is typed
+// which places each one by REQUIRED_TIER. Only 'More Than One Project' is typed
 // here: it is hooks/useTierAccess maxProjects, not a FeatureKey.
 const PRO_BENEFITS: string[] = [
-  'Unlimited projects',
+  'More Than One Project',
   ...planFeatureLines('pro'),
 ];
 
@@ -217,11 +244,11 @@ const BUSINESS_BENEFITS: string[] = [
 
 const ENTERPRISE_BENEFITS: string[] = [
   'Everything in Business, plus:',
-  'Highest AI usage limits',
-  '100 drawing analyses / month',
-  '200 photo analyses / month',
-  '4,500 text-AI calls / month',
-  'Concierge onboarding for the team',
+  'Highest AI Usage Limits',
+  '100 drawing analyses per month',
+  '200 photo analyses per month',
+  '4,500 text AI calls per month',
+  'Concierge Onboarding for the Team',
 ];
 
 /**
@@ -278,7 +305,7 @@ const FEATURE_PITCH: Record<string, string> = {
   'Bid Advisor':
     'Take, hold or walk: a scored read on a bid from your own win/loss and margin history, with the price it would take to win it profitably.',
   'Win Optimizer':
-    'The bid price that both wins and profits, learned from the projects you won and lost.',
+    'A bid price based on the projects you won and lost.',
   'Smart Proposal':
     'Good, better and best options, priced from your costs, in a proposal you can send and track.',
   'MAGE bids for you':
@@ -409,74 +436,74 @@ const FEATURE_PITCH: Record<string, string> = {
  * happens to contain an underscore.
  */
 const FEATURE_TITLE: Record<string, string> = {
-  schedule_scenarios: 'Saved schedule plans',
+  schedule_scenarios: 'Saved Schedule Plans',
   // Callers pass Title Case feature strings (they double as FEATURE_PITCH keys
   // and analytics props, so they stay as they are at the call site). The
-  // heading prints the sentence-case name from this map; an unmapped string
+  // heading prints the name from this map, in Title Case; an unmapped string
   // still prints as passed.
-  'Unlimited Projects': 'Unlimited projects',
-  'Photo Code Look': 'Photo code check',
-  'Inspection Ready commonly-checked list': 'Inspection checklist',
-  'Morning Brief': 'Morning brief',
-  'Scan Anything': 'Scan anything',
-  'Plan Intelligence': 'Plan intelligence',
-  'AI Punch from Photos': 'AI punch items from photos',
-  'AI Drawing Analyzer': 'AI plan analysis',
-  'AI Priced Estimate from Takeoff': 'Priced estimate from takeoff',
-  'Visual Takeoff': 'Visual takeoff',
-  'AI Bid Leveling': 'Bid leveling',
-  'Bid Advisor': 'Bid advisor',
-  'Win Optimizer': 'Win optimizer',
-  'Smart Proposal': 'Smart proposal',
-  'Job Costing': 'Job costing',
-  'Cash Flow Forecaster': 'Cash-flow forecast',
-  'WIP Reporting': 'WIP reporting',
-  'Full Budget Dashboard (EVM)': 'Full budget dashboard (EVM)',
-  'Change Orders': 'Change orders',
+  'Unlimited Projects': 'More Than One Project',
+  'Photo Code Look': 'Photo Code Check',
+  'Inspection Ready commonly-checked list': 'Inspection Checklist',
+  'Morning Brief': 'Morning Brief',
+  'Scan Anything': 'Scan Anything',
+  'Plan Intelligence': 'Plan Intelligence',
+  'AI Punch from Photos': 'AI Punch Items from Photos',
+  'AI Drawing Analyzer': 'AI Plan Analysis',
+  'AI Priced Estimate from Takeoff': 'Priced Estimate from Takeoff',
+  'Visual Takeoff': 'Visual Takeoff',
+  'AI Bid Leveling': 'Bid Leveling',
+  'Bid Advisor': 'Bid Advisor',
+  'Win Optimizer': 'Win Optimizer',
+  'Smart Proposal': 'Smart Proposal',
+  'Job Costing': 'Job Costing',
+  'Cash Flow Forecaster': 'Cash Flow Forecast',
+  'WIP Reporting': 'WIP Reporting',
+  'Full Budget Dashboard (EVM)': 'Full Budget Dashboard (EVM)',
+  'Change Orders': 'Change Orders',
   // The KEY is the string app/aia-pay-app.tsx passes; only the words shown change.
   // MAGE's pay app is styled after the AIA forms, it is not an AIA document.
-  'AIA G702/G703 Pay Applications': 'AIA-style G702/G703 pay apps',
-  'Lien Waiver Manager': 'Lien waivers',
-  'Client Portal': 'Client portal',
-  'Subcontractor Portals': 'Sub portals',
-  'Prequal + COI Tracking': 'Prequal and COI tracking',
-  'Sub Scorecard': 'Sub scorecard',
-  'Crew Time Tracking': 'Crew time tracking',
-  'Crew Management': 'Crew management',
-  'Equipment Tracking': 'Equipment tracking',
-  'Permits & Inspections': 'Permits and inspections',
-  'Safety Management': 'Safety management',
-  'Punch List & Closeout': 'Punch list and closeout',
-  'RFIs & Submittals': 'RFIs and submittals',
-  'OAC Meetings': 'OAC meetings',
+  'AIA G702/G703 Pay Applications': 'AIA-Style G702/G703 Pay Apps',
+  'Lien Waiver Manager': 'Lien Waivers',
+  'Client Portal': 'Client Portal',
+  'Subcontractor Portals': 'Sub Portals',
+  'Prequal + COI Tracking': 'Prequal and COI Tracking',
+  'Sub Scorecard': 'Sub Scorecard',
+  'Crew Time Tracking': 'Crew Time Tracking',
+  'Crew Management': 'Crew Management',
+  'Equipment Tracking': 'Equipment Tracking',
+  'Permits & Inspections': 'Permits and Inspections',
+  'Safety Management': 'Safety Management',
+  'Punch List & Closeout': 'Punch List and Closeout',
+  'RFIs & Submittals': 'RFIs and Submittals',
+  'OAC Meetings': 'OAC Meetings',
   'Schedule Pro (Gantt + CPM)': 'Schedule Pro (Gantt and CPM)',
-  'Schedule Pro (Gantt + PDF Export)': 'Schedule Pro (Gantt and PDF export)',
-  'Plan Viewer': 'Plan viewer',
-  'Photo Markup': 'Photo markup',
-  'Photo Triage': 'Photo triage',
-  'T&M Field Tickets': 'T&M tickets',
-  'Material Receipt Capture': 'Material receipt capture',
-  'Project Memory': 'Project memory',
-  'Cost Database': 'Cost history',
-  'Seed Your Rates': 'Add your rates',
-  'Living Estimate': 'Living estimate',
-  'Estimate Confidence': 'Estimate confidence',
-  'Estimate Accuracy': 'Estimate accuracy',
-  'Estimate Scorecard': 'Estimate scorecard',
-  'Estimate Calibration': 'Estimate calibration',
-  'Track Record': 'Track record',
-  'Margin Alerts': 'Margin alerts',
-  'Margin Risk Score': 'Margin risk score',
-  'Portfolio Margin Board': 'Portfolio margin board',
-  'Profit Leak History': 'Profit leak history',
-  'Payment Predictions': 'Payment predictions',
-  'Friday Close': 'Friday close',
-  'Buyout Scope-Gap Audit': 'Buyout scope-gap audit',
-  'Construction Answers': 'Construction answers',
-  'Generative Project Setup': 'Project setup from a description',
-  'QuickBooks Sync': 'QuickBooks sync',
-  'QuickBooks Cost Review': 'QuickBooks cost review',
-  'Your Business': 'Your business',
+  'Schedule Pro (Gantt + PDF Export)': 'Schedule Pro (Gantt and PDF Export)',
+  'Plan Viewer': 'Plan Viewer',
+  'Photo Markup': 'Photo Markup',
+  'Photo Triage': 'Photo Triage',
+  'T&M Field Tickets': 'T&M Tickets',
+  'Material Receipt Capture': 'Material Receipt Capture',
+  'Project Memory': 'Project Memory',
+  'Cost Database': 'Cost History',
+  'Seed Your Rates': 'Add Your Rates',
+  'Living Estimate': 'Living Estimate',
+  'Estimate Confidence': 'Estimate Confidence',
+  'Estimate Accuracy': 'Estimate Accuracy',
+  'Estimate Scorecard': 'Estimate Scorecard',
+  'Estimate Calibration': 'Estimate Calibration',
+  'Track Record': 'Track Record',
+  'Margin Alerts': 'Margin Alerts',
+  'Margin Risk Score': 'Margin Risk Score',
+  'Portfolio Margin Board': 'Portfolio Margin Board',
+  'Profit Leak History': 'Profit Leak History',
+  'Payment Predictions': 'Payment Predictions',
+  'Friday Close': 'Friday Close',
+  'Buyout Scope-Gap Audit': 'Buyout Scope-Gap Audit',
+  'Construction Answers': 'Construction Answers',
+  'Generative Project Setup': 'Project Setup from a Description',
+  'QuickBooks Sync': 'QuickBooks Sync',
+  'QuickBooks Cost Review': 'QuickBooks Cost Review',
+  'Your Business': 'Your Business',
 };
 
 export default function Paywall({ visible, onClose, feature, requiredTier, practiceTutorialId, source }: PaywallProps) {
@@ -676,7 +703,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
         await purchasePro(shownPeriod);
       }
       track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: requiredTier, period: shownPeriod });
-      showAlert(`You're on ${tierLabel}`, `Every ${tierLabel} feature is on for your account.`);
+      showAlert(`You're on ${tierLabel}.`, `Every ${tierLabel} feature is on for your account.`);
       onClose();
     } catch (err: unknown) {
       const isCancelled =
@@ -694,9 +721,9 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
       // and this alert used to send the reviewer to an email address.
       const rawMsg = err instanceof Error ? err.message : '';
       if (purchaseFailureKind(rawMsg, tierPackageAvailable) === 'unavailable') {
-        showAlert(`${tierLabel} isn’t available`, PLAN_UNAVAILABLE_MESSAGE);
+        showAlert(`${tierLabel} isn’t available.`, PLAN_UNAVAILABLE_MESSAGE);
       } else {
-        showAlert("Couldn't complete purchase", "The purchase didn't go through. Try again.");
+        showAlert("Couldn't Complete Purchase", "The purchase didn't go through. Try again.");
       }
     }
   }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, shownPeriod, tierLabel, feature, onClose, tierPackageAvailable]);
@@ -748,7 +775,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
         <View style={[styles.container, { paddingBottom: insets.bottom }, pw.card, pw.isDesktop && styles.webCardDesktop]}>
           <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={{ width: 36 }} />
-            <Text style={styles.headerTitle}>Continue on mobile</Text>
+            <Text style={styles.headerTitle}>Continue on Mobile</Text>
             <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
@@ -805,7 +832,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
             {practiceBlock}
 
             <TouchableOpacity onPress={handleDismiss} style={styles.notNowBtn} testID="paywall-not-now-web">
-              <Text style={styles.notNowText}>Maybe later</Text>
+              <Text style={styles.notNowText}>Maybe Later</Text>
             </TouchableOpacity>
 
             <View style={styles.trustRow}>
@@ -887,6 +914,9 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
                 </View>
               ) : null}
 
+              {/* Renewal and how to cancel, above the price and the buy button. */}
+              <Text style={styles.renewalFacts} testID="paywall-modal-renewal-facts">{renewalFactsText(Platform.OS)}</Text>
+
               {/* Price display. App Review 3.1.2: the amount billed is the big
                   figure. On annual that is the yearly total; the per-month
                   equivalent (floored, constants/pricing) is the small line. */}
@@ -951,7 +981,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
           {practiceBlock}
 
           <TouchableOpacity onPress={handleDismiss} style={styles.notNowBtn} testID="paywall-not-now">
-            <Text style={styles.notNowText}>Not now</Text>
+            <Text style={styles.notNowText}>Not Now</Text>
           </TouchableOpacity>
 
           <View style={styles.trustRow}>
@@ -1151,6 +1181,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   legalLink: { fontSize: Type.footnote.fontSize, color: t.accentLabel, fontWeight: '600' as const },
   legalDot: { fontSize: Type.footnote.fontSize, color: t.textMuted },
+  renewalFacts: {
+    fontSize: Type.footnote.fontSize,
+    color: t.text,
+    textAlign: 'center' as const,
+    lineHeight: 19,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
   legalFinePrint: {
     fontSize: Type.caption2.fontSize,
     color: t.textMuted,

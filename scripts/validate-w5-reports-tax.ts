@@ -55,7 +55,7 @@ console.log('\n#100 card-paid invoices are disclosed, not counted:');
   ok('…1099 Required: No', card[0].required1099 === false);
   ok('…payment count 0', card[0].paymentCount === 0);
   ok('…cardPaid $3,000', card[0].cardPaid === 3_000, String(card[0].cardPaid));
-  ok('…with the 1099-K note', /\$3,000 paid by card — reported by the card processor on Form 1099-K, excluded from this 1099-NEC total/.test(card[0].notes), card[0].notes);
+  ok('…with the 1099-K note', /\$3,000 paid by card: reported by the card processor on Form 1099-K, excluded from this 1099-NEC total/.test(card[0].notes), card[0].notes);
   const check = build([inv({ id: 'k', amount: 3_000, paidOn: '2026-04-01', paymentMethod: 'check' })]);
   ok('the same $3,000 paid by CHECK is counted and required', check[0].totalPaid === 3_000 && check[0].required1099 === true);
   const upper = build([inv({ id: 'u', amount: 3_000, paidOn: '2026-04-01', paymentMethod: ' Card ' })]);
@@ -71,7 +71,7 @@ console.log('\n#100 card-paid invoices are disclosed, not counted:');
   const other = build([inv({ id: 'o', amount: 2_500, paidOn: '2026-04-01', paymentMethod: 'other' })]);
   ok("'other' stays counted", other[0].totalPaid === 2_500 && other[0].required1099 === true);
   ok("…with a CPA note about PayPal / Venmo and Form 1099-K",
-    /1 invoice recorded as "other" — counted above\. If paid through PayPal, Venmo or another payment app, the processor reports it on Form 1099-K/.test(other[0].notes), other[0].notes);
+    /1 invoice recorded as "other": counted above\. If paid through PayPal, Venmo or another payment app, the processor reports it on Form 1099-K/.test(other[0].notes), other[0].notes);
   const csv = tax1099DatasetToCsv(mixed);
   const header = csvCells(csv.split('\n')[0]);
   ok('the CSV APPENDS a card column last — every existing position unchanged',
@@ -154,7 +154,7 @@ console.log('\n#101 the screen refuses to export a portal-less total:');
     && /disabled=\{generating \|\| !!exportBlockedReason\}/.test(code)
     && /testID="tax-1099-export-blocked"/.test(code));
   ok('…the handler refuses too (belt to the disabled state)',
-    /if \(exportBlockedReason\) \{ showAlert\('Export not ready', exportBlockedReason\); return; \}/.test(code));
+    /if \(exportBlockedReason\) \{ showAlert\('Export Not Ready', exportBlockedReason\); return; \}/.test(code));
   ok('a warning card with Retry replaces the summary tiles',
     /loadError \? \(\s*<View style=\{styles\.errorCard\} testID="tax-1099-load-error">/.test(code)
     && /onPress=\{\(\) => \{ void loadSubInvoices\(\); \}\}/.test(code));

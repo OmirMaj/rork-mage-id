@@ -167,8 +167,8 @@ export function nextWorkingDay(
 /** The screen headline: after 3 pm local it is the list he sends; before, a preview. */
 export function lineupHeadline(now: Date, lang: DisplayLang = 'en'): string {
   return now.getHours() >= READY_HOUR
-    ? t('field.lineup.headlineReady', "Tomorrow's lineup — ready to send", undefined, lang)
-    : t('field.lineup.headlinePreview', "Tomorrow's lineup (preview — schedules can still change today)", undefined, lang);
+    ? t('field.lineup.headlineReady', "Tomorrow's lineup is ready to send", undefined, lang)
+    : t('field.lineup.headlinePreview', "Tomorrow's lineup (preview, schedules can still change today)", undefined, lang);
 }
 
 // ─── Record → text ─────────────────────────────────────────────────────────
@@ -229,13 +229,13 @@ function inspectionOf(i: PermitInspection, p: Permit, lang: DisplayLang = 'en'):
   // exists, so the time is ALWAYS "time not set". Never guess one.
   return {
     id: `${p.id}:${i.id}`, name, permitLabel: p.permitNumber || undefined,
-    text: t('outbound.lineup.inspectionText', '{label} — {time}', { label, time: timeNotSet(lang) }, lang),
+    text: t('outbound.lineup.inspectionText', '{label}, {time}', { label, time: timeNotSet(lang) }, lang),
   };
 }
 
 function taskText(task: LineupTask, lang: DisplayLang = 'en'): string {
   const base = `${task.name}${task.area ? ` (${task.area})` : ''}`;
-  return task.milestone ? t('outbound.lineup.milestone', '{task} — milestone', { task: base }, lang) : base;
+  return task.milestone ? t('outbound.lineup.milestone', '{task} (milestone)', { task: base }, lang) : base;
 }
 
 function listOrNone<T>(items: readonly T[], fmt: (x: T) => string, max = 6, lang: DisplayLang = 'en'): string {
@@ -306,7 +306,7 @@ export function buildLineup(input: LineupInput): Lineup {
     if (dayNumber === null && target.getTime() >= anchor.date.getTime()) {
       gaps.push(t('field.lineup.gap.notWorkingDay', '{day} is not a working day on this schedule.', { day: shortDay(date, lang) }, lang));
     } else if (dayNumber === null) {
-      gaps.push(t('field.lineup.gap.beforeStart', 'The schedule starts {day} — nothing on it before then.', { day: shortDay(anchor.iso!, lang) }, lang));
+      gaps.push(t('field.lineup.gap.beforeStart', 'The schedule starts {day}. Nothing is on it before then.', { day: shortDay(anchor.iso!, lang) }, lang));
     }
   }
   const onDay: ScheduleTask[] = dayNumber === null ? [] : tasks.filter(task =>
@@ -332,14 +332,14 @@ export function buildLineup(input: LineupInput): Lineup {
   const dayWord = isTomorrow(date, now) ? t('field.lineup.tomorrowWord', 'tomorrow', undefined, lang) : dayPhrase;
   if (unassigned.length) {
     gaps.push(tn('field.lineup.gap.unassigned', unassigned.length, {
-      one: "{count} task {day} has no sub assigned — it's not in any message: {tasks}.",
-      other: "{count} tasks {day} have no sub assigned — they're not in any message: {tasks}.",
+      one: "{count} task {day} has no sub assigned, so it's not in any message: {tasks}.",
+      other: "{count} tasks {day} have no sub assigned, so they're not in any message: {tasks}.",
     }, { day: dayWord, tasks: unassigned.join(', ') }, lang));
   }
   if (unknownSub.length) {
     gaps.push(tn('field.lineup.gap.unknownSub', unknownSub.length, {
-      one: '{count} task is assigned to a sub no longer in your Subs list — not in any message: {tasks}.',
-      other: '{count} tasks are assigned to a sub no longer in your Subs list — not in any message: {tasks}.',
+      one: '{count} task is assigned to a sub no longer in your Subs list, so not in any message: {tasks}.',
+      other: '{count} tasks are assigned to a sub no longer in your Subs list, so not in any message: {tasks}.',
     }, { tasks: unknownSub.join(', ') }, lang));
   }
 
@@ -373,8 +373,8 @@ export function buildLineup(input: LineupInput): Lineup {
     if (r.status === 'denied' || r.status === 'cancelled') {
       const vars = { kind: accessKindLabel(r.kind, lang), day: shortDay(date, lang) };
       gaps.push(r.status === 'denied'
-        ? t('field.lineup.gap.slotDenied', 'The {kind} slot for {day} was denied by the building — it is not in any message.', vars, lang)
-        : t('field.lineup.gap.slotCancelled', 'The {kind} slot for {day} was cancelled — it is not in any message.', vars, lang));
+        ? t('field.lineup.gap.slotDenied', 'The {kind} slot for {day} was denied by the building. It is not in any message.', vars, lang)
+        : t('field.lineup.gap.slotCancelled', 'The {kind} slot for {day} was cancelled. It is not in any message.', vars, lang));
       continue;
     }
     const subId = r.deliveryId ? deliverySub.get(r.deliveryId) : undefined;

@@ -74,7 +74,7 @@ export function LogShell({ kind, projectId, detail, strip, csv, renderTable, tes
     try { dirty = !!dirtyProbe.current?.(); } catch { dirty = false; }
     if (!dirty) { go(); return; }
     showAlert('Discard changes?', 'This record has edits that are not saved.', [
-      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Keep Editing', style: 'cancel' },
       { text: 'Discard', style: 'destructive', onPress: go },
     ]);
   }, []);

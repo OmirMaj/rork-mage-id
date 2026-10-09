@@ -1,0 +1,10 @@
+{
+  "name": "mage-room-scan",
+  "version": "0.1.0",
+  "description": "Apple RoomPlan room capture for MAGE ID Scan The Room. iOS only, no JS entry point.",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "MAGE ID",
+  "homepage": "https://mageid.app",
+  "platforms": ["ios"]
+}

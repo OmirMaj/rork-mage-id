@@ -26,7 +26,7 @@ function ok(name: string, cond: boolean, extra = '') {
 }
 
 const sheet = (over: Partial<SheetLike> & { id: string }): SheetLike => ({
-  projectId: 'p1', name: 'Floor plan', createdAt: '2026-01-01T00:00:00.000Z', ...over,
+  projectId: 'p1', name: 'Floor Plan', createdAt: '2026-01-01T00:00:00.000Z', ...over,
 });
 
 console.log('\n1. the comparison base is a sheet that is actually in the field');
@@ -92,9 +92,9 @@ ok('each change can start a change order', /handleStartChangeOrder/.test(cd) && 
 ok('each drafted question can become an RFI', /addRFI\(rfiFromCandidate\(/.test(cd));
 ok('a multi-page revision PDF is flagged before the render is paid for',
   /countPdfPages\(asset\.uri\)/.test(cd) && cd.indexOf('countPdfPages(asset.uri)') < cd.indexOf('await uploadAndRenderPdf('));
-ok('Done no longer discards an unsaved comparison silently', /handleDone/.test(cd) && /Nothing from this comparison is saved/.test(cd));
+ok('Done no longer discards an unsaved comparison silently', /handleDone/.test(cd) && /Nothing from this comparison is saved\./.test(cd));
 // B4 review: the guard has to key on a SAVED change order, not on the user
-// having navigated to the CO screen. Tapping "Start change order" and backing
+// having navigated to the CO screen. Tapping "Start Change Order" and backing
 // out without saving used to count as saved, so Done left silently and the
 // comparison was discarded — the exact loss the guard exists to prevent.
 ok('a change order counts only when one exists in the project',
@@ -177,7 +177,7 @@ console.log('\n7. plan-extract reports the title block as data');
 console.log('\n8. the viewer can give a PDF page its number');
 const pv = read('app/plan-viewer.tsx');
 ok('the sheet number is editable from the viewer', /plan-viewer-sheet-number-input/.test(pv) && /setNumberDraft/.test(pv));
-ok('an unnumbered sheet invites the number', /\+ Add sheet number/.test(pv));
+ok('an unnumbered sheet invites the number', /\+ Add Sheet Number/.test(pv));
 ok('saving runs planRenumber, not a bare updatePlanSheet', /planRenumber\(sheet, numberDraft, projectSheets\)/.test(pv));
 
 // B4 review: the renumber alert says "the older copy is marked superseded".

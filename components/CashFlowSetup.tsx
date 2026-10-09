@@ -36,7 +36,7 @@ const TERMS_OPTIONS = [
   { value: 'net_15', label: 'Net 15' },
   { value: 'net_30', label: 'Net 30' },
   { value: 'net_45', label: 'Net 45' },
-  { value: 'due_on_receipt', label: 'Due on receipt' },
+  { value: 'due_on_receipt', label: 'Due on Receipt' },
 ];
 
 import { useTheme } from '@/contexts/ThemeContext';
@@ -148,7 +148,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
       <View style={[styles.stepIconWrap, { backgroundColor: themeColors.accent + '15' }]}>
         <Wallet size={32} color={themeColors.accent} strokeWidth={1.75} />
       </View>
-      <Text style={styles.stepTitle}>Current bank balance</Text>
+      <Text style={styles.stepTitle}>Current Bank Balance</Text>
       <Text style={styles.stepDesc}>
         Your forecast starts from this number.
       </Text>
@@ -175,7 +175,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
       <View style={[styles.stepIconWrap, { backgroundColor: themeColors.danger + '15' }]}>
         <DollarSign size={32} color={themeColors.danger} strokeWidth={1.75} />
       </View>
-      <Text style={styles.stepTitle}>Recurring expenses</Text>
+      <Text style={styles.stepTitle}>Recurring Expenses</Text>
       <Text style={styles.stepDesc}>
         Add your regular business expenses. You can always add more later.
       </Text>
@@ -239,7 +239,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
       <View style={[styles.stepIconWrap, { backgroundColor: themeColors.info + '15' }]}>
         <Clock size={32} color={themeColors.info} strokeWidth={1.75} />
       </View>
-      <Text style={styles.stepTitle}>Default payment terms</Text>
+      <Text style={styles.stepTitle}>Default Payment Terms</Text>
       <Text style={styles.stepDesc}>
         When you invoice clients, how long do they typically take to pay?
       </Text>
@@ -279,33 +279,33 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
         <View style={[styles.stepIconWrap, { backgroundColor: themeColors.success + '15' }]}>
           <CheckCircle size={32} color={themeColors.success} strokeWidth={1.75} />
         </View>
-        <Text style={styles.stepTitle}>Cash-flow forecast ready</Text>
+        <Text style={styles.stepTitle}>Cash-Flow Forecast Ready</Text>
         <Text style={styles.stepDesc}>
           Your forecast updates as you send invoices and log expenses in MAGE ID.
         </Text>
 
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Starting balance</Text>
+            <Text style={styles.summaryLabel}>Starting Balance</Text>
             <Text style={styles.summaryValue} testID="setup-summary-balance">
               {parsedBalance === null ? MONEY_FORMAT_HINT : `${parsedBalance < 0 ? '-' : ''}$${Math.abs(parsedBalance).toLocaleString('en-US', { maximumFractionDigits: 2 })}`}
             </Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Recurring expenses</Text>
+            <Text style={styles.summaryLabel}>Recurring Expenses</Text>
             <Text style={styles.summaryValue}>{pricedCount} {pricedCount === 1 ? 'item' : 'items'}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Monthly spend (est.)</Text>
+            <Text style={styles.summaryLabel}>Monthly Spend (Est.)</Text>
             <Text style={[styles.summaryValue, { color: themeColors.danger }]}>
               ${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Payment terms</Text>
+            <Text style={styles.summaryLabel}>Payment Terms</Text>
             <Text style={styles.summaryValue}>
               {TERMS_OPTIONS.find(t => t.value === defaultTerms)?.label}
             </Text>
@@ -327,7 +327,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
           {fP.showHandle && <View style={styles.handle} />}
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
-            <Text style={styles.headerTitle}>Set up cash flow</Text>
+            <Text style={styles.headerTitle}>Set Up Cash Flow</Text>
             <Text style={styles.stepIndicator}>{step + 1}/4</Text>
           </View>
 
@@ -358,7 +358,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
               activeOpacity={0.85}
               testID="cash-flow-setup-next"
             >
-              <Text style={styles.nextButtonText}>{isLast ? 'Start forecast' : 'Continue'}</Text>
+              <Text style={styles.nextButtonText}>{isLast ? 'Start Forecast' : 'Continue'}</Text>
               {!isLast && <ChevronRight size={18} color={'#FFFFFF'} strokeWidth={1.75} />}
             </TouchableOpacity>
           </View>

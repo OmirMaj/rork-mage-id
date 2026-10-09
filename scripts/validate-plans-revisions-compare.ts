@@ -112,7 +112,7 @@ async function main() {
 
   console.log('\n#75 the sheet number: typed inline, or read from the title block and confirmed');
   const unnumbered = revisionFiling({ oldSheet: s({ id: 'u', name: 'IFC — Page 12' }), allSheets: [], newPath: 'p1/x.png' });
-  ok('the no-number block is flagged for the inline field', unnumbered.kind === 'blocked' && unnumbered.needsNumber === true && /this comparison is kept/.test(unnumbered.reason), JSON.stringify(unnumbered));
+  ok('the no-number block is flagged for the inline field', unnumbered.kind === 'blocked' && unnumbered.needsNumber === true && /This comparison is kept/.test(unnumbered.reason), JSON.stringify(unnumbered));
   ok('Compare re-reads the old sheet from allSheets, so the number unblocks the kept result',
     /allSheets\.find\(s => s\.id === oldPick\.id\) \?\? oldPick/.test(cd));
   const saveNumber = callbackBody(cd, 'handleSaveNumber');
@@ -171,7 +171,7 @@ async function main() {
   const apply = callbackBody(plans, 'applyTitleNumbers');
   ok('only the numbers he ticked are applied, through planBatchRenumber + the queue',
     /filter\(i => i\.use\)/.test(apply) && /planBatchRenumber\(accepted, allSheetsRef\.current\)/.test(apply) && /chainColumnsPatch\(p\.updates\)/.test(apply));
-  ok('the confirm sheet says the numbers are AI readings', /Title block reads \{item\.sheetNumber\} — use it\?/.test(plans) && /Read by AI/.test(plans));
+  ok('the confirm sheet says the numbers are AI readings', /Title block reads \{item\.sheetNumber\}\. Use it\?/.test(plans) && /Read by AI/.test(plans));
 
   console.log('\n#160 a JPG/PNG revision is uploaded and compared by path');
   ok('the "Need a public URL" dead end is gone', !/Need a public URL/.test(cd) && !/public image URL/.test(cd));
@@ -184,7 +184,7 @@ async function main() {
   console.log('\n#162 Plans can photograph a paper plan');
   ok('neither picker is hard-wired to the library', !/pickFloorPlanImage\('library'\)/.test(plans) && (plans.match(/pickFloorPlanImage\(source\)/g) ?? []).length === 2);
   ok('native asks Camera or Library; web goes straight in',
-    /Platform\.OS === 'web'\) return Promise\.resolve\('library'\)/.test(plans) && /text: 'Take photo'/.test(plans) && /text: 'Choose from library'/.test(plans));
+    /Platform\.OS === 'web'\) return Promise\.resolve\('library'\)/.test(plans) && /text: 'Take Photo'/.test(plans) && /text: 'Choose from Library'/.test(plans));
   ok('a refused camera is titled as the camera', /source === 'camera' \? 'Can\\u2019t open camera'/.test(plans) && !/showAlert\('Can\\u2019t open photos'/.test(plans));
 
   console.log('\n#165 nothing is rendered before the limit says yes');
@@ -204,7 +204,7 @@ async function main() {
   // wave 4 #116: the id ONLY — a stored local number is what went stale.
   ok('rfiByIndex keeps the id (and no local number)', /Record<number, \{ id: string \}>/.test(cd) && /\[index\]: \{ id: rfi\.id \}/.test(cd) && !/number: rfi\.number/.test(cd));
   ok('the done row opens /rfi with the id', /pathname: '\/rfi' as never, params: \{ projectId: project\.id, rfiId \}/.test(cd) && /openRfi\(rfiByIndex\[i\]\.id\)/.test(cd));
-  ok('it says what is left to do', /Open it to assign and send/.test(cd) && /Open \$\{label\} to assign and send/.test(cd));
+  ok('it says what is left to do', /Open It to Assign and Send/.test(cd) && /Open \$\{label\} to assign and send/.test(cd));
   ok('each change has Raise RFI, via rfiFromChange', /handleRaiseChangeRfi\(i\)/.test(cd) && /rfiFromChange\(change, oldSheet, newPageLabel, new Date\(\), \{ newSheet: pairNew(, sheetImages: comparedSheetImages)? \}\)/.test(cd));
   ok('Done counts a change RFI as saved', /Object\.keys\(changeRfi\)\.length > 0/.test(callbackBody(cd, 'handleDone')));
   const cr = rfiFromChange({ type: 'modified', location: 'grid C/4', description: 'Door 104 widened to 3\'-6"' }, rev3, 'ASI.pdf', new Date(2026, 2, 2, 12));

@@ -190,8 +190,13 @@ console.log('\n── evaluateScopeGaps without building');
   // Today's output, pinned: the sha256 of this fixture's JSON as the base
   // commit 64d397af's utils/scopeGaps.ts produced it (computed once from that
   // file; a change to the code-rule path moves it and must be explained).
+  // 2026-10-05 copy lane 1: re-pinned after a text-only change (the two jurisdiction notes lost their
+  // dashes: "Depends on your location, no state on file"). No rule, id or order moved.
+  // 2026-10-06 copy lane 4: re-pinned after a text-only change in the NYC department record this fixture
+  // resolves to (six link labels are Title Case, and the applicant-of-record note lost its dash: "plan
+  // examiner, not the GC"). Diffed field by field against origin/main: no rule, id, order or number moved.
   const digest = createHash('sha256').update(a).digest('hex');
-  assert(digest === '35760445dae4aeccce0daee120af870792305ecf6ea507e444c5692093d59383', `deep-equal to the 64d397af output (sha256 ${digest.slice(0, 12)})`);
+  assert(digest === '4f117bcb2b003ecd0c34296e8078b6bfb0cbf53030bba78466351b5c49c2f849', `deep-equal to the 64d397af output (sha256 ${digest.slice(0, 12)})`);
   // …and the code rules this fixture fires.
   const ids = evaluateScopeGaps(fixture).gaps.map(g => g.rule.id).sort().join();
   assert(ids.length > 0 && !ids.includes('rrp') && !ids.includes('acp5'), `code rules only (${ids})`);

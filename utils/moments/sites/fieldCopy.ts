@@ -34,7 +34,7 @@ import { t } from '@/i18n/core';
 
 /** The own-shift sheet's title. */
 export function clockOutSheetTitle(): string {
-  return t('field.time.clockOut', 'Clock out');
+  return t('field.time.clockOut', 'Clock Out');
 }
 
 /** The summary above the slide, no break taken: "Jose has been on the clock 8h 12m. This ends the shift and records 8.20 hours." */

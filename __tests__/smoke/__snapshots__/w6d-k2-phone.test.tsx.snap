@@ -376,7 +376,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                           "children": [
                             {
                               "children": [
-                                "Go to · ",
+                                "Go To · ",
                                 "1",
                               ],
                               "props": {
@@ -540,7 +540,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                             },
                             {
                               "children": [
-                                "Pro scheduler",
+                                "Pro Scheduler",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -571,7 +571,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Pro scheduler",
+                            "accessibilityLabel": "Pro Scheduler",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -1044,7 +1044,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                           "children": [
                             {
                               "children": [
-                                "Go to · ",
+                                "Go To · ",
                                 "1",
                               ],
                               "props": {
@@ -1208,7 +1208,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                             },
                             {
                               "children": [
-                                "Pro scheduler",
+                                "Pro Scheduler",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -1239,7 +1239,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Pro scheduler",
+                            "accessibilityLabel": "Pro Scheduler",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -1572,7 +1572,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                           "children": [
                             {
                               "children": [
-                                "Ask and capture",
+                                "Ask and Capture",
                               ],
                               "props": {
                                 "style": {
@@ -1833,7 +1833,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               "children": [
                                 {
                                   "children": [
-                                    "Ask MAGE anything",
+                                    "Ask MAGE Anything",
                                   ],
                                   "props": {
                                     "style": {
@@ -1846,7 +1846,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                 },
                                 {
                                   "children": [
-                                    "Your projects, costs, schedule — answered",
+                                    "Your projects, costs and schedule, answered",
                                   ],
                                   "props": {
                                     "style": {
@@ -2124,7 +2124,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               "children": [
                                 {
                                   "children": [
-                                    "Voice capture",
+                                    "Voice Capture",
                                   ],
                                   "props": {
                                     "style": {
@@ -2414,7 +2414,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               "children": [
                                 {
                                   "children": [
-                                    "Help and tips",
+                                    "Help and Tips",
                                   ],
                                   "props": {
                                     "style": {
@@ -2552,7 +2552,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                           "children": [
                             {
                               "children": [
-                                "Go to",
+                                "Go To",
                               ],
                               "props": {
                                 "style": {
@@ -3483,7 +3483,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                             },
                             {
                               "children": [
-                                "Daily reports",
+                                "Daily Reports",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -3514,7 +3514,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Daily reports",
+                            "accessibilityLabel": "Daily Reports",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -4075,7 +4075,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                         },
                         {
                           "children": [
-                            "Type what you need — a screen, a tool, or anything in your projects. Trade terms work: “gantt”, “g702”, “osha”.",
+                            "Type what you need: a screen, a tool, or anything in your projects. Trade terms work: “gantt”, “g702”, “osha”.",
                           ],
                           "props": {
                             "style": {
@@ -4378,7 +4378,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                           "children": [
                             {
                               "children": [
-                                "Ask and capture",
+                                "Ask and Capture",
                               ],
                               "props": {
                                 "style": {
@@ -4639,7 +4639,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               "children": [
                                 {
                                   "children": [
-                                    "Ask MAGE anything",
+                                    "Ask MAGE Anything",
                                   ],
                                   "props": {
                                     "style": {
@@ -4652,7 +4652,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                 },
                                 {
                                   "children": [
-                                    "Your projects, costs, schedule — answered",
+                                    "Your projects, costs and schedule, answered",
                                   ],
                                   "props": {
                                     "style": {
@@ -4930,7 +4930,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               "children": [
                                 {
                                   "children": [
-                                    "Voice capture",
+                                    "Voice Capture",
                                   ],
                                   "props": {
                                     "style": {
@@ -5220,7 +5220,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               "children": [
                                 {
                                   "children": [
-                                    "Help and tips",
+                                    "Help and Tips",
                                   ],
                                   "props": {
                                     "style": {
@@ -5358,7 +5358,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                           "children": [
                             {
                               "children": [
-                                "Go to",
+                                "Go To",
                               ],
                               "props": {
                                 "style": {
@@ -6289,7 +6289,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                             },
                             {
                               "children": [
-                                "Daily reports",
+                                "Daily Reports",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -6320,7 +6320,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Daily reports",
+                            "accessibilityLabel": "Daily Reports",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -6881,7 +6881,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                         },
                         {
                           "children": [
-                            "Type what you need — a screen, a tool, or anything in your projects. Trade terms work: “gantt”, “g702”, “osha”.",
+                            "Type what you need: a screen, a tool, or anything in your projects. Trade terms work: “gantt”, “g702”, “osha”.",
                           ],
                           "props": {
                             "style": {

@@ -82,9 +82,9 @@ describe('PriceDriftCheck', () => {
     expect(screen.getByTestId('pricewatch-drift-reprice')).toBeTruthy();
     expect(screen.getByTestId('pricewatch-drift-keep')).toBeTruthy();
     expect(screen.getByTestId('pricewatch-drift-continue')).toBeTruthy();
-    expect(screen.getByText("Reprice to today's receipts")).toBeTruthy();
-    expect(screen.getByText('Keep these prices')).toBeTruthy();
-    expect(screen.getByText('Sign at these prices')).toBeTruthy();
+    expect(screen.getByText("Reprice to Today's Receipts")).toBeTruthy();
+    expect(screen.getByText('Keep These Prices')).toBeTruthy();
+    expect(screen.getByText('Sign at These Prices')).toBeTruthy();
 
     expect(mockCtx.updateProject).not.toHaveBeenCalled();
     fireEvent.press(screen.getByTestId('pricewatch-drift-reprice'));
@@ -114,11 +114,11 @@ describe('PriceDriftCheck', () => {
     await settle();
 
     expect(screen.getByTestId('pricewatch-drift-sheet')).toBeTruthy();
-    expect(screen.getByText('Check prices before you send')).toBeTruthy();
+    expect(screen.getByText('Check Prices Before You Send')).toBeTruthy();
     expect(screen.getByText(LINE)).toBeTruthy();
     expect(screen.getByTestId('pricewatch-drift-reprice')).toBeTruthy();
     expect(screen.getByTestId('pricewatch-drift-keep')).toBeTruthy();
-    expect(screen.getByText('Send anyway')).toBeTruthy();
+    expect(screen.getByText('Send Anyway')).toBeTruthy();
     fireEvent.press(screen.getByTestId('pricewatch-drift-continue'));
     expect(onContinue).toHaveBeenCalledTimes(1);
     expect(mockCtx.updateProject).not.toHaveBeenCalled();

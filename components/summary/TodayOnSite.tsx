@@ -61,7 +61,7 @@ export function TodayOnSite({ tasks, jobCount, onPressTask, grouped = false, onP
         <View style={[styles.iconSq, { backgroundColor: colors.accentSoft }]}>
           <CalendarClock size={15} color={colors.accent} strokeWidth={2.2} />
         </View>
-        <Text style={styles.headerLabel}>Today on site</Text>
+        <Text style={styles.headerLabel}>Today on Site</Text>
         <Text style={styles.headerMeta}>
           {tasks.length} task{tasks.length === 1 ? '' : 's'} · {jobCount} project{jobCount === 1 ? '' : 's'}
         </Text>

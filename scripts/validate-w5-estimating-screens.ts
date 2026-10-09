@@ -41,7 +41,7 @@ console.log('\n#8 app/drawing-analyzer.tsx');
   ok('handleUseAsEstimate builds its lines with analyzerCostItems (the contingency row included)', /analyzerCostItems\(result\.lineItems/.test(use) && /result\.totals/.test(use));
   ok('…writes a new estimate through buildNewEstimate at HIS markup', /buildNewEstimate\(costItems, markupPct/.test(use));
   ok('…never a hard-coded at-cost estimate', !/globalMarkup:\s*0/.test(src) && !/markupTotal:\s*0/.test(use));
-  ok('…refuses an unanswered markup ("Set your markup first")', /if \(!isMarkupSet\(markupPct\)\)/.test(use) && /Set your markup first/.test(use));
+  ok('…refuses an unanswered markup ("Set Your Markup First")', /if \(!isMarkupSet\(markupPct\)\)/.test(use) && /Set Your Markup First/.test(use));
   ok('…reads the markup he gave (markupDecided), not a default', /markupDecided === true \? savedMarkup : null/.test(src));
   ok('…asks Replace / Append when the project already has an estimate, naming its total', /existing\.items\.length > 0/.test(use) && /This project already has an estimate/.test(use) && /formatMoney\(existing\.grandTotal/.test(use));
   ok('…Append carries the existing estimate\'s ratio (appendAtEstimateRatio)', /appendAtEstimateRatio\(existing, costItems/.test(use));
@@ -63,10 +63,10 @@ console.log('\n#9 / #88 / #124 app/cost-xray.tsx');
   ok('#9: the review copy says the proposal shows only a Contingency total, never the finding', /as one \\u201cContingency\\u201d line, never the finding/.test(src) && !/named on the client/.test(src));
   ok('#9: isAllowance is NOT flipped (allowance semantics unchanged)', /isAllowance: true/.test(src));
   const apply = callbackBody(src, 'applyToEstimate');
-  ok('#88: no separate "No estimate yet" alert before the summary', !/'No estimate yet'/.test(apply));
+  ok('#88: no separate "No Estimate Yet" alert before the summary', !/'No Estimate Yet'/.test(apply));
   ok('#88: lines are counted inside the branch that wrote them', /linesAdded = newItems\.length;/.test(apply) && apply.indexOf('linesAdded = newItems.length') > apply.indexOf('commitEstimatePatch('));
   ok('#88: verify tasks are counted as every accepted tell', /verifyTasks: accepted\.length/.test(apply));
-  ok('#88: the apply bar relabels when there is no estimate', /Create \$\{accepted\.length\} verify task/.test(src) && /No estimate on this project — contingency won&apos;t be added/.test(src));
+  ok('#88: the apply bar relabels when there is no estimate', /Create \$\{accepted\.length\} verify task/.test(src) && /No estimate on this project, so contingency won&apos;t be added/.test(src));
   ok('#124: the function error goes through edgeFunctionError', /throw await edgeFunctionError\(fnErr, 'Cost X-Ray failed'\)/.test(src));
   ok('#124: a cap / tier refusal is not the "offline, retry" state', /code === 'monthly_cap_reached' \|\| code === 'tier_required'/.test(src) && /router\.push\('\/paywall'/.test(src));
 
@@ -81,10 +81,10 @@ console.log('\n#9 / #88 / #124 app/cost-xray.tsx');
     ) as Summary
     : () => '';
   const none = summary({ verifyTasks: 2, linesAdded: 0, dollarsAdded: 0, pricedNotAdded: 1, dollarsNotAdded: 3600 });
-  ok('#88: no estimate → it says the $ were NOT added, and nothing "added to your estimate"', /\$3,600 of hidden-condition contingency was NOT added/.test(none) && !/added to your estimate/.test(none), none);
+  ok('#88: no estimate → it says the $ were NOT added, and nothing "added to your estimate"', /\$3,600 of hidden-condition contingency was not added/.test(none) && !/added to your estimate/.test(none), none);
   ok('#88: …and counts every accepted tell as a verify task', /2 field-verify tasks created/.test(none));
   const some = summary({ verifyTasks: 3, linesAdded: 2, dollarsAdded: 5000, pricedNotAdded: 0, dollarsNotAdded: 0 });
-  ok('#88: with an estimate it reports the lines the patch carried', /2 hidden-condition lines \(\+\$5,000\) added to your estimate/.test(some) && !/NOT added/.test(some), some);
+  ok('#88: with an estimate it reports the lines the patch carried', /2 hidden-condition lines \(\+\$5,000\) added to your estimate/.test(some) && !/not added/.test(some), some);
 }
 
 // ── #10 decimal keypads ───────────────────────────────────────────────────
@@ -95,7 +95,7 @@ console.log('\n#10 money and percent fields take a decimal');
   ok('quick-quote: parseAmount reads through parseDecimalInput (\'7,5\' is 7.5, not 75)', /parseDecimalInput\(s\)/.test(code('app/quick-quote.tsx')) && !/replace\(\/\[\^0-9\.\]\/g/.test(code('app/quick-quote.tsx')));
   for (const f of ['app/smart-proposal.tsx', 'app/win-optimizer.tsx']) {
     const s = code(f);
-    ok(`${f}: job cost and markup are decimal; only "Competing bids" stays a whole-number pad`, numericCount(f) === 1 && (s.match(/inputMode="decimal"/g) ?? []).length === 2 && /value=\{competitorsStr\}[\s\S]{0,200}inputMode="numeric"/.test(s));
+    ok(`${f}: job cost and markup are decimal; only "Competing Bids" stays a whole-number pad`, numericCount(f) === 1 && (s.match(/inputMode="decimal"/g) ?? []).length === 2 && /value=\{competitorsStr\}[\s\S]{0,200}inputMode="numeric"/.test(s));
     ok(`${f}: cost and markup parse through parseDecimalInput`, /parseDecimalInput\(costStr\)/.test(s) && /parseDecimalInput\(markupStr\)/.test(s));
   }
   const pi = code('app/plan-intelligence.tsx');
@@ -129,7 +129,7 @@ console.log('\n#55 / #93 app/(tabs)/estimate/full.tsx + components/PDFPreSendShe
   const estAt = sheet.indexOf("case 'estimate': {");
   const est = estAt < 0 ? '' : sheet.slice(estAt, sheet.indexOf("case 'invoice':", estAt));
   ok('#93: the estimate sections block is found', est.length > 0);
-  ok('#93: Bulk Savings defaults OFF', /\{ id: 'bulk_savings', label: 'Bulk savings breakdown', enabled: false \}/.test(est) && !/enabled: true/.test(est));
+  ok('#93: Bulk Savings defaults OFF', /\{ id: 'bulk_savings', label: 'Bulk Savings Breakdown', enabled: false \}/.test(est) && !/enabled: true/.test(est));
   ok('#93: no dead estimate toggles (Line Items / Cost Summary / Schedule / Branding)', !/line_items|cost_summary|schedule_summary|'branding'/.test(est));
   ok('#93: the sections block hides when there is nothing to toggle', /\{sections\.length > 0 && \(/.test(sheet));
 }
@@ -139,7 +139,7 @@ console.log('\n#87 / #6 app/area-takeoff.tsx + app/plan-intelligence.tsx');
 {
   const at = code('app/area-takeoff.tsx');
   ok('#87: the result card offers a job picker instead of "Open this from a project"', /testID="takeoff-job-picker"/.test(at) && !/Open this from a project/.test(at));
-  ok('#87: no job with an estimate → "Build an estimate"', /testID="takeoff-build-estimate"/.test(at) && /\/estimate-wizard/.test(at));
+  ok('#87: no job with an estimate → "Build an Estimate"', /testID="takeoff-build-estimate"/.test(at) && /\/estimate-wizard/.test(at));
   ok('#87: a scale saves under the SHEET\'s project, not the job picked now', /projectId: sheetProjectId/.test(at) && !/planSheetId: sheetId, projectId,/.test(at));
   for (const f of ['app/area-takeoff.tsx', 'app/plan-intelligence.tsx']) {
     const s = code(f);
@@ -158,7 +158,7 @@ console.log('\n#89 / #91 / #148 app/takeoff-estimate.tsx');
   ok('#89: the draft key is mageid_-prefixed (inside the tenant sweep)', isAppStorageKey(`${prefix}p1`) && prefix.startsWith('mageid_'));
   ok('#89: …and NOT under mageid_takeoff:: (listTakeoffKeys would read it as a takeoff)', !`${prefix}p1`.startsWith('mageid_takeoff::'));
   ok('#89: the draft is read before the auto-price effect may run', /if \(!takeoff \|\| !draftChecked \|\| staleDraft \|\| pricing \|\| lines\.length > 0\) return;/.test(src));
-  ok('#89: …restored only when it priced THIS takeoff', /draft\.takeoffSavedAt === takeoff\.savedAt/.test(src) && /Takeoff changed since you priced it — re-price\?/.test(src));
+  ok('#89: …restored only when it priced THIS takeoff', /draft\.takeoffSavedAt === takeoff\.savedAt/.test(src) && /Takeoff changed since you priced it\. Re-price\?/.test(src));
   ok('#89: every storage call is in try/catch', (raw.match(/async function (readDraft|writeDraft|clearDraft)[\s\S]*?\n\}/g) ?? []).every(f => /try \{/.test(f) && /catch/.test(f)) && (raw.match(/async function (readDraft|writeDraft|clearDraft)/g) ?? []).length === 3);
   ok('#89: leaving with unsaved edits asks ("Discard your price edits?")', /usePreventRemove\(dirty && !saving/.test(src) && /'Discard your price edits\?'/.test(src));
   ok('#89: the draft is cleared on a save and on Regenerate', /markSaved\(\);/.test(callbackBody(src, 'doReplace')) && /markSaved\(\);/.test(callbackBody(src, 'doAppend')) && /void clearDraft\(draftKey\);\s*setDirty\(false\);\s*setLines\(\[\]\);/.test(src));

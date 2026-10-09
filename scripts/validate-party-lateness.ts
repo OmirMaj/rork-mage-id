@@ -281,7 +281,7 @@ console.log('V10 source guards');
 {
   const root = join(__dirname, '..');
   const src = readFileSync(join(root, 'app/(tabs)/schedule/index.tsx'), 'utf8');
-  const start = src.indexOf('<Text style={styles.fieldLabel}>Assign sub</Text>');
+  const start = src.indexOf('<Text style={styles.fieldLabel}>Assign Sub</Text>');
   const end = src.indexOf('Predecessors', start);
   const block = start >= 0 && end > start ? src.slice(start, end) : '';
   expect('picker block found', block.length > 0, true);

@@ -46,12 +46,12 @@ function todayLocal(): string {
 }
 
 const KIND_LABEL: Record<AccessKind, string> = {
-  freight_elevator: 'Freight elevator',
-  dock: 'Loading dock',
-  after_hours: 'After hours',
+  freight_elevator: 'Freight Elevator',
+  dock: 'Loading Dock',
+  after_hours: 'After Hours',
   badging: 'Badging',
-  hot_work: 'Hot work',
-  shutdown: 'System shutdown',
+  hot_work: 'Hot Work',
+  shutdown: 'System Shutdown',
 };
 
 const KIND_ICON: Record<AccessKind, typeof ArrowUpDown> = {
@@ -128,7 +128,7 @@ export default function BuildingAccessScreen() {
       `${KIND_LABEL[r.kind]} on ${r.date}. The delivery it covers will be flagged as blocked.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Mark refused', style: 'destructive', onPress: () => updateReservation(r.id, { status: 'denied' }) },
+        { text: 'Mark Refused', style: 'destructive', onPress: () => updateReservation(r.id, { status: 'denied' }) },
       ],
     );
   }, [updateReservation]);
@@ -148,7 +148,7 @@ export default function BuildingAccessScreen() {
     return (
       <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={goBack} title="Building access" subtitle="" styles={styles} t={t} onAdd={undefined} />
+        <Header onBack={goBack} title="Building Access" subtitle="" styles={styles} t={t} onAdd={undefined} />
         <ToolProjectPicker
           toolName="Building access"
           message="Building rules are per project. Pick the project whose building you're working in."
@@ -157,7 +157,7 @@ export default function BuildingAccessScreen() {
           staleProjectId={!project && paramProjectId ? paramProjectId : undefined}
           icon={<Building2 size={36} color={t.accent} strokeWidth={1.6} />}
           steps={[
-            'Record what the building requires — elevator, dock, COI, badges.',
+            'Record what the building requires: elevator, dock, COI, badges.',
             'Book the slots you need and mark them confirmed when granted.',
             'Any delivery with nowhere to land gets flagged on the Deliveries screen.',
           ]}
@@ -182,24 +182,24 @@ export default function BuildingAccessScreen() {
         {...fabScroll}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
       >
-        <Text style={styles.sectionTitle}>What the building requires</Text>
+        <Text style={styles.sectionTitle}>What the Building Requires</Text>
         <View style={styles.card}>
           <Toggle
-            label="Freight elevator must be booked"
+            label="Freight Elevator Must Be Booked"
             hint="Every delivery needs a reserved slot."
             value={rules?.requiresFreightElevator ?? false}
             onChange={(v) => patch({ requiresFreightElevator: v })}
             styles={styles} t={t} testID="req-elevator"
           />
           <Toggle
-            label="Loading dock must be booked"
+            label="Loading Dock Must Be Booked"
             hint="The dock takes one truck at a time."
             value={rules?.requiresDockReservation ?? false}
             onChange={(v) => patch({ requiresDockReservation: v })}
             styles={styles} t={t} testID="req-dock"
           />
           <Toggle
-            label="Building holds a COI"
+            label="Building Holds a COI"
             hint="Names the building as additional insured. Their copy, not yours."
             value={rules?.requiresCoiOnFile ?? false}
             onChange={(v) => patch({ requiresCoiOnFile: v })}
@@ -207,7 +207,7 @@ export default function BuildingAccessScreen() {
           />
           {rules?.requiresCoiOnFile ? (
             <Field
-              label="Sent to the building on"
+              label="Sent to the Building On"
               value={rules?.coiOnFileAt ?? ''}
               placeholder="YYYY-MM-DD (blank until sent)"
               onChange={(v) => patch({ coiOnFileAt: v.trim() || undefined })}
@@ -215,7 +215,7 @@ export default function BuildingAccessScreen() {
             />
           ) : null}
           <Toggle
-            label="Crew and subs must be badged"
+            label="Crew and Subs Must Be Badged"
             hint="Nobody gets past the lobby without one."
             value={rules?.requiresBadging ?? false}
             onChange={(v) => patch({ requiresBadging: v })}
@@ -223,7 +223,7 @@ export default function BuildingAccessScreen() {
           />
           {rules?.requiresBadging ? (
             <Field
-              label="Badge lead time (days)"
+              label="Badge Lead Time (Days)"
               value={rules?.badgeLeadTimeDays == null ? '' : String(rules.badgeLeadTimeDays)}
               placeholder="5"
               keyboardType="number-pad"
@@ -235,7 +235,7 @@ export default function BuildingAccessScreen() {
             />
           ) : null}
           <Toggle
-            label="After-hours needs written approval"
+            label="After-Hours Needs Written Approval"
             hint="Anything outside permitted work hours."
             value={rules?.afterHoursRequiresApproval ?? false}
             onChange={(v) => patch({ afterHoursRequiresApproval: v })}
@@ -243,10 +243,10 @@ export default function BuildingAccessScreen() {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Who to call</Text>
+        <Text style={styles.sectionTitle}>Who to Call</Text>
         <View style={styles.card}>
           <Field
-            label="Property manager"
+            label="Property Manager"
             value={rules?.buildingContact ?? ''}
             placeholder="Dana Ruiz, Hines"
             onChange={(v) => patch({ buildingContact: v.trim() || undefined })}
@@ -261,7 +261,7 @@ export default function BuildingAccessScreen() {
             styles={styles} t={t} testID="building-phone"
           />
           <Field
-            label="Permitted work hours"
+            label="Permitted Work Hours"
             value={rules?.workHours ?? ''}
             placeholder="07:00-17:00"
             onChange={(v) => patch({ workHours: v.trim() || undefined })}
@@ -275,7 +275,7 @@ export default function BuildingAccessScreen() {
         {scopedReservations.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>
-              Nothing booked. A requested slot is not a booking — mark it confirmed only when
+              Nothing booked. A requested slot is not a booking. Mark it confirmed only when
               the building says yes, so a truck is never sent against a slot nobody granted.
             </Text>
           </View>
@@ -333,12 +333,12 @@ function Header({
         <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
       </TouchableOpacity>
       <View style={styles.headerText}>
-        <Text style={styles.headerEyebrow}>Building access · MAGE ID</Text>
+        <Text style={styles.headerEyebrow}>Building Access · MAGE ID</Text>
         <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
         {subtitle ? <Text style={styles.headerSub} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       {onAdd ? (
-        <TouchableOpacity onPress={onAdd} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Book a slot">
+        <TouchableOpacity onPress={onAdd} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Book a Slot">
           <Plus size={18} color="#FFFFFF" strokeWidth={1.75} />
         </TouchableOpacity>
       ) : <View style={styles.headerBtn} />}
@@ -415,7 +415,7 @@ function SlotRow({
     r.status === 'cancelled' ? t.textMuted :
     t.accentLabel;
   const statusLabel =
-    r.status === 'requested' ? 'Requested, not booked' :
+    r.status === 'requested' ? 'Requested, Not Booked' :
     r.status === 'confirmed' ? 'Confirmed' :
     r.status === 'denied' ? 'Refused' : 'Cancelled';
 
@@ -436,11 +436,11 @@ function SlotRow({
           <>
             <TouchableOpacity onPress={() => onConfirm(r)} style={[styles.slotBtn, styles.slotBtnPrimary]} accessibilityRole="button" testID={`confirm-slot-${r.id}`}>
               <Check size={13} color={t.accentLabel} strokeWidth={2} />
-              <Text style={[styles.slotBtnText, { color: t.accentLabel }]}>Mark confirmed</Text>
+              <Text style={[styles.slotBtnText, { color: t.accentLabel }]}>Mark Confirmed</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => onDeny(r)} style={styles.slotBtn} accessibilityRole="button" testID={`deny-slot-${r.id}`}>
               <X size={13} color={t.textSecondary} strokeWidth={2} />
-              <Text style={styles.slotBtnText}>Mark refused</Text>
+              <Text style={styles.slotBtnText}>Mark Refused</Text>
             </TouchableOpacity>
           </>
         )}
@@ -480,7 +480,7 @@ function AddSlotSheet({
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.overlay, fAdd.overlay]}>
         <View style={[styles.sheet, fAdd.card]}>
           <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle}>Book a slot</Text>
+            <Text style={styles.sheetTitle}>Book a Slot</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
               <X size={20} color={t.textSecondary} strokeWidth={1.9} />
             </TouchableOpacity>
@@ -514,7 +514,7 @@ function AddSlotSheet({
             testID="slot-date"
           />
 
-          <Text style={styles.fieldLabel}>Window (optional)</Text>
+          <Text style={styles.fieldLabel}>Window (Optional)</Text>
           <TextInput
             style={styles.input}
             value={draft.window}
@@ -531,7 +531,7 @@ function AddSlotSheet({
             accessibilityRole="button"
             testID="slot-save"
           >
-            <Text style={styles.saveBtnText}>Add as requested</Text>
+            <Text style={styles.saveBtnText}>Add as Requested</Text>
           </TouchableOpacity>
           <Text style={styles.saveHint}>
             Starts as requested. Mark it confirmed only once the building says yes.

@@ -77,7 +77,7 @@ export function ProjectLevelCard({ project, pulse, testID = 'project-level-card'
 
   return (
     <Card radius="panel" pad={16} style={isDesktop ? styles.wrapDesktop : styles.wrap} testID={testID}>
-      <Text style={styles.eyebrow} accessibilityRole="header">{t('office.projectHealth.title', 'Project health')}</Text>
+      <Text style={styles.eyebrow} accessibilityRole="header">{t('office.projectHealth.title', 'Project Health')}</Text>
       {isDesktop ? (
         <View style={styles.levelRow}>
           <View style={styles.levelSide}>{level}</View>

@@ -83,16 +83,16 @@ export interface RemindInvoiceDeps {
 
 // ── Copy (the invoice screen's words, moved here verbatim) ──────────────────
 
-export const REMIND_SAMPLE_TITLE = 'Sample job';
-export const REMIND_QBO_CLOSED_TITLE = 'QuickBooks shows this invoice closed';
-export const REMIND_QBO_CONFIRM_LABEL = 'Send anyway';
-export const REMIND_FAILED_TITLE = 'Reminder not sent';
+export const REMIND_SAMPLE_TITLE = 'Sample Job';
+export const REMIND_QBO_CLOSED_TITLE = 'QuickBooks shows this invoice closed.';
+export const REMIND_QBO_CONFIRM_LABEL = 'Send Anyway';
+export const REMIND_FAILED_TITLE = 'Reminder Not Sent';
 export const REMIND_FAILED_FALLBACK = 'Could not reach the reminder service. Try again in a moment.';
-export const REMIND_SKIPPED_TITLE = 'No reminder sent';
+export const REMIND_SKIPPED_TITLE = 'No Reminder Sent';
 export const REMIND_NO_RECIPIENT =
   'No client email is on file for this invoice. Email the invoice to your client (the address is kept for reminders) or add a portal invitee in Client Portal setup, then try again.';
 export const REMIND_NOT_ELIGIBLE = 'This invoice is not eligible for a reminder right now.';
-export const REMIND_CANCELLED_TITLE = 'Not sent';
+export const REMIND_CANCELLED_TITLE = 'Not Sent';
 export const REMIND_CANCELLED = 'You chose not to send it. Nothing went out.';
 
 /** The QuickBooks-closed question, for a flag read with qboClosedFlagOf. */
@@ -160,7 +160,7 @@ export async function remindInvoice(input: RemindInvoiceInput, deps: RemindInvoi
   // 4. Sent. Mirror the server's markers only when it gave both.
   const out: RemindOutcome = {
     kind: 'sent',
-    title: 'Reminder sent',
+    title: 'Reminder Sent',
     message: remindSentMessage(res.stage, res.recipient),
   };
   if (res.recipient) out.recipient = res.recipient;

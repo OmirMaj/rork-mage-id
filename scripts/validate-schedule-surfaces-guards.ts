@@ -135,10 +135,10 @@ console.log('\n#52 — replacing a running schedule:');
   const accept = slice(REVIEW, 'const accept = useCallback(', 'const regenerate');
   const confirmAt = accept.indexOf('const loss = scheduleReplacementLoss(project.schedule);');
   ok('schedule-review: Accept counts the loss after the access refusal and BEFORE anything is recorded or written',
-    confirmAt > accept.indexOf("showAlert('Schedule not saved', scheduleWriteBlockedReason)")
+    confirmAt > accept.indexOf("showAlert('Schedule Not Saved', scheduleWriteBlockedReason)")
       && confirmAt < accept.indexOf('recordPrediction(') && confirmAt < accept.indexOf('updateProject('));
   ok('...asks with the count, Replace destructive, Keep as the cancel',
-    /showAlert\('Replace the running schedule\?', describeScheduleReplacement\(loss, project\.name\), \[\s*\{ text: 'Keep current schedule', style: 'cancel' \},\s*\{ text: 'Replace', style: 'destructive', onPress: \(\) => commitAccept\(\) \},/.test(accept));
+    /showAlert\('Replace the running schedule\?', describeScheduleReplacement\(loss, project\.name\), \[\s*\{ text: 'Keep Current Schedule', style: 'cancel' \},\s*\{ text: 'Replace', style: 'destructive', onPress: \(\) => commitAccept\(\) \},/.test(accept));
   ok('...and writes through replaceRunningSchedule with the draft\'s start date (not the spread that wiped it)',
     /schedule: replaceRunningSchedule\(project\.schedule, \{ \.\.\.draft\.schedule, \.\.\.rebuilt \}, \{\s*startDate: draft\.schedule\.startDate \?\? rebuilt\.startDate \?\? null,/.test(accept)
       && !/updateProject\(project\.id, \{ schedule: \{ \.\.\.draft\.schedule, \.\.\.rebuilt \} \}\)/.test(accept));
@@ -169,7 +169,7 @@ console.log('\n#52 — replacing a running schedule:');
     sink.indexOf("if (refuseScheduleWrite('Schedule changes')) return;") >= 0
       && sink.indexOf("refuseScheduleWrite(") < sink.indexOf('scheduleReplacementLoss(running)')
       && /const loss = scheduleReplacementLoss\(running\);\s*if \(!loss\) \{ commit\(\); return; \}\s*showAlert\(/.test(sink)
-      && /showAlert\('Replace the running schedule\?', describeScheduleReplacement\(loss, selectedProject\?\.name\), \[\s*\{ text: 'Keep current schedule', style: 'cancel' \},\s*\{ text: 'Replace', style: 'destructive', onPress: commit \},/.test(sink)
+      && /showAlert\('Replace the running schedule\?', describeScheduleReplacement\(loss, selectedProject\?\.name\), \[\s*\{ text: 'Keep Current Schedule', style: 'cancel' \},\s*\{ text: 'Replace', style: 'destructive', onPress: commit \},/.test(sink)
       && /saveSchedule\(replaceRunningSchedule\(running, built, \{ startDate: running\?\.startDate \?\? null \}\), selectedProject\);/.test(sink));
   const tmpl = slice(TAB, 'const handleTemplateSelect = useCallback(', 'const handleBuildFromEstimate');
   const est = slice(TAB, 'const handleBuildFromEstimate = useCallback(', 'const handleOnRampPick');
@@ -187,7 +187,7 @@ console.log('\n#52 — replacing a running schedule:');
 console.log('\n#53 — Saved plans are sold as what they do:');
 {
   ok('the paywall no longer sells "try the what-if"', !/what-if/i.test(slice(code(PAYWALL), 'schedule_scenarios:', '};')));
-  ok('...and names the feature for what it is', /schedule_scenarios: 'Saved schedule plans'/.test(PAYWALL));
+  ok('...and names the feature for what it is', /schedule_scenarios: 'Saved Schedule Plans'/.test(PAYWALL));
   ok('the create card no longer promises edits "only affect that scenario"', !/only affect that\s+scenario/.test(code(SCEN)));
   ok('the help no longer offers "Overtime push" / "Rain delay" alternates', !/Overtime push|Rain delay/.test(code(SCEN)));
   ok('the empty state no longer says "start branching"', !/start branching/.test(code(SCEN)));
@@ -195,8 +195,8 @@ console.log('\n#53 — Saved plans are sold as what they do:');
   ok('creating one saves it WITHOUT switching the screen to it',
     /onScheduleChange\(\{\s*scenarios: \[\.\.\.scenarios, scenario\],\s*\}\);/.test(slice(SCEN, 'const handleCreate', 'const handleSwitch')));
   ok('the tab button and every heading say Saved plans',
-    /<Text style=\{styles\.saveBaselineBtnText\}>Saved plans<\/Text>/.test(TAB)
-      && (SCEN.match(/<Text style=\{styles\.title\}>Saved plans<\/Text>/g) ?? []).length === 2
+    /<Text style=\{styles\.saveBaselineBtnText\}>Saved Plans<\/Text>/.test(TAB)
+      && (SCEN.match(/<Text style=\{styles\.title\}>Saved Plans<\/Text>/g) ?? []).length === 2
       && !/What-If/.test(code(SCEN)));
   ok('the modal gate is project-scoped (own tier OR the grant)', /useProjectAccess\(schedule\.projectId \?\? undefined\)/.test(SCEN));
 }
@@ -254,7 +254,7 @@ console.log('\n#54 — the task sheet opened from a live view acts on the live p
       // persistEditedTasks returns what it saved (null = nothing) for the AI editor's commit.
       && /if \(!opts\?\.live && refuseWhileWhatIf\(\)\) return(?: null)?;/.test(slice(TAB, 'const persistEditedTasks = useCallback(', 'const mobileCommit')));
   const del = slice(TAB, 'const handleDeleteTask = useCallback(', 'const latestScheduleRef');
-  ok('delete from a live-opened sheet deletes from the live plan',
+  ok('delete from a live-opened sheet deletes from the Live Plan',
     /if \(!live && refuseWhileWhatIf\(\)\) return;/.test(del) && /\(live \? liveSortedTasks : sortedTasks\)/.test(del)
       && /\{ liveTasks: live \|\| !activeScenarioTasks \}/.test(del));
 }
@@ -346,7 +346,7 @@ console.log('\n#91 — Schedule Pro\'s gate:');
     /onPress=\{\(\) => \{ void roleState\.refetch\(\); \}\}/.test(outer) && /You don’t have access to this schedule/.test(outer));
   ok('the inner PDF check is project-scoped too',
     /const \{ canAccess \} = useProjectAccess\(projectId \|\| undefined\);/.test(SP) && !/useTierAccess\(\)/.test(SP));
-  ok('the write-path role read keeps its pinned shape', /const role = useProjectRole\(projectId\);/.test(SP));
+  ok('the write-path role read keeps its pinned Shape', /const role = useProjectRole\(projectId\);/.test(SP));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

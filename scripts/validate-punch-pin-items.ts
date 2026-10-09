@@ -688,7 +688,7 @@ console.log('\nC. wiring (comment-stripped source)');
   const list = stripTsComments(read('app/punch-list.tsx'));
   ok('punch list pushes /punch-pin with the list showing', /pathname: '\/punch-pin'[\s\S]{0,120}list: activeList/.test(list));
   ok('punch list pushes /punch-walk with start: \'pin\'', /pathname: '\/punch-walk'[\s\S]{0,140}start: 'pin'/.test(list));
-  ok('"voice capture" is gone; Walk Mode says photo → pin → describe', !/voice capture/i.test(list) && /photo → pin → describe/.test(list));
+  ok('"voice capture" is gone; Walk Mode says Photo, Pin, Describe', !/voice capture/i.test(list) && /Walk Mode: Photo, Pin, Describe/.test(list));
   ok('the count comes from planPinStats (the export\'s verdict)', /planPinStats\(/.test(list));
   ok('no pinned count until the plan sheets are in too', /const pinCountsReady = punchItemsLoaded && planSheetsLoaded;/.test(list)
     && /!pinCountsReady\s*\? t\('field\.punch\.checkingThePlanSheets', 'Checking the plan sheets…'\)/.test(list) && /pinCountsReady && pinStats\.unpinned > 0 && \(/.test(list));
@@ -723,8 +723,8 @@ console.log('\nC. wiring (comment-stripped source)');
   }
   ok('the file button does not hand the press event to fileWalkShots', /onPress=\{\(\) => fileWalkShots\(\)\}/.test(list) && /fileWalkShots\(\{ thenPin: true \}\)/.test(list));
   ok('punch list moves plan-viewer markers only through the hook', !/updateDrawingPin\(|deleteDrawingPin\(/.test(list));
-  ok('Photo walk says it does not pin', /No pins — pin them after with Pin items/.test(list));
-  ok('the edit sheet names the export\'s verdict', /the export lists it as not pinned/.test(list) && /· saved/.test(list));
+  ok('Photo walk says it does not pin', /No pins\. Pin them after with Pin Items/.test(list));
+  ok('the edit sheet names the export\'s verdict', /The export lists it as not pinned/.test(list) && /· saved/.test(list));
 
   // ── app/punch-pin.tsx ──
   const pin = stripTsComments(read('app/punch-pin.tsx'));
@@ -734,7 +734,7 @@ console.log('\nC. wiring (comment-stripped source)');
   ok('the header counts the whole list / batch (pinScopeStats), not the session queue',
     /subtitlePrefix=\{`\$\{scopeStats\.pinned\} of \$\{scopeStats\.total\} pinned`\}/.test(pin) && /max: scopeStats\.total/.test(pin));
   ok('a batch this phone cannot see is said so, never "all pinned"', /scopeIds && scopeStats\.missing > 0/.test(pin)
-    && pin.indexOf('scopeStats.missing > 0') < pin.indexOf("'Every item in this batch is pinned'"));
+    && pin.indexOf('scopeStats.missing > 0') < pin.indexOf("'Every Item in This Batch Is Pinned'"));
   ok('web keys are off while another screen covers Pin items', /useFocusEffect\(/.test(pin) && /webShortcuts=\{viewer \|\| !focused \? null :/.test(pin));
   ok('punch-pin builds its queue with buildPinQueue and walks it with reducePinQueue', /buildPinQueue\(/.test(pin) && /useReducer\(reducePinQueue/.test(pin));
   ok('the step is inline and keyed by itemKey, never remounted per item',
@@ -783,7 +783,7 @@ console.log('\nC. wiring (comment-stripped source)');
     /if \(initialStart !== 'pin'\) return;/.test(walk) && /if \(Platform\.OS !== 'ios'\) \{ openPinStep\(\); return; \}/.test(walk)
       && /addListener\('transitionEnd', open\)/.test(walk) && /setTimeout\(open, PIN_FIRST_MOUNT_FALLBACK_MS\)/.test(walk));
   ok('the late GPS stamp is a pin-scoped write (GPS columns only)', /updatePunchItemPin\(id, \{\s*photoLatitude/.test(save) && !/updatePunchItem\(/.test(walk));
-  ok('web never promises a camera in pin-first', /Platform\.OS === 'web' \? t\('field\.punchWalk\.pinFirst\.nextWeb', 'Next: add the photo'\) : t\('field\.punchWalk\.pinFirst\.next', 'Next: take the photo'\)/.test(walk));
+  ok('web never promises a camera in pin-first', /Platform\.OS === 'web' \? t\('field\.punchWalk\.pinFirst\.nextWeb', 'Next: Add the Photo'\) : t\('field\.punchWalk\.pinFirst\.next', 'Next: Take the Photo'\)/.test(walk));
   ok('Save reopens the plan in pin-first mode', /if \(pinFirst && shouldAutoOpenPinStep\(/.test(save) && /openPinStep\(\)/.test(save.slice(save.lastIndexOf('setDraft('))));
   ok('the pin-first toggle is a switch', /testID="walk-pin-first-toggle"/.test(walk) && /accessibilityRole="switch"/.test(walk));
 

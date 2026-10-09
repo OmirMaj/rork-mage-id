@@ -40,7 +40,7 @@ console.log('\n1. the run says what actually happened');
 const allFailed = summarizePlanIndex({ ...base, total: 60, skipped: skip(60, 'Monthly plan-extract limit reached (100 on business). Resets on the 1st.') });
 ok('0 of 60 indexed is never the success colour', allFailed.tone !== 'success', allFailed.tone);
 ok('0 of 60 says so, and says answers cannot use the plans', /0 of 60/.test(allFailed.label) && /can't use your plans/.test(allFailed.label), allFailed.label);
-ok('the refusal reason is shown, with a count', allFailed.reasons[0] === '60 sheets — Monthly plan-extract limit reached (100 on business). Resets on the 1st.', JSON.stringify(allFailed.reasons));
+ok('the refusal reason is shown, with a count', allFailed.reasons[0] === '60 sheets: Monthly plan-extract limit reached (100 on business). Resets on the 1st.', JSON.stringify(allFailed.reasons));
 
 const partial = summarizePlanIndex({ ...base, total: 60, alreadyIndexed: 20, newlyIndexed: 21, skipped: skip(19, 'Monthly plan-extract limit reached (100 on business).') });
 ok('41 of 60 is a warning, not a success', partial.tone === 'warning', partial.tone);
@@ -49,9 +49,9 @@ ok('41 of 60 names both numbers and the gap', /Indexed 41 of 60 sheets/.test(par
 const complete = summarizePlanIndex({ ...base, total: 12, alreadyIndexed: 4, newlyIndexed: 8 });
 ok('every sheet indexed is the only success case', complete.tone === 'success' && /All 12 sheets indexed \(8 new\)/.test(complete.label), complete.label);
 ok('an empty set is muted, not green', summarizePlanIndex({ ...base, total: 0 }).tone === 'muted');
-ok('a set of only superseded revisions says that', /only superseded/.test(summarizePlanIndex({ ...base, total: 0, supersededExcluded: 5 }).label));
+ok('a set of only superseded revisions says that', /Only Superseded/.test(summarizePlanIndex({ ...base, total: 0, supersededExcluded: 5 }).label));
 const mixed = summarizePlanIndex({ ...base, total: 4, newlyIndexed: 1, skipped: [...skip(2, 'Monthly cap'), { sheetId: 'x', label: 'A-9', code: 'unreadable', reason: 'The sheet image could not be read.' }] });
-ok('reasons are grouped, most common first', mixed.reasons[0].startsWith('2 sheets —') && mixed.reasons[1].startsWith('1 sheet —'), JSON.stringify(mixed.reasons));
+ok('reasons are grouped, most common first', mixed.reasons[0].startsWith('2 sheets:') && mixed.reasons[1].startsWith('1 sheet:'), JSON.stringify(mixed.reasons));
 
 console.log('\n2. incremental indexing keys on the drawing, not on a signed url');
 const sheet = { storagePath: 'p/1-page-1.png', imageUri: 'https://x/p/1-page-1.png?token=aaa', sheetNumber: 'A-101', name: 'Floor plan' };

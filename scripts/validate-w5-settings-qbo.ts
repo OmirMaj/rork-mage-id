@@ -80,7 +80,7 @@ const heroAt = screen.indexOf("(!status || status.status === 'disconnected') ? (
 ok('an "unknown" branch renders BEFORE the disconnected Connect hero', unknownAt > -1 && heroAt > unknownAt, `${unknownAt} / ${heroAt}`);
 const unknownBranch = unknownAt > -1 ? screen.slice(unknownAt, heroAt) : '';
 ok('…it says it could not check, offers Retry (onRefreshStatus), and has no Connect button',
-  /Couldn&apos;t check your QuickBooks connection/.test(unknownBranch)
+  /Couldn’t Check Your QuickBooks Connection/.test(unknownBranch)
   && /onPress=\{onRefreshStatus\}/.test(unknownBranch)
   && !/onConnect|testID="qbo-connect"|Connect QuickBooks/.test(unknownBranch), unknownBranch.slice(0, 400));
 ok('a failed re-check keeps the last good status within the visit',
@@ -92,7 +92,7 @@ ok('refresh routes every answer through applyStatus', /applyStatus\(await fetchQ
 
 console.log('\n── Settings row ──');
 const settings = read('app/(tabs)/settings/index.tsx');
-ok('Settings shows "Status unavailable" for an unknown check', /qboUnknown \? \([\s\S]{0,300}Status unavailable/.test(settings));
+ok('Settings shows "Status unavailable" for an unknown check', /qboUnknown \? \([\s\S]{0,300}Status Unavailable/.test(settings));
 ok('…and never "Connect QuickBooks" for it', /\{qboConnected \|\| qboUnknown \? 'QuickBooks Online'/.test(settings));
 ok('a plan refusal below Business still reads "Requires Business"',
   /const qboUnknown = qboStatus\?\.status === 'unknown'\s*&& !\(qboStatus\.reason === 'tier' && tier !== 'business' && tier !== 'enterprise'\);/.test(settings));

@@ -99,7 +99,7 @@ function finishLine(ctx: CopyCtx): string {
 export const scheduleSayIt: TutorialDef = {
   id: 'schedule-say-it',
   version: 1,
-  title: 'Move a task by saying it',
+  title: 'Move a Task by Saying It',
   seconds: 35,
   endsWith: 'Drywall moved 2 days and the finish date updated',
   group: 'schedule',
@@ -139,7 +139,7 @@ export const scheduleSayIt: TutorialDef = {
       layer: 'scheduleEdit',
       target: 'scheduleEdit.input',
       text: 'Use the sample sentence, then {tap} Continue',
-      detail: 'Push drywall 2 days — board delivery slipped. The sample uses no AI credits.',
+      detail: 'Push drywall 2 days, board delivery slipped. The sample uses no AI credits.',
       gesture: 'tap',
       until: { signal: 'schedule.edit.previewed' },
       assist: 'schedule.useSampleSentence',
@@ -208,7 +208,7 @@ export const scheduleSayIt: TutorialDef = {
   handoff: {
     pathname: '/schedule',
     projectParam: 'projectId',
-    realJobLabel: name => `Change ${name}'s schedule →`,
+    realJobLabel: name => `Change ${name}'s schedule`,
     roles: ['owner', 'editor'],
   },
 };

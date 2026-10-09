@@ -32,7 +32,7 @@ type FilterType = 'all' | 'available' | 'in_use' | 'maintenance';
 const EQUIPMENT_FILTER_LABEL: Record<FilterType, string> = {
   all: 'All',
   available: 'Available',
-  in_use: 'In use',
+  in_use: 'In Use',
   maintenance: 'Maintenance',
 };
 
@@ -51,7 +51,7 @@ type StatusChip = { label: string; fill: string; ink: string };
 function statusChipsFor(t: ThemeColors): Record<string, StatusChip> {
   return {
     available: { label: 'Available', fill: t.successSoft, ink: t.successLabel },
-    in_use: { label: 'In use', fill: t.info + '1F', ink: t.info },
+    in_use: { label: 'In Use', fill: t.info + '1F', ink: t.info },
     maintenance: { label: 'Maintenance', fill: t.warningSoft, ink: t.warningLabel },
     retired: { label: 'Retired', fill: t.neutralSoft, ink: t.textSecondary },
   };
@@ -96,7 +96,7 @@ export default function EquipmentScreen() {
 
   const handleAdd = useCallback(() => {
     if (!newName.trim()) {
-      showAlert('Add a name', 'Enter an equipment name.');
+      showAlert('Add a Name', 'Enter an equipment name.');
       return;
     }
     addEquipment({
@@ -167,7 +167,7 @@ export default function EquipmentScreen() {
           onPress={() => setShowAddModal(true)}
           activeOpacity={0.85}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          testID="add-equipment" accessibilityRole="button" accessibilityLabel="Add equipment">
+          testID="add-equipment" accessibilityRole="button" accessibilityLabel="Add Equipment">
           <Plus size={20} color="#FFFFFF" strokeWidth={2} />
         </TouchableOpacity>
       </View>
@@ -175,11 +175,11 @@ export default function EquipmentScreen() {
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{stats.total}</Text>
-          <Text style={styles.statLabel}>Total fleet</Text>
+          <Text style={styles.statLabel}>Total Fleet</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={[styles.statValue, { color: themeColors.info }]}>{stats.inUse}</Text>
-          <Text style={styles.statLabel}>In use</Text>
+          <Text style={styles.statLabel}>In Use</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={[styles.statValue, { color: stats.overdueCount > 0 ? themeColors.dangerLabel : themeColors.successLabel }]}>{stats.overdueCount}</Text>
@@ -211,9 +211,9 @@ export default function EquipmentScreen() {
           // language instead of an orphan.
           <EmptyState
             icon={<MageEquipment size={40} color={themeColors.accent} />}
-            title="Track your fleet"
+            title="Track Your Fleet"
             message="Owned and rented equipment in one list, with daily rates, maintenance and the project each piece is on."
-            actionLabel="Add equipment"
+            actionLabel="Add Equipment"
             onAction={() => setShowAddModal(true)}
           />
         ) : (
@@ -264,7 +264,7 @@ export default function EquipmentScreen() {
           <View style={[styles.modalOverlay, fAdd.overlay]}>
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fAdd.card]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add equipment</Text>
+                <Text style={styles.modalTitle}>Add Equipment</Text>
                 <TouchableOpacity onPress={() => setShowAddModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={22} color={Colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -275,7 +275,7 @@ export default function EquipmentScreen() {
                 style={styles.input}
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="e.g. Cat 320 excavator"
+                placeholder="Cat 320 excavator"
                 placeholderTextColor={Colors.textMuted}
               />
 
@@ -326,7 +326,7 @@ export default function EquipmentScreen() {
                 </View>
               </View>
 
-              <Text style={styles.fieldLabel}>Daily rate ($)</Text>
+              <Text style={styles.fieldLabel}>Daily Rate ($)</Text>
               <TextInput
                 style={styles.input}
                 value={newDailyRate}
@@ -337,7 +337,7 @@ export default function EquipmentScreen() {
               />
 
               <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} activeOpacity={0.85}>
-                <Text style={styles.saveBtnText}>Add equipment</Text>
+                <Text style={styles.saveBtnText}>Add Equipment</Text>
               </TouchableOpacity>
             </View>
           </View>

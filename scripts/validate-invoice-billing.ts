@@ -194,7 +194,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     const lines: { total: number; billedPercent?: number }[] = [{ total: 8000, billedPercent: 40 }, { total: 6000 }];
     const anyPre = lines.some(l => l.billedPercent != null);
     const summed = lines.reduce((s, li) => s + billedAmountForLine(li, mixedInv, anyPre), 0);
-    close('sum(billedAmountForLine) === progressSubtotal (mixed)', summed, progressSubtotal(lines, true, 40));
+    close('sum(billedAmountForLine) === progressSubtotal (Mixed)', summed, progressSubtotal(lines, true, 40));
   }
   // Same invariant for a PURE editor progress invoice (no pre-scaled line).
   {
@@ -259,7 +259,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     eq('Share reads payLinkMatchesBalance',
       /const handleSharePayLink[\s\S]{0,160}\|\| !payLinkMatchesBalance\b/.test(code), true);
     eq('the card explains a stale link instead of offering it',
-      /regenerate for the current balance of/.test(code), true);
+      /Regenerate it for the current balance of/.test(code), true);
     eq('Copy / Share buttons render only behind payLinkMatchesBalance',
       /\{payLinkMatchesBalance && \(\s*<>\s*<TouchableOpacity[\s\S]{0,400}testID="copy-pay-link-btn"/.test(code), true);
     // wave 4 #80: the payment re-mint charges the SERVER's balance, read back
@@ -474,12 +474,12 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
       && /const taxAmount = roundCents\(subtotal \* \(taxRate \/ 100\)\);/.test(code)
       && /const totalDue = roundCents\(subtotal \+ taxAmount\);/.test(code), true);
     eq('the totals card discloses the retainage basis',
-      /Retainage held \(\{retentionPctValue\}% of work completed\)/.test(code)
+      /Retainage Held \(\{retentionPctValue\}% of work completed\)/.test(code)
       && /testID="retention-basis-note"/.test(code), true);
     // The row under that note must show the amount WITHHELD, or the note stops
     // being true the moment any retention is released.
     eq('…and the row it labels renders retentionAmount, not retentionPending',
-      /Retainage held \(\{retentionPctValue\}% of work completed\)<\/Text>\s*\n\s*<Text [^>]*>-\{formatCurrency\(retentionAmount\)\}/.test(code), true);
+      /Retainage Held \(\{retentionPctValue\}% of work completed\)<\/Text>\s*\n\s*<Text [^>]*>-\{formatCurrency\(retentionAmount\)\}/.test(code), true);
     eq('a row stored on the old tax-inclusive basis is called out from STORED columns only',
       /testID="retention-basis-legacy"/.test(code)
       && /taxBasisRetentionOverhold\(existingInvoice\)/.test(code), true);
@@ -511,7 +511,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     // The "Correct it" button no longer changes any money — every surface
     // already agrees — so its copy must not promise that it does.
     eq('the repair affordance is described as a bookkeeping fix, not a money change',
-      /Update the saved figure to \{formatCurrency\(legacyTaxBasisRetention\.corrected\)\}/.test(code)
+      /Update the Saved Figure to \{formatCurrency\(legacyTaxBasisRetention\.corrected\)\}/.test(code)
       && /nothing you or\s*\n?\s*your client is charged changes/.test(code), true);
   }
 }
@@ -1512,7 +1512,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   });
   eq('an EMPTY punch list is not a cleared punch list', emptyPunch.level, 'watch');
   eq('…and it says so rather than implying the punch is clear',
-    emptyPunch.reasons.includes('No punch list on file — nothing here says the punch is clear.'), true);
+    emptyPunch.reasons.includes('No punch list on file. Nothing here says the punch is clear.'), true);
   eq('…and never claims items were closed',
     emptyPunch.reasons.some(r => /closed/.test(r)), false);
   const openPunch = retainageReadiness({
@@ -1845,20 +1845,20 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     const n = (o: Partial<Parameters<typeof payAppReviewNotice>[0]>) =>
       payAppReviewNotice({ isLocked: false, savedAt: '2026-04-01T00:00:00Z', ...o });
     eq('an unsent saved draft reads as a saved certificate',
-      n({}).title, 'Saved certificate');
+      n({}).title, 'Saved Certificate');
     eq('a certificate the client already has says so, and says what he sees',
       [n({ portalStatus: 'sent', sentAt: '2026-04-02T00:00:00Z' }).title,
         /client keeps seeing the sent version until you send it again/
           .test(n({ portalStatus: 'sent', sentAt: '2026-04-02T00:00:00Z' }).body)],
-      ['Sent to the client', true]);
+      ['Sent to the Client', true]);
     eq('…and the edit affordance stops pretending it is a private draft',
-      n({ portalStatus: 'sent' }).editLabel, 'Edit and re-send');
+      n({ portalStatus: 'sent' }).editLabel, 'Edit and Re-Send');
     eq('a recalled certificate is a draft again',
-      n({ portalStatus: 'recalled' }).title, 'Saved certificate');
+      n({ portalStatus: 'recalled' }).title, 'Saved Certificate');
     // Stripe holding a live obligation for these exact figures IS a lock, and
     // outranks whatever the portal says.
     eq('a certified certificate still reads as uneditable',
-      n({ isLocked: true, portalStatus: 'sent' }).title, 'Certified record');
+      n({ isLocked: true, portalStatus: 'sent' }).title, 'Certified Record');
   }
   eq('…and the review banner renders that notice rather than its own copy',
     /<Text style=\{styles\.reviewBannerTitle\}>\{reviewNotice\.title\}<\/Text>/.test(aiaScreen)
@@ -2016,7 +2016,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     /testID="aia-refresh-contract"/.test(aiaScreen), true);
   // ── ONE CHANGE-ORDER TABLE, AND THE GUARD WATCHES THAT ONE ────────────────
   //
-  // "Print as saved" means SAVED: the four-row table was the last thing on the
+  // "Print as Saved" means SAVED: the four-row table was the last thing on the
   // printed form still being derived live at print time. Three handoffs reach
   // buildAIAPayAppHtml — the reprint, the generate, and the record
   // buildSavedRecord freezes — and each used to resolve
@@ -2338,9 +2338,9 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     // iOS WebKit among them, and page 2+ of the G703 carries no other
     // identification at all.
     eq('…the provenance line rides in the @page margin box',
-      /@bottom-left \{ content: "Generated by MAGE ID · Job · Application #\d+ · G702 \/ G703";/.test(html), true);
+      /@bottom-left \{ content: "Prepared by GC using MAGE ID software · Job · Application #\d+ · G702 \/ G703";/.test(html), true);
     eq('…and repeats in-flow as the G703 thead caption, for engines without margin boxes',
-      /<thead>\s*<tr>\s*<th class="sheet-caption" colspan="10">Generated by MAGE ID/.test(html), true);
+      /<thead>\s*<tr>\s*<th class="sheet-caption" colspan="10">Prepared by GC using MAGE ID software/.test(html), true);
     eq('…and it does not hardcode a page count it cannot know',
       /Page \d+ of \d+/.test(html), false);
     eq('…the real count comes from the print engine',
@@ -2352,7 +2352,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
       const quoted = buildAIAPayAppHtml(
         app({ projectName: '4" Slab \\ Wing' }), { companyName: 'GC' } as never);
       eq('…with the project name escaped for CSS, so a quote cannot drop the @page rule',
-        /@bottom-left \{ content: "Generated by MAGE ID · 4\\" Slab \\\\ Wing/.test(quoted)
+        /@bottom-left \{ content: "Prepared by GC using MAGE ID software · 4\\" Slab \\\\ Wing/.test(quoted)
         && /@bottom-right \{ content: "Page " counter\(page\)/.test(quoted), true);
     }
     // A <tfoot> repeats on every page, so page 2 of a 60-line SOV printed the
@@ -2965,7 +2965,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     const repaired = aiaTotalsFromLines(mixed as never, 20_000, 0);
     close('the repair path computes the same total retainage',
       roundCents(repaired.totalRetainage), authoritative.totalRetainage, 0.01);
-    close('…and therefore the same current payment due',
+    close('…and therefore the same current Payment Due',
       roundCents(repaired.currentPaymentDue), authoritative.currentPaymentDue, 0.01);
   }
 
@@ -3188,12 +3188,12 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   // where the two figures can still disagree. Executed, three states:
   {
     const advice = (isReadOnly: boolean, isLocked: boolean) =>
-      coFiguresAdvice({ isReadOnly, isLocked, editLabel: 'Edit draft' });
+      coFiguresAdvice({ isReadOnly, isLocked, editLabel: 'Edit Draft' });
     const editable = advice(false, false), review = advice(true, false), locked = advice(true, true);
     eq('the two-figures banner sends an EDITABLE certificate to PERIOD TO and the refresh button',
       [/re-enter PERIOD TO/i.test(editable), /refresh button/i.test(editable)], [true, true]);
     eq('…sends a SAVED one to the Edit button first, by the name that button carries',
-      [/Edit draft/.test(review), /read-only/i.test(review), review === editable], [true, true, false]);
+      [/Edit Draft/.test(review), /read-only/i.test(review), review === editable], [true, true, false]);
     // The one that matters: a locked certificate has neither control on screen,
     // so naming either of them is advice the GC cannot act on. Collapsing the
     // three cases back to one sentence fails here.

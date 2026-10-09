@@ -229,13 +229,13 @@ function MdDraftSheet({
       const url = `mailto:${recipients.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       await Linking.openURL(url);
     } catch {
-      showAlert('No mail app', 'Copy the draft instead and paste it into your email.');
+      showAlert('No Mail App', 'Copy the draft instead and paste it into your email.');
     }
   }, [routing.toEmail, subject, body]);
 
   const copy = useCallback(async () => {
     const ok = await copyToClipboard(`Subject: ${subject}\n\n${body}`);
-    showAlert(ok ? 'Copied' : 'Copy failed', ok ? 'The draft is on your clipboard.' : 'Select the text and copy it by hand.');
+    showAlert(ok ? 'Copied' : 'Copy Failed', ok ? 'The draft is on your clipboard.' : 'Select the text and copy it by hand.');
   }, [subject, body]);
 
   const hasDraft = subject.trim().length > 0 || body.trim().length > 0;
@@ -246,7 +246,7 @@ function MdDraftSheet({
   return (
     <View style={styles.wrap}>
       <Button
-        label="Draft a question"
+        label="Draft a Question"
         variant="secondary"
         size="sm"
         iconLeft={<MessageSquare size={14} color={colors.text} strokeWidth={2} />}
@@ -257,7 +257,7 @@ function MdDraftSheet({
         visible={open}
         onClose={close}
         size="wide"
-        title="Draft a question"
+        title="Draft a Question"
         subtitle={topic ? `About ${topic}. MAGE doesn’t send it; you do.` : 'MAGE doesn’t send it; you do.'}
         testID={testID ? `${testID}-sheet` : undefined}
         primaryAction={{
@@ -297,14 +297,14 @@ function MdDraftSheet({
           style={[styles.input, styles.multiline]}
           value={question}
           onChangeText={setQuestion}
-          placeholder="e.g. Does the rear deck need its own permit?"
+          placeholder="Does the rear deck need its own permit?"
           placeholderTextColor={colors.textMuted}
           multiline
           accessibilityLabel="What do you need to ask?"
           testID={testID ? `${testID}-question` : undefined}
         />
         <Button
-          label={hasDraft ? 'Draft again' : 'Draft it'}
+          label={hasDraft ? 'Draft Again' : 'Draft It'}
           size="sm"
           onPress={() => { void draft(); }}
           loading={drafting}

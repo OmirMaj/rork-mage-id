@@ -54,7 +54,7 @@ import { segmentedDesktop } from '@/components/ui';
 const PLACEHOLDER =
   'Trade, Unit, Rate, Jobs\n' +
   'Framing, SF, $12.50, 14\n' +
-  'Drywall hang & finish, SF, 3.20\n' +
+  'Drywall hang and finish, SF, 3.20\n' +
   'Electrical rough-in, EA, $145\n' +
   'Concrete flatwork, CY, $185, 22';
 
@@ -99,7 +99,7 @@ function CostSeedInner() {
     const parsed = parseSeedBlob(blob);
     if (parsed.rows.length === 0) {
       showAlert(
-        'Nothing to import',
+        'Nothing to Import',
         parsed.rejected.length > 0
           ? `Couldn't read a rate from any of those ${parsed.rejected.length} line${parsed.rejected.length === 1 ? '' : 's'}. Each line needs a trade, a unit (SF, LF, EA, HR…), and a price.`
           : 'Paste one rate per line: trade, unit, price. For example: Framing, SF, $12.50',
@@ -125,7 +125,7 @@ function CostSeedInner() {
     setReview(null);
     setBlob('');
     showAlert(
-      'Rates added',
+      'Rates Added',
       `${result.added} new · ${result.replaced} updated. These are marked as your rates. They price your estimates now, and every project you close corrects them.`,
     );
   }, [review, addSeeds]);
@@ -149,7 +149,7 @@ function CostSeedInner() {
 
   const handleManualSave = useCallback(() => {
     const trade = formTrade.trim();
-    if (!trade) { setFormError('Name the trade or scope (e.g. Framing).'); return; }
+    if (!trade) { setFormError('Name the trade or scope, for example Framing.'); return; }
     const unit = canonicalSeedUnit(formUnit);
     if (!unit) { setFormError('Pick a unit.'); return; }
     const rate = Number(formRate.replace(/[$,\s]/g, ''));
@@ -163,7 +163,7 @@ function CostSeedInner() {
     // difference between a correctable typo and a rate that reads as saved on
     // this device and exists nowhere else.
     if (rate > MAX_SEED_RATE) {
-      setFormError(`That's higher than we can store — keep it under ${formatMoney(MAX_SEED_RATE)} per unit.`);
+      setFormError(`That's higher than we can store. Keep it under ${formatMoney(MAX_SEED_RATE)} per unit.`);
       return;
     }
     const jobsRaw = formJobs.trim();
@@ -212,7 +212,7 @@ function CostSeedInner() {
   }, []);
 
   const handleDelete = useCallback((s: SeededRate) => {
-    showAlert('Remove rate', `Remove your ${s.trade} rate ($${s.rate.toFixed(2)}/${s.unit})?`, [
+    showAlert('Remove Rate', `Remove your ${s.trade} rate ($${s.rate.toFixed(2)}/${s.unit})?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -245,8 +245,8 @@ function CostSeedInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Cost history · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Seed your rates</Text>
+          <Text style={styles.headerEyebrow}>Cost History · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Seed Your Rates</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -274,7 +274,7 @@ function CostSeedInner() {
             </View>
             <Text style={styles.introBody}>
               Paste what you charge today. Your first estimate uses your rates, and every
-              project you close makes them sharper.
+              project you close adds its actual costs to them.
             </Text>
             <Text style={styles.introFinePrint}>
               Rates you enter are marked as your rate. They are never counted as a closed project
@@ -289,7 +289,7 @@ function CostSeedInner() {
               onPress={() => { setMode('paste'); setFormError(null); }}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Paste rates from a spreadsheet"
+              accessibilityLabel="Paste Rates from a Spreadsheet"
               testID="cost-seed-mode-paste"
             >
               <ClipboardPaste
@@ -298,7 +298,7 @@ function CostSeedInner() {
                 strokeWidth={1.75}
               />
               <Text style={[styles.segmentText, mode === 'paste' && styles.segmentTextActive]}>
-                Paste a list
+                Paste a List
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -306,7 +306,7 @@ function CostSeedInner() {
               onPress={() => { setMode('manual'); setReview(null); }}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Type one rate"
+              accessibilityLabel="Type One Rate"
               testID="cost-seed-mode-manual"
             >
               <Plus
@@ -315,7 +315,7 @@ function CostSeedInner() {
                 strokeWidth={1.75}
               />
               <Text style={[styles.segmentText, mode === 'manual' && styles.segmentTextActive]}>
-                Type a rate
+                Type a Rate
               </Text>
             </TouchableOpacity>
           </View>
@@ -323,7 +323,7 @@ function CostSeedInner() {
           {/* ── Paste ─────────────────────────────────────────────────── */}
           {mode === 'paste' && !review && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Paste your rates</Text>
+              <Text style={styles.cardTitle}>Paste Your Rates</Text>
               <Text style={styles.cardHint}>
                 One per line: trade, unit, price, plus a project count if you have one. Copy a
                 column straight out of a spreadsheet; a header row, dollar signs, commas, and
@@ -347,10 +347,10 @@ function CostSeedInner() {
                 disabled={!blob.trim()}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Review the rates before adding them"
+                accessibilityLabel="Review the Rates Before Adding Them"
                 testID="cost-seed-review"
               >
-                <Text style={styles.primaryBtnText}>Review rates</Text>
+                <Text style={styles.primaryBtnText}>Review Rates</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -367,8 +367,8 @@ function CostSeedInner() {
               )}
               {review.duplicates > 0 && (
                 <Text style={styles.cardHint}>
-                  {review.duplicates} duplicate line{review.duplicates === 1 ? '' : 's'} collapsed —
-                  the last one you pasted wins.
+                  {review.duplicates} duplicate line{review.duplicates === 1 ? '' : 's'} collapsed.
+                  The last one you pasted wins.
                 </Text>
               )}
 
@@ -396,7 +396,7 @@ function CostSeedInner() {
                   </View>
                   {review.rejected.slice(0, 8).map((r, i) => (
                     <Text key={i} style={styles.rejectLine} numberOfLines={2}>
-                      &ldquo;{r.raw}&rdquo; — {r.reason}
+                      “{r.raw}”: {r.reason}
                     </Text>
                   ))}
                   {review.rejected.length > 8 && (
@@ -422,9 +422,9 @@ function CostSeedInner() {
                 style={styles.linkBtn}
                 onPress={() => setReview(null)}
                 accessibilityRole="button"
-                accessibilityLabel="Back to editing the pasted list"
+                accessibilityLabel="Back to Editing the Pasted List"
               >
-                <Text style={styles.linkBtnText}>Back to edit</Text>
+                <Text style={styles.linkBtnText}>Back to Edit</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -432,14 +432,14 @@ function CostSeedInner() {
           {/* ── Manual ────────────────────────────────────────────────── */}
           {mode === 'manual' && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>{editingId ? 'Edit rate' : 'Add one rate'}</Text>
+              <Text style={styles.cardTitle}>{editingId ? 'Edit Rate' : 'Add One Rate'}</Text>
 
-              <Text style={styles.fieldLabel}>Trade or scope</Text>
+              <Text style={styles.fieldLabel}>Trade or Scope</Text>
               <TextInput
                 style={styles.input}
                 value={formTrade}
                 onChangeText={(v) => { setFormTrade(v); setFormError(null); }}
-                placeholder="e.g. Framing"
+                placeholder="Framing"
                 placeholderTextColor={t.textMuted}
                 testID="cost-seed-trade"
               />
@@ -464,23 +464,23 @@ function CostSeedInner() {
                 ))}
               </ScrollView>
 
-              <Text style={styles.fieldLabel}>Your rate ($ per {formUnit})</Text>
+              <Text style={styles.fieldLabel}>Your Rate ($ per {formUnit})</Text>
               <TextInput
                 style={styles.input}
                 value={formRate}
                 onChangeText={(v) => { setFormRate(v); setFormError(null); }}
-                placeholder="e.g. 12.50"
+                placeholder="12.50"
                 placeholderTextColor={t.textMuted}
                 keyboardType="decimal-pad"
                 testID="cost-seed-rate"
               />
 
-              <Text style={styles.fieldLabel}>Projects behind it (optional)</Text>
+              <Text style={styles.fieldLabel}>Projects Behind It (Optional)</Text>
               <TextInput
                 style={styles.input}
                 value={formJobs}
                 onChangeText={(v) => { setFormJobs(v); setFormError(null); }}
-                placeholder="e.g. 14"
+                placeholder="14"
                 placeholderTextColor={t.textMuted}
                 keyboardType="number-pad"
                 testID="cost-seed-jobs"
@@ -501,14 +501,14 @@ function CostSeedInner() {
                 onPress={handleManualSave}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel={editingId ? 'Save this rate' : 'Add this rate'}
+                accessibilityLabel={editingId ? 'Save This Rate' : 'Add This Rate'}
                 testID="cost-seed-manual-save"
               >
                 <Check size={15} color={Colors.textOnPrimary} strokeWidth={2.2} />
-                <Text style={styles.primaryBtnText}>{editingId ? 'Save rate' : 'Add rate'}</Text>
+                <Text style={styles.primaryBtnText}>{editingId ? 'Save Rate' : 'Add Rate'}</Text>
               </TouchableOpacity>
               {editingId ? (
-                <TouchableOpacity style={styles.linkBtn} onPress={resetForm} accessibilityRole="button" accessibilityLabel="Cancel editing">
+                <TouchableOpacity style={styles.linkBtn} onPress={resetForm} accessibilityRole="button" accessibilityLabel="Cancel Editing">
                   <Text style={styles.linkBtnText}>Cancel</Text>
                 </TouchableOpacity>
               ) : null}
@@ -517,7 +517,7 @@ function CostSeedInner() {
 
           {/* ── What's already seeded ─────────────────────────────────── */}
           <Text style={styles.sectionTitle}>
-            Rates you&apos;ve set {sorted.length > 0 ? `· ${sorted.length}` : ''}
+            Rates You&apos;ve Set {sorted.length > 0 ? `· ${sorted.length}` : ''}
           </Text>
           {sorted.length === 0 ? (
             <Text style={styles.emptyHint}>
@@ -534,7 +534,7 @@ function CostSeedInner() {
                     {s.reportedJobs != null ? ` · you say ${s.reportedJobs} job${s.reportedJobs === 1 ? '' : 's'}` : ''}
                   </Text>
                   <View style={styles.seedBadge}>
-                    <Text style={styles.seedBadgeText}>Your rate</Text>
+                    <Text style={styles.seedBadgeText}>Your Rate</Text>
                   </View>
                 </View>
                 <TouchableOpacity
@@ -566,11 +566,11 @@ function CostSeedInner() {
                 onPress={() => router.push('/cost-database' as never)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Open your cost history"
+                accessibilityLabel="Open Your Cost History"
                 testID="cost-seed-open-book"
               >
                 <MageCostDb size={15} color={t.text} />
-                <Text style={styles.secondaryBtnText}>See them in your cost history</Text>
+                <Text style={styles.secondaryBtnText}>See Them in Your Cost History</Text>
               </TouchableOpacity>
               {sorted.some(s => s.reportedJobs != null) && (
                 <Text style={styles.footNote}>

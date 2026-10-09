@@ -1,0 +1,461 @@
+{
+ "walls": [
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000001",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    1.5494,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.939693,
+    0,
+    0.34202,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.34202,
+    0,
+    -0.939693,
+    0,
+    0.676623,
+    0.0192,
+    -1.504046,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000002",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    1.5494,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.939693,
+    0,
+    0.34202,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.34202,
+    0,
+    -0.939693,
+    0,
+    1.52798,
+    0.0192,
+    0.835037,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000003",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    2.4892,
+    2.4384,
+    0
+   ],
+   "transform": [
+    0.34202,
+    0,
+    0.939693,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.939693,
+    0,
+    0.34202,
+    0,
+    0.374322,
+    0.0192,
+    -0.069541,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  },
+  {
+   "identifier": "5CA90001-0000-4000-8000-000000000004",
+   "category": {
+    "wall": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    2.4892,
+    2.4384,
+    0
+   ],
+   "transform": [
+    -0.34202,
+    0,
+    -0.939693,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.939693,
+    0,
+    -0.34202,
+    0,
+    1.830281,
+    0.0192,
+    -0.599467,
+    1
+   ],
+   "completedEdges": [
+    {
+     "top": {}
+    },
+    {
+     "bottom": {}
+    },
+    {
+     "left": {}
+    },
+    {
+     "right": {}
+    }
+   ],
+   "curve": null,
+   "parentIdentifier": null,
+   "story": 0,
+   "polygonCorners": []
+  }
+ ],
+ "doors": [
+  {
+   "identifier": "5CA90002-0000-4000-8000-000000000001",
+   "category": {
+    "door": {
+     "isOpen": false
+    }
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.762,
+    2.032,
+    0
+   ],
+   "transform": [
+    -0.939693,
+    0,
+    0.34202,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.34202,
+    0,
+    -0.939693,
+    0,
+    1.786677,
+    -0.184,
+    0.740879,
+    1
+   ],
+   "completedEdges": [],
+   "curve": null,
+   "parentIdentifier": "5CA90001-0000-4000-8000-000000000002",
+   "story": 0,
+   "polygonCorners": []
+  }
+ ],
+ "windows": [
+  {
+   "identifier": "5CA90003-0000-4000-8000-000000000001",
+   "category": {
+    "window": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.6096,
+    0.9144,
+    0
+   ],
+   "transform": [
+    -0.34202,
+    0,
+    -0.939693,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.939693,
+    0,
+    -0.34202,
+    0,
+    1.708728,
+    0.2732,
+    -0.933434,
+    1
+   ],
+   "completedEdges": [],
+   "curve": null,
+   "parentIdentifier": "5CA90001-0000-4000-8000-000000000004",
+   "story": 0,
+   "polygonCorners": []
+  }
+ ],
+ "openings": [],
+ "objects": [
+  {
+   "identifier": "5CA90005-0000-4000-8000-000000000001",
+   "category": {
+    "bathtub": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    1.5,
+    0.5,
+    0.76
+   ],
+   "transform": [
+    0.939693,
+    0,
+    -0.34202,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.34202,
+    0,
+    0.939693,
+    0,
+    0.813431,
+    -0.95,
+    -1.128169,
+    1
+   ],
+   "parentIdentifier": null,
+   "story": 0,
+   "attributes": {}
+  },
+  {
+   "identifier": "5CA90005-0000-4000-8000-000000000002",
+   "category": {
+    "toilet": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.4,
+    0.75,
+    0.7
+   ],
+   "transform": [
+    -0.34202,
+    0,
+    -0.939693,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.939693,
+    0,
+    -0.34202,
+    0,
+    0.637282,
+    -0.825,
+    -0.224206,
+    1
+   ],
+   "parentIdentifier": null,
+   "story": 0,
+   "attributes": {}
+  },
+  {
+   "identifier": "5CA90005-0000-4000-8000-000000000003",
+   "category": {
+    "sink": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.5,
+    0.85,
+    0.45
+   ],
+   "transform": [
+    0.34202,
+    0,
+    0.939693,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -0.939693,
+    0,
+    0.34202,
+    0,
+    1.666234,
+    -0.775,
+    -0.173043,
+    1
+   ],
+   "parentIdentifier": null,
+   "story": 0,
+   "attributes": {}
+  },
+  {
+   "identifier": "5CA90005-0000-4000-8000-000000000004",
+   "category": {
+    "storage": {}
+   },
+   "confidence": {
+    "high": {}
+   },
+   "dimensions": [
+    0.4,
+    1.8,
+    0.35
+   ],
+   "transform": [
+    0.939693,
+    0,
+    -0.34202,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.34202,
+    0,
+    0.939693,
+    0,
+    1.871446,
+    -0.3,
+    0.390772,
+    1
+   ],
+   "parentIdentifier": null,
+   "story": 0,
+   "attributes": {}
+  }
+ ],
+ "version": 2,
+ "story": 0,
+ "floors": [],
+ "sections": [
+  {
+   "label": {
+    "bathroom": {}
+   },
+   "center": [
+    0,
+    0,
+    0
+   ],
+   "story": 0
+  }
+ ],
+ "referenceOriginTransform": [
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  1
+ ]
+}

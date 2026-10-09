@@ -63,7 +63,7 @@ if (B) {
     ok(`${s}: email, portal and PDF are held, with a reason`, (['email', 'portal', 'pdf'] as const).every(a => (B.coNumberHoldReason(s, a) ?? '').length > 20));
   }
   ok('confirmed: nothing held', (['email', 'portal', 'pdf'] as const).every(a => B.coNumberHoldReason('confirmed', a) === null));
-  ok('the pending reason says another device may have used the number', /another device may already have used this number/.test(B.coNumberHoldReason('pending', 'email') ?? ''));
+  ok('the pending reason says another device may have used the number', /Another device may already have used this number/.test(B.coNumberHoldReason('pending', 'email') ?? ''));
 }
 
 console.log('\nthe hook wiring');

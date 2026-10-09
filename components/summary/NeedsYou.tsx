@@ -34,7 +34,7 @@ export function NeedsYou({ items, onPressItem, max, onSeeAll, style }: NeedsYouP
         <View style={[styles.iconSq, { backgroundColor: colors.danger + '18' }]}>
           <Bell size={15} color={colors.danger} strokeWidth={2.2} />
         </View>
-        <Text style={styles.headerLabel}>Needs you</Text>
+        <Text style={styles.headerLabel}>Needs You</Text>
         <Text style={[styles.headerMeta, { color: colors.danger }]}>
           {items.length} item{items.length === 1 ? '' : 's'}
         </Text>
@@ -50,7 +50,7 @@ export function NeedsYou({ items, onPressItem, max, onSeeAll, style }: NeedsYouP
         >
           <View style={[styles.dot, { backgroundColor: it.severity === 'danger' ? colors.danger : colors.accent }]} />
           <Text style={styles.label} numberOfLines={2}>{it.label}</Text>
-          <Text style={[styles.action, { color: colors.accentLabel }]}>{it.actionLabel} →</Text>
+          <Text style={[styles.action, { color: colors.accentLabel }]}>{it.actionLabel}</Text>
         </TouchableOpacity>
       ))}
       {capped ? (
@@ -62,7 +62,7 @@ export function NeedsYou({ items, onPressItem, max, onSeeAll, style }: NeedsYouP
           accessibilityLabel={`See all ${items.length} items that need you`}
           testID="summary-needs-see-all"
         >
-          <Text style={[styles.seeAll, { color: colors.accentLabel }]}>See all {items.length} →</Text>
+          <Text style={[styles.seeAll, { color: colors.accentLabel }]}>See all {items.length}</Text>
         </TouchableOpacity>
       ) : null}
     </View>

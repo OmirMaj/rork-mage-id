@@ -60,7 +60,7 @@ export const invoiceToSelf: TutorialDef = {
       route: INV,
       target: 'invoice.percent',
       text: 'Bill 15% for the rough-in',
-      detail: 'Lines come straight from the estimate — nothing to retype.',
+      detail: 'Lines come straight from the estimate. Nothing to retype.',
       gesture: 'tap',
       until: { signal: 'invoice.amount.set' },
       assist: 'invoice.fillPercent',
@@ -73,7 +73,7 @@ export const invoiceToSelf: TutorialDef = {
       target: 'invoice.totals',
       text: ctx => {
         const t = billedTotal(ctx);
-        return t !== null ? `${formatUsd(t)} due — tax and terms come from the job.` : 'Tax and terms come from the job.';
+        return t !== null ? `${formatUsd(t)} due. Tax and terms come from the project.` : 'Tax and terms come from the project.';
       },
       gesture: 'none',
     },
@@ -82,8 +82,8 @@ export const invoiceToSelf: TutorialDef = {
       kind: 'do',
       route: INV,
       target: 'invoice.send',
-      text: '{Tap} Send to me — see what Sarah gets',
-      detail: 'Sample job — it goes to you, not a client. No pay link is made.',
+      text: '{Tap} Send to Me to see what Sarah gets',
+      detail: 'Sample job. It goes to you, not a client. No pay link is made.',
       gesture: 'tap',
       until: { signal: 'invoice.sent' },
       failOn: 'invoice.send.failed',
@@ -103,7 +103,7 @@ export const invoiceToSelf: TutorialDef = {
       id: 'invoice-sheet',
       kind: 'wait',
       route: INV,
-      text: 'Send it from the sheet — it goes to you only.',
+      text: 'Send it from the sheet. It goes to you only.',
       until: { signal: 'invoice.sent' },
       failOn: 'invoice.send.failed',
       success: {
@@ -145,9 +145,9 @@ export const invoiceToSelf: TutorialDef = {
   handoff: {
     pathname: '/invoice',
     projectParam: 'projectId',
-    realJobLabel: name => `Bill ${name} →`,
+    realJobLabel: name => `Bill ${name}`,
     feature: 'change_orders_invoicing',
-    paywallLabel: 'Invoicing comes with Pro — see plans',
+    paywallLabel: 'Invoicing Comes with Pro: See Plans',
     roles: ['owner', 'editor'],
     offerStripe: true,
   },

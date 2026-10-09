@@ -76,7 +76,7 @@ async function main() {
   {
     const { io, calls } = makeIo([{ status: 'signed', homeownerSigned: true }], 1);
     const o = await recordHomeownerSignatureWith(io, 'c1', paperSig);
-    ok('already signed in the portal → NOT overwritten, says so', o.kind === 'not_sent' && calls.writes === 0 && /Already signed/.test(recordSignatureOutcomeMessage(o)!.title));
+    ok('already signed in the portal → NOT overwritten, says so', o.kind === 'not_sent' && calls.writes === 0 && /Already Signed/.test(recordSignatureOutcomeMessage(o)!.title));
   }
   {
     const { io, calls } = makeIo([{ status: 'draft', homeownerSigned: false }], 1);
@@ -91,7 +91,7 @@ async function main() {
   {
     const { io } = makeIo([{ status: 'sent', homeownerSigned: false }], 1, { throwOn: 'read', err: new TypeError('Network request failed') });
     const o = await recordHomeownerSignatureWith(io, 'c1', paperSig);
-    ok('no signal refuses with the reason (nothing half-written)', o.kind === 'offline' && /No connection/.test(recordSignatureOutcomeMessage(o)!.title));
+    ok('no signal refuses with the reason (nothing half-written)', o.kind === 'offline' && /No Connection/.test(recordSignatureOutcomeMessage(o)!.title));
   }
   {
     const { io } = makeIo([{ status: 'sent', homeownerSigned: false }], 1, { throwOn: 'write', err: { message: 'permission denied for table project_contracts', code: '42501' } });
@@ -143,7 +143,7 @@ async function main() {
   // below keeps its rule on the write that now carries it.
   const paper = callbackBody(contract, 'recordPaper');
   const inPerson = callbackBody(contract, 'recordInPerson');
-  ok('contract: "Record client signature" shows on a SENT contract', /contract\.status === 'sent' && \(\s*<Button\s+label="Record client signature"/.test(contract));
+  ok('contract: "Record Client Signature" shows on a SENT contract', /contract\.status === 'sent' && \(\s*<Button\s+label="Record Client Signature"/.test(contract));
   ok('contract: paper uploads the photo BEFORE the write, and a failed upload records nothing',
     paper.indexOf('uploadSignedPageEvidence(') > 0 && paper.indexOf('uploadSignedPageEvidence(') < paper.indexOf('recordHomeownerSignature(')
       && /return \{ status: 'refused', reason: signingCopy\.paperUploadRefused\(\) \};\s*\}\s*\}\s*const sig/.test(paper));
@@ -184,12 +184,12 @@ async function main() {
 
   // ── #68 ──────────────────────────────────────────────────────────────────
   console.log('\n#68 — an unsaved estimate is confirmed before it is lost (interim: no auto-save)');
-  ok('Start a new estimate asks first when the result is not on a project',
+  ok('Start a New Estimate asks first when the result is not on a project',
     /if \(!unsavedRef\.current \|\| attachedIdRef\.current\) \{ doReset\(\); return; \}\s*confirmDiscard\(doReset\);/.test(callbackBody(wiz, 'reset')));
   ok('leaving the screen asks too (beforeRemove)', /navigation\.addListener\('beforeRemove'[\s\S]{0,400}e\.preventDefault\(\);\s*confirmDiscard\(/.test(wiz));
   const confirm = callbackBody(wiz, 'confirmDiscard');
-  ok('the confirm offers Save to a project / Discard / Cancel and says when it was already sent',
-    /'Cancel'/.test(confirm) && /'Discard'/.test(confirm) && /'Save to a project'/.test(confirm) && /You sent this estimate but haven/.test(confirm));
+  ok('the confirm offers Save to a Project / Discard / Cancel and says when it was already sent',
+    /'Cancel'/.test(confirm) && /'Discard'/.test(confirm) && /'Save to a Project'/.test(confirm) && /You sent this estimate but haven/.test(confirm));
   ok('the onboarding share\'s own save cannot trip the guard (attachedIdRef set synchronously)', /attachedIdRef\.current = id;/.test(callbackBody(wiz, 'persistNewProject')));
 
   // ── #110 ─────────────────────────────────────────────────────────────────
@@ -246,7 +246,7 @@ async function main() {
   ok('…and it publishes the SAVED portal, not the local switches',
     /const portal = publishPortal;/.test(persist) && /snapshot: publishedSnapshot as unknown as Record<string, unknown>/.test(persist) && !/snapshot: snapshot as/.test(persist));
   ok('the published portal is built from project.clientPortal', /const savedPortal = project\?\.clientPortal;/.test(setup) && /\.\.\.savedPortal,\s*invites: savedPortal\.invites \?\? \[\]/.test(setup));
-  ok('a refused upsert is shown as "not published"', /setPublishState\('refused'\)/.test(persist) && /Not published — the server refused this update/.test(read('app/client-portal-setup.tsx')));
+  ok('a refused upsert is shown as "not published"', /setPublishState\('refused'\)/.test(persist) && /Not published. The server refused this update/.test(read('app/client-portal-setup.tsx')));
   ok('the hold is said on screen', /Portal will update when your lists finish syncing\./.test(read('app/client-portal-setup.tsx')));
   ok('hash / invite links: the SAVED snapshot, short link while lists are not server-read',
     /if \(!publishedSnapshot \|\| !portalListsServerRead\) return portalLink;/.test(setup) && /if \(!portalListsServerRead\) return buildShortPortalUrl\(/.test(setup));
@@ -254,12 +254,12 @@ async function main() {
     /updateProject\(id, \{ clientPortal: \{ \.\.\.base, linkDurationDays: durationChoice, linkExpiresAt: nextExpiry \?\? undefined, linkGeneratedAt: next\.linkGeneratedAt \} \}\)/.test(setup));
   ok('leaving with unsaved switches asks first', /'Discard portal changes\?'/.test(setup));
   ok('#19: the owner-only reason, in the link controls\' words', /'Only the project owner can change what the client sees on the portal\.'/.test(setup));
-  ok('#19: Save refuses for a non-owner instead of "Saved"', /if \(ownerOnlyReason\) \{ showAlert\('Not saved', ownerOnlyReason\); return; \}/.test(callbackBody(setup, 'handleSave')));
+  ok('#19: Save refuses for a non-owner instead of "Saved"', /if \(ownerOnlyReason\) \{ showAlert\('Not Saved', ownerOnlyReason\); return; \}/.test(callbackBody(setup, 'handleSave')));
   ok('#19: the header Save is disabled for a non-owner', /disabled=\{isSaving \|\| !!ownerOnlyReason\}/.test(setup));
   const switches = (setup.match(/<Switch\b/g) ?? []).length;
   const gated = (setup.match(/<Switch\s+disabled=\{!!ownerOnlyReason\}/g) ?? []).length;
   ok('#19: every settings switch but the proposal one (gated in its handler) is disabled for a non-owner', gated === switches - 1, `${gated}/${switches}`);
-  ok('#19: the proposal switch handler refuses a non-owner', /if \(ownerOnlyReason\) \{ showAlert\('Not changed', ownerOnlyReason\); return; \}/.test(callbackBody(setup, 'handleProposalSwitch')));
+  ok('#19: the proposal switch handler refuses a non-owner', /if \(ownerOnlyReason\) \{ showAlert\('Not Changed', ownerOnlyReason\); return; \}/.test(callbackBody(setup, 'handleProposalSwitch')));
   ok('#19: "unknown" ownership falls back to the lite writer\'s rule (never a Save that never unlocks)',
     /\|\| \(ownership === 'unknown' && !!project && isPortalOwner\(project, userId\)\)/.test(setup));
 

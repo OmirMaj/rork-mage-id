@@ -307,7 +307,7 @@ export default function ScheduleReviewScreen() {
   const accept = useCallback(() => {
     if (!project || !draft) return;
     if (scheduleWriteBlockedReason) {
-      showAlert('Schedule not saved', scheduleWriteBlockedReason);
+      showAlert('Schedule Not Saved', scheduleWriteBlockedReason);
       return;
     }
     // A RUNNING schedule is replaced only after he has read what goes (#52).
@@ -318,7 +318,7 @@ export default function ScheduleReviewScreen() {
     const loss = scheduleReplacementLoss(project.schedule);
     if (loss) {
       showAlert('Replace the running schedule?', describeScheduleReplacement(loss, project.name), [
-        { text: 'Keep current schedule', style: 'cancel' },
+        { text: 'Keep Current Schedule', style: 'cancel' },
         { text: 'Replace', style: 'destructive', onPress: () => commitAccept() },
       ]);
       return;
@@ -433,7 +433,7 @@ export default function ScheduleReviewScreen() {
     try {
       const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate, projects, subcontractors);
       if (fresh.tasks.length === 0) {
-        showAlert('Couldn\'t rebuild', 'No tasks came back. Your current draft is unchanged.');
+        showAlert('Couldn\'t Rebuild', 'No tasks came back. Your current draft is unchanged.');
         return;
       }
       setTasks(fresh.tasks);
@@ -446,7 +446,7 @@ export default function ScheduleReviewScreen() {
       console.warn('[ScheduleReview] regenerate failed', rawErrorMessage(e));
       const own = ownSentence(e);
       const copy = describeError(e, { action: 'rebuild the schedule', keptLocally: true });
-      showAlert('Couldn\'t rebuild', own ? `${own} Your current draft is unchanged.` : copy.body);
+      showAlert('Couldn\'t Rebuild', own ? `${own} Your current draft is unchanged.` : copy.body);
     } finally {
       setRegenerating(false);
     }
@@ -462,16 +462,16 @@ export default function ScheduleReviewScreen() {
             <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.headerEyebrow}>Review schedule · MAGE ID</Text>
-            <Text style={styles.headerTitle} numberOfLines={1}>Draft schedule</Text>
+            <Text style={styles.headerEyebrow}>Review Schedule · MAGE ID</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Draft Schedule</Text>
           </View>
           <View style={styles.headerBtn} />
         </View>
         <EmptyState
           icon={<MageAIMark size={36} color={t.accent} />}
-          title="No draft to review"
+          title="No Draft to Review"
           message="Draft a schedule from your estimate, then review it here before you apply it."
-          actionLabel="Go back"
+          actionLabel="Go Back"
           onAction={() => router.back()}
         />
       </View>
@@ -487,8 +487,8 @@ export default function ScheduleReviewScreen() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Review schedule · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Draft schedule'}</Text>
+          <Text style={styles.headerEyebrow}>Review Schedule · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Draft Schedule'}</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -621,7 +621,7 @@ export default function ScheduleReviewScreen() {
               disabled={regenerating}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Regenerate schedule"
+              accessibilityLabel="Regenerate Schedule"
             >
               {regenerating ? (
                 <>
@@ -643,10 +643,10 @@ export default function ScheduleReviewScreen() {
             activeOpacity={0.85}
             testID="accept-schedule"
             accessibilityRole="button"
-            accessibilityLabel="Use this schedule"
+            accessibilityLabel="Use This Schedule"
           >
             <Check size={17} color={Colors.textOnAccent} strokeWidth={2.5} />
-            <Text style={styles.ctaText}>Use this schedule</Text>
+            <Text style={styles.ctaText}>Use This Schedule</Text>
           </TouchableOpacity>
         </ActionBar>
       </View>

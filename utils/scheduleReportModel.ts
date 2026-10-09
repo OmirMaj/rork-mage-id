@@ -134,16 +134,16 @@ export function detectRisks(
     const ct = cpm.perTask.get(t.id);
     const tf = ct?.totalFloat ?? 0;
     const w = windowOf(t);
-    if (!done && w.ef < dayCursor) out.push({ kind: 'overdue', severity: 'hi', text: `${t.title} — overdue, ${t.progress ?? 0}%` });
-    else if (!done && tf <= 0 && !t.isMilestone) out.push({ kind: 'zero_float', severity: 'hi', text: `${t.title} — 0 float (drives finish)` });
-    else if (!done && tf > 0 && tf <= 2 && !t.isMilestone) out.push({ kind: 'low_float', severity: 'md', text: `${t.title} — only ${tf}d float` });
-    if (!done && !t.isMilestone && !(t.crew || '').trim() && !t.assignedSubName) out.push({ kind: 'unstaffed', severity: 'lo', text: `${t.title} — no crew assigned` });
+    if (!done && w.ef < dayCursor) out.push({ kind: 'overdue', severity: 'hi', text: `${t.title}: overdue, ${t.progress ?? 0}%` });
+    else if (!done && tf <= 0 && !t.isMilestone) out.push({ kind: 'zero_float', severity: 'hi', text: `${t.title}: 0 float (drives finish)` });
+    else if (!done && tf > 0 && tf <= 2 && !t.isMilestone) out.push({ kind: 'low_float', severity: 'md', text: `${t.title}: only ${tf}d float` });
+    if (!done && !t.isMilestone && !(t.crew || '').trim() && !t.assignedSubName) out.push({ kind: 'unstaffed', severity: 'lo', text: `${t.title}: no crew assigned` });
     const blEnd = baselineEndById.get(t.id);
     if (blEnd != null) {
       const slip = slipDays(blEnd, w.ef);
-      if (slip >= 2) out.push({ kind: 'behind', severity: 'md', text: `${t.title} — +${slip}d vs baseline` });
+      if (slip >= 2) out.push({ kind: 'behind', severity: 'md', text: `${t.title}: +${slip}d vs baseline` });
     }
-    if (!done && t.isMilestone && /inspect/i.test(t.title) && w.es >= dayCursor && w.es <= dayCursor + 21) out.push({ kind: 'inspection', severity: 'md', text: `${t.title} — upcoming inspection, book ahead` });
+    if (!done && t.isMilestone && /inspect/i.test(t.title) && w.es >= dayCursor && w.es <= dayCursor + 21) out.push({ kind: 'inspection', severity: 'md', text: `${t.title}: upcoming inspection, book ahead` });
   }
   return out.slice(0, 10);
 }
@@ -250,7 +250,7 @@ export function assembleScheduleReport(input: {
       .filter((t) => { const w = windowOf(t); return w.es <= hi && w.ef >= lo; })
       .slice(0, 6)
       .map((t) => { const w = windowOf(t); return { title: t.title || 'Untitled', crew: t.crew || (t.assignedSubName ?? ''), startIso: isoShort(startDateIso, w.es), finishIso: isoShort(startDateIso, w.ef), isMilestone: !!t.isMilestone }; });
-    return { weekLabel: w === 0 ? 'This week' : w === 1 ? 'Next week' : '+2 weeks', items };
+    return { weekLabel: w === 0 ? 'This Week' : w === 1 ? 'Next Week' : '+2 weeks', items };
   });
 
   const milestones = tasks

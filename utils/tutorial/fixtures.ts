@@ -14,7 +14,7 @@ import type { LinkedEstimate, ScheduleTask } from '@/types';
 import type { SampleDfrParse, SampleEstimateLine } from './types';
 
 /** On-screen label for every fixture-driven fill. */
-export const SAMPLE_NO_CREDITS_LABEL = 'Sample — no AI credits used';
+export const SAMPLE_NO_CREDITS_LABEL = 'Sample (No AI Credits Used)';
 
 // ── Daily report: the sample voice note ─────────────────────────────────────
 // Three sections from one note — crew, work done, the delay — and 3 crew, so
@@ -32,7 +32,7 @@ const DFR_PARSED: SampleDfrParse = {
     { id: 'mp-sample-1', trade: 'Electrical', company: 'Volt Bros', headcount: 1, hoursWorked: 8 },
   ],
   workPerformed: 'Set kitchen base cabinets. Pulled wire for the new island circuit.',
-  issuesAndDelays: 'Countertop template slipped to Thursday — fabricator out.',
+  issuesAndDelays: 'Countertop template slipped to Thursday. Fabricator out.',
 };
 
 export const DFR_SAMPLE_NOTE: { transcript: string; parsed: SampleDfrParse; sections: readonly string[] } = {
@@ -108,14 +108,14 @@ function line(materialId: string, name: string, category: string, csiDivision: s
 }
 
 export const SAMPLE_ESTIMATE_LINES: readonly SampleEstimateLine[] = [
-  line('sample-demo', 'Demolition & haul-off', 'Demolition', '02', 18_000),
-  line('sample-framing', 'Framing & rough carpentry', 'Carpentry', '06', 32_500),
-  line('sample-plumbing', 'Plumbing rough & finish', 'Plumbing', '22', 64_000),
-  line('sample-electrical', 'Electrical rough & finish', 'Electrical', '26', 48_500),
-  line('sample-drywall', 'Drywall, tape & paint', 'Finishes', '09', 36_400),
-  line('sample-cabinets', 'Kitchen cabinets & counters', 'Casework', '12', 118_000),
-  line('sample-tile', 'Tile — 2 baths + backsplash', 'Finishes', '09', 57_000),
-  line('sample-fixtures', 'Fixtures, trim & closeout', 'Fixtures', '22', 48_000),
+  line('sample-demo', 'Demolition and haul-off', 'Demolition', '02', 18_000),
+  line('sample-framing', 'Framing and rough carpentry', 'Carpentry', '06', 32_500),
+  line('sample-plumbing', 'Plumbing rough and finish', 'Plumbing', '22', 64_000),
+  line('sample-electrical', 'Electrical rough and finish', 'Electrical', '26', 48_500),
+  line('sample-drywall', 'Drywall, tape and paint', 'Finishes', '09', 36_400),
+  line('sample-cabinets', 'Kitchen cabinets and counters', 'Casework', '12', 118_000),
+  line('sample-tile', 'Tile: 2 baths + backsplash', 'Finishes', '09', 57_000),
+  line('sample-fixtures', 'Fixtures, trim and closeout', 'Fixtures', '22', 48_000),
 ];
 
 export const SAMPLE_ESTIMATE_TOTAL = 422_400;
@@ -157,7 +157,7 @@ export interface SampleMoveOp {
 }
 
 export const SCHEDULE_SAMPLE = {
-  sentence: 'Push drywall 2 days — board delivery slipped',
+  sentence: 'Push drywall 2 days, board delivery slipped',
   /** Normalize before comparing: exact match only, so edited words run the
    *  real AI and the real meter. */
   normalize(s: string): string {
@@ -197,10 +197,10 @@ export interface SampleScheduleTask {
 
 export const SAMPLE_SCHEDULE_TASKS: readonly SampleScheduleTask[] = [
   { key: 'demo', title: 'Demo', phase: 'Demo', durationDays: 3, startDay: 1, after: [] },
-  { key: 'framing', title: 'Frame walls', phase: 'Framing', durationDays: 3, startDay: 4, after: ['demo'] },
-  { key: 'plumbing', title: 'Rough plumbing', phase: 'Plumbing', durationDays: 4, startDay: 7, after: ['framing'] },
-  { key: 'electrical', title: 'Rough electrical', phase: 'Electrical', durationDays: 3, startDay: 7, after: ['framing'] },
-  { key: 'drywall', title: 'Hang & finish drywall', phase: 'Drywall', durationDays: 5, startDay: 11, after: ['plumbing', 'electrical'] },
+  { key: 'framing', title: 'Frame Walls', phase: 'Framing', durationDays: 3, startDay: 4, after: ['demo'] },
+  { key: 'plumbing', title: 'Rough Plumbing', phase: 'Plumbing', durationDays: 4, startDay: 7, after: ['framing'] },
+  { key: 'electrical', title: 'Rough Electrical', phase: 'Electrical', durationDays: 3, startDay: 7, after: ['framing'] },
+  { key: 'drywall', title: 'Hang and Finish Drywall', phase: 'Drywall', durationDays: 5, startDay: 11, after: ['plumbing', 'electrical'] },
   { key: 'paint', title: 'Paint', phase: 'Finishes', durationDays: 3, startDay: 16, after: ['drywall'] },
 ];
 

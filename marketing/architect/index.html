@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#0B0D10" />
 <meta name="robots" content="noindex" />
-<title>Reviewer Portal — MAGE ID</title>
+<title>Reviewer Portal · MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
@@ -281,13 +281,19 @@
 </style>
 </head>
 <body>
+<a class="mg-skip" href="#content">Skip to Main Content</a>
+<aside class="mg-notice" data-recipient-notice="1" aria-label="About This Page" style="box-sizing:border-box;padding:12px 16px;background:#F4F5F2;color:#0B0D10;font-size:14px;line-height:1.5;border-bottom:1px solid #C9CDC6;text-align:left">
+  <p style="margin:0 auto;max-width:960px;color:#0B0D10">Prepared by <span data-notice-company>your contractor</span> using MAGE ID software. MAGE ID did not prepare, review or check this document and makes no statement to the reader about its contents.</p>
+  <p style="margin:4px auto 0;max-width:960px;color:#0B0D10">This page is run by MAGE ID for <span data-notice-company>your contractor</span>. <a href="https://mageid.app/terms" style="color:#1F4D29;font-weight:600">Terms of Service</a> · <a href="https://mageid.app/privacy" style="color:#1F4D29;font-weight:600">Privacy Policy</a></p>
+</aside>
+<script src="/protect-notice.js?v=2026-10-09"></script>
 
 <div class="container" id="app">
   <div class="header">
     <div class="logo">M</div>
     <div>
       <div class="brand">MAGE ID</div>
-      <div class="brand-sub">Reviewer portal</div>
+      <div class="brand-sub">Reviewer Portal</div>
     </div>
   </div>
 
@@ -371,7 +377,7 @@
     document.getElementById('content').innerHTML =
       '<div class="error-state">' +
         '<div class="empty-icon" style="background:var(--error);color:#fff;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><path d="M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg></div>' +
-        '<div class="empty-title">Link not valid</div>' +
+        '<div class="empty-title">Link Not Valid</div>' +
         '<div class="empty-body">' + escHtml(msg || 'This link is invalid or expired. Ask your contractor to send you a new one.') + '</div>' +
       '</div>';
   }
@@ -380,7 +386,7 @@
     document.getElementById('content').innerHTML =
       '<div class="success-state">' +
         '<div class="success-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-0.12em"><path d="M20 6 9 17l-5-5"/></svg></div>' +
-        '<div class="empty-title">Response sent</div>' +
+        '<div class="empty-title">Response Sent</div>' +
         '<div class="empty-body">' +
           // #56: true once 20260919080000 is live — the response is filed on
           // the contractor's record and a pro_response_received alert is sent.
@@ -490,7 +496,7 @@
         return '<i class="att-pin" style="left:' + (Number(m.x) * 100).toFixed(2) + '%;top:' + (Number(m.y) * 100).toFixed(2) + '%"></i>';
       }).join('') : '';
       var img = '<img src="' + escHtml(u) + '" alt="Attachment ' + (i + 1) + '" loading="lazy" ' +
-        'onerror="this.closest(\'a\').querySelector(\'span\').textContent=\'Could not load — see the email copy\';this.remove();">';
+        'onerror="this.closest(\'a\').querySelector(\'span\').textContent=\'Could not load. See the email copy.\';this.remove();">';
       return '<a class="att-tile" href="' + escHtml(u) + '" target="_blank" rel="noopener noreferrer">' +
         (circles ? '<div class="att-frame">' + img + circles + '</div>' : img) +
         '<span>' + (circles ? 'Marked location circled · open full size' : 'Open attachment ' + (i + 1)) + '</span></a>';
@@ -514,7 +520,7 @@
   function closedBlock() {
     return '<div class="doc-card"><div class="error-state" style="text-align:left;">' +
       '<div class="empty-title">This RFI is closed</div>' +
-      '<div class="empty-body">The contractor has closed this RFI, so it no longer takes answers here. If something has changed, contact the contractor directly — they can reopen it or raise a new RFI.</div>' +
+      '<div class="empty-body">The contractor has closed this RFI, so it no longer takes answers here. If something has changed, contact the contractor directly. They can reopen it or raise a new RFI.</div>' +
       '</div></div>';
   }
 
@@ -525,7 +531,7 @@
     // name) — it never replaces it. The old copy promised a history ("all of
     // them in chronological order") that no screen showed.
     var existingNotice = rfi.has_existing_response && !closed
-      ? '<div style="margin-top:14px;"><span class="existing-pill">A response was already filed for this RFI</span><div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;">You can still send a revision. It is added below the answer on file, dated and with your name — the first answer is not replaced.</div></div>'
+      ? '<div style="margin-top:14px;"><span class="existing-pill">A response was already filed for this RFI</span><div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;">You can still send a revision. It is added below the answer on file, dated and with your name. The first answer is not replaced.</div></div>'
       : '';
 
     var html = '' +
@@ -538,10 +544,10 @@
           '<div class="doc-meta-item"><div class="doc-meta-label">Priority</div>' +
             '<div class="doc-meta-value"><span class="priority-pill ' + priorityClass + '">' + escHtml(rfi.priority || 'normal') + '</span></div>' +
           '</div>' +
-          '<div class="doc-meta-item"><div class="doc-meta-label">Response needed by</div>' +
+          '<div class="doc-meta-item"><div class="doc-meta-label">Response Needed By</div>' +
             '<div class="doc-meta-value">' + escHtml(fmtDate(rfi.date_required)) + '</div></div>' +
-          (rfi.submitted_by ? '<div class="doc-meta-item"><div class="doc-meta-label">Submitted by</div><div class="doc-meta-value">' + escHtml(rfi.submitted_by) + '</div></div>' : '') +
-          (rfi.linked_drawing ? '<div class="doc-meta-item"><div class="doc-meta-label">Linked drawing</div><div class="doc-meta-value">' + escHtml(rfi.linked_drawing) + '</div></div>' : '') +
+          (rfi.submitted_by ? '<div class="doc-meta-item"><div class="doc-meta-label">Submitted By</div><div class="doc-meta-value">' + escHtml(rfi.submitted_by) + '</div></div>' : '') +
+          (rfi.linked_drawing ? '<div class="doc-meta-item"><div class="doc-meta-label">Linked Drawing</div><div class="doc-meta-value">' + escHtml(rfi.linked_drawing) + '</div></div>' : '') +
         '</div>' +
         existingNotice +
         '<div class="question-card">' +
@@ -567,10 +573,10 @@
         '<div class="doc-title">' + escHtml(sub.title) + '</div>' +
         '<div class="doc-project">' + escHtml(sub.project_name) + (sub.spec_section ? ' · Spec ' + escHtml(sub.spec_section) : '') + '</div>' +
         '<div class="doc-meta-row">' +
-          '<div class="doc-meta-item"><div class="doc-meta-label">Review by</div>' +
+          '<div class="doc-meta-item"><div class="doc-meta-label">Review By</div>' +
             '<div class="doc-meta-value">' + escHtml(fmtDate(sub.required_date)) + '</div></div>' +
-          (sub.submitted_by ? '<div class="doc-meta-item"><div class="doc-meta-label">Submitted by</div><div class="doc-meta-value">' + escHtml(sub.submitted_by) + '</div></div>' : '') +
-          '<div class="doc-meta-item"><div class="doc-meta-label">Current status</div>' +
+          (sub.submitted_by ? '<div class="doc-meta-item"><div class="doc-meta-label">Submitted By</div><div class="doc-meta-value">' + escHtml(sub.submitted_by) + '</div></div>' : '') +
+          '<div class="doc-meta-item"><div class="doc-meta-label">Current Status</div>' +
             '<div class="doc-meta-value">' + escHtml((sub.current_status || 'pending').replace(/_/g, ' ')) + '</div></div>' +
         '</div>' +
         (attCount > 0 ? '<div style="font-size:12px;color:var(--text-muted);margin-top:14px;"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></svg> ' + attCount + ' attachment' + (attCount === 1 ? '' : 's') + ' included with the original</div>' : '') +
@@ -610,19 +616,19 @@
     if (docType === 'submittal') {
       actionBlock =
         '<div class="form-group">' +
-          '<label class="form-label">Action code *</label>' +
-          '<div class="action-grid">' +
-            '<div class="action-card" data-code="approved" tabindex="0"><div class="name">Approved</div><div class="desc">Proceed as submitted</div></div>' +
-            '<div class="action-card" data-code="approved_as_noted" tabindex="0"><div class="name">Approved as Noted</div><div class="desc">Proceed with comments</div></div>' +
-            '<div class="action-card" data-code="revise_resubmit" tabindex="0"><div class="name">Revise &amp; Resubmit</div><div class="desc">Revise per comments</div></div>' +
-            '<div class="action-card" data-code="rejected" tabindex="0"><div class="name">Rejected</div><div class="desc">Not in compliance</div></div>' +
+          '<div class="form-label" id="action-code-label">Action Code *</div>' +
+          '<div class="action-grid" role="radiogroup" aria-labelledby="action-code-label">' +
+            '<div class="action-card" role="radio" aria-checked="false" data-code="approved" tabindex="0"><div class="name">Approved</div><div class="desc">Proceed as submitted</div></div>' +
+            '<div class="action-card" role="radio" aria-checked="false" data-code="approved_as_noted" tabindex="0"><div class="name">Approved as Noted</div><div class="desc">Proceed with comments</div></div>' +
+            '<div class="action-card" role="radio" aria-checked="false" data-code="revise_resubmit" tabindex="0"><div class="name">Revise and Resubmit</div><div class="desc">Revise per comments</div></div>' +
+            '<div class="action-card" role="radio" aria-checked="false" data-code="rejected" tabindex="0"><div class="name">Rejected</div><div class="desc">Not in compliance</div></div>' +
           '</div>' +
         '</div>';
     }
 
     return '' +
       '<form id="response-form" class="doc-card">' +
-        '<div class="section-title">Your response</div>' +
+        '<div class="section-title">Your Response</div>' +
         actionBlock +
         '<div class="form-group">' +
           '<label class="form-label" for="response-body">' +
@@ -632,16 +638,16 @@
         '</div>' +
         '<div class="form-row">' +
           '<div class="form-group">' +
-            '<label class="form-label" for="responder-name">Your name</label>' +
-            '<input id="responder-name" class="form-input" type="text" placeholder="e.g. Sarah Chen" />' +
+            '<label class="form-label" for="responder-name">Your Name</label>' +
+            '<input id="responder-name" class="form-input" type="text" placeholder="Sarah Chen" />' +
           '</div>' +
           '<div class="form-group">' +
-            '<label class="form-label" for="responder-email">Your email</label>' +
+            '<label class="form-label" for="responder-email">Your Email</label>' +
             '<input id="responder-email" class="form-input" type="email" placeholder="you@firm.com" />' +
           '</div>' +
         '</div>' +
         '<div class="form-group">' +
-          '<label class="form-label" for="responder-role">Your role</label>' +
+          '<label class="form-label" for="responder-role">Your Role</label>' +
           '<select id="responder-role" class="form-select">' +
             '<option value="architect">Architect</option>' +
             '<option value="engineer">Engineer</option>' +
@@ -651,7 +657,7 @@
           '</select>' +
         '</div>' +
         '<button id="submit-btn" class="submit-btn" type="submit">' +
-          (docType === 'rfi' ? 'Send response' : 'Send review') +
+          (docType === 'rfi' ? 'Send Response' : 'Send Review') +
         '</button>' +
         '<div class="helper-banner">' +
           (docType === 'rfi'
@@ -667,10 +673,16 @@
   function wireForm() {
     // Action card selection (submittals only)
     document.querySelectorAll('.action-card').forEach(function (card) {
-      card.addEventListener('click', function () {
-        document.querySelectorAll('.action-card').forEach(function (c) { c.classList.remove('selected'); });
+      var choose = function () {
+        document.querySelectorAll('.action-card').forEach(function (c) { c.classList.remove('selected'); c.setAttribute('aria-checked', 'false'); });
         card.classList.add('selected');
+        card.setAttribute('aria-checked', 'true');
         selectedActionCode = card.getAttribute('data-code');
+      };
+      card.addEventListener('click', choose);
+      // The cards take keyboard focus (tabindex 0), so Enter and Space choose one.
+      card.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); choose(); }
       });
     });
 
@@ -717,7 +729,7 @@
         renderSuccess(name, result.revision === true);
       }).catch(function (err) {
         btn.disabled = false;
-        btn.textContent = DOC_TYPE === 'rfi' ? 'Send response' : 'Send review';
+        btn.textContent = DOC_TYPE === 'rfi' ? 'Send Response' : 'Send Review';
         alert("Your response didn't send. Check your connection and try again.");
       });
     });
@@ -732,7 +744,7 @@
       return 'This link is invalid or expired. Ask your contractor to send you a new one.';
     }
     if (status >= 500) {
-      return 'The server could not load this document right now. Try again in a few minutes — if it keeps happening, ask the contractor to send a new link.';
+      return 'The server could not load this document right now. Try again in a few minutes. If it keeps happening, ask the contractor to send a new link.';
     }
     return 'Could not reach the server. Check your connection and try again.';
   }

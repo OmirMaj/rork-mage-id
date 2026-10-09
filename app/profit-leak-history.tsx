@@ -209,7 +209,7 @@ function ProfitLeakHistoryInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'Profit leak history',
+          title: 'Profit Leak History',
           headerShown: true,
           headerStyle: { backgroundColor: t.bg },
           headerTintColor: t.accent,
@@ -244,7 +244,7 @@ function ProfitLeakHistoryInner() {
             <View style={styles.errorBanner} testID="leak-history-stale">
               <CloudOff size={14} color={t.textMuted} strokeWidth={1.75} />
               <Text style={styles.errorBannerText}>
-                {"Couldn't refresh — no signal or the server didn't answer. Showing what was loaded before."}
+                {"Couldn't refresh: no signal, or the server didn't answer. Showing what was loaded before."}
               </Text>
             </View>
           ) : null}
@@ -294,7 +294,7 @@ function ProfitLeakHistoryInner() {
           {loadError && rows.length === 0 ? (
             <View style={styles.emptyWrap} testID="leak-history-error">
               <CloudOff size={32} color={t.textMuted} strokeWidth={1.5} />
-              <Text style={styles.emptyTitle}>{"Couldn't load your profit leak scans"}</Text>
+              <Text style={styles.emptyTitle}>{"Couldn't Load Your Profit Leak Scans"}</Text>
               <Text style={styles.emptyBody}>
                 {"No signal or the server didn't answer. Your scans are still on your account."}
               </Text>
@@ -303,11 +303,11 @@ function ProfitLeakHistoryInner() {
                 onPress={() => { void reload(); }}
                 disabled={refreshing}
                 accessibilityRole="button"
-                accessibilityLabel="Load profit leak scans again"
+                accessibilityLabel="Load Profit Leak Scans Again"
                 testID="leak-history-retry"
               >
                 <RotateCw size={14} color={t.accent} strokeWidth={2} />
-                <Text style={styles.retryText}>{refreshing ? 'Loading scans…' : 'Try again'}</Text>
+                <Text style={styles.retryText}>{refreshing ? 'Loading scans…' : 'Try Again'}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -315,7 +315,7 @@ function ProfitLeakHistoryInner() {
           {!loadError && rows.length === 0 && (
             <View style={styles.emptyWrap}>
               <TrendingDown size={32} color={t.textMuted} strokeWidth={1.5} />
-              <Text style={styles.emptyTitle}>No profit leak scans yet</Text>
+              <Text style={styles.emptyTitle}>No Profit Leak Scans Yet</Text>
               <Text style={styles.emptyBody}>
                 When the brain flags extra work in a daily report that wasn't billed as a change order, it appears here.
               </Text>
@@ -350,7 +350,7 @@ function ProfitLeakHistoryInner() {
 
           {partialRows.length > 0 && (
             <BucketSection
-              label="Partly billed"
+              label="Partly Billed"
               subtitle="Some flagged items matched an approved change order; the rest found no match within 60 days"
               icon={<CircleDashed size={15} color={t.success} strokeWidth={1.75} />}
               tint={t.success}
