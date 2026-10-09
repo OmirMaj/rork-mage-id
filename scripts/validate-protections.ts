@@ -291,6 +291,19 @@ export const BANNED: Ban[] = [
  */
 export const BAN_EXEMPT: { file: string; has: string; why: string }[] = [
   { file: 'utils/contractEngine.ts', has: 'accept this proposal as the binding agreement', why: 'template clause on the proposal the client signs: clause text is counsel\'s to change' },
+  // CONSENT TEXT, NOT CHANGED. The sentence a homeowner agrees to when he
+  // counter-signs a contract in the portal. The signing RPC stores no copy of
+  // it and no version, so changing it would leave no way to tell which
+  // sentence a given signer saw. It stays word for word until counsel supplies
+  // the replacement AND the signature record carries a consent version
+  // (scripts/moments-checks/portal.ts pins its hash, rule P8).
+  { file: 'marketing/portal/index.html', has: 'you accept the agreement as legally binding', why: 'unversioned contract consent text: counsel and a versioned record first' },
+  { file: 'marketing/portal/index.html', has: 'acepta el acuerdo como legalmente vinculante', why: 'same, Spanish' },
+  { file: 'marketing/portal/index.html', has: 'aceita o acordo como legalmente vinculante', why: 'same, Portuguese' },
+  { file: 'marketing/portal/index.html', has: '具有法律约束力', why: 'same, Chinese' },
+  { file: 'marketing/portal/index.html', has: 'có giá trị pháp lý', why: 'same, Vietnamese' },
+  { file: 'marketing/portal/index.html', has: 'juridiquement contraignant', why: 'same, French' },
+  { file: 'utils/portalLanguages.ts', has: 'contractFinePrint:', why: 'the same consent sentence in the published language packs' },
   { file: 'app/dev-seeder.tsx', has: 'verified', why: 'dev seed data' },
   { file: 'utils/instantBid.ts', has: 'APR', why: 'dead while FINANCING_FIGURES_ENABLED is false (pinned in P7)' },
 ];
@@ -529,9 +542,9 @@ const MUTATIONS: Mutation[] = [
   { what: 'Sign Up moves it below the Apple button', rule: 'P3 the agreement sentence sits above the buttons on every account-creating screen', edit: (f) => { const s = f['app/signup.tsx']; const i = s.indexOf('<AgreementNotice testID="signup-agreement"'); const j = s.indexOf('/>', i) + 2; const tag = s.slice(i, j); f['app/signup.tsx'] = s.slice(0, i) + s.slice(j).replace('testID="signup-google-top"', `testID="signup-google-top"\n${tag}`); } },
   { what: 'a new screen signs people in with Google and no sentence', rule: 'P3 the agreement sentence sits above the buttons on every account-creating screen', edit: (f) => { f['app/quick-start.tsx'] = 'export default function Q() { const go = async () => { await signInWithGoogle(); }; return null; }'; } },
   { what: 'the sentence turns into a recording checkbox', rule: 'P3 the agreement sentence sits above the buttons on every account-creating screen', edit: (f) => sub(f, 'components/ProtectNotices.tsx', "import React from 'react';", "import React from 'react';\nimport { Switch } from 'react-native';") },
-  { what: '"legally binding" returns to the portal', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'marketing/portal/index.html', 'you are signing this agreement electronically', 'you accept the agreement as legally binding') },
+  { what: '"legally binding" returns to the portal', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'marketing/portal/index.html', "contractSignedDisclaimer: 'This is the agreement you signed. Keep a copy for your records.'", "contractSignedDisclaimer: 'Your signature is legally binding. Keep it for your records.'") },
   { what: 'the E-SIGN sentence returns to the waiver page', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'marketing/lien-waiver/index.html', 'I intend this to be my signature.', 'It is binding under the federal E-SIGN Act.') },
-  { what: 'Spanish "legalmente vinculante" returns', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'utils/portalLanguages.ts', 'usted firma este acuerdo electrónicamente.', 'acepta el acuerdo como legalmente vinculante.') },
+  { what: 'Spanish "legalmente vinculante" returns', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'utils/portalLanguages.ts', 'Revise el contrato y fírmelo.', 'Revise el contrato y fírmelo para hacerlo vinculante.') },
   { what: 'an accuracy promise returns to Post a Project', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'app/post-rfp.tsx', 'More detail helps contractors price your job.', 'The more details you add, the more accurate your bids.') },
   { what: '"Verified Pros" returns', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'app/post-rfp.tsx', 'Notify Only Contractors With a License on File', 'Notify Verified Pros Only') },
   { what: '"vetted sub directory" returns to pricing', rule: 'P4 no banned promise or legal conclusion in a string a user reads', edit: (f) => sub(f, 'marketing/pricing.html', '<li class="muted">Sub directory</li>', '<li class="muted">Vetted sub directory</li>') },

@@ -445,7 +445,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
   let calls = 0;
   const hold = async (head: any) => { key(head, 'keydown', ' '); await wait(MOMENT_TIMING.holdFill + 150); };
 
-  const a = makeLine(async () => { calls++; return { status: 'confirmed', seal: { label: 'Signed. Keep a copy for your records.', chip: 'Binding', closing: true, recordedAt: '2026-09-27T18:41:00Z', recordedTemplate: 'Recorded {date}, {time} (server time).' } }; });
+  const a = makeLine(async () => { calls++; return { status: 'confirmed', seal: { label: 'Signed. Keep a copy for your records.', chip: 'Signed', closing: true, recordedAt: '2026-09-27T18:41:00Z', recordedTemplate: 'Recorded {date}, {time} (server time).' } }; });
   ok('E1 the head is a focusable button with the label, and the line starts idle', a.head?.tagName === 'BUTTON' && a.head.getAttribute('aria-label')?.includes('+$4,200.00') && a.host.querySelector('[data-state="idle"]'));
   await hold(a.head);
   const busySeal = a.host.querySelector('.mp-seal');
@@ -579,7 +579,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     const esFine = s.d.querySelector('#sec-contract [data-contract-fine-print]');
     ok('E2 Spanish (D-7): the counter-sign stays the tap button, no line, and the Spanish fine print is byte-identical ("pulsar Firmar")',
       !!signBtn(s.d) && !s.d.querySelector('[data-contract-line]') && esFine?.getAttribute('data-contract-fine-print') === 'tap'
-      && esFine.textContent === 'Al escribir su nombre y pulsar Firmar, usted firma este acuerdo electrónicamente. Su contratista conserva la copia firmada y sellada y puede enviársela.',
+      && esFine.textContent === 'Al escribir su nombre y pulsar Firmar, acepta el acuerdo como legalmente vinculante. Su contratista conserva la copia firmada y sellada y puede enviársela.',
       esFine?.outerHTML);
     ok('E2 the contract sign button renders locked, with the reason under it', signBtn(s.d)?.disabled === true && signLine(s.d) === 'Type your full legal name to sign.',
       `errors: ${s.errors.join(' | ')}; portal ${s.d.getElementById('portal')?.style.display}; sections ${s.d.getElementById('sections')?.innerHTML.length}; calls ${s.calls.join(', ')}`);
@@ -650,7 +650,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
   const holdSpace = async (w: Win, head: any) => { head.dispatchEvent(new w.KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })); await wait(MOMENT_TIMING.holdFill + 150); };
   const posts = (s: { calls: string[] }) => s.calls.filter((u) => u.includes('portal_sign_contract')).length;
   const settle = MOMENT_TIMING.minBusy + MOMENT_TIMING.failHomeLeadAt + 800;
-  const SLIDE_FINE = 'By typing your name and sliding along the line, you are signing this agreement electronically. Your contractor keeps the sealed signed copy and can send it to you.';
+  const SLIDE_FINE = 'By typing your name and sliding along the line, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.';
   scen.push(async (ok) => {
     const signedSnap = { ...snap, contract: { ...snap.contract, status: 'signed', needsSignature: false, homeownerSignerName: 'Dana Reyes', homeownerSignedAt: '2026-09-27T18:41:00.000Z', homeownerSignatureMethod: 'portal' } };
     let signed = false;
@@ -747,7 +747,7 @@ async function executedChecks(ctx: MomentsCtx, page: string, js: string): Promis
     typeName(s.w, s.d, 'Dana Reyes');
     ok('E4 English without moments.js falls back to the tap button and its "tapping Sign" fine print',
       !!signBtn(s.d) && signBtn(s.d).disabled === false && !s.d.querySelector('[data-contract-line]') && fine?.getAttribute('data-contract-fine-print') === 'tap'
-      && fine.textContent === 'By typing your name and tapping Sign, you are signing this agreement electronically. Your contractor keeps the sealed signed copy and can send it to you.',
+      && fine.textContent === 'By typing your name and tapping Sign, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
       `${s.errors.join(' | ')} / ${fine?.outerHTML}`);
     s.close();
   });
