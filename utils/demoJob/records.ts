@@ -20,7 +20,7 @@ import { DATA_DAY, type DemoClock } from './clock';
 import { divisionPercentOn } from './billing';
 import { DEMO_LEAD_SOURCE, DEMO_PROJECT_NAME } from './marker';
 import {
-  BASE_COST, CHANGE_ORDERS, COMMITMENTS, MARKUP_PERCENT, ORIGINAL_CONTRACT_SUM, PAID_PAY_APPS, PAY_APP_PERIOD_END,
+  BASE_COST, CHANGE_ORDERS, CHANGE_ORDER_PHASE, COMMITMENTS, MARKUP_PERCENT, ORIGINAL_CONTRACT_SUM, PAID_PAY_APPS, PAY_APP_PERIOD_END,
   RETAINAGE_PERCENT, SOV, approvedCosBy, scheduledValue, sovLabel,
 } from './money';
 import { LATE, buildDemoTasks, type DemoScheduleParts } from './schedule';
@@ -102,11 +102,13 @@ export function buildCommitments(id: IdOf, clock: DemoClock): Commitment[] {
       description: c.description,
       amount: c.amount,
       ...(c.change ? { changeAmount: c.change } : {}),
-      paidToDate: Math.round(value * paidShare(c.div)),
+      // A credit is taken when the deleted work would have been done; nothing is "paid" on it.
+      paidToDate: value > 0 ? Math.round(value * paidShare(c.div)) : 0,
       signedDate: clock.dayOf(c.signedDay),
-      phase: sovLabel(c.div),
-      csiDivision: c.div,
-      linkedEstimateItems: [id(`sov:${c.div}`)],
+      // An owner change order's work is bought against the Change Orders budget line, not the division's.
+      ...(c.changeOrder !== undefined
+        ? { phase: CHANGE_ORDER_PHASE }
+        : { phase: sovLabel(c.div), csiDivision: c.div, linkedEstimateItems: [id(`sov:${c.div}`)] }),
       status: 'active',
       notes: 'Made-up demo commitment, recorded by the contractor. No subcontract document is attached and nothing was sent for signature.',
       createdAt: clock.at(c.signedDay, 9),

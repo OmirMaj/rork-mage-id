@@ -29,8 +29,8 @@ example.com and every phone is (410) 555-01xx.
 | Retainage | flat 10 percent |
 | Pay applications 1 to 9, completed to date | $12.64M, 54.9 percent |
 | Paid (applications 1 to 8) / outstanding (9) | 8 paid in full net of retainage / 1 out, due in about two weeks |
-| Committed to subs and suppliers | 14 subcontracts, 4 purchase orders |
-| Projected margin | 9.6 percent, Concrete and Finishes over budget |
+| Committed to subs and suppliers | $17,798,000: 14 subcontracts, 4 purchase orders, 7 change-order subcontracts |
+| Projected final cost / margin | $20,823,429 against a $20,571,429 budget / 9.6 percent, Concrete (+$118,000) and Finishes (+$134,000) over |
 | Schedule | 120 tasks, 378 working days (about 17.5 months), data date is working day 228 (month 11), 58.1 percent complete |
 
 "Today" is the device's local day when Create is tapped (the last working day
@@ -52,7 +52,7 @@ shipment).
 | Project with estimate, schedule of values, schedule and baseline | 1 (120 tasks inside) | `projects`, `project_financials` | `addProject` |
 | Subcontractors | 17 | `subcontractors` | `addSubcontractor` |
 | Contacts | 10 | `contacts` | `addContact` |
-| Subcontracts and purchase orders | 18 | `commitments` | `addCommitment` |
+| Subcontracts and purchase orders | 25 | `commitments` | `addCommitment` |
 | Insurance certificates (no expiry dates) | 14 | `cois` | `addCOI` |
 | Change orders | 10 | `change_orders` | `addChangeOrders` |
 | Invoices | 9 | `invoices` | `addInvoice` |
@@ -80,7 +80,7 @@ shipment).
 | Photos (the bundled sample photo, 4 times) | 4 | `photos` + 4 files | `addProjectPhoto` |
 | Living Model: Level 4, 28 rooms, every room ticked | 1 | none, this device only | `utils/livingModel` core and store |
 
-About 310 rows and 5 small files. The offline queue holds 1,000 writes; the
+About 320 rows and 5 small files. The offline queue holds 1,000 writes; the
 builder refuses to start if fewer than 400 slots are free.
 
 The writer adds one record, waits until the app's own list shows it, then adds

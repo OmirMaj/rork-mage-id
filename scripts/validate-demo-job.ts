@@ -16,6 +16,7 @@
 //   J  the screen says what it does, in English and Spanish
 //   K  the calendar is local-day, repeatable, the same on a weekend
 //   L  the Living Model is sound and its floor follows the schedule
+//   M  the app's own job cost, critical path and replay engines read the job the same way
 // Every rule has at least one planted mutation that must turn it red.
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
@@ -30,13 +31,17 @@ import { demoJobAllowedWith } from '../utils/demoJob/allowed';
 import { buildDemoJob, type DemoJob } from '../utils/demoJob/build';
 import { DATA_DAY, demoSeedDayFromStart, makeDemoClock } from '../utils/demoJob/clock';
 import { DEMO_LEAD_SOURCE, DEMO_PROJECT_NAME, isDemoProject, isDemoProjectName, isKnownDemoProjectId, noteDemoScope } from '../utils/demoJob/marker';
-import { BASE_COST, CONTRACT_SUM_TO_DATE, ORIGINAL_CONTRACT_SUM, PAID_PAY_APPS, PAY_APP_PERIOD_END, projectedFinalCost, projectedMarginPercent } from '../utils/demoJob/money';
+import { BASE_COST, BUDGET_COST, CONTRACT_SUM_TO_DATE, ORIGINAL_CONTRACT_SUM, PAID_PAY_APPS, PAY_APP_PERIOD_END, projectedFinalCost, projectedMarginPercent } from '../utils/demoJob/money';
 import { demoSubcontractorIds, withoutDemoPayees } from '../utils/demoJob/payees';
 import { schedulePercentOn } from '../utils/demoJob/schedule';
 import { EMAIL_RULE, PHONE_RULE } from '../utils/demoJob/world';
 import { DEMO_DELETE_TABLES, QUEUE_CAP, QUEUE_ROOM_NEEDED, createDemoJob, demoAccountIds, demoStatus, removeDemoJob } from '../utils/demoJob/writer';
 import { computeCalibration } from '../utils/estimateCalibration';
 import { netBalanceDue } from '../utils/invoiceBilling';
+import { computeJobCost } from '../utils/jobCostEngine';
+import { runCpm } from '../utils/cpm';
+import { buildReplayInput } from '../utils/livingModel/replayInput';
+import { roomMoment } from '../utils/livingModel/replayCore';
 import { isSampleTimeEntry } from '../utils/laborSamples';
 import { MAX_ROOMS, validateModel } from '../utils/livingModel/modelCore';
 import { resolveStage, stageForTask } from '../utils/livingModel/stageCore';
@@ -253,7 +258,7 @@ const RULES: Rule[] = [
     if (over.join(',') !== '03,09') out.push(`divisions over budget: ${over.join(', ') || 'none'}`);
     for (const c of job.commitments) {
       const value = c.amount + (c.changeAmount ?? 0);
-      if ((c.paidToDate ?? 0) > value) out.push(`${c.number} is paid past its value`);
+      if ((c.paidToDate ?? 0) > Math.max(0, value)) out.push(`${c.number} is paid past its value`);
       if ((c.paidToDate ?? 0) < 0) out.push(`${c.number} paid is negative`);
     }
     if (job.project.retainagePercent !== 10) out.push('project retainage is not 10');
@@ -691,6 +696,49 @@ const RULES: Rule[] = [
     if (m.updatedAt !== '') out.push('the model claims a save time before it is saved');
     return out;
   } },
+  // ── M. The app's own engines read the job the same way ───────────────────
+  { id: 'M1', what: 'job costing, the critical path engine and Job Replay read the job as the generator means it', run: ({ job }) => {
+    const out: string[] = [];
+    const jc = computeJobCost({ project: job.project, commitments: job.commitments, changeOrders: job.changeOrders });
+    // The engine sums unrounded cents; a cent of difference is rounding, a dollar is not.
+    const near = (what: string, got: number, want: number) => { if (Math.abs(got - want) > 0.02) out.push(`${what}: ${money(got)}, expected ${money(want)}`); };
+    near('job cost budget', jc.budget, BUDGET_COST);
+    eq(out, 'job cost committed', jc.committed, job.commitments.reduce((s, c) => s + c.amount + (c.changeAmount ?? 0), 0));
+    near('job cost projected final', jc.projectedFinal, projectedFinalCost().total);
+    const over = jc.byPhase.filter((p) => p.status === 'over').map((p) => p.phase).sort().join(' | ');
+    if (over !== '03 Concrete | 09 Finishes') out.push(`the job cost screen shows over budget: ${over || 'nothing'}`);
+    if (jc.byPhase.some((p) => p.status === 'unbudgeted')) out.push('a commitment has no budget line');
+    if (jc.byPhase.length !== 23) out.push(`${jc.byPhase.length} budget lines, expected 22 divisions and Change Orders`);
+    if (jc.actual <= 0 || jc.actual > jc.committed) out.push('paid to date is not between zero and what is committed');
+    const margin = ((CONTRACT_SUM_TO_DATE - jc.projectedFinal) / CONTRACT_SUM_TO_DATE) * 100;
+    if (margin < 8 || margin > 10) out.push(`the job cost engine projects a ${margin.toFixed(1)} percent margin`);
+    const tasks = job.project.schedule!.tasks;
+    const cpm = runCpm(tasks);
+    if (cpm.projectFinish !== job.project.schedule!.totalDurationDays) out.push(`the engine finishes on day ${cpm.projectFinish}`);
+    if (cpm.conflicts.length) out.push(`${cpm.conflicts.length} schedule conflicts`);
+    for (const t of tasks) {
+      const r = cpm.perTask.get(t.id);
+      if (!r || r.es !== t.startDay) out.push(`${t.title}: the engine starts it on day ${r?.es}`);
+      else if (r.isCritical !== !!t.isCriticalPath) out.push(`${t.title}: critical ${t.isCriticalPath}, the engine says ${r.isCritical}`);
+    }
+    const now = new Date(`${job.clock.dataDate}T10:00:00`);
+    const input = buildReplayInput(job.project.schedule, job.dailyReports, now, job.model.stages ?? {});
+    if (input.clock.todayOffset !== DATA_DAY || input.clock.totalDays !== job.finishDay || input.futureReports !== 0) out.push(`the replay clock: today ${input.clock.todayOffset}, ${input.clock.totalDays} days`);
+    const byId = new Map(input.tasks.map((t) => [t.id, t] as const));
+    const room = job.model.rooms[0];
+    const linked = (job.model.links[room.id] ?? []).map((id) => byId.get(id)).filter((t): t is NonNullable<typeof t> => !!t);
+    const seen: string[] = [];
+    for (let off = 1; off <= job.finishDay; off += 1) {
+      const stage = roomMoment(linked, input.points, off, input.clock, 'plan').stage;
+      if (seen[seen.length - 1] !== stage) seen.push(stage);
+    }
+    // Solid up to today (Level 4 is in drywall), and nothing after today is drawn as built.
+    const walk = seen.join(' > ');
+    if (walk !== 'not_started > framing > rough_in > insulation > drywall') out.push(`Job Replay walks the room: ${walk}`);
+    const end = roomMoment(linked, input.points, job.finishDay, input.clock, 'plan');
+    if (!((end.ghost as Record<string, number | null>).finishes ?? 0)) out.push('Job Replay has no finishes planned ahead for the room');
+    return out;
+  } },
 ];
 
 // ── planted mutations ───────────────────────────────────────────────────────
@@ -784,6 +832,9 @@ const MUTATIONS: Mut[] = [
   text('I1', 'the kill switch removed', 'constants/featureFlags.ts', 'export const DEMO_JOB_BUILDER_ENABLED = true;', ''),
   text('J1', 'a hard-coded sentence on the screen', 'components/demoJob/DemoJobScreen.tsx', '<Text style={styles.note}>{copy.whatBody}</Text>', '<Text style={styles.note}>Real data from your account</Text>'),
   text('J1', 'the screen stops saying the model is device-local', 'components/demoJob/DemoJobScreen.tsx', '<Text style={styles.note}>{copy.modelBody}</Text>', ''),
+  data('M1', 'a change order subcontract bought against its division (the screen would show a third division over)', (j) => { const c = j.commitments.find((x) => x.number === 'SCO-001')!; c.phase = '31 Earthwork'; }),
+  data('M1', 'a task the engine would start on another day', (j) => { j.project.schedule!.tasks[40].startDay += 2; }),
+  data('M1', 'the room loses its framing task', (j) => { const r = j.model.rooms[0]; j.model.links[r.id] = j.model.links[r.id].slice(1); }),
   data('L1', 'a room ticked against a task that is not there', (j) => { const k = Object.keys(j.model.links)[0]; j.model.links[k].push('nope'); }),
   data('L1', 'the framing stage override removed', (j) => { delete j.model.stages; }),
   data('L1', 'two rooms on top of each other', (j) => { j.model.rooms[1].placement = { ...j.model.rooms[0].placement }; }),

@@ -131,7 +131,12 @@ export interface DemoCommitment {
   amount: number;
   change: number;
   signedDay: number;
+  /** Set on the commitment for an owner change order's work: it is bought against the Change Orders budget, not the division's. */
+  changeOrder?: number;
 }
+
+/** The budget line the job cost screen puts approved change orders on (utils/jobCostEngine). */
+export const CHANGE_ORDER_PHASE = 'Change Orders';
 
 const PURCHASE_ORDERS: readonly DemoCommitment[] = [
   { key: 'po-appliances', number: 'PO-101', type: 'purchase_order', vendor: 'Sample Appliance Supply', div: '11', description: 'Unit appliance packages, 48 units', amount: 352_000, change: 0, signedDay: 150 },
@@ -139,6 +144,21 @@ const PURCHASE_ORDERS: readonly DemoCommitment[] = [
   { key: 'po-blinds', number: 'PO-103', type: 'purchase_order', vendor: 'Sample Building Supply', div: '12', description: 'Window treatments, all units', amount: 186_000, change: 0, signedDay: 172 },
   { key: 'po-access', number: 'PO-104', type: 'purchase_order', vendor: 'Sample Security Systems', div: '28', description: 'Access control and video intercom', amount: 238_000, change: 0, signedDay: 140 },
 ];
+
+/** The subs' prices for the approved change orders, each its own commitment. */
+const CHANGE_ORDER_COMMITMENTS: readonly DemoCommitment[] = ([
+  [1, 'earthwork', 124_000, 46],
+  [2, 'glazing', 78_000, 92],
+  [3, 'concrete', 96_000, 113],
+  [4, 'electrical', 72_000, 134],
+  [5, 'millwork', 112_000, 162],
+  [6, 'framing', -32_000, 175],
+  [7, 'electrical', 82_000, 197],
+] as const).map(([n, subKey, amount, signedDay]): DemoCommitment => {
+  const sub = SUBS.find((x) => x.key === subKey)!;
+  const co = CHANGE_ORDERS.find((c) => c.n === n)!;
+  return { key: `co-${n}`, number: `SCO-${String(n).padStart(3, '0')}`, type: 'subcontract', subKey, vendor: sub.company, div: sub.div, description: `Change Order ${n}: ${co.title}`, amount, change: 0, signedDay, changeOrder: n };
+});
 
 export const COMMITMENTS: readonly DemoCommitment[] = [
   ...SUBS.filter((s) => s.contract > 0).map((s, i): DemoCommitment => ({
@@ -154,6 +174,7 @@ export const COMMITMENTS: readonly DemoCommitment[] = [
     signedDay: Math.max(2, i * 6),
   })),
   ...PURCHASE_ORDERS,
+  ...CHANGE_ORDER_COMMITMENTS,
 ];
 
 /** Cost the contractor carries himself (general conditions and the divisions with no subcontract or purchase order). */
@@ -164,17 +185,17 @@ export const coCost = (amount: number): number => roundCents(amount / (1 + MARKU
 export const BUDGET_COST = roundCents(BASE_COST + approvedCos().reduce((s, c) => s + coCost(c.amount), 0));
 
 /**
- * Projected final cost: what is committed, plus the budget of every division
- * nothing is committed against yet. The two divisions that run over are the
- * ones whose commitments exceed their budget (Concrete and Finishes).
+ * Projected final cost, bucket by bucket the way the job cost screen reads it
+ * (utils/jobCostEngine): each division against its schedule-of-values cost,
+ * and the approved change orders against their own Change Orders budget. A
+ * bucket costs the larger of its budget and what is committed against it. The
+ * two divisions that run over are the ones committed past their budget:
+ * Concrete and Finishes.
  */
 export function projectedFinalCost(): { total: number; byDiv: { div: string; budget: number; committed: number; projected: number; over: number }[] } {
-  const byDiv = SOV.map((l) => {
-    const budget = roundCents(l.cost + approvedCos().filter((c) => c.div === l.div).reduce((s, c) => s + coCost(c.amount), 0));
-    const committed = COMMITMENTS.filter((c) => c.div === l.div).reduce((s, c) => s + c.amount + c.change, 0);
-    const projected = Math.max(budget, committed);
-    return { div: l.div, budget, committed, projected, over: Math.max(0, roundCents(committed - budget)) };
-  });
+  const row = (div: string, budget: number, committed: number) => ({ div, budget, committed, projected: Math.max(budget, committed), over: Math.max(0, roundCents(committed - budget)) });
+  const byDiv = SOV.map((l) => row(l.div, l.cost, COMMITMENTS.filter((c) => c.div === l.div && c.changeOrder === undefined).reduce((s, c) => s + c.amount + c.change, 0)));
+  byDiv.push(row('CO', roundCents(approvedCos().reduce((s, c) => s + coCost(c.amount), 0)), COMMITMENTS.filter((c) => c.changeOrder !== undefined).reduce((s, c) => s + c.amount, 0)));
   return { total: roundCents(byDiv.reduce((s, d) => s + d.projected, 0)), byDiv };
 }
 

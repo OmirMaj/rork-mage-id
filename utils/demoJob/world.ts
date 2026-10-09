@@ -75,7 +75,7 @@ export interface DemoSub {
   div: string;
   /** Subcontract amount at award, at cost. 0 = no subcontract in the demo. */
   contract: number;
-  /** Approved changes to the subcontract. */
+  /** Changes to the subcontract the contractor carries himself (not an owner change order: those are their own commitments, money.ts). */
   change: number;
   what: string;
   n: number;
@@ -85,19 +85,19 @@ const S = (n: number, key: string, company: string, contact: string, trade: SubT
   ({ key, company, contact, trade, div, contract, change, what, n });
 
 export const SUBS: readonly DemoSub[] = [
-  S(30, 'earthwork', 'Sample Earthwork Co.', 'Terry Digwell', 'Other', '31', 668_000, 124_000, 'Support of excavation, mass excavation, backfill and site utilities'),
-  S(31, 'concrete', 'Sample Concrete Co.', 'Quinn Formwork', 'Concrete', '03', 2_318_000, 196_000, 'Footings, foundation walls, slab on grade and podium deck'),
+  S(30, 'earthwork', 'Sample Earthwork Co.', 'Terry Digwell', 'Other', '31', 668_000, 0, 'Support of excavation, mass excavation, backfill and site utilities'),
+  S(31, 'concrete', 'Sample Concrete Co.', 'Quinn Formwork', 'Concrete', '03', 2_418_000, 0, 'Footings, foundation walls, slab on grade and podium deck'),
   S(32, 'masonry', 'Sample Masonry Co.', 'Blake Brickman', 'Other', '04', 362_000, 0, 'Brick veneer and shaft walls'),
   S(33, 'framing', 'Sample Framing Co.', 'Skyler Studwell', 'Framing', '05', 2_058_000, 0, 'Light-gauge wall panels, floor deck, roof framing and stairs'),
-  S(34, 'millwork', 'Sample Millwork Co.', 'Reese Cabinet', 'Millwork', '06', 624_000, 96_000, 'Unit cabinets, tops, trim and lobby millwork'),
+  S(34, 'millwork', 'Sample Millwork Co.', 'Reese Cabinet', 'Millwork', '06', 624_000, 0, 'Unit cabinets, tops, trim and lobby millwork'),
   S(35, 'roofing', 'Sample Roofing and Waterproofing Co.', 'Harper Membrane', 'Roofing', '07', 1_104_000, 0, 'Below-grade waterproofing, roof membrane, insulation subcontract and flashing'),
-  S(36, 'glazing', 'Sample Glazing Co.', 'Rowan Paneworth', 'Glazing', '08', 1_292_000, 78_000, 'Windows, storefront, doors and hardware'),
+  S(36, 'glazing', 'Sample Glazing Co.', 'Rowan Paneworth', 'Glazing', '08', 1_292_000, 0, 'Windows, storefront, doors and hardware'),
   S(37, 'drywall', 'Sample Drywall Co.', 'Emerson Tapewell', 'Drywall', '09', 2_246_000, 88_000, 'Drywall, paint, flooring and tile under one finishes subcontract'),
   S(38, 'elevator', 'Sample Elevator Co.', 'Finley Hoistman', 'Other', '14', 548_000, 0, 'Two traction elevators'),
   S(39, 'fire', 'Sample Fire Protection Co.', 'Sage Sprinkle', 'Fire Protection', '21', 462_000, 0, 'Sprinkler system and fire alarm'),
   S(40, 'plumbing', 'Sample Plumbing Co.', 'Kendall Pipewright', 'Plumbing', '22', 1_236_000, 0, 'Plumbing rough-in, fixtures and domestic water'),
   S(41, 'hvac', 'Sample Mechanical Co.', 'Devon Ductworth', 'HVAC', '23', 1_322_000, 0, 'Unit heat pumps, corridor ventilation and retail shell mechanical'),
-  S(42, 'electrical', 'Sample Electric Co.', 'Marlow Wireman', 'Electrical', '26', 1_548_000, 142_000, 'Power, lighting, low voltage and service entrance'),
+  S(42, 'electrical', 'Sample Electric Co.', 'Marlow Wireman', 'Electrical', '26', 1_548_000, 0, 'Power, lighting, low voltage and service entrance'),
   S(43, 'landscape', 'Sample Landscape Co.', 'Arden Greenfield', 'Landscaping', '32', 356_000, 0, 'Sidewalks, paving, planting and site furnishings'),
   // On the bidders list, never awarded: no subcontract, shown so the directory has depth.
   S(44, 'paint', 'Sample Painting Co.', 'Ellis Brushby', 'Painting', '09', 0, 0, 'Painting (works under the finishes subcontract)'),
