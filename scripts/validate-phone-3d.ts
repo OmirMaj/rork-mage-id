@@ -384,7 +384,8 @@ rule('E2', 'without the switch the route sends everyone Home and mounts nothing,
   if ((layout.match(/dev-phone-3d/g) ?? []).length !== 2) out.push('app/_layout.tsx names the route somewhere other than its Stack.Screen and the auth wall');
   if (!/name="dev-phone-3d"/.test(layout)) out.push('the route is not declared in the Stack');
   for (const f of ['app/(tabs)/_layout.tsx', 'components/DesktopSidebar.tsx']) if (/dev-phone-3d/.test(w.files[f] ?? '')) out.push(`${f} links the simulator check`);
-  const linkers = Object.keys(w.files).filter((f) => /\.(ts|tsx)$/.test(f) && !f.startsWith('scripts/') && f !== LAYOUT && f !== SPIKE && /dev-phone-3d/.test(code(w.files[f])));
+  const linkers = Object.keys(w.files).filter((f) => /\.(ts|tsx)$/.test(f) && !f.startsWith('scripts/') && f !== LAYOUT && f !== SPIKE && f !== 'utils/desktopPage.ts' && /dev-phone-3d/.test(code(w.files[f])));
+  // utils/desktopPage.ts gives every route file a page width; that table is not a door.
   if (linkers.length) out.push(`the simulator check is linked from ${linkers.join(', ')}`);
   return out;
 });
