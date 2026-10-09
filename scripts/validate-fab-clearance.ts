@@ -39,7 +39,7 @@ const read = (rel: string): string => readFileSync(rel, 'utf8');
 const fabSrc = read('components/brain/BrainFab.tsx');
 const stateSrc = read('components/brain/brainFabState.ts');
 
-const clearance = Number(stateSrc.match(/BRAIN_FAB_CLEARANCE\s*=\s*(\d+)/)?.[1]);
+const clearance = Number(stateSrc.match(/BRAIN_FAB_CLEARANCE_BASE\s*=\s*(\d+)/)?.[1]);
 const fabBottom = Number(fabSrc.match(/bottom:\s*insets\.bottom\s*\+\s*(\d+)/)?.[1]);
 const fabHeight = Number(fabSrc.match(/fabWrap:\s*\{[\s\S]*?height:\s*(\d+)/)?.[1]);
 ok('BrainFab geometry is readable', Number.isFinite(fabBottom) && Number.isFinite(fabHeight),
@@ -48,6 +48,17 @@ ok(`clearance ${clearance} = FAB top edge ${fabBottom + fabHeight} + 24pt breath
   clearance === fabBottom + fabHeight + 24,
   `BrainFab now sits at insets.bottom + ${fabBottom} and is ${fabHeight}pt tall — ` +
   `BRAIN_FAB_CLEARANCE should be ${fabBottom + fabHeight + 24}, not ${clearance}`);
+
+// The web build draws the FAB higher. The padding has to grow by the SAME
+// number, or the last row stops under the circle on the web only (it did, by
+// 24 pt, until 2026-10-09). One constant, read on both sides.
+const webRaise = Number(stateSrc.match(/BRAIN_FAB_WEB_RAISE\s*=\s*(\d+)/)?.[1]);
+ok('the web raise is one number, in the FAB position and in the clearance',
+  Number.isFinite(webRaise) && webRaise > 0
+  && /bottom:\s*insets\.bottom\s*\+\s*\d+\s*\+\s*lift\s*\+\s*\(Platform\.OS === 'web' \? BRAIN_FAB_WEB_RAISE : 0\)/.test(fabSrc)
+  && /export const BRAIN_FAB_CLEARANCE = BRAIN_FAB_CLEARANCE_BASE \+ \(Platform\.OS === 'web' \? BRAIN_FAB_WEB_RAISE : 0\);/.test(stateSrc)
+  && !/Platform\.OS === 'web' \? \d+ : 0/.test(fabSrc),
+  `BRAIN_FAB_WEB_RAISE=${webRaise}`);
 
 // ── 2. Which routes the FAB actually floats over ──
 // Parsed out of BrainFab rather than duplicated, so adding a route to

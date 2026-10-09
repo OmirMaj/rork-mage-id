@@ -89,7 +89,7 @@ export const SCREENS: Screen[] = [
     sequence: [
       { world: withLines(3), caption: 'Three lines in.' },
       { world: withLines(6), caption: 'Six lines in.' },
-      { steps: [{ scroll: 752, to: { text: 'Base' } }, { wait: 1200 }], caption: 'All ten lines, with base, markup and total.' },
+      { steps: [{ scroll: 752, to: { text: 'Base' } }, { wait: 1200 }], caption: 'The estimate\'s lines down to its base, markup and total.' },
     ],
     hero: { steps: [{ scroll: 133, to: { text: 'Drywall, hang', exact: false } }, { wait: 1200 }], caption: 'The last lines of the estimate with its base, markup and total.' } },
   { id: 'estimate-wizard', set: 'shipped', title: 'Quick Estimate', plan: 'Pro', source: 'app/estimate-wizard.tsx', route: `/estimate-wizard?projectId=${P.birch}`,

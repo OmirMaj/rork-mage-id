@@ -87,7 +87,7 @@ const num = (block: string, key: string) => Number(block.match(new RegExp(`\\b${
 ok('the disc (the hit area) is 56×56, ≥ 44pt', num(disc, 'width') === 56 && num(disc, 'height') === 56, `w=${num(disc, 'width')} h=${num(disc, 'height')}`);
 ok('the wrapper is 56×56 at right 20', num(wrap, 'width') === 56 && num(wrap, 'height') === 56 && num(wrap, 'right') === 20);
 ok('position + clearance inputs unchanged (insets.bottom + 70 + lift, +48 on web)',
-  /bottom: insets\.bottom \+ 70 \+ lift \+ \(Platform\.OS === 'web' \? 48 : 0\)/.test(fab));
+  /bottom: insets\.bottom \+ 70 \+ lift \+ \(Platform\.OS === 'web' \? BRAIN_FAB_WEB_RAISE : 0\)/.test(fab));
 ok('the neutral elevation stays (Shadow.medium spread, elevation 12, zIndex 40); no accent shadow',
   /\.\.\.Shadow\.medium/.test(wrap) && /elevation: 12/.test(wrap) && /zIndex: 40/.test(wrap) && !/shadowColor:\s*colors\./.test(fab));
 ok('desktop still opens the dock and steps aside while it shows', /if \(isDesktopWeb && dock\.showing\) return null;/.test(fab)
