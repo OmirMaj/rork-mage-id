@@ -10,12 +10,13 @@
 // makeRectRoom, addRoom, addOpening, setRoomTaskLink, setTaskStage. Nothing is
 // written into the model by hand. The model is saved on the device that taps
 // Create (utils/livingModel/store), like any model in this phase.
-import { addOpening, addRoom, emptyJobModel, makeRectRoom, setRoomTaskLink, setTaskStage } from '@/utils/livingModel/modelCore';
+import { GRID_M, addOpening, addRoom, emptyJobModel, makeRectRoom, setRoomTaskLink, setTaskStage } from '@/utils/livingModel/modelCore';
 import type { JobModel, RoomKind } from '@/utils/livingModel/types';
-import { feetToMetres } from '@/utils/roomScan/units';
 import { RES_LEVELS } from './schedule';
 
 export const MODEL_LEVEL = 4;
+/** The editor's grid is half a foot, so a foot is two grid steps: every room lands on the grid. */
+const feetToMetres = (ft: number): number => ft * 2 * GRID_M;
 const CEILING_FT = 9;
 const UNIT_W = 25;
 const UNIT_D = 30;

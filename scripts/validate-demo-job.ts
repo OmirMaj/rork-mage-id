@@ -19,7 +19,8 @@
 //   M  the app's own job cost, critical path and replay engines read the job the same way
 // Every rule has at least one planted mutation that must turn it red.
 import { readFileSync, readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { makeFakeApp as makeFakeAppRaw, fakeRecordCount, type FakeApp } from '../__tests__/fixtures/demoJobFakeApp';
 import { EN as EN_SHARD } from '../i18n/catalog/en/office.demo-job.generated';
 import { ES_OFFICE_DEMO_JOB } from '../i18n/catalog/es/office/demoJob';
@@ -51,7 +52,7 @@ import { isSampleProject, sampleSendPlan } from '../utils/sampleGuard';
 import { recalculateStartDays } from '../utils/scheduleEngine';
 import { isDemoJobEvent } from '../utils/analytics';
 
-const ROOT = join(import.meta.dir, '..');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string): string => readFileSync(join(ROOT, p), 'utf8');
 const ls = (dir: string): string[] => readdirSync(join(ROOT, dir)).filter((f) => statSync(join(ROOT, dir, f)).isFile()).map((f) => `${dir}/${f}`);
 
@@ -371,9 +372,9 @@ const RULES: Rule[] = [
     if (!/Example Wharf Street, Baltimore, MD/.test(p.location)) out.push('address');
     if (!/made-up/i.test(p.description)) out.push('the description does not say the job is made up');
     // It cannot be renamed out of the sample name, or lose its second marker; any other edit, and any other job, passes.
-    const out1 = demoSafeUpdates(p, { name: 'Harbor Point Mixed-Use', description: 'x' });
-    if ('name' in out1 || out1.description !== 'x') out.push('a demo job can be renamed out of its sample name');
-    if ('leadSource' in demoSafeUpdates(p, { leadSource: 'referral' })) out.push('a demo job can lose its second marker');
+    const out1: Partial<Project> = demoSafeUpdates(p, { name: 'Harbor Point Mixed-Use', description: 'x' } as Partial<Project>);
+    if (out1.name !== undefined || out1.description !== 'x') out.push('a demo job can be renamed out of its sample name');
+    if ((demoSafeUpdates(p, { leadSource: 'referral' } as Partial<Project>)).leadSource !== undefined) out.push('a demo job can lose its second marker');
     if (demoSafeUpdates(p, { name: `${p.name} (Copy)` }).name !== `${p.name} (Copy)`) out.push('a demo job cannot be renamed at all');
     const real = { name: 'A Real Job', leadSource: 'referral' };
     const edit = { name: 'Renamed' };
@@ -473,9 +474,9 @@ const RULES: Rule[] = [
     const closedDemo: Project = { ...job.project, status: 'closed', closedAt: job.clock.at(DATA_DAY, 12) };
     const real: Project = { ...closedDemo, name: 'Harbor Point Mixed-Use', leadSource: 'referral' };
     const control = buildCostDatabase([real], job.commitments);
-    if (control.entries.length + (control.unpriced?.length ?? 0) === 0 && control.jobsAnalyzed === 0) out.push('the control job taught the cost book nothing: this check proves nothing');
+    if (control.entries.length + (control.entriesAwaitingEvidence?.length ?? 0) === 0 && control.jobsAnalyzed === 0) out.push('the control job taught the cost book nothing: this check proves nothing');
     const db = buildCostDatabase([closedDemo], job.commitments);
-    if (db.entries.length || db.jobsAnalyzed || (db.unpriced?.length ?? 0)) out.push(`a closed demo job taught the cost book ${db.entries.length} rates`);
+    if (db.entries.length || db.jobsAnalyzed || (db.entriesAwaitingEvidence?.length ?? 0)) out.push(`a closed demo job taught the cost book ${db.entries.length} rates`);
     const renamed = buildCostDatabase([{ ...closedDemo, name: 'Renamed By Hand' }], job.commitments);
     if (renamed.entries.length || renamed.jobsAnalyzed) out.push('a renamed demo job taught the cost book');
     const cal = computeCalibration({ projects: [closedDemo], commitments: job.commitments });
@@ -738,13 +739,13 @@ const RULES: Rule[] = [
     const linked = (job.model.links[room.id] ?? []).map((id) => byId.get(id)).filter((t): t is NonNullable<typeof t> => !!t);
     const seen: string[] = [];
     for (let off = 1; off <= job.finishDay; off += 1) {
-      const stage = roomMoment(linked, input.points, off, input.clock, 'plan').stage;
+      const stage = roomMoment(linked, input.points, off, input.clock, 'planned').stage;
       if (seen[seen.length - 1] !== stage) seen.push(stage);
     }
     // Solid up to today (Level 4 is in drywall), and nothing after today is drawn as built.
     const walk = seen.join(' > ');
     if (walk !== 'not_started > framing > rough_in > insulation > drywall') out.push(`Job Replay walks the room: ${walk}`);
-    const end = roomMoment(linked, input.points, job.finishDay, input.clock, 'plan');
+    const end = roomMoment(linked, input.points, job.finishDay, input.clock, 'planned');
     if (!((end.ghost as Record<string, number | null>).finishes ?? 0)) out.push('Job Replay has no finishes planned ahead for the room');
     return out;
   } },
