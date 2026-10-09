@@ -3967,9 +3967,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       )}
                     </View>
                     <View style={styles.matResultPrices}>
-                      <Text style={styles.matResultRetail}>${material.baseRetailPrice.toFixed(2)}</Text>
-                      <Text style={styles.matResultBulk}>${material.baseBulkPrice.toFixed(2)}</Text>
-                      {markup > 0 && <Text style={styles.matResultFinal}>${finalPrice.toFixed(2)}</Text>}
+                      <Text style={styles.matResultRetail}>{formatMoney(material.baseRetailPrice, 2)}</Text>
+                      <Text style={styles.matResultBulk}>{formatMoney(material.baseBulkPrice, 2)}</Text>
+                      {markup > 0 && <Text style={styles.matResultFinal}>{formatMoney(finalPrice, 2)}</Text>}
                     </View>
                     <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
                   </TouchableOpacity>

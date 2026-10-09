@@ -1482,7 +1482,7 @@ export default function ProjectDetailScreen() {
     const linked = project.linkedEstimate;
     const legacy = project.estimate;
     if (linked) {
-      body += `Total: $${linked.grandTotal.toFixed(2)} (${linked.items.length} items)\n`;
+      body += `Total: ${formatMoney(linked.grandTotal, 2)} (${linked.items.length} items)\n`;
     } else if (legacy) {
       body += `\nCost Summary:\n`;
       body += `Materials: ${formatMoney(legacy.materialTotal)}\n`;
@@ -2094,7 +2094,7 @@ export default function ProjectDetailScreen() {
           <Text style={detailStyles.heroSubtitle}>Total Project Value</Text>
           <View style={detailStyles.heroChips}>
             <View style={detailStyles.heroChip}>
-              <Text style={detailStyles.heroChipLabel}>${(estimate.pricePerSqFt ?? 0).toFixed(2)}</Text>
+              <Text style={detailStyles.heroChipLabel}>{formatMoney(estimate.pricePerSqFt ?? 0, 2)}</Text>
               <Text style={detailStyles.heroChipSub}>per sq ft</Text>
             </View>
             {showBulkSavings ? (
@@ -2304,7 +2304,7 @@ export default function ProjectDetailScreen() {
                       </View>
                       <View style={detailStyles.saverInfo}>
                         <Text style={detailStyles.saverName} numberOfLines={1}>{item.name}</Text>
-                        <Text style={detailStyles.saverMeta}>{item.quantity} {item.unit} · ${item.unitPrice.toFixed(2)}/unit</Text>
+                        <Text style={detailStyles.saverMeta}>{item.quantity} {item.unit} · {formatMoney(item.unitPrice, 2)}/unit</Text>
                       </View>
                       <View style={detailStyles.saverSavings}>
                         <Text style={detailStyles.saverAmount}>${item.savings.toFixed(0)}</Text>
@@ -2600,8 +2600,8 @@ export default function ProjectDetailScreen() {
                 <View style={styles.tableHeader}>
                   <Text style={[styles.tableHeaderText, { flex: 2 }]}>Item</Text>
                   <Text style={[styles.tableHeaderText, { flex: 1 }]}>Qty</Text>
-                  <Text style={[styles.tableHeaderText, { flex: 1 }]}>Markup</Text>
-                  <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 0.9 }]}>Markup</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 1.4, textAlign: 'right' as const }]}>Total</Text>
                 </View>
                 {linkedItems.map((item, idx) => {
                   // Defensive coercion: legacy estimates (or rows persisted
@@ -2622,11 +2622,20 @@ export default function ProjectDetailScreen() {
                   const safeTotal = typeof item.lineTotal === 'number' ? item.lineTotal : derivedTotal;
                   return (
                     <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
-                      <View style={{ flex: 2 }}>
-                        <Text style={styles.tableCellName} numberOfLines={1}>{safeName}</Text>
-                        <Text style={styles.tableCellSub}>
-                          {[safeCategory, safeSupplier].filter(Boolean).join(' · ') || '—'}
-                        </Text>
+                      <View style={styles.tableNameCol}>
+                        <Text style={styles.tableCellName} numberOfLines={2}>{safeName}</Text>
+                        {/* Category and supplier are two pieces so a long supplier
+                            drops to its own line whole instead of breaking mid-name. */}
+                        {safeCategory && safeSupplier ? (
+                          <View style={styles.tableCellSubRow}>
+                            <Text style={styles.tableCellSub} numberOfLines={1}>{safeCategory} ·</Text>
+                            <Text style={[styles.tableCellSub, styles.tableCellSubFlex]} numberOfLines={1}>{safeSupplier}</Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.tableCellSub} numberOfLines={1}>
+                            {safeCategory || safeSupplier || '—'}
+                          </Text>
+                        )}
                         {item.usesBulk && (
                           <View style={styles.bulkBadge}>
                             <TrendingDown size={10} color={themeColors.success} strokeWidth={1.75} />
@@ -2637,11 +2646,11 @@ export default function ProjectDetailScreen() {
                       <Text style={[styles.tableCell, { flex: 1 }]}>
                         {safeQty} {safeUnit}
                       </Text>
-                      <Text style={[styles.tableCell, { flex: 1 }]}>
+                      <Text style={[styles.tableCell, { flex: 0.9 }]}>
                         {safeMarkup}%
                       </Text>
-                      <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
-                        ${safeTotal.toFixed(2)}
+                      <Text style={[styles.tableCellBold, { flex: 1.4, textAlign: 'right' as const }]} numberOfLines={1}>
+                        {formatMoney(safeTotal, 2)}
                       </Text>
                     </View>
                   );
@@ -3001,7 +3010,7 @@ export default function ProjectDetailScreen() {
                         {item.quantity} {item.unit}
                       </Text>
                       <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' as const }]}>
-                        ${(item.unitPrice ?? 0).toFixed(2)}
+                        {formatMoney(item.unitPrice ?? 0, 2)}
                       </Text>
                       <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
                         {formatMoney(item.totalPrice)}
@@ -5132,7 +5141,7 @@ export default function ProjectDetailScreen() {
                   <>
                     <View style={styles.heroStatSmall}>
                       <Text style={styles.smallStatLabel}>Per Sq Ft</Text>
-                      <Text style={styles.smallStatValue}>${estimate.pricePerSqFt.toFixed(2)}</Text>
+                      <Text style={styles.smallStatValue}>{formatMoney(estimate.pricePerSqFt, 2)}</Text>
                     </View>
                     <View style={styles.heroStatSmall}>
                       <Text style={styles.smallStatLabel}>Duration</Text>
@@ -6640,6 +6649,9 @@ const makeStyles = (themeColors: ThemeColors) => {
   tableRowAlt: { backgroundColor: themeColors.surfaceAlt },
   tableCellName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: themeColors.text },
   tableCellSub: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2 },
+  tableNameCol: { flex: 2, paddingRight: 8 },
+  tableCellSubRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 4 },
+  tableCellSubFlex: { flexShrink: 1 },
   tableCell: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary },
   tableCellBold: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   bulkBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },

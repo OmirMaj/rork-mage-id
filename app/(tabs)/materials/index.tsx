@@ -46,6 +46,7 @@ import { REGIONS, CITY_ADJUSTMENTS } from '@/constants/regions';
 import type { PricingRegion } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { formatMoney } from '@/utils/formatters';
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_META);
 
@@ -256,7 +257,7 @@ export default function MaterialsScreen() {
             <Text style={styles.categoryCount}>{item.itemCount} items</Text>
             <View style={styles.categoryStats}>
               <Text style={styles.priceRangeText}>
-                ${item.priceRange.min.toFixed(2)} – ${item.priceRange.max.toFixed(2)}
+                {formatMoney(item.priceRange.min, 2)} – {formatMoney(item.priceRange.max, 2)}
               </Text>
               {item.avgDiscount > 0 && (
                 <View style={styles.discountChip}>
@@ -517,11 +518,11 @@ export default function MaterialsScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.alertMatName} numberOfLines={1}>{alert.materialName}</Text>
                     <Text style={styles.alertDetail}>
-                      {alert.direction === 'below' ? '↓ Below' : '↑ Above'} ${alert.targetPrice.toFixed(2)}
+                      {alert.direction === 'below' ? '↓ Below' : '↑ Above'} {formatMoney(alert.targetPrice, 2)}
                       {' · '}
                       {catalogPrice === null
                         ? 'no longer in the price book'
-                        : `book price $${catalogPrice.toFixed(2)}`}
+                        : `book price ${formatMoney(catalogPrice, 2)}`}
                     </Text>
                   </View>
                   {/* successSoft/warningSoft + successLabel/warningLabel, not

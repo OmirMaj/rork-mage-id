@@ -64,6 +64,7 @@ import {
   PLAN_SCALE_RECHECK_COPY, type ImageRect,
 } from '@/utils/planScale';
 import { segmentedDesktop, useIsDesktop, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { formatMoney } from '@/utils/formatters';
 
 type Mode = 'calibrate' | 'draw';
 type Kind = 'area' | 'linear' | 'count';
@@ -731,7 +732,7 @@ function AreaTakeoffInner() {
                             testID={`takeoff-trade-${e.key}`}
                           >
                             <Text style={[styles.chipText, sel && { color: Colors.textOnAccent }]}>{e.trade}</Text>
-                            <Text style={[styles.chipRate, sel && { color: Colors.textOnAccent }]}>${e.suggestedRate.toFixed(2)}/{unit}</Text>
+                            <Text style={[styles.chipRate, sel && { color: Colors.textOnAccent }]}>{formatMoney(e.suggestedRate, 2)}/{unit}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -777,7 +778,7 @@ function AreaTakeoffInner() {
                                 testID={`takeoff-engine-${opt.category}`}
                               >
                                 <Text style={[styles.chipText, sel && { color: Colors.textOnAccent }]}>{opt.label}</Text>
-                                <Text style={[styles.chipRate, sel && { color: Colors.textOnAccent }]}>${opt.rate.toFixed(2)}/{unit}</Text>
+                                <Text style={[styles.chipRate, sel && { color: Colors.textOnAccent }]}>{formatMoney(opt.rate, 2)}/{unit}</Text>
                               </TouchableOpacity>
                             );
                           })}
@@ -790,7 +791,7 @@ function AreaTakeoffInner() {
                 {/* Effective price detail */}
                 {effectiveRate != null && effectiveAmount != null && (
                   <View style={styles.priceDetail}>
-                    <Text style={styles.priceLine}>{quantityLabel(billableRounded)} × ${effectiveRate.toFixed(2)}/{unit}</Text>
+                    <Text style={styles.priceLine}>{quantityLabel(billableRounded)} × {formatMoney(effectiveRate, 2)}/{unit}</Text>
                     {effectiveSourceLabel && <Text style={styles.priceRange}>Rate source: {effectiveSourceLabel}</Text>}
                     {historyRate != null && pricing?.low != null && pricing?.high != null && (
                       <Text style={styles.priceRange}>Range {formatMoneyFull(pricing.low)}–{formatMoneyFull(pricing.high)} · {pricing.confidence} confidence ({pricing.entry?.jobCount} job{pricing.entry?.jobCount === 1 ? '' : 's'})</Text>
