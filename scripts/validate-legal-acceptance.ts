@@ -12,13 +12,26 @@
 //
 //   A. the words       the Terms and Privacy pages hash to the constants, the
 //                      version is the page's own date, and a page that changes
-//                      without its version changing fails; the two notices'
+//                      without its version changing fails; the exact hashed
+//                      text of the current version is archived under
+//                      docs/legal/versions and re-hashed here; the two notices'
 //                      hashes are of the words on screen, English and Spanish.
 //   B. the recorder    first acceptance wins, another account's entries are
 //                      never read or sent, nothing carries a client time, a
-//                      missing function is silent, and nothing ever rejects.
-//   C. sign-in paths   every call that creates a session reaches the recorder,
-//                      unawaited; a thrown recorder cannot reject a sign-in.
+//                      missing function is silent, a refusal is retried a few
+//                      times further apart and then left, owed records survive
+//                      the tenant wipe, and nothing ever rejects.
+//   C. sign-in paths   a Terms or Privacy row means "signed in on a screen that
+//                      DISPLAYED the sentence". One constant per screen says
+//                      whether it does in this build, and the screen's own
+//                      source is read against it. A sign-in records only from
+//                      a screen whose constant is true; an email link (a
+//                      confirmation, a sign-in link, a password reset) and a
+//                      restored session never record; with the re-acceptance
+//                      gate on, an existing account's sign-in never records. A
+//                      sign-up with no session yet is noted under the new
+//                      account's id and keeps its surface. Unawaited; a thrown
+//                      recorder cannot reject a sign-in.
 //   D. the gate        off by default, mounts nothing and reads nothing while
 //                      off, and an unreadable answer never shows the sheet.
 //   E. the notices     the code-answer notice and the scan notice record; the
@@ -37,7 +50,7 @@
 // Run: bun run scripts/validate-legal-acceptance.ts
 
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -72,9 +85,22 @@ const F = {
   del: 'supabase/functions/delete-account/index.ts',
   pkg: 'package.json',
   keys: 'utils/localCacheKeys.ts',
+  signup: 'app/signup.tsx',
+  login: 'app/login.tsx',
+  docPrivacy: 'docs/legal/privacy-policy-versus-code.md',
+  docDeletion: 'docs/legal/account-deletion-and-signed-records.md',
+  archiver: 'scripts/archive-legal-text.ts',
 } as const;
+const ARCHIVE_DIR = 'docs/legal/versions';
 type Files = Record<string, string>;
-const loadFiles = (): Files => Object.fromEntries(Object.values(F).map((f) => [f, read(f)]));
+const loadFiles = (): Files => {
+  const files: Files = Object.fromEntries(Object.values(F).map((f) => [f, read(f)]));
+  // Every archived version, under its repo path.
+  if (existsSync(path.join(ROOT, ARCHIVE_DIR))) {
+    for (const name of readdirSync(path.join(ROOT, ARCHIVE_DIR))) if (name.endsWith('.txt')) files[`${ARCHIVE_DIR}/${name}`] = read(`${ARCHIVE_DIR}/${name}`);
+  }
+  return files;
+};
 
 const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
 const stripSql = (sql: string): string => sql.replace(/--[^\n]*/g, '');
@@ -94,14 +120,17 @@ interface Core {
   TERMS_VERSION: string; PRIVACY_VERSION: string; TERMS_TEXT_SHA256: string; PRIVACY_TEXT_SHA256: string;
   SCAN_ACK_VERSION: string; SCAN_ACK_COPY: { title: string; body: string; button: string };
   SCAN_ACK_TEXT_SHA256: string; SCAN_ACK_TEXT_SHA256_ES: string; CODE_ACK_TEXT_SHA256: string;
-  LEGAL_STORE_KEY: string; LEGAL_RPC: string;
+  LEGAL_STORE_KEY: string; LEGAL_RPC: string; LEGAL_STORE_MAX_USERS: number; LEGAL_REFUSAL_MAX_TRIES: number; LEGAL_REFUSAL_BACKOFF_MS: number;
+  TERMS_SENTENCE_ON_SIGNUP_SCREEN: boolean; TERMS_SENTENCE_ON_LOGIN_SCREEN: boolean;
+  screenShowsTerms(s: string | null): boolean;
+  signInAcceptanceSurface(i: { method: string; startedFrom?: string | null; user?: { created_at?: string | null; last_sign_in_at?: string | null } | null; reacceptOn: boolean }): string | null;
+  reacceptStateWithLocal(state: string, store: unknown, uid: string | null, items?: unknown): string;
   normalizeLegalHtml(h: string): string;
   legalNoticeText(t: string, b: string): string;
   currentAgreementItems(): Array<{ kind: string; version: string; sha: string }>;
   scanAckItem(lang?: string): { kind: string; version: string; sha: string };
   codeAckItem(v: number): { kind: string; version: string; sha: string };
   isNewAccount(c?: string | null, l?: string | null): boolean;
-  surfaceForSignIn(m: string, u?: { created_at?: string | null; last_sign_in_at?: string | null } | null): string;
   parseLegalStore(raw: string | null): { v: 1; byUser: Record<string, Record<string, { version: string; sha: string; surface: string; at: number; sent: boolean }>> };
   emptyLegalStore(): ReturnType<Core['parseLegalStore']>;
   noteLegalItem(s: unknown, uid: string, item: unknown, surface: string, at: number): { store: ReturnType<Core['parseLegalStore']>; changed: boolean };
@@ -181,6 +210,15 @@ async function runChecks(files: Files): Promise<Result[]> {
     ok('A13 the Spanish was translated from the current English', esT.src === sourceHash(core.SCAN_ACK_COPY.title) && esB.src === sourceHash(core.SCAN_ACK_COPY.body));
     ok('A14 a Spanish phone records the Spanish hash, an English phone the English', core.scanAckItem('es').sha === core.SCAN_ACK_TEXT_SHA256_ES && core.scanAckItem('en').sha === core.SCAN_ACK_TEXT_SHA256 && core.scanAckItem().kind === 'scan_ack');
     ok('A15 CODE_ACK_TEXT_SHA256 is the hash of the code-answer notice (utils/codeAckCore CODE_ACK_COPY)', sha(core.legalNoticeText(codeCore.CODE_ACK_COPY.title, codeCore.CODE_ACK_COPY.body)) === core.CODE_ACK_TEXT_SHA256);
+    for (const [kind, version, hash, page] of [['terms', core.TERMS_VERSION, core.TERMS_TEXT_SHA256, F.terms], ['privacy', core.PRIVACY_VERSION, core.PRIVACY_TEXT_SHA256, F.privacy]] as const) {
+      const file = `${ARCHIVE_DIR}/${kind}-${version}-${hash.slice(0, 8)}.txt`;
+      const text = files[file];
+      ok(`A17 the exact hashed text of the current ${kind} version is archived at ${file}, hashes to the constant, and is the page's words (run: bun run scripts/archive-legal-text.ts)`,
+        typeof text === 'string' && sha(text) === hash && text === core.normalizeLegalHtml(files[page]), typeof text === 'string' ? 'the file does not hash to the constant' : 'the file is missing');
+    }
+    ok('A18 the archive is written by the script that computes the hash, with the same normaliser, and never rewrites a version',
+      /import \{[^}]*normalizeLegalHtml[^}]*\} from '\.\.\/utils\/legalAcceptanceCore';/.test(files[F.archiver]) && /createHash\('sha256'\)/.test(files[F.archiver])
+      && /\$\{LEGAL_ARCHIVE_DIR\}\/\$\{kind\}-\$\{version\}-\$\{sha256\.slice\(0, 8\)\}\.txt/.test(files[F.archiver]) && /exists with DIFFERENT words/.test(files[F.archiver]));
     ok('A16 the re-acceptance sheet has no Spanish written by a build lane (a .legal. key is a human legal translator\'s)', !/office\.notices\.legal\./.test(stripComments(files[F.es])) && /'office\.notices\.legal\.reacceptTitle'/.test(files[F.copy]));
   }
 
@@ -197,23 +235,23 @@ async function runChecks(files: Files): Promise<Result[]> {
     ok('B4 a malformed store, a bad user id or a bad hash is dropped, never thrown on',
       core.pendingLegalEntries(core.parseLegalStore('{not json'), A1).length === 0
       && Object.keys(core.parseLegalStore(JSON.stringify({ v: 1, byUser: { 'not-a-uuid': { terms: { version: 'v', sha: 'a'.repeat(64), surface: 'in_app', at: 1, sent: false } }, [A1]: { terms: { version: 'v', sha: 'zz', surface: 'in_app', at: 1, sent: false } } } })).byUser).length === 0);
-    const args = core.legalRpcArgs('terms', { version: 'v1', sha: 'a'.repeat(64), surface: 'signup_email', at: 1000, sent: false }, { appVersion: '1.0.0', platform: 'ios', now: 61000 });
+    const args = core.legalRpcArgs('terms', { version: 'v1', sha: 'a'.repeat(64), surface: 'signup_email', at: 1000, sent: false }, { appVersion: '1.0.0', updateId: '0198c5a2-7d3e-7b61-9f04-2c1d5e6f7a8b', platform: 'ios', now: 61000 });
     const keys = Object.keys(args).sort().join(',');
-    ok('B5 the rpc carries kind, version, hash, surface, build, platform and a delay: no user id and no time',
-      keys === 'p_app_version,p_delay_ms,p_kind,p_platform,p_surface,p_text_sha256,p_version' && args.p_delay_ms === 60000
+    ok('B5 the rpc carries kind, version, hash, surface, build, the over-the-air update id, platform and a delay: no user id and no time',
+      keys === 'p_app_version,p_delay_ms,p_kind,p_platform,p_surface,p_text_sha256,p_update_id,p_version' && args.p_delay_ms === 60000 && args.p_update_id === '0198c5a2-7d3e-7b61-9f04-2c1d5e6f7a8b'
       && !Object.values(args).some((v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)), keys);
-    const neg = core.legalRpcArgs('terms', { version: 'v1', sha: 'a'.repeat(64), surface: 'in_app', at: 9000, sent: false }, { appVersion: '<script>', platform: 'windows', now: 1000 });
-    ok('B6 a clock that ran backwards, an odd build string and an unknown platform are sent as null', neg.p_delay_ms === null && neg.p_app_version === null && neg.p_platform === null);
+    const neg = core.legalRpcArgs('terms', { version: 'v1', sha: 'a'.repeat(64), surface: 'in_app', at: 9000, sent: false }, { appVersion: '<script>', updateId: 'not an id!', platform: 'windows', now: 1000 });
+    ok('B6 a clock that ran backwards, an odd build string, an odd update id and an unknown platform are sent as null', neg.p_delay_ms === null && neg.p_app_version === null && neg.p_platform === null && neg.p_update_id === null);
 
     // The recorder against a fake server.
-    const mk = (opts: { session?: string | null; reply?: (fn: string, a: Record<string, unknown>) => Promise<{ status: string; error?: string; data?: unknown }>; store?: ReturnType<typeof memStore> } = {}) => {
+    const mk = (opts: { session?: string | null | (() => string | null); clock?: () => number; reply?: (fn: string, a: Record<string, unknown>) => Promise<{ status: string; error?: string; data?: unknown }>; store?: ReturnType<typeof memStore> } = {}) => {
       const store = opts.store ?? memStore();
       const sent: Array<{ fn: string; args: Record<string, unknown> }> = [];
       const rec = core.createLegalRecorder({
         storage: store,
         send: async (fn: string, a: Record<string, unknown>) => { sent.push({ fn, args: a }); return opts.reply ? opts.reply(fn, a) : { status: 'synced', data: { ok: true, recorded: true } }; },
-        sessionUserId: async () => (opts.session === undefined ? A1 : opts.session),
-        now: () => 5000, appVersion: () => '1.0.0', platform: () => 'ios',
+        sessionUserId: async () => (opts.session === undefined ? A1 : typeof opts.session === 'function' ? opts.session() : opts.session),
+        now: opts.clock ?? (() => 5000), appVersion: () => '1.0.0', updateId: () => null, platform: () => 'ios',
       });
       return { rec, sent, store };
     };
@@ -269,21 +307,125 @@ async function runChecks(files: Files): Promise<Result[]> {
       await rec.note(A1, core.currentAgreementItems(), 'signup_email');
       ok('B13 an answer of ok:false does not mark the record sent', core.pendingLegalEntries(core.parseLegalStore(store.m.get(core.LEGAL_STORE_KEY) ?? null), A1).length === 2);
     }
+    {
+      // The server refuses every time. Two records are owed (terms, privacy), so each round of tries is 2 sends.
+      let t = 0;
+      const { rec, sent, store } = mk({ clock: () => t, reply: async () => ({ status: 'synced', data: { ok: false, reason: 'limit' } }) });
+      await rec.note(A1, core.currentAgreementItems(), 'signup_email', 0);
+      const afterNote = sent.length;
+      await rec.flush(A1); await rec.flush(A1);
+      const atOnce = sent.length;
+      t = core.LEGAL_REFUSAL_BACKOFF_MS + 1; await rec.flush(A1); await rec.flush(A1);
+      const second = sent.length;
+      t += core.LEGAL_REFUSAL_BACKOFF_MS * 2; await rec.flush(A1);
+      const tooSoon = sent.length;
+      t += core.LEGAL_REFUSAL_BACKOFF_MS * 4; await rec.flush(A1);
+      const third = sent.length;
+      t += core.LEGAL_REFUSAL_BACKOFF_MS * 1000; for (let i = 0; i < 5; i++) await rec.flush(A1);
+      const ever = sent.length;
+      const owed = core.pendingLegalEntries(core.parseLegalStore(store.m.get(core.LEGAL_STORE_KEY) ?? null), A1).length;
+      ok('B19 a refused record is not retried at every flush: it waits (one minute, then four), stops after three tries for this app start, and stays owed on the phone',
+        afterNote === 2 && atOnce === 2 && second === 4 && tooSoon === 4 && third === 6 && ever === 6 && owed === 2 && core.LEGAL_REFUSAL_MAX_TRIES === 3,
+        JSON.stringify({ afterNote, atOnce, second, tooSoon, third, ever, owed }));
+    }
+    {
+      // An email sign-up with confirmation on: no session comes back. The tap is noted under the NEW account's id.
+      let session: string | null = null;
+      let t = 1000;
+      const store = memStore();
+      const { rec, sent } = mk({ store, clock: () => t, session: () => session });
+      await rec.note(A1, core.currentAgreementItems(), 'signup_email', 1000);
+      const sentBefore = sent.length;
+      const owedBefore = core.pendingLegalEntries(core.parseLegalStore(store.m.get(core.LEGAL_STORE_KEY) ?? null), A1).length;
+      // Three hours later the link is opened; the session arrives; the host flushes.
+      t = 1000 + 3 * 60 * 60 * 1000; session = A1;
+      await rec.flush(A1);
+      ok('B20 a sign-up with no session yet is noted under the new account\'s id, sent nothing, and when the link is opened hours later is recorded as signup_email with the wait reported',
+        sentBefore === 0 && owedBefore === 2 && sent.length === 2 && sent.every((x) => x.args.p_surface === 'signup_email' && x.args.p_delay_ms === 3 * 60 * 60 * 1000), JSON.stringify(sent.map((x) => [x.args.p_surface, x.args.p_delay_ms])));
+    }
+    {
+      // has() sees a note made a moment ago, before its send has finished.
+      let release: () => void = () => { /* set below */ };
+      const gate = new Promise<void>((r) => { release = r; });
+      const { rec } = mk({ reply: async () => { await gate; return { status: 'synced', data: { ok: true, recorded: true } }; } });
+      const noting = rec.note(A1, core.currentAgreementItems(), 'signup_email');
+      const seen = await rec.has(A1, core.currentAgreementItems()[0]);
+      release(); await noting;
+      ok('B21 has() answers from a note made a moment ago (after its write, without waiting for its send)', seen === true);
+    }
     ok('B14 only "the function is missing" is treated as not-installed', core.isMissingLegalFunction('PGRST202 Could not find the function public.record_my_legal_acceptance') && !core.isMissingLegalFunction('permission denied for function record_my_legal_acceptance') && !core.isMissingLegalFunction('Network request failed') && !core.isMissingLegalFunction(null));
-    const now = '2026-10-09T12:00:00Z';
-    ok('B15 surfaces: an email sign-up, a new Apple or Google account, and a returning sign-in are told apart by the SERVER\'s two timestamps',
-      core.surfaceForSignIn('signup_email') === 'signup_email'
-      && core.surfaceForSignIn('apple', { created_at: now, last_sign_in_at: '2026-10-09T12:00:05Z' }) === 'signup_apple'
-      && core.surfaceForSignIn('google', { created_at: now, last_sign_in_at: '2026-10-09T12:00:05Z' }) === 'signup_google'
-      && core.surfaceForSignIn('apple', { created_at: '2026-01-01T00:00:00Z', last_sign_in_at: now }) === 'login_first'
-      && core.surfaceForSignIn('google', null) === 'login_first'
-      && core.surfaceForSignIn('password', { created_at: now, last_sign_in_at: now }) === 'login_first'
-      && core.surfaceForSignIn('email_link', { created_at: now, last_sign_in_at: '2026-10-09T12:01:00Z' }) === 'signup_email'
-      && core.surfaceForSignIn('email_link', { created_at: '2026-01-01T00:00:00Z', last_sign_in_at: now }) === 'login_first');
+    {
+      const now = '2026-10-09T12:00:00Z';
+      const fresh = { created_at: now, last_sign_in_at: '2026-10-09T12:00:05Z' };
+      const old = { created_at: '2026-01-01T00:00:00Z', last_sign_in_at: now };
+      const S = core.signInAcceptanceSurface;
+      const table = (c: Core, on: boolean): string => [
+        c.signInAcceptanceSurface({ method: 'signup_email', user: fresh, reacceptOn: on }),
+        c.signInAcceptanceSurface({ method: 'apple', startedFrom: 'signup', user: fresh, reacceptOn: on }),
+        c.signInAcceptanceSurface({ method: 'google', startedFrom: 'signup', user: fresh, reacceptOn: on }),
+        c.signInAcceptanceSurface({ method: 'apple', startedFrom: 'signup', user: old, reacceptOn: on }),
+        c.signInAcceptanceSurface({ method: 'password', user: old, reacceptOn: on }),
+        c.signInAcceptanceSurface({ method: 'apple', startedFrom: 'login', user: fresh, reacceptOn: on }),
+        c.signInAcceptanceSurface({ method: 'google', startedFrom: 'login', user: old, reacceptOn: on }),
+        c.signInAcceptanceSurface({ method: 'apple', user: fresh, reacceptOn: on }),
+        c.signInAcceptanceSurface({ method: 'google', startedFrom: 'somewhere' as never, user: fresh, reacceptOn: on }),
+      ].map((v) => v ?? '-').join(' ');
+      ok('B15 as built (the sign-up screen shows the sentence, the login screen does not): a sign-up records; a password sign-in and Apple / Google from the login screen record NOTHING; Apple / Google with no screen named record nothing',
+        core.TERMS_SENTENCE_ON_SIGNUP_SCREEN === true && core.TERMS_SENTENCE_ON_LOGIN_SCREEN === false
+        && table(core, false) === 'signup_email signup_apple signup_google login_first - - - - -', table(core, false));
+      // The one-line change, made in memory: the login screen's constant true.
+      const flippedSrc = files[F.core].replace('export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;', 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = true;');
+      const flipped = flippedSrc === files[F.core] ? core : await evalModule<Core>(flippedSrc);
+      ok('B22 with the login screen\'s constant true (the one-line change), a password sign-in records login_first and Apple / Google from the login screen record; a screen that is not named still records nothing',
+        flippedSrc !== files[F.core] && table(flipped, false) === 'signup_email signup_apple signup_google login_first login_first signup_apple login_first - -', table(flipped, false));
+      const links = [core, flipped].flatMap((c) => [false, true].flatMap((on) => [fresh, old, null].map((u) => c.signInAcceptanceSurface({ method: 'email_link', startedFrom: 'login', user: u, reacceptOn: on }))));
+      ok('B23 an email link (a confirmation, a sign-in link, a password reset) never records, whatever the constants and the account\'s age', links.length === 12 && links.every((v) => v === null), JSON.stringify(links));
+      ok('B24 with the re-acceptance gate ON, an account that already existed records nothing at sign-in from any screen (signing out and back in cannot agree for it); a NEW account still records its sign-up',
+        table(core, true) === 'signup_email signup_apple signup_google - - - - - -' && table(flipped, true) === 'signup_email signup_apple signup_google - - signup_apple - - -', `${table(core, true)} | ${table(flipped, true)}`);
+      ok('B25 a restored session has no method and no screen: nothing names it, so nothing records it', S({ method: 'restore' as never, user: old, reacceptOn: false }) === null && core.screenShowsTerms(null) === false && core.screenShowsTerms('email') === false);
+    }
     const wiring = stripComments(files[F.wiring]);
     ok('B16 the wiring sends through supabaseRpcOnline (never toasted, never on the Not-saved ledger) and never writes the table directly',
       /supabaseRpcOnline<unknown>\(fn, args\)/.test(wiring) && !/\.from\('legal_acceptances'\)\s*\.(insert|upsert|update|delete)/.test(wiring) && !/supabaseRpcDetailed|supabaseWrite\b/.test(wiring));
-    ok('B17 the store key is under an app prefix, so the tenant-switch sweep removes it', core.LEGAL_STORE_KEY.startsWith('mageid_') && scanCore.SCAN_ACK_STORAGE_KEY.startsWith('mageid_') && /'mageid_'/.test(files[F.keys]));
+    {
+      const keys = await evalModule<{ selectTenantKeysToWipe(all: string[], o?: { dropOfflineQueue?: boolean }): string[]; DEVICE_SCOPED_KEYS: string[] }>(files[F.keys]);
+      const all = [core.LEGAL_STORE_KEY, scanCore.SCAN_ACK_STORAGE_KEY, 'mageid_projects'];
+      const switchWipe = keys.selectTenantKeysToWipe(all, { dropOfflineQueue: true });
+      const reauthWipe = keys.selectTenantKeysToWipe(all, { dropOfflineQueue: false });
+      ok('B17 owed acceptance records survive a change of account and a sign-out (the store is a listed survivor of the sweep); the scan notice\'s own store and project data are still swept',
+        core.LEGAL_STORE_KEY === 'mageid_legal_acceptance_v1' && !switchWipe.includes(core.LEGAL_STORE_KEY) && !reauthWipe.includes(core.LEGAL_STORE_KEY)
+        && switchWipe.includes(scanCore.SCAN_ACK_STORAGE_KEY) && switchWipe.includes('mageid_projects'), JSON.stringify({ switchWipe, reauthWipe }));
+      // Person A agrees with no signal; A signs out; B signs in (the sweep runs); A comes back.
+      const store = memStore();
+      let session: string | null = A1;
+      let online = false;
+      const a = mk({ store, session: () => session, reply: async () => (online ? { status: 'synced', data: { ok: true, recorded: true } } : { status: 'failed', error: 'Network request failed' }) });
+      await a.rec.note(A1, core.currentAgreementItems(), 'signup_email', 1000);
+      for (const k of keys.selectTenantKeysToWipe([...store.m.keys()], { dropOfflineQueue: true })) store.m.delete(k);
+      session = B2; online = true;
+      const beforeB = a.sent.length;
+      await a.rec.flush(B2);
+      const sentAsB = a.sent.length - beforeB;
+      session = A1;
+      await a.rec.flush(A1);
+      const st = core.parseLegalStore(store.m.get(core.LEGAL_STORE_KEY) ?? null);
+      ok('B26 run: A agrees offline, B signs in on the same phone (the tenant sweep runs), A returns: A\'s two records are still there, were never sent on B\'s session, and land on A\'s',
+        sentAsB === 0 && core.pendingLegalEntries(st, A1).length === 0 && st.byUser[A1]?.terms?.sent === true && st.byUser[A1]?.privacy?.sent === true && a.sent.length === beforeB + 2, JSON.stringify({ sent: a.sent.length, sentAsB }));
+    }
+    {
+      let st = core.emptyLegalStore();
+      const item = { kind: 'terms', version: 'v1', sha: 'a'.repeat(64) };
+      const id = (i: number): string => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
+      // Account 1 still owes its record; the rest are marked sent as they go.
+      st = core.noteLegalItem(st, id(1), item, 'signup_email', 1).store;
+      for (let i = 2; i <= 20; i++) {
+        st = core.noteLegalItem(st, id(i), item, 'signup_email', i).store;
+        st.byUser[id(i)].terms.sent = true;
+      }
+      const ids = Object.keys(st.byUser);
+      ok('B18 the surviving store is capped: 20 accounts noted leaves 12, the account being written and an account that still owes a record among them',
+        core.LEGAL_STORE_MAX_USERS === 12 && ids.length === 12 && ids.includes(id(20)) && ids.includes(id(1)) && !ids.includes(id(2)), JSON.stringify(ids.map((x) => Number(x.slice(-4)))));
+    }
   }
 
   // ── C. sign-in paths ──
@@ -292,14 +434,16 @@ async function runChecks(files: Files): Promise<Result[]> {
     const sigAt = auth.indexOf('const completeSignIn = useCallback(async (');
     const sigEnd = auth.indexOf('}, [queryClient]);', sigAt);
     const body = sigAt === -1 ? '' : auth.slice(sigAt, sigEnd);
-    ok('C1 completeSignIn takes the sign-in method and hands the user and the method to the recorder', /method: SignInMethod,\s*\) => \{/.test(body) && /\n\s*recordSignInAcceptance\(signedIn, method\);/.test(body));
+    ok('C1 completeSignIn takes the sign-in method and the screen Apple / Google was started on, and hands the user and both to the recorder', /method: SignInMethod,\s*startedFrom\?: SignInScreen,\s*\) => \{/.test(body) && /\n\s*recordSignInAcceptance\(signedIn, method, startedFrom\);/.test(body));
     ok('C2 the note is made AFTER the tenant wipe and the last-user marker, so it is not swept with the previous account\'s keys',
       body.indexOf('recordSignInAcceptance(') > body.indexOf('await writeLastUser(incoming);') && body.indexOf('await writeLastUser(incoming);') > body.indexOf('await dropPendingWrites();'));
     const calls = [...auth.matchAll(/await completeSignIn\(([^;]*)\);/g)].map((m) => m[1]);
-    const methods = calls.map((c) => (/, '(password|signup_email|apple|google)'$/.exec(c.trim()) ?? [])[1]);
-    ok('C3 every completeSignIn call names its method: password, email sign-up, Google (three ways) and Apple (two ways)',
-      calls.length === 7 && methods.every((m) => !!m) && methods.filter((m) => m === 'google').length === 3 && methods.filter((m) => m === 'apple').length === 2
-      && methods.includes('password') && methods.includes('signup_email'), JSON.stringify(methods));
+    const parsed = calls.map((c) => /, '(password|signup_email|apple|google)'(, startedFrom)?$/.exec(c.trim()));
+    const methods = parsed.map((m) => (m ?? [])[1]);
+    const screened = parsed.every((m) => !!m && ((m[1] === 'apple' || m[1] === 'google') ? m[2] === ', startedFrom' : m[2] === undefined));
+    ok('C3 every completeSignIn call names its method: password, email sign-up, Google (three ways) and Apple (two ways); every Apple and Google call passes on the screen it was started from',
+      calls.length === 7 && methods.every((m) => !!m) && screened && methods.filter((m) => m === 'google').length === 3 && methods.filter((m) => m === 'apple').length === 2
+      && methods.includes('password') && methods.includes('signup_email'), JSON.stringify(calls));
     // Every call that creates a session sits in a callback that reaches completeSignIn.
     const creators = [...auth.matchAll(/supabase\.auth\.(signInWithPassword|signUp|signInWithIdToken|setSession|verifyOtp|exchangeCodeForSession)\(/g)];
     const blocks = auth.split(/\n  const (?=[A-Za-z]+ = useCallback\()/);
@@ -311,8 +455,26 @@ async function runChecks(files: Files): Promise<Result[]> {
     ok('C4 every AuthContext callback that creates a session (password, sign-up, id token, setSession) reaches completeSignIn', creators.length >= 6 && uncovered.length === 0, uncovered.join(', '));
     const nseAt = auth.indexOf('const onNewSessionEstablished = useCallback(');
     const nse = auth.slice(nseAt, auth.indexOf('onNewSessionRef.current = ', nseAt));
-    ok('C5 the email-link path (a confirmed sign-up, a sign-in link, a password reset, a crew claim link) records too, after its wipe',
-      /recordSignInAcceptance\(arrived, 'email_link'\);/.test(nse) && nse.indexOf("recordSignInAcceptance(arrived, 'email_link')") > nse.indexOf('await wipeLocalUserCache({ dropOfflineQueue: !keepQueue });'));
+    ok('C5 the email-link path (a confirmed sign-up, a sign-in link, a password reset, a crew claim link) records NOTHING: no recorder call anywhere in onNewSessionEstablished',
+      nseAt !== -1 && nse.length > 500 && !/recordSignInAcceptance|recordReacceptance|legalAcceptance/.test(nse));
+    const restore = [...auth.matchAll(/onAuthStateChange\(|getSession\(\)|refreshSession\(/g)].length;
+    ok('C12 the recorder is reached from exactly two places in AuthContext: completeSignIn and the sign-up that is waiting for its confirmation link. No session listener, restore or refresh calls it',
+      restore >= 2 && [...auth.matchAll(/recordSignInAcceptance\(([^)]*)\)/g)].map((m) => m[1]).join(' | ') === "signedIn, method, startedFrom | data.user, 'signup_email'", [...auth.matchAll(/recordSignInAcceptance\(([^)]*)\)/g)].map((m) => m[1]).join(' | '));
+    const suAt = auth.indexOf('const signup = useCallback(');
+    const su = auth.slice(suAt, auth.indexOf("console.log('[Auth] Signup successful')", suAt));
+    ok('C13 a sign-up with no session yet notes the acceptance under the new account\'s id, after the "already exists" answer (a made-up id) has been refused',
+      /if \(data\.session\) \{[\s\S]*?await completeSignIn\(data\.user, handoff, 'signup_email'\);\s*\} else \{\s*recordSignInAcceptance\(data\.user, 'signup_email'\);\s*\}/.test(su)
+      && su.indexOf('identities?.length') !== -1 && su.indexOf('identities?.length') < su.indexOf("recordSignInAcceptance(data.user, 'signup_email')"));
+    ok('C14 Apple and Google take the screen they were started on, and default to the login screen (whose constant decides)',
+      /const signInWithGoogle = useCallback\(async \(startedFrom: SignInScreen = 'login'\): Promise<boolean> => \{/.test(auth) && /const signInWithApple = useCallback\(async \(startedFrom: SignInScreen = 'login'\): Promise<boolean> => \{/.test(auth));
+    const signup = stripComments(files[F.signup]);
+    const login = stripComments(files[F.login]);
+    ok('C15 the sign-up screen says so when it starts Apple or Google', /await signInWithGoogle\('signup'\)/.test(signup) && /await signInWithApple\('signup'\)/.test(signup) && !/signInWith(Google|Apple)\('signup'\)/.test(login));
+    const sentence = (src: string): boolean => /Terms of Service/.test(src) && /Privacy Policy/.test(src) && /agree/i.test(src);
+    ok('C16 TERMS_SENTENCE_ON_SIGNUP_SCREEN is true and app/signup.tsx displays the sentence, with a link to each document',
+      core.TERMS_SENTENCE_ON_SIGNUP_SCREEN === true && /By creating an account you agree to our/.test(signup) && sentence(signup) && /mageid\.app\/terms/.test(signup) && /mageid\.app\/privacy/.test(signup));
+    ok('C17 TERMS_SENTENCE_ON_LOGIN_SCREEN is true ONLY IF app/login.tsx displays the sentence (today it does not, and the constant is false: a login records nothing)',
+      core.TERMS_SENTENCE_ON_LOGIN_SCREEN === false || sentence(login), 'the constant says the login screen shows the Terms sentence and app/login.tsx does not contain it');
     // The two files that call setSession themselves must go on to onNewSessionEstablished.
     for (const f of [F.layout, F.reset]) {
       const src = stripComments(files[f]);
@@ -324,6 +486,9 @@ async function runChecks(files: Files): Promise<Result[]> {
     const fn = wiring.slice(fnAt, wiring.indexOf('\nexport ', fnAt + 10));
     ok('C8 recordSignInAcceptance returns void and its whole body is inside try / catch, with the promise\'s rejection swallowed',
       /\): void \{\s*try \{/.test(fn) && /\} catch \{[^}]*\}\s*\}\s*$/.test(fn.trim()) && /void recorder\.note\([^;]*\)\.catch\(/.test(fn), fn.slice(0, 80));
+    ok('C11 recordSignInAcceptance notes only what the one decision allows: the surface comes from signInAcceptanceSurface with the real re-acceptance flag, and no surface means no note',
+      /const surface = signInAcceptanceSurface\(\{ method, startedFrom, user, reacceptOn: TERMS_REACCEPT_ENABLED \}\);\s*if \(!surface\) return;\s*void recorder\.note\(user\.id, currentAgreementItems\(\), surface\)/.test(fn)
+      && /import \{ TERMS_REACCEPT_ENABLED \} from '@\/constants\/featureFlags';/.test(wiring));
     // The behaviour: a sign-in built the way completeSignIn is, with a recorder that throws, still resolves.
     {
       const throwing = (): void => { throw new Error('recorder exploded'); };
@@ -355,6 +520,19 @@ async function runChecks(files: Files): Promise<Result[]> {
       && core.reacceptStateFromRows([rowsOk[0]]) === 'needed' && core.reacceptStateFromRows([{ ...rowsOk[0], version: '2020-01-01' }, rowsOk[1]]) === 'needed'
       && core.reacceptStateFromRows([rowsOk[0], { ...rowsOk[1], text_sha256: 'f'.repeat(64) }]) === 'needed' && core.reacceptStateFromRows(rowsOk) === 'accepted');
     const wiring = stripComments(files[F.wiring]);
+    {
+      const items = core.currentAgreementItems();
+      let st = core.emptyLegalStore();
+      st = core.noteLegalItem(st, A1, items[0], 'signup_email', 1).store;
+      const one = core.reacceptStateWithLocal('needed', st, A1);
+      st = core.noteLegalItem(st, A1, items[1], 'signup_email', 1).store;
+      ok('D11 a person who agreed a moment ago on this phone is not asked again while the record is on its way: "needed" becomes "accepted" only when BOTH current documents are noted here for THIS account; "unknown" stays unknown',
+        one === 'needed' && core.reacceptStateWithLocal('needed', st, A1) === 'accepted' && core.reacceptStateWithLocal('needed', st, B2) === 'needed'
+        && core.reacceptStateWithLocal('unknown', st, A1) === 'unknown' && core.reacceptStateWithLocal('needed', st, null) === 'needed');
+      ok('D12 the wiring asks the recorder for both documents before it answers "needed", and "I Agree" records under the surface reaccept',
+        /const noted = await Promise\.all\(items\.map\(\(item\) => recorder\.has\(userId, item\)\)\);\s*return noted\.every\(Boolean\) \? 'accepted' : 'needed';/.test(wiring)
+        && /return recorder\.note\(userId, currentAgreementItems\(\), 'reaccept'\)/.test(wiring));
+    }
     ok('D7 a read error answers "unknown"', /if \(error \|\| !Array\.isArray\(data\)\) return 'unknown';/.test(wiring) && /\} catch \{\s*return 'unknown';/.test(wiring));
     ok('D8 the sheet has no dismiss: two buttons, I Agree and Sign Out, and a no-op on the hardware back', /onRequestClose=\{\(\) => \{[^}]*\}\}/.test(files[F.gate]) && /testID="legal-reaccept-agree"/.test(gate) && /testID="legal-reaccept-signout"/.test(gate) && !/onDismiss|closeLabel|Not Now/.test(gate));
     ok('D9 the host is mounted once in the root layout', [...files[F.layout].matchAll(/<LegalGateHost \/>/g)].length === 1);
@@ -417,7 +595,7 @@ async function runChecks(files: Files): Promise<Result[]> {
   // ── F. the migrations ──
   {
     const sql = stripSql(files[F.migAccept]);
-    const SIG = 'text, text, text, text, text, text, bigint';
+    const SIG = 'text, text, text, text, text, text, bigint, text';
     ok('F1 row level security is on and the one policy is own-rows SELECT for authenticated',
       /alter table public\.legal_acceptances enable row level security;/.test(sql)
       && /create policy legal_acceptances_read_own on public\.legal_acceptances\s+for select to authenticated\s+using \(user_id = \(select auth\.uid\(\)\)\);/.test(sql)
@@ -443,6 +621,14 @@ async function runChecks(files: Files): Promise<Result[]> {
     const tableAt = sql.indexOf('create table if not exists public.legal_acceptances (');
     const table = sql.slice(tableAt, sql.indexOf('\n);', tableAt));
     ok('F10 the table has no IP address, user agent, email, name or token column', !/^\s*(ip|ip_address|user_agent|email|name|token|access_token)\s/m.test(table) && /accepted_at\s+timestamptz not null default now\(\),/.test(table));
+    ok('F17 the kinds are a closed list inside the recorder, checked before the per-person limit is counted (junk kinds cannot fill it)',
+      /if p_kind not in \('terms', 'privacy', 'code_answer_ack', 'scan_ack'\) then\s+raise exception/.test(fn) && fn.indexOf("if p_kind not in ('terms'") < fn.indexOf('select count(*) into v_count')
+      && fn.indexOf("if p_kind not in ('terms'") !== -1);
+    ok('F18 the over-the-air update id is a column, checked, stored by the recorder and frozen by the keep trigger',
+      /^\s*update_id\s+text,$/m.test(table) && /constraint legal_acceptances_update_id_check\s+check \(update_id is null or update_id ~ '\^\[A-Za-z0-9-\]\{1,64\}\$'\)/.test(table)
+      && /p_update_id text default null/.test(fn) && /v_app, v_platform, v_update,/.test(fn) && /and new\.update_id is not distinct from old\.update_id/.test(sql));
+    ok('F19 the header says what a row means (a screen that displayed the sentence) and that this file goes on before or with the app update',
+      /ON A SCREEN THAT DISPLAYED the sentence/.test(files[F.migAccept]) && /Apply this BEFORE the app update, or together with it/.test(files[F.migAccept]) && !/Any order is safe/.test(files[F.migAccept]));
     ok('F11 a signed-in account cannot write a no-account surface', /if p_surface in \('portal', 'signing_link'\) then\s+raise exception/.test(fn));
 
     const tomb = stripSql(files[F.migTomb]);
@@ -456,7 +642,18 @@ async function runChecks(files: Files): Promise<Result[]> {
       && /grant execute on function public\.tombstone_signed_records\(uuid, text\[\], text\[\]\) to service_role;/.test(tomb));
     const tTableAt = tomb.indexOf('create table if not exists public.signed_record_tombstones (');
     const tTable = tomb.slice(tTableAt, tomb.indexOf('\n);', tTableAt));
-    ok('F14 a tombstone has no personal column and no account id', !/^\s*(user_id|signer_name|signer_email|name|email|signature_data|amount|ip|user_agent|token)\s/m.test(tTable));
+    {
+      const said = [files[F.migTomb], files[F.del], files[F.docDeletion], files[F.docPrivacy]];
+      const claim = /\bno personal data\b(?!")/i;
+      ok('F20 nothing says a tombstone holds "no personal data": the migration, the function and both legal notes say what is kept (a one-way hash of the signed row and of the account id) and call it pseudonymous',
+        !claim.test(files[F.migTomb].replace(/not "no\s+--\s+personal data"/, '')) && !claim.test(files[F.del]) && !/no personal data\./i.test(files[F.docDeletion].replace(/not the same as "no personal data"\./, ''))
+        && said.every((t) => /pseudonymous/.test(t)) && /\| 19 \| \*\*Tombstones of signed records\.\*\*/.test(files[F.docPrivacy]) && /one-way hashes of the document and of the account ID/.test(files[F.docPrivacy]));
+      ok('F21 the legal note says what stays exposed after the bucket is private, proposes the next tightening, and says where the hashed words are kept and that the hash is of the repo file',
+        /## Posting Photos And Drawings: What Stays Exposed/.test(files[F.docPrivacy]) && /Any signed-in account can read the files of every OPEN posting/.test(files[F.docPrivacy])
+        && /chooses how long its link lives/.test(files[F.docPrivacy]) && /Proposed next tightening \(not built/.test(files[F.docPrivacy])
+        && /## Which Words: The Archive/.test(files[F.docPrivacy]) && /The hash is of the file in this repository/.test(files[F.docPrivacy]) && /Netlify deploys it on a push to `main`/.test(files[F.docPrivacy]));
+    }
+    ok('F14 a tombstone has no column that names a person and no account id', !/^\s*(user_id|signer_name|signer_email|name|email|signature_data|amount|ip|user_agent|token)\s/m.test(tTable));
     ok('F15 the writer re-checks that every project is the account\'s own, and leaves the waiver\'s signing key out of the hash', /where p\.user_id = p_user_id and p\.id::text = any \(p_project_ids\);/.test(tomb) && /\(pg_catalog\.to_jsonb\(w\) - 'sign_token'\)::text/.test(tomb));
     ok('F16 neither migration alters or adds a trigger to change_order_approvals or lien_waivers (another lane owns them)',
       !/(alter table|create trigger[^;]*on) public\.(change_order_approvals|lien_waivers)/.test(tomb) && !/(change_order_approvals|lien_waivers)/.test(sql));
@@ -511,14 +708,37 @@ const M: Mutation[] = [
   { name: 'the recorder lets a storage failure out', file: F.core, from: '    const run = chain.then(work, work).catch(() => { /* never surfaces */ });', to: '    const run = chain.then(work, work);',
     also: ['    try { return parseLegalStore(await deps.storage.getItem(LEGAL_STORE_KEY)); } catch { return emptyLegalStore(); }', '    return parseLegalStore(await deps.storage.getItem(LEGAL_STORE_KEY));'], red: 'B12' },
   { name: 'the recorder keeps hammering a missing function', file: F.core, from: '        if (isMissingLegalFunction(res.error)) functionMissing = true;', to: '', red: 'B9' },
-  { name: 'ok:false is marked sent', file: F.core, from: '      if (!legalRpcLanded(res.data)) continue;', to: '', red: 'B13' },
+  { name: 'ok:false is marked sent', file: F.core, from: '      if (!legalRpcLanded(res.data)) {', to: '      if (false) {', red: 'B13' },
+  { name: 'a refused record is retried at every flush', file: F.core, from: ' || now() < was.nextAt', to: '', red: 'B19' },
+  { name: 'a refused record is retried forever', file: F.core, from: 'was.tries >= LEGAL_REFUSAL_MAX_TRIES || ', to: '', red: 'B19' },
+  { name: 'the rpc drops the update id', file: F.core, from: "    p_update_id: ctx.updateId && /^[A-Za-z0-9-]{1,64}$/.test(ctx.updateId) ? ctx.updateId : null,", to: '    p_update_id: null,', red: 'B5' },
+  { name: 'an email link records', file: F.core, from: "  if (method === 'email_link') return null;", to: "  if (method === 'email_link') return 'login_first';", red: 'B23' },
+  { name: 'the login screen records whatever its constant says', file: F.core, from: "  if (screen === 'login') return TERMS_SENTENCE_ON_LOGIN_SCREEN === true;", to: "  if (screen === 'login') return true;", red: 'B15' },
+  { name: 'the login screen\'s constant is true with no sentence on the screen', file: F.core, from: 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;', to: 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = true;', red: 'C17' },
+  { name: 'Apple with no screen named records as a sign-up', file: F.core, from: "return startedFrom === 'signup' || startedFrom === 'login' ? startedFrom : null;", to: "return startedFrom === 'login' ? 'login' : 'signup';", red: 'B15' },
+  { name: 'with the gate on, signing out and back in records the new version', file: F.core, from: '  if (input.reacceptOn === true && !fresh) return null;\n', to: '', red: 'B24' },
+  { name: 'has() does not wait for a note made a moment ago', file: F.core, from: 'try { await notesWritten; return hasLegalItem(', to: 'try { return hasLegalItem(', red: 'B21' },
+  { name: 'the owed store is swept at a change of account', file: F.keys, from: "  'mageid_legal_acceptance_v1',\n];", to: '];', red: 'B17' },
+  { name: 'the surviving store is never pruned', file: F.core, from: '  if (ids.length <= LEGAL_STORE_MAX_USERS) return store;', to: '  if (ids.length <= 10000) return store;', red: 'B18' },
+  { name: 'one noted document counts as both', file: F.core, from: "  return items.every((item) => hasLegalItem(store, userId, item)) ? 'accepted' : 'needed';", to: "  return items.some((item) => hasLegalItem(store, userId, item)) ? 'accepted' : 'needed';", red: 'D11' },
+  { name: 'the archived Terms text is edited', file: `${ARCHIVE_DIR}/terms-2026-05-12-c0b1f207.txt`, from: 'binding individual arbitration', to: 'binding individual mediation', red: 'A17' },
+  { name: 'the archive file is renamed away', file: `${ARCHIVE_DIR}/privacy-2026-10-04-7f7902ac.txt`, from: /^[\s\S]*$/, to: 'x', red: 'A17' },
   { name: 'the wiring goes through the toasting queue', file: F.wiring, from: 'const res = await supabaseRpcOnline<unknown>(fn, args);', to: "const res = { status: await supabaseRpcDetailed('legal_acceptances', 'x', fn, args), error: undefined, data: undefined };", red: 'B16' },
-  { name: 'completeSignIn stops recording', file: F.auth, from: '    recordSignInAcceptance(signedIn, method);\n', to: '', red: 'C1' },
-  { name: 'the record is noted before the tenant wipe', file: F.auth, from: /(\n    const incoming: LastUser \| null = signedIn \? \{ id: signedIn\.id, email: signedIn\.email \?\? null \} : null;)/, to: '$1\n    recordSignInAcceptance(signedIn, method);', red: 'C2' },
-  { name: 'the Apple path forgets its method', file: F.auth, from: "await completeSignIn(data.user ?? data.session?.user, handoff, 'apple');", to: "await completeSignIn(data.user ?? data.session?.user, handoff, undefined as never);", red: 'C3' },
-  { name: 'the email-link path stops recording', file: F.auth, from: "    recordSignInAcceptance(arrived, 'email_link');\n", to: '', red: 'C5' },
-  { name: 'the sign-in awaits the recorder', file: F.auth, from: '    recordSignInAcceptance(signedIn, method);\n', to: '    await recordSignInAcceptance(signedIn, method);\n', red: 'C7' },
-  { name: 'the recorder call loses its try', file: F.wiring, from: "  try {\n    if (!user?.id) return;\n    void recorder.note(user.id, currentAgreementItems(), surfaceForSignIn(method, user)).catch(() => { /* never surfaces */ });\n  } catch { /* never surfaces */ }", to: '  if (!user?.id) return;\n  void recorder.note(user.id, currentAgreementItems(), surfaceForSignIn(method, user));', red: 'C8' },
+  { name: 'completeSignIn stops recording', file: F.auth, from: '    recordSignInAcceptance(signedIn, method, startedFrom);\n', to: '', red: 'C1' },
+  { name: 'the record is noted before the tenant wipe', file: F.auth, from: /(\n    const incoming: LastUser \| null = signedIn \? \{ id: signedIn\.id, email: signedIn\.email \?\? null \} : null;)/, to: '$1\n    recordSignInAcceptance(signedIn, method, startedFrom);', red: 'C2' },
+  { name: 'the Apple path forgets its method', file: F.auth, from: "await completeSignIn(data.user ?? data.session?.user, handoff, 'apple', startedFrom);", to: "await completeSignIn(data.user ?? data.session?.user, handoff, undefined as never, startedFrom);", red: 'C3' },
+  { name: 'the Google path forgets the screen it was started on', file: F.auth, from: "await completeSignIn(data.user ?? data.session?.user, handoff, 'google', startedFrom);", to: "await completeSignIn(data.user ?? data.session?.user, handoff, 'google');", red: 'C3' },
+  { name: 'the email-link path records again (a password reset would write a row)', file: F.auth, from: "    // An email link (a confirmed sign-up, a sign-in link, a password reset)\n    // made this session. NOTHING is recorded here", to: "    recordSignInAcceptance(incoming as never, 'email_link');\n    // An email link (a confirmed sign-up, a sign-in link, a password reset)\n    // made this session. NOTHING is recorded here", red: 'C5' },
+  { name: 'a session listener records', file: F.auth, from: /(\n  const completeSignIn = useCallback\(async \()/, to: "\n  const onRestore = (u: User) => { recordSignInAcceptance(u, 'password'); };$1", red: 'C12' },
+  { name: 'a sign-up waiting for its link notes nothing', file: F.auth, from: "        recordSignInAcceptance(data.user, 'signup_email');\n", to: '', red: 'C13' },
+  { name: 'Apple defaults to the sign-up screen', file: F.auth, from: "const signInWithApple = useCallback(async (startedFrom: SignInScreen = 'login')", to: "const signInWithApple = useCallback(async (startedFrom: SignInScreen = 'signup')", red: 'C14' },
+  { name: 'the sign-up screen stops saying where Apple was started', file: F.signup, from: "await signInWithApple('signup')", to: 'await signInWithApple()', red: 'C15' },
+  { name: 'the sign-up screen loses its sentence', file: F.signup, from: 'By creating an account you agree to our', to: 'Welcome to', red: 'C16' },
+  { name: 'the sign-in awaits the recorder', file: F.auth, from: '    recordSignInAcceptance(signedIn, method, startedFrom);\n', to: '    await recordSignInAcceptance(signedIn, method, startedFrom);\n', red: 'C7' },
+  { name: 'the wiring notes whatever the decision was', file: F.wiring, from: '    if (!surface) return;\n', to: '', red: 'C11' },
+  { name: 'the wiring ignores the re-acceptance flag', file: F.wiring, from: 'reacceptOn: TERMS_REACCEPT_ENABLED });', to: 'reacceptOn: false });', red: 'C11' },
+  { name: 'the gate answers from the server alone', file: F.wiring, from: "    return noted.every(Boolean) ? 'accepted' : 'needed';", to: "    return 'needed';", red: 'D12' },
+  { name: 'the recorder call loses its try', file: F.wiring, from: "  try {\n    if (!user?.id) return;\n    const surface = signInAcceptanceSurface(", to: '  {\n    if (!user?.id) return;\n    const surface = signInAcceptanceSurface(', also: ["    void recorder.note(user.id, currentAgreementItems(), surface).catch(() => { /* never surfaces */ });\n  } catch { /* never surfaces */ }", '    void recorder.note(user.id, currentAgreementItems(), surface);\n  }'], red: 'C8' },
   { name: 'the flag is switched on', file: F.flags, from: 'export const TERMS_REACCEPT_ENABLED = false;', to: 'export const TERMS_REACCEPT_ENABLED = true;', red: 'D1' },
   { name: 'the gate mounts with the flag off', file: F.gate, from: '  if (!TERMS_REACCEPT_ENABLED || !userId) return null;', to: '  if (!userId) return null;', red: 'D2' },
   { name: 'an unreadable answer shows the sheet', file: F.core, from: "  return flagOn === true && !!userId && state === 'needed';", to: "  return flagOn === true && !!userId && state !== 'accepted';", red: 'D5' },
@@ -534,14 +754,19 @@ const M: Mutation[] = [
   { name: 'Clearance Check opens without the notice', file: F.scanFlow, from: "onPress: () => afterScanAck(() => setStep('clearance')) }", to: "onPress: () => setStep('clearance') }", red: 'E9' },
   { name: 'afterScanAck goes on whatever the answer', file: F.scanFlow, from: 'void scanAck.ensure().then((ok) => { if (ok) go(); });', to: 'void scanAck.ensure().then(() => { go(); });', red: 'E10' },
   { name: 'authenticated is granted INSERT', file: F.migAccept, from: 'grant select on public.legal_acceptances to authenticated;', to: 'grant select, insert on public.legal_acceptances to authenticated;', red: 'F2' },
-  { name: 'anon may call the recorder', file: F.migAccept, from: 'grant execute on function public.record_my_legal_acceptance(text, text, text, text, text, text, bigint) to authenticated;', to: 'grant execute on function public.record_my_legal_acceptance(text, text, text, text, text, text, bigint) to authenticated, anon;', red: 'F3' },
+  { name: 'anon may call the recorder', file: F.migAccept, from: 'grant execute on function public.record_my_legal_acceptance(text, text, text, text, text, text, bigint, text) to authenticated;', to: 'grant execute on function public.record_my_legal_acceptance(text, text, text, text, text, text, bigint, text) to authenticated, anon;', red: 'F3' },
   { name: 'the recorder runs with the caller\'s rights', file: F.migAccept, from: "returns jsonb\nlanguage plpgsql\nsecurity definer\nset search_path to ''\nas $function$\ndeclare\n  v_uid uuid", to: "returns jsonb\nlanguage plpgsql\nset search_path to ''\nas $function$\ndeclare\n  v_uid uuid", red: 'F4' },
   { name: 'the recorder\'s search_path is public', file: F.migAccept, from: "returns jsonb\nlanguage plpgsql\nsecurity definer\nset search_path to ''\nas $function$\ndeclare\n  v_uid uuid", to: "returns jsonb\nlanguage plpgsql\nsecurity definer\nset search_path to public\nas $function$\ndeclare\n  v_uid uuid", red: 'F4' },
   { name: 'the recorder takes the user as an argument', file: F.migAccept, from: '  v_uid uuid := auth.uid();\n  v_id bigint;', to: '  v_uid uuid := coalesce(p_user, auth.uid());\n  v_id bigint;', red: 'F5' },
   { name: 'the stored time is moved back by the phone\'s delay', file: F.migAccept, from: '     pg_catalog.clock_timestamp(), v_delay)', to: "     pg_catalog.clock_timestamp() - (v_delay * interval '1 millisecond'), v_delay)", red: 'F6' },
   { name: 'the keep trigger is update-only', file: F.migAccept, from: '  before update or delete on public.legal_acceptances', to: '  before update on public.legal_acceptances', red: 'F8' },
   { name: 'account deletion cascades', file: F.migAccept, from: 'uuid references auth.users(id) on delete set null,', to: 'uuid references auth.users(id) on delete cascade,', red: 'F9' },
-  { name: 'the table gains an IP column', file: F.migAccept, from: '  platform           text,\n  accepted_at', to: '  platform           text,\n  ip_address         inet,\n  accepted_at', red: 'F10' },
+  { name: 'the table gains an IP column', file: F.migAccept, from: '  update_id          text,\n  accepted_at', to: '  update_id          text,\n  ip_address         inet,\n  accepted_at', red: 'F10' },
+  { name: 'any kind is accepted', file: F.migAccept, from: "  if p_kind not in ('terms', 'privacy', 'code_answer_ack', 'scan_ack') then", to: '  if false then', red: 'F17' },
+  { name: 'the update id can be rewritten when the account is deleted', file: F.migAccept, from: '     and new.update_id is not distinct from old.update_id\n', to: '', red: 'F18' },
+  { name: 'the header goes back to "any order"', file: F.migAccept, from: 'Apply this BEFORE the app update, or together with it', to: 'Any order is safe', red: 'F19' },
+  { name: 'the function says "no personal data" again', file: F.del, from: 'These are pseudonymous, not anonymous:', to: 'There is no personal data here:', red: 'F20' },
+  { name: 'the legal note stops saying open postings stay readable', file: F.docPrivacy, from: 'Any signed-in account can read the files of every OPEN posting', to: 'Files are private', red: 'F21' },
   { name: 'tombstones are readable by signed-in accounts', file: F.migTomb, from: 'grant select on public.signed_record_tombstones to service_role;', to: 'grant select on public.signed_record_tombstones to service_role, authenticated;', red: 'F12' },
   { name: 'a client may call the tombstone writer', file: F.migTomb, from: 'revoke all on function public.tombstone_signed_records(uuid, text[], text[]) from public, anon, authenticated;', to: 'revoke all on function public.tombstone_signed_records(uuid, text[], text[]) from public, anon;', red: 'F13' },
   { name: 'a tombstone keeps the signer\'s name', file: F.migTomb, from: '  counterparty_ref text,\n  signed_at', to: '  counterparty_ref text,\n  signer_name      text,\n  signed_at', red: 'F14' },
