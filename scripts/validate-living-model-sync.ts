@@ -104,8 +104,9 @@ const pend = (writeId: string, base: number, fingerprint = 'B') => ({ writeId, b
 const srv = (revision: number, fingerprint?: string | null, writeId: string | null = 'w-other', schemaVersion = 1, extra: Partial<ReconcileServer> = {}): ReconcileServer =>
   ({ revision, writeId, schemaVersion, fingerprint, ...(typeof fingerprint === 'string' ? { hasContent: fingerprint !== 'E' } : {}), ...extra });
 /** The notes after Start a New Model, and after the model key went missing, on a device that had matched revision 2. */
-const startedNew = (): ModelSyncMeta => resetSyncBase(synced(2, 'A'), { startedNew: true });
-const keyLost = (): ModelSyncMeta => resetSyncBase(synced(2, 'A'), { startedNew: false });
+let resetNotes: typeof resetSyncBase = resetSyncBase;
+const startedNew = (): ModelSyncMeta => resetNotes(synced(2, 'A'), { startedNew: true });
+const keyLost = (): ModelSyncMeta => resetNotes(synced(2, 'A'), { startedNew: false });
 /** The row remembers this device's save w1 as landed at `r`. */
 const remembers = (r: number): Partial<ReconcileServer> => ({ recentWrites: [{ writeId: 'w1', revision: r }, { writeId: 'w9', revision: r + 1 }] });
 const loc = (fingerprint: string, hasContent = true) => ({ fingerprint, hasContent });
@@ -143,7 +144,7 @@ const scanModel = (): JobModel => addRoom(typedModel(), roomFromScan(aScan('scan
 type Case = [string, ReconcileInput, ReconcileAction['kind'], number?];
 const E = loc('E', false);
 // THE INTENDED RULES, one named case each (the order of the header of utils/livingModel/syncCore.ts).
-const CASES: Case[] = [
+const casesFor = (reset: typeof resetSyncBase): Case[] => { resetNotes = reset; const table: Case[] = [
   // nothing on either side, and first saves
   ['neither side has a model', { local: E, meta: meta(), server: null, pendingQueued: false }, 'nothing'],
   ['no account row, a model on the device that was never sent', { local: loc('A'), meta: meta({ accountSeen: true }), server: null, pendingQueued: false }, 'push', 0],
@@ -198,11 +199,12 @@ const CASES: Case[] = [
   // the row was made again
   ['the account row was made again (a lower revision), nothing changed here', { local: loc('A'), meta: synced(4, 'A'), server: srv(1, 'C'), pendingQueued: false }, 'take_server'],
   ['the account row was made again, and this device changed', { local: loc('B'), meta: synced(4, 'A'), server: srv(1, 'C'), pendingQueued: false }, 'conflict'],
-];
+]; resetNotes = resetSyncBase; return table; };
 
 rule('A1', 'reconcile answers every named case, and both-changed is always the question', (w) => {
   const out: string[] = [];
-  for (const [name, input, want, base] of CASES) {
+  // Start a New Model and a lost model key reach the decision through resetSyncBase: the cases are built with it.
+  for (const [name, input, want, base] of casesFor(w.impl.resetSyncBase)) {
     const got = w.impl.reconcile(input);
     if (got.kind !== want) out.push(`${name}: ${got.kind}, want ${want}`);
     else if (got.kind === 'push' && got.base !== base) out.push(`${name}: push based on ${got.base}, want ${base}`);
@@ -798,6 +800,8 @@ rule('I3', 'Use the Kept Model Instead survives a kill between its writes: the k
   const screen = code(w.files[SCREEN]);
   if (!screen.includes('void recoverKeptSwap(userId, projectId, new Date().toISOString()).then(() => loadJobModel(userId, projectId)).then((loaded) => {')) out.push('the screen reads the model before a trade cut short is finished');
   const hook = code(w.files[HOOK]);
+  const back = body(hook, 'bringBackKept');
+  if (!back.includes('const swapped = await swapKeptModel(userId, projectId, mine, k, new Date().toISOString(), loadStateRef.current);') || /writeKeptModel\(|saveJobModel\(/.test(back)) out.push('Use the Kept Model Instead writes the two keys by itself, one after the other');
   if (hook.indexOf('await recoverKeptSwap(userId, projectId, new Date().toISOString());') < 0 || hook.indexOf('await recoverKeptSwap(') > hook.indexOf('readKeptModel(userId, projectId)')) out.push('the hook reads the kept model before a trade cut short is finished');
   return out;
 });
@@ -940,6 +944,91 @@ const MUTATIONS: Mutation[] = [
   { rule: 'A2', name: 'the queue is ignored', plant: swap({ reconcile: (i) => reconcile({ ...i, pendingQueued: false }) }) },
   { rule: 'A2', name: 'a changed device sends on whatever revision the account has', plant: swap({ reconcile: (i) => { const a = reconcile(i); return a.kind === 'need_model' || a.kind === 'conflict' ? { kind: 'push', base: i.server?.revision ?? 0 } : a; } }) },
   { rule: 'A2', name: 'the account is always taken when it is ahead', plant: swap({ reconcile: (i) => (i.server && i.server.revision > i.meta.baseRevision && !(i.meta.pending && i.pendingQueued) ? { kind: 'take_server' } : reconcile(i)) }) },
+  // The review's finding, as the code was: a device with nothing on it sends its empty model on the strength of an old match.
+  { rule: 'A1', name: 'an empty device sends over the account copy (Start a New Model, an emptied model)', plant: swap({ reconcile: (i) => (!i.local.hasContent && i.server && i.meta.baseRevision > 0 && i.server.revision === i.meta.baseRevision && i.server.schemaVersion === 1 && i.server.fingerprint !== null && !i.server.outOfBounds && !(i.meta.pending && i.pendingQueued) ? { kind: 'push', base: i.server.revision } : reconcile(i)) }) },
+  { rule: 'A2', name: 'an empty device sends over the account copy (sweep)', plant: swap({ reconcile: (i) => { const a = reconcile(i); return a.kind === 'conflict' && !i.local.hasContent && i.server && i.meta.baseRevision === i.server.revision ? { kind: 'push', base: i.server.revision } : a; } }) },
+  { rule: 'A1', name: 'Start a New Model takes the account copy without asking', plant: swap({ reconcile: (i) => reconcile({ ...i, meta: { ...i.meta, startedNew: false } }) }) },
+  { rule: 'A2', name: 'Start a New Model takes the account copy without asking (sweep)', plant: swap({ reconcile: (i) => reconcile({ ...i, meta: { ...i.meta, startedNew: false } }) }) },
+  { rule: 'A1', name: 'Start a New Model does not reset the base: the old match stands', plant: swap({ resetSyncBase: (m) => m }) , },
+  { rule: 'A1', name: 'a lost model key is put to him as a question', plant: swap({ reconcile: (i) => { const a = reconcile(i); return a.kind === 'take_server' && !i.local.hasContent && i.meta.baseRevision === 0 && typeof i.server?.fingerprint === 'string' && i.server.fingerprint !== 'E' && i.meta.accountSeen ? { kind: 'conflict' } : a; } }) },
+  { rule: 'A1', name: 'his answer over one revision stands for every later one', plant: swap({ reconcile: (i) => (i.meta.chosenOver !== null && i.server && !i.local.hasContent && typeof i.server.fingerprint === 'string' ? { kind: 'push', base: i.server.revision } : reconcile(i)) }) },
+  { rule: 'A1', name: 'a save that landed and was saved over is called both-changed', plant: swap({ reconcile: (i) => reconcile({ ...i, server: i.server ? { ...i.server, recentWrites: [] } : null }) }) },
+  { rule: 'A2', name: 'a save that landed and was saved over is called both-changed (sweep)', plant: swap({ reconcile: (i) => reconcile({ ...i, server: i.server ? { ...i.server, recentWrites: [] } : null }) }) },
+  { rule: 'A1', name: 'a save the row names at its own base is believed', plant: swap({ reconcile: (i) => { const p0 = i.meta.pending; const hit = p0 && i.server && i.server.writeId !== p0.writeId ? (i.server.recentWrites ?? []).find((x) => x.writeId === p0.writeId) : undefined; return hit && i.local.fingerprint === p0!.fingerprint && !(i.pendingQueued) ? { kind: 'take_server' } : reconcile(i); } }) },
+  { rule: 'A1', name: 'a removed account copy is sent again from a device that had matched it', plant: swap({ reconcile: (i) => { const a = reconcile(i); return a.kind === 'account_gone' ? { kind: 'push', base: 0 } : a; } }) },
+  { rule: 'A2', name: 'a removed account copy is sent again (sweep)', plant: swap({ reconcile: (i) => { const a = reconcile(i); return a.kind === 'account_gone' ? { kind: 'push', base: 0 } : a; } }) },
+  { rule: 'A1', name: 'an account copy over the limits is taken', plant: swap({ reconcile: (i) => reconcile({ ...i, server: i.server ? { ...i.server, outOfBounds: false } : null }) }) },
+  { rule: 'A2', name: 'an account copy over the limits is taken or offered (sweep)', plant: swap({ reconcile: (i) => reconcile({ ...i, server: i.server ? { ...i.server, outOfBounds: false } : null }) }) },
+  { rule: 'A1', name: 'a teammate who emptied the model is put to him as a question when nothing changed here', plant: swap({ reconcile: (i) => { const a = reconcile(i); return a.kind === 'take_server' && i.server?.fingerprint === 'E' && i.local.hasContent ? { kind: 'conflict' } : a; } }) },
+  { rule: 'B2', name: 'the notes are reset on a device that never matched the account', plant: edit(HOOK, 'if (!modelFoundRef.current && meta.baseRevision > 0 && hasSyncHistory(meta))', 'if (!modelFoundRef.current)') },
+  { rule: 'B2', name: 'the account model is fetched before the missing-table check', plant: edit(HOOK, "    const first = await fetchAccountHead(projectId);\n    if (!live()) return;\n", "    await fetchAccountModel(projectId);\n    const first = await fetchAccountHead(projectId);\n    if (!live()) return;\n") },
+  { rule: 'D1', name: 'one yes covers every room scanned later (per job, not per room)', plant: swap({ scanGate: (m, mt) => (mt.scanChoice === 'account' ? 'send' : scanGate(m, mt)) }) },
+  { rule: 'D1', name: 'the yes is not kept by room', plant: swap({ metaAfterScanYes: (mt) => ({ ...mt, scanChoice: 'account' }) }) },
+  { rule: 'D1', name: 'the question does not name the rooms', plant: edit(STATUS, "          {askNames ? <Text style={styles.para} testID=\"lm-scan-ask-rooms\">{copy.scanAskRoomsBody(askNames)}</Text> : null}\n", '') },
+  { rule: 'D1', name: 'the screen does not list the scanned rooms in the account', plant: edit(STATUS, "{accountScanNames && (status === 'saved' || status === 'waiting') ?", '{false ?') },
+  { rule: 'D2', name: 'the scan id is sent', plant: swap({ modelForAccount: (m) => { const sent = modelForAccount(m); return { ...sent, rooms: sent.rooms.map((r, i) => (m.rooms[i].scanId ? { ...r, scanId: m.rooms[i].scanId } : r)) }; } }) },
+  { rule: 'D2', name: 'Apple\'s own wall width is sent', plant: swap({ modelForAccount: (m) => { const sent = modelForAccount(m); return { ...sent, rooms: sent.rooms.map((r, i) => ({ ...r, room: { ...r.room, walls: r.room.walls.map((x, j) => ({ ...x, scanLengthM: m.rooms[i].room.walls[j].scanLengthM })) } })) }; } }) },
+  { rule: 'D2', name: 'the per-number sources and the confidence are sent', plant: swap({ modelForAccount: (m) => { const sent = modelForAccount(m); return { ...sent, rooms: sent.rooms.map((r, i) => ({ ...r, room: { ...r.room, walls: r.room.walls.map((x, j) => ({ ...x, lengthSource: m.rooms[i].room.walls[j].lengthSource, confidence: m.rooms[i].room.walls[j].confidence })) } })) }; } }) },
+  { rule: 'D2', name: 'the device\'s clock is sent', plant: swap({ modelForAccount: (m) => ({ ...modelForAccount(m), updatedAt: '2026-10-09T12:00:00.000Z' }) }) },
+  { rule: 'D2', name: 'a room that names its scan is sent as typed', plant: swap({ modelForAccount: (m) => { const sent = modelForAccount(m); return { ...sent, rooms: sent.rooms.map((r, i) => ({ ...r, source: m.rooms[i].source })) }; } }) },
+  { rule: 'I1', name: 'Keep on This Phone leaves the waiting save in the queue', plant: edit(HOOK, 'void commit(metaAfterScanNo(meta)).then(() => cancelQueuedAccountSave(projectId, userId)).then(run, run);', 'void commit(metaAfterScanNo(meta)).then(run, run);') },
+  { rule: 'I1', name: 'the waiting save is taken back before the notes say "do not send"', plant: edit(HOOK, 'void commit(metaAfterScanNo(meta)).then(() => cancelQueuedAccountSave(projectId, userId)).then(run, run);', 'void cancelQueuedAccountSave(projectId, userId).then(() => commit(metaAfterScanNo(meta))).then(run, run);') },
+  { rule: 'I1', name: 'the cancel takes every project\'s waiting save', plant: edit(QUEUE, "m.operation === 'rpc' && m.table === table && m.data?.id === recordId && m.rpc?.fn === fn && m.userId === userId", "m.operation === 'rpc' && m.table === table && m.rpc?.fn === fn && m.userId === userId") },
+  { rule: 'I1', name: 'the cancel takes another account\'s waiting save', plant: edit(QUEUE, "m.operation === 'rpc' && m.table === table && m.data?.id === recordId && m.rpc?.fn === fn && m.userId === userId", "m.operation === 'rpc' && m.table === table && m.data?.id === recordId && m.rpc?.fn === fn") },
+  { rule: 'I1', name: 'the cancel takes every write of the record', plant: edit(QUEUE, "m.operation === 'rpc' && m.table === table && m.data?.id === recordId && m.rpc?.fn === fn && m.userId === userId", "m.table === table && m.data?.id === recordId && m.userId === userId") },
+  { rule: 'I1', name: 'the cancel writes a Not-saved line', plant: edit(QUEUE, "  if (remaining >= 0) notifyQueueChanged(remaining);\n  return { removed, readFailed };", "  if (removed > 0) await notifyDroppedWrites([], 'withdrawn', { asNotes: true });\n  if (remaining >= 0) notifyQueueChanged(remaining);\n  return { removed, readFailed };") },
+  { rule: 'I1', name: 'a save on the wire goes on after Keep on This Phone', plant: edit(HOOK, "    // He tapped Keep on This Phone (or anything else that changed the notes) while the save was on the wire: stop here, decide again.\n    if (metaRef.current !== sending) { again.current = true; return; }\n", '') },
+  { rule: 'I1', name: 'the sentence is keyed on the saved time', plant: swap({ accountMayHoldCopy: (m) => m.savedAt !== null }) },
+  { rule: 'I1', name: 'the sentence forgets a save that was sent and not seen to land', plant: swap({ accountMayHoldCopy: (m) => m.baseRevision > 0 }) },
+  { rule: 'I1', name: 'the panel says "kept on this phone only" while a copy may be in the account', plant: edit(STATUS, '{sync.accountMayHold ? `${copy.keptOnPhoneStoppedBody} ${copy.keptOnPhoneMayBody}` : copy.keptOnPhoneBody}', '{copy.keptOnPhoneBody}') },
+  { rule: 'I1', name: 'a queued removal counts as a waiting save', plant: edit(IO, " && (m.operation !== 'rpc' || m.rpc?.fn === LIVING_MODEL_SAVE_FN)),", '),') },
+  { rule: 'I2', name: 'a removal that cannot be sent now is left in the queue', plant: edit(IO, "    if (outcome !== 'synced') {\n      await cloud.queue.cancelQueuedRpc(LIVING_MODELS_TABLE, projectId, LIVING_MODEL_REMOVE_FN, userId);\n      return 'not_removed';\n    }", "    if (outcome === 'failed') return 'not_removed';") },
+  { rule: 'I2', name: 'the copy is called removed without reading the account', plant: edit(IO, "    return back.kind === 'none' ? 'removed' : 'not_removed';", "    return 'removed';") },
+  { rule: 'I2', name: 'the first tap removes at once', plant: edit(STATUS, 'onPress={() => setConfirmRemove(true)}', 'onPress={() => sync.removeFromAccount()}') },
+  { rule: 'I2', name: 'Keep on This Phone removes the account copy by itself', plant: edit(HOOK, 'void commit(metaAfterScanNo(meta)).then(() => cancelQueuedAccountSave(projectId, userId)).then(run, run);', 'void commit(metaAfterScanNo(meta)).then(() => cancelQueuedAccountSave(projectId, userId)).then(() => removeAccountModel(projectId, userId)).then(run, run);') },
+  { rule: 'I2', name: 'removing the account copy clears the model on the device', plant: edit(HOOK, "      if (out === 'removed' && metaRef.current) await commit(metaAfterRemoval(metaRef.current));", "      if (out === 'removed' && metaRef.current) await commit(metaAfterRemoval(metaRef.current));\n      if (out === 'removed' && modelRef.current) await saveJobModel(userId, { ...modelRef.current, rooms: [] }, new Date().toISOString(), loadStateRef.current);") },
+  { rule: 'I2', name: 'the account copy can be removed while the model is still being sent', plant: edit(HOOK, "    if (!meta || meta.scanChoice !== 'device') return;", '    if (!meta) return;') },
+  { rule: 'I2', name: 'a device that finds the copy removed sends its own again', plant: edit(HOOK, "        setStatus('account_removed');\n        return;", "        await send(my, m, meta, local.fingerprint, 0, holds);\n        setStatus('account_removed');\n        return;") },
+  { rule: 'I2', name: 'the notes after a removal still say "matched"', plant: swap({ metaAfterRemoval: (m) => ({ ...m, pending: null }) }) },
+  { rule: 'I3', name: 'a trade cut short is never finished', plant: swap({ swapRecovery: () => 'discard' }) },
+  { rule: 'I3', name: 'a swap note is always written over the model', plant: swap({ swapRecovery: () => 'finish' }) },
+  { rule: 'I3', name: 'the kept model is not copied before it is written over (the two-write trade)', plant: edit(STORE, "  try { await AsyncStorage.setItem(swapKey, JSON.stringify(note)); } catch { return null; }\n", '') },
+  { rule: 'I3', name: 'the model on screen is set aside before the kept model is copied', plant: edit(STORE, "  try { await AsyncStorage.setItem(swapKey, JSON.stringify(note)); } catch { return null; }\n  // (2) The model on screen, set aside.\n  if (!(await writeKeptModel(userId, projectId, aside))) {", "  if (!(await writeKeptModel(userId, projectId, aside))) {\n  try { await AsyncStorage.setItem(swapKey, JSON.stringify(note)); } catch { return null; }") },
+  { rule: 'I3', name: 'the screen reads the model without finishing a trade', plant: edit(SCREEN, 'void recoverKeptSwap(userId, projectId, new Date().toISOString()).then(() => loadJobModel(userId, projectId)).then((loaded) => {', 'void loadJobModel(userId, projectId).then((loaded) => {') },
+  { rule: 'I3', name: 'the swap note is removed before the kept model is back', plant: edit(STORE, "      if (todo === 'finish' && !(await saveJobModel(userId, note.incoming, nowIso, 'ready'))) return;\n", "      await AsyncStorage.removeItem(swapKey);\n      if (todo === 'finish' && !(await saveJobModel(userId, note.incoming, nowIso, 'ready'))) return;\n") },
+  { rule: 'I3', name: 'the hook goes back to two separate writes', plant: edit(HOOK, "    const swapped = await swapKeptModel(userId, projectId, mine, k, new Date().toISOString(), loadStateRef.current);\n    if (!swapped) return false;", "    const swapped: KeptModel = { from: 'device', model: mine, keptAt: new Date().toISOString() };\n    if (!(await writeKeptModel(userId, projectId, swapped))) return false;\n    if (!(await saveJobModel(userId, k.model, new Date().toISOString(), loadStateRef.current))) return false;") },
+  { rule: 'I4', name: 'a teammate\'s save is taken with no backup', plant: edit(HOOK, 'if (savedBySomeoneElse(head, userId) && local.hasContent && !keptRef.current) {', 'if (false as boolean) {') },
+  { rule: 'I4', name: 'the backup is written after the model was replaced', plant: edit(HOOK, "        const ok = await saveJobModel(userId, accountModel, new Date().toISOString(), loadStateRef.current);\n        if (!live()) return;\n        if (!ok) { setStatus('failed'); return; }", "        if (!ok) { setStatus('failed'); return; }") },
+  { rule: 'I4', name: 'the teammate\'s save is taken when the backup could not be written', plant: edit(HOOK, "if (!(await writeKeptModel(userId, projectId, aside))) { setChoiceFailed(true); setStatus('retrying'); scheduleRetry(); return; }", 'await writeKeptModel(userId, projectId, aside);') },
+  { rule: 'I4', name: 'the person is not told his copy was kept', plant: edit(STATUS, "kept.why === 'teammate' ? copy.teammateKeptBody : kept.from", "kept.from") },
+  { rule: 'I4', name: 'any number of rooms is taken', plant: swap({ accountModelRefusal: () => null }) },
+  { rule: 'I4', name: 'the limits count rooms only', plant: swap({ accountModelRefusal: (m) => (m.rooms.length > 60 ? 'too_many_rooms' : null) }) },
+  { rule: 'I4', name: 'the raw size check passes everything', plant: swap({ accountValueTooLarge: () => false }) },
+  { rule: 'I4', name: 'the account copy is read through before it is counted', plant: edit(HOOK, 'const read = tooLarge ? null : readSavedModel(', 'const read = readSavedModel(') },
+  { rule: 'I4', name: 'the limits are not put to the decision', plant: edit(HOOK, 'accountModel ? modelHasContent(accountModel) : undefined, outOfBounds }, pendingQueued });', 'accountModel ? modelHasContent(accountModel) : undefined }, pendingQueued });') },
+  { rule: 'I5', name: 'a failed read-back sits on Checking your account', plant: edit(HOOK, "if (back.kind === 'offline' || back.kind === 'error' || back.kind === 'missing') { setStatus('retrying'); scheduleRetry(); return; }", "if (back.kind === 'offline' || back.kind === 'error' || back.kind === 'missing') { setStatus('checking'); return; }") },
+  { rule: 'I5', name: 'a failed read-back is not retried', plant: edit(HOOK, "if (back.kind === 'offline' || back.kind === 'error' || back.kind === 'missing') { setStatus('retrying'); scheduleRetry(); return; }", "if (back.kind === 'offline' || back.kind === 'error' || back.kind === 'missing') { setStatus('retrying'); return; }") },
+  { rule: 'I5', name: 'the turn limit leaves the line as it was', plant: edit(HOOK, "        if (again.current && gen.current === my) { setStatus('retrying'); scheduleRetry(); }\n", '') },
+  { rule: 'I5', name: 'the model is turned to text at every draw', plant: edit(HOOK, 'const fingerprintNow = useMemo(() => (model ? modelFingerprint(model) : null), [model]);', 'const fingerprintNow = model ? modelFingerprint(model) : null;') },
+  { rule: 'I5', name: 'a view-only seat\'s save is sent and shown as failed', plant: edit(HOOK, "    if (viewOnlyRef.current) { setStatus('view_only'); return; }\n", '') },
+  { rule: 'I5', name: 'a view-only seat is told a save is waiting', plant: edit(HOOK, "unsent ? (viewOnly ? 'view_only' : 'waiting') : status;", "unsent ? 'waiting' : status;") },
+  { rule: 'I5', name: 'the later try outlives the screen', plant: edit(HOOK, '      if (retryTimer.current) { clearTimeout(retryTimer.current); retryTimer.current = null; }\n', '') },
+  { rule: 'J1', name: 'the English question changes and the record still carries the old hash', plant: en('sync.scanAskBody', 'Saving it to your account sends the room’s name and its sizes: floor outline, ceiling height, walls, doors, windows and fixtures, and that the room came from a scan. No photo or video is sent. You are asked again for each scanned room you add later.') },
+  { rule: 'J1', name: 'the Spanish question changes and the record still carries the old hash', plant: (w) => ({ ...w, ES: { ...w.ES, [`${K}sync.scanAskBody`]: `${String(w.ES[`${K}sync.scanAskBody`])} ` } }) },
+  { rule: 'J1', name: 'the archived English words are edited', plant: edit(ARCHIVE_EN, 'No photo or video is sent.', 'No photo is sent.') },
+  { rule: 'J1', name: 'the yes is not recorded', plant: edit(HOOK, '.then(() => { if (asked) recordScanUploadYes(userId, langRef.current); })', '') },
+  { rule: 'J1', name: 'every Save to My Account tap is recorded as a yes to the question', plant: edit(HOOK, 'if (asked) recordScanUploadYes(userId, langRef.current);', 'recordScanUploadYes(userId, langRef.current);') },
+  { rule: 'J1', name: 'the migration keeps the list of four', plant: edit(KIND_MIGRATION, "'scan_ack', 'scan_room_upload') then", "'scan_ack') then") },
+  { rule: 'J1', name: 'the record is noted as the first-use scan notice', plant: edit(LEGAL, "void recorder.note(userId, [scanRoomUploadItem(lang)], 'in_app', at)", "void recorder.note(userId, [scanAckItem(lang)], 'in_app', at)") },
+  { rule: 'J1', name: 'the counsel file loses the Spanish question', plant: (w) => ({ ...w, files: { ...w.files, [COUNSEL]: w.files[COUNSEL].split(String(w.ES[`${K}sync.scanAskBody`])).join('') } }) },
+  { rule: 'J1', name: 'the question stops saying a later room is asked about again', plant: (w) => ({ ...w, EN: { ...w.EN, [`${K}sync.scanAskBody`]: String(w.EN[`${K}sync.scanAskBody`]).replace(' You are asked again for each scanned room you add later.', '') } }) },
+  { rule: 'H1', name: 'the job id is compared as written (no lower())', plant: edit(MIGRATION, "check (lower(model ->> 'projectId') = lower(project_id::text))", "check ((model ->> 'projectId') = project_id::text)") },
+  { rule: 'H1', name: 'the function stores any number of rooms', plant: edit(MIGRATION, "if pg_catalog.jsonb_array_length(p_model -> 'rooms') > 60 then", 'if false then') },
+  { rule: 'H1', name: 'a viewer may remove the account copy', plant: edit(MIGRATION, "if not public.can_access_project(p_project_id, 'editor') then\n    raise exception 'living_model_remove:", "if not public.can_access_project(p_project_id) then\n    raise exception 'living_model_remove:") },
+  { rule: 'H1', name: 'anon may call the remove function', plant: edit(MIGRATION, 'revoke all on function public.living_model_remove(uuid) from public, anon;\n', '') },
+  { rule: 'H1', name: 'the row forgets its recent saves', plant: edit(MIGRATION, '         recent_writes = v_recent,\n', '') },
+  { rule: 'H1', name: 'a removed job starts again at revision 1', plant: edit(MIGRATION, "select coalesce((select x.last_revision from public.living_model_removals x where x.project_id = p_project_id), 0) + 1 into v_start;", 'v_start := 1;') },
+  { rule: 'H1', name: 'the remove function deletes every job\'s row', plant: edit(MIGRATION, 'delete from public.living_models m where m.project_id = p_project_id returning m.revision into v_rev;', 'delete from public.living_models m returning m.revision into v_rev;') },
   { rule: 'A3', name: 'a model that was never sent is not a change', plant: swap({ deviceChanged: (m, l) => (m.baseRevision === 0 ? false : deviceChanged(m, l)) }) },
   { rule: 'A3', name: 'notes with a revision and no fingerprint are trusted', plant: swap({ parseSyncMeta: (raw) => { const m = parseSyncMeta(raw); try { const v = JSON.parse(raw ?? '{}') as { baseRevision?: number }; return typeof v.baseRevision === 'number' && v.baseRevision > 0 ? { ...m, baseRevision: v.baseRevision } : m; } catch { return m; } } }) },
   { rule: 'B1', name: 'a missing table is an error like any other', plant: swap({ isMissingTable: () => false }) },

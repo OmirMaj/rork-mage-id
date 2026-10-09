@@ -44,9 +44,11 @@ PGLITE_DIR=~/pgq-run node scripts/pgq/signed-record-tombstones.mjs . --all
 PGLITE_DIR=~/pgq-run node scripts/pgq/rfp-attachments-private.mjs . --all
 PGLITE_DIR=~/pgq-run node scripts/pgq/bid-responses-closed-posting.mjs . --all
 PGLITE_DIR=~/pgq-run node scripts/pgq/living-models.mjs . --all
+PGLITE_DIR=~/pgq-run node scripts/pgq/legal-acceptance-scan-room-upload.mjs . --all
 ```
 
-The last five (lane PROTECT-SERVER, and `living-models.mjs` from lane LIVINGSYNC)
+The last six (lane PROTECT-SERVER, and `living-models.mjs` and
+`legal-acceptance-scan-room-upload.mjs` from lane LIVINGSYNC)
 take the worktree as their first argument and share `_harness.mjs`, not `lib.mjs`. Without `--all` they run once, as
 written, and print every case; `--all` also runs each planted mutation and ends
 with `ALL PASS (as written green; N planted mutations red)`. `MUTATE=<n>` runs
