@@ -26,7 +26,7 @@
   if (P.at !== null) { root.classList.add('atmode', 'pinned'); var atEl = $(P.at), sib = atEl && atEl.previousElementSibling; while (sib) { sib.style.display = 'none'; sib = sib.previousElementSibling; } }
   var virt = -1;
   var still = reduce || frozen;
-  var THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+  var THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
   var THREE_SRI = 'sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==';
   var SHOT_AVAIL = 0.62, POSTER_W = 1600, POSTER_H = 1200;
 
