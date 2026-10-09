@@ -222,8 +222,18 @@ export function buildScanDraft(
   };
 }
 
+/**
+ * What the push reads from a draft. The room draft above is one; the order
+ * list's draft (utils/roomScan/orderPricingCore) is another. Both go through
+ * the SAME functions below, so there is one way into the estimate.
+ */
+export interface PushableDraft {
+  roomName: string;
+  lines: readonly { included: boolean; row: RollupRow }[];
+}
+
 /** The lines the push would write: included, with a quantity and a rate. */
-export function draftPushLines(draft: ScanDraft): PushLine[] {
+export function draftPushLines(draft: PushableDraft): PushLine[] {
   return pushLinesFrom(draft.lines.filter((l) => l.included).map((l) => l.row)).lines;
 }
 
@@ -249,7 +259,7 @@ export function startsEstimate(project: Project | null): boolean {
  * starts the estimate at his stated markup, and is blocked only when he has
  * never stated one.
  */
-export function draftBlock(project: Project | null, draft: ScanDraft, ctx: PushContext): DraftBlock | null {
+export function draftBlock(project: Project | null, draft: PushableDraft, ctx: PushContext): DraftBlock | null {
   const lines = draftPushLines(draft);
   if (!project) return 'no_project';
   if (ctx.mayEdit !== true) return 'no_access';
@@ -291,7 +301,7 @@ export function buildEstimatePatch(args: {
   confirmed: boolean;
   mayEdit: boolean;
   project: Project | null;
-  draft: ScanDraft;
+  draft: PushableDraft;
   pushed: Record<string, string>;
   newId: () => string;
   markupPct: MarkupPct;

@@ -21,6 +21,16 @@
 // Nothing is sent to a client, and no row is written to the server for the
 // scan itself (see utils/roomScan/storeCore.ts).
 //
+// THE ORDER LIST (lane SCANORDER) is a fifth step, reached from The Quantities.
+// It leaves this screen three ways, each ONLY from that way's confirm sheet:
+// copied as text, handed to the share sheet as text, or put into the estimate
+// as material lines through the same buildEstimatePatch. `sendOrder` asks the
+// pure core for the record of the send first (orderListCore.confirmOrderSend,
+// which refuses without `confirmed: true`) and does nothing without it.
+// HIS TAPE: a typed wall length makes a scanned-and-taped pair, kept with the
+// scan and, when he SAVES the scan, in his own list on this phone
+// (utils/roomScan/learnStore). Nothing about it is uploaded or sent to a model.
+//
 // A SCAN IS NEVER NAMED FOR HIM. It starts with an empty name; the name goes
 // on every estimate line, so Save and Price both ask for one.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -32,11 +42,15 @@ import { ChevronLeft, Ruler, Trash2 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useT } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { useScopeCostBook } from '@/hooks/useScopeCostBook';
 import { Button, Sheet } from '@/components/ui';
 import { useRoomScanCopy } from '@/hooks/useRoomScanCopy';
+import { useScanOrderCopy } from '@/hooks/useScanOrderCopy';
+import { copyToClipboard } from '@/utils/clipboard';
+import { shareText } from '@/utils/shareText';
 import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { formatTimeL } from '@/i18n/format';
 import { generateUUID } from '@/utils/generateId';
@@ -46,20 +60,28 @@ import { parseCapturedRoom } from '@/utils/roomScan/capturedRoomParser';
 import { makeCatalogRater } from '@/utils/roomScan/catalogRate';
 import { correctCeilingHeight, correctOpening, correctWallLength, renameScan } from '@/utils/roomScan/editsCore';
 import { buildRoomScan } from '@/utils/roomScan/geometryCore';
+import { longWallSuggestion, tapeFacts, tapePairFromEdit, upsertTapePairs, type TapePair } from '@/utils/roomScan/learnCore';
+import { forgetScanTapePairs, loadTapePairs, recordTapePairs } from '@/utils/roomScan/learnStore';
 import * as RoomScanNative from '@/utils/roomScan/native';
+import {
+  buildOrderList, confirmOrderSend, defaultOrderOptions, orderListText,
+  type OrderOptions, type OrderSendVia,
+} from '@/utils/roomScan/orderListCore';
+import { buildOrderDraft, makeMaterialRater } from '@/utils/roomScan/orderPricingCore';
 import { buildEstimatePatch, buildScanDraft, draftBlock, draftPushLines, estimateHoldsPush, startsEstimate } from '@/utils/roomScan/pricingCore';
 import { computeQuantities, scanFacts, scanPricingBlock } from '@/utils/roomScan/quantitiesCore';
 import { ROOM_RECIPES, type RecipeKey } from '@/utils/roomScan/recipesCore';
 import { deleteScan, hashRawScan, loadSavedScans, saveScan } from '@/utils/roomScan/store';
-import type { SavedScan } from '@/utils/roomScan/storeCore';
+import { withOrderSent, type SavedScan } from '@/utils/roomScan/storeCore';
 import type { RoomScan, RoomType } from '@/utils/roomScan/types';
 import { EditMeasureSheet, type EditTarget } from './EditMeasureSheet';
 import { FloorPlanView } from './FloorPlanView';
+import { OrderListView, type OrderSendState } from './OrderListView';
 import { PricedDraftView } from './PricedDraftView';
 import { QuantitiesView } from './QuantitiesView';
 import { makeRoomScanStyles } from './styles';
 
-type Step = 'start' | 'plan' | 'quantities' | 'price';
+type Step = 'start' | 'plan' | 'quantities' | 'order' | 'price';
 type Editing =
   | { on: 'wall'; id: string }
   | { on: 'ceiling' }
@@ -91,7 +113,10 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
   const { colors } = useTheme();
   const styles = useThemedStyles(makeRoomScanStyles);
   const copy = useRoomScanCopy();
+  const ocopy = useScanOrderCopy();
   const { lang } = useT();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const { getProject, updateProject, settings } = useProjects();
   const project = getProject(projectId) ?? null;
   // The newest getProject, for reading the project back after a write (a
@@ -106,6 +131,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
   const markupPct: MarkupPct = markupDecided === true ? savedMarkup : null;
   const location = typeof settings?.location === 'string' ? settings.location : '';
   const catalog = useMemo(() => makeCatalogRater(location), [location]);
+  const materialCatalog = useMemo(() => makeMaterialRater(location), [location]);
 
   const [step, setStep] = useState<Step>(initial ? 'plan' : 'start');
   const [saved, setSaved] = useState<SavedScan | null>(initial ?? null);
@@ -123,6 +149,10 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
   const [leaving, setLeaving] = useState(false);
   const [deleting, setDeleting] = useState<SavedScan | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);
+  /** His taped walls on this phone, across every saved scan. */
+  const [tapeLog, setTapeLog] = useState<TapePair[]>([]);
+  const [orderSend, setOrderSend] = useState<OrderSendState>('idle');
+  const [orderBusy, setOrderBusy] = useState(false);
 
   const refreshSavedList = useCallback(async () => {
     const l = await loadSavedScans(projectId);
@@ -135,6 +165,12 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     return () => { live = false; };
   }, [projectId]);
 
+  useEffect(() => {
+    let live = true;
+    void loadTapePairs(userId).then((pairs) => { if (live) setTapeLog(pairs); });
+    return () => { live = false; };
+  }, [userId]);
+
   const scan = saved?.scan ?? null;
   const quantities = useMemo(() => (scan ? computeQuantities(scan) : null), [scan]);
   const facts = useMemo(() => (scan && quantities ? scanFacts(scan, quantities) : []), [scan, quantities]);
@@ -145,6 +181,29 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     for (const r of ROOM_RECIPES[saved.scan.roomType]) names[r.key] = `${copy.lineName(r.key)}, ${saved.scan.name}`;
     return buildScanDraft(saved.scan, quantities, db, catalog, { manualRates: saved.manualRates, excluded: saved.excluded, names });
   }, [saved, quantities, db, catalog, copy]);
+
+  // ── the order list: worked out again whenever the scan or a choice changes ──
+  const orderOptions = useMemo<OrderOptions | null>(
+    () => (saved ? saved.order ?? defaultOrderOptions(saved.scan.roomType) : null),
+    [saved],
+  );
+  const orderList = useMemo(() => (scan && orderOptions ? buildOrderList(scan, orderOptions) : null), [scan, orderOptions]);
+  const orderDraft = useMemo(() => {
+    if (!saved || !orderList) return null;
+    const names: Record<string, string> = {};
+    for (const l of orderList.lines) names[l.key] = `${ocopy.lineName(l)}, ${saved.scan.name}`;
+    return buildOrderDraft(saved.scan, orderList, db, materialCatalog, { manualRates: saved.orderRates, names });
+  }, [saved, orderList, db, materialCatalog, ocopy]);
+  // What the panel reads: his saved pairs plus the ones typed on the scan in hand.
+  const tapePairs = useMemo(() => upsertTapePairs(tapeLog, saved?.tapePairs ?? []), [tapeLog, saved]);
+  const tape = useMemo(() => tapeFacts(tapePairs), [tapePairs]);
+  const suggestion = useMemo(() => longWallSuggestion(tapePairs), [tapePairs]);
+
+  const changeOrder = useCallback((fn: (cur: SavedScan) => SavedScan) => {
+    setSaved((cur) => (cur ? fn(cur) : cur));
+    setOrderSend('idle');
+    setDirty(true);
+  }, []);
 
   const change = useCallback((fn: (s: RoomScan) => RoomScan) => {
     setSaved((cur) => (cur ? { ...cur, scan: fn(cur.scan) } : cur));
@@ -219,8 +278,15 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     setEditing(null);
     if (!e) return;
     const at = new Date().toISOString();
-    if (e.on === 'wall') change((s) => correctWallLength(s, e.id, metres, at));
-    else if (e.on === 'ceiling') change((s) => correctCeilingHeight(s, metres, at));
+    if (e.on === 'wall') {
+      // The scanned and the taped length, kept as a pair, from the scan as it stood BEFORE this edit.
+      setSaved((cur) => {
+        if (!cur) return cur;
+        const pair = tapePairFromEdit(cur.scan, e.id, metres, at, cur.tapePairs ?? []);
+        return pair ? { ...cur, tapePairs: upsertTapePairs(cur.tapePairs ?? [], [pair]) } : cur;
+      });
+      change((s) => correctWallLength(s, e.id, metres, at));
+    } else if (e.on === 'ceiling') change((s) => correctCeilingHeight(s, metres, at));
     else change((s) => correctOpening(s, e.id, e.field, metres, at));
   }, [editing, change]);
 
@@ -231,8 +297,65 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     const next: SavedScan = { ...saved, savedAt: new Date().toISOString() };
     const ok = await saveScan(next, rawJson);
     setSaveState(ok ? 'saved' : 'failed');
-    if (ok) { setSaved(next); setDirty(false); await refreshSavedList(); }
-  }, [saved, rawJson, refreshSavedList]);
+    if (ok) {
+      setSaved(next);
+      setDirty(false);
+      await refreshSavedList();
+      // His taped walls go into his own list on this phone with the save, never before it.
+      const log = await recordTapePairs(userId, next.tapePairs ?? []);
+      if (log) setTapeLog(log);
+    }
+  }, [saved, rawJson, refreshSavedList, userId]);
+
+  // ── the order list leaving the screen: only from a confirm sheet's yes ──
+  const sendOrder = useCallback(async (via: OrderSendVia, confirmed: true) => {
+    if (!saved || !orderList || !orderDraft || orderBusy) return;
+    const snap = confirmOrderSend({ confirmed, via, list: orderList, at: new Date().toISOString() });
+    if (!snap) { setOrderSend(via === 'copy' ? 'copyFailed' : via === 'share' ? 'shareFailed' : 'failed'); return; }
+    if (via === 'copy' || via === 'share') {
+      const text = orderListText(orderList, saved.scan.name, ocopy.text);
+      if (via === 'copy') {
+        const ok = await copyToClipboard(text);
+        setOrderSend(ok ? 'copied' : 'copyFailed');
+        if (ok) { setSaved((cur) => (cur ? withOrderSent(cur, snap) : cur)); setDirty(true); }
+        return;
+      }
+      let outcome: Awaited<ReturnType<typeof shareText>> = 'failed';
+      try { outcome = await shareText({ message: text }); } catch { outcome = 'failed'; }
+      if (outcome === 'cancelled') { setOrderSend('idle'); return; }
+      setOrderSend(outcome === 'shared' ? 'shared' : outcome === 'copied' ? 'sharedAsCopy' : 'shareFailed');
+      if (outcome !== 'failed') { setSaved((cur) => (cur ? withOrderSent(cur, snap) : cur)); setDirty(true); }
+      return;
+    }
+    const res = buildEstimatePatch({
+      confirmed, mayEdit: mayEditEstimate, project, draft: orderDraft, pushed: saved.orderPushed ?? {},
+      newId: generateUUID, markupPct, now: snap.at,
+    });
+    if (!res || !project) { setOrderSend('failed'); return; }
+    setOrderBusy(true);
+    try {
+      updateProject(project.id, res.patch);
+      let kept = false;
+      for (let i = 0; i < KEPT_TRIES && !kept; i++) {
+        kept = estimateHoldsPush(getProjectRef.current(project.id) ?? null, res);
+        if (!kept) await pause(KEPT_STEP_MS);
+      }
+      if (!kept) { setOrderSend('unconfirmed'); return; }
+      const next: SavedScan = { ...withOrderSent(saved, snap), orderPushed: res.pushed, savedAt: snap.at };
+      setSaved(next);
+      const stored = await saveScan(next, rawJson);
+      if (stored) {
+        setDirty(false);
+        await refreshSavedList();
+        const log = await recordTapePairs(userId, next.tapePairs ?? []);
+        if (log) setTapeLog(log);
+      }
+      setOrderSend('added');
+      router.push({ pathname: '/project-detail', params: { id: project.id, tile: 'linkedEstimate' } });
+    } finally {
+      setOrderBusy(false);
+    }
+  }, [saved, orderList, orderDraft, orderBusy, ocopy, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, userId, router]);
 
   const confirmDraft = useCallback(async () => {
     if (!saved || !draft || pushing) return;
@@ -256,13 +379,18 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
       const next: SavedScan = { ...saved, pushed: res.pushed, savedAt: now, pricedAt: now };
       setSaved(next);
       const stored = await saveScan(next, rawJson);
-      if (stored) { setDirty(false); await refreshSavedList(); }
+      if (stored) {
+        setDirty(false);
+        await refreshSavedList();
+        const log = await recordTapePairs(userId, next.tapePairs ?? []);
+        if (log) setTapeLog(log);
+      }
       setResult('added');
       router.push({ pathname: '/project-detail', params: { id: project.id, tile: 'linkedEstimate' } });
     } finally {
       setPushing(false);
     }
-  }, [saved, draft, pushing, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, router]);
+  }, [saved, draft, pushing, mayEditEstimate, project, markupPct, updateProject, rawJson, refreshSavedList, router, userId]);
 
   // ── deleting a saved scan, only from its confirm sheet ──
   const confirmDelete = useCallback(async () => {
@@ -272,7 +400,12 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
     const ok = await deleteScan(projectId, target.scan.id);
     setDeleteFailed(!ok);
     await refreshSavedList();
-  }, [deleting, projectId, refreshSavedList]);
+    if (ok) {
+      // A deleted scan takes its taped walls out of his list too.
+      await forgetScanTapePairs(userId, target.scan.id);
+      setTapeLog(await loadTapePairs(userId));
+    }
+  }, [deleting, projectId, refreshSavedList, userId]);
 
   const leavePlan = useCallback(() => {
     setLeaving(false);
@@ -284,7 +417,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
   }, [initial, router]);
 
   const back = useCallback(() => {
-    if (step === 'price') setStep('quantities');
+    if (step === 'price' || step === 'order') setStep('quantities');
     else if (step === 'quantities') setStep('plan');
     // Leaving the plan drops whatever the phone does not hold. Ask first.
     else if (step === 'plan' && dirty) setLeaving(true);
@@ -295,6 +428,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
   const title = step === 'plan' && scan ? (scan.name || copy.titleLabel)
     : step === 'quantities' ? copy.quantitiesTitleLabel
     : step === 'price' ? copy.draftTitleLabel
+    : step === 'order' ? ocopy.titleLabel
     : copy.titleLabel;
   const scannedSub = scan
     ? copy.scannedSub(formatCalendarDay(calendarDayOf(scan.capturedAt), undefined, lang), formatTimeL(scan.capturedAt, lang))
@@ -373,7 +507,43 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial }: RoomScanFl
           />
         )}
         {step === 'quantities' && scan && quantities && (
-          <QuantitiesView quantities={quantities} copy={copy} block={scanPricingBlock(scan, quantities)} onPrice={() => setStep('price')} />
+          <QuantitiesView
+            quantities={quantities}
+            copy={copy}
+            block={scanPricingBlock(scan, quantities)}
+            onPrice={() => setStep('price')}
+            order={{ label: ocopy.openLabel, onPress: () => { setOrderSend('idle'); setStep('order'); } }}
+          />
+        )}
+        {step === 'order' && saved && orderList && orderDraft && orderOptions && (
+          <OrderListView
+            roomName={saved.scan.name}
+            list={orderList}
+            draft={orderDraft}
+            copy={copy}
+            ocopy={ocopy}
+            tape={tape}
+            suggestion={suggestion}
+            block={draftBlock(project, orderDraft, { mayEdit: mayEditEstimate, markupPct })}
+            pushCount={draftPushLines(orderDraft).length}
+            starting={startsEstimate(project)}
+            markupPct={markupPct}
+            sendState={orderSend}
+            busy={orderBusy}
+            onOptions={(patch) => changeOrder((cur) => ({ ...cur, order: { ...(cur.order ?? defaultOrderOptions(cur.scan.roomType)), ...patch } }))}
+            onTypedQuantity={(key, quantity) => changeOrder((cur) => {
+              const order = cur.order ?? defaultOrderOptions(cur.scan.roomType);
+              const typed = { ...order.typed };
+              if (quantity == null) delete typed[key]; else typed[key] = quantity;
+              return { ...cur, order: { ...order, typed } };
+            })}
+            onManualRate={(key, rate) => changeOrder((cur) => {
+              const orderRates = { ...(cur.orderRates ?? {}) };
+              if (rate == null) delete orderRates[key]; else orderRates[key] = rate;
+              return { ...cur, orderRates };
+            })}
+            onSend={(via, confirmed) => void sendOrder(via, confirmed)}
+          />
         )}
         {step === 'price' && saved && draft && (
           <PricedDraftView

@@ -247,7 +247,7 @@ export const SURFACES: Surface[] = [
   // Scan The Room (dark behind SCAN_ROOM_ENABLED): the start, the floor plan,
   // the quantities and the priced draft. Every string lives in the one copy
   // hook. Complete: each key has Spanish (i18n/catalog/es/office/roomScan.ts).
-  { id: 'office.room-scan', phase: 2, state: 'complete', keyPrefixes: ['office.roomScan.'], files: ['hooks/useRoomScanCopy.ts'], lane: 'SCANROOM' },
+  { id: 'office.room-scan', phase: 2, state: 'complete', keyPrefixes: ['office.roomScan.'], files: ['hooks/useRoomScanCopy.ts', 'hooks/useScanOrderCopy.ts'], lane: 'SCANROOM' },
   // Code Flags (dark behind CODE_FLAGS_ENABLED): the chip on a change order or
   // estimate line and the sheet behind it. Every string lives in the one copy
   // hook. Complete: each key has Spanish (i18n/catalog/es/office/codeFlags.ts).

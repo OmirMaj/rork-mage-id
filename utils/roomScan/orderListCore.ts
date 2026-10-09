@@ -167,7 +167,7 @@ export type OrderBasis =
   | { kind: 'compound'; boardSF: number; galPer100SF: number; bucketGal: number }
   | { kind: 'tape'; boardSF: number; ftPer1000SF: number; rollFt: number }
   | { kind: 'cornerBead'; corners: number; stickFt: number; sticksPerCorner: number }
-  | { kind: 'area'; what: 'floor' | 'wallTile'; netSF: number; wastePct: number; reasons: WasteReason[]; orderSF: number; boxSF: number | null; walls: number; heightIn: number | null }
+  | { kind: 'area'; what: 'floor' | 'wallTile'; floorKind: 'tile' | 'flooring'; netSF: number; wastePct: number; reasons: WasteReason[]; orderSF: number; boxSF: number | null; walls: number; heightIn: number | null }
   | { kind: 'paint'; what: 'walls' | 'ceiling' | 'primer'; netSF: number; coats: number; spreadSFPerGal: number; workedGal: number }
   | { kind: 'trim'; what: TrimKind; stockFt: number; runFt: number; pieces: number; joints: number; boughtFt: number; method: TrimPlan['method'] };
 
@@ -373,7 +373,7 @@ export function buildOrderList(scan: RoomScan, options: OrderOptions): OrderList
       key, group, unit: boxSF ? 'box' : 'sqft', computed: boxSF ? ceilTo(orderSF / boxSF) : orderSF,
       // The area is measured. The allowance on top of it is shown with its reasons.
       ruleOfThumb: false,
-      basis: { kind: 'area', what, netSF, wastePct, reasons, orderSF, boxSF, walls: wallCount, heightIn },
+      basis: { kind: 'area', what, floorKind: what === 'floor' ? o.floorKind : 'tile', netSF, wastePct, reasons, orderSF, boxSF, walls: wallCount, heightIn },
       net: { quantity: netSF, unit: 'SF' },
     });
   };

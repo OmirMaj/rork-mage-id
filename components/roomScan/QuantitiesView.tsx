@@ -19,9 +19,11 @@ export interface QuantitiesViewProps {
   copy: RoomScanCopy;
   block: RoomScanPricingBlock | null;
   onPrice: () => void;
+  /** Opens the order list (what to buy). Present with its label, or absent. Blocked by the same reasons as pricing. */
+  order?: { label: string; onPress: () => void };
 }
 
-export function QuantitiesView({ quantities: q, copy, block, onPrice }: QuantitiesViewProps) {
+export function QuantitiesView({ quantities: q, copy, block, onPrice, order }: QuantitiesViewProps) {
   const styles = useThemedStyles(makeRoomScanStyles);
   const sf = copy.unitWord('SF');
   const lf = copy.unitWord('LF');
@@ -70,6 +72,7 @@ export function QuantitiesView({ quantities: q, copy, block, onPrice }: Quantiti
         </View>
       )}
       <Button label={copy.priceItLabel} variant="primary" onPress={onPrice} disabled={block != null} testID="scan-price-it" />
+      {order && <Button label={order.label} variant="secondary" onPress={order.onPress} disabled={block != null} testID="scan-order-open" />}
     </View>
   );
 }

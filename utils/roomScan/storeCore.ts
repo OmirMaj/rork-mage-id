@@ -3,7 +3,9 @@
 // STORAGE (utils/roomScan/store.ts does the reads and writes):
 //   mageid_room_scans::<projectId>     the project's saved scans (this file's SavedScanList)
 //   mageid_room_scan_raw::<scanId>     Apple's JSON string for one scan, untouched
-// Both sit under the app-owned `mageid_` prefix, so the tenant-switch sweep
+//   mageid_room_scan_tape::<userId>    his taped walls across every scan on this phone
+//                                      (utils/roomScan/learnStore.ts; lane SCANORDER)
+// All sit under the app-owned `mageid_` prefix, so the tenant-switch sweep
 // (utils/localCacheKeys) removes them and one account's rooms are never shown
 // to the next person on a shared phone. `bun run test:storage-hygiene` and
 // scripts/validate-scan-room.ts both check the prefix.
@@ -18,6 +20,8 @@
 // on utils/offlineQueue. Sending a write for a table that does not exist would
 // be dropped by the queue.
 
+import { parseTapePairs, type TapePair } from './learnCore';
+import { parseOrderOptions, type OrderOptions, type OrderSnapshot } from './orderListCore';
 import type { RecipeKey } from './recipesCore';
 import type { RoomScan } from './types';
 
@@ -39,11 +43,46 @@ export interface SavedScan {
   savedAt: string;
   /** Set when the draft went into the estimate. */
   pricedAt: string | null;
+  // ── the order list (lane SCANORDER). All optional: a scan saved before it has none. ──
+  /** His choices on the order list (sheet size, stock lengths, coats ...) and the quantities he typed over. */
+  order?: OrderOptions;
+  /** Prices he typed on order lines, by line key. */
+  orderRates?: Record<string, number>;
+  /** Order line (condition id) to the estimate line it became, so sending the list twice updates in place. */
+  orderPushed?: Record<string, string>;
+  /** What the list said each time it left the screen (copied, shared, or put in the estimate), newest first. */
+  orderSent?: OrderSnapshot[];
+  /** Scanned and taped lengths for the walls he typed over (utils/roomScan/learnCore). */
+  tapePairs?: TapePair[];
 }
+
+/** How many sends of one scan's order list are remembered. */
+export const MAX_ORDER_SENDS = 10;
 
 export interface SavedScanList { version: 1; scans: SavedScan[] }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+function numberMap(v: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, n] of Object.entries(v)) if (typeof n === 'number' && Number.isFinite(n) && n > 0) out[k] = n;
+  return out;
+}
+
+function parseOrderSent(rows: unknown[]): OrderSnapshot[] {
+  const out: OrderSnapshot[] = [];
+  for (const r of rows) {
+    if (!isObj(r) || typeof r.at !== 'string' || !Array.isArray(r.lines)) continue;
+    if (r.via !== 'copy' && r.via !== 'share' && r.via !== 'estimate') continue;
+    out.push({ at: r.at, via: r.via, lines: r.lines.filter((l) => isObj(l) && typeof l.key === 'string' && typeof l.quantity === 'number') as OrderSnapshot['lines'] });
+  }
+  return out.slice(0, MAX_ORDER_SENDS);
+}
+
+/** Add one send to a saved scan's record, newest first, capped. */
+export function withOrderSent(saved: SavedScan, snap: OrderSnapshot): SavedScan {
+  return { ...saved, orderSent: [snap, ...(saved.orderSent ?? [])].slice(0, MAX_ORDER_SENDS) };
+}
 
 /** Never throws. A row that is not a scan is dropped. */
 export function parseSavedScans(raw: string | null | undefined): SavedScanList {
@@ -64,6 +103,11 @@ export function parseSavedScans(raw: string | null | undefined): SavedScanList {
       excluded: Array.isArray(row.excluded) ? (row.excluded.filter((k) => typeof k === 'string') as RecipeKey[]) : [],
       savedAt: typeof row.savedAt === 'string' ? row.savedAt : '',
       pricedAt: typeof row.pricedAt === 'string' ? row.pricedAt : null,
+      ...(isObj(row.order) ? { order: parseOrderOptions(row.order, s.roomType) } : {}),
+      ...(isObj(row.orderRates) ? { orderRates: numberMap(row.orderRates) } : {}),
+      ...(isObj(row.orderPushed) ? { orderPushed: row.orderPushed as Record<string, string> } : {}),
+      ...(Array.isArray(row.orderSent) ? { orderSent: parseOrderSent(row.orderSent) } : {}),
+      ...(Array.isArray(row.tapePairs) ? { tapePairs: parseTapePairs(row.tapePairs) } : {}),
     });
   }
   return { version: 1, scans };

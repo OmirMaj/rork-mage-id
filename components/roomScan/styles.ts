@@ -61,6 +61,13 @@ export const makeRoomScanStyles = (t: ThemeColors) => StyleSheet.create({
   blockedText: { fontSize: Type.caption1.fontSize, lineHeight: 18, color: t.warningLabel },
   errorText: { fontSize: Type.caption1.fontSize, color: t.dangerLabel },
   okText: { fontSize: Type.caption1.fontSize, color: t.successLabel },
+  // order list
+  choice: { gap: 6 },
+  qtyCol: { alignItems: 'flex-end' as const, gap: 2, maxWidth: 130 },
+  legendBox: { width: 14, height: 14, borderWidth: 1, borderColor: t.text, backgroundColor: t.surfaceAlt },
+  legendBoxOffcut: { backgroundColor: t.accentSoft },
+  legendBoxCut: { backgroundColor: t.bg, borderColor: t.textMuted, borderStyle: 'dashed' as const },
+  legendBoxShape: { backgroundColor: t.bg, borderColor: t.accent, borderWidth: 2 },
   // sheet
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end' as const, backgroundColor: Colors.overlay },
   sheet: { backgroundColor: t.surface, borderTopLeftRadius: Tokens.radius.xl, borderTopRightRadius: Tokens.radius.xl, padding: 20, gap: 12 },
