@@ -14,9 +14,14 @@
   function param(k) { var m = new RegExp('[?&]' + k + '=([^&]*)').exec(location.search); return m ? decodeURIComponent(m[1]) : null; }
 
   var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  var P = { stage: param('stage'), t: param('t'), full: param('full') === '1', shot: param('shot'), at: param('at') };
-  if (P.shot !== null) root.classList.add('shotmode');
-  var frozen = P.stage !== null || P.t !== null || P.full || P.shot !== null || P.at !== null;
+  var P = { stage: param('stage'), t: param('t'), full: param('full') === '1', shot: param('shot'), at: param('at'), go: param('go') };
+  if (P.shot !== null) {
+    root.classList.add('shotmode');
+    /* ?shot=N&sw=1600&sh=1200 draws the model alone at an exact size, whatever the window does */
+    var sw = parseInt(param('sw'), 10), sh = parseInt(param('sh'), 10), sc0 = document.getElementById('scene');
+    if (sw && sh && sc0) sc0.setAttribute('style', 'position:fixed;left:0;top:0;right:auto;bottom:auto;width:' + sw + 'px;height:' + sh + 'px;min-height:0;margin:0');
+  }
+  var frozen = P.stage !== null || P.t !== null || P.full || P.shot !== null || P.at !== null || P.go !== null;
   /* ?at=id starts the page at that section, for screenshots of the lower page */
   if (P.at !== null) { root.classList.add('atmode', 'pinned'); var atEl = $(P.at), sib = atEl && atEl.previousElementSibling; while (sib) { sib.style.display = 'none'; sib = sib.previousElementSibling; } }
   var virt = -1;
@@ -261,7 +266,7 @@
   railBtns.forEach(function (b) { b.addEventListener('click', function () { goStage(+b.getAttribute('data-go')); }); });
 
   /* ---------- where the model sits ---------- */
-  function heroLayout() { return wide() ? [0.725, 0.5, 0.5] : [0.5, 0.46, 0.98]; }
+  function heroLayout() { return wide() ? [0.725, 0.5, 0.5] : [0.5, 0.48, 0.98]; }
   function layoutFor(hk) {
     if (P.shot !== null) return [0.5, 0.5, SHOT_AVAIL];
     var h = heroLayout();
@@ -342,7 +347,7 @@
     var settled = Math.abs(target - s) < 0.7, heroRest = atTop && !auto.on && settled && P.t === null && P.shot === null, w = wide(), nr = narrow(), shown = 0, i, c, on;
     for (i = cards.length - 1; i >= 0; i--) {
       c = cards[i];
-      on = settled && ((s >= c.c.show[0] && s < c.c.show[1] && !heroRest && !(auto.on && auto.back < 1)) || (heroRest && c.c.hero && w));
+      on = settled && ((s >= c.c.show[0] && s < c.c.show[1] && !heroRest && !(auto.on && auto.back < 1)) || (heroRest && !!c.c.hero && w));
       if (on && !w) { if (shown) on = false; shown++; }
       if (on && !nr) {
         var at = heroRest && c.c.heroAt ? c.c.heroAt : c.c.at;
@@ -353,7 +358,11 @@
         var vw = scene.clientWidth, left = c.el.classList.contains('l');
         var lo = w && !heroRest ? stagePanel.offsetLeft + stagePanel.offsetWidth + 26 : 30;
         x = left ? clamp(x, lo + c.w - 22, vw + 14) : clamp(x, lo + 22, vw - c.w - 2);
-        y = Math.max(y, c.h + 100);
+        /* beside the stage words the cards dock in a row above the model, on a longer stem, so they never sit on it */
+        var riseBy = 34;
+        if (w && !heroRest) riseBy = Math.max(34, y - (c.h + 56));
+        else y = Math.max(y, c.h + 100);
+        if (c.rise !== riseBy) { c.rise = riseBy; c.el.style.setProperty('--rise', riseBy.toFixed(0) + 'px'); }
         c.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
       }
       if (on !== c.on) { c.on = on; c.el.classList.toggle('on', on); if (on) countText(c.big, c.c.big, 1100); }
@@ -391,6 +400,8 @@
     job.onFrame(overlay);
     measure(); readScroll();
     if (P.stage !== null) placeVirt();
+    /* ?go=N scrolls the real page to stage N and holds it there, for screenshots of the true layout */
+    if (P.go !== null) { all('.step').forEach(function (st) { st.classList.add('in'); }); goStage(clamp(parseInt(P.go, 10) || 0, 0, 5), true); readScroll(); }
     /* the first live frame is the finished job, in the same place and at the same size as the still picture */
     job.resize();
     var L = layoutFor(ease(1 - scrollS / 0.7)); job.setLayout(L[0], L[1], L[2], true);
@@ -398,10 +409,11 @@
     job.drawNow();
     scene.classList.add('live');
     watch();
-    if (!still && atTop) setTimeout(function () { if (atTop && !auto.on) play(); }, 1500);
+    if (!still && atTop && param('hold') !== '1') setTimeout(function () { if (atTop && !auto.on) play(); }, 1500);
     var pp = param('pin'); if (pp) pins.forEach(function (x) { if (x.p.id === pp) openPanel(x.p, x.el); });
   }
   function loadThree() {
+    if (param('poster') === '1') return; /* keeps the still picture up, to check it sits where the live model will */
     if (window.THREE) { boot(); return; }
     var s = doc.createElement('script');
     s.src = THREE_URL; s.integrity = THREE_SRI; s.crossOrigin = 'anonymous'; s.async = true;

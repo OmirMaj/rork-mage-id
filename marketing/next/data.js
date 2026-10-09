@@ -71,10 +71,10 @@ window.MAGE_DATA = (function () {
   var CARDS = [
     { id: 'est', at: [2.2, 2.4, 0.4], show: [0.62, 1.6], side: 'l', hero: 1, tag: 'Estimate', big: '$74,854.70', sub: 'Alder Street Kitchen and Bath', print: ['Demolition', 'Framing', 'Plumbing rough', 'Electrical rough', 'Cabinets'] },
     { id: 'sch', at: [10.5, 2.2, 0.2], show: [1.6, 2.5], side: 'r', tag: 'Schedule', big: '15 Tasks', sub: '50 working days', bars: 1 },
-    { id: 'day', at: [1.6, 2.4, 0.6], show: [2.5, 3.35], side: 'l', tag: 'Daily Report', big: 'Day 29 Of 50', sub: 'Filed and shared', ok: 1 },
-    { id: 'co', at: [10.4, 2.2, 1.6], show: [3.3, 4.05], side: 'r', hero: 1, tag: 'Change Orders', big: '+$3,340', sub: 'Approved by the client', ok: 1 },
-    { id: 'pay', at: [1.4, 2.2, 7.6], heroAt: [13.2, 0.4, 9.7], heroSide: 'r', show: [3.8, 4.6], side: 'l', hero: 1, tag: 'Pay Application 1', big: '$24,193.08', sub: 'Due after retainage', meter: 34 },
-    { id: 'walk', at: [1.2, 2.3, 6.8], show: [4.6, 5.01], side: 'l', tag: 'Walkthrough', big: '9 Of 9', sub: 'Keys handed over', ok: 1 }
+    { id: 'day', at: [6.5, 1.8, 0.4], show: [2.5, 3.3], side: 'r', tag: 'Daily Report', big: 'Day 29 Of 50', sub: 'Filed and shared', ok: 1 },
+    { id: 'co', at: [10.4, 2.2, 1.6], show: [3.3, 3.76], side: 'r', hero: 1, tag: 'Change Orders', big: '+$3,340', sub: 'Approved by the client', ok: 1 },
+    { id: 'pay', at: [10.4, 2.2, 1.6], heroAt: [13.2, 0.4, 9.7], show: [3.76, 4.6], side: 'r', hero: 1, tag: 'Pay Application 1', big: '$24,193.08', sub: 'Due after retainage', meter: 34 },
+    { id: 'walk', at: [6.4, 1.6, 4.6], show: [4.6, 5.01], side: 'r', tag: 'Walkthrough', big: '9 Of 9', sub: 'Keys handed over', ok: 1 }
   ];
 
   /* Dimension tags that appear along the walls while the job is being priced. */

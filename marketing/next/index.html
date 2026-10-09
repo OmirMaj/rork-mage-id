@@ -22,7 +22,7 @@
       if (/[?&]still=1/.test(q) || /[?&]full=1/.test(q)) can = false;
       else if (/[?&]still=0/.test(q)) lowPower = false;
       if (can && !lowPower) c += ' is3d';
-      if (/[?&](stage|t|full|shot)=/.test(q)) c += ' snap';
+      if (/[?&](stage|t|full|shot|go|at)=/.test(q)) c += " snap";
       if (/[?&]full=1/.test(q)) c += ' full';
       d.className = c;
     })();
