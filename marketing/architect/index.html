@@ -281,6 +281,12 @@
 </style>
 </head>
 <body>
+<a class="mg-skip" href="#content">Skip to Main Content</a>
+<aside class="mg-notice" data-recipient-notice="1" aria-label="About This Page" style="box-sizing:border-box;padding:12px 16px;background:#F4F5F2;color:#0B0D10;font-size:14px;line-height:1.5;border-bottom:1px solid #C9CDC6;text-align:left">
+  <p style="margin:0 auto;max-width:960px;color:#0B0D10">Prepared by <span data-notice-company>your contractor</span> using MAGE ID software. MAGE ID did not prepare, review or check this document and makes no statement to the reader about its contents.</p>
+  <p style="margin:4px auto 0;max-width:960px;color:#0B0D10">This page is run by MAGE ID for <span data-notice-company>your contractor</span>. <a href="https://mageid.app/terms" style="color:#1F4D29;font-weight:600">Terms of Service</a> · <a href="https://mageid.app/privacy" style="color:#1F4D29;font-weight:600">Privacy Policy</a></p>
+</aside>
+<script src="/protect-notice.js?v=2026-10-09"></script>
 
 <div class="container" id="app">
   <div class="header">
@@ -610,12 +616,12 @@
     if (docType === 'submittal') {
       actionBlock =
         '<div class="form-group">' +
-          '<label class="form-label">Action Code *</label>' +
-          '<div class="action-grid">' +
-            '<div class="action-card" data-code="approved" tabindex="0"><div class="name">Approved</div><div class="desc">Proceed as submitted</div></div>' +
-            '<div class="action-card" data-code="approved_as_noted" tabindex="0"><div class="name">Approved as Noted</div><div class="desc">Proceed with comments</div></div>' +
-            '<div class="action-card" data-code="revise_resubmit" tabindex="0"><div class="name">Revise and Resubmit</div><div class="desc">Revise per comments</div></div>' +
-            '<div class="action-card" data-code="rejected" tabindex="0"><div class="name">Rejected</div><div class="desc">Not in compliance</div></div>' +
+          '<div class="form-label" id="action-code-label">Action Code *</div>' +
+          '<div class="action-grid" role="radiogroup" aria-labelledby="action-code-label">' +
+            '<div class="action-card" role="radio" aria-checked="false" data-code="approved" tabindex="0"><div class="name">Approved</div><div class="desc">Proceed as submitted</div></div>' +
+            '<div class="action-card" role="radio" aria-checked="false" data-code="approved_as_noted" tabindex="0"><div class="name">Approved as Noted</div><div class="desc">Proceed with comments</div></div>' +
+            '<div class="action-card" role="radio" aria-checked="false" data-code="revise_resubmit" tabindex="0"><div class="name">Revise and Resubmit</div><div class="desc">Revise per comments</div></div>' +
+            '<div class="action-card" role="radio" aria-checked="false" data-code="rejected" tabindex="0"><div class="name">Rejected</div><div class="desc">Not in compliance</div></div>' +
           '</div>' +
         '</div>';
     }
@@ -667,10 +673,16 @@
   function wireForm() {
     // Action card selection (submittals only)
     document.querySelectorAll('.action-card').forEach(function (card) {
-      card.addEventListener('click', function () {
-        document.querySelectorAll('.action-card').forEach(function (c) { c.classList.remove('selected'); });
+      var choose = function () {
+        document.querySelectorAll('.action-card').forEach(function (c) { c.classList.remove('selected'); c.setAttribute('aria-checked', 'false'); });
         card.classList.add('selected');
+        card.setAttribute('aria-checked', 'true');
         selectedActionCode = card.getAttribute('data-code');
+      };
+      card.addEventListener('click', choose);
+      // The cards take keyboard focus (tabindex 0), so Enter and Space choose one.
+      card.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); choose(); }
       });
     });
 

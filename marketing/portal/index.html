@@ -2789,6 +2789,12 @@
 </style>
 </head>
 <body>
+<a class="mg-skip" href="#mg-main">Skip to Main Content</a>
+<aside class="mg-notice" data-recipient-notice="1" aria-label="About This Page" style="box-sizing:border-box;padding:12px 16px;background:#F4F5F2;color:#0B0D10;font-size:14px;line-height:1.5;border-bottom:1px solid #C9CDC6;text-align:left">
+  <p style="margin:0 auto;max-width:960px;color:#0B0D10">Prepared by <span data-notice-company>your contractor</span> using MAGE ID software. MAGE ID did not prepare, review or check this document and makes no statement to the reader about its contents.</p>
+  <p style="margin:4px auto 0;max-width:960px;color:#0B0D10">This page is run by MAGE ID for <span data-notice-company>your contractor</span>. <a href="https://mageid.app/terms" style="color:#1F4D29;font-weight:600">Terms of Service</a> · <a href="https://mageid.app/privacy" style="color:#1F4D29;font-weight:600">Privacy Policy</a></p>
+</aside>
+<script src="/protect-notice.js?v=2026-10-09"></script>
 
   <!-- Passcode gate -->
   <div id="gate" class="gate-wrap" style="display:none">
@@ -2802,7 +2808,7 @@
            locked the client out for good. -->
       <input id="gate-input" type="text" minlength="4" maxlength="20" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Passcode" placeholder="Passcode" />
       <button id="gate-submit">Unlock Portal</button>
-      <div class="err" id="gate-err"></div>
+      <div class="err" id="gate-err" role="alert"></div>
     </div>
   </div>
 
@@ -2852,7 +2858,7 @@
       <div class="nav" id="nav"></div>
     </nav>
 
-    <main class="container">
+    <main class="container" id="mg-main">
       <div id="latest-update" class="latest-update" style="display:none"></div>
       <div id="budget-banner" class="budget-banner" style="display:none"></div>
       <div id="sections"></div>
@@ -8657,6 +8663,7 @@
     // Brand
     var companyName = company.name || 'MAGE ID';
     document.getElementById('brand-name').textContent = companyName;
+    if (window.mageNotice) window.mageNotice.setCompany(company.name);
     document.getElementById('brand-mark').textContent = (companyName.charAt(0) || 'M').toUpperCase();
 
     // Hero
