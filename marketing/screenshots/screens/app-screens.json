@@ -44,8 +44,8 @@
         "1x": "/screenshots/screens/app-home-1x.webp"
       },
       "bytes": {
-        "2x": 71082,
-        "1x": 29098
+        "2x": 71092,
+        "1x": 29080
       }
     },
     {
@@ -82,7 +82,7 @@
         "1x": "/screenshots/screens/app-home-dark-1x.webp"
       },
       "bytes": {
-        "2x": 71472,
+        "2x": 71470,
         "1x": 28740
       }
     },
@@ -120,8 +120,8 @@
         "1x": "/screenshots/screens/app-projects-1x.webp"
       },
       "bytes": {
-        "2x": 62572,
-        "1x": 24918
+        "2x": 62510,
+        "1x": 24900
       }
     },
     {
@@ -158,8 +158,8 @@
         "1x": "/screenshots/screens/app-summary-1x.webp"
       },
       "bytes": {
-        "2x": 57054,
-        "1x": 24242
+        "2x": 57036,
+        "1x": 24262
       }
     },
     {
@@ -196,8 +196,8 @@
         "1x": "/screenshots/screens/app-summary-dark-1x.webp"
       },
       "bytes": {
-        "2x": 57400,
-        "1x": 24144
+        "2x": 57370,
+        "1x": 24140
       }
     },
     {
@@ -234,7 +234,7 @@
         "1x": "/screenshots/screens/app-project-1x.webp"
       },
       "bytes": {
-        "2x": 54890,
+        "2x": 54880,
         "1x": 22728
       }
     },
@@ -272,8 +272,8 @@
         "1x": "/screenshots/screens/app-estimate-1x.webp"
       },
       "bytes": {
-        "2x": 68566,
-        "1x": 27404
+        "2x": 64682,
+        "1x": 25662
       }
     },
     {
@@ -312,8 +312,8 @@
         "1x": "/screenshots/screens/app-estimate-seq-1-1x.webp"
       },
       "bytes": {
-        "2x": 66806,
-        "1x": 25742
+        "2x": 59560,
+        "1x": 22852
       }
     },
     {
@@ -352,15 +352,15 @@
         "1x": "/screenshots/screens/app-estimate-seq-2-1x.webp"
       },
       "bytes": {
-        "2x": 67598,
-        "1x": 26110
+        "2x": 66524,
+        "1x": 25438
       }
     },
     {
       "id": "estimate-seq-3",
       "screen": "estimate",
       "title": "Estimate",
-      "about": "Estimate: All ten lines, with base, markup and total.",
+      "about": "Estimate: The estimate's lines down to its base, markup and total.",
       "sequence": "estimate",
       "frame": 3,
       "theme": "light",
@@ -392,8 +392,46 @@
         "1x": "/screenshots/screens/app-estimate-seq-3-1x.webp"
       },
       "bytes": {
-        "2x": 71572,
-        "1x": 29014
+        "2x": 70254,
+        "1x": 27770
+      }
+    },
+    {
+      "id": "estimate-hero",
+      "screen": "estimate",
+      "title": "Estimate",
+      "about": "Estimate: The last lines of the estimate with its base, markup and total.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/project-detail.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/estimate-hero.png",
+        "2x": "shipped/estimate-hero@2x.webp",
+        "1x": "shipped/estimate-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-estimate-hero.png",
+        "2x": "/screenshots/screens/app-estimate-hero-2x.webp",
+        "1x": "/screenshots/screens/app-estimate-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 67040,
+        "1x": 25496
       }
     },
     {
@@ -506,8 +544,8 @@
         "1x": "/screenshots/screens/app-schedule-timeline-1x.webp"
       },
       "bytes": {
-        "2x": 59316,
-        "1x": 24180
+        "2x": 59252,
+        "1x": 24296
       }
     },
     {
@@ -544,8 +582,8 @@
         "1x": "/screenshots/screens/app-daily-report-1x.webp"
       },
       "bytes": {
-        "2x": 46614,
-        "1x": 19092
+        "2x": 46022,
+        "1x": 18588
       }
     },
     {
@@ -584,8 +622,8 @@
         "1x": "/screenshots/screens/app-daily-report-seq-1-1x.webp"
       },
       "bytes": {
-        "2x": 56016,
-        "1x": 22706
+        "2x": 55734,
+        "1x": 22340
       }
     },
     {
@@ -624,8 +662,8 @@
         "1x": "/screenshots/screens/app-daily-report-seq-2-1x.webp"
       },
       "bytes": {
-        "2x": 63912,
-        "1x": 25204
+        "2x": 63488,
+        "1x": 25008
       }
     },
     {
@@ -664,8 +702,46 @@
         "1x": "/screenshots/screens/app-daily-report-seq-3-1x.webp"
       },
       "bytes": {
-        "2x": 46570,
-        "1x": 18966
+        "2x": 46030,
+        "1x": 18418
+      }
+    },
+    {
+      "id": "daily-report-hero",
+      "screen": "daily-report",
+      "title": "Daily Report",
+      "about": "Daily Report: The filed report: weather with its source, work progress, and the crew on site.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/daily-report.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/daily-report-hero.png",
+        "2x": "shipped/daily-report-hero@2x.webp",
+        "1x": "shipped/daily-report-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-daily-report-hero.png",
+        "2x": "/screenshots/screens/app-daily-report-hero-2x.webp",
+        "1x": "/screenshots/screens/app-daily-report-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 46782,
+        "1x": 18698
       }
     },
     {
@@ -702,8 +778,8 @@
         "1x": "/screenshots/screens/app-punch-list-1x.webp"
       },
       "bytes": {
-        "2x": 52158,
-        "1x": 21716
+        "2x": 51670,
+        "1x": 21462
       }
     },
     {
@@ -740,8 +816,8 @@
         "1x": "/screenshots/screens/app-change-order-1x.webp"
       },
       "bytes": {
-        "2x": 61762,
-        "1x": 24966
+        "2x": 61766,
+        "1x": 24968
       }
     },
     {
@@ -780,8 +856,8 @@
         "1x": "/screenshots/screens/app-change-order-seq-1-1x.webp"
       },
       "bytes": {
-        "2x": 66612,
-        "1x": 27426
+        "2x": 65576,
+        "1x": 26324
       }
     },
     {
@@ -865,6 +941,44 @@
       }
     },
     {
+      "id": "change-order-hero",
+      "screen": "change-order",
+      "title": "Change Order",
+      "about": "Change Order: The contract sum before and after this change order, and the client's approval.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/change-order.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/change-order-hero.png",
+        "2x": "shipped/change-order-hero@2x.webp",
+        "1x": "shipped/change-order-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-change-order-hero.png",
+        "2x": "/screenshots/screens/app-change-order-hero-2x.webp",
+        "1x": "/screenshots/screens/app-change-order-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 69060,
+        "1x": 28660
+      }
+    },
+    {
       "id": "invoice",
       "screen": "invoice",
       "title": "Progress Invoice",
@@ -898,8 +1012,8 @@
         "1x": "/screenshots/screens/app-invoice-1x.webp"
       },
       "bytes": {
-        "2x": 56564,
-        "1x": 22466
+        "2x": 56882,
+        "1x": 22538
       }
     },
     {
@@ -936,8 +1050,8 @@
         "1x": "/screenshots/screens/app-pay-app-1x.webp"
       },
       "bytes": {
-        "2x": 60642,
-        "1x": 24202
+        "2x": 60622,
+        "1x": 24244
       }
     },
     {
@@ -976,8 +1090,8 @@
         "1x": "/screenshots/screens/app-pay-app-seq-1-1x.webp"
       },
       "bytes": {
-        "2x": 60642,
-        "1x": 24202
+        "2x": 60622,
+        "1x": 24244
       }
     },
     {
@@ -1056,8 +1170,46 @@
         "1x": "/screenshots/screens/app-pay-app-seq-3-1x.webp"
       },
       "bytes": {
-        "2x": 81156,
-        "1x": 32404
+        "2x": 80706,
+        "1x": 32334
+      }
+    },
+    {
+      "id": "pay-app-hero",
+      "screen": "pay-app",
+      "title": "Pay Application",
+      "about": "Pay Application: The cover summary: contract sum to date, completed work, retainage and the payment due this period.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/aia-pay-app.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/pay-app-hero.png",
+        "2x": "shipped/pay-app-hero@2x.webp",
+        "1x": "shipped/pay-app-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-pay-app-hero.png",
+        "2x": "/screenshots/screens/app-pay-app-hero-2x.webp",
+        "1x": "/screenshots/screens/app-pay-app-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 81056,
+        "1x": 32172
       }
     },
     {
@@ -1094,8 +1246,46 @@
         "1x": "/screenshots/screens/app-client-portal-1x.webp"
       },
       "bytes": {
-        "2x": 54706,
-        "1x": 21572
+        "2x": 55742,
+        "1x": 22026
+      }
+    },
+    {
+      "id": "client-portal-hero",
+      "screen": "client-portal",
+      "title": "Client View",
+      "about": "Client View: Progress, the contract and change totals, and what is waiting on the client.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/client-view.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/client-portal-hero.png",
+        "2x": "shipped/client-portal-hero@2x.webp",
+        "1x": "shipped/client-portal-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-client-portal-hero.png",
+        "2x": "/screenshots/screens/app-client-portal-hero-2x.webp",
+        "1x": "/screenshots/screens/app-client-portal-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 53516,
+        "1x": 20996
       }
     },
     {
