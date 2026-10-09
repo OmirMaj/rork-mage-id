@@ -1990,9 +1990,9 @@ function EstimateWizardScreenInner() {
           <RevenueEarlyAccessCard
             eventKey="revenue.sub_bid_network"
             icon={Users}
-            headline="Post This Scope to Subs"
-            body="Push the trades-by-line-item to subs in your area, instead of emailing the set to each one and waiting."
-            footer="Sub-bid network launches when your metro hits 50 active subs per trade"
+            headline="Send This Scope to Subs"
+            body="We are working on a way to send the trades, line by line, to subs in your area. It is not built yet."
+            footer="Not available yet. Tap to be told when it is."
             testID="estimate-subbid-cta"
           />
 

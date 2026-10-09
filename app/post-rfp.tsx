@@ -768,7 +768,7 @@ function DetailsStep({
       {/* Description */}
       <FadeRise delay={180}>
         <View style={styles.card}>
-          <CardHead icon={FileText} title="Tell Us About Your Project" subtitle="The more details you add, the more accurate your bids." styles={styles} themeColors={themeColors} />
+          <CardHead icon={FileText} title="Tell Us About Your Project" subtitle="More detail helps contractors price your job." styles={styles} themeColors={themeColors} />
           <TextInput
             style={[styles.input, styles.inputMultiline]}
             value={description}
@@ -813,7 +813,7 @@ function DetailsStep({
             <MageAIMark size={13} color={themeColors.accent} />
             <Text style={styles.proTipText}>
               <Text style={styles.proTipBold}>Pro tip: </Text>
-              Add at least 3 photos for better, more accurate bids.
+              Add at least 3 photos so contractors can see the job.
             </Text>
           </View>
         </View>

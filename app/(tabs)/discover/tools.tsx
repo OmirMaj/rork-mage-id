@@ -153,8 +153,8 @@ const TOOL_ROWS: ToolRow[] = [
   { feature: 'equipment', route: '/(tabs)/equipment', Icon: MageEquipment, title: 'Equipment', subtitle: "Rentals, utilization and what's on which site", testID: 'tools-equipment', section: 'FIELD', needsProjects: true },
 
   // ── MONEY — every cash-related workflow.
-  { feature: 'win-optimizer', route: '/win-optimizer', Icon: Target, title: 'Win Optimizer', subtitle: 'The bid price that wins and profits, learned from your own win/loss history', testID: 'tools-win-optimizer', section: 'MONEY' },
-  { feature: 'smart-proposal', route: '/smart-proposal', Icon: FileSignature, title: 'Smart Proposal', subtitle: 'Good / better / best, priced to win. Send, track, close', testID: 'tools-smart-proposal', section: 'MONEY' },
+  { feature: 'win-optimizer', route: '/win-optimizer', Icon: Target, title: 'Win Optimizer', subtitle: 'A suggested bid price from your own win and loss history', testID: 'tools-win-optimizer', section: 'MONEY' },
+  { feature: 'smart-proposal', route: '/smart-proposal', Icon: FileSignature, title: 'Smart Proposal', subtitle: 'Good, better and best proposals to send and track', testID: 'tools-smart-proposal', section: 'MONEY' },
   { feature: 'cash-flow', route: '/cash-flow', Icon: Wallet, title: 'Cash Flow', subtitle: 'Multi-week forecast across all projects', testID: 'tools-cash-flow', section: 'MONEY', needsProjects: true },
   { feature: 'budget-dashboard', route: '/budget-dashboard', Icon: PieChart, title: 'Budget Dashboard', subtitle: 'Earned-value (CPI/SPI) for one project. Pick a project to chart', testID: 'tools-budget-dashboard', section: 'MONEY', needsProjects: true },
   // WIP Report — Business-tier. Portfolio-wide (no projectId needed); renders

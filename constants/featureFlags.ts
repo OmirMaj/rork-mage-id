@@ -238,3 +238,15 @@ export const CLEARANCE_CHECK_ENABLED = false;
 // Flip it to true only after the founder's review of the rule sheet and the
 // independent review are both done.
 export const CODE_FLAGS_ENABLED = false;
+
+// DISCOVER WAITLIST CARDS (PROTECT-TEXT, 2026-10-09). The Discover tab ended in
+// a section called "Earn More with MAGE" with four cards: "Refer a lead, earn
+// 5% if it closes", "One-tap Friday payouts to all your subs", "Lien waivers
+// at point-of-payment" and "Finance a truck or new equipment". None of the
+// four exists: there is no referral payout, no mass payout or 1099 filing, no
+// escrow and no equipment lender. The cards stated a commission, a tax-law
+// reading, "No application fee" and a launch condition as if they were
+// offers, and one footer printed an internal planning note. A card for a
+// product that does not exist is not shown. Flip this only when a card's
+// product is real, and rewrite the card to say what the product does.
+export const DISCOVER_WAITLIST_CARDS_ENABLED: boolean = false;

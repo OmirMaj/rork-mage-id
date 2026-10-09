@@ -1071,7 +1071,7 @@ CLIENT HISTORY:
 Avg days late: ${clientHistory.avgDaysLate}
 Total past invoices: ${clientHistory.totalInvoices}
 
-Predict the actual payment date, confidence level, and give a tip for getting paid faster.`,
+Predict the actual payment date, confidence level, and give one practical tip for following up on it.`,
     schema: invoicePredictionSchema,
     tier: 'fast',
   });

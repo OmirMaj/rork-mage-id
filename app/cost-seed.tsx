@@ -274,7 +274,7 @@ function CostSeedInner() {
             </View>
             <Text style={styles.introBody}>
               Paste what you charge today. Your first estimate uses your rates, and every
-              project you close makes them sharper.
+              project you close adds its actual costs to them.
             </Text>
             <Text style={styles.introFinePrint}>
               Rates you enter are marked as your rate. They are never counted as a closed project

@@ -523,7 +523,7 @@ export default function SubmitBidResponseScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.instantTitle}>Instant Bid</Text>
               <Text style={styles.instantSub}>
-                Draft a Good / Better / Best proposal from the posting. Contractors who respond first win more work.
+                Draft a Good / Better / Best proposal from the posting.
               </Text>
             </View>
           </View>
@@ -550,7 +550,7 @@ export default function SubmitBidResponseScreen() {
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Choose the Option to Send</Text>
             <Text style={styles.helper}>
-              Offering a range lifts win-rates. The &quot;Recommended&quot; tier is pre-selected. Tap to switch.
+              Three price levels give the client a choice. The &quot;Recommended&quot; tier is pre-selected. Tap to switch.
             </Text>
             <View style={styles.tierList}>
               {proposal.tiers.map(tier => {

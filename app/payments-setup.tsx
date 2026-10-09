@@ -412,7 +412,7 @@ function NotConnectedCard({
       <View style={[styles.heroIcon, { backgroundColor: themeColors.accent + '15' }]}>
         <Wallet size={28} color={themeColors.accent} strokeWidth={1.75} />
       </View>
-      <Text style={styles.heroTitle}>Get Paid Faster</Text>
+      <Text style={styles.heroTitle}>Get Paid Online</Text>
       <Text style={styles.heroSub}>
         Connect your bank through Stripe's own sign-up form. Clients tap "Pay" in your invoice
         email and the money goes to your Stripe account.

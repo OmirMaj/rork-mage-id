@@ -250,7 +250,7 @@ function AutoBidsInner() {
               what={anyHistory
                 ? `Where you have closed jobs of the same kind, MAGE starts from what they cost you (your recorded costs, or the estimate before markup when little was recorded), blended with the owner's posted budget at ${markupPhrase}. It then picks the price that maximizes expected profit: the balance of margin and your odds of winning.`
                 : `You have no closed jobs of these kinds yet, so MAGE backs a cost out of each owner's posted budget at ${markupPhrase}, then picks the price that maximizes expected profit: the balance of margin and your odds of winning.`}
-              why="Bidding too high loses the job; too low wins work that isn't worth building. This finds the price that makes you the most money over many bids."
+              why="A high bid can lose the job and a low one can win work that does not pay. This suggests a price from your own past bids."
             />
           </View>
         </View>

@@ -135,7 +135,7 @@ interface PreviewCard {
 const PREVIEW_CARDS: PreviewCard[] = [
   {
     Icon: MageAIMark,
-    title: 'Win More Work with Instant Bids',
+    title: 'Send an Instant Bid',
     body: 'Tap a client request and get a good, better and best proposal with financing, ready to send.',
   },
   {
@@ -145,8 +145,8 @@ const PREVIEW_CARDS: PreviewCard[] = [
   },
   {
     Icon: TrendingUp,
-    title: 'Every Project Sharpens Your Next Bid',
-    body: 'MAGE learns your costs as you build. Each finished project makes the next estimate more accurate.',
+    title: 'Every Project Feeds Your Next Bid',
+    body: 'MAGE keeps your costs as you build. Each finished project adds its actual costs to your next estimate.',
   },
   {
     Icon: Mic,
@@ -786,7 +786,7 @@ export default function OnboardingScreen() {
               <Animated.View style={{ opacity: bodyOpacity }}>
                 <Text style={styles.lede}>
                   Paste what you charge today. Your first estimate uses your rates, and every
-                  project you close makes them sharper.
+                  project you close adds its actual costs to them.
                 </Text>
                 <Text style={styles.fieldLabel}>Your Company Name</Text>
                 <TextInput

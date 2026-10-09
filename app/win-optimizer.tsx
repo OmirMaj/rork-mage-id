@@ -189,8 +189,8 @@ function WinOptimizerInner() {
             <Trophy size={26} color={t.accent} strokeWidth={1.7} />
             <Text style={styles.infoTitle}>Enter a project cost to price your bid</Text>
             <Text style={styles.infoBody}>
-              The win optimizer finds the price that makes you the most money. It balances your
-              margin against your odds of winning, learned from the proposals you won and lost.
+              The win optimizer suggests a price from your own past bids. It weighs your
+              margin against how often you won at each price, from the proposals you marked won and lost.
             </Text>
           </View>
         ) : (
@@ -231,7 +231,7 @@ function WinOptimizerInner() {
                 ))}
               </View>
               <View style={styles.curveAxis}>
-                <Text style={styles.curveAxisText}>Lower price · win more</Text>
+                <Text style={styles.curveAxisText}>Lower price · higher win odds</Text>
                 <Text style={styles.curveAxisText}>Higher price · earn more</Text>
               </View>
             </View>
@@ -267,7 +267,7 @@ function WinOptimizerInner() {
 
             <Text style={styles.note}>
               Win odds are modeled from your own closed proposals ({result.sampleSize} so far). Every
-              lead you mark won or lost makes the next recommendation sharper. A guide, not a guarantee.
+              lead you mark won or lost is added to the next recommendation. A guide, not a guarantee.
             </Text>
           </>
         )}

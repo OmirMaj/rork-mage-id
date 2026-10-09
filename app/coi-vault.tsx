@@ -704,7 +704,7 @@ function COICard({
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.coiTitle}>Certificate Uploaded {new Date(coi.uploadedAt).toLocaleDateString()}</Text>
-          <Text style={styles.coiMeta}>{label}{v?.confidence != null ? ` · AI confidence ${v.confidence}%` : ''}</Text>
+          <Text style={styles.coiMeta}>{label}{v?.confidence != null ? ` · AI self-rating ${v.confidence}%` : ''}</Text>
         </View>
         <TouchableOpacity onPress={onDelete} hitSlop={6} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={themeColors.dangerLabel} strokeWidth={1.75} /></TouchableOpacity>
       </View>
