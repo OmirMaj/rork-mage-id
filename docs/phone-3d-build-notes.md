@@ -4,12 +4,100 @@ The Living Model's Job Replay draws in 3D on the iPhone, with the same scene
 code the web uses. This note is for whoever cuts the next iPhone build and for
 the first test on a real phone. Lane PHONE3D, 2026-10-09.
 
+## The Landing Pass (2026-10-09), Read This First
+
+The lane was reviewed before it went to main, and these things changed. The
+simulator proof further down was made BEFORE them and was not run again.
+
+| What | Before | Now |
+|---|---|---|
+| Leaving the 3D view | expo-gl's own view threw every time it left the screen (see "The Throw on Leaving") | Caught in `phone3d/engine.ts` (`quietSurface`) |
+| A finger on the model | The page behind could scroll and take the drag away | The page is held still while a finger is on the model |
+| The picture's cost | Full 3x screen, 4 samples, 2048 shadow map | Standard: 2 pixels a point, 1024 shadow map. High: as before. One table |
+| Units | The scene worked in its own units, 1.5 a point on a 3x phone | Points everywhere. Nothing is converted |
+| The line under the model | The browser's ("One finger scrolls the page") | The phone's ("Drag to turn...") |
+| The flat fallback | The 3D help line stayed under a flat picture | One message above the flat replay, nothing 3D under it |
+| A surface that never starts | "Loading" for good | The flat replay after ten seconds |
+
+### The Throw on Leaving
+
+This was the one finding that would have shown on the founder's phone.
+
+expo-gl's view, as it leaves the screen, asks the reanimated library to forget
+the drawing context (`runOnUI(...)`). It skips that only if requiring the
+library throws. In this app the require does not throw: `metro.config.js`
+points it at an empty object (`stubs/react-native-reanimated-absent.js`, there
+since build 12). So `runOnUI` is undefined and the call is a TypeError, on
+every unmount of a 3D view whose surface had started: changing tab, going back,
+changing the appearance, a failed frame.
+
+The simulator proof never hit it. The only unmount in that proof was the dark
+launch, where the first view left before its surface had started.
+
+The fix is a wrapper around expo-gl's view that catches its own leaving. expo-gl
+forgets the context on the line before the one that throws, and the native
+surface ends with its native view, so nothing is left behind. Rule D7 of
+`bun run test:phone-3d` holds the wrapper and the two facts it depends on (the
+stub is an empty object, Metro points at it). If reanimated is ever added for
+real, the wrapper is harmless and can stay.
+
+### Standard and High
+
+`utils/livingModel/phoneViewCore.ts`, `PHONE_3D_QUALITY`. One table.
+
+| | Buffer | Samples a pixel | Shadow map |
+|---|---|---|---|
+| Standard, 3x phone (Plus, Pro, Max) | 2 pixels a point | 4 | 1024 |
+| Standard, 2x phone | 2 pixels a point (its own) | 2 | 1024 |
+| High | the full screen | 4 | 2048 |
+
+On an iPhone 15 Pro Max a 390 by 380 point view is 780 by 760 pixels at
+Standard and 1170 by 1140 at High: Standard fills under half the pixels.
+
+expo-gl always makes its buffer at the screen's own scale, so a smaller buffer
+is made by laying the surface out smaller and growing it back: at Standard on a
+3x phone the surface is two thirds of the view each way, moved to the middle,
+and scaled 1.5 times (`phoneViewCore.surfaceBox`). The fingers and the labels
+are separate views over it and are not scaled. The scene reads the buffer the
+phone really made (`viewSize`), so the picture fills the buffer whatever size it
+came out.
+
+**This scaling has not been seen on any screen.** If Standard looks wrong on the
+phone (the picture in one corner, or soft in a way High is not), switch to High,
+which is the path the simulator proved, and say so.
+
+The owner alone gets a "3D Quality" switch under the model, Standard or High.
+It is remembered until the app is closed. Changing it builds the view again.
+
+### How the Page Scrolls Around the Model
+
+The model is a box 380 points tall in a page that scrolls. One finger on the
+model turns it. An iPhone's scrolling page takes an up-and-down drag for itself
+at the native level, whatever JavaScript says, so while a finger is on the
+model the page is told not to scroll (`onHold`, `scrollEnabled`). The page
+scrolls from anywhere outside the box: the tabs, the legend, the scrubber, the
+room list. On the smallest iPhone the app supports (667 points tall) about 150
+points of page stay visible around the box, so there is always somewhere to
+scroll from.
+
+One thing to expect: a very fast flick that starts on the model can be taken by
+the page before the hold arrives. Then neither moves; do it again.
+
+### Not Changed
+
+`threeScene.ts` got three options (`antialias`, `maxPixelRatio`,
+`shadowMapSize`) and a check before `forceContextLoss`. With no options it does
+what it did: smoothing on, 2 pixels a point at most, a 2048 shadow map, the
+context given back. `bun run test:living-model` rule E7 runs the scene builder
+and reads those values.
+
 ## What Changed, in One Paragraph
 
 One native module was added: `expo-gl` (`~16.0.10`, the range Expo SDK 54
 ships). It gives the app an OpenGL ES drawing surface. `three` 0.180.0, already
 a dependency for the web view, draws into that surface. The scene is built by
-`components/livingModel/threeScene.ts`, the file the web calls, unchanged. The
+`components/livingModel/threeScene.ts`, the file the web calls (it gained three
+options in the landing pass; with none it does what it did). The
 phone's own code is four new files and one rewritten file:
 
 | File | What it is |
@@ -48,8 +136,8 @@ newest version of the app." That path is what jest runs
 ## How Three Draws Into expo-gl
 
 `threeScene.createJobScene(THREE, canvas, palette)` makes its own
-`THREE.WebGLRenderer({ canvas, ... })`. It was written for a browser canvas and
-it was not edited. The phone hands it a stand-in object instead of a canvas
+`THREE.WebGLRenderer({ canvas, ... })`. It was written for a browser canvas.
+The phone hands it a stand-in object instead of a canvas
 (`phoneScene.canvasStandIn`):
 
 - `getContext('webgl2')` answers expo-gl's context, so the renderer draws into
@@ -61,48 +149,18 @@ it was not edited. The phone hands it a stand-in object instead of a canvas
 After every `render()` the wrapper calls `gl.endFrameEXP()`. expo-gl draws off
 screen until that call.
 
-One real difference had to be worked around. `threeScene.resize` caps the pixel
-ratio at 2 and sets its viewport to width x height x ratio. The drawing buffer
-on a Pro Max is 3 pixels a point. Handing the scene the size in points would
-fill two thirds of the buffer. So the scene is handed `buffer / ratio` (1.5
-scene units a point on a 3x phone), and every point that goes in (a tap, a
-two-finger move) or comes out (a label) is converted by that one factor
-(`phoneViewCore.viewSize`).
+The scene is handed the view's size in points and the buffer's pixels a point
+(`phoneViewCore.viewSize`), and the phone raises the scene's pixel-ratio cap
+from the web's 2 (`maxPixelRatio`). A tap, a two-finger move and a label are in
+points on both sides. (As first built the scene was handed `buffer / 2` and
+every point was converted by 1.5 on a 3x phone; the landing pass removed that.)
 
 ### Changes Wanted in the Living Model's Own Files
 
-None is needed for the phone to draw. They were left alone because another
-lane was editing those files.
-
-1. **`LivingModelScreen.tsx`, the line under the 3D view. This one matters.**
-   On a narrow screen the screen prints `copy.touchHelpSub`: "One finger
-   scrolls the page. Two fingers move, turn and zoom the model". That is true
-   in a phone's web browser and NOT true in the app, where one finger turns
-   the model. On iOS and Android it should print
-   `usePhone3DCopy().touchHelpSub` ("Drag to turn. Use two fingers to move.
-   Pinch to zoom. Tap a room to pick it"). Until that line is changed the app
-   prints the browser's sentence under the phone's view. The feature is dark
-   (`LIVING_MODEL_ENABLED` is false), so only the owner sees it.
-2. **`LivingModelScreen.tsx`, the fallback.** When the phone falls back to the
-   flat replay it does so INSIDE `JobReplay3D`, because calling
-   `onUnavailable` makes the screen print "This browser could not start the 3D
-   view." So the screen still prints the help line under a flat picture, and
-   the honesty lines carry the test id `lm-honesty-3d`. The clean fix: let
-   `onUnavailable` carry a reason and let the screen choose the sentence.
-3. **`hooks/useLivingModelCopy.ts`.** `phoneNoteTitleBody` and `phoneNoteBody`
-   ("The 3D view is on the web for now.") are no longer shown by anything and
-   can be deleted with their Spanish.
-4. **`threeScene.ts`, `resize`.** Take the pixel ratio cap as an argument, or
-   do not clamp a ratio the caller passes. Then `phoneScene` can hand over
-   points and the unit conversion goes away.
-5. **`threeScene.ts`, `createJobScene`.** Accept `antialias` in `opts`. On the
-   phone the smoothing comes from the GLView's `msaaSamples`; the renderer's
-   own `antialias: true` does nothing there.
-6. **`threeScene.ts`, `dispose`.** It calls `renderer.forceContextLoss()`.
-   expo-gl has no `WEBGL_lose_context`, so on the phone that call does nothing
-   but print one warning ("extension not supported") the first time. The
-   context is ended by the GLView when it leaves the screen. Harmless; a check
-   for the extension first would keep the log quiet.
+All six were made in the landing pass (above): the phone's own line under the
+model, the fallback, the two unused strings deleted, and `threeScene.ts` taking
+its pixel-ratio cap and smoothing from the caller and checking before it gives
+a context back.
 
 ## What Differs From the Web Render, and Why
 
@@ -110,13 +168,15 @@ The picture is the same scene, so walls, openings, studs, pipes, wires, batts,
 board, trim, the cut-away height, the faint plan ahead of today and the stage
 colour on each floor are the web's. What is different:
 
-- **Resolution.** The web caps at 2 pixels a point. The phone draws the full
-  3 pixels a point of a Pro Max screen (about 1190 by 1140 pixels for the
-  view), because expo-gl's buffer is the screen's own.
+- **Resolution.** The web caps at 2 pixels a point. So does the phone at
+  Standard. At High the phone draws the full 3 pixels a point of a Pro Max
+  screen.
 - **Smooth edges.** On the web the browser smooths them. On the phone the
-  GLView does, at 4 samples a pixel.
+  GLView does, at 2 or 4 samples a pixel (the table above).
+- **Shadows.** One 2048 shadow map on the web and at High; 1024 at Standard.
 - **Fingers.** One finger turns, two move, a pinch zooms, a twist turns, a
-  tap picks. In a phone's web browser one finger scrolls the page instead.
+  tap picks. The page behind does not scroll while a finger is on the model.
+  In a phone's web browser one finger scrolls the page instead.
 - **Labels.** Ordinary React Native text over the drawing, moved about thirty
   times a second while the model turns. How much a label shows (both lines,
   the name, or a dot) is the web's own rule (`sceneCore.pinSize`). The phone
@@ -230,49 +290,76 @@ move; download size does. If the size matters later, the library's smaller
 build (`three.module.min.js` with `three.core.min.js`) or a build with only
 the classes the scene uses would cut most of it.
 
-## What Must Be Checked on a Real iPhone
+## The Real-Phone Checklist
 
-Nothing below can be learned from a simulator. The simulator draws OpenGL ES
-through the Mac's own graphics, with no heat and a great deal of memory.
+For the founder, on his iPhone 15 Pro Max, with the new build installed. Sign
+in with the owner account: the Living Model is an owner preview. Nothing below
+can be learned from a simulator.
 
-1. **It draws at all.** Open a job, Living Model, Job Replay. Walls, openings
-   and stage colours should match the web. If the flat replay appears with
-   "The 3D view could not start on this phone." the engine is in the build and
-   failed; that is the case to report.
-2. **Frame rate with a real job.** Turn the model with one finger for ten
-   seconds on a job with twenty or more rooms. It should follow the finger
-   without stutter. The drawing buffer is the full 3x screen with 4x smoothing
-   and one 2048 shadow map; if it stutters, the first things to lower are
-   `msaaSamples` (in `Phone3DView.tsx`) and the shadow map size (in
-   `threeScene.ts`).
-3. **Play.** Press Play and watch a whole job. Every frame re-renders the room
-   labels in React as well as the model.
-4. **Memory.** In Xcode's memory gauge, or just by use: open and close Job
-   Replay ten times, switching between Rooms and Job Replay. Memory should
-   come back each time. Every shape, material and the renderer are given back
-   when the view leaves; the GL context ends with its view.
-5. **Heat and battery.** Leave Job Replay open and untouched for five minutes.
-   The phone should stay cool: no frame is drawn while nothing changes.
-6. **Backgrounding.** With the model on screen, go to the Home Screen, wait a
-   minute, come back. The model should still be there and still turn. Then
-   lock the phone and unlock it. Then take a phone call. An iPhone ends an app
-   that draws with OpenGL ES in the background; the view stops its frames when
-   the app is not active, and expo-gl pauses its own queue, but only a real
-   phone proves it.
-7. **Another screen on top.** Open a room card, go back, open the project
-   page, come back. The model should redraw once and not keep drawing behind
-   another screen.
-8. **Rotation.** The app is locked to portrait except the plan viewer. Open the
-   plan viewer, turn the phone, go back to Job Replay in portrait. The model
-   should fill its box, not a corner of it.
-9. **Dark and light.** Switch the appearance with Job Replay open. The view is
-   built again with the new colours.
-10. **Two fingers inside a scrolling page.** The model sits in a page that
-    scrolls. One finger on the model should turn it, not scroll the page; a
-    drag that starts outside the model should scroll.
-11. **An old build.** On a phone that still has build 22, after the update
-    arrives: Job Replay shows the flat replay and the line "3D needs the newest
-    version of the app." Nothing else changes.
+**Start**
+
+1. Open a job that has rooms in its Living Model (or add two rooms in the Rooms
+   tab and tick a task for each in Tasks).
+2. Tap Job Replay. Within a second or two you should see walls standing on a
+   floor, with a label on each room.
+   - If you see a flat floor plan and "3D needs the newest version of the app."
+     the build on the phone has no 3D engine. Check the build number.
+   - If you see a flat floor plan and "The 3D view could not start on this
+     phone." the engine is there and failed. That is the one to report.
+
+**Fingers** (the first thing to try; no simulator could)
+
+3. Drag one finger across the model. It turns. The page does not move.
+4. Drag one finger up and down on the model. It tilts. The page does not move.
+5. Put two fingers on it and drag. It moves. Pinch. It zooms. Twist. It turns.
+6. Tap a room. Its card opens under the model. Tap it again. It closes.
+7. Put a finger on the legend or the scrubber, below the model, and drag up.
+   The page scrolls. Scroll down to the room list and back up.
+8. Flick fast up the page starting ON the model, a few times. Expected: the
+   model tilts, or nothing moves. Not expected: the page stuck and unable to
+   scroll afterwards. If that happens, report it.
+
+**Leaving and coming back** (this is where the build could still surprise us)
+
+9. Tap Rooms, then Job Replay again. Do it five times. The model comes back
+   every time. No error screen.
+10. Tap Back to the project, then open the Living Model again. Same.
+11. With the model showing, go to the Home Screen, wait a minute, come back.
+    The model is still there and still turns.
+12. Lock the phone, unlock it. Same.
+13. Switch the phone between light and dark (Control Center) with the model
+    showing. It is drawn again in the new colours, in 3D, not flat.
+
+**Play and speed**
+
+14. Press Play and watch the job from start to finish. The walls should change
+    smoothly and the labels stay on their rooms.
+15. Turn the model with one finger for ten seconds. It should follow the finger
+    with no stutter.
+
+**3D Quality** (under the model, owner only)
+
+16. It starts on Standard. Look at wall edges and the labels.
+17. Tap High. The model is drawn again. Compare: are edges sharper? Is turning
+    still smooth?
+18. Tap Standard again. If Standard looks wrong in a way High does not (the
+    picture sits in a corner, is stretched, or is blurry), stay on High and
+    report it: the Standard path scales the picture and no screen has shown it
+    yet.
+
+**Heat**
+
+19. Leave Job Replay open and untouched for five minutes. The phone stays cool.
+    Nothing is drawn while nothing changes.
+20. Open and close Job Replay ten times. The app should not get slower.
+
+**An old build** (only if a phone with build 22 or earlier is to hand)
+
+21. After the update arrives, Job Replay shows one line, "3D needs the newest
+    version of the app.", and the flat replay under it. Nothing else changes.
+
+What to send back if something is off: a screenshot, which step, and whether
+Standard or High was on.
 
 ## How This Could Still Fail in the EAS Build
 
@@ -285,8 +372,16 @@ through the Mac's own graphics, with no heat and a great deal of memory.
 - **New Architecture.** The app has it on. expo-gl 16 is an Expo module with a
   Fabric-compatible view and it mounted in the simulator build with the new
   architecture on. A real-device build uses the same code.
-- **Android was not built.** expo-gl supports Android and the JavaScript is the
-  same, but nothing here was run on Android.
+- **Android was not built or run.** expo-gl autolinks on Android too (two
+  modules, a CMake build against React Native's own headers, no permission, one
+  manifest line that says OpenGL ES 2 is NOT required). It is the version Expo
+  SDK 54 lists, so the build should pass, but it is unproven. Start-up cannot be
+  touched by it: nothing reads expo-gl until Job Replay opens. On Android the
+  3D view itself is unproven (and `msaaSamples` is iPhone only).
+- **An EAS environment variable.** The simulator check's switch
+  (`EXPO_PUBLIC_PHONE3D_SPIKE`) is in no file a build reads, and two validators
+  fail if it is added. They cannot see variables set on expo.dev. It must not
+  be set there.
 
 ## The Local Build Commands That Worked
 
@@ -320,6 +415,7 @@ xcrun simctl io booted screenshot week6.png
 xcrun simctl launch --terminate-running-process booted com.mageid.app -phone3d "week=10&planned=1&dx=-200&dy=-70&zoom=1.6"
 xcrun simctl ui booted appearance dark
 xcrun simctl launch --terminate-running-process booted com.mageid.app -phone3d "week=6&rooms=40&spin=5"   # timing, printed on the screen
+xcrun simctl launch --terminate-running-process booted com.mageid.app -phone3d "week=6&quality=high"      # the full screen; standard is the default
 xcrun simctl shutdown booted
 rm -rf ios
 ```
@@ -351,11 +447,16 @@ installed. A clean `bun install` gives the same tree.
 ## The Gates That Hold This
 
 - `bun run test:phone-3d` (`scripts/validate-phone-3d.ts`): the finger and size
-  arithmetic against hand-worked answers; the optional lookup; expo-gl named in
-  one file and read lazily; the flat replay always reachable; frames only when
-  something changed and never in the background; the simulator check's switch
-  in no build profile; the flag still off; the words. Every rule has a planted
-  break that must turn it red.
+  arithmetic against hand-worked answers; the quality table; the optional
+  lookup; expo-gl named in one file and read lazily; the flat replay always
+  reachable and the screen told about it; frames only when something changed
+  and never in the background; the page held while a finger is on the model;
+  leaving cannot throw; a surface that never starts; the simulator check's
+  switch in no build profile; the flag still off; the words. Every rule has a
+  planted break that must turn it red.
+- `bun run test:living-model`, rule E7: the scene builder run with no options
+  still makes the web's renderer (smoothing on, 2 pixels a point at most, the
+  context given back), and takes a caller's own.
 - `bun run test:living-model`, rules E1 to E4 and G5: `three` has no static
   import anywhere, one lazy read per platform, the scene builder has one static
   importer (the web view) and one lazy one (the phone's engine file); expo-gl

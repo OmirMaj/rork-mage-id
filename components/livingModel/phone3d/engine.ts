@@ -89,7 +89,8 @@ export function phone3DEngineInBuild(): boolean {
   return inBuild;
 }
 
-type SurfaceClass = new (props: PhoneGlViewProps) => { componentWillUnmount?: () => void };
+interface SurfaceInstance { componentWillUnmount(): void }
+type SurfaceClass = new (props: PhoneGlViewProps) => SurfaceInstance;
 
 /**
  * expo-gl's view, with a leaving that cannot throw (see LEAVING above). Handed anything that is not a class
@@ -100,7 +101,7 @@ export function quietSurface(GLView: Phone3DEngine['GLView']): Phone3DEngine['GL
   if (typeof Base !== 'function' || typeof Base.prototype?.componentWillUnmount !== 'function') return GLView;
   class QuietSurface extends Base {
     componentWillUnmount(): void {
-      try { super.componentWillUnmount?.(); } catch { /* the context is already forgotten; the native surface ends with its view */ }
+      try { super.componentWillUnmount(); } catch { /* the context is already forgotten; the native surface ends with its view */ }
     }
   }
   return QuietSurface as unknown as Phone3DEngine['GLView'];
