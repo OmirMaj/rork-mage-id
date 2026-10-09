@@ -3,8 +3,11 @@
  * (components/livingModel/LivingModelEntryRow), the route (app/living-model)
  * and the screen (components/livingModel/LivingModelScreen) AS THE PHONE
  * RENDERS THEM. jest resolves the phone files, so the 3D view here is
- * components/livingModel/JobReplay3D.tsx, which draws nothing; the 3D library
- * is never loaded in this suite, and test 12 checks that.
+ * components/livingModel/JobReplay3D.tsx. jest has no native modules, which is
+ * exactly a build with no 3D engine (build 22 and earlier): the phone file
+ * draws the flat replay with one quiet line, and the 3D library is never
+ * loaded in this suite. Tests 11 and 12 check that. The phone's 3D view itself
+ * was proven in the iOS Simulator (docs/phone-3d-build-notes.md).
  *
  * Fixtures only, no network: the project context is a fixture; the device
  * store is the real utils/livingModel/store over jest's AsyncStorage mock.
@@ -25,8 +28,8 @@
  *   8  a size that cannot be read is refused with a sentence, and nothing is added
  *   9  the model is saved on the device, under this person and this project, and the screen says "this device only"
  *  10  a suggestion is shown and NOT applied: the room stays unticked and uncoloured until Confirm Suggested
- *  11  the phone's replay says the 3D view is on the web, draws the flat replay, and carries both honesty lines
- *  12  the phone file for the 3D view draws nothing and the 3D library was never loaded
+ *  11  a build with no 3D engine says "3D needs the newest version of the app.", draws the flat replay, and carries both honesty lines
+ *  12  the phone file for the 3D view draws the flat replay on such a build, and the 3D library was never loaded
  *  13  Reported never shows the plan: a task with nothing reported reads "No Progress Reported"
  */
 import React from 'react';
@@ -52,7 +55,7 @@ jest.mock('expo-router', () => {
   };
 });
 
-// The 3D library must never be asked for on the phone. If anything here loads it, this flag flips.
+// The 3D library must never be asked for on a build with no 3D engine. If anything here loads it, this flag flips.
 let mockThreeLoaded = false;
 jest.mock('three', () => { mockThreeLoaded = true; return {}; });
 
@@ -293,10 +296,11 @@ describe('Job Replay on the phone', () => {
     fireEvent(screen.getByTestId('lm-flat-replay'), 'layout', { nativeEvent: { layout: { width: 358, height: 300, x: 0, y: 0 } } });
   }
 
-  it('11 says the 3D view is on the web, draws the flat replay, and carries both honesty lines', async () => {
+  it('11 a build with no 3D engine says so in one line, draws the flat replay, and carries both honesty lines', async () => {
     await replayWithTicks();
-    expect(screen.getByTestId('lm-phone-note')).toBeTruthy();
-    expect(screen.getByText('The 3D view is on the web for now.')).toBeTruthy();
+    expect(screen.getByTestId('lm-phone-no-engine')).toBeTruthy();
+    expect(screen.getByText('3D needs the newest version of the app.')).toBeTruthy();
+    expect(screen.queryByTestId('lm-phone-3d-failed')).toBeNull();
     expect(screen.getByTestId('lm-flat-plan')).toBeTruthy();
     expect(screen.queryByTestId('lm-replay-3d')).toBeNull();
     expect(screen.getByText(SCHEMATIC)).toBeTruthy();
@@ -309,10 +313,17 @@ describe('Job Replay on the phone', () => {
     expect(screen.getByText(PROGRESS)).toBeTruthy();
   });
 
-  it('12 the phone file for the 3D view draws nothing, and the 3D library was never loaded', () => {
-    expect(JOB_REPLAY_3D_ON_THIS_PLATFORM).toBe(false);
-    const { toJSON } = render(<JobReplay3D model={{ version: 1, projectId: 'p1', rooms: [], links: {}, updatedAt: '' }} level={0} moments={new Map()} selectedId={null} onSelect={() => {}} onUnavailable={() => {}} weekLine="" atToday={false} height={10} compact />);
-    expect(toJSON()).toBeNull();
+  it('12 the phone file for the 3D view draws the flat replay on a build with no engine, and the 3D library was never loaded', async () => {
+    expect(JOB_REPLAY_3D_ON_THIS_PLATFORM).toBe(true);
+    const onUnavailable = jest.fn();
+    render(<JobReplay3D model={{ version: 1, projectId: 'p1', rooms: [], links: {}, updatedAt: '' }} level={0} moments={new Map()} selectedId={null} onSelect={() => {}} onUnavailable={onUnavailable} weekLine="" atToday={false} height={10} compact />);
+    await settle();
+    expect(screen.getByTestId('lm-phone-no-engine')).toBeTruthy();
+    expect(screen.getByTestId('lm-flat-replay')).toBeTruthy();
+    expect(screen.queryByTestId('lm-replay-3d')).toBeNull();
+    expect(screen.queryByTestId('lm-replay-3d-loading')).toBeNull();
+    // The screen is never told "3D is unavailable": that would add the browser's sentence above the flat replay.
+    expect(onUnavailable).not.toHaveBeenCalled();
     expect(mockThreeLoaded).toBe(false);
   });
 
