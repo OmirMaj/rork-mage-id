@@ -168,7 +168,7 @@ export function RoomEditor({ projectId, model, onChange, onUndo, onRedo, canUndo
             ))}
           </View>
         ) : null}
-        <View style={styles.planBox} onLayout={onBox}>
+        <View style={styles.planBox} onLayout={onBox} testID="lm-plan-box">
           {boxW > 0 ? (
             <View {...pan.panHandlers} accessible accessibilityRole="image" accessibilityLabel={copy.planA11yLabel} testID="lm-plan">
               <ModelPlan model={shown} level={level} view={view} fillFor={fillFor} subFor={subFor} selectedId={selectedId} selectedWallId={wallId} showGrid />
