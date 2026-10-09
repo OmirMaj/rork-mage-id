@@ -34,8 +34,7 @@ function EntryRow({ projectId }: { projectId: string }) {
       style={[styles.panel, styles.ownerRow]}
       accessibilityRole="button"
       accessibilityLabel={label}
-      // `as any`: the typed-route file (.expo/types/router.d.ts) is generated on each machine and may predate this route.
-      onPress={() => router.push({ pathname: '/living-model' as any, params: { projectId } })}
+      onPress={() => router.push({ pathname: '/living-model', params: { projectId } })}
       testID="living-model-entry-row"
     >
       <Boxes size={20} color={colors.text} strokeWidth={1.75} />

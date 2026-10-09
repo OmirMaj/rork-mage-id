@@ -233,8 +233,7 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
             // A label no wider than its room: the stage line, then the name, give way in a small room.
             const sized = pinSize(handle?.roomWidthPx(roomId) ?? Number.NaN, roomId === selectedRef.current || roomId === hoverRef.current);
             const size = compactRef.current && sized === 'full' && roomId !== selectedRef.current ? 'name' : sized;
-            const [dot, name, sub] = [el.children[0], el.children[1], el.children[2]] as (HTMLElement | undefined)[];
-            if (dot) dot.style.display = size === 'dot' ? '' : 'none';
+            const [name, sub] = [el.children[1], el.children[2]] as (HTMLElement | undefined)[];
             if (name) name.style.display = size === 'dot' ? 'none' : '';
             if (sub) sub.style.display = size === 'full' ? '' : 'none';
             el.style.padding = size === 'dot' ? '3px' : '';

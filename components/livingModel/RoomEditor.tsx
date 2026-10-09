@@ -192,7 +192,7 @@ export function RoomEditor({ projectId, model, onChange, onUndo, onRedo, canUndo
           <Text key={`open-${w.roomIds[0]}`} style={styles.warn}>{copy.outlineOpenBody(roomName(w.roomIds[0]))}</Text>
         ))}
         {atLimit ? <Text style={styles.note}>{copy.roomLimitBody}</Text> : null}
-        <Text style={styles.note} testID="lm-saved-local">{copy.savedLocalBody}</Text>
+        <Text style={styles.note} testID="lm-saved-local">{`${copy.savedLocalBody} ${copy.otherDevicesBody}`}</Text>
         {footer}
       </View>
 
