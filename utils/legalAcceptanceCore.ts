@@ -78,6 +78,25 @@ export const SCAN_ACK_TEXT_SHA256_ES = '5f4ba3704d4b4491f0f43470ab3344a81cd84f43
 /** SHA-256 of legalNoticeText(CODE_ACK_COPY.title, CODE_ACK_COPY.body) (utils/codeAckCore). Pinned by the validator. */
 export const CODE_ACK_TEXT_SHA256 = '57f54a19c61744cbac397556245c2f3ca3c7a4492e3de827da7320962dd52ff0';
 
+/**
+ * The Living Model's question before a scanned room is sent to the account
+ * for the first time (kind 'scan_room_upload'). The words are the ones the
+ * screen shows (hooks/useLivingModelCopy scanAskTitleBody / scanAskBody; the
+ * Spanish is i18n/catalog/es/office/livingModel.ts). Bump the version when
+ * they change. scripts/validate-living-model-sync.ts pins all of it, and the
+ * exact text of each language is archived under docs/legal/versions.
+ */
+export const SCAN_UPLOAD_VERSION = '1';
+export const SCAN_UPLOAD_COPY = {
+  title: 'This model includes a room you scanned.',
+  body: 'Saving it to your account sends the room’s name and its sizes: floor outline, ceiling height, walls, doors, windows and fixtures, and that the room came from a scan. They go to MAGE ID’s servers so your other devices and your team on this project can see them. No photo or video is sent. You are asked again for each scanned room you add later.',
+  button: 'Save to My Account',
+} as const;
+/** SHA-256 of legalNoticeText(SCAN_UPLOAD_COPY.title, SCAN_UPLOAD_COPY.body). Pinned by scripts/validate-living-model-sync.ts. */
+export const SCAN_UPLOAD_TEXT_SHA256 = 'PENDING_EN';
+/** SHA-256 of the Spanish title and body (office.livingModel.sync.scanAskTitleBody / .scanAskBody). Pinned by the same check. */
+export const SCAN_UPLOAD_TEXT_SHA256_ES = 'PENDING_ES';
+
 /** The exact string a notice's hash is taken over: title, one newline, body. */
 export function legalNoticeText(title: string, body: string): string {
   return `${title}\n${body}`;
@@ -113,7 +132,7 @@ export function normalizeLegalHtml(html: string): string {
 
 // ── kinds and surfaces ──────────────────────────────────────────────────────
 
-export type LegalKind = 'terms' | 'privacy' | 'code_answer_ack' | 'scan_ack';
+export type LegalKind = 'terms' | 'privacy' | 'code_answer_ack' | 'scan_ack' | 'scan_room_upload';
 export type LegalSurface = 'signup_email' | 'signup_apple' | 'signup_google' | 'login_first' | 'reaccept' | 'in_app';
 /** How the session came to exist. */
 export type SignInMethod = 'signup_email' | 'password' | 'apple' | 'google' | 'email_link';
@@ -135,6 +154,11 @@ export function currentAgreementItems(): LegalItem[] {
 /** The scan notice as shown: the hash is of the words in the language the person read. */
 export function scanAckItem(lang: 'en' | 'es' = 'en'): LegalItem {
   return { kind: 'scan_ack', version: SCAN_ACK_VERSION, sha: lang === 'es' ? SCAN_ACK_TEXT_SHA256_ES : SCAN_ACK_TEXT_SHA256 };
+}
+
+/** The yes to sending a scanned room to the account: the hash is of the question in the language he read. */
+export function scanRoomUploadItem(lang: 'en' | 'es' = 'en'): LegalItem {
+  return { kind: 'scan_room_upload', version: SCAN_UPLOAD_VERSION, sha: lang === 'es' ? SCAN_UPLOAD_TEXT_SHA256_ES : SCAN_UPLOAD_TEXT_SHA256 };
 }
 
 export function codeAckItem(version: number): LegalItem {
@@ -252,7 +276,7 @@ export interface LegalStore {
   byUser: Record<string, Partial<Record<LegalKind, LegalEntry>>>;
 }
 
-const KINDS: readonly LegalKind[] = ['terms', 'privacy', 'code_answer_ack', 'scan_ack'];
+const KINDS: readonly LegalKind[] = ['terms', 'privacy', 'code_answer_ack', 'scan_ack', 'scan_room_upload'];
 const SURFACES: readonly LegalSurface[] = ['signup_email', 'signup_apple', 'signup_google', 'login_first', 'reaccept', 'in_app'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

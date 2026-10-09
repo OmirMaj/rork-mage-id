@@ -65,7 +65,21 @@ export interface LivingModelCopy {
   syncFailedBody: string;
   scanNotSentBody: string;
   keptOnPhoneBody: string;
-  keptOnPhoneAccountBody: string;
+  keptOnPhoneMayBody: string;
+  removeFromAccountLabel: string;
+  removeConfirmBody: string;
+  removeConfirmLabel: string;
+  removedBody: string;
+  removeFailedBody: string;
+  retryingBody: string;
+  viewOnlyBody: string;
+  accountTooLargeBody: string;
+  accountRemovedBody: string;
+  teammateKeptBody: string;
+  conflictEmptyTitleBody: string;
+  conflictEmptyBody: string;
+  scanAskRoomsBody: (names: string) => string;
+  accountScanRoomsBody: (names: string) => string;
   accountNewerBody: string;
   scanAskTitleBody: string;
   scanAskBody: string;
@@ -277,10 +291,24 @@ export function useLivingModelCopy(): LivingModelCopy {
       syncFailedBody: t('office.livingModel.sync.failedBody', 'Could not save to your account. It is saved on this device.'),
       scanNotSentBody: t('office.livingModel.sync.scanNotSentBody', 'Not sent to your account yet. It is saved on this device.'),
       keptOnPhoneBody: t('office.livingModel.sync.keptOnPhoneBody', 'Kept on this phone only, as you chose. It will not appear on your other devices.'),
-      keptOnPhoneAccountBody: t('office.livingModel.sync.keptOnPhoneAccountBody', 'An earlier copy that was already saved to your account stays there.'),
+      keptOnPhoneMayBody: t('office.livingModel.sync.keptOnPhoneMayBody', 'A copy may already be in your account.'),
+      removeFromAccountLabel: t('office.livingModel.sync.removeFromAccountLabel', 'Remove It From My Account'),
+      removeConfirmBody: t('office.livingModel.sync.removeConfirmBody', 'This removes the model from your account for everyone on this project. The model on this phone stays. Your other devices and your team keep the copies they already have, and they will no longer find one in the account.'),
+      removeConfirmLabel: t('office.livingModel.sync.removeConfirmLabel', 'Yes, Remove It'),
+      removedBody: t('office.livingModel.sync.removedBody', 'Removed from your account. The model on this phone has not been changed.'),
+      removeFailedBody: t('office.livingModel.sync.removeFailedBody', 'Could not remove it from your account. Nothing was changed. Try again when this phone is online.'),
+      retryingBody: t('office.livingModel.sync.retryingBody', 'Saved on this device. Your account could not be checked yet. MAGE ID will try again shortly.'),
+      viewOnlyBody: t('office.livingModel.sync.viewOnlyBody', 'You can view this model. Only the owner and editors can change it.'),
+      accountTooLargeBody: t('office.livingModel.sync.accountTooLargeBody', 'The model in your account is larger than MAGE ID allows, so it was not opened here. The model on this device has not been changed.'),
+      accountRemovedBody: t('office.livingModel.sync.accountRemovedBody', 'The copy of this model in your account was removed. It is saved on this device only.'),
+      teammateKeptBody: t('office.livingModel.sync.teammateKeptBody', 'Your teammate changed this model. Your previous copy is kept.'),
+      conflictEmptyTitleBody: t('office.livingModel.sync.conflictEmptyTitleBody', 'Your account has a model for this job.'),
+      conflictEmptyBody: t('office.livingModel.sync.conflictEmptyBody', 'The model on this device is empty. Nothing has been replaced. Choose which model to keep.'),
+      scanAskRoomsBody: (names) => t('office.livingModel.sync.scanAskRoomsBody', 'Scanned rooms that would be sent: {names}.', { names }),
+      accountScanRoomsBody: (names) => t('office.livingModel.sync.accountScanRoomsBody', 'Rooms in your account that came from a scan: {names}.', { names }),
       accountNewerBody: t('office.livingModel.sync.accountNewerBody', 'The model in your account was saved by a newer version of MAGE ID. Update the app to open it. The model on this device has not been changed.'),
       scanAskTitleBody: t('office.livingModel.sync.scanAskTitleBody', 'This model includes a room you scanned.'),
-      scanAskBody: t('office.livingModel.sync.scanAskBody', 'Saving it to your account sends that room’s sizes (walls, doors, windows and fixtures) to MAGE ID’s servers so your other devices and your team on this project can see it. No photo or video is sent.'),
+      scanAskBody: t('office.livingModel.sync.scanAskBody', 'Saving it to your account sends the room’s name and its sizes: floor outline, ceiling height, walls, doors, windows and fixtures, and that the room came from a scan. They go to MAGE ID’s servers so your other devices and your team on this project can see them. No photo or video is sent. You are asked again for each scanned room you add later.'),
       saveToAccountLabel: t('office.livingModel.sync.saveToAccountLabel', 'Save to My Account'),
       keepOnPhoneLabel: t('office.livingModel.sync.keepOnPhoneLabel', 'Keep on This Phone'),
       conflictTitleBody: t('office.livingModel.sync.conflictTitleBody', 'This device has changes that are not in your account.'),

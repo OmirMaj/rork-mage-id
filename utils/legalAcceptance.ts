@@ -1,6 +1,6 @@
 // utils/legalAcceptance.ts — the app's one recorder of acceptances and
 // acknowledgements (Terms of Service, Privacy Policy, the code-answer notice,
-// the scan notice). The rules are utils/legalAcceptanceCore.ts (pure, run under
+// the scan notice, the yes to sending a scanned room to the account). The rules are utils/legalAcceptanceCore.ts (pure, run under
 // bun by scripts/validate-legal-acceptance.ts); this file only connects them to
 // AsyncStorage, the session and the one rpc.
 //
@@ -36,6 +36,7 @@ import {
   currentAgreementItems,
   reacceptStateFromRows,
   scanAckItem,
+  scanRoomUploadItem,
   signInAcceptanceSurface,
   type LegalItem,
   type LegalSurface,
@@ -116,6 +117,15 @@ export function recordCodeAck(userId: string | null | undefined, version: number
 /** The scan notice was acknowledged, in the language it was shown in. */
 export function recordScanAck(userId: string | null | undefined, lang: 'en' | 'es', at?: number): void {
   try { void recorder.note(userId, [scanAckItem(lang)], 'in_app', at).catch(() => { /* never surfaces */ }); } catch { /* never surfaces */ }
+}
+
+/**
+ * "Save to My Account" on the Living Model's scan question: he agreed that a
+ * scanned room's name and sizes are sent to his account, in the language the
+ * question was shown in. Best effort, returns at once, never throws.
+ */
+export function recordScanRoomUpload(userId: string | null | undefined, lang: 'en' | 'es', at?: number): void {
+  try { void recorder.note(userId, [scanRoomUploadItem(lang)], 'in_app', at).catch(() => { /* never surfaces */ }); } catch { /* never surfaces */ }
 }
 
 /** Send whatever this account still owes. Never rejects. */

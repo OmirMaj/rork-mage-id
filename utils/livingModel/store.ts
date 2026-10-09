@@ -6,7 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parseSavedScans, roomScansKey, type SavedScan } from '@/utils/roomScan/storeCore';
 import { emptyJobModel, readSavedModel } from './modelCore';
-import { MAX_MODEL_CHARS, livingModelBackupKey, livingModelKeptKey, livingModelKey, mayWriteModel, type LoadState } from './storeCore';
+import { MAX_MODEL_CHARS, livingModelBackupKey, livingModelKey, mayWriteModel, type LoadState } from './storeCore';
 import type { JobModel } from './types';
 
 export interface LoadedModel {
@@ -70,28 +70,6 @@ export async function saveJobModel(userId: string | null | undefined, model: Job
     return false;
   }
 }
-/**
- * Put `model` under the model key and `keptJson` under the kept key IN ONE
- * WRITE (AsyncStorage.multiSet: one transaction on the phone). Used when the
- * model on screen and the one set aside trade places, and when a model is set
- * aside as another takes its place: there is no instant at which a kill leaves
- * one of the two models in neither place. Returns false when it could not be
- * written, and then NEITHER key was changed by this call.
- */
-export async function saveJobModelWithKept(userId: string | null | undefined, model: JobModel, nowIso: string, state: LoadState, keptJson: string): Promise<boolean> {
-  const key = livingModelKey(userId, model.projectId);
-  const keptKey = livingModelKeptKey(userId, model.projectId);
-  if (!key || !keptKey || !mayWriteModel(state)) return false;
-  try {
-    const json = JSON.stringify({ ...model, updatedAt: nowIso });
-    if (json.length > MAX_MODEL_CHARS || keptJson.length > MAX_MODEL_CHARS + 200) return false;
-    await AsyncStorage.multiSet([[keptKey, keptJson], [key, json]]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * The scans saved for this project on this device (the scanner's own list,
  * read only). The scanner keeps scans on the phone that made them and the scan

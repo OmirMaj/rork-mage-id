@@ -182,6 +182,26 @@ export async function removeAccountModel(projectId: string, userId: string | nul
   }
 }
 
+/**
+ * His yes to the scan question, recorded on the account so it can be shown
+ * later (public.legal_acceptances, kind 'scan_room_upload': the version and a
+ * SHA-256 of the exact words he read, in the language he read them in; the
+ * server stamps who and when). Best effort and never in the way: it returns at
+ * once, never throws, and the save does not wait for it. Before the migration
+ * that adds the kind is applied the server refuses it and the note stays on
+ * the phone to be sent later (utils/legalAcceptance).
+ */
+export function recordScanUploadYes(userId: string | null | undefined, lang: 'en' | 'es'): void {
+  if (!userId || !cloudModules()) return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const legal = require('@/utils/legalAcceptance') as typeof import('@/utils/legalAcceptance');
+    legal.recordScanRoomUpload(userId, lang);
+  } catch {
+    /* never in the way of the save */
+  }
+}
+
 export interface QueueHolds {
   /** A save of this job's model is still in the queue. */
   modelSave: boolean;

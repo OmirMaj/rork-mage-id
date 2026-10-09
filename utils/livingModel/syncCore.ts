@@ -584,6 +584,48 @@ export function savedBySomeoneElse(head: Pick<ServerHead, 'updatedBy'>, userId: 
   return !!userId && head.updatedBy !== userId;
 }
 
+/**
+ * Is what the account returned too large to even read as a model? Counted on
+ * the raw value, BEFORE anything walks its geometry, so a 5,000-room row costs
+ * this device a few array lengths and nothing more.
+ */
+export function accountValueTooLarge(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const rooms = (value as { rooms?: unknown }).rooms;
+  if (!Array.isArray(rooms)) return false;
+  if (rooms.length > ACCOUNT_LIMITS.rooms) return true;
+  const over = (v: unknown, max: number): boolean => Array.isArray(v) && v.length > max;
+  for (const r of rooms) {
+    const shape = r && typeof r === 'object' ? (r as { room?: unknown }).room : null;
+    if (!shape || typeof shape !== 'object') continue;
+    const s = shape as Record<string, unknown>;
+    if (over(s.walls, ACCOUNT_LIMITS.wallsPerRoom) || over(s.openings, ACCOUNT_LIMITS.openingsPerRoom) || over(s.objects, ACCOUNT_LIMITS.objectsPerRoom) || over(s.floor, ACCOUNT_LIMITS.floorPoints)) return true;
+  }
+  return false;
+}
+
+// ── the kept model trading places with the one on screen ─────────────────────
+
+/** What a trade left behind when the app was killed part way: the incoming model, and the fingerprint of the one it replaces. */
+export interface SwapNote { incoming: JobModel; outgoingFingerprint: string }
+
+/**
+ * A trade is three writes: (1) the kept model is copied under the swap key,
+ * (2) the model on screen is written under the kept key, (3) the kept model is
+ * written under the model key; then the swap key is removed. At the next open,
+ * with the swap key still there:
+ *   'finish'   write (2) happened and (3) did not: the model key and the kept
+ *              key BOTH hold the outgoing model, and the incoming one is only
+ *              under the swap key. Write it under the model key.
+ *   'discard'  anything else: the trade never started (nothing was replaced),
+ *              or it finished, or the model was changed since. The swap key is
+ *              just removed. It is never written over a model it does not
+ *              recognise.
+ */
+export function swapRecovery(note: Pick<SwapNote, 'outgoingFingerprint'>, device: { modelFingerprint: string | null; keptFingerprint: string | null }): 'finish' | 'discard' {
+  return device.modelFingerprint === note.outgoingFingerprint && device.keptFingerprint === note.outgoingFingerprint ? 'finish' : 'discard';
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Only a real project id reaches the server (a sample job's id is not one). */
 export const isSyncableProjectId = (projectId: string | null | undefined): projectId is string => typeof projectId === 'string' && UUID_RE.test(projectId);

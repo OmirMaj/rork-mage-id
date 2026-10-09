@@ -54,7 +54,13 @@ export function livingModelBackupKey(userId: string | null | undefined, projectI
 //   mageid_living_model_kept::<userId>::<projectId>   the model the person did
 //       NOT keep when the device and the account had both changed. It stays
 //       here until he says to remove it.
+//   mageid_living_model_swap::<userId>::<projectId>   for the length of one
+//       "Use the Kept Model Instead": the kept model, copied here BEFORE the
+//       two trade places, so a kill between the two writes cannot leave it
+//       nowhere (syncStore.swapKeptModel / recoverKeptSwap). Removed when the
+//       trade is done; found at the next open if it was not.
 export const LIVING_MODEL_SYNC_PREFIX = 'mageid_living_model_sync::';
+export const LIVING_MODEL_SWAP_PREFIX = 'mageid_living_model_swap::';
 export const LIVING_MODEL_KEPT_PREFIX = 'mageid_living_model_kept::';
 
 /** Where the sync notes for one model are kept. null when either id is missing. */
@@ -67,6 +73,12 @@ export function livingModelSyncKey(userId: string | null | undefined, projectId:
 export function livingModelKeptKey(userId: string | null | undefined, projectId: string | null | undefined): string | null {
   if (!userId || !projectId) return null;
   return `${LIVING_MODEL_KEPT_PREFIX}${userId}::${projectId}`;
+}
+
+/** Where the kept model waits while it trades places with the one on screen. null when either id is missing. */
+export function livingModelSwapKey(userId: string | null | undefined, projectId: string | null | undefined): string | null {
+  if (!userId || !projectId) return null;
+  return `${LIVING_MODEL_SWAP_PREFIX}${userId}::${projectId}`;
 }
 
 /** What the screen holds after reading the device. */
