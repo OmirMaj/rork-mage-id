@@ -82,6 +82,7 @@ import { dirname, join } from 'node:path';
 import { parseCapturedRoom } from '../utils/roomScan/capturedRoomParser';
 import { buildRoomScan } from '../utils/roomScan/geometryCore';
 import { correctWallLength } from '../utils/roomScan/editsCore';
+import { computeQuantities } from '../utils/roomScan/quantitiesCore';
 import * as CUT from '../utils/roomScan/cutPlanCore';
 import * as TRIM from '../utils/roomScan/trimPackCore';
 import * as ORDER from '../utils/roomScan/orderListCore';
@@ -114,6 +115,7 @@ const OTHER_FILES = [
   'components/roomScan/RoomScanFlow.tsx', 'components/roomScan/QuantitiesView.tsx', 'utils/roomScan/storeCore.ts',
   'utils/roomScan/pricingCore.ts', 'constants/featureFlags.ts', 'app/scan-room.tsx', 'docs/scan-the-room-native-checklist.md',
   'scripts/validate-scan-room.ts', 'package.json',
+  'components/roomScan/PricedDraftView.tsx', 'hooks/useRoomScanCopy.ts', 'utils/roomScan/store.ts',
 ] as const;
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -151,6 +153,7 @@ interface Mods {
   wasteOffer: typeof LEARN.wasteSuggestion;
   draft: typeof OPRICE.buildOrderDraft;
   patch: typeof PRICING.buildEstimatePatch;
+  resend: typeof OPRICE.planOrderResend;
   flag: boolean;
 }
 interface World {
@@ -165,7 +168,7 @@ const REAL_MODS: Mods = {
   send: ORDER.confirmOrderSend, text: ORDER.orderListText, parseOptions: ORDER.parseOrderOptions,
   facts: LEARN.tapeFacts, suggest: LEARN.longWallSuggestion, pair: LEARN.tapePairFromEdit, upsert: LEARN.upsertTapePairs,
   waste: LEARN.wasteFactors, wasteOffer: LEARN.wasteSuggestion,
-  draft: OPRICE.buildOrderDraft, patch: PRICING.buildEstimatePatch, flag: SCAN_ROOM_ENABLED,
+  draft: OPRICE.buildOrderDraft, patch: PRICING.buildEstimatePatch, resend: OPRICE.planOrderResend, flag: SCAN_ROOM_ENABLED,
 };
 const F_REAL: Record<string, string> = {};
 for (const f of [...NEW_FILES, ...OTHER_FILES]) F_REAL[f] = existsSync(join(ROOT, f)) ? read(f) : '';
@@ -1057,6 +1060,347 @@ rule('O15 the list as plain text carries every line, the notice and the cut list
   return o;
 });
 
+// ── the second send ─────────────────────────────────────────────────────────
+// THE CASE, as the reviewer ran it: push the bathroom, then choose 16 ft sticks
+// only, turn Paint off, type 0 boxes of screws, and push again. Before the fix
+// the 12 ft baseboard line, all three paint lines and the screws stayed in the
+// estimate. Here every trim and floor line is given a typed price so that all
+// thirteen lines with something to buy go in (the catalog prices eight).
+const RESEND_RATES = { floor: 3, baseboard: 1.25, crown: 2, casing: 1.5 };
+
+rule('O16 sent to the estimate a second time, the lines the list no longer has are removed and named first, and a line he changed by hand is left alone', (w) => {
+  const o: string[] = [];
+  const scan = { ...scanOf('bathroom'), name: 'Hall Bathroom' };
+  const names = (l: ORDER.OrderList) => Object.fromEntries(l.lines.map((x) => [x.key, `${x.key}, Hall Bathroom`]));
+  const cid = (key: string) => `scanorder:${scan.id}:${key}`;
+  const ids = (d: OPRICE.OrderDraft) => PRICING.draftPushLines(d).map((x) => x.conditionId);
+
+  // THE FIRST SEND.
+  const l1 = w.M.list(scan, opts(scan));
+  const d1 = w.M.draft(scan, l1, BOOK, RATER, { manualRates: RESEND_RATES, names: names(l1) });
+  idSeq = 0;
+  const r1 = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(EST), draft: d1, pushed: {}, newId, markupPct: 20, now: AT, sources: OPRICE.orderPriceSources(d1) });
+  if (!r1) return ['the first send built no patch'];
+  check(o, r1.added === 12 && r1.removedIds.length === 0, `the first send added ${r1.added} lines (twelve with something to buy: corner bead is zero)`);
+  const wrote1 = OPRICE.orderWroteFrom(r1, ids(d1));
+  check(o, Object.keys(wrote1).length === 12 && wrote1[cid('baseboard')]?.quantity === 28, `the record of what the first send wrote has ${Object.keys(wrote1).length} lines`);
+  // BETWEEN THE SENDS, in the estimate itself: he changes the crown to 40 ft by hand. And the estimate holds lines that
+  // are not this list's: the Demo line he typed, the room draft's installed drywall line for this same scan, and a
+  // paint line from ANOTHER scan's order list.
+  const crown1 = r1.next.items.find((it) => it.sourceTakeoffConditionId === cid('crown')) as LinkedEstimate['items'][number];
+  const foreign: LinkedEstimate['items'] = [
+    { materialId: 'x-installed', name: 'Drywall, Walls, Hall Bathroom', category: 'Drywall', unit: 'SF', quantity: 190, unitPrice: 4, bulkPrice: 4, markup: 20, usesBulk: false, lineTotal: 912, supplier: '', sourceTakeoffConditionId: `scan:${scan.id}:drywall_walls` },
+    { materialId: 'x-other', name: 'paint_walls, Kitchen', category: 'paint_walls, Kitchen', unit: 'EA', quantity: 3, unitPrice: 30, bulkPrice: 30, markup: 20, usesBulk: false, lineTotal: 108, supplier: '', sourceTakeoffConditionId: 'scanorder:another-scan:paint_walls' },
+  ];
+  const est1: LinkedEstimate = { ...r1.next, items: [...r1.next.items.map((it) => (it === crown1 ? { ...it, quantity: 40, lineTotal: 96 } : it)), ...foreign] };
+  // THE CHOICES CHANGE: 16 ft sticks only, Paint off, 0 boxes of screws.
+  const l2 = w.M.list(scan, opts(scan, { stockFt: [16], groups: { ...opts(scan).groups, paint: false }, typed: { screws: 0 } }));
+  const d2 = w.M.draft(scan, l2, BOOK, RATER, { manualRates: RESEND_RATES, names: names(l2) });
+  check(o, qty(l2, 'baseboard') === 32 && qty(l2, 'screws') === 0 && qty(l2, 'paint_walls') === undefined, `the changed list reads baseboard ${qty(l2, 'baseboard')}, screws ${qty(l2, 'screws')}, paint ${qty(l2, 'paint_walls')}`);
+
+  // THE PLAN, worked out before the sheet opens.
+  const plan = w.M.resend({ estimate: est1, scanId: scan.id, pushed: r1.pushed, wrote: wrote1, lines: PRICING.draftPushLines(d2) });
+  const gone = ['paint_walls', 'paint_ceiling', 'primer', 'screws'].map(cid).sort();
+  check(o, plan.remove.map((x) => x.conditionId).sort().join() === gone.join(), `the plan removes ${plan.remove.map((x) => x.conditionId.split(':').pop()).join(', ')} (it should be the three paint lines and the screws)`);
+  check(o, plan.remove.every((x) => x.name === `${x.conditionId.split(':').pop()}, Hall Bathroom`), `the lines to remove are not named for the sheet: ${plan.remove.map((x) => x.name).join(' / ')}`);
+  check(o, plan.leftAlone.map((x) => x.conditionId).join() === cid('crown') && plan.skip.join() === cid('crown'), `the line he changed by hand is not left alone: ${JSON.stringify(plan.leftAlone)} / ${plan.skip.join()}`);
+  const said = String((w.EN['office.roomScan.order.send.resendRemoveBody'] as { other: string }).other).replace('{count}', String(plan.remove.length)).replace('{names}', plan.remove.map((x) => x.name).join('; '));
+  check(o, /^4 lines will be removed, because they are no longer on this list: /.test(said) && plan.remove.every((x) => said.includes(x.name)), `the sheet would say "${said}"`);
+  check(o, /because you changed/.test(forms(w.EN['office.roomScan.order.send.resendLeftAloneBody']).join(' ')) && /\{names\}/.test(forms(w.EN['office.roomScan.order.send.resendLeftAloneBody']).join(' ')) && /Every other line in the estimate is left as it is/.test(String(w.EN['office.roomScan.order.send.resendUntouchedNote'])), 'the sheet does not say which lines are left alone and why');
+
+  // THE SECOND SEND, with that plan.
+  const send2 = OPRICE.orderDraftWithout(d2, plan.skip);
+  const r2 = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(est1), draft: send2, pushed: r1.pushed, newId, markupPct: 20, now: AT, remove: plan.remove, sources: OPRICE.orderPriceSources(send2) });
+  if (!r2) return [...o, 'the second send built no patch'];
+  const item = (est: LinkedEstimate, id: string) => est.items.filter((it) => it.sourceTakeoffConditionId === id);
+  for (const id of gone) check(o, item(r2.next, id).length === 0, `${id.split(':').pop()} is still in the estimate after the second send`);
+  check(o, r2.removedIds.slice().sort().join() === gone.join() && gone.every((id) => !(id in r2.pushed)) && r2.added === 0, `the patch reports ${r2.removedIds.length} removed and ${r2.added} added`);
+  // The 12 ft baseboard line is the SAME estimate line, now 32 ft of 16 ft sticks. There is one of it.
+  const base1 = item(r1.next, cid('baseboard'))[0];
+  const base2 = item(r2.next, cid('baseboard'));
+  check(o, base2.length === 1 && base2[0].materialId === base1.materialId && base1.quantity === 28 && base2[0].quantity === 32, `baseboard after the second send: ${JSON.stringify(base2.map((it) => [it.materialId, it.quantity]))} (one line, the first send's, at 32 ft)`);
+  check(o, r2.next.items.filter((it) => /^baseboard/.test(it.name)).length === 1, 'a second baseboard line is in the estimate');
+  // The line he changed by hand is byte for byte what he left. So is every line that is not this list's.
+  check(o, JSON.stringify(item(r2.next, cid('crown'))) === JSON.stringify(item(est1, cid('crown'))) && item(r2.next, cid('crown'))[0]?.quantity === 40, 'the crown line he changed by hand was updated or removed');
+  for (const id of ['m1', 'x-installed', 'x-other']) check(o, JSON.stringify(r2.next.items.find((it) => it.materialId === id)) === JSON.stringify(est1.items.find((it) => it.materialId === id)), `the line ${id}, which is not this order list's, was touched`);
+  // The totals moved by exactly the lines that changed.
+  const sum = (est: LinkedEstimate) => est.items.reduce((t, it) => t + it.lineTotal, 0);
+  check(o, near(r2.next.grandTotal - est1.grandTotal, sum(r2.next) - sum(est1), 0.011) && r2.next.grandTotal < est1.grandTotal, `the grand total moved ${(r2.next.grandTotal - est1.grandTotal).toFixed(2)} and the lines moved ${(sum(r2.next) - sum(est1)).toFixed(2)}`);
+  check(o, near(r2.next.baseTotal + r2.next.markupTotal, r2.next.grandTotal, 0.011), 'cost plus markup no longer foots to the grand total');
+  // "Added" is said only when the removed lines are seen to be gone.
+  check(o, PRICING.estimateHoldsPush(projectWith(r2.next), r2) === true && PRICING.estimateHoldsPush(projectWith({ ...r2.next, items: [...r2.next.items, item(est1, gone[0])[0]] }), r2) === false, 'the push is called kept while a removed line is still on the project');
+  // A third send with nothing changed removes nothing and still leaves the crown.
+  const wrote2 = { ...wrote1, ...OPRICE.orderWroteFrom(r2, ids(send2)) };
+  for (const id of r2.removedIds) delete wrote2[id];
+  const plan3 = w.M.resend({ estimate: r2.next, scanId: scan.id, pushed: r2.pushed, wrote: wrote2, lines: PRICING.draftPushLines(d2) });
+  check(o, plan3.remove.length === 0 && plan3.leftAlone.map((x) => x.conditionId).join() === cid('crown'), `a third send with nothing changed would remove ${plan3.remove.length} lines`);
+  // Never by one id alone, never without the record, never another scan's.
+  check(o, PRICING.removePushedLines(est1, [{ conditionId: cid('primer'), materialId: 'not-the-line' }, { conditionId: 'not-the-id', materialId: 'm1' }]).removedIds.length === 0, 'a line was removed on one matching id');
+  const blind = w.M.resend({ estimate: est1, scanId: scan.id, pushed: r1.pushed, wrote: undefined, lines: PRICING.draftPushLines(d2) });
+  check(o, blind.remove.length === 0 && blind.leftAlone.length === 12, `with no record of what the send wrote, ${blind.remove.length} lines would be removed`);
+  const elsewhere = w.M.resend({ estimate: est1, scanId: 'another-scan', pushed: { 'scanorder:another-scan:paint_walls': 'x-other', ...r1.pushed }, wrote: { 'scanorder:another-scan:paint_walls': { materialId: 'x-other', name: 'paint_walls, Kitchen', unit: 'EA', quantity: 3, unitPrice: 30 } }, lines: [] });
+  check(o, elsewhere.remove.map((x) => x.materialId).join() === 'x-other', 'a plan for one scan reaches another scan\'s lines');
+  // A line he deleted from the estimate himself is neither removed nor protected.
+  const deleted = w.M.resend({ estimate: { ...est1, items: est1.items.filter((it) => it.sourceTakeoffConditionId !== cid('primer')) }, scanId: scan.id, pushed: r1.pushed, wrote: wrote1, lines: PRICING.draftPushLines(d2) });
+  check(o, deleted.remove.length === 3 && !deleted.remove.some((x) => x.conditionId === cid('primer')), 'a line he already deleted is in the plan');
+  // The record survives a save.
+  const back = parseSavedScans(JSON.stringify({ version: 1, scans: [{ scan, pushed: {}, manualRates: {}, excluded: [], savedAt: AT, pricedAt: null, orderPushed: r1.pushed, orderWrote: wrote1 }] }));
+  check(o, back.scans[0]?.orderWrote?.[cid('baseboard')]?.quantity === 28 && Object.keys(back.scans[0]?.orderWrote ?? {}).length === 12, 'the record of what a send wrote is lost on save');
+  // THE WIRING: one plan, shown on the sheet by name and handed to the patch.
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  check(o, /const resend = useMemo\(\(\) => planOrderResend\(\{\s*estimate: estimateNow, scanId: saved\?\.scan\.id \?\? '', pushed: saved\?\.orderPushed, wrote: saved\?\.orderWrote,\s*lines: orderDraft \? draftPushLines\(orderDraft\) : \[\],/.test(flow), 'the flow does not plan the second send from the estimate, the record and the list');
+  check(o, /const orderSendDraft = useMemo\(\(\) => \(orderDraft \? orderDraftWithout\(orderDraft, resend\.skip\) : null\), \[orderDraft, resend\]\);/.test(flow) && /draft: orderSendDraft, pushed: saved\.orderPushed \?\? \{\},\s*newId: generateUUID, markupPct, now: snap\.at, remove: resend\.remove,/.test(flow), 'the patch is not built from the same plan the sheet shows');
+  check(o, /resend=\{\{ again: Object\.keys\(saved\.orderPushed \?\? \{\}\)\.length > 0, remove: resend\.remove\.map\(\(r\) => r\.name\), leftAlone: resend\.leftAlone\.map\(\(r\) => r\.name\) \}\}/.test(flow), 'the sheet is not handed the names of the lines to remove and to leave');
+  check(o, /const orderWrote = \{ \.\.\.\(saved\.orderWrote \?\? \{\}\), \.\.\.orderWroteFrom\(res, draftPushLines\(orderSendDraft\)\.map\(\(l\) => l\.conditionId\)\) \};\s*for \(const id of res\.removedIds\) delete orderWrote\[id\];/.test(flow) && /orderPushed: res\.pushed, orderWrote, savedAt: snap\.at/.test(flow), 'the flow does not keep the record of what the send wrote');
+  const view = stripComments(w.F['components/roomScan/OrderListView.tsx']);
+  const sheet = view.slice(view.indexOf('testID="scan-order-confirm-estimate"'));
+  check(o, /\{p\.resend\.remove\.length > 0 && <Text[^>]*testID="scan-order-confirm-remove">\{ocopy\.resendRemoveBody\(p\.resend\.remove\)\}<\/Text>\}/.test(sheet) && /\{p\.resend\.leftAlone\.length > 0 && <Text[^>]*testID="scan-order-confirm-left-alone">\{ocopy\.resendLeftAloneBody\(p\.resend\.leftAlone\)\}<\/Text>\}/.test(sheet) && /\{p\.resend\.again && <Text[^>]*>\{ocopy\.resendUntouchedNote\}<\/Text>\}/.test(sheet), 'the estimate confirm sheet does not name the lines to be removed and the lines left alone');
+  return o;
+});
+
+// ── casing, worked by hand ──────────────────────────────────────────────────
+// THE BATHROOM'S DOOR is 30 by 80, its WINDOW 24 by 36. A mitred casing runs
+// past the opening by its own width at each mitre.
+//   DEFAULT: 2 1/4 in casing, the door cased on this side only, the window
+//   picture-framed.
+//     door    two legs 80 + 2 1/4 = 82 1/4 (one mitre, square at the floor)
+//             head     30 + 4 1/2 = 34 1/2                     199 in
+//     window  two legs 36 + 4 1/2 = 40 1/2 (a mitre at each end)
+//             head and sill 24 + 4 1/2 = 28 1/2 each           138 in
+//     337 in = 28.08 ft. (At the bare opening the door was 190 in and went on
+//     one 16 ft stick with 2 in to spare. At 199 in it does not.)
+//   BOTH SIDES: the door twice, 398 in. The window is not doubled. 536 in.
+//   STOOL AND APRON: window legs 36 + 2 1/4 = 38 1/4 (square on the stool),
+//     head 28 1/2, apron 28 1/2: 133 1/2 in. No sill. The stool is not counted.
+//   3 1/2 IN CASING: door legs 83 1/2, head 37 (204 in); window legs 43, head
+//     and sill 31 (148 in).
+// The Quantities screen's Door Casing is the door at the bare opening, one
+// side: 80 + 80 + 30 = 190 in = 15.83 ft. With both sides, 31.67 ft.
+rule('O17 casing is cut with its mitres and says what it assumed', (w) => {
+  const o: string[] = [];
+  const scan = scanOf('bathroom');
+  const cuts = (l: ORDER.OrderList, what?: string) => (l.trimPlans.casing?.sticks ?? []).flatMap((s) => s.cuts).filter((c) => !what || c.what === what).map((c) => c.lengthIn).sort((p, q) => q - p).join();
+  const cb = (l: ORDER.OrderList) => { const b = l.lines.find((x) => x.key === 'casing')?.basis; return b?.kind === 'trim' ? b.casing : null; };
+  const total = (l: ORDER.OrderList) => (l.trimPlans.casing?.sticks ?? []).flatMap((s) => s.cuts).reduce((t, c) => t + c.lengthIn, 0);
+  const d = w.M.list(scan, opts(scan));
+  check(o, ORDER.DEFAULT_CASING_WIDTH_IN === 2.25 && ORDER.CASING_WIDTHS_IN.join() === '2.25,2.5,3.25,3.5' && ORDER.defaultOrderOptions('bathroom').casingWidthIn === 2.25 && ORDER.defaultOrderOptions('bathroom').casingBothSides === false && ORDER.defaultOrderOptions('bathroom').windowTrim === 'picture', 'the casing defaults changed without their test');
+  check(o, cuts(d) === '82.25,82.25,40.5,40.5,34.5,28.5,28.5' && total(d) === 337, `default casing is cut ${cuts(d)} (${total(d)} in), worked by hand as 82.25, 82.25, 40.5, 40.5, 34.5, 28.5, 28.5 (337 in)`);
+  check(o, cuts(d, 'leg') === '82.25,82.25,40.5,40.5' && cuts(d, 'head') === '34.5,28.5' && cuts(d, 'sill') === '28.5' && cuts(d, 'apron') === '', `legs ${cuts(d, 'leg')}, heads ${cuts(d, 'head')}, sill ${cuts(d, 'sill')}`);
+  // The door alone no longer fits one 16 ft stick.
+  const doorOnly = w.M.list(scan, opts(scan, { casingWindows: false, stockFt: [16] }));
+  check(o, cuts(doorOnly) === '82.25,82.25,34.5' && total(doorOnly) === 199 && doorOnly.trimPlans.casing?.stickCount === 2 && cb(doorOnly)?.windows === 0, `the door alone is ${total(doorOnly)} in on ${doorOnly.trimPlans.casing?.stickCount} sixteen-foot sticks`);
+  const both = w.M.list(scan, opts(scan, { casingBothSides: true }));
+  check(o, cuts(both) === '82.25,82.25,82.25,82.25,40.5,40.5,34.5,34.5,28.5,28.5' && total(both) === 536, `cased both sides: ${cuts(both)} (${total(both)} in, worked as 536)`);
+  const stool = w.M.list(scan, opts(scan, { windowTrim: 'stool' }));
+  check(o, cuts(stool) === '82.25,82.25,38.25,38.25,34.5,28.5,28.5' && cuts(stool, 'apron') === '28.5' && cuts(stool, 'sill') === '' && total(stool) === 199 + 133.5, `stool and apron: ${cuts(stool)}, apron ${cuts(stool, 'apron')}, sill "${cuts(stool, 'sill')}"`);
+  const wide = w.M.list(scan, opts(scan, { casingWidthIn: 3.5 }));
+  check(o, cuts(wide) === '83.5,83.5,43,43,37,31,31' && total(wide) === 352, `3 1/2 in casing: ${cuts(wide)} (${total(wide)} in, worked as 352)`);
+  // What the line says it assumed, and the same number the Quantities screen shows.
+  const b = cb(d);
+  check(o, !!b && b.widthIn === 2.25 && b.bothSides === false && b.windowTrim === 'picture' && b.doors === 1 && b.windows === 1, `the casing line's assumptions: ${JSON.stringify(b)}`);
+  check(o, !!b && near(b.doorOpeningFt, 190 / 12, 1e-9) && near(b.doorFt, 199 / 12, 1e-9) && near(b.windowFt, 138 / 12, 1e-9), `door ${b?.doorOpeningFt} ft bare and ${b?.doorFt} ft cut, window ${b?.windowFt} ft`);
+  check(o, !!b && near(b.doorOpeningFt, computeQuantities(scan).casingLF, 0.001) && near(cb(both)?.doorOpeningFt, computeQuantities(scan, { casingSides: 2 }).casingLF, 0.001), `the Quantities screen shows ${computeQuantities(scan).casingLF} ft of door casing and the order list's bare door is ${b?.doorOpeningFt}`);
+  const line = d.lines.find((x) => x.key === 'casing');
+  check(o, line?.basis.kind === 'trim' && near(line.basis.runFt, 337 / 12, 1e-9) && near(line.net?.quantity, 337 / 12, 1e-9), 'the casing line\'s feet to cover are not the mitred pieces');
+  // The sentences, and the controls.
+  const hook = stripComments(w.F['hooks/useScanOrderCopy.ts']);
+  for (const k of ['casingWidthNote', 'casingDoorsBothNote', 'casingDoorsOneNote', 'casingWindowsPictureNote', 'casingWindowsStoolNote', 'casingNoWindowsNote', 'casingQuantitiesNote']) check(o, new RegExp(`'office\\.roomScan\\.order\\.basis\\.${k}'`).test(hook) && `office.roomScan.order.basis.${k}` in w.EN, `the casing sentence ${k} is not shown`);
+  check(o, /mitred/.test(String(w.EN['office.roomScan.order.basis.casingWidthNote'])) && /\{width\} in wide/.test(String(w.EN['office.roomScan.order.basis.casingWidthNote'])), 'the casing line does not say the width and that it is mitred');
+  check(o, /cased on the side in this room only/.test(forms(w.EN['office.roomScan.order.basis.casingDoorsOneNote']).join(' ')) && /picture-framed on four sides/.test(forms(w.EN['office.roomScan.order.basis.casingWindowsPictureNote']).join(' ')) && /The stool is a different stock and is not on this list/.test(forms(w.EN['office.roomScan.order.basis.casingWindowsStoolNote']).join(' ')), 'the casing line does not say what it assumed about doors and windows');
+  check(o, /The Quantities screen shows door casing at the bare opening, \{bare\} ft\. With the mitres it is \{cut\} ft here\./.test(String(w.EN['office.roomScan.order.basis.casingQuantitiesNote'])) && /bare: n1\(c\.doorOpeningFt\), cut: n1\(c\.doorFt\)/.test(hook), 'the casing line does not square itself with the Quantities screen');
+  const view = stripComments(w.F['components/roomScan/OrderListView.tsx']);
+  check(o, /CASING_WIDTHS_IN\.map\(\(w\) => <Chip[^>]*onPress=\{\(\) => p\.onOptions\(\{ casingWidthIn: w \}\)\}/.test(view) && /onPress=\{\(\) => p\.onOptions\(\{ casingBothSides: true \}\)\}/.test(view) && /WINDOW_TRIMS\.map\(\(w\) => <Chip[^>]*onPress=\{\(\) => p\.onOptions\(\{ windowTrim: w \}\)\}/.test(view), 'the screen has no control for the casing width, both sides, or the window trim');
+  const back = w.M.parseOptions(JSON.parse(JSON.stringify(opts(scan, { casingWidthIn: 3.25, casingBothSides: true, windowTrim: 'stool' }))), scan.roomType);
+  check(o, back.casingWidthIn === 3.25 && back.casingBothSides === true && back.windowTrim === 'stool', 'the casing choices do not survive a save');
+  return o;
+});
+
+// ── the layout's rules on walls nobody drew by hand ─────────────────────────
+/** A random wall with up to three openings that do not overlap: a door from the floor, a window, or a cased opening to the ceiling. */
+function randomWall(rand: () => number, i: number): CUT.WallSurface {
+  const W = r8v(20 + rand() * 380);
+  const H = r8v([84, 96, 96, 97.125, 98, 108, 120][Math.floor(rand() * 7)] + (rand() < 0.3 ? rand() * 6 : 0));
+  const openings: CUT.RectIn[] = [];
+  let x = r8v(rand() * 30);
+  for (let k = 0; k < 3 && x < W - 20; k++) {
+    if (rand() < 0.35) { x += r8v(10 + rand() * 60); continue; }
+    const kind = rand();
+    const width = r8v(Math.min(W - x - 0.5, kind < 0.4 ? 24 + rand() * 12 : 18 + rand() * 54));
+    if (width < 12) break;
+    if (kind < 0.4) openings.push({ x0: x, x1: x + width, y0: 0, y1: Math.min(H, r8v(78 + rand() * 6)) });
+    else if (kind < 0.85) { const sill = r8v(20 + rand() * 24); openings.push({ x0: x, x1: x + width, y0: sill, y1: Math.min(H - 4, r8v(sill + 24 + rand() * 30)) }); }
+    else openings.push({ x0: x, x1: x + width, y0: 0, y1: H });
+    x = r8v(x + width + (rand() < 0.2 ? 1 + rand() * 12 : 14 + rand() * 80));
+  }
+  return { kind: 'wall', id: `rw${i}`, widthIn: W, heightIn: H, openings };
+}
+
+rule('O18 the layout keeps a hanger\'s rules on a few hundred random walls and L-shaped ceilings', (w) => {
+  const o: string[] = [];
+  const rand = rng(20261009);
+  const hangs: CUT.HangDirection[] = ['across', 'upright'];
+  let jointed = 0;
+  let narrow = 0;
+  let gaps = 0;
+  // 320 walls, one at a time and in rooms of four that share offcuts.
+  for (let i = 0; i < 320 && o.length < 6; i++) {
+    const walls = i % 4 === 0 ? [randomWall(rand, i), randomWall(rand, i + 1000), randomWall(rand, i + 2000), randomWall(rand, i + 3000)] : [randomWall(rand, i)];
+    const sheet = CUT.SHEET_KEYS[Math.floor(rand() * 3)];
+    const hang = hangs[Math.floor(rand() * 2)];
+    const plan = w.M.sheets(walls, { sheet, hang });
+    check(o, plan.sheet === sheet && plan.hang === hang, `random wall ${i}: asked for ${sheet} ${hang}, laid out ${plan.sheet} ${plan.hang}`);
+    for (const p of wallPlanProblems(plan, walls, `random wall ${i} (${walls.map((x) => `${x.widthIn}x${x.heightIn}`).join(' ')}, ${sheet} ${hang})`).slice(0, 2)) o.push(p);
+    for (const s of plan.surfaces) { if (s.pieces.length > 1) jointed += 1; if (s.pieces.some((p) => p.narrow)) narrow += 1; if (s.floorGapIn > 0) gaps += 1; }
+  }
+  check(o, jointed > 200 && narrow > 10 && gaps > 10, `the random walls did not exercise the rules: ${jointed} with joints, ${narrow} with a narrow strip, ${gaps} with a gap at the floor`);
+  // 160 L-shaped ceilings: a rectangle with one corner taken out, every side at least 2 ft.
+  for (let i = 0; i < 160 && o.length < 6; i++) {
+    const W = r8v(120 + rand() * 300);
+    const H = r8v(60 + rand() * Math.min(W - 60, 240));
+    const nw = r8v(24 + rand() * (W - 48));
+    const nh = r8v(24 + rand() * (H - 48));
+    const polygon = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H - nh }, { x: W - nw, y: H - nh }, { x: W - nw, y: H }, { x: 0, y: H }];
+    const sheet = CUT.SHEET_KEYS[Math.floor(rand() * 3)];
+    const plan = w.M.sheets([{ kind: 'ceiling', id: `rc${i}`, polygon }], { sheet, hang: 'across' });
+    for (const p of ceilingPlanProblems(plan, W * H - nw * nh, `random L ceiling ${i} (${W} by ${H} less ${nw} by ${nh}, ${sheet})`).slice(0, 2)) o.push(p);
+  }
+  // Every way a run may be cut: the pieces add to the run, none is longer than a sheet, none is under the minimum.
+  for (const L of [96, 120, 144]) for (let len = L + 1; len <= 620 && o.length < 6; len += 0.125) {
+    for (const way of CUT.waysToCut(len, L)) {
+      if (Math.abs(way.reduce((t, x) => t + x, 0) - len) > 1e-6 || way.some((x) => x > L + 1e-6 || x < MIN_PIECE - 1e-6)) { o.push(`a ${len} in run on ${L} in sheets may be cut ${way.join(' + ')}`); break; }
+    }
+  }
+  check(o, CUT.waysToCut(98, 96)[0].join() === '82,16' && CUT.waysToCut(96, 96).join() === '96' && CUT.waysToCut(61, 96).join() === '61', `a 98 in run on 96 in sheets is first cut ${CUT.waysToCut(98, 96)[0].join(' + ')}`);
+  // THE GAP AT THE FLOOR. One 96 in wide wall under 4x8 sheets lying down. Up to 2 in taller than two courses, it is two
+  // sheets and a gap for the baseboard; past that, the strip is boarded. The scan's own inch of error no longer flips it.
+  for (const [h, sheets, gap] of [[96, 2, 0], [97, 2, 1], [97.125, 2, 1.125], [98, 2, 2], [98.125, 3, 0], [100, 3, 0]] as [number, number, number][]) {
+    const plan = w.M.sheets([{ kind: 'wall', id: 'g', widthIn: 96, heightIn: h, openings: [] }], { sheet: '4x8', hang: 'across' });
+    check(o, plan.sheets === sheets && plan.surfaces[0].floorGapIn === gap, `a ${h} in tall wall: ${plan.sheets} sheets and a ${plan.surfaces[0].floorGapIn} in gap at the floor, worked as ${sheets} and ${gap}`);
+    const up = w.M.sheets([{ kind: 'wall', id: 'g', widthIn: 96, heightIn: h, openings: [] }], { sheet: '4x8', hang: 'upright' });
+    check(o, up.surfaces[0].floorGapIn === gap && up.sheets === (gap > 0 || h === 96 ? 2 : 3), `the same wall with the sheets standing: ${up.sheets} sheets and a ${up.surfaces[0].floorGapIn} in gap`);
+  }
+  check(o, /A \{gap\} in gap at the floor is left for the baseboard\./.test(String(w.EN['office.roomScan.order.layout.floorGapNote'])), 'the gap at the floor is not reported in words');
+  // A LONGER SHEET IS A SUGGESTION. 1 to 24 in over, and only when a longer sheet exists. The layout is not changed.
+  const hint = (wide: number, sheet: CUT.SheetKey) => w.M.sheets([{ kind: 'wall', id: 'h', widthIn: wide, heightIn: 96, openings: [] }], { sheet, hang: 'across' });
+  check(o, JSON.stringify(hint(98, '4x8').surfaces[0].longerSheet) === JSON.stringify({ sheet: '4x10', overIn: 2, along: 'length' }) && hint(98, '4x8').sheet === '4x8' && hint(98, '4x8').surfaces[0].pieces.length === 4, `a 98 in wall on 4x8: ${JSON.stringify(hint(98, '4x8').surfaces[0].longerSheet)}`);
+  check(o, hint(121, '4x8').surfaces[0].longerSheet === null && hint(120, '4x8').surfaces[0].longerSheet?.sheet === '4x10' && hint(130, '4x10').surfaces[0].longerSheet?.sheet === '4x12' && hint(150, '4x12').surfaces[0].longerSheet === null && hint(96, '4x8').surfaces[0].longerSheet === null, 'the longer-sheet suggestion is offered outside 1 to 24 in, or with no longer sheet to offer');
+  check(o, /Nothing here has been changed\./.test(String(w.EN['office.roomScan.order.layout.longerSheetNote'])) && /with no butt joint/.test(String(w.EN['office.roomScan.order.layout.longerSheetNote'])), 'the suggestion does not say it changed nothing');
+  // NO SPARE unless he adds one, and the list says which.
+  const scan = scanOf('bathroom');
+  const plain = w.M.list(scan, opts(scan));
+  const spared = w.M.list(scan, opts(scan, { spareSheets: 1 }));
+  const sb = (l: ORDER.OrderList, key: string) => { const b = l.lines.find((x) => x.key === key)?.basis; return b?.kind === 'sheets' ? b.spare : undefined; };
+  check(o, sb(plain, 'drywall_walls') === 0 && sb(plain, 'drywall_ceiling') === null && qty(plain, 'drywall_spare') === undefined && ORDER.defaultOrderOptions('bathroom').spareSheets === 0, `with no spare added the walls line carries ${sb(plain, 'drywall_walls')}`);
+  check(o, qty(spared, 'drywall_spare') === 1 && sb(spared, 'drywall_walls') === 1 && qty(spared, 'drywall_walls') === spared.wallPlan?.sheets && qty(plain, 'drywall_walls') === plain.wallPlan?.sheets && qty(spared, 'drywall_walls') === qty(plain, 'drywall_walls'), 'a spare is hidden inside the wall count, or missing after it was added');
+  check(o, w.EN['office.roomScan.order.layout.noSpareNote'] === 'No spare sheet included.' && w.EN['office.roomScan.order.layout.addSpareLabel'] === 'Add One Spare', 'the spare words changed');
+  const view = stripComments(w.F['components/roomScan/OrderListView.tsx']);
+  check(o, /\{o\.spareSheets > 0 \? ocopy\.spareAddedNote\(o\.spareSheets\) : ocopy\.noSpareNote\}/.test(view) && /<Button label=\{ocopy\.addSpareLabel\}[^>]*onPress=\{\(\) => p\.onOptions\(\{ spareSheets: 1 \}\)\}/.test(view), 'the screen does not print "No spare sheet included." with a one-tap way to add one');
+  check(o, /\{shown\.floorGapIn > 0 && <Text[^>]*>\{ocopy\.floorGapNote\(shown\.floorGapIn\)\}<\/Text>\}/.test(view) && /\{shown\.longerSheet && \(\s*<Text[^>]*>\{ocopy\.longerSheetNote\(shown\.longerSheet\.overIn, shown\.longerSheet\.sheet, shown\.longerSheet\.along\)\}<\/Text>\s*\)\}/.test(view) && /ocopy\.layoutRulesNote\(/.test(view), 'the screen does not show the gap at the floor, the longer-sheet suggestion and the two rules');
+  check(o, /No piece is under \{piece\} in long unless the wall is that narrow\. Butt joints are kept \{stagger\} in apart/.test(String(w.EN['office.roomScan.order.layout.rulesNote'])), 'the minimum piece and the stagger are not stated');
+  return o;
+});
+
+rule('O19 the core guards its own inputs: a wild option never makes a quantity that is not a number', (w) => {
+  const o: string[] = [];
+  const wild = { spreadSFPerGal: 0, primerSpreadSFPerGal: Number.NaN, coats: Number.NaN, floorWastePct: -500, wallTileWastePct: Number.POSITIVE_INFINITY, stockFt: [], sheet: '9x9', hang: 'sideways', minOffcutIn: -5, casingWidthIn: Number.NaN, spareSheets: 1e9, trimAllowanceIn: Number.POSITIVE_INFINITY, longWallAddIn: Number.NaN, boxSF: -3, wetHeightIn: Number.NaN, floorLayout: 'zigzag', typed: { floor: Number.POSITIVE_INFINITY, paint_walls: -4, screws: Number.NaN } } as unknown as Partial<ORDER.OrderOptions>;
+  for (const name of FIXTURES) {
+    const scan = scanOf(name);
+    const l = w.M.list(scan, { ...opts(scan), ...wild, groups: { drywall: true, flooring: true, wallTile: true, paint: true, trim: true }, wetWallIds: [scan.walls[0].id] });
+    for (const x of l.lines) check(o, Number.isFinite(x.quantity) && Number.isFinite(x.computed) && x.quantity >= 0 && x.computed >= 0, `${name}: ${x.key} is ${x.quantity} (worked ${x.computed}) with wild options`);
+    check(o, l.lines.length >= 13, `${name}: only ${l.lines.length} lines survived wild options`);
+    const c = l.options;
+    check(o, c.spreadSFPerGal === 350 && c.primerSpreadSFPerGal === 300 && c.coats === 2 && c.floorWastePct === 0 && c.wallTileWastePct === null && c.stockFt.join() === '8,12,16' && c.sheet === '4x8' && c.hang === 'across' && c.minOffcutIn === 0 && c.casingWidthIn === 2.25 && c.spareSheets === ORDER.MAX_SPARE_SHEETS && c.trimAllowanceIn === 0 && c.longWallAddIn === 0 && c.boxSF === null && c.wetHeightIn === null && c.floorLayout === 'straight' && Object.keys(c.typed).length === 0, `${name}: the options the list used are ${JSON.stringify(c)}`);
+  }
+  const scan = scanOf('bathroom');
+  // Held to a limit, not only replaced: 99 coats is 4, a spread of 5 is 50, of a million is 1,000, a waste of 1,000 percent is 100.
+  const held = w.M.list(scan, opts(scan, { coats: 99, spreadSFPerGal: 5, primerSpreadSFPerGal: 1e6, floorWastePct: 1000 })).options;
+  check(o, held.coats === 4 && held.spreadSFPerGal === 50 && held.primerSpreadSFPerGal === 1000 && held.floorWastePct === 100, `limits: ${JSON.stringify([held.coats, held.spreadSFPerGal, held.primerSpreadSFPerGal, held.floorWastePct])}`);
+  // Good options pass through unchanged.
+  check(o, JSON.stringify(ORDER.cleanOrderOptions(opts(scan))) === JSON.stringify(opts(scan)), 'the guard changes options that were fine');
+  // A scan with a wall whose length is not a number: no line carries it, and nothing of it can be sent.
+  const broken: RoomScan = { ...scan, walls: scan.walls.map((x, i) => (i === 0 ? { ...x, lengthM: Number.NaN } : x)) };
+  const bl = w.M.list(broken, opts(broken));
+  check(o, bl.lines.every((x) => Number.isFinite(x.quantity) && Number.isFinite(x.computed)), `a wall with no length made the line ${bl.lines.find((x) => !Number.isFinite(x.quantity))?.key}`);
+  const snap = w.M.send({ confirmed: true, via: 'copy', list: bl, at: AT });
+  check(o, !!snap && snap.lines.every((x) => Number.isFinite(x.quantity)), 'a quantity that is not a number was sent');
+  const core = stripComments(w.F['utils/roomScan/orderListCore.ts']);
+  check(o, /export function buildOrderList\(scan: RoomScan, options: OrderOptions\): OrderList \{\s*const o = cleanOrderOptions\(options\);/.test(core) && /if \(!Number\.isFinite\(line\.computed\) \|\| line\.computed < 0\) return;/.test(core), 'buildOrderList does not guard its options and its worked numbers itself');
+  return o;
+});
+
+/** The line under the drawing for one piece, built from the shard the way the copy hook builds it. */
+function pieceSentence(w: World, p: CUT.CutPiece): string {
+  const frac = (n: number) => { const e = Math.round(n * 8); const whole = Math.floor(e / 8); let num = e % 8; let den = 8; while (num > 0 && num % 2 === 0) { num /= 2; den /= 2; } return num === 0 ? String(whole) : whole > 0 ? `${whole} ${num}/${den}` : `${num}/${den}`; };
+  const L = (k: string) => String(w.EN[`office.roomScan.order.layout.${k}`]);
+  const parts = [p.fromOffcut ? L('fromOffcutSub') : L('fromNewSub')];
+  for (const k of [...new Set(p.cutouts.map((c) => c.kind))]) parts.push(k === 'door' ? L('cutDoorSub') : k === 'window' ? L('cutWindowSub') : L('cutOpeningSub'));
+  if (p.narrow) parts.push(L('narrowSub'));
+  if (p.cutToShape) parts.push(L('shapeSub'));
+  return L('pieceSub').replace('{sheet}', String(p.sheet)).replace('{long}', frac(Math.max(p.w, p.h))).replace('{wide}', frac(Math.min(p.w, p.h))).replace('{parts}', parts.join(', '));
+}
+
+rule('O20 the cut layout is written out in words under the drawing, and an offcut is not told apart by colour alone', (w) => {
+  const o: string[] = [];
+  const scan = scanOf('bathroom');
+  const l = w.M.list(scan, opts(scan));
+  const all = (l.wallPlan?.surfaces ?? []).flatMap((s) => s.pieces).map((p) => pieceSentence(w, p));
+  // The bathroom, in the words a hanger would read: the two 82 in pieces over the window, the top of the door, and the strip beside it.
+  check(o, all.filter((x) => /^Sheet \d+: 82 by 48 in, from a new sheet, window cut out$/.test(x)).length === 2, `the window wall's pieces read: ${all.filter((x) => /window/.test(x)).join(' | ')}`);
+  check(o, all.some((x) => /^Sheet \d+: 61 by 48 in, from a new sheet, door cut out$/.test(x)), `the piece over the door reads: ${all.filter((x) => /door/.test(x)).join(' | ')}`);
+  check(o, all.some((x) => /^Sheet \d+: 48 by 4 5\/8 in, from an offcut, the wall is this narrow here$/.test(x)) && all.some((x) => /^Sheet \d+: 48 by 26 3\/8 in, from an offcut$/.test(x)), `the pieces beside the door read: ${all.filter((x) => /5\/8|3\/8/.test(x)).join(' | ')}`);
+  check(o, all.filter((x) => /^Sheet \d+: 48 by 16 in, from an offcut$/.test(x)).length === 4 && all.length === 13, `${all.length} pieces, ${all.filter((x) => / 16 in/.test(x)).length} of them 16 in`);
+  const bay = w.M.list(scanOf('bay-room'), opts(scanOf('bay-room')));
+  check(o, (bay.ceilingPlan?.surfaces[0].pieces ?? []).some((p) => /cut to the shape of the room$/.test(pieceSentence(w, p))), 'a ceiling piece cut to the bay is not said to be');
+  // The layout carries what the words need: which kind of opening was cut out of a piece.
+  const kinds = (l.wallPlan?.surfaces ?? []).flatMap((s) => s.pieces.flatMap((p) => p.cutouts.map((c) => c.kind))).sort().join();
+  check(o, kinds === 'door,window,window', `the cutouts are of ${kinds}`);
+  // The screen: the list is under the drawing, is what a screen reader hears, and the view is memoised.
+  const cut = stripComments(w.F['components/roomScan/CutLayoutView.tsx']);
+  check(o, /accessibilityLabel=\{\[a11yLabel, \.\.\.pieceLines\]\.join\('\. '\)\}/.test(cut), 'the drawing\'s accessibility label is only its title');
+  check(o, /\{pieceLines\.map\(\(line, i\) => \(\s*<Text key=\{`line-\$\{i\}`\}[^>]*>\{line\}<\/Text>\s*\)\)\}/.test(cut) && cut.indexOf('</Svg>') < cut.indexOf('{pieceLines.map('), 'the pieces are not listed in words under the drawing');
+  check(o, /export const CutLayoutView = React\.memo\(CutLayout, \(a, b\) =>\s*a\.surface === b\.surface/.test(cut), 'the cut layout is not memoised');
+  // Not by colour alone: a piece from an offcut is striped, every piece has the same fill, and the list says it in words.
+  check(o, /if \(p\.fromOffcut\) for \(let x = x0 \+ STRIPE; x < x0 \+ w - 1; x \+= STRIPE\) stripes\.push\(x\);/.test(cut) && /\{stripes\.map\(\(x\) => <Line /.test(cut) && !/fill=\{p\.fromOffcut/.test(cut) && !/fromOffcut \? colors\./.test(cut), 'a piece from an offcut is told from a new sheet by its colour alone');
+  check(o, /striped/.test(String(w.EN['office.roomScan.order.layout.legendOffcutSub'])) && /striped/.test(String(w.EN['office.roomScan.order.layout.introBody'])) && !/shaded/.test(String(w.EN['office.roomScan.order.layout.introBody'])), 'the legend still describes a shade');
+  const view = stripComments(w.F['components/roomScan/OrderListView.tsx']);
+  check(o, /const pieceLines = React\.useMemo\(\(\) => \(shown \? shown\.pieces\.map\(\(x\) => ocopy\.pieceSub\(x\)\) : \[\]\), \[shown, ocopy\]\);/.test(view) && /<CutLayoutView surface=\{shown\} a11yLabel=\{ocopy\.layoutA11y\(surfaceName\(shown\)\)\} listLabel=\{ocopy\.pieceListLabel\} pieceLines=\{pieceLines\}/.test(view) && /legendBoxOffcut\]\}><View style=\{styles\.legendStripe\} \/>/.test(view), 'the screen does not hand the drawing its piece list, or its legend is a colour swatch');
+  const hook = stripComments(w.F['hooks/useScanOrderCopy.ts']);
+  check(o, /return t\('office\.roomScan\.order\.layout\.pieceSub', 'Sheet \{sheet\}: \{long\} by \{wide\} in, \{parts\}', \{ sheet: p\.sheet, long: inchFraction\(long\), wide: inchFraction\(wide\), parts: parts\.join\(', '\) \}\);/.test(hook) && /const parts: string\[\] = \[p\.fromOffcut\s*\? t\('office\.roomScan\.order\.layout\.fromOffcutSub', 'from an offcut'\)/.test(hook), 'the copy hook does not build the piece line from the piece');
+  return o;
+});
+
+rule('O21 the "material is in there twice" warning is on every confirm that can cause it, and is specific when the other lines are already there', (w) => {
+  const o: string[] = [];
+  // The order list's confirm: the sentence is in BOTH bodies (adding to an estimate, and starting one), not inside the choice between them.
+  const view = stripComments(w.F['components/roomScan/OrderListView.tsx']);
+  const sheet = view.slice(view.indexOf('testID="scan-order-confirm-estimate"'));
+  check(o, /\{p\.starting && p\.markupPct != null \? ocopy\.confirmEstimateStartBody\(p\.pushCount, total, p\.markupPct\) : ocopy\.confirmEstimateBody\(p\.pushCount, total\)\}\s*<\/Text>\s*<Text style=\{styles\.para\} testID="scan-order-confirm-double-count">\{ocopy\.doubleCountBody\(p\.installedAlreadyIn\)\}<\/Text>/.test(sheet), 'the double-count sentence is not on the order list\'s confirm for both "add" and "start an estimate"');
+  const general = String(w.EN['office.roomScan.order.send.doubleCountBody']);
+  const specific = String(w.EN['office.roomScan.order.send.doubleCountInBody']);
+  check(o, /material only/.test(general) && /twice/.test(general) && /now or later/.test(general), `the general sentence reads "${general}"`);
+  check(o, /installed lines for this room/.test(specific) && /already in this estimate/.test(specific) && /twice/.test(specific) && /until you take one of the two out/.test(specific), `the specific sentence reads "${specific}"`);
+  const hook = stripComments(w.F['hooks/useScanOrderCopy.ts']);
+  check(o, /doubleCountBody: \(installedAlreadyIn\) => \(installedAlreadyIn\s*\? t\('office\.roomScan\.order\.send\.doubleCountInBody'/.test(hook), 'the copy hook does not choose the specific sentence');
+  // "Already there" is read off the estimate, by both ids the push recorded.
+  const scan = { ...scanOf('bathroom'), name: 'Hall Bathroom' };
+  const l = w.M.list(scan, opts(scan));
+  const d = w.M.draft(scan, l, BOOK, RATER);
+  idSeq = 0;
+  const r = w.M.patch({ confirmed: true, mayEdit: true, project: projectWith(EST), draft: d, pushed: {}, newId, markupPct: 20, now: AT });
+  check(o, !!r && PRICING.pushedLinesInEstimate(projectWith(r.next), r.pushed) === 8 && PRICING.pushedLinesInEstimate(projectWith(EST), r.pushed) === 0 && PRICING.pushedLinesInEstimate(null, r.pushed) === 0 && PRICING.pushedLinesInEstimate(projectWith(r.next), undefined) === 0 && PRICING.pushedLinesInEstimate(projectWith(r.next), {}) === 0, 'the count of pushed lines still in the estimate is wrong');
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  check(o, /installedAlreadyIn=\{pushedLinesInEstimate\(project, saved\.pushed\) > 0\}/.test(flow), 'the order list is not told when this room\'s installed lines are already in the estimate');
+  // THE MIRROR: Price It's confirm, when the order list's material lines are already there.
+  check(o, /materialsAlreadyIn=\{pushedLinesInEstimate\(project, saved\.orderPushed\) > 0\}/.test(flow), 'Price It is not told when this room\'s material lines are already in the estimate');
+  const priced = stripComments(w.F['components/roomScan/PricedDraftView.tsx']);
+  const confirm = priced.slice(priced.indexOf('testID="scan-confirm-sheet"'));
+  check(o, /\{p\.materialsAlreadyIn === true && <Text style=\{styles\.para\} testID="scan-confirm-materials-in">\{copy\.confirmMaterialsInBody\}<\/Text>\}/.test(confirm), 'Price It\'s confirm does not carry the mirror sentence');
+  const mirror = String(w.EN['office.roomScan.confirm.materialsInBody']);
+  check(o, /order list are already in this estimate/.test(mirror) && /twice/.test(mirror) && !!w.ES['office.roomScan.confirm.materialsInBody'], `the mirror sentence reads "${mirror}"`);
+  check(o, /confirmMaterialsInBody: t\('office\.roomScan\.confirm\.materialsInBody'/.test(stripComments(w.F['hooks/useRoomScanCopy.ts'])), 'the mirror sentence is not in the Scan The Room copy');
+  return o;
+});
+
 // ── B. the learning loop ────────────────────────────────────────────────────
 
 /** A taped wall: the scan said `scanFt`, the tape read `diffIn` inches more. */
@@ -1140,7 +1484,7 @@ rule('L3 no percentage, score or grade anywhere in the facts', (w) => {
     }
   }
   const s = w.M.suggest(HISTORY);
-  for (const k of Object.keys(s ?? {})) check(o, ['addIn', 'longCount', 'shortCount', 'typicalIn'].includes(k), `the suggestion carries "${k}"`);
+  for (const k of Object.keys(s ?? {})) check(o, ['addIn', 'longCount', 'shortCount', 'typicalIn', 'pooled'].includes(k), `the suggestion carries "${k}"`);
   for (const [k, v] of Object.entries(w.EN)) {
     if (!/^office\.roomScan\.order\.(tape|suggest)\./.test(k)) continue;
     const text = typeof v === 'string' ? v : Object.values(v as Record<string, string>).join(' ');
@@ -1184,7 +1528,30 @@ rule('L5 a suggestion needs enough long walls that agree, and never suggests ord
   // A quarter of an inch is not "running short".
   check(o, w.M.suggest([0, 1, 2, 3].map((i) => pair(50 + i, 14 + i, 0.25))) === null, 'a quarter of an inch made a suggestion');
   const body = String(w.EN['office.roomScan.order.suggest.body']);
-  check(o, /the tape read longer than the scan/.test(body) && /\{short\} of the \{long\} long walls/.test(body) && /this order list only, not the scan/.test(body), 'the suggestion does not say why, or that the scan is left alone');
+  check(o, /the tape read longer than the scan/.test(body) && /\{short\} of the \{long\} long walls/.test(body) && /It does not change the floor, the ceiling, any tile or the scan\./.test(body), 'the suggestion does not say why, or that the scan is left alone');
+  // WHAT IT CHANGES AND WHAT IT DOES NOT, and which walls: not one he taped, and not one adjusted to match a taped wall.
+  check(o, /that you have not taped and that was not adjusted to match a taped wall/.test(body) && /it changes the wall board, the wall paint, the baseboard and the crown/.test(body), 'the suggestion does not say which walls it adds to, or what the added length changes');
+  // THE PHONE MODEL. The fixture history is all one model. From that model: read alone. From another: pooled, and said.
+  const own = w.M.suggest(HISTORY, 'iPhone16,1');
+  check(o, !!own && own.pooled === false && own.addIn === 1.5 && own.longCount === 5, `read from the scan's own phone model: ${JSON.stringify(own)}`);
+  const otherPhone = w.M.suggest(HISTORY, 'iPhone15,2');
+  check(o, !!otherPhone && otherPhone.pooled === true && otherPhone.longCount === 5, `read for a phone with no taped walls of its own: ${JSON.stringify(otherPhone)}`);
+  check(o, w.M.suggest(HISTORY)?.pooled === true && w.M.suggest(HISTORY, '')?.pooled === true, 'a scan that names no phone model is not said to be pooled');
+  // Five long walls on phone A that taped longer, four on phone B that taped SHORTER.
+  const phoneA = [0.75, 1, 1.5, 2, 2.5].map((d, i) => pair(60 + i, 13 + i, d, { deviceModel: 'A' }));
+  const phoneB = [-1, -1, -1.5, -0.75].map((d, i) => pair(70 + i, 13 + i, d, { deviceModel: 'B' }));
+  const sA = w.M.suggest([...phoneA, ...phoneB], 'A');
+  check(o, !!sA && sA.pooled === false && sA.longCount === 5 && sA.shortCount === 5 && sA.addIn === 1.5, `phone A, with enough walls of its own, was read as ${JSON.stringify(sA)} (phone B's walls must not be mixed in)`);
+  check(o, w.M.suggest([...phoneA, ...phoneB], 'B') === null, 'phone B, whose own walls taped shorter, was given phone A\'s suggestion');
+  check(o, w.M.suggest([...phoneA, ...phoneB], 'C') === null, 'nine pooled walls that do not agree made a suggestion');
+  // Three on each phone, all longer: neither has enough alone, so they are pooled and that is said.
+  const few = [...phoneA.slice(0, 3), ...[1, 1.5, 2].map((d, i) => pair(80 + i, 14 + i, d, { deviceModel: 'B' }))];
+  const pooled = w.M.suggest(few, 'A');
+  check(o, !!pooled && pooled.pooled === true && pooled.longCount === 6, `three walls on each of two phones: ${JSON.stringify(pooled)}`);
+  const hook = stripComments(w.F['hooks/useScanOrderCopy.ts']);
+  check(o, /\$\{s\.pooled\s*\? t\('office\.roomScan\.order\.suggest\.pooledNote'/.test(hook) && /walls scanned with other phones are counted with them/.test(String(w.EN['office.roomScan.order.suggest.pooledNote'])) && /same phone model as this scan/.test(String(w.EN['office.roomScan.order.suggest.sameModelNote'])), 'the card does not say whether the walls are from this phone model or pooled');
+  const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
+  check(o, /longWallSuggestion\(tapePairs, scan\?\.device\?\.model \?\? ''\)/.test(flow), 'the flow does not hand the scan\'s phone model to the suggestion');
   return o;
 });
 
@@ -1210,6 +1577,21 @@ rule('L6 a suggestion never changes a quantity by itself', (w) => {
   const afterTape = w.M.list(taped, opts(taped, { longWallAddIn: 1.5 }));
   check(o, afterTape.walls.find((x) => x.wallId === longWall.id)?.addedIn === 0 && afterTape.walls.find((x) => x.wallId === longWall.id)?.taped === true, 'inches were added to a wall he taped');
   check(o, (added.trimPlans.crown?.cutFt ?? 0) > (plain.trimPlans.crown?.cutFt ?? 0), 'an accepted allowance did not reach the trim');
+  // "Not taped" does not mean "the scan's own": taping one 22 ft wall moved the one across from it to match
+  // ('adjusted'). That wall is not a scan reading either, and gets nothing.
+  const across = taped.walls.find((x) => x.lengthSource === 'adjusted');
+  const acrossUsed = afterTape.walls.find((x) => x.wallId === across?.id);
+  check(o, !!across && across.lengthM > 6 && acrossUsed?.addedIn === 0 && acrossUsed?.source === 'adjusted' && afterTape.walls.every((x) => x.addedIn === 0), `inches were added to a wall the app adjusted to match a taped one: ${JSON.stringify(acrossUsed)}`);
+  // WHAT THE ADDED LENGTH CHANGES: the wall board, the wall paint, the baseboard and the crown. And what it does
+  // not: the floor, the ceiling, and any tile (the 22 ft wall as a wet wall measures what the scan said).
+  const tileOn = { groups: { ...opts(scan).groups, wallTile: true }, wetWallIds: [longWall.id] };
+  const t0 = w.M.list(scan, opts(scan, tileOn));
+  const t1 = w.M.list(scan, opts(scan, { ...tileOn, longWallAddIn: 1.5 }));
+  const netOf = (l: ORDER.OrderList, key: string) => l.lines.find((x) => x.key === key)?.net?.quantity ?? -1;
+  for (const k of ['floor', 'wall_tile', 'drywall_ceiling', 'paint_ceiling']) check(o, netOf(t1, k) === netOf(t0, k) && qty(t1, k) === qty(t0, k), `an accepted allowance changed ${k}: ${netOf(t0, k)} to ${netOf(t1, k)}`);
+  for (const k of ['drywall_walls', 'paint_walls', 'baseboard', 'crown']) check(o, netOf(t1, k) > netOf(t0, k), `an accepted allowance did not reach ${k}`);
+  const note = forms(w.EN['office.roomScan.order.addedNote']).join(' ');
+  check(o, /It changes the wall board, the wall paint, the baseboard and the crown\. It does not change the floor, the ceiling or any tile\./.test(note) && /not adjusted to match a taped wall/.test(note), 'the note on the list does not say what the added length changes and what it does not');
   // The wiring: the core does not read the history, and only the accept button sets the allowance.
   const core = stripComments(w.F['utils/roomScan/orderListCore.ts']);
   check(o, !/learnCore|longWallSuggestion|tapeFacts|TapePair/.test(core), 'orderListCore reads the tape history');
@@ -1252,8 +1634,16 @@ rule('L7 pairs: from a scan reading only, one per wall, kept and removed', (w) =
   const writes = [...flow.matchAll(/recordTapePairs\(/g)].length;
   const keeps = [...flow.matchAll(/await keepTape\(next\);/g)].length;
   check(o, writes === 1 && /const keepTape = useCallback\(async \(s: SavedScan\) => \{\s*const log = await recordTapePairs\(userId, s\.tapePairs \?\? \[\]\);/.test(flow), `the flow writes his tape list in ${writes} places (keepTape only)`);
-  check(o, keeps === 3 && [...flow.matchAll(/saveScan\(next, rawJson\)/g)].length === 3 && [...flow.matchAll(/keepTape\(/g)].length === 3 && /if \(ok\) await keepTape\(next\);/.test(flow) && [...flow.matchAll(/if \(stored\) await keepTape\(next\);/g)].length === 2, `his tape list is kept in ${keeps} places (once after each of the three saves, and only when the save took)`);
+  check(o, keeps === 3 && [...flow.matchAll(/saveScan\(next, rawJson, dropTape\)/g)].length === 3 && [...flow.matchAll(/keepTape\(/g)].length === 3 && /if \(ok\) await keepTape\(next\);/.test(flow) && [...flow.matchAll(/if \(stored\) await keepTape\(next\);/g)].length === 2, `his tape list is kept in ${keeps} places (once after each of the three saves, and only when the save took)`);
   check(o, /if \(ok\) \{\s*await forgetScanTapePairs\(userId, target\.scan\.id\);/.test(flow), 'deleting a scan does not remove its pairs');
+  // A scan the saved-list cap pushes off the phone takes its pairs with it, in the same save.
+  const three = [pair(90, 8, 0.5, { scanId: 'old-1' }), pair(91, 8, 0.5, { scanId: 'old-2' }), pair(92, 8, 0.5, { scanId: 'kept' })];
+  check(o, LEARN.removeScansPairs(three, ['old-1', 'old-2']).map((x) => x.scanId).join() === 'kept' && LEARN.removeScansPairs(three, []).length === 3, 'the pairs of scans pushed off the saved list are not removed');
+  const store = stripComments(w.F['utils/roomScan/store.ts']);
+  check(o, /if \(dropped\.length && onDropped\) \{\s*try \{ await onDropped\(dropped\); \}/.test(store) && /const \{ list, dropped \} = upsertSavedScan\(before, saved\);/.test(store), 'the scan store does not hand over the scans the cap pushed off');
+  check(o, /const dropTape = useCallback\(async \(scanIds: string\[\]\) => \{\s*const log = await forgetScansTapePairs\(userId, scanIds\);\s*if \(log\) setTapeLog\(log\);/.test(flow), 'the flow does not remove the taped walls of a scan the cap pushed off');
+  const tapeStore = stripComments(w.F['utils/roomScan/learnStore.ts']);
+  check(o, /const next = removeScansPairs\(await loadTapePairs\(userId\), scanIds\);/.test(tapeStore), 'the tape store does not remove several scans\' pairs');
   return o;
 });
 
@@ -1351,7 +1741,7 @@ rule('N1 with the flag off there is no entry point, and nothing outside the feat
   // One way in: the Quantities step, inside the flow the route mounts.
   const flow = stripComments(w.F['components/roomScan/RoomScanFlow.tsx']);
   check(o, [...flow.matchAll(/setStep\('order'\)/g)].length === 1 && /order=\{\{ label: ocopy\.openLabel, onPress: \(\) => \{ setOrderSend\('idle'\); setStep\('order'\); \} \}\}/.test(flow), 'the order list can be reached from somewhere other than The Quantities');
-  check(o, [...flow.matchAll(/<OrderListView/g)].length === 1 && /\{step === 'order' && saved && orderList && orderDraft && orderOptions && \(\s*<OrderListView/.test(flow), 'the order list is mounted outside its step');
+  check(o, [...flow.matchAll(/<OrderListView/g)].length === 1 && /\{step === 'order' && saved && orderList && orderDraft && orderSendDraft && orderOptions && \(\s*<OrderListView/.test(flow), 'the order list is mounted outside its step');
   const q = stripComments(w.F['components/roomScan/QuantitiesView.tsx']);
   check(o, /\{order && <Button label=\{order\.label\} variant="secondary" onPress=\{order\.onPress\} disabled=\{block != null\} testID="scan-order-open" \/>\}/.test(q), 'the order list opens for a room that cannot be priced (an open outline, no ceiling height, an unsure wall, no name)');
   // validate-scan-room's own house rules read the new files too.
@@ -1377,7 +1767,7 @@ rule('W1 the words: the plain notice, no "exact", no "accurate", English and Spa
     for (const f of forms(es?.s)) check(o, !/exact[oa]|precis[oa]|garantiz|perfect[oa]/i.test(f), `es ${k}: promises how right a number is`);
   }
   check(o, /off by an inch or more/.test(forms(w.EN['office.roomScan.order.send.shareBody']).join(' ')), 'the share confirm does not repeat that a scan can be off');
-  check(o, /material only/.test(forms(w.EN['office.roomScan.order.send.estimateBody']).join(' ')) && /in there twice/.test(forms(w.EN['office.roomScan.order.send.estimateBody']).join(' ')) && /Nothing is sent to your client/.test(forms(w.EN['office.roomScan.order.send.estimateBody']).join(' ')), 'the estimate confirm does not say the lines are material only, could double up, and go to nobody');
+  check(o, /material only/.test(String(w.EN['office.roomScan.order.send.doubleCountBody'])) && /in the estimate twice/.test(String(w.EN['office.roomScan.order.send.doubleCountBody'])) && /Nothing is sent to your client/.test(forms(w.EN['office.roomScan.order.send.estimateBody']).join(' ')) && /Nothing is sent to your client/.test(forms(w.EN['office.roomScan.order.send.estimateStartBody']).join(' ')), 'the estimate confirm does not say the lines are material only, could double up, and go to nobody');
   const view = stripComments(w.F['components/roomScan/OrderListView.tsx']);
   const notice = view.indexOf('{ocopy.noticeBody}');
   check(o, notice > 0 && notice < view.indexOf('{ocopy.introBody(p.roomName)}') && /testID="scan-order-notice"/.test(view), 'the notice is not the first thing on the screen');
@@ -1512,13 +1902,13 @@ const MUTATIONS: Mutation[] = [
   { rule: 'L3', what: 'the panel drops the scope sentence', plant: text('components/roomScan/TapeFactsPanel.tsx', '<Text style={styles.note}>{copy.tapeScopeNote}</Text>', '') },
   { rule: 'L4', what: 'a wild wall sets the largest difference', plant: mod((m) => ({ facts: (p) => { const f = m.facts(p); return f.enough && p.length > 14 ? { ...f, largestIn: 120, farCount: 0, count: p.length } : f; } })) },
   { rule: 'L4', what: 'the panel does not say walls were left out', plant: text('components/roomScan/TapeFactsPanel.tsx', '{facts.farCount > 0 && ', '{false && ') },
-  { rule: 'L5', what: 'a suggestion from three long walls', plant: mod((m) => ({ suggest: (p) => m.suggest(p) ?? (p.length === 3 ? { addIn: 1, longCount: 3, shortCount: 3, typicalIn: 1 } : null) })) },
-  { rule: 'L5', what: 'a suggestion to order less', plant: mod((m) => ({ suggest: (p) => m.suggest(p) ?? (p.length === 14 ? { addIn: -1.5, longCount: 5, shortCount: 0, typicalIn: -1.5 } : null) })) },
-  { rule: 'L5', what: 'the suggestion has no cap', plant: mod((m) => ({ suggest: (p) => { const s = m.suggest(p); return s && s.addIn === 3 ? { ...s, addIn: 6 } : s; } })) },
-  { rule: 'L5', what: 'the suggestion stops saying why', plant: en('office.roomScan.order.suggest.body', 'Add {add} to each long wall. It changes this order list only, not the scan.') },
+  { rule: 'L5', what: 'a suggestion from three long walls', plant: mod((m) => ({ suggest: (p, dm) => m.suggest(p, dm) ?? (p.length === 3 ? { addIn: 1, longCount: 3, shortCount: 3, typicalIn: 1, pooled: true } : null) })) },
+  { rule: 'L5', what: 'a suggestion to order less', plant: mod((m) => ({ suggest: (p, dm) => m.suggest(p, dm) ?? (p.length === 14 ? { addIn: -1.5, longCount: 5, shortCount: 0, typicalIn: -1.5, pooled: true } : null) })) },
+  { rule: 'L5', what: 'the suggestion has no cap', plant: mod((m) => ({ suggest: (p, dm) => { const s = m.suggest(p, dm); return s && s.addIn === 3 ? { ...s, addIn: 6 } : s; } })) },
+  { rule: 'L5', what: 'the suggestion stops saying why', plant: en('office.roomScan.order.suggest.body', 'Add {add} to each long wall that you have not taped and that was not adjusted to match a taped wall. On this order list it changes the wall board, the wall paint, the baseboard and the crown. It does not change the floor, the ceiling, any tile or the scan.') },
   { rule: 'L6', what: 'the list applies an allowance nobody accepted', plant: mod((m) => ({ list: (scan, o) => m.list(scan, { ...o, longWallAddIn: o.longWallAddIn || 1.5 }) })) },
   { rule: 'L6', what: 'accepting changes the scan itself', plant: mod((m) => ({ list: (scan, o) => { if (o.longWallAddIn > 0) (scan.walls[0] as { lengthM: number }).lengthM += 0.0001; return m.list(scan, o); } })) },
-  { rule: 'L6', what: 'the flow accepts the suggestion for him', plant: text(FL, 'const suggestion = useMemo(() => longWallSuggestion(tapePairs), [tapePairs]);', 'const suggestion = useMemo(() => longWallSuggestion(tapePairs), [tapePairs]);\n  const autoAdd = { longWallAddIn: suggestion?.addIn ?? 0 };') },
+  { rule: 'L6', what: 'the flow accepts the suggestion for him', plant: text(FL, "[tapePairs, scan]);", "[tapePairs, scan]);\n  const autoAdd = { longWallAddIn: suggestion?.addIn ?? 0 };") },
   { rule: 'L6', what: 'the order core reads the tape history', plant: text('utils/roomScan/orderListCore.ts', "import type { RoomScan, RoomType, ScanOpening, ScanWall } from './types';", "import type { RoomScan, RoomType, ScanOpening, ScanWall } from './types';\nimport { longWallSuggestion } from './learnCore';") },
   { rule: 'L6', what: 'the panel accepts on mount', plant: text('components/roomScan/TapeFactsPanel.tsx', "const styles = useThemedStyles(makeRoomScanStyles);", "const styles = useThemedStyles(makeRoomScanStyles);\n  if (p.suggestion) p.onAccept(p.suggestion.addIn);") },
   { rule: 'L7', what: 'a wall the app moved makes a pair', plant: mod((m) => ({ pair: (s, id, t, at, so) => m.pair(s, id, t, at, so) ?? (s.walls.find((x) => x.id === id)?.lengthSource === 'adjusted' ? { scanId: s.id, wallId: id, scannedM: 1, tapedM: t, lengthClass: 'short', deviceModel: '', roomType: 'room', at } : null) })) },
@@ -1543,7 +1933,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'W1', what: 'a line says "accurate"', plant: en('office.roomScan.order.layout.introBody', 'An accurate layout, one wall at a time.') },
   { rule: 'W1', what: 'a key has no Spanish', plant: es('office.roomScan.order.noticeBody', undefined) },
   { rule: 'W1', what: 'the notice moves below the list', plant: text(V, '<Text style={[styles.factText, styles.factCheck]}>{ocopy.noticeBody}</Text>', '<Text style={[styles.factText, styles.factCheck]}>{ocopy.titleLabel}</Text>') },
-  { rule: 'W1', what: 'the estimate confirm drops the double-count warning', plant: en('office.roomScan.order.send.estimateBody', { one: 'This puts 1 material line into the estimate. Nothing is sent to your client.', other: 'This puts {count} material lines into the estimate. Nothing is sent to your client.' }) },
+  { rule: 'W1', what: 'the estimate confirm drops the double-count warning', plant: en('office.roomScan.order.send.doubleCountBody', 'These lines go into the estimate with the rest.') },
   { rule: 'D1', what: 'the checklist loses what is missing', plant: text('docs/scan-the-room-native-checklist.md', /qbo_cost_lines/g, 'the accounting import') },
 ];
 

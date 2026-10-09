@@ -229,9 +229,10 @@ export function cleanOrderOptions(o: OrderOptions): OrderOptions {
     wetHeightIn: posNum(o.wetHeightIn) ? o.wetHeightIn : null,
     wallTileWastePct: pct(o.wallTileWastePct),
     coats: Math.round(within(o.coats, 1, MAX_COATS, 2)),
-    spreadSFPerGal: within(o.spreadSFPerGal, SPREAD_LIMITS_SF[0], SPREAD_LIMITS_SF[1], DEFAULT_SPREAD_SF_PER_GAL),
+    // A spread rate of zero or below is not a low rate, it is no rate: the default, not the lowest limit.
+    spreadSFPerGal: posNum(o.spreadSFPerGal) ? within(o.spreadSFPerGal, SPREAD_LIMITS_SF[0], SPREAD_LIMITS_SF[1], DEFAULT_SPREAD_SF_PER_GAL) : DEFAULT_SPREAD_SF_PER_GAL,
     primer: o.primer === true,
-    primerSpreadSFPerGal: within(o.primerSpreadSFPerGal, SPREAD_LIMITS_SF[0], SPREAD_LIMITS_SF[1], DEFAULT_PRIMER_SPREAD_SF_PER_GAL),
+    primerSpreadSFPerGal: posNum(o.primerSpreadSFPerGal) ? within(o.primerSpreadSFPerGal, SPREAD_LIMITS_SF[0], SPREAD_LIMITS_SF[1], DEFAULT_PRIMER_SPREAD_SF_PER_GAL) : DEFAULT_PRIMER_SPREAD_SF_PER_GAL,
     stockFt: cleanStock(Array.isArray(o.stockFt) ? o.stockFt.filter((x) => typeof x === 'number') : []),
     crown: o.crown === true,
     casingWindows: o.casingWindows === true,

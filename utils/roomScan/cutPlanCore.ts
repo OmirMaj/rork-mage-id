@@ -403,7 +403,8 @@ export function waysToCut(len: number, L: number): number[][] {
   const full = forward(len);
   const half = [L / 2, ...forward(len - L / 2)];
   const k = Math.ceil((len - EPS) / L);
-  const each = r8(len / k);
+  // Rounded UP to the eighth, so the last piece is the short one and none is longer than a sheet.
+  const each = Math.ceil((len / k) * 8 - 1e-9) / 8;
   const even = [...Array.from({ length: k - 1 }, () => each), len - each * (k - 1)];
   const seen = new Set<string>();
   return [full, [...full].reverse(), half, [...half].reverse(), even].filter((w) => {
