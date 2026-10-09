@@ -185,15 +185,27 @@ Related, for the same review:
 
 - The line under each result (`utils/codeAckCore.ts:42`): "Not a substitute for
   the adopted code. Confirm with your building department."
-- Stored: the tap, the account, the time and the version, **on the device
-  only** (`mageid_code_answer_ack`). Nothing is kept on the server, so MAGE ID
-  cannot later show that a given contractor acknowledged it.
+- Stored: the tap, the account, the time and the version on the device
+  (`mageid_code_answer_ack`). Lane PROTECT-SERVER (landed the same day) also
+  sends one row to `public.legal_acceptances` (kind `code_answer_ack`, the
+  version, a SHA-256 of the words; `utils/legalAcceptanceCore.ts:79`). That
+  needs migration `20261010100000_legal_acceptances.sql` applied; until it is,
+  the row waits on the device.
 
-## 8. Room scan: the accuracy notice
+## 8. Room scan: the first-use notice and the accuracy notice
 
-- Where: `i18n/catalog/en/office.scan-clearance.generated.ts:87`, shown by
+- First-use notice (added by lane PROTECT-SERVER the same day):
+  `utils/legalAcceptanceCore.ts:67-72` (`SCAN_ACK_VERSION = '1'`, `SCAN_ACK_COPY`).
+
+> **Before you rely on a scan**
+> A scan is a first measure. It can be off by an inch or more. Check before you order, cut, price or build from it.
+> Button: "I Understand"
+
+- Stored: one row in `public.legal_acceptances` (kind, version, a SHA-256 of
+  the words, English or Spanish), once the migration above is applied.
+- Standing notice on the clearance screen:
+  `i18n/catalog/en/office.scan-clearance.generated.ts:87`, shown by
   `components/roomScan/ClearanceView.tsx:82`.
-- Text:
 
 > A phone scan can be off by an inch or more, and several of these figures are a matter of an inch. Tape anything that matters before you build to it.
 
@@ -220,8 +232,19 @@ Related, for the same review:
 - Sign Up also keeps its older line under the Create Account button
   (`app/signup.tsx:579-596`): "By creating an account you agree to our Terms of
   Service and Privacy Policy."
-- Stored: **no.** Text only. Nothing records that a given user saw or accepted
-  a given version of the Terms.
+- Stored: the sentence itself records nothing. Lane PROTECT-SERVER (landed
+  the same day) records an acceptance row in `public.legal_acceptances`
+  (Terms version `2026-05-12`, Privacy version `2026-10-04`, each with a
+  SHA-256 of the published page's words) when an account is created from the
+  **Sign Up** screen. A sign-in from the **Log In** screen records nothing yet:
+  `TERMS_SENTENCE_ON_LOGIN_SCREEN` in `utils/legalAcceptanceCore.ts:163` is
+  still `false`, because the sentence was not on that screen when that lane
+  was written. It is on that screen now. Turning the constant on is a separate,
+  small change (the constant, and two checks in
+  `scripts/validate-legal-acceptance.ts` that read the sentence from
+  `app/login.tsx`, where it is now drawn by a shared component).
+- The re-acceptance sheet for existing accounts is built and off
+  (`TERMS_REACCEPT_ENABLED = false`); its sentences are draft.
 
 ## 11. The Notice To Recipients (added by PROTECT-TEXT)
 
@@ -242,8 +265,8 @@ Spanish wording in the same file has not been read by a legal translator.
    stored version is needed before it changes.
 2. Lien waiver consent (item 1): keep, or adopt the suggested alternative or
    another wording, with a new version.
-3. Account creation (item 10) and code answers (item 7): whether acceptance
-   should be recorded on the server.
+3. Account creation (item 10): the wording of the sentence, and the wording of
+   the re-acceptance sheet before it is switched on.
 4. Whether the trailing Notice To Recipients is acceptable on statutory lien
    waiver forms and AIA-style forms (items 1 and 11).
 5. "This record certifies" on the sealed punch record (item 5).
