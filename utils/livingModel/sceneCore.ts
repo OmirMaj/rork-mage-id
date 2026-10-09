@@ -313,3 +313,70 @@ export function fitSpan(bounds: { minX: number; minY: number; maxX: number; maxY
   const d = bounds.maxY - bounds.minY;
   return { cx: (bounds.minX + bounds.maxX) / 2, cz: (bounds.minY + bounds.maxY) / 2, span: Math.max(4, Math.hypot(w, d)) };
 }
+
+/**
+ * How much of the world the camera has to show, at one angle, so the whole
+ * model sits inside the frame: the floor box AND the walls standing on it.
+ * `halfW` runs across the screen and `halfH` up it, both in metres, measured
+ * from the middle of the walls. Full-height walls stand taller than cut ones,
+ * so they ask for more room; the camera pulls back by exactly that much.
+ *
+ * `azimuth` and `elevation` are the camera's angles in radians (elevation 0
+ * looks along the floor, a quarter turn looks straight down).
+ */
+export function viewExtent(
+  bounds: { minX: number; minY: number; maxX: number; maxY: number } | null,
+  wallHeightM: number,
+  azimuth: number,
+  elevation: number,
+): { halfW: number; halfH: number } {
+  const w = bounds ? Math.max(0, bounds.maxX - bounds.minX) : 4;
+  const d = bounds ? Math.max(0, bounds.maxY - bounds.minY) : 4;
+  const h = Number.isFinite(wallHeightM) && wallHeightM > 0 ? wallHeightM : 0;
+  const ca = Math.abs(Math.cos(azimuth));
+  const sa = Math.abs(Math.sin(azimuth));
+  const ce = Math.abs(Math.cos(elevation));
+  const se = Math.abs(Math.sin(elevation));
+  return {
+    halfW: Math.max(1, (ca * w + sa * d) / 2),
+    halfH: Math.max(1, (se * (sa * w + ca * d)) / 2 + (ce * h) / 2),
+  };
+}
+
+/** The share of the frame the model may fill at the home view; the rest is margin for the corner card and the buttons. */
+export const VIEW_FILL = 0.84;
+
+/** Pixels per metre at the home view, so `viewExtent` fits a canvas of the given size with the margin above. */
+export function fitZoom(extent: { halfW: number; halfH: number }, widthPx: number, heightPx: number): number {
+  const z = Math.min(widthPx / (extent.halfW * 2), heightPx / (extent.halfH * 2)) * VIEW_FILL;
+  return Number.isFinite(z) && z > 0 ? z : 1;
+}
+
+/** Where one point of the world lands on the canvas, in pixels from its middle, at a camera angle and zoom. For checking a fit as numbers. */
+export function screenPoint(p: { x: number; y: number; z: number }, target: { x: number; y: number; z: number }, azimuth: number, elevation: number, zoom: number): { x: number; y: number } {
+  const dx = p.x - target.x;
+  const dy = p.y - target.y;
+  const dz = p.z - target.z;
+  const ca = Math.cos(azimuth);
+  const sa = Math.sin(azimuth);
+  const ce = Math.cos(elevation);
+  const se = Math.sin(elevation);
+  return { x: (ca * dx - sa * dz) * zoom, y: (-se * sa * dx + ce * dy - se * ca * dz) * zoom };
+}
+
+/**
+ * How big a room's label may be, from how wide the room is drawn on the canvas.
+ *   'full'  the name and the stage line;
+ *   'name'  the name alone (the stage line would spill over the next room);
+ *   'dot'   a small dot in the stage colour (even the name would not fit).
+ * The selected room and the room under the pointer always show 'full'.
+ */
+export type PinSize = 'full' | 'name' | 'dot';
+export const PIN_FULL_PX = 132;
+export const PIN_NAME_PX = 64;
+export function pinSize(roomWidthPx: number, emphasised: boolean): PinSize {
+  if (emphasised) return 'full';
+  if (!Number.isFinite(roomWidthPx)) return 'name';
+  if (roomWidthPx >= PIN_FULL_PX) return 'full';
+  return roomWidthPx >= PIN_NAME_PX ? 'name' : 'dot';
+}

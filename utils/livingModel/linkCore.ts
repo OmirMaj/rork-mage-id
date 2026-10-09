@@ -74,6 +74,26 @@ export function suggestLinks(room: PlacedRoom, tasks: readonly LinkTask[], ticke
   return out;
 }
 
+/** One line of the Suggested box: the task, its name as printed, and why it was suggested. */
+export interface ListedSuggestion {
+  taskId: string;
+  title: string;
+  reason: SuggestionReason;
+}
+
+/**
+ * The Suggested box for one room: every line it prints, and the ids its
+ * Confirm button ticks. THE TWO ARE THE SAME TASKS, IN THE SAME ORDER, and both
+ * come from here so the screen cannot list one set and tick another. Nothing is
+ * cut short: the box scrolls. A task whose name is not printed is never ticked
+ * by Confirm.
+ */
+export function suggestionBox(room: PlacedRoom, tasks: readonly LinkTask[], ticked: readonly string[]): { listed: ListedSuggestion[]; confirmIds: string[] } {
+  const titleOf = new Map(tasks.map((t) => [t.id, t.title]));
+  const listed: ListedSuggestion[] = suggestLinks(room, tasks, ticked).map((s) => ({ taskId: s.taskId, title: titleOf.get(s.taskId) ?? '', reason: s.reason }));
+  return { listed, confirmIds: listed.map((l) => l.taskId) };
+}
+
 /** Tick the suggested tasks for one room. Called ONLY from the person's tap on Confirm Suggested. */
 export function confirmSuggestions(model: JobModel, roomId: string, taskIds: readonly string[]): JobModel {
   let next = model;
