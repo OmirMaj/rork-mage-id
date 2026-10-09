@@ -43,7 +43,7 @@ Nothing. After deletion there is no row, no file and no log entry that shows a c
 
 These are choices of policy. They are not mutually exclusive; A is built, B to E are not.
 
-**A. Tombstones only (built, see below).** Keep no content. Keep one small row per signed record: what kind it was, its id, when it was signed, a fingerprint of it, and when the account was deleted. No names, no signatures, no amounts.
+**A. Tombstones only (built, see below).** Keep no content. Keep one small row per signed record: what kind it was, its id, when it was signed, a fingerprint of it, and when the account was deleted. No names, no signatures, no amounts. The fingerprints and the account marker are one-way hashes; they are pseudonymous, not anonymous (see What Was Built).
 - Keeps: proof that a signed record existed and was deleted with the account on a date. If the client kept her own copy of the signed document, its fingerprint can be matched.
 - For whom: anyone who can get MAGE ID to look (through support or legal process). No one can read it in the app.
 - Does not help a client who kept no copy.
@@ -85,6 +85,7 @@ It changes nothing about what is deleted.
 - One row per signed record: change order approvals (all decisions), signed lien waivers, contracts with any signature, field tickets with an authorization on the account's own projects, pay applications with a certification date, sealed punch records.
 - Each row: record kind, record id, the client portal's id for approvals, the signed time, a SHA-256 of the row as it stood (the waiver's signing key left out), the record's own stored document fingerprint where it had one, a non-reversible marker of the deleted account, and the time the tombstone was written.
 - No name, email, signature, amount, address or token is copied. The proof script checks that.
+- That is not the same as "no personal data". A tombstone is pseudonymous: it keeps a one-way hash of the signed row, the hash the record itself carried, the record's own id, the client portal's id and a hash of the deleted account's id. None of those can be turned back into a person. But someone who already holds the account id, or a copy of the signed row, can recompute the hash and match it to a tombstone. Counsel should treat these rows as personal data that is kept after deletion, and the Privacy Policy has to say so (the sentence is in `privacy-policy-versus-code.md`, row 19).
 - Service role reads it. No one can change or delete a row. There is no retention job: the period is counsel's call.
 - It is best effort. If the function is missing or fails, deletion goes ahead exactly as today and the response says tombstones were not written. A person's right to delete does not wait on a bookkeeping row.
 - A tombstone is written at the start of the run. If the run stops before deleting, the record still exists; a tombstone proves deletion only together with the record's absence.

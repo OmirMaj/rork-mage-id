@@ -54,7 +54,11 @@
 //
 // What is KEPT ABOUT what is deleted (lane PROTECT-SERVER, 2026-10-09):
 //   - public.signed_record_tombstones: one row per signed record this run is
-//     about to delete (step 1b). Kind, id, times and hashes; no personal data.
+//     about to delete (step 1b). Kind, id, times, a one-way hash of the signed
+//     row and a hash of the account id. No name, email, signature or amount.
+//     These are pseudonymous, not anonymous: someone who already holds the
+//     account id or a copy of the signed row can recompute the hash and match
+//     it. The Privacy Policy has to say they are kept.
 //   - public.legal_acceptances: the account's own acceptances of the Terms of
 //     Service and the Privacy Policy and its acknowledgements. NOT in any list
 //     below, on purpose: its foreign key is ON DELETE SET NULL, so step 4

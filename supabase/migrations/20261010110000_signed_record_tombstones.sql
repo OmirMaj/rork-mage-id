@@ -14,9 +14,20 @@
 --   What to KEEP of those records is a legal policy choice and is not made
 --   here (docs/legal/account-deletion-and-signed-records.md lays out the
 --   options). This file changes nothing about what is deleted. It adds one
---   thing: before the deletion starts, one small row per signed record, with no
---   personal data, so that "a signed record existed and was deleted with the
---   account on this date" stays provable.
+--   thing: before the deletion starts, one small row per signed record, so
+--   that "a signed record existed and was deleted with the account on this
+--   date" stays provable.
+--
+-- WHAT IS KEPT, SAID PLAINLY. A tombstone is pseudonymous data, not "no
+--   personal data": it holds no name, email, signature, amount or address, but
+--   it does hold a one-way hash of the signed row (content_sha256), the hash
+--   the record itself carried, the record's own id, and a hash of the deleted
+--   account's id (account_hash). None of these can be turned back into a
+--   person, but someone who already holds the account id or a copy of the
+--   signed row can recompute the hash and find these rows, so they are about
+--   an identifiable person in the hands of anyone with that other record.
+--   The Privacy Policy has to say they are kept
+--   (docs/legal/privacy-policy-versus-code.md, row 2 and row 19).
 --
 -- WHAT A ROW MEANS. One signed record was about to be deleted with an account.
 --     record_kind      co_approval | lien_waiver | project_contract |
@@ -42,7 +53,8 @@
 --                      deleted anything, the record still exists; a tombstone
 --                      proves deletion only together with the record's absence.
 --   NOT IN A ROW: a name, an email, a signature image, an amount, a project
---   name, an address, a token.
+--   name, an address, a token. IN A ROW, and pseudonymous: the two hashes, the
+--   record id, the portal id and the account hash (see WHAT IS KEPT above).
 --
 -- WHO WRITES. public.tombstone_signed_records(user id, project ids, portal
 --   ids): SECURITY DEFINER, empty search_path, callable by the service role
@@ -112,7 +124,7 @@ create table if not exists public.signed_record_tombstones (
 );
 
 comment on table public.signed_record_tombstones is
-  'One row per signed record that was about to be deleted with an account: kind, id, hashes and times only, no personal data. Written by tombstone_signed_records() from delete-account. Service role reads; nobody changes or deletes.';
+  'One row per signed record that was about to be deleted with an account: kind, id, times, a one-way hash of the signed row and a hash of the account id. No name, email, signature or amount. Pseudonymous: someone holding the account id or a copy of the row can recompute the hash and match it. Written by tombstone_signed_records() from delete-account. Service role reads; nobody changes or deletes.';
 
 create index if not exists idx_signed_record_tombstones_account on public.signed_record_tombstones (account_hash);
 create index if not exists idx_signed_record_tombstones_ref on public.signed_record_tombstones (counterparty_ref) where counterparty_ref is not null;
@@ -371,7 +383,7 @@ begin
   if exists (select 1 from information_schema.columns
               where table_schema = 'public' and table_name = 'signed_record_tombstones'
                 and column_name in ('signer_name', 'signer_email', 'name', 'email', 'signature_data', 'user_id', 'amount', 'token', 'ip', 'user_agent')) then
-    raise exception '[signed_record_tombstones] verify: the table has a personal-data column';
+    raise exception '[signed_record_tombstones] verify: the table has a column that names a person or holds content';
   end if;
 end $$;
 
