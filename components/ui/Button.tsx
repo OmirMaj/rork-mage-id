@@ -521,7 +521,7 @@ export function Button({
         // over `height` and the pill collapsed to its label (a 20 px sliver).
         // The phone's layout engine keeps `height`, so this is web parity and
         // nothing is added to the native array.
-        Platform.OS === 'web' && { minHeight: sz.height },
+        ...(Platform.OS === 'web' ? [{ minHeight: sz.height }] : []),
       ];
 
   // The wrapper is what sits in the caller's layout. On a phone it stays the

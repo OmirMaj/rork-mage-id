@@ -1811,7 +1811,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                   onPress={() => setPickedInvoiceId(inv.id)}
                   activeOpacity={0.8}
                   accessibilityRole="button"
-                  accessibilityLabel={`Invoice ${inv.number}, ${formatMoney(inv.totalDue)}, issued ${inv.issueDate}`}
+                  accessibilityLabel={`Invoice ${inv.number}, ${formatMoney(inv.totalDue)}, issued ${formatCalendarDay(inv.issueDate)}`}
                   testID={`aia-pick-invoice-${inv.id}`}
                 >
                   <View style={{ flex: 1 }}>
@@ -1819,7 +1819,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                       Invoice #{inv.number} · {formatMoney(inv.totalDue)}
                     </Text>
                     <Text style={styles.periodPickRowMeta} numberOfLines={1}>
-                      Issued {inv.issueDate}
+                      Issued {formatCalendarDay(inv.issueDate)}
                       {typeof inv.progressPercent === 'number' ? ` · ${inv.progressPercent}% complete` : ''}
                     </Text>
                   </View>
