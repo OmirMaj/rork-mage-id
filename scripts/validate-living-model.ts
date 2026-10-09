@@ -60,7 +60,7 @@ import {
 } from '../utils/livingModel/modelCore';
 import {
   hasAnyReport, plannedAt, reportedAt, roomCard, roomLayers, roomMoment, taskMoment, weekCount, weekOf,
-  type ReplayClock, type ReplayTask, type ReportPoint,
+  type ReplayClock, type ReplayTask,
 } from '../utils/livingModel/replayCore';
 import { VERTS_PER_BOX, buildRoomGeometry, revealRange, roomHasPipes, triangulate, wallSpans } from '../utils/livingModel/sceneCore';
 import { BUILD_STAGES, STAGE_BY_TRADE, stageForTask } from '../utils/livingModel/stageCore';

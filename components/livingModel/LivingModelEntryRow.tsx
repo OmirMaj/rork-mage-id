@@ -35,7 +35,6 @@ function EntryRow({ projectId }: { projectId: string }) {
       accessibilityRole="button"
       accessibilityLabel={label}
       // `as any`: the typed-route file (.expo/types/router.d.ts) is generated on each machine and may predate this route.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onPress={() => router.push({ pathname: '/living-model' as any, params: { projectId } })}
       testID="living-model-entry-row"
     >

@@ -318,6 +318,11 @@ describe('Job Replay on the phone', () => {
 
   it('13 Reported never shows the plan: a task with nothing reported reads No Progress Reported', async () => {
     await replayWithTicks();
+    // The room added in the editor is still the selected one, so its card is open; a tap on its row closes it and a second opens it again.
+    expect(screen.getByTestId('lm-room-card')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('lm-replay-room-0'));
+    await settle();
+    expect(screen.queryByTestId('lm-room-card')).toBeNull();
     fireEvent.press(screen.getByTestId('lm-replay-room-0'));
     await settle();
     expect(screen.getByTestId('lm-room-card')).toBeTruthy();

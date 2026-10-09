@@ -13,6 +13,7 @@ import { useT } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy, type LivingModelCopy } from '@/hooks/useLivingModelCopy';
+import { Tokens } from '@/constants/designTokens';
 import { SegmentedControl, useReducedMotion } from '@/components/ui';
 import { labelOn } from '@/components/ui/ink';
 import { addWorkingDays } from '@/utils/scheduleEngine';
@@ -213,7 +214,7 @@ export function ReplayControls({ input, state }: { input: ReplayInput; state: Re
         testID="lm-track"
       >
         <View style={styles.trackRail} pointerEvents="none" />
-        {clock.hasStartDate && todayX < w ? <View pointerEvents="none" style={[styles.trackPlan, { left: todayX, width: Math.max(0, w - todayX), borderTopRightRadius: 6, borderBottomRightRadius: 6 }]} /> : null}
+        {clock.hasStartDate && todayX < w ? <View pointerEvents="none" style={[styles.trackPlan, { left: todayX, width: Math.max(0, w - todayX), borderTopRightRadius: Tokens.radius.full, borderBottomRightRadius: Tokens.radius.full }]} /> : null}
         <View pointerEvents="none" style={[styles.trackPast, { width: Math.min(x(offset), clock.hasStartDate ? todayX : 0) }]} />
         {clock.hasStartDate ? <View pointerEvents="none" style={[styles.trackToday, { left: todayX - 1 }]} /> : null}
         <View pointerEvents="none" style={[styles.trackKnob, { left: x(offset) }]} />

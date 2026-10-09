@@ -35,7 +35,7 @@ export type RoomStage = 'no_tasks' | 'not_started' | BuildStage | 'other' | 'don
 export const NOT_BUILD_WORK =
   /inspect|permit|deliver|\border\b|procure|walk[\s-]*through|walkthrough|punch|close[\s-]*out|clean[\s-]*up|cleanup|mobiliz|meeting|submittal|sign[\s-]*off|approval/i;
 
-export const STAGE_BY_WORDS: ReadonlyArray<readonly [RegExp, BuildStage]> = [
+export const STAGE_BY_WORDS: readonly (readonly [RegExp, BuildStage])[] = [
   [/\bdemo\b|demolition|demolish|tear[\s-]*out|tear[\s-]*down|strip[\s-]*out|\bgut\b|gutting|remove (?:old|existing)/i, 'demolition'],
   [/insulat|vapou?r barrier|\bbatts?\b/i, 'insulation'],
   [/drywall|sheetrock|gypsum|\btap(?:e|ing)\b|\bmud(?:ding)?\b|skim coat|plaster/i, 'drywall'],
