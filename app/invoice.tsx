@@ -44,6 +44,7 @@ import { Banknote } from 'lucide-react-native';
 import { fetchStripeConnectStatus, resolveStripeAccount } from '@/utils/stripeConnect';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { useAuth } from '@/contexts/AuthContext';
+import { ProofPackEntryRow } from '@/components/proofPack/ProofPackEntryRow';
 import { loadCashFlowSettings } from '@/utils/cashFlowStorage';
 import { nailIt } from '@/components/animations/NailItToast';
 import { SlideToConfirm, type CommitResult, type CommitWriteOptions, type SlideToConfirmHandle } from '@/components/moments/core/contract';
@@ -3757,6 +3758,10 @@ function InvoiceInner() {
               </View>
               <Text style={styles.aiaCtaArrow}>›</Text>
             </TouchableOpacity>
+          )}
+          {/* Lane PROOFPACK: renders nothing unless the gate and the owner seat both say yes. Never on a sample job. */}
+          {existingInvoice && !isSampleJob && (
+            <ProofPackEntryRow projectId={existingInvoice.projectId} kind="invoice" payId={existingInvoice.id} />
           )}
           </TutorialScrollAnchor>
         </ScrollView>
