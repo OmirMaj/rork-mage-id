@@ -22,6 +22,7 @@ import { supabase } from '@/lib/supabase';
 import { __setSmokeSession } from '@/__tests__/mocks/supabase';
 import {
   addToOfflineQueue,
+  cancelQueuedRpc,
   clearOfflineQueue,
   discardQueuedWrites,
   doomWatermark,
@@ -1587,6 +1588,66 @@ describe('integration round 1 — the queue is never rebuilt from an unreadable 
     expect(note.table).toBeUndefined();
     expect(await unsavedWriteIds('daily_reports')).toEqual(new Set());
     expect(await countOwnUnsavedRecords()).toBe(0);
+  });
+});
+
+describe('cancelQueuedRpc: a call the person withdrew is taken out, and only that call', () => {
+  const P = '10000000-0000-4000-8000-000000000001';
+  const P2 = '10000000-0000-4000-8000-000000000002';
+  const save = (id: string, project: string, extra: Partial<Seed> = {}): Seed => ({ id, table: 'living_models', operation: 'rpc', data: { id: project }, rpc: { fn: 'living_model_save', args: { p_project_id: project } }, ...extra });
+
+  test('removes this project\'s queued living_model_save for this account, keeps everything else, writes no Not-saved line and shows no toast', async () => {
+    await seed([
+      { id: 'other-table', table: 'daily_reports', operation: 'update', data: { id: P, project_id: P } },
+      save('mine', P),
+      save('other-project', P2),
+      save('other-account', P, { userId: USER_B }),
+      save('untagged', P, { userId: undefined }),
+      { id: 'other-fn', table: 'living_models', operation: 'rpc', data: { id: P }, rpc: { fn: 'living_model_remove', args: { p_project_id: P } } },
+      { id: 'project-write', table: 'projects', operation: 'update', data: { id: P, name: 'x' } },
+      save('mine-again', P),
+    ]);
+    const depths: number[] = [];
+    const off = onQueueChanged((d) => depths.push(d));
+    oops.mockClear();
+    const res = await cancelQueuedRpc('living_models', P, 'living_model_save', USER_A);
+    off();
+    expect(res).toEqual({ removed: 2, readFailed: false });
+    expect((await getOfflineQueue()).map((m) => m.id)).toEqual(['other-table', 'other-project', 'other-account', 'untagged', 'other-fn', 'project-write']);
+    expect(depths).toEqual([6]);
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    expect(await readSyncFailuresOrThrow()).toHaveLength(0);
+    expect(oops).not.toHaveBeenCalled();
+  });
+
+  test('after the cancel a flush sends nothing for that project', async () => {
+    __setSmokeSession(sessionFor(USER_A));
+    await AsyncStorage.setItem(LAST_USER_KEY, USER_A);
+    installScript(ok);
+    await seed([save('mine', P)]);
+    await cancelQueuedRpc('living_models', P, 'living_model_save', USER_A);
+    await processOfflineQueue();
+    expect(calls.filter((c) => c.table.includes('living_model'))).toHaveLength(0);
+    expect(await getOfflineQueue()).toHaveLength(0);
+  });
+
+  test('nothing to cancel, a missing argument, and an unreadable queue remove nothing', async () => {
+    await seed([save('other-project', P2)]);
+    await expect(cancelQueuedRpc('living_models', P, 'living_model_save', USER_A)).resolves.toEqual({ removed: 0, readFailed: false });
+    await expect(cancelQueuedRpc('living_models', P2, 'living_model_save', '')).resolves.toEqual({ removed: 0, readFailed: false });
+    await expect(cancelQueuedRpc('', P2, 'living_model_save', USER_A)).resolves.toEqual({ removed: 0, readFailed: false });
+    expect((await getOfflineQueue()).map((m) => m.id)).toEqual(['other-project']);
+    const real = (AsyncStorage.getItem as jest.Mock).getMockImplementation();
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
+      if (key === QUEUE_KEY) throw new Error('CursorWindow: row too big');
+      return real ? real(key) : null;
+    });
+    try {
+      await expect(cancelQueuedRpc('living_models', P2, 'living_model_save', USER_A)).resolves.toEqual({ removed: 0, readFailed: true });
+    } finally {
+      if (real) (AsyncStorage.getItem as jest.Mock).mockImplementation(real);
+    }
+    expect((await getOfflineQueue()).map((m) => m.id)).toEqual(['other-project']);
   });
 });
 

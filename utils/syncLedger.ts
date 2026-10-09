@@ -594,6 +594,7 @@ const TABLE_LABELS: Record<string, string> = {
   // List round 3: the account copies of saved code checks and the desktop takeoff.
   code_checks: 'Saved Code Check',
   takeoff_docs: 'Desktop Takeoff',
+  living_models: 'Living Model',
   // Lane HEALTH (H1): the account copy of a backcharge against a sub.
   backcharges: 'Backcharge',
 };

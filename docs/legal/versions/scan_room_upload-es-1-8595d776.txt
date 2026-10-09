@@ -1,0 +1,2 @@
+Este modelo incluye un cuarto que escaneaste.
+Guardarlo en tu cuenta envía el nombre del cuarto y sus medidas: contorno del piso, altura del techo, paredes, puertas, ventanas y muebles fijos, y que el cuarto viene de un escaneo. Van a los servidores de MAGE ID para que tus otros dispositivos y tu equipo en este proyecto puedan verlos. No se envía ninguna foto ni video. Se te pregunta de nuevo por cada cuarto escaneado que agregues después.
