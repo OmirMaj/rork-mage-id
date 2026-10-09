@@ -25,7 +25,7 @@ import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { Button } from '@/components/ui';
 import { LivingModelScreen } from '@/components/livingModel/LivingModelScreen';
 import { makeLivingModelStyles } from '@/components/livingModel/styles';
-import { livingModelAllowed, livingModelSeat } from '@/utils/livingModel/allowed';
+import { livingModelAllowed, livingModelOwnerTools, livingModelSeat } from '@/utils/livingModel/allowed';
 
 export default function LivingModelRoute() {
   const { user, isLoading } = useAuth();
@@ -35,7 +35,7 @@ export default function LivingModelRoute() {
   // the owner to Home on every refresh of this page.
   if (isLoading) return <AuthSettling />;
   if (!livingModelAllowed(user?.email)) return <Redirect href="/(tabs)/(home)" />;
-  return <Gated userId={user?.id ?? null} />;
+  return <Gated userId={user?.id ?? null} ownerTools={livingModelOwnerTools(user?.email)} />;
 }
 
 /** A blank page in the theme's colour while the saved sign-in is read. No words: it is on screen for a moment, and for everyone. */
@@ -49,7 +49,7 @@ function AuthSettling() {
   );
 }
 
-function Gated({ userId }: { userId: string | null }) {
+function Gated({ userId, ownerTools }: { userId: string | null; ownerTools: boolean }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const copy = useLivingModelCopy();
@@ -75,7 +75,7 @@ function Gated({ userId }: { userId: string | null }) {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <LivingModelScreen projectId={projectId} userId={userId} />
+      <LivingModelScreen projectId={projectId} userId={userId} ownerTools={ownerTools} />
     </>
   );
 }

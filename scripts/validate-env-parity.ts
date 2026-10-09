@@ -53,6 +53,15 @@ const EAS_ENV_MANAGED: Record<string, string> = {
     'EAS env var on production+preview (set 2026-09-07). eas.json declared it as "" which fails EAS schema validation and blocked every production build.',
 };
 
+/**
+ * Keys that must be in NO build profile, on purpose. Absent is the safe state: the code reads "not set" as off.
+ * Declaring one in eas.json would switch on something only a Mac-made simulator build may have.
+ */
+const NEVER_IN_A_BUILD: Record<string, string> = {
+  EXPO_PUBLIC_PHONE3D_SPIKE:
+    'app/dev-phone-3d.tsx (the phone 3D check). Set only in the shell of the person making a simulator build. Not set = the route redirects Home. scripts/validate-phone-3d.ts rule E1 also fails if it appears in eas.json, app.json, a workflow or a committed env file.',
+};
+
 let failed = 0;
 function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? '✓' : '✗'} ${label}${cond || !detail ? '' : `\n      ${detail}`}`);
@@ -93,6 +102,10 @@ for (const [key, files] of [...reads.entries()].sort()) {
   const inPrev = prev.has(key);
   const safe = key in FALLBACK_SAFE;
   const easManaged = key in EAS_ENV_MANAGED;
+  if (key in NEVER_IN_A_BUILD) {
+    ok(`${key} is in no build profile, on purpose (absent = off)`, !inProd && !inPrev, `read in ${[...files].join(', ')}; production=${inProd} preview=${inPrev}. ${NEVER_IN_A_BUILD[key]}`);
+    continue;
+  }
   ok(
     `${key} is declared for production+preview, EAS-managed, or has a located fallback`,
     (inProd && inPrev) || safe || easManaged,
@@ -103,6 +116,10 @@ for (const [key, files] of [...reads.entries()].sort()) {
 }
 for (const key of Object.keys(FALLBACK_SAFE)) {
   ok(`FALLBACK_SAFE entry ${key} is still read somewhere (stale allow-list otherwise)`, reads.has(key));
+}
+for (const key of Object.keys(NEVER_IN_A_BUILD)) {
+  ok(`NEVER_IN_A_BUILD entry ${key} is still read somewhere (stale allow-list otherwise)`, reads.has(key));
+  ok(`${key} appears nowhere in eas.json, in any profile`, !readFileSync(join(ROOT, 'eas.json'), 'utf8').includes(key));
 }
 for (const key of Object.keys(EAS_ENV_MANAGED)) {
   ok(`EAS_ENV_MANAGED entry ${key} is still read somewhere (stale allow-list otherwise)`, reads.has(key));

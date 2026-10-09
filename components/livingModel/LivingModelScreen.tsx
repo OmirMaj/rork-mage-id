@@ -5,7 +5,15 @@
 //   Rooms       the Room Editor: make the model from typed sizes and saved scans.
 //   Tasks       tick which schedule tasks happen in each room.
 //   Job Replay  play the job from start to finish, planned against reported.
-//               In 3D on the web; drawn flat on the phone, which says so.
+//               In 3D on the web and on the phone. Drawn flat, with one line
+//               that says why, where the 3D view cannot start: a browser with
+//               no WebGL (the screen draws it), or a phone build with no 3D
+//               engine (JobReplay3D.tsx draws it and tells the screen, onFlat).
+//
+// ON THE PHONE one finger turns the model, so while a finger is on it the page
+// is held still (scrollEnabled); the page scrolls from anywhere outside the
+// model's box. The owner also gets a 3D Quality switch there (Standard / High,
+// utils/livingModel/phoneViewCore.PHONE_3D_QUALITY) to compare on his own phone.
 //
 // The model is SAVED ON THIS DEVICE ONLY FOR NOW (utils/livingModel/storeCore)
 // and the Room Editor says so. Every change is the person's: this screen
@@ -22,7 +30,7 @@
 // are the model (JobModel), the per-room moment (replayCore.roomMoment) and the
 // 3D view's `looks`; nothing here depends on how those later features are made.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,12 +38,14 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
+import { usePhone3DCopy } from '@/hooks/usePhone3DCopy';
 import { Button, SegmentedControl } from '@/components/ui';
 import { useIsDesktop } from '@/components/ui/desktop';
 import { canRedo, canUndo, historyOf, historyPush, historyRedo, historyUndo, type History } from '@/utils/livingModel/historyCore';
 import { emptyJobModel, modelLevels } from '@/utils/livingModel/modelCore';
 import { cardWhen, weekCount, weekOf } from '@/utils/livingModel/replayCore';
 import { buildReplayInput } from '@/utils/livingModel/replayInput';
+import type { Phone3DQuality } from '@/utils/livingModel/phoneViewCore';
 import { loadJobModel, saveJobModel } from '@/utils/livingModel/store';
 import { mayWriteModel, type LoadState } from '@/utils/livingModel/storeCore';
 import type { JobModel } from '@/utils/livingModel/types';
@@ -49,7 +59,10 @@ import { makeLivingModelStyles } from './styles';
 
 type Tab = 'rooms' | 'tasks' | 'replay';
 
-export function LivingModelScreen({ projectId, userId }: { projectId: string; userId: string | null }) {
+/** The quality the owner last chose, kept while the app is open. Nothing is stored. */
+let chosenQuality: Phone3DQuality = 'standard';
+
+export function LivingModelScreen({ projectId, userId, ownerTools = false }: { projectId: string; userId: string | null; /** The owner's own switches (3D Quality on the phone). */ ownerTools?: boolean }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -66,6 +79,8 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
   const [now] = useState(() => new Date());
+  // A finger is on the phone's 3D model: the page does not scroll under it.
+  const [modelHeld, setModelHeld] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -139,7 +154,7 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
           testID="living-model-tabs"
         />
       </View>
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]} keyboardShouldPersistTaps="handled" scrollEnabled={!(modelHeld && tab === 'replay')} testID="living-model-scroll">
         {saveFailed ? <Text style={styles.warn} testID="lm-save-failed">{copy.saveFailedBody}</Text> : null}
         {!model ? <Text style={styles.note}>{copy.loadingBody}</Text> : null}
         {model && blocked ? (
@@ -173,14 +188,14 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
           <TaskLinks model={model} input={input} roomId={selectedId} onRoom={setSelectedId} onChange={onChange} />
         ) : null}
         {model && !blocked && tab === 'replay' ? (
-          <ReplayTab model={model} input={input} level={level} onLevel={setLevel} selectedId={selectedId} onSelect={setSelectedId} wide={wide} onSetStartDate={onSetStartDate} />
+          <ReplayTab model={model} input={input} level={level} onLevel={setLevel} selectedId={selectedId} onSelect={setSelectedId} wide={wide} onSetStartDate={onSetStartDate} onHoldModel={setModelHeld} ownerTools={ownerTools} />
         ) : null}
       </ScrollView>
     </View>
   );
 }
 
-function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide, onSetStartDate }: {
+function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide, onSetStartDate, onHoldModel, ownerTools }: {
   model: JobModel;
   input: ReturnType<typeof buildReplayInput>;
   level: number;
@@ -189,20 +204,31 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide, o
   onSelect: (id: string | null) => void;
   wide: boolean;
   onSetStartDate: () => void;
+  onHoldModel: (held: boolean) => void;
+  ownerTools: boolean;
 }) {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
+  const phoneCopy = usePhone3DCopy();
   const state = useReplayState(input);
   const roomTasks = useRoomTasks(model, input);
   const moments = useRoomMoments(roomTasks, input, state.offset, state.mode);
   const [no3d, setNo3d] = useState(false);
+  // The phone's 3D view is drawing the flat replay itself (JobReplay3D.tsx, with its own one line).
+  const [phoneFlat, setPhoneFlat] = useState(false);
+  const [quality, setQuality] = useState<Phone3DQuality>(() => chosenQuality);
+  const onQuality = useCallback((q: Phone3DQuality) => { chosenQuality = q; setQuality(q); }, []);
+  const onPhone = Platform.OS !== 'web';
   const levels = useMemo(() => modelLevels(model), [model]);
   const selected = model.rooms.find((r) => r.id === selectedId && r.level === level) ?? null;
   const anyTicked = useMemo(() => Array.from(roomTasks.values()).some((t) => t.length > 0), [roomTasks]);
   const past = input.clock.hasStartDate ? state.offset > input.clock.todayOffset + 1e-6 : true;
   const atToday = cardWhen(state.offset, input.clock) === 'today';
   const weekLine = copy.weekLabel(weekOf(state.offset, input.clock), weekCount(input.clock));
-  const threeD = JOB_REPLAY_3D_ON_THIS_PLATFORM && !no3d;
+  /** The 3D view is mounted. On the phone it may still be drawing the flat replay itself. */
+  const try3d = JOB_REPLAY_3D_ON_THIS_PLATFORM && !no3d;
+  /** A 3D picture is what is on the screen. */
+  const threeD = try3d && !phoneFlat;
 
   if (model.rooms.length === 0) {
     return (
@@ -224,21 +250,30 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide, o
           ))}
         </View>
       ) : null}
-      {threeD ? (
+      {try3d ? (
         <>
-          <JobReplay3D model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} onUnavailable={() => setNo3d(true)} weekLine={weekLine} atToday={atToday} height={wide ? 560 : 380} compact={!wide} />
+          <JobReplay3D model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} onUnavailable={() => setNo3d(true)} onFlat={setPhoneFlat} onHold={onHoldModel} quality={quality} weekLine={weekLine} atToday={atToday} height={wide ? 560 : 380} compact={!wide} />
           {wide ? null : <StageLegend />}
-          <Text style={styles.note} testID="lm-3d-hint">{wide ? copy.orbitHelpSub : copy.touchHelpSub}</Text>
+          {threeD ? <Text style={styles.note} testID="lm-3d-hint">{onPhone ? phoneCopy.touchHelpSub : wide ? copy.orbitHelpSub : copy.touchHelpSub}</Text> : null}
+          {threeD && onPhone && ownerTools ? (
+            <View style={styles.stack} testID="lm-3d-quality">
+              <Text style={styles.eyebrow}>{phoneCopy.qualityLabel}</Text>
+              <SegmentedControl<Phone3DQuality>
+                options={[{ value: 'standard', label: phoneCopy.qualityStandardLabel }, { value: 'high', label: phoneCopy.qualityHighLabel }]}
+                value={quality}
+                onChange={onQuality}
+                size="sm"
+                accessibilityLabel={phoneCopy.qualityLabel}
+                testID="lm-3d-quality-switch"
+              />
+              <Text style={styles.note}>{phoneCopy.qualityHelpSub}</Text>
+            </View>
+          ) : null}
         </>
       ) : (
         <>
-          <View style={styles.panel} testID={JOB_REPLAY_3D_ON_THIS_PLATFORM ? 'lm-no-webgl' : 'lm-phone-note'}>
-            {JOB_REPLAY_3D_ON_THIS_PLATFORM ? <Text style={styles.para}>{copy.noWebglBody}</Text> : (
-              <>
-                <Text style={styles.panelHeading}>{copy.phoneNoteTitleBody}</Text>
-                <Text style={styles.para}>{copy.phoneNoteBody}</Text>
-              </>
-            )}
+          <View style={styles.panel} testID="lm-no-webgl">
+            <Text style={styles.para}>{copy.noWebglBody}</Text>
           </View>
           <FlatReplay model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} />
           <StageLegend />

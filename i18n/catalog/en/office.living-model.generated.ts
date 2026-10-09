@@ -124,8 +124,6 @@ export const EN: EnCatalog = {
   "office.livingModel.replay.nothingTickedBody": "No tasks are ticked for any room yet. Open Tasks and tick them, and the replay will have something to play.",
   "office.livingModel.replay.orbitHelpSub": "Drag to turn. Hold Shift and drag to move. To zoom with the wheel, click the model first or hold Ctrl or Cmd",
   "office.livingModel.replay.pauseLabel": "Pause",
-  "office.livingModel.replay.phoneNoteBody": "Open this job in the web app to turn the model and play it in 3D. Here is the same replay, drawn flat.",
-  "office.livingModel.replay.phoneNoteTitleBody": "The 3D view is on the web for now.",
   "office.livingModel.replay.planStageSub": "Plan: {stage}",
   "office.livingModel.replay.plannedLabel": "Planned",
   "office.livingModel.replay.playLabel": "Play",

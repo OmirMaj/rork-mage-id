@@ -22,6 +22,11 @@
 // sceneCore.viewExtent with the height the walls are drawn at, so full-height
 // walls stay inside the frame on Reset View.
 //
+// THE CALLER MAY SET THREE COSTS (JobSceneOptions): the pixel-ratio cap, the
+// renderer's own edge smoothing and the shadow map's size. Left out, each is
+// what the web has always used (2, on, 2048), so the web view is unchanged.
+// The phone (components/livingModel/phone3d) sets all three.
+//
 // ONE SCENE, ONE CANVAS. `dispose` gives the WebGL context back to the browser
 // (forceContextLoss), so a canvas that held a scene cannot hold another: the
 // web view mounts a fresh canvas for each scene it makes.
@@ -94,8 +99,33 @@ interface RoomMeshes {
 
 const ease = (x: number): number => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
 
-export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette: LivingModelPalette, opts: { preserveDrawingBuffer?: boolean } = {}): JobSceneHandle {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: !!opts.preserveDrawingBuffer });
+/**
+ * Can this renderer's context be given back? Every browser's can. Asked with `has`, which answers without a warning
+ * (forceContextLoss itself asks with `get`, which prints one where the answer is no). A renderer that cannot be asked is taken as yes.
+ */
+function canLoseContext(renderer: { extensions?: { has?: (name: string) => boolean } }): boolean {
+  const has = renderer.extensions?.has;
+  if (typeof has !== 'function') return true;
+  return has.call(renderer.extensions, 'WEBGL_lose_context') === true;
+}
+
+export interface JobSceneOptions {
+  preserveDrawingBuffer?: boolean;
+  /** The renderer's own edge smoothing. On when left out (the web). The phone smooths in its drawing surface instead. */
+  antialias?: boolean;
+  /** The most pixels a unit `resize` will accept. 2 when left out (the web). */
+  maxPixelRatio?: number;
+  /** The shadow map's width and height in pixels. 2048 when left out (the web). */
+  shadowMapSize?: number;
+}
+
+/** What the web has always used. A caller that passes no option gets exactly these. */
+export const WEB_SCENE_DEFAULTS = { antialias: true, maxPixelRatio: 2, shadowMapSize: 2048 } as const;
+
+export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette: LivingModelPalette, opts: JobSceneOptions = {}): JobSceneHandle {
+  const maxPixelRatio = typeof opts.maxPixelRatio === 'number' && opts.maxPixelRatio >= 1 ? opts.maxPixelRatio : WEB_SCENE_DEFAULTS.maxPixelRatio;
+  const shadowMapSize = typeof opts.shadowMapSize === 'number' && opts.shadowMapSize >= 256 ? Math.round(opts.shadowMapSize) : WEB_SCENE_DEFAULTS.shadowMapSize;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: opts.antialias ?? WEB_SCENE_DEFAULTS.antialias, alpha: false, preserveDrawingBuffer: !!opts.preserveDrawingBuffer });
   renderer.setClearColor(palette.ground, 1);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -104,9 +134,10 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
   scene.add(new THREE.HemisphereLight(palette.sky, palette.plinth, palette.skyStrength));
   const sun = new THREE.DirectionalLight(palette.sun, palette.sunStrength);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
   sun.shadow.bias = -0.0006;
-  sun.shadow.normalBias = 0.02;
+  // A smaller shadow map has larger texels, so a surface is pushed further off its own shadow by the same measure. 0.02 at the web's 2048.
+  sun.shadow.normalBias = 0.02 * (WEB_SCENE_DEFAULTS.shadowMapSize / shadowMapSize);
   scene.add(sun);
   scene.add(sun.target);
 
@@ -308,7 +339,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
     resize(width, height, pixelRatio) {
       V.w = Math.max(1, width);
       V.h = Math.max(1, height);
-      renderer.setPixelRatio(Math.min(2, Math.max(1, pixelRatio)));
+      renderer.setPixelRatio(Math.min(maxPixelRatio, Math.max(1, pixelRatio)));
       renderer.setSize(V.w, V.h, false);
       updateCamera();
     },
@@ -381,7 +412,8 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
       for (const m of Object.values(M)) m.dispose();
       renderer.dispose();
       // Give the WebGL context back now. A browser keeps only a handful, and a page that opens and closes this view should not use them up.
-      try { renderer.forceContextLoss(); } catch { /* the context is already gone */ }
+      // Only where the context can be given back: a phone's drawing surface has no WEBGL_lose_context and ends with its own view.
+      try { if (canLoseContext(renderer)) renderer.forceContextLoss(); } catch { /* the context is already gone */ }
     },
   };
 }
