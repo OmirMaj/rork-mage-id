@@ -896,12 +896,12 @@ export default function PunchListScreen() {
   return <PunchListScreenInner ownTier={ownTier} />;
 }
 
-/** The access wall's non-paywall answers (#127): checking, couldn't check,
- *  offline with no role on this phone, not on this job. Never a spinner that
- *  cannot end, never a paywall over a job he was invited to. */
 /** Web header: the back button's 52 px plus the Export button and its margins. */
 const PUNCH_HEADER_WEB_RESERVE = 168;
 
+/** The access wall's non-paywall answers (#127): checking, couldn't check,
+ *  offline with no role on this phone, not on this job. Never a spinner that
+ *  cannot end, never a paywall over a job he was invited to. */
 function PunchGateView({ state, reason, onRetry }: {
   state: 'loading' | 'error' | 'paused' | 'missing';
   reason?: string;
