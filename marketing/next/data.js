@@ -81,8 +81,8 @@ window.MAGE_DATA = (function () {
   var DIMS = [
     { at: [6, 0.32, 10.25], text: '30 ft 0 in', show: [0.5, 1.55] },
     { at: [-1.25, 0.32, 4.5], text: '22 ft 6 in', show: [0.56, 1.55] },
-    { at: [4, 0.32, 2.7], text: 'Living', show: [0.66, 1.9], room: 1 },
-    { at: [10, 0.32, 2], text: 'Kitchen', show: [0.7, 1.9], room: 1 },
+    { at: [3, 0.32, 3.6], text: 'Living', show: [0.66, 1.9], room: 1 },
+    { at: [10, 0.32, 2.4], text: 'Kitchen', show: [0.7, 1.9], room: 1 },
     { at: [2.5, 0.32, 7.3], text: 'Bedroom', show: [0.74, 1.9], room: 1 },
     { at: [6.5, 0.32, 7.3], text: 'Bath', show: [0.78, 1.9], room: 1 }
   ];
@@ -93,7 +93,7 @@ window.MAGE_DATA = (function () {
       sub: 'Upload a plan PDF and the app reads quantities off the pages. You check and edit them. You can also measure on a plan by hand.',
       rows: [['Pages read a month on Pro', '', '30'], ['On Business', '', '100'], ['On Enterprise', '', '300']],
       note: 'Takeoff is on Pro and up. It is not on the Free plan.' },
-    { id: 'estimate', at: [4, 0.4, 2.7], show: [0.5, 1.6], tag: 'Win It', plan: 'Free', title: 'The Estimate',
+    { id: 'estimate', at: [5.8, 0.4, 1.3], show: [0.5, 1.6], tag: 'Win It', plan: 'Free', title: 'The Estimate',
       sub: 'Build it line by line on any plan. On Pro, the assistant drafts it and you approve every line.',
       rows: [['Ten lines', 'Example job', '$74,854.70'], ['Base', '', '$66,426.00'], ['Markup', '', '+$8,428.70']],
       note: 'Example numbers. On an AI draft, lines priced from your price book are marked. The rest use market averages until you add a rate.' },

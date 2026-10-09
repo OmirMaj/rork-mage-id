@@ -424,9 +424,9 @@
     }
 
     dry.u.uTint.value.set(0.77, 0.78, 0.75);
-    var duskSky = new THREE.Color(0x8FA3C4), glassA = new THREE.Color(0xffffff), glassB = new THREE.Color(0xFFE9B0), glassE = new THREE.Color(0xC98A1E);
+    var duskSky = new THREE.Color(0x8FA3C4), glassA = new THREE.Color(0xffffff), glassB = new THREE.Color(0xFFD9A8), glassE = new THREE.Color(0xE09A3A);
     var lamps = [[3.6, 2.6, 0.9], [10, 2, 0.75], [2.4, 7.3, 0.6], [6.4, 7.2, 0.5], [10, 6.6, 0.55], [13.2, 6.4, 0.5]].map(function (p) {
-      var L = new THREE.PointLight(0xFFD08A, 0, 7.5, 1.6); L.position.set(p[0], Y + 1.25, p[1]); L.userData.full = p[2]; scene.add(L); return L;
+      var L = new THREE.PointLight(0xFFC477, 0, 7, 1.5); L.position.set(p[0], Y + 1.25, p[1]); L.userData.full = p[2]; scene.add(L); return L;
     });
     /* lamp shades that glow, and a porch light by the door */
     var glow = new Layer(-1, -0.5, { lift: 0, glow: 1 });
@@ -451,9 +451,9 @@
       var dusk = smooth((s - 4.72) / 0.26);
       if (dusk !== S.dusk) {
         S.dusk = dusk;
-        hemi.intensity = lerp(0.72, 0.4, dusk); hemi.color.setHex(0xffffff).lerp(duskSky, dusk); sun.intensity = lerp(0.44, 0.16, dusk);
+        hemi.intensity = lerp(0.72, 0.6, dusk); hemi.color.setHex(0xffffff).lerp(duskSky, dusk * 0.7); sun.intensity = lerp(0.44, 0.3, dusk);
         for (i = 0; i < lamps.length; i++) lamps[i].intensity = lamps[i].userData.full * dusk;
-        glass.mat.color.copy(glassA).lerp(glassB, dusk); glass.mat.emissive.copy(glassE).multiplyScalar(dusk); glass.mat.opacity = lerp(0.5, 0.92, dusk);
+        glass.mat.color.copy(glassA).lerp(glassB, dusk); glass.mat.emissive.copy(glassE).multiplyScalar(dusk * 0.55); glass.mat.opacity = lerp(0.5, 0.72, dusk);
         glow.mesh.visible = dusk > 0.01; glow.mat.opacity = dusk;
       }
       car.mesh.position.x = lerp(0, 4.5, smooth((s - 4.7) / 0.3));
