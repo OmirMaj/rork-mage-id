@@ -122,16 +122,22 @@ export const AUTO_RENEW_IOS = autoRenewText('ios');
  * what is charged, how often, that it renews, what a free trial turns into,
  * and how to cancel. Plain words, one wording (PROTECT-TEXT, 2026-10-09). The
  * auto-renew sentence above stays where Apple's review expects it; this one
- * sits above the buttons so nobody has to scroll past them to learn it. On
- * the web a plan is cancelled by email (the Terms say so, and Settings sends
- * the same mailto), so the web sentence says that and not "in Settings".
+ * sits above the buttons so nobody has to scroll past them to learn it.
+ *
+ * WEBCANCEL (2026-10-09): the web sentence used to say "email help@mageid.app"
+ * and nothing else, because Settings had no other route. Settings, Manage
+ * Subscription now opens the billing page RevenueCat reports for a plan bought
+ * on the web (utils/manageSubscription), so the sentence names that row. The
+ * email stays in it as the fallback, because that is what the row shows when
+ * RevenueCat reports no page. The phone sentences are unchanged: a store plan
+ * is cancelled in the store account, which is where the row sends him.
  */
 export function renewalFactsText(os: string, trialDays = 0): string {
   const cancel = os === 'ios'
     ? 'To cancel, open your App Store account settings at least 24 hours before the renewal date.'
     : os === 'android'
       ? 'To cancel, open your Google Play account settings at least 24 hours before the renewal date.'
-      : 'To cancel, email help@mageid.app before the renewal date.';
+      : 'You can cancel any time from Settings, Manage Subscription. If no billing page opens there, email help@mageid.app.';
   const trial = trialDays > 0
     ? ` The ${trialDays}-day free trial becomes a paid plan at that price when it ends, unless you cancel before then.`
     : '';

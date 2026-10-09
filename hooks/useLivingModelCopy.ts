@@ -43,11 +43,16 @@ export interface LivingModelCopy {
   seatBody: (s: Exclude<LivingModelSeat, 'open'>) => string;
   retryLabel: string;
   loadingBody: string;
+  unreadableTitleBody: string;
+  unreadableBody: string;
+  startNewLabel: string;
+  startedNewBody: string;
   // ── the two lines every view carries, and the rest of the plain talk ──
   schematicBody: string;
   progressBody: string;
   ghostBody: string;
   savedLocalBody: string;
+  otherDevicesBody: string;
   saveFailedBody: string;
   scanCaveatBody: string;
   // ── the Room Editor ──
@@ -116,6 +121,11 @@ export interface LivingModelCopy {
   goneBody: (n: number) => string;
   tickA11yLabel: (task: string, room: string) => string;
   stageName: (s: RoomStage) => string;
+  stageHelpBody: string;
+  stagePickA11yLabel: (task: string) => string;
+  stagePickerLabel: string;
+  stagePickedSub: (stage: string) => string;
+  stageFromTitleLabel: string;
   // ── Job Replay ──
   weekLabel: (n: number, total: number) => string;
   weekShortLabel: (n: number) => string;
@@ -132,8 +142,12 @@ export interface LivingModelCopy {
   resetViewLabel: string;
   legendHeadingLabel: string;
   orbitHelpSub: string;
+  touchHelpSub: string;
+  contextLostBody: string;
+  reloadViewLabel: string;
   canvasA11yBody: string;
   noStartBody: string;
+  setStartLabel: string;
   nothingTickedBody: string;
   loading3dBody: string;
   noWebglBody: string;
@@ -143,6 +157,14 @@ export interface LivingModelCopy {
   // ── the room card ──
   roomReportedLabel: string;
   roomPlannedLabel: string;
+  planAheadLabel: string;
+  asOfTodaySub: string;
+  forWeekSub: (week: number, total: number) => string;
+  undatedReportedSub: string;
+  planOnlyBody: string;
+  averageReportedBody: (n: number) => string;
+  averagePlannedBody: (n: number) => string;
+  plannedPctSub: (n: number) => string;
   nextHereLabel: string;
   nextBody: (task: string, week: number) => string;
   allDoneBody: string;
@@ -205,10 +227,15 @@ export function useLivingModelCopy(): LivingModelCopy {
       },
       retryLabel: t('office.livingModel.seat.retryLabel', 'Try Again'),
       loadingBody: t('office.livingModel.loadingBody', 'Reading the model saved on this device.'),
+      unreadableTitleBody: t('office.livingModel.load.unreadableTitleBody', 'The model saved on this device could not be read.'),
+      unreadableBody: t('office.livingModel.load.unreadableBody', 'It has not been changed or removed, and a copy of it is kept on this device. You can start a new model for this job. Nothing is saved over the old one until you do.'),
+      startNewLabel: t('office.livingModel.load.startNewLabel', 'Start a New Model'),
+      startedNewBody: t('office.livingModel.load.startedNewBody', 'You started a new model. A copy of the one that could not be read is still kept on this device.'),
       schematicBody: t('office.livingModel.honesty.schematicBody', 'Schematic made from typed and scanned sizes. Not to scale for building.'),
       progressBody: t('office.livingModel.honesty.progressBody', 'Progress shown is what was reported in MAGE ID.'),
       ghostBody: t('office.livingModel.honesty.ghostBody', 'Past today, the faint shapes are the plan.'),
       savedLocalBody: t('office.livingModel.honesty.savedLocalBody', 'Saved on this device only for now.'),
+      otherDevicesBody: t('office.livingModel.honesty.otherDevicesBody', 'It will not appear on your other devices.'),
       saveFailedBody: t('office.livingModel.honesty.saveFailedBody', 'This change could not be saved on this device.'),
       scanCaveatBody: t('office.livingModel.honesty.scanCaveatBody', 'This room came from a phone scan. A phone scan can be off by an inch or more.'),
       addRoomLabel: t('office.livingModel.editor.addRoomLabel', 'Add Room'),
@@ -307,6 +334,11 @@ export function useLivingModelCopy(): LivingModelCopy {
       }),
       tickA11yLabel: (task, room) => t('office.livingModel.tasks.tickA11yLabel', '{task}, in {room}', { task, room }),
       stageName: (s) => stages[s],
+      stageHelpBody: t('office.livingModel.tasks.stageHelpBody', 'Each task takes its stage from its name. If a name reads wrong, tap the stage beside it and pick the right one.'),
+      stagePickA11yLabel: (task) => t('office.livingModel.tasks.stagePickA11yLabel', 'Change Stage of {task}', { task }),
+      stagePickerLabel: t('office.livingModel.tasks.stagePickerLabel', 'Stage of This Task'),
+      stagePickedSub: (stage) => t('office.livingModel.tasks.stagePickedSub', '{stage}, picked by you', { stage }),
+      stageFromTitleLabel: t('office.livingModel.tasks.stageFromTitleLabel', 'Read from the Title'),
       weekLabel: (n, total) => t('office.livingModel.replay.weekLabel', 'Week {n} of {total}', { n, total }),
       weekShortLabel: (n) => t('office.livingModel.replay.weekShortLabel', 'Week {n}', { n }),
       todayLabel: t('office.livingModel.replay.todayLabel', 'Today'),
@@ -321,9 +353,13 @@ export function useLivingModelCopy(): LivingModelCopy {
       fullWallsLabel: t('office.livingModel.replay.fullWallsLabel', 'Full Height Walls'),
       resetViewLabel: t('office.livingModel.replay.resetViewLabel', 'Reset View'),
       legendHeadingLabel: t('office.livingModel.replay.legendHeadingLabel', 'Stages'),
-      orbitHelpSub: t('office.livingModel.replay.orbitHelpSub', 'Drag to turn. Hold Shift and drag, or use two fingers, to move. Scroll or pinch to zoom'),
+      orbitHelpSub: t('office.livingModel.replay.orbitHelpSub', 'Drag to turn. Hold Shift and drag to move. To zoom with the wheel, click the model first or hold Ctrl or Cmd'),
+      touchHelpSub: t('office.livingModel.replay.touchHelpSub', 'One finger scrolls the page. Two fingers move, turn and zoom the model'),
+      contextLostBody: t('office.livingModel.replay.contextLostBody', 'The 3D view stopped because the browser took back its graphics memory. Reload the view to draw it again.'),
+      reloadViewLabel: t('office.livingModel.replay.reloadViewLabel', 'Reload View'),
       canvasA11yBody: t('office.livingModel.replay.canvasA11yBody', 'Schematic 3D model of the job. Arrow keys turn it, plus and minus zoom. The room list below reads each room.'),
-      noStartBody: t('office.livingModel.replay.noStartBody', 'The schedule has no start date, so nothing can be placed against today. All of it shows as the plan.'),
+      noStartBody: t('office.livingModel.replay.noStartBody', 'Daily reports cannot be placed without a start date. Reported shows only the schedule’s own progress.'),
+      setStartLabel: t('office.livingModel.replay.setStartLabel', 'Set a Start Date'),
       nothingTickedBody: t('office.livingModel.replay.nothingTickedBody', 'No tasks are ticked for any room yet. Open Tasks and tick them, and the replay will have something to play.'),
       loading3dBody: t('office.livingModel.replay.loading3dBody', 'Loading the 3D view.'),
       noWebglBody: t('office.livingModel.replay.noWebglBody', 'This browser could not start the 3D view. The same replay is drawn flat below.'),
@@ -332,6 +368,20 @@ export function useLivingModelCopy(): LivingModelCopy {
       planStageSub: (stage) => t('office.livingModel.replay.planStageSub', 'Plan: {stage}', { stage }),
       roomReportedLabel: t('office.livingModel.card.reportedLabel', 'Reported in This Room'),
       roomPlannedLabel: t('office.livingModel.card.plannedLabel', 'Planned in This Room'),
+      planAheadLabel: t('office.livingModel.card.planAheadLabel', 'Planned by This Week'),
+      asOfTodaySub: t('office.livingModel.card.asOfTodaySub', 'As of today'),
+      forWeekSub: (week, total) => t('office.livingModel.card.forWeekSub', 'For week {n} of {total}', { n: week, total }),
+      undatedReportedSub: t('office.livingModel.card.undatedReportedSub', 'From the schedule’s own progress, which carries no date'),
+      planOnlyBody: t('office.livingModel.card.planOnlyBody', 'This week is past today, so the card shows the plan only.'),
+      averageReportedBody: (n) => tn('office.livingModel.card.averageReportedBody', n, {
+        one: 'This is the 1 ticked task. A task with nothing reported counts as 0.',
+        other: 'Average of the {count} ticked tasks. A task with nothing reported counts as 0.',
+      }),
+      averagePlannedBody: (n) => tn('office.livingModel.card.averagePlannedBody', n, {
+        one: 'This is the 1 ticked task, by its planned dates.',
+        other: 'Average of the {count} ticked tasks, each by its planned dates.',
+      }),
+      plannedPctSub: (n) => t('office.livingModel.card.plannedPctSub', 'Planned {n} percent', { n }),
       nextHereLabel: t('office.livingModel.card.nextHereLabel', 'Next Here'),
       nextBody: (task, week) => t('office.livingModel.card.nextBody', '{task}, planned for week {week}.', { task, week }),
       allDoneBody: t('office.livingModel.card.allDoneBody', 'Every ticked task is reported finished.'),

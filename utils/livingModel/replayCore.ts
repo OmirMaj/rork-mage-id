@@ -258,6 +258,42 @@ export function offsetOfWeek(week: number, clock: ReplayClock): number {
 }
 
 // ── the room card ────────────────────────────────────────────────────────────
+//
+// THE CARD FOLLOWS THE SCRUBBER. Its figures are for the moment the scrubber is
+// on, and the card says which: today, an earlier week, or a week past today.
+//
+// THE BIG NUMBER IS A PLAIN AVERAGE, and the card says so under it: every
+// ticked task counts the same, however long it runs, and a task with nothing
+// reported counts as 0. Nothing is weighted. (If weighting by duration is ever
+// added, the line under the number has to say it: the validator pins the line
+// to this arithmetic.)
+//
+// PAST TODAY THE CARD IS THE PLAN ONLY, in either reading, and says so:
+// nothing after today has been reported.
+
+/** How close to today the scrubber has to be for the card to say "as of today", in working days. */
+export const TODAY_TOLERANCE = 0.26;
+
+/** Where the scrubber is against today. 'undated' = the schedule has no start date, so there is no today to compare with. */
+export type CardWhen = 'today' | 'earlier' | 'ahead' | 'undated';
+
+/** What the card's big number is. 'plan_ahead' = the plan for a week past today, whatever reading is picked. */
+export type CardReading = 'reported' | 'planned' | 'plan_ahead';
+
+export function cardWhen(offset: number, clock: ReplayClock): CardWhen {
+  if (!clock.hasStartDate) return 'undated';
+  if (Math.abs(offset - clock.todayOffset) < TODAY_TOLERANCE) return 'today';
+  return offset > clock.todayOffset ? 'ahead' : 'earlier';
+}
+
+/** True when something had been reported for the task BY a moment (a moment after today is read as today). */
+export function hasReportBy(t: ReplayTask, points: readonly ReportPoint[], offset: number, todayOffset: number): boolean {
+  const at = Math.min(offset, todayOffset);
+  if (points.some((p) => p.taskId === t.id && p.offset <= at + 1e-9)) return true;
+  if (t.actualEndOffset != null && t.actualEndOffset <= at + 1e-9) return true;
+  if (t.actualStartOffset != null && t.actualStartOffset <= at + 1e-9) return true;
+  return at >= todayOffset - 1e-9 && hasUndatedReport(t);
+}
 
 export interface RoomTaskRow {
   id: string;
@@ -265,19 +301,40 @@ export interface RoomTaskRow {
   stage: TaskStage;
   startOffset: number;
   endOffset: number;
-  /** 0 to 100, at today. null when nothing was reported: the row then says "No progress reported". */
+  /** 0 to 100, at the moment shown. null when nothing had been reported by then: the row then says "No Progress Reported". */
   reportedPct: number | null;
+  /** 0 to 100: where the plan says the task should be at the moment shown. */
+  plannedPct: number;
   /** 0 to 100: where the plan says the task should be today. */
   plannedPctToday: number;
 }
 
 export interface RoomCard {
   rows: RoomTaskRow[];
-  /** The first ticked task, in plan order, that is not reported finished. null when all are, or there are none. */
+  /** The first ticked task, in plan order, not reported finished at the moment shown. null when all are, or there are none. */
   next: RoomTaskRow | null;
+  when: CardWhen;
+  reading: CardReading;
+  /** The moment the figures are for: the scrubber, held at today when it is on today. */
+  offset: number;
+  /** 0 to 100: the plain average over every ticked task of that reading. A task with nothing reported counts as 0. */
+  pct: number;
+  taskCount: number;
+  /** How many ticked tasks had nothing reported by the moment shown. 0 unless the reading is 'reported'. */
+  unreported: number;
 }
 
-export function roomCard(tasks: readonly ReplayTask[], points: readonly ReportPoint[], clock: ReplayClock): RoomCard {
+export function roomCard(
+  tasks: readonly ReplayTask[],
+  points: readonly ReportPoint[],
+  clock: ReplayClock,
+  offset: number = clock.todayOffset,
+  mode: ReplayMode = 'reported',
+): RoomCard {
+  const when = cardWhen(offset, clock);
+  const today = clock.todayOffset;
+  const at = when === 'today' ? today : offset;
+  const reading: CardReading = when === 'ahead' ? 'plan_ahead' : mode;
   const rows: RoomTaskRow[] = [...tasks]
     .sort((p, q) => taskStartOffset(p) - taskStartOffset(q) || p.title.localeCompare(q.title))
     .map((t) => ({
@@ -286,9 +343,20 @@ export function roomCard(tasks: readonly ReplayTask[], points: readonly ReportPo
       stage: t.stage,
       startOffset: taskStartOffset(t),
       endOffset: taskEndOffset(t),
-      reportedPct: hasAnyReport(t, points) ? Math.round(reportedAt(t, points, clock.todayOffset, clock.todayOffset) * 100) : null,
-      plannedPctToday: Math.round(plannedAt(t, clock.todayOffset) * 100),
+      reportedPct: hasReportBy(t, points, at, today) ? Math.round(reportedAt(t, points, at, today) * 100) : null,
+      plannedPct: Math.round(plannedAt(t, at) * 100),
+      plannedPctToday: Math.round(plannedAt(t, today) * 100),
     }));
+  let sum = 0;
+  let unreported = 0;
+  for (const t of tasks) {
+    if (reading === 'reported') {
+      sum += reportedAt(t, points, at, today);
+      if (!hasReportBy(t, points, at, today)) unreported += 1;
+    } else {
+      sum += plannedAt(t, at);
+    }
+  }
   const next = rows.find((r) => (r.reportedPct ?? 0) < 100) ?? null;
-  return { rows, next };
+  return { rows, next, when, reading, offset: at, pct: tasks.length ? Math.round((sum / tasks.length) * 100) : 0, taskCount: tasks.length, unreported };
 }

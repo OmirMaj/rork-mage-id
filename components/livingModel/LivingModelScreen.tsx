@@ -11,11 +11,17 @@
 // and the Room Editor says so. Every change is the person's: this screen
 // writes the model after he changes it and never changes it itself.
 //
+// A SAVED MODEL THAT CANNOT BE READ IS KEPT. When text is stored for this job
+// and it is not a sound model, the screen says so in a plain sentence, the text
+// stays where it is with a copy under a backup key (utils/livingModel/store),
+// and NOTHING IS SAVED OVER IT until the person taps Start a New Model. Until
+// then the tabs are not drawn at all, so there is nothing to edit.
+//
 // NOT IN THIS PHASE, and not built: a money lens, open items, a client view,
 // sharing a replay, reading rooms from an uploaded plan, cloud sync. The seams
 // are the model (JobModel), the per-room moment (replayCore.roomMoment) and the
 // 3D view's `looks`; nothing here depends on how those later features are made.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
@@ -24,13 +30,14 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
-import { SegmentedControl } from '@/components/ui';
+import { Button, SegmentedControl } from '@/components/ui';
 import { useIsDesktop } from '@/components/ui/desktop';
 import { canRedo, canUndo, historyOf, historyPush, historyRedo, historyUndo, type History } from '@/utils/livingModel/historyCore';
-import { modelLevels } from '@/utils/livingModel/modelCore';
-import { weekCount, weekOf } from '@/utils/livingModel/replayCore';
+import { emptyJobModel, modelLevels } from '@/utils/livingModel/modelCore';
+import { cardWhen, weekCount, weekOf } from '@/utils/livingModel/replayCore';
 import { buildReplayInput } from '@/utils/livingModel/replayInput';
 import { loadJobModel, saveJobModel } from '@/utils/livingModel/store';
+import { mayWriteModel, type LoadState } from '@/utils/livingModel/storeCore';
 import type { JobModel } from '@/utils/livingModel/types';
 import { FlatReplay } from './FlatReplay';
 import { HonestyLines } from './HonestyLines';
@@ -53,6 +60,8 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
   const project = getProject(projectId);
   const [history, setHistory] = useState<History<JobModel> | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>('ready');
+  const loadStateRef = useRef<LoadState>('ready');
   const [tab, setTab] = useState<Tab>('rooms');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
@@ -61,18 +70,36 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
   useEffect(() => {
     let alive = true;
     setHistory(null);
-    void loadJobModel(userId, projectId).then((m) => {
+    loadStateRef.current = 'ready';
+    setLoadState('ready');
+    // loadJobModel never rejects and never throws on what the device holds; the catch is a last guard so the screen cannot sit on "Reading" for ever.
+    void loadJobModel(userId, projectId).then((loaded) => {
       if (!alive) return;
-      setHistory(historyOf(m));
-      const levels = modelLevels(m);
+      loadStateRef.current = loaded.state;
+      setLoadState(loaded.state);
+      setHistory(historyOf(loaded.model));
+      const levels = modelLevels(loaded.model);
       setLevel(levels.includes(0) || levels.length === 0 ? 0 : levels[0]);
+    }).catch(() => {
+      if (!alive) return;
+      loadStateRef.current = 'unreadable';
+      setLoadState('unreadable');
+      setHistory(historyOf(emptyJobModel(projectId)));
     });
     return () => { alive = false; };
   }, [userId, projectId]);
 
   const persist = useCallback((m: JobModel) => {
-    void saveJobModel(userId, m, new Date().toISOString()).then((ok) => setSaveFailed(!ok));
+    // Never over text that could not be read: the store refuses too.
+    if (!mayWriteModel(loadStateRef.current)) return;
+    void saveJobModel(userId, m, new Date().toISOString(), loadStateRef.current).then((ok) => setSaveFailed(!ok));
   }, [userId]);
+
+  /** The person's own choice, from the button: leave the unread model in its backup and begin again. */
+  const onStartNew = useCallback(() => {
+    loadStateRef.current = 'started_new';
+    setLoadState('started_new');
+  }, []);
 
   const onChange = useCallback((next: JobModel) => {
     setHistory((h) => {
@@ -87,7 +114,10 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
 
   const model = history?.present ?? null;
   const reports = useMemo(() => getDailyReportsForProject(projectId), [getDailyReportsForProject, projectId]);
-  const input = useMemo(() => buildReplayInput(project?.schedule ?? null, reports, now), [project?.schedule, reports, now]);
+  const chosenStages = model?.stages;
+  const input = useMemo(() => buildReplayInput(project?.schedule ?? null, reports, now, chosenStages), [project?.schedule, reports, now, chosenStages]);
+  const blocked = loadState === 'unreadable';
+  const onSetStartDate = useCallback(() => router.push({ pathname: '/schedule-pro', params: { projectId } }), [router, projectId]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]} testID="living-model-screen">
@@ -112,7 +142,15 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]} keyboardShouldPersistTaps="handled">
         {saveFailed ? <Text style={styles.warn} testID="lm-save-failed">{copy.saveFailedBody}</Text> : null}
         {!model ? <Text style={styles.note}>{copy.loadingBody}</Text> : null}
-        {model && tab === 'rooms' ? (
+        {model && blocked ? (
+          <View style={styles.panel} testID="lm-unreadable">
+            <Text style={styles.panelHeading}>{copy.unreadableTitleBody}</Text>
+            <Text style={styles.para}>{copy.unreadableBody}</Text>
+            <Button label={copy.startNewLabel} variant="secondary" onPress={onStartNew} testID="lm-start-new" />
+          </View>
+        ) : null}
+        {model && loadState === 'started_new' ? <Text style={styles.note} testID="lm-started-new">{copy.startedNewBody}</Text> : null}
+        {model && !blocked && tab === 'rooms' ? (
           <>
             <RoomEditor
               projectId={projectId}
@@ -131,18 +169,18 @@ export function LivingModelScreen({ projectId, userId }: { projectId: string; us
             />
           </>
         ) : null}
-        {model && tab === 'tasks' ? (
+        {model && !blocked && tab === 'tasks' ? (
           <TaskLinks model={model} input={input} roomId={selectedId} onRoom={setSelectedId} onChange={onChange} />
         ) : null}
-        {model && tab === 'replay' ? (
-          <ReplayTab model={model} input={input} level={level} onLevel={setLevel} selectedId={selectedId} onSelect={setSelectedId} wide={wide} />
+        {model && !blocked && tab === 'replay' ? (
+          <ReplayTab model={model} input={input} level={level} onLevel={setLevel} selectedId={selectedId} onSelect={setSelectedId} wide={wide} onSetStartDate={onSetStartDate} />
         ) : null}
       </ScrollView>
     </View>
   );
 }
 
-function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide }: {
+function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide, onSetStartDate }: {
   model: JobModel;
   input: ReturnType<typeof buildReplayInput>;
   level: number;
@@ -150,6 +188,7 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide }:
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   wide: boolean;
+  onSetStartDate: () => void;
 }) {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
@@ -161,7 +200,7 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide }:
   const selected = model.rooms.find((r) => r.id === selectedId && r.level === level) ?? null;
   const anyTicked = useMemo(() => Array.from(roomTasks.values()).some((t) => t.length > 0), [roomTasks]);
   const past = input.clock.hasStartDate ? state.offset > input.clock.todayOffset + 1e-6 : true;
-  const atToday = input.clock.hasStartDate && Math.abs(state.offset - input.clock.todayOffset) < 0.26;
+  const atToday = cardWhen(state.offset, input.clock) === 'today';
   const weekLine = copy.weekLabel(weekOf(state.offset, input.clock), weekCount(input.clock));
   const threeD = JOB_REPLAY_3D_ON_THIS_PLATFORM && !no3d;
 
@@ -189,7 +228,7 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide }:
         <>
           <JobReplay3D model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} onUnavailable={() => setNo3d(true)} weekLine={weekLine} atToday={atToday} height={wide ? 560 : 380} compact={!wide} />
           {wide ? null : <StageLegend />}
-          <Text style={styles.note}>{copy.orbitHelpSub}</Text>
+          <Text style={styles.note} testID="lm-3d-hint">{wide ? copy.orbitHelpSub : copy.touchHelpSub}</Text>
         </>
       ) : (
         <>
@@ -205,14 +244,14 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide }:
           <StageLegend />
         </>
       )}
-      <ReplayControls input={input} state={state} />
+      <ReplayControls input={input} state={state} onSetStartDate={onSetStartDate} />
       {!anyTicked ? <Text style={styles.warn} testID="lm-nothing-ticked">{copy.nothingTickedBody}</Text> : null}
       <HonestyLines ghost={past} testID={threeD ? 'lm-honesty-3d' : 'lm-honesty-flat'} />
     </View>
   );
   const side = (
     <View style={wide ? styles.colSide : styles.stack}>
-      {selected ? <RoomCardPanel room={selected} tasks={roomTasks.get(selected.id) ?? []} input={input} mode={state.mode} onClose={() => onSelect(null)} /> : null}
+      {selected ? <RoomCardPanel room={selected} tasks={roomTasks.get(selected.id) ?? []} input={input} mode={state.mode} offset={state.offset} onClose={() => onSelect(null)} /> : null}
       <ReplayRoomList model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} />
     </View>
   );

@@ -12,11 +12,25 @@
 // trim). One sky light and one soft sun. No texture, no gradient, no blur.
 //
 // A SCHEMATIC. Colours come from the theme and the palette
-// (utils/livingModel/palette.ts); none is written here.
-import { modelBounds } from '@/utils/livingModel/modelCore';
+// (utils/livingModel/palette.ts, which holds a light table and a dark one);
+// none is written here, the lights included.
+//
+// EACH ROOM'S FLOOR CARRIES ITS STAGE COLOUR (palette.stage, by palette.floorTint), so the stage
+// reads from the room itself and not only from the dot on its label.
+//
+// THE HOME VIEW FITS THE WALLS, not only the floor: the zoom comes from
+// sceneCore.viewExtent with the height the walls are drawn at, so full-height
+// walls stay inside the frame on Reset View.
+//
+// ONE SCENE, ONE CANVAS. `dispose` gives the WebGL context back to the browser
+// (forceContextLoss), so a canvas that held a scene cannot hold another: the
+// web view mounts a fresh canvas for each scene it makes.
+import { modelBounds, roomBounds } from '@/utils/livingModel/modelCore';
 import { hexToRgb, type LivingModelPalette } from '@/utils/livingModel/palette';
 import type { RoomLayers } from '@/utils/livingModel/replayCore';
-import { buildRoomGeometry, fitSpan, revealRange, type BoxBuf, type RoomGeometry } from '@/utils/livingModel/sceneCore';
+import { buildRoomGeometry, fitSpan, fitZoom, labelRoomPx, revealRange, viewExtent, type BoxBuf, type RoomGeometry } from '@/utils/livingModel/sceneCore';
+import type { RoomStage } from '@/utils/livingModel/stageCore';
+import type { Bounds } from '@/utils/livingModel/types';
 import type { PlacedRoom } from '@/utils/livingModel/types';
 
 type Three = typeof import('three');
@@ -30,6 +44,8 @@ export interface RoomLook {
   ghost: RoomLayers;
   /** True when the room's floor may loosen to subfloor (it has work that opens the walls). */
   opens: boolean;
+  /** The room's stage at the moment shown: its floor takes that colour. */
+  stage: RoomStage;
 }
 
 export interface JobSceneHandle {
@@ -40,11 +56,20 @@ export interface JobSceneHandle {
   orbit: (dxPx: number, dyPx: number) => void;
   pan: (dxPx: number, dyPx: number) => void;
   zoomBy: (factor: number) => void;
+  /** Turn the model about its middle by an angle in radians (two fingers twisting). */
+  turnBy: (radians: number) => void;
   resetView: () => void;
   /** The room under a point of the canvas (pixels from its top left), or null. */
   pick: (xPx: number, yPx: number) => string | null;
   /** Where a room's label goes, in canvas pixels. */
   project: (roomId: string) => { x: number; y: number } | null;
+  /** How much room a label has across a room as it is drawn right now, in pixels (sceneCore.labelRoomPx). null for a room that is not in the scene. */
+  roomWidthPx: (roomId: string) => number | null;
+  /** The colour a room's floor is drawn in right now, as '#rrggbb'. null for a room that is not in the scene. */
+  floorHex: (roomId: string) => string | null;
+  /** How many rooms the scene holds. A scene that was just made holds none until `setRooms`. */
+  roomCount: () => number;
+  /** Let go of everything, the WebGL context included. The canvas cannot be used for another scene afterwards. */
   dispose: () => void;
 }
 
@@ -53,6 +78,7 @@ export const DEFAULT_VIEW = { azimuth: 0.72, elevation: 0.9 } as const;
 
 interface RoomMeshes {
   geo: RoomGeometry;
+  box: Bounds | null;
   floor: Mesh;
   floorMat: LambertMaterial;
   boardMat: LambertMaterial;
@@ -75,8 +101,8 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 600);
-  scene.add(new THREE.HemisphereLight('#ffffff', palette.plinth, 2.2));
-  const sun = new THREE.DirectionalLight('#ffffff', 1.0);
+  scene.add(new THREE.HemisphereLight(palette.sky, palette.plinth, palette.skyStrength));
+  const sun = new THREE.DirectionalLight(palette.sun, palette.sunStrength);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0006;
@@ -91,8 +117,8 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
     old: lambert(palette.wallOld),
     stud: lambert(palette.stud),
     gStud: faint(palette.stud),
-    pipes: lambert('#ffffff', { vertexColors: true }),
-    gPipes: faint('#ffffff', 0.3, { vertexColors: true }),
+    pipes: lambert(palette.vertexBase, { vertexColors: true }),
+    gPipes: faint(palette.vertexBase, 0.3, { vertexColors: true }),
     wire: lambert(palette.wire),
     gWire: faint(palette.wire),
     insulation: lambert(palette.insulation),
@@ -101,7 +127,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
     trim: lambert(palette.trim),
     gTrim: faint(palette.trim),
     glass: new THREE.MeshLambertMaterial({ color: palette.glass, transparent: true, opacity: 0.55, depthWrite: false }),
-    none: faint('#ffffff', 0),
+    none: faint(palette.vertexBase, 0),
     plinth: lambert(palette.plinth),
     ground: lambert(palette.ground),
   };
@@ -112,6 +138,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
     board: new THREE.Color(palette.wallBoard),
     finished: new THREE.Color(palette.wallFinished),
   };
+  const tint = new THREE.Color();
   const tmp = new THREE.Vector3();
   const ndc = new THREE.Vector2();
   const ray = new THREE.Raycaster();
@@ -120,7 +147,10 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
   let rooms = new Map<string, RoomMeshes>();
   let owned: Material[] = [];
   let pickable: Mesh[] = [];
-  const V = { az: DEFAULT_VIEW.azimuth as number, el: DEFAULT_VIEW.elevation as number, zoom: 1, tx: 0, tz: 0, w: 1, h: 1, span: 8, homeX: 0, homeZ: 0, midY: 0.6 };
+  const V = { az: DEFAULT_VIEW.azimuth as number, el: DEFAULT_VIEW.elevation as number, zoom: 1, tx: 0, tz: 0, w: 1, h: 1, span: 8, homeX: 0, homeZ: 0, midY: 0.6, wallH: 1.2 };
+  let floorBox: Bounds | null = null;
+  /** Pixels per metre before the person's own zoom: the home view fitted to the floor box and the walls on it. */
+  const baseZoom = (): number => fitZoom(viewExtent(floorBox, V.wallH, DEFAULT_VIEW.azimuth, DEFAULT_VIEW.elevation), V.w, V.h);
 
   function layerMesh(buf: BoxBuf, solid: Material, ghost: Material | null, shadow: boolean): Mesh | null {
     if (!buf.p.length) return null;
@@ -178,7 +208,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
       world.add(floor);
       pickable.push(floor);
       const rm: RoomMeshes = {
-        geo, floor, floorMat, boardMat,
+        geo, box: roomBounds(room), floor, floorMat, boardMat,
         shell: layerMesh(geo.shell, M.shell, null, true),
         skin: layerMesh(geo.skin, M.old, null, true),
         board: layerMesh(geo.skin, boardMat, M.gBoard, true),
@@ -223,7 +253,9 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
     sc.updateProjectionMatrix();
 
     // Look at the middle of the walls, so cut walls and full walls both sit in the frame.
-    V.midY = list.length ? Math.max(...Array.from(rooms.values()).map((r) => r.geo.heightM)) / 2 : 0.6;
+    V.wallH = list.length ? Math.max(...Array.from(rooms.values()).map((r) => r.geo.heightM)) : 1.2;
+    V.midY = V.wallH / 2;
+    floorBox = b;
     V.span = fit.span;
     V.homeX = fit.cx;
     V.homeZ = fit.cz;
@@ -249,11 +281,14 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
       const fs = ease(s.finish);
       const fgh = ease(g.finish);
       rm.floorMat.color.copy(C.floorOld).lerp(C.floorSub, bare).lerp(C.floorFinished, fs + (fgh > fs ? (fgh - fs) * 0.45 : 0));
+      // The stage colour over the floor, so the room itself says its stage.
+      const stage = look?.stage;
+      if (stage && stage !== 'no_tasks' && stage !== 'not_started') rm.floorMat.color.lerp(tint.set(palette.stage[stage]), palette.floorTint);
     });
   }
 
   function updateCamera(): void {
-    const zoom = (Math.min(V.w, V.h * 1.4) / (V.span * 1.3)) * V.zoom;
+    const zoom = baseZoom() * V.zoom;
     const ce = Math.cos(V.el);
     const se = Math.sin(V.el);
     camera.left = -V.w / 2 / zoom;
@@ -284,7 +319,7 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
       updateCamera();
     },
     pan(dx, dy) {
-      const zoom = (Math.min(V.w, V.h * 1.4) / (V.span * 1.3)) * V.zoom;
+      const zoom = baseZoom() * V.zoom;
       const ca = Math.cos(V.az);
       const sa = Math.sin(V.az);
       const k = 1 / Math.max(0.3, Math.sin(V.el));
@@ -295,6 +330,11 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
     },
     zoomBy(factor) {
       V.zoom = Math.max(0.5, Math.min(6, V.zoom * factor));
+      updateCamera();
+    },
+    turnBy(radians) {
+      if (!Number.isFinite(radians)) return;
+      V.az += radians;
       updateCamera();
     },
     resetView() {
@@ -317,10 +357,31 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
       tmp.set(rm.geo.centre.x, 0.1, rm.geo.centre.z).project(camera);
       return { x: ((tmp.x + 1) / 2) * V.w, y: ((1 - tmp.y) / 2) * V.h };
     },
+    roomWidthPx(roomId) {
+      const rm = rooms.get(roomId);
+      if (!rm || !rm.box) return null;
+      const cx = (rm.box.minX + rm.box.maxX) / 2;
+      const cz = (rm.box.minY + rm.box.maxY) / 2;
+      const px = (x: number, z: number): { x: number; y: number } => {
+        tmp.set(x, 0.1, z).project(camera);
+        return { x: ((tmp.x + 1) / 2) * V.w, y: ((1 - tmp.y) / 2) * V.h };
+      };
+      const c = px(cx, cz);
+      const a = px(rm.box.maxX, cz);
+      const b = px(cx, rm.box.maxY);
+      return labelRoomPx({ x: a.x - c.x, y: a.y - c.y }, { x: b.x - c.x, y: b.y - c.y });
+    },
+    floorHex(roomId) {
+      const rm = rooms.get(roomId);
+      return rm ? `#${rm.floorMat.color.getHexString()}` : null;
+    },
+    roomCount() { return rooms.size; },
     dispose() {
       clear();
       for (const m of Object.values(M)) m.dispose();
       renderer.dispose();
+      // Give the WebGL context back now. A browser keeps only a handful, and a page that opens and closes this view should not use them up.
+      try { renderer.forceContextLoss(); } catch { /* the context is already gone */ }
     },
   };
 }

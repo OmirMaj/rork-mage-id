@@ -15,6 +15,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useSubscription, restoreOutcome, PLAN_UNAVAILABLE_MESSAGE } from '@/contexts/SubscriptionContext';
+import { ManageSubscriptionRow } from '@/components/ManageSubscriptionRow';
 import {
   autoRenewText, renewalFactsText, plansLoadFailedText, storeSafeLabel, StorePlansUnavailable, useRetryStorePlans,
 } from '@/components/Paywall';
@@ -575,6 +576,10 @@ export default function PaywallScreen() {
           )}
         </View>
 
+        {/* WEBCANCEL: someone who already has a plan gets the same Manage
+            Subscription row Settings has. It draws nothing on a Free account. */}
+        <ManageSubscriptionRow variant="paywall" testID="paywall-manage-subscription" />
+
         <Text style={styles.compareTitle}>Compare Plans</Text>
         <View style={styles.compareTable}>
           <View style={styles.compareHeaderRow}>
@@ -933,6 +938,9 @@ function WebPaywallView({
             </View>
           ))}
         </TileGrid>
+
+        {/* WEBCANCEL: the same row as Settings, for someone who already has a plan. */}
+        <ManageSubscriptionRow variant="paywall" testID="paywall-manage-subscription" />
 
         {isDesktop ? (
           <View style={tablesSideBySide ? styles.webTablesRow : undefined}>{featureTable}{quotaTable}</View>

@@ -17024,17 +17024,27 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Enterprise plan",
+                                                                                            {
+                                                                                              "children": [
+                                                                                                "Enterprise plan",
+                                                                                              ],
+                                                                                              "props": {
+                                                                                                "style": {
+                                                                                                  "color": "#2B3038",
+                                                                                                  "fontSize": 16,
+                                                                                                  "fontWeight": "400",
+                                                                                                },
+                                                                                                "testID": "manage-subscription-label",
+                                                                                              },
+                                                                                              "type": "Text",
+                                                                                            },
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
-                                                                                              "color": "#2B3038",
                                                                                               "flex": 1,
-                                                                                              "fontSize": 16,
-                                                                                              "fontWeight": "400",
                                                                                             },
                                                                                           },
-                                                                                          "type": "Text",
+                                                                                          "type": "View",
                                                                                         },
                                                                                       ],
                                                                                       "props": {
@@ -17046,7 +17056,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                           "paddingHorizontal": 16,
                                                                                           "paddingVertical": 12,
                                                                                         },
-                                                                                        "testID": "plan-name-row",
+                                                                                        "testID": "manage-subscription-line",
                                                                                       },
                                                                                       "type": "View",
                                                                                     },
@@ -17055,11 +17065,13 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                     "style": {
                                                                                       "backgroundColor": "#FFFFFF",
                                                                                       "borderColor": "#D7DAD4",
+                                                                                      "borderCurve": "continuous",
                                                                                       "borderRadius": 12,
                                                                                       "borderWidth": 1,
                                                                                       "marginBottom": 20,
                                                                                       "marginHorizontal": 16,
                                                                                       "overflow": "hidden",
+                                                                                      "padding": 0,
                                                                                     },
                                                                                   },
                                                                                   "type": "View",
@@ -29103,57 +29115,6 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                     },
                                                   },
                                                   "type": "View",
-                                                },
-                                                {
-                                                  "children": [
-                                                    "By creating an account you agree to our",
-                                                    " ",
-                                                    {
-                                                      "children": [
-                                                        "Terms of Service",
-                                                      ],
-                                                      "props": {
-                                                        "onPress": [Function],
-                                                        "style": {
-                                                          "color": "#2F6B3A",
-                                                          "fontWeight": "600",
-                                                          "textDecorationLine": "underline",
-                                                        },
-                                                        "testID": "signup-terms-link",
-                                                      },
-                                                      "type": "Text",
-                                                    },
-                                                    " ",
-                                                    "and",
-                                                    " ",
-                                                    {
-                                                      "children": [
-                                                        "Privacy Policy",
-                                                      ],
-                                                      "props": {
-                                                        "onPress": [Function],
-                                                        "style": {
-                                                          "color": "#2F6B3A",
-                                                          "fontWeight": "600",
-                                                          "textDecorationLine": "underline",
-                                                        },
-                                                        "testID": "signup-privacy-link",
-                                                      },
-                                                      "type": "Text",
-                                                    },
-                                                    ".",
-                                                  ],
-                                                  "props": {
-                                                    "style": {
-                                                      "color": "rgba(43,48,56,0.78)",
-                                                      "fontSize": 13,
-                                                      "lineHeight": 18,
-                                                      "marginTop": 14,
-                                                      "paddingHorizontal": 8,
-                                                      "textAlign": "center",
-                                                    },
-                                                  },
-                                                  "type": "Text",
                                                 },
                                                 {
                                                   "children": [

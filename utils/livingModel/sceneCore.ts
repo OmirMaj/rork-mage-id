@@ -313,3 +313,112 @@ export function fitSpan(bounds: { minX: number; minY: number; maxX: number; maxY
   const d = bounds.maxY - bounds.minY;
   return { cx: (bounds.minX + bounds.maxX) / 2, cz: (bounds.minY + bounds.maxY) / 2, span: Math.max(4, Math.hypot(w, d)) };
 }
+
+/**
+ * How much of the world the camera has to show, at one angle, so the whole
+ * model sits inside the frame: the floor box AND the walls standing on it.
+ * `halfW` runs across the screen and `halfH` up it, both in metres, measured
+ * from the middle of the walls. Full-height walls stand taller than cut ones,
+ * so they ask for more room; the camera pulls back by exactly that much.
+ *
+ * `azimuth` and `elevation` are the camera's angles in radians (elevation 0
+ * looks along the floor, a quarter turn looks straight down).
+ */
+export function viewExtent(
+  bounds: { minX: number; minY: number; maxX: number; maxY: number } | null,
+  wallHeightM: number,
+  azimuth: number,
+  elevation: number,
+): { halfW: number; halfH: number } {
+  const w = bounds ? Math.max(0, bounds.maxX - bounds.minX) : 4;
+  const d = bounds ? Math.max(0, bounds.maxY - bounds.minY) : 4;
+  const h = Number.isFinite(wallHeightM) && wallHeightM > 0 ? wallHeightM : 0;
+  const ca = Math.abs(Math.cos(azimuth));
+  const sa = Math.abs(Math.sin(azimuth));
+  const ce = Math.abs(Math.cos(elevation));
+  const se = Math.abs(Math.sin(elevation));
+  return {
+    halfW: Math.max(1, (ca * w + sa * d) / 2),
+    halfH: Math.max(1, (se * (sa * w + ca * d)) / 2 + (ce * h) / 2),
+  };
+}
+
+/** The share of the frame the model may fill at the home view; the rest is margin for the corner card and the buttons. */
+export const VIEW_FILL = 0.84;
+
+/** Pixels per metre at the home view, so `viewExtent` fits a canvas of the given size with the margin above. */
+export function fitZoom(extent: { halfW: number; halfH: number }, widthPx: number, heightPx: number): number {
+  const z = Math.min(widthPx / (extent.halfW * 2), heightPx / (extent.halfH * 2)) * VIEW_FILL;
+  return Number.isFinite(z) && z > 0 ? z : 1;
+}
+
+/** Where one point of the world lands on the canvas, in pixels from its middle, at a camera angle and zoom. For checking a fit as numbers. */
+export function screenPoint(p: { x: number; y: number; z: number }, target: { x: number; y: number; z: number }, azimuth: number, elevation: number, zoom: number): { x: number; y: number } {
+  const dx = p.x - target.x;
+  const dy = p.y - target.y;
+  const dz = p.z - target.z;
+  const ca = Math.cos(azimuth);
+  const sa = Math.sin(azimuth);
+  const ce = Math.cos(elevation);
+  const se = Math.sin(elevation);
+  return { x: (ca * dx - sa * dz) * zoom, y: (-se * sa * dx + ce * dy - se * ca * dz) * zoom };
+}
+
+/**
+ * How much room a label has across a room as it is drawn: the length, in
+ * pixels, of the level line through the middle of the room's floor on the
+ * canvas. `u` and `v` are the floor's two half-sides as drawn (from the middle
+ * of the room to the middle of a side, in canvas pixels). A room seen at an
+ * angle is a slanted box, and its box on the canvas is far wider than the
+ * strip a label can sit on; this is the strip.
+ */
+export function labelRoomPx(u: { x: number; y: number }, v: { x: number; y: number }): number {
+  let best = 0;
+  const tryPoint = (a: number, b: number): void => { if (Math.abs(a) <= 1 + 1e-9 && Math.abs(b) <= 1 + 1e-9) best = Math.max(best, Math.abs(a * u.x + b * v.x)); };
+  // Where the level line through the middle leaves the box: on a side where a = 1 or where b = 1 (the other two are its mirror).
+  if (Math.abs(v.y) > 1e-9) tryPoint(1, -u.y / v.y); else tryPoint(1, 1);
+  if (Math.abs(u.y) > 1e-9) tryPoint(-v.y / u.y, 1); else tryPoint(1, 1);
+  if (Math.abs(u.y) <= 1e-9 && Math.abs(v.y) <= 1e-9) best = Math.abs(u.x) + Math.abs(v.x);
+  const out = best * 2;
+  return Number.isFinite(out) ? out : 0;
+}
+
+/**
+ * How big a room's label may be, from how much room it has (`labelRoomPx`).
+ *   'full'  the name and the stage line;
+ *   'name'  the name alone (the stage line would spill over the next room);
+ *   'dot'   a small dot in the stage colour (even the name would not fit).
+ * The selected room and the room under the pointer always show 'full'.
+ */
+export type PinSize = 'full' | 'name' | 'dot';
+export const PIN_FULL_PX = 150;
+export const PIN_NAME_PX = 84;
+export function pinSize(roomPx: number, emphasised: boolean): PinSize {
+  if (emphasised) return 'full';
+  if (!Number.isFinite(roomPx)) return 'name';
+  if (roomPx >= PIN_FULL_PX) return 'full';
+  return roomPx >= PIN_NAME_PX ? 'name' : 'dot';
+}
+
+/**
+ * THE PAGE STILL SCROLLS. The wheel zooms the model only when the person has
+ * clicked it (the canvas has focus) or is holding Ctrl or Cmd; any other wheel
+ * belongs to the page.
+ */
+export function wheelShouldZoom(e: { ctrlKey?: boolean; metaKey?: boolean }, canvasHasFocus: boolean): boolean {
+  return e.ctrlKey === true || e.metaKey === true || canvasHasFocus === true;
+}
+
+/**
+ * On a narrow screen one finger belongs to the page (it scrolls) and the model
+ * moves only with two. A mouse or a pen always turns the model, and so does one
+ * finger on a wide screen, where the view does not sit in a scrolling column.
+ */
+export function oneFingerTurnsModel(pointerType: string, narrowScreen: boolean): boolean {
+  return !(pointerType === 'touch' && narrowScreen);
+}
+
+/** The CSS touch-action for the canvas: on a narrow screen the browser keeps the up and down swipe for the page. */
+export function canvasTouchAction(narrowScreen: boolean): 'pan-y' | 'none' {
+  return narrowScreen ? 'pan-y' : 'none';
+}

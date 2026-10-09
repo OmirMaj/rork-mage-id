@@ -14,18 +14,17 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy, type LivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { Tokens } from '@/constants/designTokens';
-import { SegmentedControl, useReducedMotion } from '@/components/ui';
+import { Button, SegmentedControl, useReducedMotion } from '@/components/ui';
 import { useIsDesktop } from '@/components/ui/desktop';
 import { labelOn } from '@/components/ui/ink';
-import { addWorkingDays } from '@/utils/scheduleEngine';
 import { liveLinks } from '@/utils/livingModel/linkCore';
 import { roomAreaM2, roomBounds } from '@/utils/livingModel/modelCore';
 import { livingModelPalette, type LivingModelPalette } from '@/utils/livingModel/palette';
 import {
-  offsetOfWeek, roomCard, roomMoment, weekCount, weekOf,
+  TODAY_TOLERANCE, offsetOfWeek, roomCard, roomMoment, weekCount, weekOf,
   type ReplayMode, type ReplayTask, type RoomMoment,
 } from '@/utils/livingModel/replayCore';
-import type { ReplayInput } from '@/utils/livingModel/replayInput';
+import { dateOfOffset, type ReplayInput } from '@/utils/livingModel/replayInput';
 import { BUILD_STAGES, type RoomStage } from '@/utils/livingModel/stageCore';
 import type { JobModel, PlacedRoom } from '@/utils/livingModel/types';
 import { formatFeetInches, formatSqFt, sqMetresToSqFeet } from '@/utils/livingModel/measure';
@@ -142,7 +141,12 @@ export function StageLegend() {
   );
 }
 
-export function ReplayControls({ input, state }: { input: ReplayInput; state: ReplayState }) {
+export function ReplayControls({ input, state, onSetStartDate }: {
+  input: ReplayInput;
+  state: ReplayState;
+  /** Opens the schedule, where the start date is set. Shown only while the schedule has none. */
+  onSetStartDate?: () => void;
+}) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
@@ -166,7 +170,7 @@ export function ReplayControls({ input, state }: { input: ReplayInput; state: Re
   }), [total]);
   const onTrack = useCallback((e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width), []);
   const x = (d: number) => (total > 0 ? Math.max(0, Math.min(1, d / total)) * w : 0);
-  const atToday = clock.hasStartDate && Math.abs(offset - clock.todayOffset) < 0.26;
+  const atToday = clock.hasStartDate && Math.abs(offset - clock.todayOffset) < TODAY_TOLERANCE;
   const todayX = x(clock.todayOffset);
   const ticks = useMemo(() => {
     const stepW = weeks > 16 ? Math.ceil(weeks / 8) : weeks > 8 ? 2 : 1;
@@ -226,7 +230,12 @@ export function ReplayControls({ input, state }: { input: ReplayInput; state: Re
         <Text style={styles.tickText}>{copy.weekShortLabel(1)}</Text>
         {ticks.slice(-1).map((n) => <Text key={n} style={styles.tickText}>{copy.weekShortLabel(n)}</Text>)}
       </View>
-      {!clock.hasStartDate ? <Text style={styles.warn} testID="lm-no-start">{copy.noStartBody}</Text> : null}
+      {!clock.hasStartDate ? (
+        <View style={styles.noStart} testID="lm-no-start">
+          <Text style={styles.warn}>{copy.noStartBody}</Text>
+          {onSetStartDate ? <Button label={copy.setStartLabel} variant="secondary" size="sm" onPress={onSetStartDate} testID="lm-set-start" /> : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -271,11 +280,13 @@ export function ReplayRoomList({ model, level, moments, selectedId, onSelect }: 
   );
 }
 
-export function RoomCardPanel({ room, tasks, input, mode, onClose }: {
+export function RoomCardPanel({ room, tasks, input, mode, offset, onClose }: {
   room: PlacedRoom;
   tasks: ReplayTask[];
   input: ReplayInput;
   mode: ReplayMode;
+  /** Where the scrubber is. The card's figures are for this moment, and the card says which. */
+  offset: number;
   onClose: () => void;
 }) {
   const { colors } = useTheme();
@@ -283,16 +294,20 @@ export function RoomCardPanel({ room, tasks, input, mode, onClose }: {
   const copy = useLivingModelCopy();
   const palette = usePalette();
   const { lang } = useT();
-  const card = useMemo(() => roomCard(tasks, input.points, input.clock), [tasks, input.points, input.clock]);
-  const today = useMemo(() => roomMoment(tasks, input.points, input.clock.todayOffset, input.clock, mode), [tasks, input.points, input.clock, mode]);
+  const card = useMemo(() => roomCard(tasks, input.points, input.clock, offset, mode), [tasks, input.points, input.clock, offset, mode]);
   const b = roomBounds(room);
   const area = roomAreaM2(room);
-  const pct = Math.round(today.overall * 100);
-  const dateOf = (offset: number): string | null => {
-    if (!input.startDate) return null;
-    const d = addWorkingDays(input.startDate, Math.max(0, Math.round(offset)), input.clock.workingDaysPerWeek);
-    return d.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', day: 'numeric' });
+  const weeks = weekCount(input.clock);
+  const week = weekOf(card.offset, input.clock);
+  // The same calendar the schedule screen uses: its week and its closed days.
+  const dateOf = (at: number): string | null => {
+    const d = dateOfOffset(input, at);
+    return d ? d.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', day: 'numeric' }) : null;
   };
+  const whenLine = card.when === 'today' ? copy.asOfTodaySub
+    : card.when === 'undated' && card.reading === 'reported' ? copy.undatedReportedSub
+      : copy.forWeekSub(week, weeks);
+  const numberLabel = card.reading === 'plan_ahead' ? copy.planAheadLabel : card.reading === 'reported' ? copy.roomReportedLabel : copy.roomPlannedLabel;
   return (
     <View style={styles.panel} testID="lm-room-card">
       <View style={styles.hudRow}>
@@ -305,12 +320,15 @@ export function RoomCardPanel({ room, tasks, input, mode, onClose }: {
       {room.source === 'scan' ? <Text style={styles.warn}>{copy.scanCaveatBody}</Text> : null}
       {tasks.length === 0 ? <Text style={styles.para} testID="lm-room-no-tasks">{copy.noTasksRoomBody}</Text> : (
         <>
+          <Text style={styles.eyebrow} testID="lm-card-when">{whenLine}</Text>
+          {card.reading === 'plan_ahead' ? <Text style={styles.warn} testID="lm-card-plan-only">{copy.planOnlyBody}</Text> : null}
           <View style={styles.hudRow}>
-            <Text style={[styles.rowLabel, styles.spacer]}>{mode === 'reported' ? copy.roomReportedLabel : copy.roomPlannedLabel}</Text>
-            <Text style={styles.rowValue}>{`${pct}%`}</Text>
+            <Text style={[styles.rowLabel, styles.spacer]}>{numberLabel}</Text>
+            <Text style={styles.rowValue} testID="lm-card-pct">{`${card.pct}%`}</Text>
           </View>
-          <View style={styles.bar}><View style={[mode === 'reported' ? styles.barFill : styles.barFillPlan, { width: `${pct}%` }]} /></View>
-          {mode === 'reported' && today.unreported > 0 ? <Text style={styles.note} testID="lm-room-unreported">{copy.unreportedBody(today.unreported)}</Text> : null}
+          <View style={styles.bar}><View style={[card.reading === 'reported' ? styles.barFill : styles.barFillPlan, { width: `${card.pct}%` }]} /></View>
+          <Text style={styles.note} testID="lm-card-average">{card.reading === 'reported' ? copy.averageReportedBody(card.taskCount) : copy.averagePlannedBody(card.taskCount)}</Text>
+          {card.reading === 'reported' && card.unreported > 0 ? <Text style={styles.note} testID="lm-room-unreported">{copy.unreportedBody(card.unreported)}</Text> : null}
           <View style={styles.nextBox}>
             <Text style={styles.eyebrow}>{copy.nextHereLabel}</Text>
             <Text style={styles.nextText}>{card.next ? copy.nextBody(card.next.title, weekOf(card.next.startOffset + 1e-3, input.clock)) : copy.allDoneBody}</Text>
@@ -326,7 +344,7 @@ export function RoomCardPanel({ room, tasks, input, mode, onClose }: {
                   <Text style={styles.rowLabel} numberOfLines={2}>{row.title}</Text>
                   <Text style={styles.rowSub}>{`${copy.stageName(row.stage)} · ${from && to ? copy.plannedDatesSub(from, to) : copy.plannedWeeksSub(weekOf(row.startOffset + 1e-3, input.clock), weekOf(row.endOffset, input.clock))}`}</Text>
                 </View>
-                {row.reportedPct == null
+                {card.reading === 'plan_ahead' ? <Text style={styles.mutedValue}>{copy.plannedPctSub(row.plannedPct)}</Text> : row.reportedPct == null
                   ? <Text style={styles.mutedValue}>{copy.noProgressLabel}</Text>
                   : <Text style={row.reportedPct >= 100 ? styles.doneText : styles.rowValue}>{copy.reportedPctSub(row.reportedPct)}</Text>}
               </View>

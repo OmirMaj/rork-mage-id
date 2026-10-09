@@ -23,6 +23,7 @@
 // the scanner's own caveat (a phone scan can be off by an inch or more).
 
 import type { RoomScan } from '@/utils/roomScan/types';
+import type { TaskStage } from './stageCore';
 
 /** The scanner's room geometry, reused as it is. */
 export type RoomShape = Pick<RoomScan, 'walls' | 'openings' | 'objects' | 'floor' | 'ceilingHeightM'>;
@@ -76,6 +77,13 @@ export interface JobModel {
    * linkCore.confirmSuggestions (both called from a tap) add an id.
    */
   links: Record<string, string[]>;
+  /**
+   * Schedule task id to the stage a person PICKED for it on the Tasks tab,
+   * kept beside the ticks. A task that is not here takes its stage from the
+   * table in stageCore.ts. Only modelCore.setTaskStage (called from a tap on
+   * the picker) writes here. Left out of a model nobody has picked a stage in.
+   */
+  stages?: Record<string, TaskStage>;
   /** ISO. '' for a model nobody has saved yet. */
   updatedAt: string;
 }

@@ -8,17 +8,29 @@
 // None of them is ticked until the person taps Confirm Suggested or ticks the
 // task himself. This file is the only caller of confirmSuggestions, and only
 // from that button's onPress.
-import React, { useMemo } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { Check } from 'lucide-react-native';
+//
+// CONFIRM TICKS EXACTLY WHAT THE BOX LISTS. The lines of the Suggested box and
+// the ids its button ticks both come from one call
+// (utils/livingModel/linkCore.suggestionBox), and every line is printed: the
+// box scrolls when the list is long. A task whose name is not on the screen is
+// never ticked by Confirm.
+//
+// THE STAGE OF A TASK CAN BE PICKED. A title can never be read perfectly, so
+// each task's stage is a small button: tap it and pick the stage. The choice is
+// kept with the ticks (JobModel.stages) and wins over the table; "Read from the
+// Title" goes back to the table.
+import React, { useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Check, ChevronDown } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { Button } from '@/components/ui';
 import { labelOn } from '@/components/ui/ink';
-import { confirmSuggestions, liveLinks, suggestLinks } from '@/utils/livingModel/linkCore';
-import { setRoomTaskLink } from '@/utils/livingModel/modelCore';
+import { confirmSuggestions, liveLinks, suggestionBox } from '@/utils/livingModel/linkCore';
+import { setRoomTaskLink, setTaskStage } from '@/utils/livingModel/modelCore';
 import type { ReplayInput } from '@/utils/livingModel/replayInput';
+import { TASK_STAGES } from '@/utils/livingModel/stageCore';
 import type { JobModel } from '@/utils/livingModel/types';
 import { usePalette } from './replayShared';
 import { makeLivingModelStyles } from './styles';
@@ -34,12 +46,12 @@ export function TaskLinks({ model, input, roomId, onRoom, onChange }: {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const palette = usePalette();
+  const [stageFor, setStageFor] = useState<string | null>(null);
   const room = model.rooms.find((r) => r.id === roomId) ?? model.rooms[0] ?? null;
   const ids = useMemo(() => new Set(input.tasks.map((t) => t.id)), [input.tasks]);
   const live = useMemo(() => (room ? liveLinks(model, room.id, ids) : { ids: [], gone: 0 }), [model, room, ids]);
-  const suggestions = useMemo(() => (room ? suggestLinks(room, input.linkTasks, live.ids) : []), [room, input.linkTasks, live.ids]);
-  const reasonOf = useMemo(() => new Map(suggestions.map((s) => [s.taskId, s.reason])), [suggestions]);
-  const titleOf = useMemo(() => new Map(input.tasks.map((t) => [t.id, t.title])), [input.tasks]);
+  const box = useMemo(() => (room ? suggestionBox(room, input.linkTasks, live.ids) : { listed: [], confirmIds: [] }), [room, input.linkTasks, live.ids]);
+  const reasonOf = useMemo(() => new Map(box.listed.map((s) => [s.taskId, s.reason])), [box]);
 
   if (model.rooms.length === 0) return <View style={styles.panel}><Text style={styles.para} testID="lm-links-no-rooms">{copy.noRoomsBody}</Text></View>;
   if (input.tasks.length === 0) return <View style={styles.panel}><Text style={styles.para} testID="lm-links-no-schedule">{copy.noScheduleBody}</Text></View>;
@@ -62,40 +74,74 @@ export function TaskLinks({ model, input, roomId, onRoom, onChange }: {
         <Text style={styles.panelHeading}>{room.name}</Text>
         <Text style={styles.rowSub} testID="lm-links-count">{copy.tickedCountSub(live.ids.length, input.tasks.length)}</Text>
         {live.gone > 0 ? <Text style={styles.note}>{copy.goneBody(live.gone)}</Text> : null}
-        {suggestions.length > 0 ? (
+        {box.listed.length > 0 ? (
           <View style={styles.suggestBox} testID="lm-suggestions">
             <Text style={styles.suggestTag}>{copy.suggestedLabel}</Text>
-            <Text style={styles.note}>{copy.suggestedBody(suggestions.length)}</Text>
-            {suggestions.slice(0, 6).map((s) => <Text key={s.taskId} style={styles.rowSub} numberOfLines={1}>{titleOf.get(s.taskId)}</Text>)}
+            <Text style={styles.note}>{copy.suggestedBody(box.listed.length)}</Text>
+            <ScrollView style={styles.suggestList} nestedScrollEnabled testID="lm-suggestion-list">
+              {box.listed.map((s, i) => <Text key={s.taskId} style={styles.suggestLine} testID={`lm-suggestion-${i}`}>{s.title}</Text>)}
+            </ScrollView>
             <Button
               label={copy.confirmSuggestedLabel}
               variant="secondary"
               size="sm"
-              onPress={() => onChange(confirmSuggestions(model, room.id, suggestions.map((s) => s.taskId)))}
+              onPress={() => onChange(confirmSuggestions(model, room.id, box.confirmIds))}
               testID="lm-confirm-suggested"
             />
           </View>
         ) : null}
+        <Text style={styles.note}>{copy.stageHelpBody}</Text>
         {input.tasks.map((t, i) => {
           const on = live.ids.includes(t.id);
           const reason = reasonOf.get(t.id);
+          const picked = input.stageBy[t.id] === 'person';
+          const open = stageFor === t.id;
           return (
-            <Pressable
-              key={t.id}
-              style={[styles.row, i === 0 && styles.rowFirst]}
-              onPress={() => onChange(setRoomTaskLink(model, room.id, t.id, !on))}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: on }}
-              accessibilityLabel={copy.tickA11yLabel(t.title, room.name)}
-              testID={`lm-tick-${i}`}
-            >
-              <View style={[styles.tick, on && styles.tickOn]}>{on ? <Check size={14} color={labelOn(colors.accentFill)} strokeWidth={3} /> : null}</View>
-              <View style={styles.rowMain}>
-                <Text style={styles.rowLabel} numberOfLines={2}>{t.title}</Text>
-                <Text style={styles.rowSub} numberOfLines={1}>{reason && !on ? copy.suggestionSub(reason) : copy.stageName(t.stage)}</Text>
+            <View key={t.id} style={[styles.taskRow, i === 0 && styles.rowFirst]}>
+              <View style={styles.taskRowTop}>
+                <Pressable
+                  style={styles.taskTick}
+                  onPress={() => onChange(setRoomTaskLink(model, room.id, t.id, !on))}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={copy.tickA11yLabel(t.title, room.name)}
+                  testID={`lm-tick-${i}`}
+                >
+                  <View style={[styles.tick, on && styles.tickOn]}>{on ? <Check size={14} color={labelOn(colors.accentFill)} strokeWidth={3} /> : null}</View>
+                  <View style={styles.rowMain}>
+                    <Text style={styles.rowLabel} numberOfLines={2}>{t.title}</Text>
+                    {reason && !on ? <Text style={styles.rowSub} numberOfLines={1}>{copy.suggestionSub(reason)}</Text> : null}
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={[styles.stageBtn, open && styles.chipOn]}
+                  onPress={() => setStageFor(open ? null : t.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: open }}
+                  accessibilityLabel={copy.stagePickA11yLabel(t.title)}
+                  testID={`lm-stage-${i}`}
+                >
+                  <View style={[styles.swatch, { backgroundColor: palette.stage[t.stage] }]} />
+                  <Text style={styles.stageBtnText} numberOfLines={1}>{picked ? copy.stagePickedSub(copy.stageName(t.stage)) : copy.stageName(t.stage)}</Text>
+                  <ChevronDown size={14} color={colors.textMuted} />
+                </Pressable>
               </View>
-              <View style={[styles.swatch, { backgroundColor: palette.stage[t.stage] }]} />
-            </Pressable>
+              {open ? (
+                <View style={styles.stagePicker} accessibilityRole="radiogroup" accessibilityLabel={copy.stagePickerLabel} testID={`lm-stage-picker-${i}`}>
+                  {TASK_STAGES.map((st) => {
+                    const sel = picked && t.stage === st;
+                    return (
+                      <Pressable key={st} style={[styles.chip, sel && styles.chipOn]} onPress={() => { onChange(setTaskStage(model, t.id, st)); setStageFor(null); }} accessibilityRole="radio" accessibilityState={{ selected: sel }} accessibilityLabel={copy.stageName(st)} testID={`lm-stage-${i}-${st}`}>
+                        <Text style={[styles.chipText, sel && styles.chipTextOn]}>{copy.stageName(st)}</Text>
+                      </Pressable>
+                    );
+                  })}
+                  <Pressable style={[styles.chip, !picked && styles.chipOn]} onPress={() => { onChange(setTaskStage(model, t.id, null)); setStageFor(null); }} accessibilityRole="radio" accessibilityState={{ selected: !picked }} accessibilityLabel={copy.stageFromTitleLabel} testID={`lm-stage-${i}-title`}>
+                    <Text style={[styles.chipText, !picked && styles.chipTextOn]}>{copy.stageFromTitleLabel}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
           );
         })}
       </View>

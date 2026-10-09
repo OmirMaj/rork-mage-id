@@ -10,7 +10,6 @@ import {
   ScrollView,
   Animated,
   ActivityIndicator,
-  Linking,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -573,29 +572,9 @@ export default function SignupScreen() {
           </Slot>
 
           <Slot style={entrance.slot(7)}>
-          {/* Apple guideline 3.1.2 / 5.1.1 — surface the legal terms on the
-              same screen the user agrees to them on. Tappable links open the
-              hosted Privacy Policy and Terms of Service in the browser. */}
-          <Text style={styles.legalText}>
-            By creating an account you agree to our{' '}
-            <Text
-              style={styles.legalLink}
-              onPress={() => { void Linking.openURL('https://mageid.app/terms'); }}
-              testID="signup-terms-link"
-            >
-              Terms of Service
-            </Text>
-            {' '}and{' '}
-            <Text
-              style={styles.legalLink}
-              onPress={() => { void Linking.openURL('https://mageid.app/privacy'); }}
-              testID="signup-privacy-link"
-            >
-              Privacy Policy
-            </Text>
-            .
-          </Text>
-
+          {/* The agreement sentence is the shared <AgreementNotice /> above the
+              buttons (signup-agreement). It is shown once: the older copy that
+              sat here, under Create Account, was removed. */}
           <View style={styles.loginRow}>
             <Text style={styles.loginPrompt}>Already have an account?</Text>
             <TouchableOpacity
@@ -790,19 +769,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnAccent,
-  },
-  legalText: {
-    fontSize: Type.footnote.fontSize,
-    color: t.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginTop: 14,
-    paddingHorizontal: 8,
-  },
-  legalLink: {
-    color: t.accent,
-    fontWeight: '600' as const,
-    textDecorationLine: 'underline',
   },
   loginRow: {
     flexDirection: 'row',

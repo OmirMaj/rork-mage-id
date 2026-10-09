@@ -24,12 +24,22 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { manageSubscriptionRoute, PLAN_NAME } from '../utils/manageSubscription';
+import { EN as EN_MANAGE_SUB } from '../i18n/catalog/en/office.manage-sub.generated';
+import { keysForKind } from './validate-manage-subscription';
 
 declare const Bun: {
   Transpiler: new (opts: { loader: 'ts' }) => { transformSync(code: string): string };
 };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** The English the plan row shows for one state on one platform (the copy hook's own keys). */
+function planRowWords(kind: string, os: string): string[] {
+  const hook = readFileSync(join(ROOT, 'hooks/useManageSubscriptionCopy.ts'), 'utf8');
+  const en = EN_MANAGE_SUB as Record<string, string>;
+  return keysForKind(hook, kind, os).map((k) => en[k] ?? '');
+}
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 let pass = 0, fail = 0;
@@ -107,8 +117,7 @@ type Owned = { file: string; fns: string[]; consts?: string[] };
 const OWNED: Owned[] = [
   {
     file: 'app/(tabs)/settings/index.tsx',
-    fns: ['privacyFaqAnswer', 'ipadFaqAnswer', 'subscriptionFaqAnswer', 'deleteAccountSubscriptionNote', 'planChangeRouteFor'],
-    consts: ['PLAN_NAME'],
+    fns: ['privacyFaqAnswer', 'ipadFaqAnswer', 'subscriptionFaqAnswer', 'deleteAccountSubscriptionNote'],
   },
   { file: 'components/HelpFab.tsx', fns: ['helpEmailPlatformTag'] },
   { file: 'app/notifications-settings.tsx', fns: ['pushHowItWorks'] },
@@ -143,14 +152,22 @@ const clean = (s: unknown) => !new RegExp(BANNED.source).test(typeof s === 'stri
   const sub = String(ios.subscriptionFaqAnswer());
   ok('settings FAQ subscription (ios): App Store only, no by-hand plan, no email-to-change', clean(sub) && /App Store/.test(sub) && !/help@mageid|email/i.test(sub));
   ok('delete-account note (ios): Apple ID only', clean(ios.deleteAccountSubscriptionNote()) && /Apple ID/.test(String(ios.deleteAccountSubscriptionNote())));
+  // WEBCANCEL (2026-10-09): the plan row's route is utils/manageSubscription
+  // (run here) and its words are the office.manageSub.* strings the copy hook
+  // uses for each state. Every state an iPhone can reach is checked.
   const routes: string[] = [];
-  for (const source of ['store', 'manual', 'none']) for (const tier of ['pro', 'business', 'enterprise']) routes.push(JSON.stringify(ios.planChangeRouteFor(source, tier)));
-  ok('plan row (ios), every plan source and tier: no banned words', routes.every(clean), routes.find((r) => !clean(r)) ?? '');
-  const hand = ios.planChangeRouteFor('manual', 'business') as { url: string | null; label: string; subtitle: string | null; downgradeMessage: string };
-  ok('plan row (ios), paid with no App Store purchase: just "Business plan", not a button', hand.url === null && hand.label === 'Business plan' && hand.subtitle === null);
-  ok('…and no email-to-change instruction anywhere in it', !/help@mageid|mailto|email/i.test(JSON.stringify(hand)));
-  const store = ios.planChangeRouteFor('store', 'pro') as { url: string; label: string };
-  ok('plan row (ios), App Store subscriber: Manage Subscription → the App Store page', store.label === 'Manage Subscription' && /^itms-apps:\/\/apps\.apple\.com/.test(store.url));
+  for (const store of [null, 'APP_STORE', 'PLAY_STORE', 'RC_BILLING', 'STRIPE', 'PROMOTIONAL']) for (const tier of ['free', 'pro', 'business', 'enterprise'] as const) for (const isOwner of [false, true]) {
+    const r = manageSubscriptionRoute({ os: 'ios', tier, store, managementURL: store === 'RC_BILLING' ? 'https://billing.revenuecat.com/manage/abc' : null, isOwner });
+    routes.push(JSON.stringify({ r, words: planRowWords(r.kind, 'ios') }));
+  }
+  ok('plan row (ios), every store, tier and account: no banned words', routes.every(clean), routes.find((r) => !clean(r)) ?? '');
+  ok('…and no email-to-change instruction in any of them', routes.every((r) => !/help@mageid|mailto|email/i.test(r)), routes.find((r) => /help@mageid|mailto|email/i.test(r)) ?? '');
+  const hand = manageSubscriptionRoute({ os: 'ios', tier: 'business', store: null, managementURL: null, isOwner: false });
+  ok('plan row (ios), paid with no App Store purchase: just "{plan} plan", not a button',
+    hand.url === null && hand.kind === 'plan-line' && planRowWords('plan-line', 'ios').includes('{plan} plan') && PLAN_NAME.business === 'Business');
+  const store = manageSubscriptionRoute({ os: 'ios', tier: 'pro', store: 'APP_STORE', managementURL: null, isOwner: false });
+  ok('plan row (ios), App Store subscriber: Manage Subscription → the App Store page',
+    store.kind === 'store-here' && /^itms-apps:\/\/apps\.apple\.com/.test(store.url ?? '') && planRowWords('store-here', 'ios').includes('Manage Subscription'));
   const help = load(stripComments(read(OWNED[1].file)), OWNED[1].fns, [], 'ios');
   ok('HelpFab support email tag (ios): "iOS"', help.helpEmailPlatformTag() === 'iOS');
   const push = load(stripComments(read(OWNED[2].file)), OWNED[2].fns, [], 'ios');
@@ -162,11 +179,11 @@ console.log('\n── 3. Android reads its own store; the web app keeps today’
   const src = stripComments(read(OWNED[0].file));
   const and = load(src, OWNED[0].fns, OWNED[0].consts ?? [], 'android');
   ok('android FAQ subscription names Google Play, not the App Store', /Google Play/.test(String(and.subscriptionFaqAnswer())) && !/App Store/.test(String(and.subscriptionFaqAnswer())));
-  ok('android plan row (store) → the Play Store page', /play\.google\.com/.test(String((and.planChangeRouteFor('store', 'pro') as { url: string }).url)));
+  ok('android plan row (store) → the Play Store page', /play\.google\.com/.test(manageSubscriptionRoute({ os: 'android', tier: 'pro', store: 'PLAY_STORE', managementURL: null, isOwner: false }).url ?? ''));
   const web = load(src, OWNED[0].fns, OWNED[0].consts ?? [], 'web');
   ok('web FAQ subscription: unchanged (both stores + the help@ route)', /App Store or Google Play/.test(String(web.subscriptionFaqAnswer())) && /help@mageid\.app/.test(String(web.subscriptionFaqAnswer())));
-  const webHand = web.planChangeRouteFor('manual', 'business') as { url: string; label: string };
-  ok('web plan row, paid by hand: unchanged ("Your Plan Was Turned On by MAGE ID", mailto)', webHand.label === 'Your Plan Was Turned On by MAGE ID' && /^mailto:help@mageid\.app/.test(webHand.url));
+  const webHand = manageSubscriptionRoute({ os: 'web', tier: 'business', store: null, managementURL: null, isOwner: false });
+  ok('web plan row, paid by hand: unchanged ("Your Plan Was Turned On by MAGE ID", mailto)', planRowWords('by-hand', 'web').includes('Your Plan Was Turned On by MAGE ID') && /^mailto:help@mageid\.app/.test(webHand.url ?? ''));
   ok('web FAQ iPad: unchanged', web.ipadFaqAnswer() === 'Not yet. MAGE ID runs on iPhone, Android phones and the web app at app.mageid.app.');
   const pushWeb = load(stripComments(read(OWNED[2].file)), OWNED[2].fns, [], 'web');
   ok('web "How push works": unchanged', String(pushWeb.pushHowItWorks()).startsWith('Your iPhone or Android device registers when you sign in.'));

@@ -32,7 +32,8 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import { platformFeeLabel } from '@/utils/platformFees';
 import { getAIUsageStats, describeAIUsageCard, type AIUsageSource, type SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { nextAiResetLabel } from '@/utils/aiRateLimiterCore';
-import { useSubscription, type PlanSource } from '@/contexts/SubscriptionContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { ManageSubscriptionRow, useManageSubscription } from '@/components/ManageSubscriptionRow';
 import { listPriceLabel, type PaidTier } from '@/constants/pricing';
 import { planFeatureLines, planFeatureBlurb, lineTier, type PlanFeatureLine } from '@/utils/planFeatureCopy';
 import { useTakeoffPagesQuota } from '@/hooks/useUsageStatus';
@@ -202,78 +203,21 @@ function subscriptionFaqAnswer(): string {
   }
   // #176: a plan turned on by hand has nothing in a store to cancel. Same two
   // routes as support.html. Web only.
-  return 'It depends on how your plan started. If you subscribed in the iPhone or Android app, use Settings > Manage Subscription, which opens the App Store or Google Play. If MAGE ID turned your plan on for you (how every paid plan starts today), email help@mageid.app to change or cancel it. Nothing is deleted when a plan ends.';
+  // WEBCANCEL: a plan bought in the web app has a billing page; the row opens it.
+  return 'Use Settings > Manage Subscription. It depends on how your plan started. If you subscribed in the web app, it opens your billing page. If you subscribed in the iPhone or Android app, it sends you to the App Store or Google Play. If MAGE ID turned your plan on for you, or no billing page opens, email help@mageid.app to change or cancel it. Nothing is deleted when a plan ends.';
 }
 
 /** The delete-account warning's subscription line, per platform. */
 function deleteAccountSubscriptionNote(): string {
   if (Platform.OS === 'ios') return 'If you have an active subscription, cancel it first in Settings > Apple ID > Subscriptions. Deleting your account does not cancel your subscription.';
   if (Platform.OS === 'android') return 'If you have an active subscription, cancel it first in Google Play > Subscriptions. Deleting your account does not cancel your subscription.';
-  return 'If you have an active subscription, cancel it first in Settings > Apple ID > Subscriptions on iOS or Google Play > Subscriptions on Android. Deleting your account does not cancel your subscription.';
+  return 'If you have an active subscription, cancel it first in Settings > Manage Subscription. A plan bought on a phone is cancelled in Settings > Apple ID > Subscriptions on iOS or Google Play > Subscriptions on Android. Deleting your account does not cancel your subscription.';
 }
 
-type PlanChangeRoute = {
-  /** null: nothing to open — the row is a plain line, not a button. */
-  url: string | null;
-  label: string;
-  subtitle: string | null;
-  fallback: string;
-  downgradeMessage: string;
-};
-
-const PLAN_NAME: Record<'free' | PaidTier, string> = { free: 'Free', pro: 'Pro', business: 'Business', enterprise: 'Enterprise' };
-
-/**
- * #176: where a plan change or cancel really goes. 'store' only when an App
- * Store / Google Play entitlement backs the tier AND this is that phone —
- * never an apps.apple.com link on the web. A paid plan with no store purchase
- * on a phone is a plain line with the plan's name (3.1.1: no route outside the
- * App Store, no "turned on by MAGE ID"); the web app keeps the email route.
- */
-function planChangeRouteFor(planSource: PlanSource, tier: 'free' | PaidTier): PlanChangeRoute {
-  const mailto = 'mailto:help@mageid.app?subject=Change%20my%20MAGE%20ID%20plan';
-  if (planSource === 'store' && (Platform.OS === 'ios' || Platform.OS === 'android')) {
-    const store = Platform.OS === 'ios' ? 'App Store' : 'Play Store';
-    return {
-      url: Platform.OS === 'ios'
-        ? 'itms-apps://apps.apple.com/account/subscriptions'
-        : 'https://play.google.com/store/account/subscriptions',
-      label: 'Manage Subscription',
-      subtitle: `Cancel or change anytime in the ${store}`,
-      fallback: Platform.OS === 'ios'
-        ? 'Open Settings > Apple ID > Subscriptions to manage your MAGE ID plan.'
-        : 'Open Play Store > Subscriptions to manage your MAGE ID plan.',
-      downgradeMessage: `To switch to Free, cancel your subscription in the ${store} (${Platform.OS === 'ios' ? 'Settings > Apple ID > Subscriptions' : 'Play Store > Subscriptions'}). Nothing is deleted.`,
-    };
-  }
-  if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    const name = `${PLAN_NAME[tier]} plan`;
-    return {
-      url: null,
-      label: name,
-      subtitle: null,
-      fallback: name,
-      downgradeMessage: `Your ${name} can’t be changed from this screen. Nothing is deleted when a plan ends.`,
-    };
-  }
-  if (planSource === 'store') {
-    // A store subscription viewed on the web: the store page is on his phone.
-    return {
-      url: mailto,
-      label: 'Manage Subscription',
-      subtitle: 'Billed through the App Store or Google Play. Change or cancel it on your phone, or email help@mageid.app.',
-      fallback: 'Change or cancel it in your phone’s App Store or Google Play subscriptions, or email help@mageid.app.',
-      downgradeMessage: 'Your plan is billed through the App Store or Google Play. Cancel it in your phone’s subscription settings to switch to Free, or email help@mageid.app. Nothing is deleted.',
-    };
-  }
-  return {
-    url: mailto,
-    label: 'Your Plan Was Turned On by MAGE ID',
-    subtitle: 'Email help@mageid.app to change or cancel. Nothing is deleted.',
-    fallback: 'Email help@mageid.app to change or cancel your plan. Nothing is deleted.',
-    downgradeMessage: 'Your plan was turned on by MAGE ID, so there is nothing to cancel in the App Store. Email help@mageid.app to switch to Free. Nothing is deleted.',
-  };
-}
+// WEBCANCEL (2026-10-09): where a plan change or cancel really goes moved out
+// of this file. utils/manageSubscription decides the route (store page, web
+// billing page, plain line, or email), hooks/useManageSubscriptionCopy holds
+// the words, and components/ManageSubscriptionRow is the row.
 
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
@@ -362,7 +306,7 @@ export default function SettingsScreen() {
   const { tier } = useTierAccess();
   // CONTRACT 1 (#176): whether a store subscription backs the tier. A plan
   // MAGE ID turned on by hand has nothing in the App Store to cancel.
-  const { planSource, proPackage, businessPackage, enterprisePackage } = useSubscription();
+  const { proPackage, businessPackage, enterprisePackage } = useSubscription();
   // Plan-card price: the store's own monthly price once RevenueCat has it,
   // else the one published list rate (constants/pricing) labelled as such.
   const planPriceLabel = useCallback((t: PaidTier): string => {
@@ -386,8 +330,8 @@ export default function SettingsScreen() {
     if (getAiConsentState() === 'granted') return;
     void resetAiConsent().then(() => ensureAiConsent());
   }, []);
-  // #176 + App Store 3.1.1: see planChangeRouteFor (module scope).
-  const planChangeRoute = useMemo(() => planChangeRouteFor(planSource, tier), [planSource, tier]);
+  // #176 + App Store 3.1.1: the same route and words as the Manage Subscription row.
+  const manageSubscription = useManageSubscription();
   const { colors: themeColors, resolved: resolvedTheme } = useTheme();
   const { t } = useT();
   const { lang: appLanguage } = useLanguage();
@@ -2264,7 +2208,7 @@ export default function SettingsScreen() {
                       // #176: the same store-or-by-hand branch as Manage
                       // Subscription below — a hand-granted plan has nothing
                       // in the App Store to cancel.
-                      showAlert('Switch to Free', planChangeRoute.downgradeMessage);
+                      showAlert('Switch to Free', manageSubscription.lines.downgrade);
                       return;
                     }
                     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -2312,49 +2256,12 @@ export default function SettingsScreen() {
             weakness (Houzz Pro, Contractor Foreman). #176: that only works if
             the route is real — a store subscriber goes to the store page, a
             plan MAGE ID turned on by hand goes to help@mageid.app (the store
-            page lists nothing for him). See planChangeRoute. On a phone a paid
+            page lists nothing for him). See utils/manageSubscription. On a phone a paid
             plan with no store purchase is a plain line with the plan's name
             (App Store 3.1.1): nothing to open, so not a button. */}
-        {tier !== 'free' && planChangeRoute.url === null && (
-          <View style={styles.group}>
-            <View style={styles.row} testID="plan-name-row">
-              <View style={styles.iconWrap}>
-                <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
-              </View>
-              <Text style={[styles.rowLabel, { flex: 1 }]}>{planChangeRoute.label}</Text>
-            </View>
-          </View>
-        )}
-        {tier !== 'free' && planChangeRoute.url !== null && (
-          <View style={styles.group}>
-            <TouchableOpacity
-              style={styles.row}
-              onPress={() => {
-                if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                const url = planChangeRoute.url;
-                if (!url) return;
-                Linking.openURL(url).catch(() => {
-                  showAlert(planChangeRoute.label, planChangeRoute.fallback);
-                });
-              }}
-              activeOpacity={0.6}
-              testID="manage-subscription-link"
-              accessibilityRole="button"
-              accessibilityLabel={planChangeRoute.label}
-            >
-              <View style={styles.iconWrap}>
-                <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowLabel}>{planChangeRoute.label}</Text>
-                <Text style={[styles.rowLabel, { fontSize: 11, color: themeColors.textMuted, fontWeight: '400' as const, marginTop: 2 }]}>
-                  {planChangeRoute.subtitle}
-                </Text>
-              </View>
-              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* WEBCANCEL: drawn for every account. Free and master accounts read
+            "there is no paid subscription on this account" and open nothing. */}
+        <ManageSubscriptionRow testID="manage-subscription" />
 
         </SettingsSection>
         <SettingsSection id="help">

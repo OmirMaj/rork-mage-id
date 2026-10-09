@@ -12,6 +12,7 @@ declare module 'three' {
     set(c: string | number): this;
     copy(c: Color): this;
     lerp(c: Color, alpha: number): this;
+    getHexString(): string;
   }
   export class Vector2 {
     constructor(x?: number, y?: number);
@@ -104,6 +105,7 @@ declare module 'three' {
     setSize(w: number, h: number, updateStyle?: boolean): void;
     render(scene: Scene, camera: Camera): void;
     dispose(): void;
+    forceContextLoss(): void;
   }
   export const PCFSoftShadowMap: number;
   export const DoubleSide: number;
