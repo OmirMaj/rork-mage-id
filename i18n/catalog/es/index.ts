@@ -35,6 +35,7 @@ import { ES_OFFICE_ROOM_SCAN } from './office/roomScan';
 import { ES_OFFICE_CODE_FLAGS } from './office/codeFlags';
 import { ES_OFFICE_PROOF_PACK } from './office/proofPack';
 import { ES_OFFICE_LIVING_MODEL } from './office/livingModel';
+import { ES_OFFICE_LIVING_MODEL_PHONE } from './office/livingModelPhone';
 import { ES_OFFICE_SCAN_CLEARANCE } from './office/scanClearance';
 import { ES_OFFICE_NOTICES } from './office/notices';
 
@@ -65,6 +66,7 @@ export const ES_SHARDS: Record<string, EsCatalog> = {
   'office/codeFlags': ES_OFFICE_CODE_FLAGS,
   'office/proofPack': ES_OFFICE_PROOF_PACK,
   'office/livingModel': ES_OFFICE_LIVING_MODEL,
+  'office/livingModelPhone': ES_OFFICE_LIVING_MODEL_PHONE,
   'office/scanClearance': ES_OFFICE_SCAN_CLEARANCE,
   'office/notices': ES_OFFICE_NOTICES,
 };

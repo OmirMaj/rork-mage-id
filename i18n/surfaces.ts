@@ -269,6 +269,11 @@ export const SURFACES: Surface[] = [
   // Every string lives in the one copy hook. Complete: each key has Spanish
   // (i18n/catalog/es/office/livingModel.ts).
   { id: 'office.living-model', phase: 2, state: 'complete', keyPrefixes: ['office.livingModel.'], files: ['hooks/useLivingModelCopy.ts'], lane: 'LIVINGMODEL' },
+  // The Living Model's 3D view on the phone (lane PHONE3D, same gate as the
+  // Living Model): the line a build without the 3D engine shows, the line a
+  // failed start shows, and the touch help. Complete: each key has Spanish
+  // (i18n/catalog/es/office/livingModelPhone.ts).
+  { id: 'office.living-model-phone', phase: 2, state: 'complete', keyPrefixes: ['office.livingModelPhone.'], files: ['hooks/usePhone3DCopy.ts'], lane: 'PHONE3D' },
   // Clearance Check (owner preview, the room scanner's own gate): distances an
   // inspector commonly looks at, measured off a scan. Every string lives in the
   // one copy hook. Complete: each key has Spanish (i18n/catalog/es/office/scanClearance.ts).
