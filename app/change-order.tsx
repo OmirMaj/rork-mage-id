@@ -4115,7 +4115,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
   // The portal pill is a wash over a ground; on the hero's fill it gets the surface as its ground.
-  heroPillGround: { alignSelf: 'flex-start', backgroundColor: themeColors.surface, borderRadius: Tokens.radius.full, marginTop: 4 },
+  heroPillGround: { ...cardSurface(themeColors, { radius: 'full', pad: 'none', bordered: false }), alignSelf: 'flex-start', marginTop: 4 },
   statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: themeColors.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
