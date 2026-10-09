@@ -133,7 +133,7 @@
       <div class="facts" id="facts"></div>
       <div class="callout warn">
         <strong>Read this before you sign.</strong> A lien waiver gives up rights. An
-        <em>unconditional</em> waiver is enforceable against you even if the money never arrives. If you have not
+        <em>unconditional</em> waiver says you give up those rights whether or not the money has arrived. If you have not
         been paid the amount shown, do not sign — reply to the email that sent you here.
       </div>
     </div>
@@ -205,10 +205,9 @@
   // Mirrors utils/lienWaiverEngine.ts. Change one, change both.
   var FETCH_RPC = 'lien_waiver_get_for_signing';
   var SIGN_RPC  = 'lien_waiver_submit_signature';
-  var CONSENT_VERSION = '2026-09-esign-v1';
+  var CONSENT_VERSION = '2026-10-esign-v2';
   var CONSENT_TEXT =
-    'I agree to sign this lien waiver electronically. I understand my electronic signature is legally binding, '
-    + 'the same as signing on paper, under the federal E-SIGN Act and my state’s Uniform Electronic Transactions Act. '
+    'I agree to sign this lien waiver electronically. I intend this to be my signature. '
     + 'I have read the document above and I am the person named as the claimant, or I am authorised to sign for them.';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -235,7 +234,7 @@
       + (signedRecord.title ? ', ' + esc(signedRecord.title) : '')
       + ' — ' + esc(new Date(signedRecord.at).toLocaleString())
       + '.<br/>Consent record ' + esc(signedRecord.consentVersion)
-      + '. This copy was produced for the signer by MAGE ID; the contractor holds the same waiver with this '
+      + '. This copy was made for the signer on the signing page. The contractor holds the same waiver with this '
       + 'signature on it.</div>';
   }
 

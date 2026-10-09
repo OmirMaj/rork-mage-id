@@ -8,12 +8,12 @@
     },
     {
       "file": "marketing/lien-waiver/index.html",
-      "contains": "waiver is enforceable against you even if the money never arrives",
+      "contains": "waiver says you give up those rights whether or not the money has arrived",
       "reason": "the warning a claimant reads before signing a lien waiver (what an unconditional waiver gives up): legal text, not restyled"
     },
     {
       "file": "marketing/portal/index.html",
-      "text": "Slide along the line to make it binding",
+      "text": "Slide along the line to sign",
       "reason": "signing instruction on the contract slide (the signing moments block, English only, states a legal effect): not restyled"
     },
     {

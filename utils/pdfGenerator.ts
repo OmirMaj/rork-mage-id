@@ -1701,7 +1701,7 @@ function sealStatement(homeowner: ContractSignature | undefined): string {
   if (homeowner?.method === 'paper') {
     return 'The owner signed a printed copy on paper. The contractor recorded that signature in MAGE ID, which sealed this record.';
   }
-  return 'This document was electronically signed and sealed via MAGE ID.';
+  return 'This document was electronically signed. The record was sealed in MAGE ID software.';
 }
 
 function buildContractHtml(contract: ProjectContract, project: Project, branding: CompanyBranding): string {
@@ -1812,7 +1812,7 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
       <div style="flex:1;min-width:260px">${buildSignatureBlock('Owner', contract.homeownerSignature)}</div>
     </div>
     <div style="margin-top:18px;padding:10px 12px;border:1px solid ${PDF_PALETTE.hairline};border-radius:6px;background:#FAFAF7;font-size:11px;color:${PDF_PALETTE.text2}">
-      ${escHtml(sealStatement(contract.homeownerSignature))} The cryptographic hash recorded with this contract makes any subsequent byte-level change detectable. Sealed at ${escHtml(sealedAt)}.
+      ${escHtml(sealStatement(contract.homeownerSignature))} A fingerprint of this file was stored when it was sealed. A different fingerprint means the file changed. Sealed at ${escHtml(sealedAt)}.
     </div>`;
 
   return pdfShell({ title, bodyHtml, branding });

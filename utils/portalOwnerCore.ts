@@ -544,7 +544,7 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
       // number lives in `waitingDays` / `daysOverdue` (rendered in the badge)
       // and the prose only ever states a fixed DATE. Otherwise a week-old
       // snapshot would read "3 days past due" next to a badge saying 10.
-      detail: 'Review the scope, payment schedule, and warranty, then counter-sign to make it binding.',
+      detail: 'Review the scope, payment schedule, and warranty, then counter-sign.',
       urgency: 'waiting',
       waitingDays,
       target: 'sec-contract',

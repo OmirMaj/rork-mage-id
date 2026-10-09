@@ -342,7 +342,7 @@ export default async function run(ctx: Ctx): Promise<void> {
       'Awaiting your signature',
       'Slide along the line to sign',
       'Slide along the line to sign and send',
-      'Slide along the line to make it binding',
+      'Slide along the line to sign',
       'Slide along the line to accept',
     ];
     const bad = fixed.map((s) => ({ s, e: lintMomentCopy(s) })).filter((x) => x.e.length);

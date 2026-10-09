@@ -223,7 +223,7 @@ export const PDF_DISCLAIMERS = {
 
   // Change order — emphasizes that signatures are binding.
   changeOrder:
-    'A change order, once signed, is a binding amendment to the original contract. Review every line item, amount, and schedule impact carefully. Consult your architect or attorney if anything is unclear before signing.',
+    'A signed change order changes the contract amount and schedule shown here. Review every line item, amount and schedule impact before signing. Ask your architect or attorney about anything that is unclear.',
 
   // AIA G702/G703 — the heaviest disclaimer; the form is regulated.
   aia:

@@ -2602,7 +2602,7 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
               <View style={{ flex: 1 }}>
                 <Text style={[styles.statusBannerTitle, { color: themeColors.success }]}>Signed by Both Parties</Text>
                 <Text style={styles.statusBannerBody}>
-                  Binding agreement on file. Invoices on this project should reference it.
+                  Signed contract on file. Invoices on this project should reference it.
                 </Text>
               </View>
             </View>
