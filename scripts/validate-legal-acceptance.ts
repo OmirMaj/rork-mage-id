@@ -713,7 +713,7 @@ const M: Mutation[] = [
   { name: 'a refused record is retried forever', file: F.core, from: 'was.tries >= LEGAL_REFUSAL_MAX_TRIES || ', to: '', red: 'B19' },
   { name: 'the rpc drops the update id', file: F.core, from: "    p_update_id: ctx.updateId && /^[A-Za-z0-9-]{1,64}$/.test(ctx.updateId) ? ctx.updateId : null,", to: '    p_update_id: null,', red: 'B5' },
   { name: 'an email link records', file: F.core, from: "  if (method === 'email_link') return null;", to: "  if (method === 'email_link') return 'login_first';", red: 'B23' },
-  { name: 'the login screen records whatever its constant says', file: F.core, from: "  if (screen === 'login') return TERMS_SENTENCE_ON_LOGIN_SCREEN === true;", to: "  if (screen === 'login') return true;", red: 'B15' },
+  { name: 'the login screen records whatever its constant says', file: F.core, from: "  if (screen === 'login') return TERMS_SENTENCE_ON_LOGIN_SCREEN;", to: "  if (screen === 'login') return true;", red: 'B15' },
   { name: 'the login screen\'s constant is true with no sentence on the screen', file: F.core, from: 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;', to: 'export const TERMS_SENTENCE_ON_LOGIN_SCREEN = true;', red: 'C17' },
   { name: 'Apple with no screen named records as a sign-up', file: F.core, from: "return startedFrom === 'signup' || startedFrom === 'login' ? startedFrom : null;", to: "return startedFrom === 'login' ? 'login' : 'signup';", red: 'B15' },
   { name: 'with the gate on, signing out and back in records the new version', file: F.core, from: '  if (input.reacceptOn === true && !fresh) return null;\n', to: '', red: 'B24' },

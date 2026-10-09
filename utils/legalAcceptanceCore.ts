@@ -163,8 +163,8 @@ export const TERMS_SENTENCE_ON_SIGNUP_SCREEN = true;
 export const TERMS_SENTENCE_ON_LOGIN_SCREEN = false;
 
 export function screenShowsTerms(screen: SignInScreen | null | undefined): boolean {
-  if (screen === 'signup') return TERMS_SENTENCE_ON_SIGNUP_SCREEN === true;
-  if (screen === 'login') return TERMS_SENTENCE_ON_LOGIN_SCREEN === true;
+  if (screen === 'signup') return TERMS_SENTENCE_ON_SIGNUP_SCREEN;
+  if (screen === 'login') return TERMS_SENTENCE_ON_LOGIN_SCREEN;
   return false;
 }
 
