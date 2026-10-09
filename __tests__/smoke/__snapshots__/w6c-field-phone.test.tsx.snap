@@ -23,15 +23,15 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) construction
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) contract (signature sheets) 1`] = `
 {
-  "lines": 926,
-  "sha256": "44c8b62b1ecd3413d6abad9578dcaf2bc4e5cc05402268a7ddeaa1ac6159e73d",
+  "lines": 928,
+  "sha256": "6e7ac8008f843453ec3b7054382e79cbdde2996185d9d11162f8ccd8a947bfa8",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) cost-seed 1`] = `
 {
   "lines": 454,
-  "sha256": "669606f90243ec1f1fb33b66e7eb7dc04146a1b9d6b3c5f42aa5fe1307e8cf74",
+  "sha256": "f4026707b4c17aae6daebbe69f382cf60682cfa7e793ec3636be8e16dc5b333c",
 }
 `;
 
@@ -205,15 +205,15 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-forms
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-hazards 1`] = `
 {
-  "lines": 465,
-  "sha256": "11bb28416afb240155e9b6709286eaf49e7b7a337c18a441ea78b36c8c0d14c6",
+  "lines": 467,
+  "sha256": "0fa5c6aa97eb56c458d0508e35a2cdcd099c68585f532d599572c65c82c538f8",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-incidents (Report Incident) 1`] = `
 {
-  "lines": 538,
-  "sha256": "1099a1963105032441a34bec26e7ffff15f211d269cec35a4db275dc209123cc",
+  "lines": 542,
+  "sha256": "19653c6ee6752c7d2d3376fefef150b93ff6125c8244131ba200686c39ffa568",
 }
 `;
 
@@ -226,8 +226,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-inspe
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-jha 1`] = `
 {
-  "lines": 441,
-  "sha256": "ee42ef98c9cc91885d68bf963fff123c8c5c7792a7592553f2b4ceceabd59388",
+  "lines": 443,
+  "sha256": "95abfac7293c312c3f430b4b645d7e1cef213304c28b6b06a8c58093a7d4099b",
 }
 `;
 

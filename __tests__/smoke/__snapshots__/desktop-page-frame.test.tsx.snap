@@ -281,6 +281,59 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /accept
                                         },
                                         {
                                           "children": [
+                                            "By continuing you agree to our",
+                                            " ",
+                                            {
+                                              "children": [
+                                                "Terms of Service",
+                                              ],
+                                              "props": {
+                                                "accessibilityRole": "link",
+                                                "onPress": [Function],
+                                                "style": {
+                                                  "color": "#2C6436",
+                                                  "fontWeight": "600",
+                                                  "textDecorationLine": "underline",
+                                                },
+                                                "testID": "accept-invite-agreement-terms",
+                                              },
+                                              "type": "Text",
+                                            },
+                                            " ",
+                                            "and",
+                                            " ",
+                                            {
+                                              "children": [
+                                                "Privacy Policy",
+                                              ],
+                                              "props": {
+                                                "accessibilityRole": "link",
+                                                "onPress": [Function],
+                                                "style": {
+                                                  "color": "#2C6436",
+                                                  "fontWeight": "600",
+                                                  "textDecorationLine": "underline",
+                                                },
+                                                "testID": "accept-invite-agreement-privacy",
+                                              },
+                                              "type": "Text",
+                                            },
+                                            ".",
+                                          ],
+                                          "props": {
+                                            "style": {
+                                              "color": "#2B3038",
+                                              "fontSize": 13,
+                                              "lineHeight": 19,
+                                              "marginBottom": 12,
+                                              "textAlign": "center",
+                                            },
+                                            "testID": "accept-invite-agreement",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": [
                                             {
                                               "children": [
                                                 "Sign In to Accept",
@@ -27866,6 +27919,59 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                   "children": null,
                                                   "props": {},
                                                   "type": "View",
+                                                },
+                                                {
+                                                  "children": [
+                                                    "By continuing you agree to our",
+                                                    " ",
+                                                    {
+                                                      "children": [
+                                                        "Terms of Service",
+                                                      ],
+                                                      "props": {
+                                                        "accessibilityRole": "link",
+                                                        "onPress": [Function],
+                                                        "style": {
+                                                          "color": "#2C6436",
+                                                          "fontWeight": "600",
+                                                          "textDecorationLine": "underline",
+                                                        },
+                                                        "testID": "signup-agreement-terms",
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    " ",
+                                                    "and",
+                                                    " ",
+                                                    {
+                                                      "children": [
+                                                        "Privacy Policy",
+                                                      ],
+                                                      "props": {
+                                                        "accessibilityRole": "link",
+                                                        "onPress": [Function],
+                                                        "style": {
+                                                          "color": "#2C6436",
+                                                          "fontWeight": "600",
+                                                          "textDecorationLine": "underline",
+                                                        },
+                                                        "testID": "signup-agreement-privacy",
+                                                      },
+                                                      "type": "Text",
+                                                    },
+                                                    ".",
+                                                  ],
+                                                  "props": {
+                                                    "style": {
+                                                      "color": "#2B3038",
+                                                      "fontSize": 13,
+                                                      "lineHeight": 19,
+                                                      "marginBottom": 12,
+                                                      "textAlign": "center",
+                                                    },
+                                                    "testID": "signup-agreement",
+                                                  },
+                                                  "type": "Text",
                                                 },
                                                 {
                                                   "children": [

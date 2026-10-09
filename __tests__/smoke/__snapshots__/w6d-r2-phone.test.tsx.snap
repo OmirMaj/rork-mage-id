@@ -24,7 +24,7 @@ exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, web 768 
 exports[`lane R2 — the phone is unchanged (golden) coi-vault?subId=S1 (the detail early return), iOS 390 1`] = `
 {
   "lines": 704,
-  "sha256": "bb385fefb153d619195e78a4ec6e8320dd5005d1a657703079e8161a5a97e4c8",
+  "sha256": "f1e934391ac9b9febf9ea838d1692e691f1ab5c0a5addfba58d0c0e4189f650c",
 }
 `;
 
