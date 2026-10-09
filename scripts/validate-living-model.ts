@@ -72,7 +72,7 @@ import * as THREE_LIB from 'three';
 
 import { BATH_CARD_ANSWERS, SEVEN_ROOM_ANSWERS, STAGE_TITLE_CASES, THREE_ROOM_ANSWERS, cardFixture, sevenRoomJob, tenWeekSchedule, threeRoomJob } from '../__tests__/fixtures/livingModelJobs';
 import { createJobScene } from '../components/livingModel/threeScene';
-import { Theme } from '../constants/colors';
+import { Theme, deriveAccentPalette, getCustomPrimary, type ThemeColors } from '../constants/colors';
 import { EN as EN_SHARD } from '../i18n/catalog/en/office.living-model.generated';
 import { ES_OFFICE_LIVING_MODEL } from '../i18n/catalog/es/office/livingModel';
 import { livingModelAllowedWith, livingModelSeat } from '../utils/livingModel/allowed';
@@ -130,7 +130,7 @@ const impl = {
   // added after the review
   roomCard, buildReplayInput, readSavedModel, mayWriteModel, livingModelBackupKey, suggestionBox, resolveStage, setTaskStage, setRoomKind,
   viewExtent, pinSize, labelRoomPx, wheelShouldZoom, oneFingerTurnsModel, canvasTouchAction, createJobScene,
-  MATERIALS: MATERIALS as Record<'light' | 'dark', Record<string, string | number>>,
+  MATERIALS: MATERIALS as unknown as Record<'light' | 'dark', Record<string, string | number>>,
 };
 type Impl = typeof impl;
 type Catalog = Record<string, unknown>;
@@ -414,7 +414,7 @@ rule('A7', 'a saved model that cannot be read never throws, is said to be unread
   const bk = w.impl.livingModelBackupKey('user-1', 'proj-9');
   if (!bk || bk === w.impl.livingModelKey('user-1', 'proj-9') || !bk.startsWith('mageid_') || !isAppStorageKey(bk) || !bk.includes('user-1') || !bk.includes('proj-9')) out.push(`the backup key ${bk} is not an app-owned key of its own, per person and project`);
   if (w.impl.livingModelBackupKey(null, 'p') !== null) out.push('a backup key is made with no person');
-  if (!LIVING_MODEL_BACKUP_PREFIX.startsWith(LIVING_MODEL_KEY_PREFIX.replace('::', '')) || LIVING_MODEL_BACKUP_PREFIX === LIVING_MODEL_KEY_PREFIX) out.push('the backup prefix is not beside the model prefix');
+  if (!LIVING_MODEL_BACKUP_PREFIX.startsWith(LIVING_MODEL_KEY_PREFIX.replace('::', '')) || (LIVING_MODEL_BACKUP_PREFIX as string) === (LIVING_MODEL_KEY_PREFIX as string)) out.push('the backup prefix is not beside the model prefix');
   // The store: the unread text is copied as it is, and the model key is written only past the guard.
   const store = code(w.files['utils/livingModel/store.ts'] ?? '');
   const load = store.slice(store.indexOf('export async function loadJobModel'), store.indexOf('export async function keepUnreadText'));
@@ -1060,8 +1060,12 @@ const hexDist = (a: string, b: string): number => {
   const p = n(a); const q = n(b);
   return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
 };
-const LIGHT = livingModelPalette(Theme.light as never);
-const DARK = livingModelPalette(Theme.dark as never);
+/** The colours the app's ThemeContext hands out: the base theme with the accent family derived onto it. */
+const themeColors = (name: 'light' | 'dark'): ThemeColors => ({ ...Theme[name], ...deriveAccentPalette(getCustomPrimary(), name) }) as ThemeColors;
+const LIGHT_THEME = themeColors('light');
+const DARK_THEME = themeColors('dark');
+const LIGHT = livingModelPalette(LIGHT_THEME);
+const DARK = livingModelPalette(DARK_THEME);
 
 rule('E7', 'a theme change makes a new scene and the rooms are drawn into it again; the WebGL context is given back; a lost context is said and can be reloaded', (w) => {
   const out: string[] = [];
@@ -1366,8 +1370,8 @@ rule('I1', 'theme tokens only in the components: no colour is written in them', 
     if (lum(D[k] as string) >= lum(L[k] as string) - 0.08) out.push(`in the dark table ${k} (${D[k]}) is not darker than in the light one (${L[k]}): pale walls would glare on a dark page`);
   }
   if (!((D.skyStrength as number) < (L.skyStrength as number))) out.push('the dark scene is lit as strongly as the light one');
-  if (paletteModeOf(Theme.dark as never) !== 'dark' || paletteModeOf(Theme.light as never) !== 'light') out.push('the theme does not decide which table is used');
-  if (DARK.mode !== 'dark' || DARK.ground !== Theme.dark.bg || LIGHT.ground !== Theme.light.bg || DARK.stage.finishes !== Theme.dark.accent) out.push('the palette does not take its ground and accent from the theme');
+  if (paletteModeOf(DARK_THEME) !== 'dark' || paletteModeOf(LIGHT_THEME) !== 'light') out.push('the theme does not decide which table is used');
+  if (DARK.mode !== 'dark' || DARK.ground !== DARK_THEME.bg || LIGHT.ground !== LIGHT_THEME.bg || !DARK_THEME.accent || DARK.stage.finishes !== DARK_THEME.accent || DARK.stage.done !== DARK_THEME.success) out.push('the palette does not take its ground, its accent and its Done colour from the theme');
   if (!/return useMemo\(\(\) => livingModelPalette\(colors\), \[colors\]\);/.test(w.files['components/livingModel/replayShared.tsx'] ?? '')) out.push('the views do not build the palette from the theme in use');
   return out;
 });
@@ -1754,7 +1758,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'C6', name: 'the average is weighted by duration and does not say so', plant: swap({ roomCard: (t, p, c, o, m) => { const card = roomCard(t, p, c, o, m); const at = card.offset; let num = 0; let den = 0; for (const x of t) { const v = card.reading === 'reported' ? reportedAt(x, p, at, c.todayOffset) : plannedAt(x, at); num += v * x.durationDays; den += x.durationDays; } return { ...card, pct: den ? Math.round((num / den) * 100) : 0 }; } }) },
   { rule: 'C6', name: 'a task with nothing reported is left out of the average', plant: swap({ roomCard: (t, p, c, o, m) => { const card = roomCard(t, p, c, o, m); if (card.reading !== 'reported') return card; const got = card.rows.filter((r) => r.reportedPct != null); return { ...card, pct: got.length ? Math.round(got.reduce((a, r) => a + (r.reportedPct as number), 0) / got.length) : 0 }; } }) },
   { rule: 'C6', name: 'past today the card still shows the reported number', plant: swap({ roomCard: (t, p, c, o, m) => { const card = roomCard(t, p, c, o, m); return card.when === 'ahead' ? { ...roomCard(t, p, c, c.todayOffset, m), when: 'ahead', reading: 'plan_ahead' } : card; } }) },
-  { rule: 'C6', name: 'past today is called reported', plant: swap({ roomCard: (t, p, c, o, m) => { const card = roomCard(t, p, c, o, m); return card.reading === 'plan_ahead' ? { ...card, reading: m } : card; } }) },
+  { rule: 'C6', name: 'past today is called reported', plant: swap({ roomCard: (t, p, c, o, m) => { const card = roomCard(t, p, c, o, m); return card.reading === 'plan_ahead' ? { ...card, reading: m ?? 'reported' } : card; } }) },
   { rule: 'C6', name: 'rows keep today\'s percent at an earlier week', plant: swap({ roomCard: (t, p, c, o, m) => { const card = roomCard(t, p, c, o, m); const now = roomCard(t, p, c, c.todayOffset, m); return { ...card, rows: now.rows }; } }) },
   { rule: 'C6', name: 'the line under the number is reworded', plant: en('card.averageReportedBody', { one: '1 ticked task.', other: 'Across {count} ticked tasks.' }) },
   { rule: 'C6', name: 'the line claims a weighting', plant: en('card.averagePlannedBody', { one: 'This is the 1 ticked task, by its planned dates.', other: 'Average of the {count} ticked tasks, weighted by how long each runs.' }) },
