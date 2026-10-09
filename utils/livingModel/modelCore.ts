@@ -12,6 +12,7 @@
 import { polygonArea } from '@/utils/roomScan/geometryCore';
 import type { Pt, RoomScan, RoomType, ScanOpening, ScanWall } from '@/utils/roomScan/types';
 import { feetToMetres } from '@/utils/roomScan/units';
+import { isTaskStage, type TaskStage } from './stageCore';
 import type {
   Bounds, JobModel, ModelCheck, ModelIssue, PlacedRoom, Placement, QuarterTurn, RoomKind, RoomShape,
   WorldOpening, WorldWall,
@@ -432,10 +433,14 @@ export function addRoom(model: JobModel, room: PlacedRoom): JobModel {
   return withRooms(model, [...model.rooms, room]);
 }
 
-/** Move a room so its top left corner sits at a snapped spot. */
+/** Move a room so its top left corner sits at a snapped spot. The same model back when it is already there, so Undo has nothing empty to step over. */
 export function moveRoom(model: JobModel, roomId: string, xM: number, yM: number): JobModel {
   if (!finite(xM) || !finite(yM)) return model;
-  return mapRoom(model, roomId, (r) => ({ ...r, placement: { ...r.placement, xM: snapM(xM), yM: snapM(yM) } }));
+  const r = model.rooms.find((x) => x.id === roomId);
+  const x = snapM(xM);
+  const y = snapM(yM);
+  if (!r || (r.placement.xM === x && r.placement.yM === y)) return model;
+  return mapRoom(model, roomId, (q) => ({ ...q, placement: { ...q.placement, xM: x, yM: y } }));
 }
 
 export function nudgeRoom(model: JobModel, roomId: string, dxSteps: number, dySteps: number): JobModel {
@@ -446,21 +451,26 @@ export function nudgeRoom(model: JobModel, roomId: string, dxSteps: number, dySt
 
 /** Turn a room a quarter turn clockwise. Its top left corner stays where it is. */
 export function rotateRoom(model: JobModel, roomId: string): JobModel {
+  if (!model.rooms.some((r) => r.id === roomId)) return model;
   return mapRoom(model, roomId, (r) => ({ ...r, placement: { ...r.placement, rotationDeg: (((r.placement.rotationDeg + 90) % 360) as QuarterTurn) } }));
 }
 
 export function renameRoom(model: JobModel, roomId: string, name: string): JobModel {
   const clean = name.trim();
-  if (!clean) return model;
+  const r = model.rooms.find((x) => x.id === roomId);
+  if (!clean || !r || r.name === clean) return model;
   return mapRoom(model, roomId, (r) => ({ ...r, name: clean }));
 }
 
 export function setRoomKind(model: JobModel, roomId: string, kind: RoomKind): JobModel {
+  const r = model.rooms.find((x) => x.id === roomId);
+  if (!r || r.kind === kind) return model;
   return mapRoom(model, roomId, (r) => ({ ...r, kind }));
 }
 
 export function setRoomLevel(model: JobModel, roomId: string, level: number): JobModel {
-  if (!Number.isInteger(level)) return model;
+  const r = model.rooms.find((x) => x.id === roomId);
+  if (!Number.isInteger(level) || !r || r.level === level) return model;
   return mapRoom(model, roomId, (r) => ({ ...r, level }));
 }
 
@@ -576,31 +586,86 @@ export function linkedTaskIds(model: JobModel, roomId: string): string[] {
   return model.links[roomId] ?? [];
 }
 
+/**
+ * The stage a person picked for one task, or null to go back to the table in
+ * stageCore.ts. Called only from a tap on the picker on the Tasks tab. The same
+ * model back when nothing changes.
+ */
+export function setTaskStage(model: JobModel, taskId: string, stage: TaskStage | null): JobModel {
+  if (!taskId) return model;
+  const now = model.stages?.[taskId] ?? null;
+  const want = stage !== null && isTaskStage(stage) ? stage : null;
+  if (now === want) return model;
+  const stages = { ...(model.stages ?? {}) };
+  if (want) stages[taskId] = want; else delete stages[taskId];
+  const next: JobModel = { ...model, stages };
+  if (Object.keys(stages).length === 0) delete next.stages;
+  return next;
+}
+
 // ── reading a saved model back ───────────────────────────────────────────────
 
 const TURNS: readonly number[] = [0, 90, 180, 270];
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const isPt = (v: unknown): boolean => isObj(v) && finite(v.x as number) && finite(v.y as number);
 
-/** Parse what the device saved. Anything that is not a sound model comes back as null, never half a model. */
-export function parseJobModel(raw: string | null | undefined, projectId: string): JobModel | null {
-  if (!raw) return null;
-  let v: unknown;
-  try { v = JSON.parse(raw); } catch { return null; }
-  if (!v || typeof v !== 'object') return null;
-  const m = v as Partial<JobModel>;
-  if (m.version !== 1 || m.projectId !== projectId || !Array.isArray(m.rooms)) return null;
-  const rooms: PlacedRoom[] = [];
-  for (const r of m.rooms as PlacedRoom[]) {
-    if (!r || typeof r.id !== 'string' || typeof r.name !== 'string' || !r.room || !r.placement) return null;
-    if (!Array.isArray(r.room.walls) || !Array.isArray(r.room.openings) || !Array.isArray(r.room.floor) || !r.room.ceilingHeightM) return null;
-    if (!TURNS.includes(r.placement.rotationDeg)) return null;
-    rooms.push({ ...r, room: { ...r.room, objects: Array.isArray(r.room.objects) ? r.room.objects : [] } });
-  }
-  const links: Record<string, string[]> = {};
-  if (m.links && typeof m.links === 'object') {
-    for (const [roomId, ids] of Object.entries(m.links)) {
-      if (Array.isArray(ids)) links[roomId] = ids.filter((t): t is string => typeof t === 'string');
+/** True when one saved room has every part a drawing reads: no hole where a wall, a door or a corner should be. */
+function soundRoom(r: unknown): r is PlacedRoom {
+  if (!isObj(r) || typeof r.id !== 'string' || typeof r.name !== 'string' || !isObj(r.room) || !isObj(r.placement)) return false;
+  const room = r.room;
+  if (!Array.isArray(room.walls) || !Array.isArray(room.openings) || !Array.isArray(room.floor) || !isObj(room.ceilingHeightM)) return false;
+  if (!TURNS.includes(r.placement.rotationDeg as number)) return false;
+  if (!room.walls.every((w) => isObj(w) && typeof w.id === 'string' && isPt(w.a) && isPt(w.b))) return false;
+  if (!room.openings.every((o) => isObj(o) && typeof o.id === 'string' && typeof o.wallId === 'string')) return false;
+  if (!room.floor.every(isPt)) return false;
+  if (room.objects !== undefined && !(Array.isArray(room.objects) && room.objects.every(isObj))) return false;
+  return true;
+}
+
+/** What the device holds for a job: nothing, a sound model, or text that cannot be read as one. */
+export type SavedModelRead =
+  | { state: 'empty' }
+  | { state: 'ok'; model: JobModel }
+  /** Text is there and is not a sound model of this job (damaged, another version, another job). It is never thrown away silently. */
+  | { state: 'unreadable' };
+
+/**
+ * Read what the device saved. NEVER THROWS, whatever the text holds: a model
+ * with a hole in it (`walls: [null]`), a number that is not a number, a
+ * version this build does not know, or text that is not JSON at all comes back
+ * as 'unreadable', and the screen then keeps the text and asks the person.
+ */
+export function readSavedModel(raw: string | null | undefined, projectId: string): SavedModelRead {
+  if (raw == null || raw === '') return { state: 'empty' };
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (!isObj(v)) return { state: 'unreadable' };
+    if (v.version !== 1 || v.projectId !== projectId || !Array.isArray(v.rooms)) return { state: 'unreadable' };
+    const rooms: PlacedRoom[] = [];
+    for (const r of v.rooms as unknown[]) {
+      if (!soundRoom(r)) return { state: 'unreadable' };
+      rooms.push({ ...r, room: { ...r.room, objects: Array.isArray(r.room.objects) ? r.room.objects : [] } });
     }
+    const links: Record<string, string[]> = {};
+    if (isObj(v.links)) {
+      for (const [roomId, ids] of Object.entries(v.links)) {
+        if (Array.isArray(ids)) links[roomId] = ids.filter((t): t is string => typeof t === 'string');
+      }
+    }
+    const model: JobModel = { version: 1, projectId, rooms, links, updatedAt: typeof v.updatedAt === 'string' ? v.updatedAt : '' };
+    if (isObj(v.stages)) {
+      const stages: Record<string, TaskStage> = {};
+      for (const [taskId, st] of Object.entries(v.stages)) if (isTaskStage(st)) stages[taskId] = st;
+      if (Object.keys(stages).length) model.stages = stages;
+    }
+    return validateModel(model).ok ? { state: 'ok', model } : { state: 'unreadable' };
+  } catch {
+    return { state: 'unreadable' };
   }
-  const model: JobModel = { version: 1, projectId, rooms, links, updatedAt: typeof m.updatedAt === 'string' ? m.updatedAt : '' };
-  return validateModel(model).ok ? model : null;
+}
+
+/** The saved model, or null for nothing saved and for anything that is not a sound model. Never half a model, and never a throw. */
+export function parseJobModel(raw: string | null | undefined, projectId: string): JobModel | null {
+  const read = readSavedModel(raw, projectId);
+  return read.state === 'ok' ? read.model : null;
 }
