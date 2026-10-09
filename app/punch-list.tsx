@@ -2664,10 +2664,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       // button; the web header keeps 52 px for the right side whatever is in it,
       // so the long "Punch List · job name" title ran under Export.
       ...(Platform.OS === 'web' && exportProjectName !== undefined
-        ? { headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, maxWidth: Math.max(120, windowWidth - PUNCH_HEADER_WEB_RESERVE) } as typeof NATIVE_HEADER_TITLE_FACE }
+        ? { headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text, maxWidth: Math.max(120, windowWidth - PUNCH_HEADER_WEB_RESERVE) } as typeof NATIVE_HEADER_TITLE_FACE & { color: string } }
         : null),
     }),
-    [exportProjectName, exportHeaderRight, t, windowWidth],
+    [exportProjectName, exportHeaderRight, t, windowWidth, themeColors.text],
   );
 
   // Desktop sheets (wave 6c): capped cards centred in the content column.

@@ -26,6 +26,8 @@ export interface Shot {
   settle?: number;
   /** Glyph colour of the status bar when the app's header is not the theme's page colour. */
   statusBar?: 'light' | 'dark';
+  /** Fill the status bar strip with the page colour: for a scrolled screen that has no header of its own. */
+  statusBarFill?: boolean;
   noStatusBar?: boolean;
   /** A different route for this frame; the screen's own steps are then not run. */
   route?: string;
@@ -43,6 +45,8 @@ export interface Screen {
   route: string;
   /** Open this route first, then go to `route` from it. */
   via?: string;
+  /** The presses that lead from `via` to this screen, the way a person gets there. */
+  arrive?: Step[];
   world?: WorldOptions;
   settle?: number;
   steps?: Step[];
@@ -86,7 +90,8 @@ export const SCREENS: Screen[] = [
       { world: withLines(3), caption: 'Three lines in.' },
       { world: withLines(6), caption: 'Six lines in.' },
       { steps: [{ scroll: 752, to: { text: 'Base' } }, { wait: 1200 }], caption: 'All ten lines, with base, markup and total.' },
-    ] },
+    ],
+    hero: { steps: [{ scroll: 133, to: { text: 'Drywall, hang', exact: false } }, { wait: 1200 }], caption: 'The last lines of the estimate with its base, markup and total.' } },
   { id: 'estimate-wizard', set: 'shipped', title: 'Quick Estimate', plan: 'Pro', source: 'app/estimate-wizard.tsx', route: `/estimate-wizard?projectId=${P.birch}`,
     about: 'The first of the Quick Estimate wizard\'s eight questions, which feed an AI draft of the estimate.' },
   { id: 'schedule', set: 'shipped', title: 'Schedule', plan: 'Free', source: 'app/(tabs)/schedule/index.tsx', route: `/schedule?projectId=${P.alder}`,
@@ -103,10 +108,11 @@ export const SCREENS: Screen[] = [
       { route: alder('daily-report'), steps: [{ scroll: 172, to: { text: 'DAILY REPORT' } }, { wait: 1200 }], caption: 'A new report for today. The weather is read in with its source and time.' },
       { route: alder('daily-report'), steps: [{ type: { testID: 'work-performed-input' }, value: TODAY_WORK }, { type: { css: 'input[placeholder="Material received"]' }, value: TODAY_MATERIAL }, { scroll: 170, to: { text: 'Workforce' } }, { wait: 1200 }], caption: 'The day\'s work written in.' },
       { route: alder('daily-report', `&reportId=${todayReport.id}`), steps: [{ scroll: 178, to: { text: 'Shared' } }, { wait: 1200 }], world: withTodayFiled, caption: 'The report as filed and shared with the client.' },
-    ] },
+    ],
+    hero: { steps: [{ scroll: 150, to: { text: 'Weather' } }, { wait: 1200 }], caption: 'The filed report: weather with its source, work progress, and the crew on site.' } },
   { id: 'punch-list', set: 'shipped', title: 'Punch List', plan: 'Business', source: 'app/punch-list.tsx', route: alder('punch-list'),
     about: 'The punch list by room, each item with its picture, who it is assigned to, its due date and its status. The pictures here are flat placeholder tiles, not site photos.',
-    via: `/project-detail?id=${P.alder}`,
+    via: `/project-detail?id=${P.alder}`, arrive: [{ click: { testID: 'section-tile-punchList' }, then: 1500 }],
     steps: [{ scroll: 150, to: { text: 'By Location' } }, { wait: 1200 }] },
   { id: 'change-order', set: 'shipped', title: 'Change Order', plan: 'Pro', source: 'app/change-order.tsx', route: coRoute,
     about: 'An approved change order: its place in the approval steps, the contract sum before and after, and the client\'s approval.',
@@ -116,8 +122,9 @@ export const SCREENS: Screen[] = [
       { world: withCo2('submitted'), caption: 'Submitted to the client.' },
       { world: withCo2('approved'), caption: 'Approved by the client.' },
       { world: withCo2('approved'), steps: [{ scroll: 190, to: { text: 'Client Approval' } }, { wait: 1500 }], caption: 'The client\'s approval and the change order\'s lines.' },
-    ] },
-  { id: 'invoice', set: 'shipped', title: 'Progress Invoice', plan: 'Pro', source: 'app/invoice.tsx', route: alder('invoice', `&invoiceId=${INVOICE1}`), via: `/project-detail?id=${P.alder}`, steps: [{ scroll: 150, to: { text: 'Draft' } }, { wait: 1200 }],
+    ],
+    hero: { world: withCo2('approved'), steps: [{ scroll: 158, to: { text: 'Original Contract Sum' } }, { wait: 1500 }], caption: 'The contract sum before and after this change order, and the client\'s approval.' } },
+  { id: 'invoice', set: 'shipped', title: 'Progress Invoice', plan: 'Pro', source: 'app/invoice.tsx', route: alder('invoice', `&invoiceId=${INVOICE1}`), via: `/project-detail?id=${P.alder}`, arrive: [{ click: { testID: 'section-tile-invoices' }, then: 1500 }, { click: { text: 'Progress Bill #1' }, then: 1500 }], steps: [{ scroll: 150, to: { text: 'Draft' } }, { wait: 1200 }],
     about: 'A progress invoice built from the estimate\'s lines, with payment terms, retainage and its sent status.' },
   { id: 'pay-app', set: 'shipped', title: 'Pay Application', plan: 'Pro', source: 'app/aia-pay-app.tsx', route: alder('aia-pay-app'),
     about: 'A draft AIA-style pay application made from the progress invoice: contract sum, percent complete and the amount due this period after retainage.',
@@ -126,8 +133,10 @@ export const SCREENS: Screen[] = [
       { caption: 'The pay application\'s cover figures.' },
       { steps: [{ scroll: 150, to: { text: '#1' } }, { wait: 1200 }], caption: 'The schedule of values, one line per estimate line and approved change order.' },
       { steps: [{ scroll: 150, to: { text: 'Summary (G702 Cover)' } }, { wait: 1200 }], caption: 'The summary: contract sum to date, completed work, retainage and the payment due.' },
-    ] },
+    ],
+    hero: { steps: [{ scroll: 132, to: { text: 'Summary (G702 Cover)' } }, { wait: 1200 }], caption: 'The cover summary: contract sum to date, completed work, retainage and the payment due this period.' } },
   { id: 'client-portal', set: 'shipped', title: 'Client View', plan: 'Pro', source: 'app/client-view.tsx', route: `/client-view?portalId=${PORTAL_ID}`, shot: { statusBar: 'light' },
+    hero: { statusBarFill: true, steps: [{ scroll: 166, to: { text: 'On Track' } }, { wait: 1200 }], caption: 'Progress, the contract and change totals, and what is waiting on the client.' },
     about: 'The job as the client sees it in the app: progress, contract and change totals, what has been invoiced and paid, and what is waiting on them.' },
   { id: 'code-check', set: 'shipped', title: 'Code Check', plan: 'Pro', source: 'app/(tabs)/construction-ai/index.tsx', route: '/construction-ai', world: { functions: AI_CODE_CHECK },
     about: 'A Code Check result. The answer text is a sample written for the app\'s tests, so every line says "Sample"; the notes around it are the app\'s own.',

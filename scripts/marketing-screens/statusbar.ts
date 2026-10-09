@@ -5,7 +5,10 @@
 // 9:41 bar (time, cell bars, Wi-Fi, full battery) into the top safe area,
 // over whatever the app painted there, in the system font. It is the phone's
 // chrome, not the app's: nothing inside the app's own area is touched.
-export function statusBarScript(theme: 'light' | 'dark', insets: { top: number }, tone?: 'light' | 'dark'): string {
+// `fill`: for a screen with no header of its own once it is scrolled (the
+// client view), the strip takes the page colour found just under it, so the
+// clock does not sit on top of the words scrolling beneath. Only the strip.
+export function statusBarScript(theme: 'light' | 'dark', insets: { top: number }, tone?: 'light' | 'dark', fill = false): string {
   // tone = the colour of the glyphs. Dark glyphs on a light app, and the reverse.
   const ink = (tone ?? (theme === 'dark' ? 'light' : 'dark')) === 'light' ? '#FFFFFF' : '#000000';
   const svg = `
@@ -25,6 +28,11 @@ export function statusBarScript(theme: 'light' | 'dark', insets: { top: number }
     bar.style.cssText = 'position:fixed;top:0;left:0;right:0;height:${insets.top}px;z-index:2147483647;pointer-events:none;';
     bar.innerHTML = '<div style="position:absolute;left:0;width:138px;top:20px;text-align:center;font:600 17px/22px -apple-system,\\'SF Pro Text\\',\\'Helvetica Neue\\',sans-serif;letter-spacing:-0.3px;color:${ink}">9:41</div>'
       + '<div style="position:absolute;right:0;width:138px;top:24px;display:flex;justify-content:center">' + ${JSON.stringify(svg)} + '</div>';
+    if (${fill ? 'true' : 'false'}) {
+      const clear = (c) => !c || c === 'transparent' || /rgba\\(.*, 0\\)$/.test(c);
+      const under = document.elementsFromPoint(2, ${insets.top} + 2).map((e) => getComputedStyle(e).backgroundColor).find((c) => !clear(c));
+      if (under) bar.style.background = under;
+    }
     document.body.appendChild(bar);
     return true;
   })()`;
