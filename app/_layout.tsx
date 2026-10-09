@@ -696,7 +696,14 @@ function RootLayoutNav() {
     // when the user is unauthenticated. The prequal-form route is opened by
     // subcontractors via a tokenized email link; if we redirect to /login
     // before the token is consumed, the link is dead on arrival.
-    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew || inSharedView || inAcceptInvite) return;
+    // The phone 3D check (app/dev-phone-3d.tsx) is opened in the iOS Simulator
+    // by a Mac-made build where nobody can sign in. It is let through ONLY in
+    // a bundle made with EXPO_PUBLIC_PHONE3D_SPIKE=1 in the builder's own
+    // shell. In every cloud build and every over-the-air update the variable
+    // is not set, this is false, and the route is auth-walled like any other
+    // (and then redirects Home by itself). scripts/validate-phone-3d.ts pins it.
+    const inPhone3dSpike = process.env.EXPO_PUBLIC_PHONE3D_SPIKE === '1' && (segments[0] as string) === 'dev-phone-3d';
+    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew || inSharedView || inAcceptInvite || inPhone3dSpike) return;
 
     if (!isAuthenticated && !inAuth) {
       console.log('[Layout] Not authenticated — redirecting to login');
@@ -1642,6 +1649,13 @@ function RootLayoutNav() {
         name="dev-ar-measure"
         options={{
           title: "AR Measure (Dev)",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="dev-phone-3d"
+        options={{
+          title: "Phone 3D Check",
           headerShown: false,
         }}
       />
