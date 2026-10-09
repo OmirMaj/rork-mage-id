@@ -155,7 +155,7 @@ const K = 'office.livingModel.';
 const SCHEMATIC = 'Schematic made from typed and scanned sizes. Not to scale for building.';
 const PROGRESS = 'Progress shown is what was reported in MAGE ID.';
 const LM_COMPONENTS = (w: World): string[] => Object.keys(w.files).filter((f) => f.startsWith('components/livingModel/'));
-const PURE_CORE = ['types', 'modelCore', 'historyCore', 'stageCore', 'replayCore', 'replayInput', 'linkCore', 'sceneCore', 'planView', 'storeCore', 'allowed', 'palette'].map((n) => `utils/livingModel/${n}.ts`);
+const PURE_CORE = ['types', 'modelCore', 'historyCore', 'stageCore', 'replayCore', 'replayInput', 'linkCore', 'sceneCore', 'planView', 'storeCore', 'syncCore', 'allowed', 'palette'].map((n) => `utils/livingModel/${n}.ts`);
 
 function task(id: string, title: string, stage: ReplayTask['stage'], startDay: number, durationDays: number, progress = 0, status: ReplayTask['status'] = 'not_started'): ReplayTask {
   return { id, title, stage, startDay, durationDays, progress, status, actualEndOffset: null, actualStartOffset: null };
@@ -1175,7 +1175,7 @@ rule('F3', 'both honesty lines are on the 3D view, the flat view and the editor,
   return out;
 });
 
-rule('F4', 'a scanned room carries the scanner\'s own "off by an inch or more", and the device-only line is shown', (w) => {
+rule('F4', 'a scanned room carries the scanner\'s own "off by an inch or more", and the device-only line is shown while the model is on this device only', (w) => {
   const out: string[] = [];
   const caveat = String(w.EN[`${K}honesty.scanCaveatBody`] ?? '');
   if (!caveat.includes('A phone scan can be off by an inch or more.')) out.push('the scan line does not say a phone scan can be off by an inch or more');
@@ -1186,7 +1186,9 @@ rule('F4', 'a scanned room carries the scanner\'s own "off by an inch or more", 
   }
   if (w.EN[`${K}honesty.savedLocalBody`] !== 'Saved on this device only for now.') out.push('the device-only line changed');
   if (w.EN[`${K}honesty.otherDevicesBody`] !== 'It will not appear on your other devices.') out.push('the other-devices line changed');
-  if (!/<Text[^>]*testID="lm-saved-local">\{`\$\{copy\.savedLocalBody\} \$\{copy\.otherDevicesBody\}`\}<\/Text>/.test(w.files['components/livingModel/RoomEditor.tsx'] ?? '')) out.push('the editor does not say the model is saved on this device only and will not appear on other devices');
+  if (!/<Text[^>]*testID="lm-saved-local">\{`\$\{copy\.savedLocalBody\} \$\{copy\.otherDevicesBody\}`\}<\/Text>/.test(w.files['components/livingModel/SyncStatus.tsx'] ?? '')) out.push('the status line does not say the model is saved on this device only and will not appear on other devices');
+  if (!/\{status === 'device' \? \(\s*<Text[^>]*testID="lm-saved-local">/.test(w.files['components/livingModel/SyncStatus.tsx'] ?? '')) out.push('the device-only line is not tied to the device-only state');
+  if (!/<SyncStatus sync=\{sync\}/.test(w.files['components/livingModel/LivingModelScreen.tsx'] ?? '')) out.push('the screen does not draw the status line');
   if (w.EN[`${K}stage.otherLabel`] !== 'Other Work') out.push('a task that maps to no stage is not called Other Work');
   if (w.EN[`${K}card.noProgressLabel`] !== 'No Progress Reported') out.push('a task with nothing reported does not say No Progress Reported');
   if (!/row\.reportedPct == null\s*\?\s*<Text[^>]*>\{copy\.noProgressLabel\}/.test(w.files['components/livingModel/replayShared.tsx'] ?? '')) out.push('the room card does not print No Progress Reported for a task with nothing reported');
@@ -1304,9 +1306,12 @@ rule('G5', 'one row leads here, on the project page, and it draws nothing for an
   const users = Object.keys(w.files).filter((f) => /<LivingModelEntryRow\b/.test(w.files[f]));
   if (users.join() !== 'app/project-detail.tsx') out.push(`the row is drawn by ${users.join(', ') || 'nobody'}; want only the project page`);
   for (const f of ['app/(tabs)/_layout.tsx', 'components/DesktopSidebar.tsx']) if (/living-model|LivingModel/.test(w.files[f] ?? '')) out.push(`${f} mentions the Living Model: it must not be in the tabs or the sidebar`);
-  const outside = Object.keys(w.files).filter((f) => !f.startsWith('components/livingModel/') && !f.startsWith('utils/livingModel/') && f !== 'app/living-model.tsx' && f !== 'app/project-detail.tsx' && f !== 'hooks/useLivingModelCopy.ts'
+  const outside = Object.keys(w.files).filter((f) => !f.startsWith('components/livingModel/') && !f.startsWith('utils/livingModel/') && f !== 'app/living-model.tsx' && f !== 'app/project-detail.tsx' && f !== 'hooks/useLivingModelCopy.ts' && f !== 'hooks/useLivingModelSync.ts'
     && /from ['"]@\/(components|utils)\/livingModel\//.test(w.files[f]));
   if (outside.length) out.push(`files outside the feature import it: ${outside.join(', ')}`);
+  // The sync hook is part of the feature: only the screen (and the status line, for its type) may import it, so nobody the gate refuses ever starts it.
+  const syncUsers = Object.keys(w.files).filter((f) => /from ['"]@\/hooks\/useLivingModelSync['"]/.test(w.files[f])).sort();
+  if (syncUsers.join() !== 'components/livingModel/LivingModelScreen.tsx,components/livingModel/SyncStatus.tsx') out.push(`the sync hook is imported by ${syncUsers.join(', ') || 'nobody'}; want only the screen and its status line`);
   return out;
 });
 
@@ -1332,14 +1337,23 @@ rule('H1', 'the model is kept under an app-owned prefix, per person and per proj
   return out;
 });
 
-rule('H2', 'nothing is sent to the server, and no migration was written', (w) => {
+// Lane LIVINGSYNC: the model is now saved to the account too. The rule that
+// "nothing is sent" became "ONE file reaches the server, and only through the
+// offline queue". scripts/validate-living-model-sync.ts holds that file to it.
+const SERVER_FILE = 'utils/livingModel/syncIo.ts';
+const LIVING_MIGRATION = '20261011090000_living_models.sql';
+rule('H2', 'the server is reached from one file only, the store still writes its two keys, and there is one migration', (w) => {
   const out: string[] = [];
-  for (const f of Object.keys(w.files).filter((x) => x.startsWith('components/livingModel/') || x.startsWith('utils/livingModel/') || x === 'app/living-model.tsx')) {
-    const m = /from ['"](@\/lib\/supabase|@\/utils\/offlineQueue|@supabase\/[a-z-]+)['"]|\bfetch\(|supabase\.from\(|updateProject\(/.exec(w.files[f]);
+  const mine = (x: string): boolean => x.startsWith('components/livingModel/') || x.startsWith('utils/livingModel/') || x === 'app/living-model.tsx' || x === 'hooks/useLivingModelSync.ts' || x === 'hooks/useLivingModelCopy.ts';
+  for (const f of Object.keys(w.files).filter(mine)) {
+    if (f === SERVER_FILE) continue;
+    const m = /from ['"](@\/lib\/supabase|@\/utils\/offlineQueue|@supabase\/[a-z-]+)['"]|require\(['"](@\/lib\/supabase|@\/utils\/offlineQueue)['"]\)|\bfetch\(|supabase\.(from|rpc)\(|updateProject\(/.exec(w.files[f]);
     if (m) out.push(`${f} reaches the server (${m[0]})`);
   }
+  if (!w.files[SERVER_FILE]) out.push(`${SERVER_FILE} is missing`);
   const mig = join(ROOT, 'supabase', 'migrations');
-  if (existsSync(mig)) for (const name of readdirSync(mig)) if (/living[_-]?model|job[_-]?model/i.test(name)) out.push(`a migration was written: ${name}`);
+  const found = existsSync(mig) ? readdirSync(mig).filter((name) => /living[_-]?model|job[_-]?model/i.test(name)) : [];
+  if (found.join(',') !== LIVING_MIGRATION) out.push(`the migrations for the model are [${found.join(', ')}]; want exactly ${LIVING_MIGRATION}`);
   const store = w.files['utils/livingModel/store.ts'] ?? '';
   const writes = (code(store).match(/AsyncStorage\.setItem\([^)]*\)/g) ?? []).sort().join(' ');
   if (writes !== 'AsyncStorage.setItem(backup, raw) AsyncStorage.setItem(key, json)') out.push(`the store writes ${writes || 'nothing'}; want the model key and the backup of unread text, once each`);
@@ -1662,8 +1676,10 @@ const MUTATIONS: Mutation[] = [
   { rule: 'F3', name: 'the editor is handed the lines and does not draw them', plant: edit('components/livingModel/RoomEditor.tsx', '        {footer}\n', '') },
   { rule: 'F4', name: 'the scan line loses the inch', plant: en('honesty.scanCaveatBody', 'This room came from a phone scan.') },
   { rule: 'F4', name: 'the room card drops the scan line', plant: edit('components/livingModel/replayShared.tsx', "      {room.source === 'scan' ? <Text style={styles.warn}>{copy.scanCaveatBody}</Text> : null}\n", '') },
-  { rule: 'F4', name: 'the device-only line is not shown', plant: edit('components/livingModel/RoomEditor.tsx', '        <Text style={styles.note} testID="lm-saved-local">{`${copy.savedLocalBody} ${copy.otherDevicesBody}`}</Text>\n', '') },
-  { rule: 'F4', name: 'the editor drops "It will not appear on your other devices."', plant: edit('components/livingModel/RoomEditor.tsx', '{`${copy.savedLocalBody} ${copy.otherDevicesBody}`}', '{copy.savedLocalBody}') },
+  { rule: 'F4', name: 'the device-only line is not shown', plant: edit('components/livingModel/SyncStatus.tsx', '        <Text style={styles.note} testID="lm-saved-local">{`${copy.savedLocalBody} ${copy.otherDevicesBody}`}</Text>\n', '') },
+  { rule: 'F4', name: 'the device-only line is shown in every state', plant: edit('components/livingModel/SyncStatus.tsx', "{status === 'device' ? (", '{true ? (') },
+  { rule: 'F4', name: 'the screen drops the status line', plant: edit('components/livingModel/LivingModelScreen.tsx', '<SyncStatus sync={sync}', '<NoStatus sync={sync}') },
+  { rule: 'F4', name: 'the editor drops "It will not appear on your other devices."', plant: edit('components/livingModel/SyncStatus.tsx', '{`${copy.savedLocalBody} ${copy.otherDevicesBody}`}', '{copy.savedLocalBody}') },
   { rule: 'F4', name: 'the other-devices line promises sync', plant: en('honesty.otherDevicesBody', 'It will appear on your other devices soon.') },
   { rule: 'F4', name: 'a task with nothing reported shows 0 percent', plant: edit('components/livingModel/replayShared.tsx', 'row.reportedPct == null', 'row.reportedPct == undefined && false') },
   { rule: 'F4', name: 'Other Work is renamed General', plant: en('stage.otherLabel', 'General') },
@@ -1697,11 +1713,14 @@ const MUTATIONS: Mutation[] = [
   { rule: 'G6', name: 'a viewer is let in', plant: swap({ livingModelSeat: (a) => (a.role ? 'open' : livingModelSeat(a)) }) },
   { rule: 'G6', name: 'a field seat is let in', plant: swap({ livingModelSeat: (a) => ((a.role as string) === 'field' ? 'open' : livingModelSeat(a)) }) },
   { rule: 'H1', name: 'a key under a new prefix', plant: swap({ livingModelKey: (u, p) => (u && p ? `livingmodel::${u}::${p}` : null) }) },
+  { rule: 'G5', name: 'the project page starts the sync hook', plant: edit('app/project-detail.tsx', /^/, "import { useLivingModelSync } from '@/hooks/useLivingModelSync';\n") },
   { rule: 'H1', name: 'one key for every person', plant: swap({ livingModelKey: (u, p) => (u && p ? `mageid_living_model::${p}` : null) }) },
   { rule: 'H1', name: 'a key with no person', plant: swap({ livingModelKey: (u, p) => `mageid_living_model::${u ?? 'anon'}::${p ?? 'none'}` }) },
   { rule: 'H2', name: 'the model is written into the project', plant: edit('components/livingModel/LivingModelScreen.tsx', '    void saveJobModel(userId, m, new Date().toISOString(), loadStateRef.current)', '    updateProject(projectId, { schedule: { livingModel: m } });\n    void saveJobModel(userId, m, new Date().toISOString(), loadStateRef.current)') },
   { rule: 'H2', name: 'the store writes a third key', plant: edit('utils/livingModel/store.ts', '    await AsyncStorage.setItem(key, json);', "    await AsyncStorage.setItem('mageid_living_model_last', json);\n    await AsyncStorage.setItem(key, json);") },
   { rule: 'H2', name: 'the store calls the server', plant: edit('utils/livingModel/store.ts', "import AsyncStorage from '@react-native-async-storage/async-storage';", "import AsyncStorage from '@react-native-async-storage/async-storage';\nimport { supabase } from '@/lib/supabase';\nexport const s = supabase;") },
+  { rule: 'H2', name: 'the sync notes file calls the server', plant: edit('utils/livingModel/syncStore.ts', "import AsyncStorage from '@react-native-async-storage/async-storage';", "import AsyncStorage from '@react-native-async-storage/async-storage';\nconst sb = require('@/lib/supabase');\nexport const s = sb;") },
+  { rule: 'H2', name: 'the hook writes the table itself', plant: edit('hooks/useLivingModelSync.ts', "export const SYNC_DEBOUNCE_MS = 1500;", "export const SYNC_DEBOUNCE_MS = 1500;\nexport const w = (supabase: { from: (t: string) => unknown }) => supabase.from('living_models');") },
   { rule: 'H2', name: 'the store clears storage', plant: edit('utils/livingModel/store.ts', '    await AsyncStorage.setItem(key, json);', '    await AsyncStorage.clear();\n    await AsyncStorage.setItem(key, json);') },
   { rule: 'I1', name: 'a hex colour in a component', plant: edit('components/livingModel/styles.ts', "screen: { flex: 1, backgroundColor: t.bg },", "screen: { flex: 1, backgroundColor: '#ECEDE9' },") },
   { rule: 'I1', name: 'an rgba in the web view', plant: edit('components/livingModel/JobReplay3D.web.tsx', "display: 'block',", "display: 'block', background: 'rgba(0,0,0,0.1)',") },
