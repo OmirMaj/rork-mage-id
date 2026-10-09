@@ -25,6 +25,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHideBrainFab } from '@/components/brain/brainFabState';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { usePhone3DCopy } from '@/hooks/usePhone3DCopy';
@@ -53,6 +54,8 @@ export default function DevPhone3DRoute() {
 
 function Spike() {
   const insets = useSafeAreaInsets();
+  // The assistant button does not belong on a check screen, and would sit on the scrubber.
+  useHideBrainFab();
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const phoneCopy = usePhone3DCopy();

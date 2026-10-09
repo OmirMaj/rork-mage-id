@@ -34,6 +34,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { usePhone3DCopy } from '@/hooks/usePhone3DCopy';
 import { useReducedMotion } from '@/components/ui';
+import { nativeDriver } from '@/components/ui/motion';
 import { roomBounds } from '@/utils/livingModel/modelCore';
 import {
   LABEL_THROTTLE_MS, frameStats, gestureBegin, gestureEnd, gestureMove, labelsToHide,
@@ -245,7 +246,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
   useEffect(() => {
     if (!ready) return;
     if (reduceRef.current) { fade.setValue(1); return; }
-    const a = Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true });
+    const a = Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: nativeDriver });
     a.start();
     return () => a.stop();
   }, [ready, fade]);
