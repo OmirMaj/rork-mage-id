@@ -285,6 +285,9 @@ rule('A6', 'what the view costs a phone comes from one table: Standard holds a 3
   if (!/shadowMapSize: settings\.shadowMapSize/.test(view) || !/antialias: false/.test(view)) out.push('the scene is not built with the table\'s shadow map, or asks the renderer for smoothing the surface already does');
   if (!/const surface = box \? surfaceBox\(box\.w, box\.h, settings\.surfaceScale\) : null;/.test(view)) out.push('the drawing surface is not laid out at the table\'s size');
   if (!/transform: \[\{ translateX: surface\.translateX \}, \{ translateY: surface\.translateY \}, \{ scale: surface\.scale \}\]/.test(view)) out.push('the smaller surface is not moved and then grown back over the view');
+  const three = code(w.files[THREE_SCENE] ?? '');
+  if (!/sun\.shadow\.mapSize\.set\(shadowMapSize, shadowMapSize\);/.test(three)) out.push('the scene does not take its shadow map\'s size from its caller');
+  if (!/sun\.shadow\.normalBias = 0\.02 \* \(WEB_SCENE_DEFAULTS\.shadowMapSize \/ shadowMapSize\);/.test(three)) out.push('a smaller shadow map keeps the bias of the large one: surfaces would shadow themselves in stripes');
   const entry = code(w.files[ENTRY] ?? '');
   if (!/quality = 'standard'/.test(entry)) out.push('a view that is told no quality does not draw at Standard');
   const screen = code(w.files[SCREEN] ?? '');
@@ -610,6 +613,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'A6', name: 'High is the same as Standard', plant: swap({ phone3DSettings: (_q, sc) => phone3DSettings('standard', sc) }) },
   { rule: 'A6', name: 'the smaller surface grows from its corner', plant: swap({ surfaceBox: (wd, h, k) => ({ ...surfaceBox(wd, h, k), translateX: 0, translateY: 0 }) }) },
   { rule: 'A6', name: 'the view ignores the table\'s smoothing', plant: edit(VIEW, 'const settings = useMemo(() => phone3DSettings(quality, PixelRatio.get()), [quality]);', "const settings = useMemo(() => phone3DSettings('high', 3), []);") },
+  { rule: 'A6', name: 'the scene ignores its caller\'s shadow map', plant: edit(THREE_SCENE, 'sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);', 'sun.shadow.mapSize.set(2048, 2048);') },
+  { rule: 'A6', name: 'a smaller shadow map keeps the large one\'s bias', plant: edit(THREE_SCENE, 'sun.shadow.normalBias = 0.02 * (WEB_SCENE_DEFAULTS.shadowMapSize / shadowMapSize);', 'sun.shadow.normalBias = 0.02;') },
   { rule: 'A6', name: 'the view opens at High', plant: edit(ENTRY, "quality = 'standard'", "quality = 'high'") },
   { rule: 'A6', name: 'everyone gets the switch', plant: edit(SCREEN, '{threeD && onPhone && ownerTools ? (', '{threeD && onPhone ? (') },
   { rule: 'A6', name: 'the owner\'s switches are for everyone', plant: edit('utils/livingModel/allowed.ts', '  return isOwner(userEmail);\n}\n\nexport type LivingModelSeat', '  return true;\n}\n\nexport type LivingModelSeat') },

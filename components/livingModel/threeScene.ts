@@ -136,7 +136,8 @@ export function createJobScene(THREE: Three, canvas: HTMLCanvasElement, palette:
   sun.castShadow = true;
   sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
   sun.shadow.bias = -0.0006;
-  sun.shadow.normalBias = 0.02;
+  // A smaller shadow map has larger texels, so a surface is pushed further off its own shadow by the same measure. 0.02 at the web's 2048.
+  sun.shadow.normalBias = 0.02 * (WEB_SCENE_DEFAULTS.shadowMapSize / shadowMapSize);
   scene.add(sun);
   scene.add(sun.target);
 
