@@ -155,7 +155,7 @@ export function co2(status: 'draft' | 'submitted' | 'approved') {
       { id: 'co2-b', name: 'Move the range outlet 30 in. to the left', description: '', quantity: 1, unit: 'LS', unitPrice: 450, total: 450, isNew: true },
       { id: 'co2-c', name: 'Patch and repaint the wall at the old outlet', description: '', quantity: 3, unit: 'HR', unitPrice: 80, total: 240, isNew: true },
     ],
-    originalContractValue: CONTRACT_SUM, changeAmount: CO2_AMOUNT, newContractTotal: cents(CONTRACT_SUM + CO1_AMOUNT + CO2_AMOUNT), scheduleImpactDays: 1,
+    originalContractValue: cents(CONTRACT_SUM + CO1_AMOUNT), changeAmount: CO2_AMOUNT, newContractTotal: cents(CONTRACT_SUM + CO1_AMOUNT + CO2_AMOUNT), scheduleImpactDays: 1,
     status, approvers: approver(status === 'approved' ? 'approved' : 'pending', status === 'approved' ? day(-6) : undefined), approvalMode: 'sequential',
     priorApprovedChangesTotal: CO1_AMOUNT, revision: 1,
     auditTrail: [
@@ -169,23 +169,29 @@ export function co2(status: 'draft' | 'submitted' | 'approved') {
 export const REVISED_CONTRACT = cents(CONTRACT_SUM + CO1_AMOUNT + CO2_AMOUNT);
 
 // ---------------------------------------------------------------------------
-// Invoices: the deposit (paid) and one progress bill (sent).
+// Invoices: one progress bill so far, made from the estimate's lines (the app's
+// Bill from Estimate), 10% retainage held as the contract says. Each line
+// carries the percent of that estimate line billed on this invoice, which is
+// what the pay application reads its schedule of values from.
 // ---------------------------------------------------------------------------
-const DEPOSIT = cents(CONTRACT_SUM * 0.2);
-const PROGRESS = cents(CONTRACT_SUM * 0.3);
-const invoices = [
-  {
-    id: 'f6e00000-0000-4000-8000-000000000001', number: 1, projectId: P.alder, type: 'progress', progressPercent: 20, issueDate: day(-50), dueDate: day(-43), paymentTerms: 'due_on_receipt', notes: 'Deposit, 20% of the contract.',
-    lineItems: [{ id: 'inv1-a', name: 'Deposit, 20% of contract', description: '', quantity: 1, unit: 'LS', unitPrice: DEPOSIT, total: DEPOSIT }],
-    subtotal: DEPOSIT, taxRate: 0, taxAmount: 0, totalDue: DEPOSIT, amountPaid: DEPOSIT, status: 'paid',
-    payments: [{ id: 'pay-1', date: day(-47), amount: DEPOSIT, method: 'check', reference: 'Check 1042' }], billToName: CLIENT.name, billToEmail: CLIENT.email, createdAt: day(-50), updatedAt: day(-47),
-  },
-  {
-    id: 'f6e00000-0000-4000-8000-000000000002', number: 2, projectId: P.alder, type: 'progress', progressPercent: 30, issueDate: day(-6), dueDate: day(9), paymentTerms: 'net_15', notes: 'Progress through drywall: 30% of the contract.',
-    lineItems: [{ id: 'inv2-a', name: 'Progress billing, 30% of contract (demolition through drywall)', description: '', quantity: 1, unit: 'LS', unitPrice: PROGRESS, total: PROGRESS }],
-    subtotal: PROGRESS, taxRate: 0, taxAmount: 0, totalDue: PROGRESS, amountPaid: 0, status: 'sent', payments: [], billToName: CLIENT.name, billToEmail: CLIENT.email, createdAt: day(-6), updatedAt: day(-6),
-  },
-];
+const RETAINAGE = 10;
+const bill = (n: number, issued: number, paidOn: number | null, notes: string, parts: [materialId: string, pct: number][]) => {
+  const lineItems = parts.map(([materialId, pct], i) => {
+    const src = estimateItems.find((e) => e.materialId === materialId)!;
+    return { id: `inv${n}-${i + 1}`, name: src.name, description: `${pct}% of ${src.name.toLowerCase()}`, quantity: 1, unit: 'LS', unitPrice: cents(src.lineTotal * pct / 100), total: cents(src.lineTotal * pct / 100), sourceEstimateItemId: materialId, billedPercent: pct };
+  });
+  const subtotal = cents(lineItems.reduce((t, l) => t + l.total, 0));
+  const retentionAmount = cents(subtotal * RETAINAGE / 100);
+  const net = cents(subtotal - retentionAmount);
+  return {
+    id: `f6e00000-0000-4000-8000-00000000000${n}`, number: n, projectId: P.alder, type: 'progress', progressPercent: Math.round(subtotal / CONTRACT_SUM * 100), issueDate: day(issued), dueDate: day(issued + 15), paymentTerms: 'net_15', notes,
+    lineItems, subtotal, taxRate: 0, taxAmount: 0, totalDue: subtotal, amountPaid: paidOn == null ? 0 : net, status: paidOn == null ? 'sent' : 'paid',
+    payments: paidOn == null ? [] : [{ id: `pay-${n}`, date: day(paidOn), amount: net, method: 'check', reference: 'Check 1042' }],
+    retentionPercent: RETAINAGE, retentionAmount, retentionReleased: 0, retentionReleases: [], billToName: CLIENT.name, billToEmail: CLIENT.email, createdAt: day(issued), updatedAt: day(paidOn ?? issued),
+  };
+};
+export const invoice1 = bill(1, -6, null, 'Pay application 1: work from 31 August through 30 September.', [['ln-demo', 100], ['ln-frame', 100], ['ln-plumb', 60], ['ln-elec', 60], ['ln-drywall', 60]]);
+const invoices = [invoice1];
 
 // ---------------------------------------------------------------------------
 // Daily reports. Weather on a filed report is the reading the app stored with

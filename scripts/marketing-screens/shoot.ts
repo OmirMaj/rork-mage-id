@@ -100,10 +100,14 @@ async function runStep(page: Page, step: Step): Promise<void> {
     await wait(300); return;
   }
   if ('scroll' in step) {
-    await page.eval(`(() => { const t = ${'to' in step && step.to ? `__shot.find(${JSON.stringify(step.to)})` : 'null'}; if (t) { t.scrollIntoView({ block: ${JSON.stringify(step.block ?? 'start')} }); return; }
-      const s = [...document.querySelectorAll('div')].filter((d) => d.scrollHeight > d.clientHeight + 40 && getComputedStyle(d).overflowY !== 'visible' && getComputedStyle(d).overflowY !== 'hidden').sort((a, b) => b.clientHeight * b.clientWidth - a.clientHeight * a.clientWidth)[0];
-      if (s) s.scrollTop = ${step.scroll}; })()`);
-    await wait(350); return;
+    // To an element (its top lands `scroll` px below the top of the screen), or the main list to an offset.
+    await page.eval(`(async () => { const scrollers = () => [...document.querySelectorAll('div')].filter((d) => d.scrollHeight > d.clientHeight + 40 && /auto|scroll/.test(getComputedStyle(d).overflowY) && d.getBoundingClientRect().width > 0);
+      ${step.to ? `let t = null; for (let i = 0; i < 30 && !t; i++) { t = __shot.find(${JSON.stringify(step.to)}); if (!t) await new Promise(r => setTimeout(r, 150)); }
+      if (!t) throw new Error('nothing to scroll to for ' + ${JSON.stringify(JSON.stringify(step.to))});
+      let s = t.parentElement; while (s && !(s.scrollHeight > s.clientHeight + 40 && /auto|scroll/.test(getComputedStyle(s).overflowY))) s = s.parentElement;
+      if (s) s.scrollTop += t.getBoundingClientRect().top - ${step.scroll};`
+      : `const s = scrollers().sort((a, b) => b.clientHeight * b.clientWidth - a.clientHeight * a.clientWidth)[0]; if (s) s.scrollTop = ${step.scroll};`} })()`);
+    await wait(450); return;
   }
 }
 
@@ -133,12 +137,17 @@ async function shoot(browser: Browser, screen: Screen, shot: Shot, file: string)
     });
     await page.send('Page.addScriptToEvaluateOnNewDocument', { source: bootScript(current, theme) });
     await page.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_HELPERS });
-    await page.send('Page.navigate', { url: `http://127.0.0.1:${PORT}${screen.route}` });
+    await page.send('Page.navigate', { url: `http://127.0.0.1:${PORT}${screen.via ?? screen.route}` });
     // The app is up when its launch curtain is gone and the fonts are in.
     await page.eval(`new Promise((resolve) => { const t0 = performance.now(); const tick = () => { const root = document.getElementById('root'); if ((root && root.innerText.trim().length > 20 && document.fonts.status === 'loaded') || performance.now() - t0 > 20000) resolve(true); else setTimeout(tick, 150); }; tick(); })`);
     await wait(screen.settle ?? 2500);
+    if (screen.via) {
+      // Arrive the way a person does, from another screen, so the header has its back button.
+      await page.eval(`(() => { history.pushState({}, '', ${JSON.stringify(screen.route)}); dispatchEvent(new PopStateEvent('popstate', { state: {} })); })()`);
+      await wait(screen.settle ?? 2500);
+    }
     for (const step of [...(screen.steps ?? []), ...(shot.steps ?? [])]) await runStep(page, step);
-    await page.eval('document.fonts.ready.then(() => true)');
+    await page.eval('document.fonts.ready.then(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); return true; })');
     await wait(shot.settle ?? 700);
     if (!shot.noStatusBar) await page.eval(statusBarScript(theme, INSETS, shot.statusBar));
     await wait(120);
@@ -176,7 +185,7 @@ async function main() {
             const bad = /undefined|NaN|Something went wrong|This screen hit an error|Unmatched Route/.exec(r.texts);
             console.log(`${bad ? '!' : '✓'} ${set}/${name}${bad ? `  (page text contains "${bad[0]}")` : ''}`);
             if (bad) failed++;
-            if (debug) console.log(r.texts.replace(/\n+/g, ' | ').slice(0, 1500));
+            if (debug) console.log(r.texts.replace(/\n+/g, ' | ').slice(0, Number(process.env.TEXT_MAX ?? 1500)));
             if (process.env.SHOT_ERRORS) for (const e of r.errors.slice(0, 8)) console.log('    console: ' + e);
           } catch (e) { failed++; console.log(`✗ ${set}/${name}: ${(e as Error).message}`); }
         }
