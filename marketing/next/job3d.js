@@ -20,7 +20,9 @@
     'vec3 transformed = mix(aCtr, position, smoothstep(0.0, 0.3, mgK));',
     'transformed.y += (1.0 - mgE) * uLift;'
   ].join('\n');
-  var HEAD = 'attribute float aOrd;\nattribute vec3 aCtr;\nuniform float uR;\nuniform float uW;\nuniform float uLift;\n';
+  var HEAD = 'attribute float aOrd;\nattribute vec3 aCtr;\nuniform float uR;\nuniform float uW;\nuniform float uLift;\nuniform float uSweep;\nuniform vec3 uTint;\n';
+  /* paint: a colour edge that sweeps across the job. Colour pass only, the shadow pass has no colours. */
+  var PAINT = '\nvColor *= mix(uTint, vec3(1.0), smoothstep(0.0, 1.0, (uSweep - (position.x + position.z * 0.6)) / 2.4));';
 
   function create(canvas, opt) {
     var THREE = window.THREE;
@@ -36,7 +38,7 @@
 
     var scene = new THREE.Scene();
     var cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 300);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x8E968F, 0.72));
+    var hemi = new THREE.HemisphereLight(0xffffff, 0x8E968F, 0.72); scene.add(hemi);
     var sun = new THREE.DirectionalLight(0xffffff, 0.44);
     sun.position.set(-9, 30, 20); sun.target.position.set(6.5, 0, 5.5);
     sun.castShadow = true;
@@ -51,7 +53,7 @@
       o = o || {};
       this.a = a; this.b = b; this.c = o.out ? o.out[0] : null; this.d = o.out ? o.out[1] : null;
       this.boxes = []; this.o = o; this.last = -1;
-      this.u = { uR: { value: 0 }, uW: { value: o.w || 0.3 }, uLift: { value: o.lift == null ? 1.4 : o.lift } };
+      this.u = { uR: { value: 0 }, uW: { value: o.w || 0.3 }, uLift: { value: o.lift == null ? 1.4 : o.lift }, uSweep: { value: 999 }, uTint: { value: new THREE.Vector3(1, 1, 1) } };
       layers.push(this);
     }
     /* y is the bottom of the box. key orders the reveal (low first). */
@@ -96,19 +98,17 @@
       g.setAttribute('aOrd', new THREE.BufferAttribute(O, 1));
       g.boundingSphere = new THREE.Sphere(new THREE.Vector3(6.5, 0, 5.5), 40);
       var u = this.u, o = this.o;
-      var m = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: !!o.alpha, opacity: o.alpha || 1, depthWrite: !o.alpha });
-      m.onBeforeCompile = function (sh) {
-        sh.uniforms.uR = u.uR; sh.uniforms.uW = u.uW; sh.uniforms.uLift = u.uLift;
-        sh.vertexShader = HEAD + sh.vertexShader.replace('#include <begin_vertex>', SHADER);
-      };
+      var m = o.glow ? new THREE.MeshBasicMaterial({ vertexColors: true }) : new THREE.MeshLambertMaterial({ vertexColors: true, transparent: !!o.alpha, opacity: o.alpha || 1, depthWrite: !o.alpha });
+      function bind(sh) { sh.uniforms.uR = u.uR; sh.uniforms.uW = u.uW; sh.uniforms.uLift = u.uLift; sh.uniforms.uSweep = u.uSweep; sh.uniforms.uTint = u.uTint; }
+      m.onBeforeCompile = function (sh) { bind(sh); sh.vertexShader = HEAD + sh.vertexShader.replace('#include <begin_vertex>', SHADER + PAINT); };
       var mesh = new THREE.Mesh(g, m);
       mesh.frustumCulled = false;
-      if (!o.alpha && !o.flat) {
+      if (!o.alpha && !o.flat && !o.glow) {
         var dm = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
-        dm.onBeforeCompile = m.onBeforeCompile;
+        dm.onBeforeCompile = function (sh) { bind(sh); sh.vertexShader = HEAD + sh.vertexShader.replace('#include <begin_vertex>', SHADER); };
         mesh.customDepthMaterial = dm; mesh.castShadow = true;
       }
-      mesh.receiveShadow = !o.alpha;
+      mesh.receiveShadow = !o.alpha && !o.glow;
       this.mesh = mesh; this.mat = m; this.boxes = null;
       scene.add(mesh);
     };
@@ -121,7 +121,7 @@
       wood: 0xDDB877, woodB: 0xCFA763, woodD: 0xB48A4B, pipe: 0x2E7FC1, hot: 0xC8503C, wire: 0xEDB52A, pink: 0xE2A79E,
       wall: 0xFFFFFF, cap: 0xB9BEB6, floorA: 0xCFA873, floorB: 0xC59C66, floorC: 0xD8B482,
       tileA: 0xE7EAE6, tileB: 0xC9D9D4, tileK: 0xD9DCD6, white: 0xF6F6F2, ink: 0x1F2628, slate: 0x40505A, slateL: 0x566873,
-      vis: 0xEDB52A, skin: 0xC99A72, hat: 0xF6F6F2, rust: 0x8A5A3C, steel: 0x7C858A, paper: 0xF4F4EF
+      vis: 0xEDB52A, string: 0xF2F4EE, pvc: 0xE9EBE6, box: 0x5E696E, lamp: 0xFFE2A0, skin: 0xC99A72, hat: 0xF6F6F2, rust: 0x8A5A3C, steel: 0x7C858A, paper: 0xF4F4EF
     };
     var Y = 0.3, H = 1.5;
 
@@ -180,13 +180,15 @@
     var plan = new Layer(0.12, 1, { w: 0.5, lift: 0.5, out: [2.9, 3.4], flat: 1 });
     var ghost = new Layer(1.05, 1.9, { w: 0.6, lift: 0.9, alpha: 0.26, out: [2.05, 2.75] });
     var studs = new Layer(2.02, 2.72, { w: 0.22, lift: 1.3 });
-    var mep = new Layer(2.55, 2.95, { w: 0.4, lift: 0.7, out: [3.45, 3.75] });
-    var insul = new Layer(2.8, 3.04, { w: 0.5, lift: 0.5, out: [3.5, 3.8] });
-    var dry = new Layer(3.06, 3.7, { w: 0.25, lift: 1.3 });
+    var mep = new Layer(2.5, 2.92, { w: 0.4, lift: 0.7, out: [3.5, 3.8] });
+    var insul = new Layer(3.04, 3.22, { w: 0.5, lift: 0.5, out: [3.5, 3.8] });
+    var dry = new Layer(3.16, 3.68, { w: 0.25, lift: 1.3 });
+    /* each wall is painted its own soft colour, like rooms in a real job */
+    var PAINTS = [0xFFFFFF, 0xF4EEDD, 0xE3EADD, 0xFFFFFF, 0xDCE5EA, 0xD9E8E3, 0xF1E6DC, 0xF4EEDD, 0xE3EADD];
     var glass = new Layer(3.3, 3.75, { w: 0.5, lift: 0.8, alpha: 0.5 });
 
-    WALLS.forEach(function (w) {
-      var sill = 0.85;
+    WALLS.forEach(function (w, wi) {
+      var sill = 0.85, paintCol = PAINTS[wi % PAINTS.length];
       pieces(w).forEach(function (p) {
         var s0 = p[0], s1 = p[1], kind = p[2], s;
         if (kind !== 'd') {
@@ -204,11 +206,16 @@
         for (s = s0 + 0.04; s < s1 - 0.01; s += 0.46) wallBox(studs, w, s, Math.min(s1, s + 0.075), Y + 0.07, h - 0.14, 0.13, K.wood);
         wallBox(studs, w, s1 - 0.075, s1, Y + 0.07, h - 0.14, 0.13, K.wood);
         wallBox(studs, w, s0, s1, Y + h - 0.07, 0.07, 0.13, K.woodB);
+        if (kind === 'x') {
+          wallBox(studs, w, s0, s1, Y + h, 0.06, 0.13, K.woodD);
+          /* blocking between the studs, staggered the way a framer nails it */
+          for (s = s0 + 0.04; s < s1 - 0.5; s += 0.46) wallBox(studs, w, s + 0.075, Math.min(s1, s + 0.46), Y + 0.62 + (Math.round(s / 0.46) % 2) * 0.12, 0.06, 0.11, K.woodB);
+        }
         if (w.ext) for (s = s0; s < s1 - 0.01; s += 1) wallBox(insul, w, s + 0.02, Math.min(s1, s + 1) - 0.02, Y + 0.07, h - 0.14, 0.07, K.pink, null, -0.02);
         /* board, in sheets */
         for (s = s0; s < s1 - 0.01; s += 1.15) {
           var e = Math.min(s1, s + 1.15);
-          wallBox(dry, w, s, e, Y, h, 0.19, K.wall);
+          wallBox(dry, w, s, e, Y, h, 0.19, paintCol);
           wallBox(dry, w, s, e, Y + h, 0.025, 0.19, K.cap);
         }
         if (kind === 'w') {
@@ -223,6 +230,8 @@
       plan.box(c[0], 0.05, c[1], 0.08, 0.6, 0.08, K.wood, -3 + i * 0.2);
       plan.box(c[0] + 0.12, 0.5, c[1], 0.26, 0.14, 0.03, K.vis, -2.9 + i * 0.2);
     });
+    plan.box(6, 0.52, -0.5, 13, 0.025, 0.025, K.string, -2); plan.box(6, 0.52, 9.5, 13, 0.025, 0.025, K.string, -1.9);
+    plan.box(-0.5, 0.52, 4.5, 0.025, 0.025, 10, K.string, -1.8); plan.box(12.5, 0.52, 4.5, 0.025, 0.025, 10, K.string, -1.7);
     /* a dimension line with ticks along the front, like a drawing */
     plan.box(6, Y + 0.004, 9.75, 12, 0.02, 0.04, K.greenL, 30);
     for (var tk = 0; tk <= 12; tk++) plan.box(tk, Y + 0.004, 9.75, 0.04, 0.02, tk % 4 ? 0.16 : 0.34, K.greenL, 30 + tk * 0.1);
@@ -231,19 +240,29 @@
     /* pipes and wires */
     function run(x0, z0, x1, z1, y, col, t) { mep.box((x0 + x1) / 2, y, (z0 + z1) / 2, Math.abs(x1 - x0) + t, t, Math.abs(z1 - z0) + t, col); }
     function riser(x, z, y0, y1, col, t) { mep.box(x, y0, z, t, y1 - y0, t, col); }
-    run(5.25, 8.8, 7.8, 8.8, Y + 0.45, K.pipe, 0.07); run(5.25, 8.8, 7.8, 8.8, Y + 0.62, K.hot, 0.05);
-    [5.6, 6.5, 7.4].forEach(function (x) { riser(x, 8.8, Y + 0.07, Y + 1.1, K.pipe, 0.07); });
-    run(5.2, 5.75, 5.2, 8.8, Y + 0.45, K.pipe, 0.07); riser(5.2, 6.4, Y + 0.07, Y + 0.9, K.pipe, 0.07);
-    run(8.3, 0.2, 11.8, 0.2, Y + 0.5, K.pipe, 0.07); run(8.3, 0.2, 11.8, 0.2, Y + 0.67, K.hot, 0.05);
-    [9.2, 10.4].forEach(function (x) { riser(x, 0.2, Y + 0.07, Y + 1.0, K.pipe, 0.07); });
-    run(11.8, 0.2, 11.8, 3.6, Y + 0.5, K.pipe, 0.07);
-    run(0.2, 0.2, 0.2, 5.3, Y + 1.2, K.wire, 0.045); run(0.2, 5.3, 7.9, 5.3, Y + 1.2, K.wire, 0.045);
-    run(0.2, 0.2, 7.8, 0.2, Y + 1.2, K.wire, 0.045); run(7.8, 0.2, 7.8, 4, Y + 1.2, K.wire, 0.045);
-    run(0.2, 5.7, 0.2, 8.8, Y + 1.2, K.wire, 0.045); run(0.2, 8.8, 4.8, 8.8, Y + 1.2, K.wire, 0.045);
-    run(8.2, 4.2, 11.8, 4.2, Y + 1.2, K.wire, 0.045); run(11.8, 4.2, 11.8, 8.8, Y + 1.2, K.wire, 0.045);
-    [[0.2, 2.6], [3, 5.3], [6.4, 5.3], [5.6, 0.2], [7.8, 0.7], [0.2, 7.2], [2.4, 8.8], [10, 4.2], [11.8, 5.6]].forEach(function (p) {
-      riser(p[0], p[1], Y + 0.5, Y + 1.2, K.wire, 0.045); mep.box(p[0], Y + 0.42, p[1], 0.13, 0.13, 0.13, K.steel);
+    var PT = 0.1, HT = 0.085, WT = 0.055;
+    /* bath wet wall: cold (blue), hot (red), and a white drain stack */
+    run(5.25, 8.8, 7.8, 8.8, Y + 0.42, K.pipe, PT); run(5.25, 8.8, 7.8, 8.8, Y + 0.66, K.hot, HT);
+    [5.6, 6.5, 7.4].forEach(function (x) { riser(x, 8.8, Y + 0.07, Y + 1.15, K.pipe, PT); riser(x + 0.22, 8.8, Y + 0.07, Y + 0.95, K.hot, HT); });
+    run(5.2, 5.75, 5.2, 8.8, Y + 0.42, K.pipe, PT); run(5.2, 5.75, 5.2, 8.8, Y + 0.66, K.hot, HT);
+    riser(5.2, 6.4, Y + 0.07, Y + 0.95, K.pipe, PT); riser(5.2, 7.9, Y + 0.07, Y + 1.4, K.pvc, 0.15); riser(7.6, 5.72, Y + 0.07, Y + 1.4, K.pvc, 0.15);
+    run(5.3, 5.72, 7.6, 5.72, Y + 0.2, K.pvc, 0.13);
+    /* kitchen wall */
+    run(8.3, 0.2, 11.8, 0.2, Y + 0.46, K.pipe, PT); run(8.3, 0.2, 11.8, 0.2, Y + 0.7, K.hot, HT);
+    [9.2, 10.4].forEach(function (x) { riser(x, 0.2, Y + 0.07, Y + 1.05, K.pipe, PT); riser(x + 0.22, 0.2, Y + 0.07, Y + 0.9, K.hot, HT); });
+    run(11.8, 0.2, 11.8, 3.6, Y + 0.46, K.pipe, PT); run(11.8, 0.2, 11.8, 3.6, Y + 0.7, K.hot, HT); riser(11.8, 2.2, Y + 0.07, Y + 1.4, K.pvc, 0.15);
+    /* wires: a run high on every wall, with drops to the boxes */
+    run(0.2, 0.2, 0.2, 5.3, Y + 1.22, K.wire, WT); run(0.2, 5.3, 7.9, 5.3, Y + 1.22, K.wire, WT);
+    run(0.2, 0.2, 7.8, 0.2, Y + 1.22, K.wire, WT); run(7.8, 0.2, 7.8, 4, Y + 1.22, K.wire, WT);
+    run(0.2, 5.7, 0.2, 8.8, Y + 1.22, K.wire, WT); run(0.2, 8.8, 4.8, 8.8, Y + 1.22, K.wire, WT);
+    run(8.2, 4.2, 11.8, 4.2, Y + 1.22, K.wire, WT); run(11.8, 4.2, 11.8, 8.8, Y + 1.22, K.wire, WT);
+    run(4.8, 5.7, 4.8, 8.8, Y + 1.22, K.wire, WT); run(8.2, 5.7, 8.2, 8.8, Y + 1.22, K.wire, WT); run(8.2, 8.8, 11.8, 8.8, Y + 1.22, K.wire, WT);
+    [[0.2, 1.2], [0.2, 2.6], [0.2, 4.4], [1.6, 5.3], [3, 5.3], [6.4, 5.3], [2.2, 0.2], [5.6, 0.2], [7.8, 0.7], [7.8, 3.4], [0.2, 7.2], [1.2, 8.8], [2.4, 8.8], [4, 8.8],
+      [4.8, 7], [8.2, 7.6], [9.4, 8.8], [10, 4.2], [11.2, 4.2], [11.8, 5.6], [11.8, 8]].forEach(function (p) {
+      riser(p[0], p[1], Y + 0.5, Y + 1.22, K.wire, WT); mep.box(p[0], Y + 0.4, p[1], 0.16, 0.16, 0.16, K.box);
     });
+    /* the panel */
+    mep.box(11.8, Y + 0.55, 8.4, 0.14, 0.7, 0.5, K.box);
 
     /* ---------- floors ---------- */
     var floor = new Layer(3.5, 3.97, { w: 0.3, lift: 0.5, flat: 1 });
@@ -318,8 +337,12 @@
     bin.box(15.2, 0.05, 1.9, 2.0, 0.12, 3.2, K.greenD, 0);
     bin.box(14.25, 0.17, 1.9, 0.1, 0.95, 3.2, K.green, 1); bin.box(16.15, 0.17, 1.9, 0.1, 0.95, 3.2, K.green, 1);
     bin.box(15.2, 0.17, 0.35, 1.8, 0.95, 0.1, K.green, 1); bin.box(15.2, 0.17, 3.45, 1.8, 0.95, 0.1, K.green, 1);
-    bin.box(15.2, 0.17, 1.9, 1.8, 0.55, 3.0, 0x6F6A60, 2); bin.box(14.9, 0.72, 1.3, 0.9, 0.12, 0.5, K.woodD, 3); bin.box(15.5, 0.72, 2.5, 0.5, 0.16, 0.9, K.cap, 3);
     bin.finish();
+    /* the dumpster fills as the job goes on */
+    var fill = new Layer(1.9, 2.1, { w: 1, lift: 0, out: [4.35, 4.8] });
+    fill.box(0, 0, 0, 1.8, 0.8, 3.0, 0x6F6A60, 0); fill.box(-0.3, 0.8, -0.6, 0.9, 0.1, 0.5, K.woodD, 0); fill.box(0.3, 0.8, 0.6, 0.5, 0.13, 0.9, K.cap, 0);
+    fill.box(-0.2, 0.8, 0.9, 0.7, 0.08, 0.3, K.pink, 0); fill.box(0.4, 0.8, -0.9, 0.5, 0.09, 0.6, K.woodB, 0);
+    fill.finish(); fill.mesh.position.set(15.2, 0.17, 1.9);
 
     var lumber = new Layer(1.55, 2.0, { w: 0.6, lift: 1.5, out: [2.3, 2.75] });
     for (var li = 0; li < 4; li++) for (var lj = 0; lj < 5; lj++) lumber.box(14.1 + lj * 0.2, 0.12 + li * 0.11, 8.2, 0.17, 0.09, 2.6, lj % 2 ? K.wood : K.woodB, li + lj * 0.1);
@@ -331,12 +354,17 @@
     board.box(15, 0, 4.4, 1.3, 0.14, 0.14, K.woodD, -1); board.box(15, 0, 6, 1.3, 0.14, 0.14, K.woodD, -1);
     board.finish();
 
-    var truck = new Layer(2.15, 2.5, { w: 1, lift: 0, out: [4.45, 4.8] });
+    /* the box truck backs in from the right, drops its load, and drives off the same way */
+    var truck = new Layer(2.05, 2.2, { w: 1, lift: 0, out: [4.5, 4.8] });
     truck.box(0, 0.32, 0, 3.0, 1.25, 1.35, K.white, 0); truck.box(0, 0.32, 0.68, 2.2, 0.5, 0.012, K.green, 0);
     truck.box(2.05, 0.32, 0, 1.0, 0.95, 1.3, K.green, 0); truck.box(2.3, 0.85, 0, 0.52, 0.36, 1.2, K.tealL, 0);
     truck.box(0.3, 0.2, 0, 4.4, 0.14, 1.2, K.ink, 0);
     [[-0.9, 0.62], [1.9, 0.62], [-0.9, -0.62], [1.9, -0.62]].forEach(function (p) { truck.box(p[0], 0.03, p[1], 0.5, 0.5, 0.2, K.ink, 0); });
     truck.finish(); truck.mesh.position.set(2, 0, 12.5);
+    /* reversing lights: they blink only while the truck is backing up, and only as the job moves */
+    var blink = new Layer(2.05, 2.06, { w: 1, lift: 0, glow: 1 });
+    blink.box(-1.53, 0.5, 0.5, 0.06, 0.2, 0.26, K.lamp, 0); blink.box(-1.53, 0.5, -0.5, 0.06, 0.2, 0.26, K.lamp, 0); blink.box(-1.2, 1.57, 0, 0.24, 0.1, 0.24, K.vis, 0);
+    blink.finish(); truck.mesh.add(blink.mesh); scene.remove(blink.mesh); scene.add(truck.mesh);
 
     var car = new Layer(4.75, 5, { w: 1, lift: 0 });
     car.box(0, 0.22, 0, 2.3, 0.4, 1.1, K.tealL, 0); car.box(-0.1, 0.62, 0, 1.2, 0.36, 1.0, K.white, 0); car.box(-0.1, 0.66, 0, 1.24, 0.24, 0.9, K.slate, 0);
@@ -346,8 +374,9 @@
     [plan, ghost, studs, mep, insul, dry, glass, floor, fin].forEach(function (l) { l.finish(); });
 
     /* ---------- people ---------- */
-    function person(vest, hat, a, b, out, path) {
+    function person(vest, hat, a, b, out, path, carry) {
       var l = new Layer(a, b, { w: 1, lift: 0.8, out: out });
+      if (carry) { l.box(0.06, 0.98, 0, 0.16, 0.05, 2.1, K.wood, 0); l.box(0.2, 0.52, 0, 0.1, 0.5, 0.1, vest, 0); }
       l.box(0, 0, 0, 0.26, 0.34, 0.2, K.ink, 0); l.box(0, 0.34, 0, 0.32, 0.36, 0.22, vest, 0);
       l.box(0, 0.7, 0, 0.2, 0.2, 0.2, K.skin, 0); l.box(0, 0.88, 0, 0.26, 0.09, 0.26, hat, 0);
       l.finish(); l.path = path; return l;
@@ -356,7 +385,7 @@
     var people = [
       person(K.green, K.hat, 0.2, 0.5, null, [[0, 14.3, 7.6], [1, 14.6, 7.9], [2, 13.4, 5.5], [3, 3.2, 3.4], [4, 6.4, 3.6], [4.6, 10.2, 5.2], [5, 13.3, 6.3]]),
       person(K.vis, K.vis, 2.0, 2.3, [4.5, 4.8], [[2, 13.5, 8.6], [2.5, 6.4, 7.2], [3, 6.5, 6.9], [3.5, 10.2, 2.9], [4, 10.6, 1.6], [4.5, 13.5, 3]]),
-      person(K.vis, K.hat, 2.1, 2.4, [4.4, 4.7], [[2, 13.2, 9.3], [2.6, 2, 6.5], [3, 2.6, 7.2], [3.6, 4.4, 1.2], [4, 2.2, 4.4], [4.5, 13, 9.4]]),
+      person(K.vis, K.hat, 2.1, 2.4, [4.4, 4.7], [[2, 13.2, 9.3], [2.6, 2, 6.5], [3, 2.6, 7.2], [3.6, 4.4, 1.2], [4, 2.2, 4.4], [4.5, 13, 9.4]], true),
       person(K.tealL, K.slate, 4.7, 4.95, null, [[4.6, 14.4, 10.9], [5, 13.9, 7.2]])
     ];
     function walk(l, s) {
@@ -378,14 +407,14 @@
       { az: -0.7, el: 0.6, zoom: 1.12, tx: 6.8, tz: 5.4 }
     ];
     var V = { w: 1, h: 1, cx: 0.5, cy: 0.5, avail: 1, tcx: 0.5, tcy: 0.5, tavail: 1, azOff: 0, elOff: 0, vAz: 0 };
-    var S = { s: opt.s || 0, target: opt.s || 0, dirty: true, shadowDirty: true, running: false, last: 0, drag: false, hold: 0 };
+    var S = { dusk: -1, s: opt.s || 0, target: opt.s || 0, dirty: true, shadowDirty: true, running: false, last: 0, drag: false, hold: 0 };
     var listeners = [];
 
     function camUpdate() {
       var s = S.s, i = Math.min(4, Math.floor(s)), k = smooth(s - i), a = CAM[i], b = CAM[i + 1];
       var az = lerp(a.az, b.az, k) + V.azOff, el = Math.max(0.3, Math.min(1.25, lerp(a.el, b.el, k) + V.elOff));
       var zoom = lerp(a.zoom, b.zoom, k), tx = lerp(a.tx, b.tx, k), tz = lerp(a.tz, b.tz, k);
-      var fit = Math.min(V.w * V.avail / 23.5, V.h / 17.5), z = fit * zoom;
+      var z = fit(V.w, V.h, V.avail) * zoom;
       var hw = V.w / 2 / z, hh = V.h / 2 / z, ox = (V.cx - 0.5) * V.w / z, oy = (V.cy - 0.5) * V.h / z;
       cam.left = -hw - ox; cam.right = hw - ox; cam.top = hh + oy; cam.bottom = -hh + oy;
       var R = 80, ce = Math.cos(el);
@@ -394,7 +423,17 @@
       cam.updateProjectionMatrix(); cam.updateMatrixWorld();
     }
 
-    var wallA = new THREE.Color(0xC9CCC4), wallB = new THREE.Color(0xFFFFFF);
+    dry.u.uTint.value.set(0.77, 0.78, 0.75);
+    var duskSky = new THREE.Color(0x8FA3C4), glassA = new THREE.Color(0xffffff), glassB = new THREE.Color(0xFFE9B0), glassE = new THREE.Color(0xC98A1E);
+    var lamps = [[3.6, 2.6, 0.9], [10, 2, 0.75], [2.4, 7.3, 0.6], [6.4, 7.2, 0.5], [10, 6.6, 0.55], [13.2, 6.4, 0.5]].map(function (p) {
+      var L = new THREE.PointLight(0xFFD08A, 0, 7.5, 1.6); L.position.set(p[0], Y + 1.25, p[1]); L.userData.full = p[2]; scene.add(L); return L;
+    });
+    /* lamp shades that glow, and a porch light by the door */
+    var glow = new Layer(-1, -0.5, { lift: 0, glow: 1 });
+    glow.box(1.0, FY + 0.62, 8.5, 0.2, 0.2, 0.2, K.lamp, 0); glow.box(3.8, FY + 0.38, 8.5, 0.16, 0.2, 0.16, K.lamp, 0);
+    glow.box(0.55, FY + 1.02, 5.0, 0.22, 0.26, 0.22, K.lamp, 0); glow.box(9.6, FY + 0.9, 2.5, 0.7, 0.04, 0.12, K.lamp, 0);
+    glow.box(12.24, Y + 1.2, 5.9, 0.12, 0.2, 0.16, K.lamp, 0); glow.box(6.6, FY + 1.1, 5.7, 0.7, 0.05, 0.06, K.lamp, 0);
+    glow.finish(); glow.mat.transparent = true; glow.mesh.visible = false;
     function apply() {
       var s = S.s, changed = false;
       for (var i = 0; i < layers.length; i++) {
@@ -402,8 +441,21 @@
         if (l.c != null) r *= 1 - smooth((s - l.c) / (l.d - l.c));
         if (r !== l.last) { l.last = r; l.u.uR.value = r; l.mesh.visible = r > 0.0005; changed = true; }
       }
-      dry.mat.color.copy(wallA).lerp(wallB, smooth((s - 3.55) / 0.4));
-      truck.mesh.position.x = lerp(-1.5, 3.2, smooth((s - 2.15) / 0.5)) + lerp(0, 9, smooth((s - 4.4) / 0.4));
+      /* paint: primer grey first, then the colour sweeps across the job */
+      dry.u.uSweep.value = lerp(-3, 22, clamp((s - 3.62) / 0.36));
+      var back = smooth((s - 2.08) / 0.5), away = smooth((s - 4.42) / 0.38);
+      truck.mesh.position.x = lerp(15.6, 3.4, back) + lerp(0, 12.4, away);
+      blink.mesh.visible = truck.mesh.visible && back > 0.02 && back < 0.98 && (Math.floor(s * 46) % 2 === 0);
+      fill.mesh.scale.y = lerp(0.12, 1, clamp((s - 2.0) / 2.2));
+      /* the end of the job: the light drops and the lamps come on */
+      var dusk = smooth((s - 4.72) / 0.26);
+      if (dusk !== S.dusk) {
+        S.dusk = dusk;
+        hemi.intensity = lerp(0.72, 0.4, dusk); hemi.color.setHex(0xffffff).lerp(duskSky, dusk); sun.intensity = lerp(0.44, 0.16, dusk);
+        for (i = 0; i < lamps.length; i++) lamps[i].intensity = lamps[i].userData.full * dusk;
+        glass.mat.color.copy(glassA).lerp(glassB, dusk); glass.mat.emissive.copy(glassE).multiplyScalar(dusk); glass.mat.opacity = lerp(0.5, 0.92, dusk);
+        glow.mesh.visible = dusk > 0.01; glow.mat.opacity = dusk;
+      }
       car.mesh.position.x = lerp(0, 4.5, smooth((s - 4.7) / 0.3));
       for (i = 0; i < people.length; i++) walk(people[i], s);
       return changed;
@@ -472,5 +524,7 @@
     return api;
   }
 
-  window.MageJob = { create: create };
+  /* pixels per scene unit for a canvas of w by h. The page uses the same sum to lay the still picture exactly over the first live frame. */
+  function fit(w, h, avail) { return Math.min(w * avail / 23.5, h / 17.5); }
+  window.MageJob = { create: create, fit: fit, REST_ZOOM: 1.12 };
 })();
