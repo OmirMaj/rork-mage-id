@@ -1474,6 +1474,8 @@ function RootLayoutNav() {
       {/* Lane PPUI: Permit Path — the job's permit route; the screen draws its own header. */}
       <Stack.Screen name="permit-path" options={{ title: 'Permit Path', headerShown: false }} />
       <Stack.Screen name="scan-room" options={{ title: 'Scan the Room', headerShown: false }} />
+      {/* Lane PROOFPACK: dark behind PROOF_PACK_ENABLED, owner preview; the screen draws its own header. */}
+      <Stack.Screen name="proof-pack" options={{ title: 'Proof of Work Package', headerShown: false }} />
       <Stack.Screen
         name="photo-annotator"
         options={{ headerShown: false, presentation: 'modal' }}

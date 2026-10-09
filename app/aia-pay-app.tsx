@@ -98,6 +98,7 @@ import { Banknote, FileSignature } from 'lucide-react-native';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import { useAuth } from '@/contexts/AuthContext';
+import { ProofPackEntryRow } from '@/components/proofPack/ProofPackEntryRow';
 import { createPaymentLink, isPayLinkBalanceCode, payLinkRemintRefusalNotice } from '@/utils/stripe';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import type { SavedAIAPayApp, ProjectContract } from '@/types';
@@ -1994,6 +1995,8 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 </TutorialWrap>
               )}
             </View>
+            {/* Lane PROOFPACK: renders nothing unless the gate and the owner seat both say yes. */}
+            <ProofPackEntryRow projectId={project?.id} kind="pay_app" payId={savedForThisAppNumber?.id} />
           </View>
         )}
 

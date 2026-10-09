@@ -252,6 +252,12 @@ export const SURFACES: Surface[] = [
   // estimate line and the sheet behind it. Every string lives in the one copy
   // hook. Complete: each key has Spanish (i18n/catalog/es/office/codeFlags.ts).
   { id: 'office.code-flags', phase: 2, state: 'complete', keyPrefixes: ['office.codeFlags.'], files: ['hooks/useCodeFlagsCopy.ts'], lane: 'CODEFLAGS' },
+  // Proof of Work Package (dark behind PROOF_PACK_ENABLED, owner preview): the
+  // row on a pay application or an invoice and the review screen. Every screen
+  // string lives in the one copy hook. Complete: each key has Spanish
+  // (i18n/catalog/es/office/proofPack.ts). The DOCUMENT's words are not i18n
+  // keys: they live in utils/proofPack/docCopy.ts in both languages.
+  { id: 'office.proof-pack', phase: 2, state: 'complete', keyPrefixes: ['office.proofPack.'], files: ['hooks/useProofPackCopy.ts'], lane: 'PROOFPACK' },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

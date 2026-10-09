@@ -484,6 +484,39 @@ console.log('\n2. Labels never imply an official AIA document');
   ok('no line a user reads says bank-ready, lender-ready, architect-ready or surety-ready, and none says "official AIA form", anywhere in the app',
     ready.over.length === 0, ready.over.join(', '));
   eq('…that list is EMPTY, and exact (nothing is excused)', [byName(ready.seen), Object.keys(KNOWN_PROMISES).length], [[], 0]);
+  // THE PROOF OF WORK PACKAGE (lane PROOFPACK) is the surface most likely to
+  // grow this promise: it is a document a contractor hands to a bank, a factor,
+  // a surety or an insurer. The list above already reads its files (they are
+  // under utils/, components/, hooks/, app/ and i18n/); this pins that they ARE
+  // read, and holds them to a WIDER list with nothing excused: "-approved" as
+  // well as "-ready", an insurer and a factor as well as a bank, and any line
+  // about being paid faster. scripts/validate-proof-pack.ts (rule W2) reads the
+  // same surface for the claim words; this is the lender half, kept beside the
+  // guard that owns it.
+  const PROOF_PACK_SURFACE = [
+    'utils/proofPack/core.ts', 'utils/proofPack/docCopy.ts', 'utils/proofPack/html.ts', 'utils/proofPack/fingerprint.ts',
+    'utils/proofPack/share.ts', 'utils/proofPack/store.ts', 'utils/proofPack/allowed.ts',
+    'components/proofPack/ProofPackEntryRow.tsx', 'components/proofPack/ProofPackReview.tsx', 'hooks/useProofPackCopy.ts',
+    'app/proof-pack.tsx', 'i18n/catalog/en/office.proof-pack.generated.ts', 'i18n/catalog/es/office/proofPack.ts',
+  ];
+  const PROOF_PROMISE = /(?:lender|bank|banker|architect|surety|insurer|factor|underwriter)s?[- ](?:ready|approved|accepted|grade)|\b(?:get|gets|getting)\s+(?:you\s+)?paid\s+(?:faster|sooner)\b|\bfaster\s+pay(?:ment|ments)?\b|\blist[oa]s?\s+para\s+(?:el\s+|la\s+)?(?:banco|prestamista|afianzadora|aseguradora)\b|\baprobad[oa]s?\s+por\s+(?:el\s+|la\s+)?(?:banco|prestamista|afianzadora|aseguradora)\b|\bcobr(?:a|ar|es)\s+m[aá]s\s+r[aá]pido\b/i;
+  const PROOF_SELF_TEST: [string, boolean][] = [
+    ["titleLabel: 'Bank-Ready Proof of Work Package',", true], ["entryBody: 'A lender-approved package.',", true], ["footer: 'Gets you paid faster.',", true],
+    ["body: 'Surety-accepted format.',", true], ["s: 'Listo para el banco.',", true], ["s: 'Aprobado por la aseguradora.',", true], ["s: 'Cobra más rápido.',", true],
+    ["label: 'Insurer ready'", true], ["label: 'Factor-ready'", true], ["body: 'Faster payment on every draw.',", true],
+    ["whatThisIsNot: 'It is not an inspection, an appraisal or a certification of the work.',", false],
+    ["privacyBody: 'It goes only where you send it.',", false], ["s: 'Paquete de respaldo de obra',", false],
+    ["openItem: 'MAGE ID holds no sign-off from a building inspector, an architect or a third-party inspector.',", false],
+  ];
+  ok('the wider Proof of Work Package list catches what it is for and passes what it must (self-test)',
+    PROOF_SELF_TEST.every(([line, want]) => PROOF_PROMISE.test(line) === want),
+    PROOF_SELF_TEST.filter(([line, want]) => PROOF_PROMISE.test(line) !== want).map(([l]) => l).join(' | '));
+  ok('every Proof of Work Package file is one the "-ready" guard above reads',
+    PROOF_PACK_SURFACE.every(f => files.includes(f)), PROOF_PACK_SURFACE.filter(f => !files.includes(f)).join(', '));
+  const proofPromises = PROOF_PACK_SURFACE.filter(f => files.includes(f))
+    .flatMap(f => userFacing(read(f)).filter(l => PROOF_PROMISE.test(l)).map(l => `${f}: ${l.trim().slice(0, 90)}`));
+  ok('no line of the Proof of Work Package promises what a bank, a lender, a factor, a surety or an insurer will do, in English or Spanish',
+    proofPromises.length === 0, proofPromises.join(' | '));
   const promises = ratchet(promiseHits, KNOWN_ACCEPT_WORDING);
   ok('no NEW promise about what a lender, bank, architect or surety accepts or expects anywhere in the app',
     promises.over.length === 0, promises.over.join(', '));

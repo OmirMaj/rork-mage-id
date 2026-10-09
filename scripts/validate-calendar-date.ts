@@ -1623,6 +1623,7 @@ console.log('\nno day key is derived from the UTC text of an instant (DAY RULE):
   ];
   const UTC_PARTS_ALLOWED: Record<string, string> = {
     'utils/aiRateLimiterCore.ts': 'when the server\'s UTC-day and UTC-month AI caps reset',
+    'utils/proofPack/html.ts': 'prints a stored instant in UTC, labelled "UTC", on a document read in any time zone; never "now"',
     'utils/weekClose/composeWeekClose.ts': 'the next run of the weekly digest cron, which is scheduled in UTC',
     'utils/weatherService.ts': 'the jobsite\'s midday, on an instant already shifted by the site offset',
     'utils/lastPlanner.ts': 'the UTC day grid for stored week keys (toMonday is grid-only; "now" comes from localWeekStart)',
