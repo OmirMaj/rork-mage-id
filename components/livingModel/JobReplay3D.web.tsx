@@ -57,7 +57,12 @@ function loadThree(): Promise<typeof import('three')> {
   return import('three');
 }
 
-export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUnavailable, weekLine, atToday, height, compact }: JobReplay3DProps) {
+/**
+ * `loadLibrary` is for the jest suite only, which cannot run a dynamic import: it hands in a stand-in so the view's own
+ * start, theme change and lost-context paths can be run with no WebGL. The app never passes it (the validator checks),
+ * so in the app the library comes from `loadThree` and nowhere else.
+ */
+export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUnavailable, weekLine, atToday, height, compact, loadLibrary = loadThree }: JobReplay3DProps & { loadLibrary?: () => Promise<typeof import('three')> }) {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const palette = usePalette();
@@ -94,7 +99,7 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
     let observer: ResizeObserver | null = null;
     const canvas = canvasRef.current;
     const cleanups: (() => void)[] = [];
-    void loadThree().then((THREE) => {
+    void loadLibrary().then((THREE) => {
       if (!alive || !canvas) return;
       try {
         handle = createJobScene(THREE, canvas, palette);
@@ -223,7 +228,8 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
           handle.render();
           pinRefs.current.forEach((el, roomId) => {
             const p = handle?.project(roomId);
-            if (!p) return;
+            // A label that is not on the page yet has nothing to place.
+            if (!p || !el.style) return;
             el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -50%)`;
             // A label no wider than its room: the stage line, then the name, give way in a small room.
             const sized = pinSize(handle?.roomWidthPx(roomId) ?? Number.NaN, roomId === selectedRef.current || roomId === hoverRef.current);
@@ -250,7 +256,7 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
       // This scene is gone. The next one starts empty, so the rooms and their stages have to be drawn into it again.
       setReady(false);
     };
-  }, [palette, reloads]);
+  }, [palette, reloads, loadLibrary]);
 
   // The rooms, or the wall height, changed: build the shapes again.
   useEffect(() => {

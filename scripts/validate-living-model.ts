@@ -927,7 +927,9 @@ rule('E2', 'the 3D library is loaded by ONE dynamic import, in the web-only view
     if (guard < 0 || load < 0 || guard > load || !/Platform\.OS !== 'web'\) return Promise\.reject/.test(fn[1])) out.push('the load is not behind Platform.OS === \'web\'');
   }
   const eff = web.indexOf('useEffect(');
-  if (eff < 0 || web.indexOf('loadThree()', eff) < 0) out.push('the library is not loaded from an effect when the view opens');
+  if (eff < 0 || web.indexOf('void loadLibrary().then(', eff) < 0 || !/loadLibrary = loadThree \}: JobReplay3DProps/.test(web)) out.push('the library is not loaded from an effect when the view opens, through loadThree');
+  // `loadLibrary` is the jest suite's stand-in. Nothing in the app may hand one in: the library then comes from loadThree alone.
+  for (const [f, src] of Object.entries(w.files)) if (f !== 'components/livingModel/JobReplay3D.web.tsx' && /\bloadLibrary\b/.test(code(src))) out.push(`${f} hands the 3D view a library of its own`);
   if (/^(?:const|let|var)\s[^\n]*loadThree\(\)|^void loadThree\(\)|^loadThree\(\)/m.test(web)) out.push('the library is loaded at module scope');
   return out;
 });
@@ -1083,10 +1085,10 @@ rule('E7', 'a theme change makes a new scene and the rooms are drawn into it aga
   b.dispose();
   // The view: when the scene goes, `ready` goes with it, so the two effects that draw rooms and stages run again for the next scene.
   const web = code(w.files['components/livingModel/JobReplay3D.web.tsx'] ?? '');
-  const start = web.slice(web.indexOf('void loadThree().then('), web.indexOf('// The rooms, or the wall height, changed'));
+  const start = web.slice(web.indexOf('void loadLibrary().then('), web.indexOf('// The rooms, or the wall height, changed'));
   const cleanup = start.slice(start.lastIndexOf('return () => {'));
   if (!/handle\?\.dispose\(\);[\s\S]*setReady\(false\);/.test(cleanup)) out.push('the view does not reset `ready` when its scene is thrown away: after a theme change the new scene would stay empty (a blank 3D view)');
-  if (!/\}, \[palette, reloads\]\);/.test(start)) out.push('the view does not make a new scene when the palette changes or the person reloads the view');
+  if (!/\}, \[palette, reloads, loadLibrary\]\);/.test(start)) out.push('the view does not make a new scene when the palette changes or the person reloads the view');
   if (!/if \(!ready \|\| !sceneRef\.current\) return;\s*sceneRef\.current\.setRooms\(rooms, cut \? DEFAULT_CUT_M : null\);[\s\S]{0,80}\}, \[ready, rooms, cut\]\);/.test(web)) out.push('the rooms are not drawn again when a scene becomes ready');
   if (!/sceneRef\.current\.apply\(looks\);[\s\S]{0,80}\}, \[ready, rooms, moments, cut\]\);/.test(web)) out.push('the stages are not drawn again when a scene becomes ready');
   if (!/key: canvasKey,/.test(web) || !/const sceneKey = useMemo\(\(\) => \(\{ palette, reloads \}\), \[palette, reloads\]\);/.test(web)) out.push('each scene does not get a canvas of its own: a canvas whose context was given back cannot draw again');
@@ -1613,6 +1615,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E1', name: 'a static import of a file inside the package', plant: addFile('utils/livingModel/orbit.ts', "import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';\nexport { OrbitControls };\n") },
   { rule: 'E2', name: 'the platform guard is removed', plant: edit('components/livingModel/JobReplay3D.web.tsx', "  if (Platform.OS !== 'web') return Promise.reject(new Error('The 3D view is on the web only.'));\n", '') },
   { rule: 'E2', name: 'a second dynamic import on the phone screen', plant: edit('components/livingModel/LivingModelScreen.tsx', "type Tab = 'rooms' | 'tasks' | 'replay';", "export const preload = () => import('three');\ntype Tab = 'rooms' | 'tasks' | 'replay';") },
+  { rule: 'E2', name: 'the screen hands the 3D view a library of its own', plant: edit('components/livingModel/LivingModelScreen.tsx', "type Tab = 'rooms' | 'tasks' | 'replay';", "export const loadLibrary = () => Promise.resolve({});\ntype Tab = 'rooms' | 'tasks' | 'replay';") },
   { rule: 'E2', name: 'the library is loaded at module scope', plant: edit('components/livingModel/JobReplay3D.web.tsx', 'export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;', 'export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;\nvoid loadThree();') },
   { rule: 'E3', name: 'the phone file is deleted', plant: (w) => { const f = { ...w.files }; delete f['components/livingModel/JobReplay3D.tsx']; return { ...w, files: f }; } },
   { rule: 'E3', name: 'the phone file builds the scene', plant: edit('components/livingModel/JobReplay3D.tsx', "import type { JobReplay3DProps } from './jobReplay3DProps';", "import type { JobReplay3DProps } from './jobReplay3DProps';\nimport { createJobScene } from './threeScene';\nexport const make = createJobScene;") },
@@ -1773,8 +1776,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E6', name: 'the screen names the web file', plant: edit('components/livingModel/LivingModelScreen.tsx', "from './JobReplay3D';", "from './JobReplay3D.web';") },
   { rule: 'E6', name: 'a core file the phone reads requires the library', plant: edit('utils/livingModel/replayCore.ts', "import { BUILD_STAGES,", "const T3 = require('three');\nexport const t3 = T3;\nimport { BUILD_STAGES,") },
   { rule: 'E6', name: 'the bundle check looks for names the 3D code does not have', plant: (w) => ({ ...w, files: { ...w.files, 'components/livingModel/threeScene.ts': w.files['components/livingModel/threeScene.ts'].replace(/createJobScene/g, 'makeScene') } }) },
-  { rule: 'E7', name: '`ready` is not reset when the scene is thrown away (the blank view after a theme change)', plant: edit('components/livingModel/JobReplay3D.web.tsx', '      setReady(false);\n    };\n  }, [palette, reloads]);', '    };\n  }, [palette, reloads]);') },
-  { rule: 'E7', name: 'the palette does not make a new scene', plant: edit('components/livingModel/JobReplay3D.web.tsx', '  }, [palette, reloads]);', '  }, [reloads]);') },
+  { rule: 'E7', name: '`ready` is not reset when the scene is thrown away (the blank view after a theme change)', plant: edit('components/livingModel/JobReplay3D.web.tsx', '      setReady(false);\n    };\n  }, [palette, reloads, loadLibrary]);', '    };\n  }, [palette, reloads, loadLibrary]);') },
+  { rule: 'E7', name: 'the palette does not make a new scene', plant: edit('components/livingModel/JobReplay3D.web.tsx', '  }, [palette, reloads, loadLibrary]);', '  }, [reloads, loadLibrary]);') },
   { rule: 'E7', name: 'the next scene reuses the old canvas', plant: edit('components/livingModel/JobReplay3D.web.tsx', '        key: canvasKey,\n', '') },
   { rule: 'E7', name: 'the rooms effect does not wait for a ready scene', plant: edit('components/livingModel/JobReplay3D.web.tsx', '  }, [ready, rooms, cut]);', '  }, [rooms, cut]);') },
   { rule: 'E7', name: 'the WebGL context is not given back', plant: swap({ createJobScene: (T, c, p, o) => { const h = createJobScene(T, c, p, o); return { ...h, dispose: () => { h.setRooms([], null); } }; } }) },
