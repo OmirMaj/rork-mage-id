@@ -89,7 +89,8 @@ export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUna
       let pinch = 0;
       let mid = { x: 0, y: 0 };
       const onDown = (e: PointerEvent) => {
-        canvas.setPointerCapture(e.pointerId);
+        // A pointer the browser no longer tracks cannot be captured; the drag still works without it.
+        try { canvas.setPointerCapture(e.pointerId); } catch { /* not captured */ }
         ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (ptr.size === 1) down = { x: e.clientX, y: e.clientY };
         else {
