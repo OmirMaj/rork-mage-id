@@ -35,15 +35,6 @@ export function demoId(namespace: string, key: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-/**
- * The demo project's own id. One per account and per "generation": the builder
- * raises the generation each time a demo is removed, so a job made again after
- * removal never reuses the id of the one that was deleted.
- */
-export function demoProjectId(userId: string, generation: number): string {
-  return demoId('mageid-demo-job', `${userId}|${generation}`);
-}
-
 /** An id-maker bound to one demo project. */
 export function childIds(projectId: string): (key: string) => string {
   return (key: string) => demoId(projectId, key);
