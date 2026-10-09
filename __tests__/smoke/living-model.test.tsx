@@ -69,6 +69,13 @@ jest.mock('expo-router', () => {
   };
 });
 
+// jest stands in for a build with NO 3D engine (build 22 and earlier): the one optional lookup of expo-gl's native
+// module answers null, as it does on those phones. __tests__/smoke/phone-3d.test.tsx runs the builds that have it.
+jest.mock('expo', () => {
+  const actual = jest.requireActual('expo');
+  return { ...actual, requireOptionalNativeModule: (name: string) => (name === 'ExponentGLObjectManager' ? null : actual.requireOptionalNativeModule(name)) };
+});
+
 // The 3D library must never be asked for on a build with no 3D engine. If anything here loads it, this flag flips.
 let mockThreeLoaded = false;
 jest.mock('three', () => { mockThreeLoaded = true; return {}; });

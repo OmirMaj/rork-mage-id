@@ -50,8 +50,12 @@ class Phone3DBoundary extends React.Component<{ onError: () => void; children: R
   render(): React.ReactNode { return this.state.broken ? null : this.props.children; }
 }
 
-export function JobReplay3D(props: JobReplay3DProps & { debug?: Phone3DDebug }) {
-  const { model, level, moments, selectedId, onSelect, height } = props;
+export function JobReplay3D(props: JobReplay3DProps & {
+  debug?: Phone3DDebug;
+  /** For tests, which cannot run a dynamic import: how the engine is read. The app never passes it. */
+  loadEngine?: () => Promise<Phone3DEngine | null>;
+}) {
+  const { model, level, moments, selectedId, onSelect, height, loadEngine = loadPhone3DEngine } = props;
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const phoneCopy = usePhone3DCopy();
@@ -62,12 +66,12 @@ export function JobReplay3D(props: JobReplay3DProps & { debug?: Phone3DDebug }) 
   useEffect(() => {
     if (mode !== 'loading') return;
     let alive = true;
-    void loadPhone3DEngine().then((e) => {
+    void loadEngine().then((e) => {
       if (!alive) return;
       if (e) { setEngine(e); setMode('3d'); } else setMode('failed');
     });
     return () => { alive = false; };
-  }, [mode]);
+  }, [mode, loadEngine]);
 
   // A new theme is a new palette: the scene is built again on a new drawing surface.
   const paletteKey = useRef({ palette, n: 0 });
@@ -75,8 +79,9 @@ export function JobReplay3D(props: JobReplay3DProps & { debug?: Phone3DDebug }) 
 
   if (mode === '3d' && engine) {
     // onUnavailable is the web's. The phone never calls it: the flat replay is drawn from here, with the phone's own line.
-    const { onUnavailable, debug, ...rest } = props;
+    const { onUnavailable, debug, loadEngine: _loader, ...rest } = props;
     void onUnavailable;
+    void _loader;
     return (
       <Phone3DBoundary onError={() => setMode('failed')}>
         <Phone3DView key={paletteKey.current.n} {...rest} engine={engine} debug={debug} onFailed={() => setMode('failed')} />
