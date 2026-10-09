@@ -93,7 +93,7 @@ export function SyncStatus({ sync, deviceRooms, hasScanRoom, nameOf, roomNameOf 
           <Button label={copy.saveToAccountLabel} variant="secondary" onPress={sync.saveAgain} testID="lm-account-removed-save" />
         </View>
       ) : null}
-      {accountScanNames && (status === 'saved' || status === 'waiting') ? <Text style={styles.note} testID="lm-account-scan-rooms">{copy.accountScanRoomsBody(accountScanNames)}</Text> : null}
+      {accountScanNames && (status === 'saved' || status === 'waiting') ? <Text style={styles.note} testID="lm-account-scanned-rooms">{copy.accountScanRoomsBody(accountScanNames)}</Text> : null}
 
       {status === 'scan_ask' ? (
         <View style={styles.panel} testID="lm-scan-ask">

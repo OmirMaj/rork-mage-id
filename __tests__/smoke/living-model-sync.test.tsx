@@ -233,7 +233,7 @@ describe('saving the model to the account', () => {
     expect((JSON.parse((await AsyncStorage.getItem(META)) as string) as ModelSyncMeta).scanConsentRoomIds).toEqual(['r-scan']);
     expect(screen.getByTestId('lm-sync-saved')).toBeTruthy();
     expect(screen.getByTestId('lm-scan-change-device')).toBeTruthy();
-    expect(screen.getByTestId('lm-account-scan-rooms').props.children).toBe('Rooms in your account that came from a scan: Hall Bathroom.');
+    expect(screen.getByTestId('lm-account-scanned-rooms').props.children).toBe('Rooms in your account that came from a scan: Hall Bathroom.');
   });
 
   it('3b a room scanned and added later is asked about again: the first yes does not cover it', async () => {
