@@ -614,3 +614,42 @@ Nothing here is needed while the lane is dark and on one phone.
 - **Nothing is sent to a model.** If a later phase wants a model to read a
   receipt against an order line, that goes through the existing AI consent and
   the call log, and is a separate decision.
+
+## Clearance Check
+
+Added 2026-10-09 (lane CLEARANCE), for the owner only, behind the scanner's own
+gate. It measures the distances an inspector commonly looks at off the scan and
+sets each beside a commonly used figure. The rules and the hand-worked rooms are
+in `scripts/validate-scan-clearance.ts`; the figures are one table,
+`utils/roomScan/clearanceRefs.ts`.
+
+No real scan has been through it. Before anyone leans on a row, check these on
+a real LiDAR iPhone, with a tape:
+
+1. **Which way a fixture faces.** The scan gives a toilet or a sink as a box
+   with a width, a depth and a turn. The code takes the box's depth as the
+   direction it faces and the nearer wall along it as its back. Apple does not
+   document which of a box's two floor dimensions is the depth. Scan a toilet,
+   then read its row: if the side distances and the front distance are swapped,
+   the two dimensions are the other way round and `fixtureFacing` has to read
+   the width instead.
+2. **Where a fixture's box sits.** Tape the toilet's centre line to each side
+   wall and compare. The margin is 1.5 in by default; if real boxes sit further
+   off than that, the default has to grow.
+3. **What a door's width is.** The parser reads one width per door. Tape the
+   leaf and the frame opening and see which one the scan drew. The screen says
+   it cannot tell and never calls a door roomy or tight.
+4. **A window's sill.** The sill is the bottom of the box the scan drew, above
+   the lowest wall bottom. Tape one.
+5. **The lowest ceiling.** A soffit or a beam may not be in a wall's height at
+   all. Scan a room with one and see whether the lowest height shows.
+6. **Stairs.** The scan gives one box. If a real export turns out to carry
+   more (it is not documented to), stairs can be added; until then they are
+   left out and the screen says so.
+
+Every figure in the table is marked as NOT confirmed by the repo's checked data
+for New York City or Baltimore, and no section number is shown. An architect or
+an expediter has to read the table before the flag moves, and the first thing
+to ask is which ceiling height and which escape opening sizes New York City
+uses, since the table holds model-code figures and one 8 ft figure described
+only as one that some city codes use.

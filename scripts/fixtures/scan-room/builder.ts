@@ -287,6 +287,65 @@ export function threeOpeningsSpec(): RoomSpec {
   };
 }
 
+// ── three more, for Clearance Check (lane CLEARANCE) ────────────────────────
+// Drawn in whole and half inches so every distance can be worked out by hand
+// (the working is in scripts/validate-scan-clearance.ts).
+
+/**
+ * A tight bathroom, 5 ft by 8 ft, ceiling 6 ft 9 in. Left wall x = 0, bottom
+ * wall y = 0. On the left wall: a sink (24 in wide, 20 in deep, from y = 15.5
+ * to 39.5) and a toilet (15 in wide, 28 in deep, centre line at y = 52). A tub
+ * 30 in deep fills the far end from y = 66. A cabinet 10 in deep stands on the
+ * right wall across from the toilet. One 28 in door on the bottom wall.
+ */
+export function tightBathSpec(): RoomSpec {
+  const walls = ring([inPt(0, 0), inPt(60, 0), inPt(60, 96), inPt(0, 96)], 81 * IN);
+  return {
+    walls,
+    openings: [{ kind: 'door', wall: 0, at: 42 * IN, width: 28 * IN, height: 80 * IN, sill: 0 }],
+    objects: [
+      { category: 'bathtub', at: inPt(30, 81), w: 60 * IN, h: 20 * IN, d: 30 * IN },
+      { category: 'toilet', at: inPt(14, 52), w: 15 * IN, h: 30 * IN, d: 28 * IN, turnDeg: 90 },
+      { category: 'sink', at: inPt(10, 27.5), w: 24 * IN, h: 34 * IN, d: 20 * IN, turnDeg: 90 },
+      { category: 'storage', at: inPt(55, 52), w: 20 * IN, h: 72 * IN, d: 10 * IN, turnDeg: 90 },
+    ],
+    rotateDeg: 17,
+    shift: { x: 0.7, y: -0.4 },
+    section: 'bathroom',
+  };
+}
+
+/** A narrow hallway, 3 ft 1 in by 20 ft, 8 ft ceiling. A 30 in door at each end, and a stair the scan saw as one box. */
+export function narrowHallSpec(): RoomSpec {
+  const walls = ring([inPt(0, 0), inPt(240, 0), inPt(240, 37), inPt(0, 37)], 96 * IN);
+  return {
+    walls,
+    openings: [
+      { kind: 'door', wall: 1, at: 18.5 * IN, width: 30 * IN, height: 80 * IN, sill: 0 },
+      { kind: 'door', wall: 3, at: 18.5 * IN, width: 30 * IN, height: 80 * IN, sill: 0 },
+    ],
+    objects: [{ category: 'stairs', at: inPt(200, 18.5), w: 36 * IN, h: 60 * IN, d: 60 * IN }],
+    rotateDeg: -11,
+    shift: { x: 0.2, y: 1.3 },
+  };
+}
+
+/** A bedroom, 10 ft by 11 ft, 8 ft ceiling. One window 24 in by 36 in with its sill 43 in up, and a 36 in door. */
+export function bedroomWindowSpec(): RoomSpec {
+  const walls = ring([inPt(0, 0), inPt(120, 0), inPt(120, 132), inPt(0, 132)], 96 * IN);
+  return {
+    walls,
+    openings: [
+      { kind: 'door', wall: 0, at: 30 * IN, width: 36 * IN, height: 80 * IN, sill: 0 },
+      { kind: 'window', wall: 2, at: 60 * IN, width: 24 * IN, height: 36 * IN, sill: 43 * IN },
+    ],
+    objects: [{ category: 'bed', at: inPt(60, 90), w: 60 * IN, h: 24 * IN, d: 80 * IN }],
+    rotateDeg: 23,
+    shift: { x: -1.1, y: 0.6 },
+    section: 'bedroom',
+  };
+}
+
 export const FIXTURE_FILES: Record<string, () => RoomSpec> = {
   'bathroom.json': bathroomSpec,
   'l-shape.json': lShapeSpec,
@@ -294,4 +353,7 @@ export const FIXTURE_FILES: Record<string, () => RoomSpec> = {
   'bay-room.json': bayRoomSpec,
   'hallway.json': hallwaySpec,
   'three-openings.json': threeOpeningsSpec,
+  'tight-bath.json': tightBathSpec,
+  'narrow-hall.json': narrowHallSpec,
+  'bedroom-window.json': bedroomWindowSpec,
 };

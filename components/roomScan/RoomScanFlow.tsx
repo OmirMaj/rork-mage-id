@@ -54,6 +54,14 @@
 // `userEmail` is handed to every call into utils/roomScan/native, which refuses
 // the lookup for anyone the gate refuses. `ownerTools` only shows extras.
 //
+// CLEARANCE CHECK (lane CLEARANCE) is a step reached from the plan: the
+// distances an inspector commonly looks at, measured off the scan and set
+// beside commonly used figures (utils/roomScan/clearanceCore). It is drawn
+// only for someone the scanner's own gate lets in (utils/roomScan/allowed),
+// asked again here with the signed-in email. It writes nothing, sends nothing,
+// and no state it shows is read by anything else in this file: its one action
+// opens the existing Code Check.
+//
 // A SCAN IS NEVER NAMED FOR HIM. It starts with an empty name; the name goes
 // on every estimate line, so Save and Price both ask for one.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -72,15 +80,19 @@ import { useScopeCostBook } from '@/hooks/useScopeCostBook';
 import { Button, Sheet } from '@/components/ui';
 import { useRoomScanCopy } from '@/hooks/useRoomScanCopy';
 import { useScanOrderCopy } from '@/hooks/useScanOrderCopy';
+import { useScanClearanceCopy } from '@/hooks/useScanClearanceCopy';
+import { codeCheckFromJobHref } from '@/utils/uxRoutes';
 import { copyToClipboard } from '@/utils/clipboard';
 import { shareText } from '@/utils/shareText';
 import { formatCalendarDay, calendarDayOf, todayCalendarDay } from '@/utils/calendarDate';
 import { formatTimeL } from '@/i18n/format';
 import { generateUUID } from '@/utils/generateId';
 import type { MarkupPct } from '@/utils/estimateMarkup';
+import { scanRoomAllowed } from '@/utils/roomScan/allowed';
 import { roomScanAvailability, type RoomScanAvailability } from '@/utils/roomScan/availability';
 import { parseCapturedRoom, type ParsedRoom } from '@/utils/roomScan/capturedRoomParser';
 import { makeCatalogRater } from '@/utils/roomScan/catalogRate';
+import { buildClearanceCheck } from '@/utils/roomScan/clearanceCore';
 import { correctCeilingHeight, correctOpening, correctWallLength, renameScan } from '@/utils/roomScan/editsCore';
 import { buildRoomScan } from '@/utils/roomScan/geometryCore';
 import { longWallSuggestion, tapeFacts, tapePairFromEdit, upsertTapePairs, type TapePair } from '@/utils/roomScan/learnCore';
@@ -99,6 +111,7 @@ import { buildScanFacts, type ScanOutcome } from '@/utils/roomScan/scanDebugCore
 import { deleteScan, hashRawScan, loadSavedScans, saveScan } from '@/utils/roomScan/store';
 import { withOrderSent, type SavedScan } from '@/utils/roomScan/storeCore';
 import { RoomScanParseError, type RoomScan, type RoomType } from '@/utils/roomScan/types';
+import { ClearanceView } from './ClearanceView';
 import { EditMeasureSheet, type EditTarget } from './EditMeasureSheet';
 import { FloorPlanView } from './FloorPlanView';
 import { OrderListView, type OrderSendState } from './OrderListView';
@@ -107,7 +120,7 @@ import { QuantitiesView } from './QuantitiesView';
 import { ScanFactsPanel, type RawShareState } from './ScanFactsPanel';
 import { makeRoomScanStyles } from './styles';
 
-type Step = 'start' | 'unread' | 'plan' | 'quantities' | 'order' | 'price';
+type Step = 'start' | 'unread' | 'plan' | 'clearance' | 'quantities' | 'order' | 'price';
 type Editing =
   | { on: 'wall'; id: string }
   | { on: 'ceiling' }
@@ -144,6 +157,9 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
   const styles = useThemedStyles(makeRoomScanStyles);
   const copy = useRoomScanCopy();
   const ocopy = useScanOrderCopy();
+  const ccopy = useScanClearanceCopy();
+  // Clearance Check is for whoever the scanner's gate lets in: the owner while the flag is off.
+  const clearanceOn = scanRoomAllowed(userEmail);
   const { lang } = useT();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -244,6 +260,8 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
   // What the panel reads: his saved pairs plus the ones typed on the scan in hand.
   const tapePairs = useMemo(() => upsertTapePairs(tapeLog, saved?.tapePairs ?? []), [tapeLog, saved]);
   const tape = useMemo(() => tapeFacts(tapePairs), [tapePairs]);
+  // Clearance Check: worked out again whenever the scan or his tape history changes. Nothing reads it but its own screen.
+  const clearance = useMemo(() => (scan && clearanceOn ? buildClearanceCheck(scan, tapePairs) : null), [scan, clearanceOn, tapePairs]);
   // The same phone model as the scan in hand, when he has taped enough long walls with it (learnCore).
   const suggestion = useMemo(() => longWallSuggestion(tapePairs, scan?.device?.model ?? ''), [tapePairs, scan]);
   // What a second send of this list to the estimate would remove and what it would leave alone.
@@ -531,7 +549,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
 
   const back = useCallback(() => {
     if (step === 'price' || step === 'order') setStep('quantities');
-    else if (step === 'quantities') setStep('plan');
+    else if (step === 'quantities' || step === 'clearance') setStep('plan');
     // Leaving the plan drops whatever the phone does not hold. Ask first.
     else if (step === 'plan' && dirty) setLeaving(true);
     else if (step === 'plan') leavePlan();
@@ -543,6 +561,7 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
     : step === 'quantities' ? copy.quantitiesTitleLabel
     : step === 'price' ? copy.draftTitleLabel
     : step === 'order' ? ocopy.titleLabel
+    : step === 'clearance' ? ccopy.titleLabel
     : copy.titleLabel;
   const scannedSub = scan
     ? copy.scannedSub(formatCalendarDay(calendarDayOf(scan.capturedAt), undefined, lang), formatTimeL(scan.capturedAt, lang))
@@ -644,12 +663,21 @@ export function RoomScanFlow({ projectId, mayEditEstimate, initial, userEmail = 
             onRoomType={(rt: RoomType) => change((s) => (s.roomType === rt ? s : { ...s, roomType: rt }))}
             onSave={() => void save()}
             onNext={() => setStep('quantities')}
+            clearance={clearanceOn ? { label: ccopy.openLabel, onPress: () => setStep('clearance') } : undefined}
           />
         )}
         {step === 'plan' && scan && quantities && ownerTools && last && last.scanId === scan.id && (
           <View style={styles.body} testID="scan-plan-facts">
             <ScanFactsPanel facts={last.facts} copy={copy} styles={styles} rawKept={rawKept} sharing={sharing} shareState={shareState} onShare={() => void shareRaw()} />
           </View>
+        )}
+        {step === 'clearance' && clearanceOn && scan && clearance && (
+          <ClearanceView
+            scan={scan}
+            check={clearance}
+            copy={ccopy}
+            onOpenCodeCheck={() => router.push(codeCheckFromJobHref(projectId))}
+          />
         )}
         {step === 'quantities' && scan && quantities && (
           <QuantitiesView
