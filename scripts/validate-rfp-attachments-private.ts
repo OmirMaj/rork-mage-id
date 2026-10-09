@@ -33,9 +33,12 @@
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { RFP_ATTACHMENT_PATH, requestStoragePath } from '../supabase/functions/_shared/storagePath';
 
-const ROOT = path.resolve(import.meta.dir, '..');
+declare const Bun: { Transpiler: new (o: { loader: 'ts' }) => { transformSync(src: string): string } };
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string): string => readFileSync(path.join(ROOT, rel), 'utf8');
 
 const PATH_FILE = 'utils/rfpAttachmentPath.ts';
@@ -83,7 +86,8 @@ async function evalPathModule(src: string): Promise<{
   // Transpiled to a scratch file outside the repo and imported from there (the
   // module has no imports of its own), so a planted mutation is really run.
   const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(src);
-  const file = path.join(SCRATCH, `rfp-path-${evalSeq++}.mjs`);
+  // A new folder per module: bun remembers a folder's listing after the first import from it.
+  const file = path.join(mkdtempSync(path.join(SCRATCH, `m${evalSeq++}-`)), 'module.mjs');
   writeFileSync(file, js);
   return await import(file);
 }
