@@ -20,7 +20,7 @@
 //
 // The address, or the launch argument (utils/phone3dSpikeLaunch.ts), takes: week (1 to 10), rooms (7 or 40), dx and dy (turn the
 // view, in points of finger travel), zoom (a factor), planned (1 for the
-// planned reading), spin (time this many frames and print the result).
+// planned reading), spin (time this many frames and print the result), msaa (samples per pixel, 0 for none).
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
@@ -56,7 +56,7 @@ function Spike() {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const phoneCopy = usePhone3DCopy();
-  const linkParams = useLocalSearchParams<{ week?: string; rooms?: string; dx?: string; dy?: string; zoom?: string; planned?: string; spin?: string }>();
+  const linkParams = useLocalSearchParams<{ week?: string; rooms?: string; dx?: string; dy?: string; zoom?: string; planned?: string; spin?: string; msaa?: string }>();
   // The launch argument's words first, the address's over them (utils/phone3dSpikeLaunch.ts).
   const params = useMemo<Record<string, string | string[] | undefined>>(() => ({ ...phone3dSpikeLaunchParams(), ...linkParams }), [linkParams]);
   const big = num(params.rooms) === 40;
@@ -92,13 +92,14 @@ function Spike() {
     zoom: num(params.zoom),
     spinToken,
     spinFrames: spinFrames ?? 120,
+    msaaSamples: num(params.msaa),
     onError: (what: string) => { console.info(`[phone3d] threw: ${what}`); setThrew(what); },
-    onSpin: (r: { frames: number; medianMs: number; p95Ms: number; worstMs: number; medianGapMs: number; p95GapMs: number }) => {
-      const line = `${model.rooms.length} rooms, ${r.frames} frames. Drawn in ${r.medianMs.toFixed(1)} ms (middle), ${r.p95Ms.toFixed(1)} ms (slow end), ${r.worstMs.toFixed(1)} ms (worst). Frame to frame ${r.medianGapMs.toFixed(1)} ms (middle), ${r.p95GapMs.toFixed(1)} ms (slow end).`;
+    onSpin: (r: { frames: number; medianMs: number; p95Ms: number; worstMs: number; medianGapMs: number; p95GapMs: number; medianJsMs: number; p95JsMs: number }) => {
+      const line = `${model.rooms.length} rooms, ${r.frames} frames. JavaScript ${r.medianJsMs.toFixed(1)} ms (middle), ${r.p95JsMs.toFixed(1)} ms (slow end). Drawn in ${r.medianMs.toFixed(1)} ms (middle), ${r.p95Ms.toFixed(1)} ms (slow end), ${r.worstMs.toFixed(1)} ms (worst). Frame to frame ${r.medianGapMs.toFixed(1)} ms (middle), ${r.p95GapMs.toFixed(1)} ms (slow end).`;
       console.info(`[phone3d] ${line}`);
       setSpin(line);
     },
-  }), [params.dx, params.dy, params.zoom, spinToken, spinFrames, model.rooms.length]);
+  }), [params.dx, params.dy, params.zoom, params.msaa, spinToken, spinFrames, model.rooms.length]);
 
   const weekLine = copy.weekLabel(weekOf(state.offset, input.clock), weekCount(input.clock));
   const atToday = Math.abs(state.offset - input.clock.todayOffset) < 0.26;

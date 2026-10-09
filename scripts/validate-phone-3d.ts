@@ -355,7 +355,7 @@ rule('D3', 'every drawn frame is shown, and leaving stops the frames and gives t
   if (!/dispose: \(\) => handle\.dispose\(\),/.test(scene)) out.push('the wrapper does not give the scene back');
   const view = code(w.files[VIEW] ?? '');
   if (!/alive\.current = false;\s*cancelAnimationFrame\(raf\.current\);\s*raf\.current = 0;\s*const s = sceneRef\.current;\s*sceneRef\.current = null;\s*try \{ s\?\.dispose\(\); \}/.test(view)) out.push('leaving the view does not stop the frames and give the scene back');
-  if (!/<GLView style=\{\{ flex: 1 \}\} msaaSamples=\{4\} onContextCreate=\{onContextCreate\} \/>/.test(view)) out.push('the drawing surface is not the engine\'s own view, so its context would not end with it');
+  if (!/<GLView style=\{\{ flex: 1 \}\} msaaSamples=\{debug\?\.msaaSamples \?\? 4\} onContextCreate=\{onContextCreate\} \/>/.test(view)) out.push('the drawing surface is not the engine\'s own view, so its context would not end with it');
   const entry = code(w.files[ENTRY] ?? '');
   if (!/<Phone3DView key=\{paletteKey\.current\.n\}/.test(entry)) out.push('a new theme does not build the scene again');
   return out;

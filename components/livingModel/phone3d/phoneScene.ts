@@ -57,6 +57,8 @@ export interface PhoneScene {
   apply: (looks: ReadonlyMap<string, RoomLook>) => void;
   /** Draws one frame and shows it. With `wait`, also waits for the phone to finish drawing, for timing. */
   draw: (wait?: boolean) => void;
+  /** Waits until the phone has run every drawing call it was handed. For timing only. */
+  settle: () => void;
   orbit: (dxPt: number, dyPt: number) => void;
   pan: (dxPt: number, dyPt: number) => void;
   zoomBy: (factor: number) => void;
@@ -95,6 +97,7 @@ export function makePhoneScene(handle: JobSceneHandle, gl: PhoneGl): PhoneScene 
       // getError answers only after the phone has run every queued call, so it is the wait.
       if (wait) gl.getError?.();
     },
+    settle: () => { gl.getError?.(); },
     // Turning is by the finger's travel in points, the same feel as a mouse on the web.
     orbit: (dxPt, dyPt) => handle.orbit(dxPt, dyPt),
     // Moving follows the fingers, so it is worked in the scene's own units.

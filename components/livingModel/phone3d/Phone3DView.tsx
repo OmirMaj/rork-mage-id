@@ -58,9 +58,11 @@ export interface Phone3DDebug {
   /** Change this to turn the model for `spinFrames` frames, each one timed to the end of the phone's drawing. */
   spinToken?: number;
   spinFrames?: number;
-  onSpin?: (r: { frames: number; medianMs: number; p95Ms: number; worstMs: number; medianGapMs: number; p95GapMs: number }) => void;
+  onSpin?: (r: { frames: number; medianMs: number; p95Ms: number; worstMs: number; medianGapMs: number; p95GapMs: number; medianJsMs: number; p95JsMs: number }) => void;
   /** What threw, in the error's own words. The Living Model screen shows a plain sentence instead. */
   onError?: (what: string) => void;
+  /** Samples per pixel for smooth edges. The view uses 4 when this is not given. */
+  msaaSamples?: number;
 }
 
 export type Phone3DViewProps = Omit<JobReplay3DProps, 'onUnavailable'> & {
@@ -276,6 +278,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
     if (!ready || !scene || !debug?.spinToken) return;
     const total = Math.max(1, Math.min(600, debug.spinFrames ?? 120));
     const costs: number[] = [];
+    const js: number[] = [];
     const gaps: number[] = [];
     let n = 0;
     let last = 0;
@@ -286,14 +289,15 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       if (last) gaps.push(ts - last);
       last = ts;
       const t0 = performance.now();
-      try { live.orbit(3, 0); live.draw(true); } catch (e) { fail(e); return; }
+      try { live.orbit(3, 0); live.draw(); js.push(performance.now() - t0); live.settle(); } catch (e) { fail(e); return; }
       costs.push(performance.now() - t0);
       if (++n < total) { id = requestAnimationFrame(step); return; }
       const c = frameStats(costs);
       const g = frameStats(gaps);
+      const j = frameStats(js);
       labelsStale.current = true;
       requestDraw();
-      debugRef.current?.onSpin?.({ frames: c.frames, medianMs: c.medianMs, p95Ms: c.p95Ms, worstMs: c.worstMs, medianGapMs: g.medianMs, p95GapMs: g.p95Ms });
+      debugRef.current?.onSpin?.({ frames: c.frames, medianMs: c.medianMs, p95Ms: c.p95Ms, worstMs: c.worstMs, medianGapMs: g.medianMs, p95GapMs: g.p95Ms, medianJsMs: j.medianMs, p95JsMs: j.p95Ms });
     };
     id = requestAnimationFrame(step);
     return () => cancelAnimationFrame(id);
@@ -346,7 +350,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
     <View style={[styles.stage3d, { height }]} testID="lm-replay-3d">
       {/* Measured here, inside the border: the drawing, the fingers and the labels all share this box. */}
       <Animated.View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, opacity: fade }} onLayout={onBox}>
-        <GLView style={{ flex: 1 }} msaaSamples={4} onContextCreate={onContextCreate} />
+        <GLView style={{ flex: 1 }} msaaSamples={debug?.msaaSamples ?? 4} onContextCreate={onContextCreate} />
       </Animated.View>
       <View
         style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
