@@ -30,7 +30,7 @@ import { buildCostDatabase } from '../utils/costDatabase';
 import { demoJobAllowedWith } from '../utils/demoJob/allowed';
 import { buildDemoJob, type DemoJob } from '../utils/demoJob/build';
 import { DATA_DAY, demoSeedDayFromStart, makeDemoClock } from '../utils/demoJob/clock';
-import { DEMO_LEAD_SOURCE, DEMO_PROJECT_NAME, isDemoProject, isDemoProjectName, isKnownDemoProjectId, noteDemoScope } from '../utils/demoJob/marker';
+import { DEMO_LEAD_SOURCE, DEMO_PROJECT_NAME, demoSafeUpdates, isDemoProject, isDemoProjectName, isKnownDemoProjectId, noteDemoScope } from '../utils/demoJob/marker';
 import { BASE_COST, BUDGET_COST, CONTRACT_SUM_TO_DATE, ORIGINAL_CONTRACT_SUM, PAID_PAY_APPS, PAY_APP_PERIOD_END, projectedFinalCost, projectedMarginPercent } from '../utils/demoJob/money';
 import { demoSubcontractorIds, withoutDemoPayees } from '../utils/demoJob/payees';
 import { schedulePercentOn } from '../utils/demoJob/schedule';
@@ -71,6 +71,7 @@ const EXCLUSIONS: readonly [string, string, string][] = [
   ['contexts/ProjectContext.tsx', 'noteDemoScope(projects)', 'the demo id registry'],
   ['contexts/ProjectContext.tsx', 'if (isDemoProject(project)) noteDemoProjectId(project.id);', 'the registry at create'],
   ['contexts/ProjectContext.tsx', 'if (isDemoProject(project)) return;', 'the geocoder'],
+  ['contexts/ProjectContext.tsx', 'const rawUpdates = demoSafeUpdates(prior, updatesIn);', 'the rename guard'],
   ['utils/brain/predictionLedger.ts', 'if (isKnownDemoProjectId(projectId)) return;', 'brain predictions'],
   ['hooks/useBrainGrading.ts', '.filter((r) => !isKnownDemoProjectId(r.project_id))', 'brain grading and accuracy reports'],
   ['components/MarginAlertManager.tsx', 'projects: withoutDemoProjects(projects)', 'margin alert notifications'],
@@ -369,6 +370,14 @@ const RULES: Rule[] = [
     if (p.leadSource !== DEMO_LEAD_SOURCE) out.push('the second marker is not stamped');
     if (!/Example Wharf Street, Baltimore, MD/.test(p.location)) out.push('address');
     if (!/made-up/i.test(p.description)) out.push('the description does not say the job is made up');
+    // It cannot be renamed out of the sample name, or lose its second marker; any other edit, and any other job, passes.
+    const out1 = demoSafeUpdates(p, { name: 'Harbor Point Mixed-Use', description: 'x' });
+    if ('name' in out1 || out1.description !== 'x') out.push('a demo job can be renamed out of its sample name');
+    if ('leadSource' in demoSafeUpdates(p, { leadSource: 'referral' })) out.push('a demo job can lose its second marker');
+    if (demoSafeUpdates(p, { name: `${p.name} (Copy)` }).name !== `${p.name} (Copy)`) out.push('a demo job cannot be renamed at all');
+    const real = { name: 'A Real Job', leadSource: 'referral' };
+    const edit = { name: 'Renamed' };
+    if (demoSafeUpdates(real, edit) !== edit) out.push('a real job\'s rename is touched');
     return out;
   } },
   { id: 'D2', what: 'every email is at example.com and every phone number is 555-01xx', run: ({ job }) => {

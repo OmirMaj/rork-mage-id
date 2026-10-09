@@ -80,3 +80,22 @@ export function withoutDemoRows<T extends { projectId?: string | null }>(rows: r
 export function withoutDemoProjects<T extends { name?: string | null; leadSource?: string | null }>(projects: readonly T[]): T[] {
   return projects.some((p) => isDemoProject(p)) ? projects.filter((p) => !isDemoProject(p)) : (projects as T[]);
 }
+
+/**
+ * THE DEMO JOB KEEPS ITS NAME. Its name is the sample prefix every outbound
+ * fence tests (no email to a client, no pay link, no reminder: utils/sampleGuard
+ * and the server), so an edit that would take a demo job out of
+ * 'Sample — Demo: ' is dropped, and so is one that would clear the second
+ * marker. Everything else about the job can be edited. Any other project is
+ * handed back untouched.
+ */
+export function demoSafeUpdates<T extends { name?: string | null; leadSource?: string | null }>(prior: MaybeDemo, updates: T): T {
+  if (!isDemoProject(prior)) return updates;
+  const renamesOut = typeof updates.name === 'string' && !isDemoProjectName(updates.name);
+  const clearsMarker = 'leadSource' in updates && updates.leadSource !== DEMO_LEAD_SOURCE && prior?.leadSource === DEMO_LEAD_SOURCE;
+  if (!renamesOut && !clearsMarker) return updates;
+  const next = { ...updates };
+  if (renamesOut) delete next.name;
+  if (clearsMarker) delete next.leadSource;
+  return next;
+}

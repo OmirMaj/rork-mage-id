@@ -119,6 +119,9 @@ is already fenced by the app and by the server, and the demo inherits all of it:
 - no slot of the free plan's project cap; shifts stay out of payroll and the
   labor rates.
 
+The demo job cannot be renamed out of that prefix: `updateProject` drops such
+an edit (`demoSafeUpdates`), because the name is what the fences test.
+
 What a sample job cannot do, so the owner cannot try it on the demo: be the
 active job in the desktop job switcher, appear in Ready to Bill, enable the
 client portal, seal the final punch, sync a takeoff to the cloud.

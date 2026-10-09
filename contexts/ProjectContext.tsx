@@ -69,7 +69,7 @@ import { track, AnalyticsEvents } from '@/utils/analytics';
 // Sample fences: no QuickBooks push from a sample, and every create event says
 // whether it came from one (utils/sampleGuard — the outbound invariant).
 import { isSampleProject, noteSampleProject, noteSampleScope } from '@/utils/sampleGuard';
-import { isDemoProject, noteDemoProjectId, noteDemoScope } from '@/utils/demoJob/marker';
+import { demoSafeUpdates, isDemoProject, noteDemoProjectId, noteDemoScope } from '@/utils/demoJob/marker';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
 import type { Delivery, DeliveryReceipt } from '@/utils/deliverySchedule';
@@ -5386,9 +5386,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     return projectCreateWritesRef.current.get(project.id) ?? Promise.resolve<WriteOutcome>(canSync ? 'synced' : 'failed');
   }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded, canSync, userId]);
 
-  const updateProject = useCallback((id: string, rawUpdates: Partial<Project>) => {
+  const updateProject = useCallback((id: string, updatesIn: Partial<Project>) => {
     const base = projectsRef.current;
     const prior = base.find(p => p.id === id);
+    // The owner's Demo Job cannot be renamed out of its sample name: that name
+    // is what keeps it from emailing, pay links and reminders (utils/demoJob/marker).
+    const rawUpdates = demoSafeUpdates(prior, updatesIn);
     const nowISO = new Date().toISOString();
     // #25, second writer: a schedule edit is often built from a screen's
     // working copy loaded long before the foreman's field update the refetch
