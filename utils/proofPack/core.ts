@@ -1056,7 +1056,8 @@ function collectItems(input: ProofPackInput, period: ProofPeriod): { items: Proo
         day: sealedClosedDay ?? sealDay, taskIds: [],
         description: text(sealedRow.description), location: text(sealedRow.location), status: 'closed',
         createdDay: null, closedDay: sealedClosedDay,
-        hasAfterPhoto: true,
+        // The reduced manifest carries no photo fact, so none is printed for a sealed item.
+        hasAfterPhoto: false,
       });
       continue;
     }
