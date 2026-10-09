@@ -152,6 +152,8 @@ export interface PendingSave {
   base: number;
   /** The fingerprint of the model that was sent. */
   fingerprint: string;
+  /** The scanned rooms in the model that was sent (in the account once this save lands). */
+  scanRoomIds: string[];
 }
 
 export interface ModelSyncMeta {
@@ -190,7 +192,7 @@ export function parseSyncMeta(raw: string | null | undefined): ModelSyncMeta {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('not meta');
     const p = v.pending as Record<string, unknown> | null | undefined;
     const pending: PendingSave | null = p && typeof p === 'object' && str(p.writeId) && str(p.fingerprint)
-      ? { writeId: p.writeId as string, base: rev(p.base), fingerprint: p.fingerprint as string } : null;
+      ? { writeId: p.writeId as string, base: rev(p.base), fingerprint: p.fingerprint as string, scanRoomIds: strList(p.scanRoomIds, 500) } : null;
     const baseRevision = rev(v.baseRevision);
     const baseFingerprint = baseRevision > 0 ? str(v.baseFingerprint) : null;
     return {
@@ -344,6 +346,8 @@ export function scanGate(model: JobModel, meta: Pick<ModelSyncMeta, 'scanChoice'
 // ── the status line ──────────────────────────────────────────────────────────
 
 export type SyncStatus =
+  /** The table is there and neither side has a model yet: there is nothing to say. */
+  | 'empty'
   /** No account copy: signed out, no backend, a sample job, or the table is not there yet. Today's sentence. */
   | 'device'
   /** The first read of the account is in flight. */
@@ -374,8 +378,8 @@ export function saveArgs(projectId: string, model: JobModel, base: number, write
   };
 }
 
-/** Meta after the account was seen to hold `fingerprint` at `head`. */
-export function metaAfterMatch(meta: ModelSyncMeta, head: ServerHead, fingerprint: string, accountModel: JobModel): ModelSyncMeta {
+/** Meta after the account was seen to hold `fingerprint` at `head`. `accountScanRoomIds` are the scanned rooms in that account copy. */
+export function metaAfterMatch(meta: ModelSyncMeta, head: ServerHead, fingerprint: string, accountScanRoomIds: readonly string[]): ModelSyncMeta {
   return {
     ...meta,
     accountSeen: true,
@@ -383,7 +387,7 @@ export function metaAfterMatch(meta: ModelSyncMeta, head: ServerHead, fingerprin
     baseFingerprint: fingerprint,
     pending: null,
     savedAt: head.updatedAt,
-    accountScanRoomIds: scanRoomIds(accountModel),
+    accountScanRoomIds: [...accountScanRoomIds],
   };
 }
 
