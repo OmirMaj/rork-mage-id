@@ -8,7 +8,7 @@
 <!-- T6.6: this page carries its access token in the address. No Referer leaves it, so
      no link here (the growth link included) can hand the token to another site. -->
 <meta name="referrer" content="no-referrer" />
-<title>Sign a lien waiver — MAGE ID</title>
+<title>Sign a Lien Waiver · MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
@@ -115,7 +115,7 @@
        gets its own sentence — a single "something went wrong" is what makes a
        sub email the GC instead of signing. -->
   <div class="card" id="state-card">
-    <div class="eyebrow">Lien waiver</div>
+    <div class="eyebrow">Lien Waiver</div>
     <h1 id="state-title">Opening your waiver…</h1>
     <p class="lede" id="state-body">One moment.</p>
     <noscript>
@@ -127,8 +127,8 @@
   <!-- The document + signing form -->
   <div id="signing" hidden>
     <div class="card">
-      <div class="eyebrow" id="form-eyebrow">Lien waiver</div>
-      <h1 id="doc-title">Review and sign</h1>
+      <div class="eyebrow" id="form-eyebrow">Lien Waiver</div>
+      <h1 id="doc-title">Review and Sign</h1>
       <p class="lede" id="doc-sub"></p>
       <div class="facts" id="facts"></div>
       <div class="callout warn">
@@ -139,7 +139,7 @@
     </div>
 
     <div class="card">
-      <div class="eyebrow">The document</div>
+      <div class="eyebrow">The Document</div>
       <p class="lede" style="margin-bottom:14px;">This is exactly what you are signing.</p>
       <!-- sandbox="" — no scripts, no forms, no same-origin. The GC's app
            composed this HTML; it is displayed, never trusted. -->
@@ -147,13 +147,13 @@
     </div>
 
     <div class="card">
-      <div class="eyebrow">Your signature</div>
-      <label class="field" for="signer-name">Your full legal name</label>
+      <div class="eyebrow">Your Signature</div>
+      <label class="field" for="signer-name">Your Full Legal Name</label>
       <input type="text" id="signer-name" autocomplete="name" placeholder="Jordan Reyes" />
-      <label class="field" for="signer-title">Your title</label>
+      <label class="field" for="signer-title">Your Title</label>
       <input type="text" id="signer-title" autocomplete="organization-title" placeholder="Owner / Foreman" />
 
-      <label class="field">Draw your signature</label>
+      <label class="field">Draw Your Signature</label>
       <div class="pad-wrap">
         <canvas id="pad"></canvas>
         <div class="pad-hint" id="pad-hint">Sign here with your finger or mouse</div>
@@ -165,7 +165,7 @@
         <label for="consent" id="consent-label"></label>
       </div>
 
-      <button class="btn" id="submit" disabled>Sign this waiver</button>
+      <button class="btn" id="submit" disabled>Sign This Waiver</button>
       <p class="footnote" id="submit-note"></p>
     </div>
   </div>
@@ -176,12 +176,12 @@
       <div class="eyebrow">Signed</div>
       <h1>Your waiver is signed</h1>
       <p class="lede" id="done-body"></p>
-      <button class="btn secondary" id="download">Open a copy to save or print</button>
+      <button class="btn secondary" id="download">Open a Copy to Save or Print</button>
       <!-- This line used to promise the contractor had been mailed the signed
            copy. Nothing mails them: the signature is written to the waiver and
            they see it in MAGE ID next time they open the job. Promising the
            mail was the same overclaim the marketing page was fixed for. -->
-      <p class="footnote" id="done-note">Save a copy for your own records — this page is the only place you will
+      <p class="footnote" id="done-note">Save a copy for your own records. This page is the only place you will
       see it. Your signature is on the contractor's copy of this waiver in MAGE ID.</p>
     </div>
   </div>
@@ -479,7 +479,7 @@
   }).catch(function () {
     showState(
       'We could not reach the server',
-      'You may be offline. Check your connection and reload this page — nothing has been signed.',
+      'You may be offline. Check your connection and reload this page. Nothing has been signed.',
       'bad'
     );
   });
@@ -491,7 +491,7 @@
       showState(
         'This waiver is already signed',
         'It was signed on ' + new Date(w.signed_at || Date.now()).toLocaleDateString()
-        + '. Nothing more to do — it is already on the contractor\'s copy of this job.',
+        + '. Nothing more to do. It is already on the contractor\'s copy of this job.',
         'ok'
       );
       return;
@@ -516,7 +516,7 @@
     $('form-eyebrow').textContent = w.statute_citation
       ? [w.state_name ? w.state_name + ' statutory form' : 'Statutory form', w.statute_citation].join(' · ')
       : 'General-form lien waiver';
-    $('doc-title').textContent = w.waiver_title || 'Lien waiver';
+    $('doc-title').textContent = w.waiver_title || 'Lien Waiver';
     $('doc-sub').textContent = (w.company_name || 'The contractor') + ' is asking you to sign this for '
       + (w.project_name || 'the project') + '.';
 
@@ -662,9 +662,9 @@
         // Voided while the sub had the page open: the server refuses the
         // signature (20260923130000) and says why.
         return refused('This waiver was voided by the contractor while you had it open. '
-          + 'There is nothing to sign — nothing has been signed.', 'voided', true);
+          + 'There is nothing to sign. Nothing has been signed.', 'voided', true);
       } else if (why.indexOf('lien_waiver_denied') !== -1) {
-        return refused('This signing link has been replaced — the contractor sent a newer '
+        return refused('This signing link has been replaced. The contractor sent a newer '
           + 'one. Open the most recent email and sign there. Nothing has been signed here.', 'denied', true);
       }
       throw signFailure('unknown');
@@ -696,17 +696,17 @@
           return;
         }
         $('submit').disabled = false;
-        $('submit').textContent = 'Sign this waiver';
+        $('submit').textContent = 'Sign This Waiver';
         $('submit-note').textContent = answer.reason;
         // Voided: there is nothing left to sign, so the button stays off.
         if (answer.code === 'voided') $('submit').disabled = true;
       }, function (err) {
         $('submit').disabled = false;
-        $('submit').textContent = 'Sign this waiver';
+        $('submit').textContent = 'Sign This Waiver';
         $('submit-note').textContent = err && err.kind === 'network'
-          ? 'We could not reach the server. Nothing has been signed — try again.'
-          : 'That did not go through. Check your connection and try again — '
-            + 'nothing has been signed.';
+          ? 'We could not reach the server. Nothing has been signed. Try again.'
+          : 'That did not go through. Check your connection and try again. '
+            + 'Nothing has been signed.';
       });
     });
 

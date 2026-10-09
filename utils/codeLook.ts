@@ -237,7 +237,7 @@ export function codeLookToPrepItem(o: CodeLookObservation): PrepItem {
     id: `codelook_${digest(o.what)}`,
     group: 'verify',
     text: o.what,
-    why: `From a photo code check · ${CONFIDENCE_WORD[o.confidence]} confidence in what was seen`,
+    why: `From a Photo Code Check · ${CONFIDENCE_WORD[o.confidence]} confidence in what was seen`,
     confidence: o.confidence,
   };
   if (o.codeRef) item.codeRef = o.codeRef;

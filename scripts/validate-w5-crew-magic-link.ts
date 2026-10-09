@@ -71,10 +71,10 @@ const allText = (x: Record<string, string>) => Object.values(x).join(' ');
 ok('no email says "no account will be created"', !/no account will be created/i.test(allText({ ...signIn })) && !/no account will be created/i.test(allText({ ...claim })));
 ok('no email says "Welcome back"', !/welcome back/i.test(allText({ ...signIn })) && !/welcome back/i.test(allText({ ...claim })));
 ok('claim subject names the company', claim.subject === 'Ridge Builders added you to their crew on MAGE ID', claim.subject);
-ok('claim title / CTA', claim.title === 'Claim your crew profile' && claim.ctaLabel === 'Claim my profile');
+ok('claim title / CTA', claim.title === 'Claim Your Crew Profile' && claim.ctaLabel === 'Claim My Profile');
 ok('claim body says what claiming gives him', /phone, email and trades/.test(claim.subtitle));
 ok('claim copy promises nothing about hiring (marketplace off)', !/hire|hiring|marketplace|found by/i.test(allText({ ...claim })));
-ok('sign-in copy is neutral', signIn.title === 'Your MAGE ID sign-in link' && /ignore this email/.test(signIn.footer));
+ok('sign-in copy is neutral', signIn.title === 'Your MAGE ID Sign-In Link' && /ignore this email/.test(signIn.footer));
 
 console.log('\nindex.ts wiring');
 const src = stripComments(readFileSync(join(ROOT, 'supabase/functions/auth-magic-link/index.ts'), 'utf8'));

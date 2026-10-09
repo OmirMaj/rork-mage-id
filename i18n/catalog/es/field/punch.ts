@@ -114,7 +114,7 @@ export const ES_FIELD_PUNCH: EsCatalog = {
   "field.punch.closeProject": { s: "Cerrar proyecto", src: "04c22572" },
   "field.punch.closedOfCrew": { s: "{closed} de {total} pendientes de la cuadrilla cerrados", src: "0bad6277" },
   "field.punch.closedOfPunch": { s: "{closed} de {total} pendientes cerrados", src: "79d38d6a" },
-  "field.punch.codeLook": { s: "Revisión de código con foto", src: "cf3c9708" },
+  "field.punch.codeLook": { s: "Revisión de código con foto", src: "c681b148" },
   "field.punch.collapsesThisLocation": { s: "Contrae esta ubicación", src: "5bdda574" },
   "field.punch.companyName": { s: "Nombre de la empresa", src: "4c97c32f" },
   "field.punch.couldntLoadYourGcs": { s: "No se pudieron cargar los subcontratistas de tu contratista general en este proyecto. Déjalo sin asignar y tu contratista general lo asigna.", src: "225ba21b" },

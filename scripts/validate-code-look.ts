@@ -138,7 +138,7 @@ console.log('\n3. codeLookToPunch / codeLookToPrepItem');
   ok("prep group 'verify'", prep.group === 'verify');
   ok('prep id codelook_ + digest, stable', /^codelook_[0-9a-z]+$/.test(prep.id) && codeLookToPrepItem({ ...o, id: 'other' }).id === prep.id);
   ok('prep text = what', prep.text === o.what);
-  ok('prep why names the photo + confidence in what was seen', prep.why === 'From a photo code check · Medium confidence in what was seen', prep.why);
+  ok('prep why names the photo + confidence in what was seen', prep.why === 'From a Photo Code Check · Medium confidence in what was seen', prep.why);
   ok('prep codeRef absent when null', !('codeRef' in prep));
   ok('prep codeRef kept when set', codeLookToPrepItem({ ...o, codeRef: 'IRC R302.11' }).codeRef === 'IRC R302.11');
   ok('prep confidence carried', prep.confidence === 'med');
@@ -186,9 +186,9 @@ console.log('\n5. source pins');
   ok("allow-list gains 'codeLook'", /\['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms', 'conditionRisk', 'coi', 'codeLook'\]\.includes\(body\.task\)/.test(edge));
   ok('unknown_task message names codeLook', edge.includes('task must be "punch", "dfr", "rfi", "triage", "receipt", "rooms", "conditionRisk", "coi", or "codeLook"'));
   ok('three-way meterKey', edge.includes("const meterKey = body.task === 'conditionRisk' ? 'cost_xray' : body.task === 'codeLook' ? 'code_look' : 'analyze_photos';"));
-  ok('one-photo guard right after inputCount', /const inputCount = [^\n]*\n\s*if \(body\.task === 'codeLook' && inputCount !== 1\) return jsonResponse\(\{ success: false, error: 'Photo code check reads one photo at a time\.', code: 'one_photo' \}, 400\);/.test(edge));
-  ok('photo code check cap sentence', edge.includes('Monthly photo code check limit reached (${cap} on ${auth.tier}). Resets on the 1st.'));
-  ok('bad-shape 500 says it plainly', edge.includes("error: 'The photo code check came back unreadable. Try again.' }, 500)"));
+  ok('one-photo guard right after inputCount', /const inputCount = [^\n]*\n\s*if \(body\.task === 'codeLook' && inputCount !== 1\) return jsonResponse\(\{ success: false, error: 'Photo Code Check reads one photo at a time\.', code: 'one_photo' \}, 400\);/.test(edge));
+  ok('photo code check cap sentence', edge.includes('Monthly Photo Code Check limit reached (${cap} on ${auth.tier}). Resets on the 1st.'));
+  ok('bad-shape 500 says it plainly', edge.includes("error: 'The Photo Code Check came back unreadable. Try again.' }, 500)"));
   ok('maxOutputTokens 8000 kept', /maxOutputTokens: 8000\b/.test(edge));
   ok('abort signal kept', /signal: ac\.signal/.test(edge));
   ok('basePrompt routes codeLook', /body\.task === 'codeLook' \? codeLookPrompt\(body\.codeLook\) :/.test(edge));
@@ -237,14 +237,14 @@ console.log('\n5. source pins');
 
 // ═══ 6. one name ════════════════════════════════════════════════════════════
 // The feature had three names on screen ("Code look", "Photo code look",
-// "Photo Code Look"). It now has ONE, "Photo code check": its three entry
+// "Photo Code Look"). It now has ONE, "Photo Code Check": its three entry
 // buttons, its sheet, the Pro gate, the plans row, the prep line and the
 // server's refusals. Ids keep the old name on purpose (the Paywall feature KEY
 // 'Photo Code Look' is also an analytics prop and a FEATURE_PITCH key; the
 // codelook-* testIDs, field.punch.codeLook and the CODE_LOOK_* identifiers).
 console.log('\n6. one name');
 {
-  const NAME = 'Photo code check';
+  const NAME = 'Photo Code Check';
   // Comments may keep the old name; strings may not. Strip block + line
   // comments (a `//` right after ':' or a quote is a URL, not a comment), then
   // drop the one sanctioned id literal, the Paywall feature key.
@@ -288,7 +288,7 @@ console.log('\n6. one name');
   };
   const sheet = read('components/codeLook/CodeLookSheet.tsx');
   const heading = /<Text style=\{s\.sheetHeading\}>([^<]*)<\/Text>/.exec(sheet)?.[1];
-  ok('the sheet heading is "Photo code check"', heading === NAME, heading);
+  ok('the sheet heading is "Photo Code Check"', heading === NAME, heading);
   for (const [f, id] of [
     ['app/punch-list.tsx', 'testID="codelook-open-punch"'],
     ['app/project-detail.tsx', 'testID="codelook-open-lightbox"'],

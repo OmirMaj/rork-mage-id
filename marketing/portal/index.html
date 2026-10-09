@@ -8,7 +8,7 @@
 <!-- T6.6: this page carries its access token in the address. No Referer leaves it, so
      no link here (the growth link included) can hand the token to another site. -->
 <meta name="referrer" content="no-referrer" />
-<title>Project Portal — MAGE ID</title>
+<title>Project Portal · MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Barlow:wght@500;600;700;800&display=swap" rel="stylesheet" />
@@ -2794,14 +2794,14 @@
   <div id="gate" class="gate-wrap" style="display:none">
     <div class="gate">
       <div class="gate-logo">M</div>
-      <h1>Enter passcode</h1>
+      <h1>Enter Passcode</h1>
       <p>Enter the passcode your contractor shared with you. It can include letters and numbers.</p>
       <!-- PORTALFIX: accepts exactly what the contractor can set in the app
            (app/client-portal-setup.tsx: 4 to 20 characters, letters allowed).
            This box used to take 4 digits on a number pad, so any longer code
            locked the client out for good. -->
       <input id="gate-input" type="text" minlength="4" maxlength="20" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Passcode" placeholder="Passcode" />
-      <button id="gate-submit">Unlock portal</button>
+      <button id="gate-submit">Unlock Portal</button>
       <div class="err" id="gate-err"></div>
     </div>
   </div>
@@ -2818,7 +2818,7 @@
       <h1 id="fallback-title">This doesn't look like a portal link</h1>
       <p id="fallback-body">The address you opened is missing the part that points to a project. Open the link your contractor sent you again, or ask them to send it to you from the MAGE ID app.</p>
       <div id="fallback-actions">
-        <a class="cta" href="mailto:help@mageid.app?subject=Portal%20Help">Contact support</a>
+        <a class="cta" href="mailto:help@mageid.app?subject=Portal%20Help">Contact Support</a>
         <a class="cta secondary" href="/">Visit mageid.app</a>
       </div>
     </div>
@@ -2832,9 +2832,9 @@
         <div class="brand-row">
           <div class="brand-mark" id="brand-mark">M</div>
           <span class="brand-name" id="brand-name">MAGE ID</span>
-          <span class="open-house-badge" id="open-house-badge" style="display:none">Open house view</span>
+          <span class="open-house-badge" id="open-house-badge" style="display:none">Open House View</span>
         </div>
-        <div class="hero-eyebrow" id="hero-eyebrow">Project portal</div>
+        <div class="hero-eyebrow" id="hero-eyebrow">Project Portal</div>
         <h1 id="project-name">Project</h1>
         <div class="hero-meta" id="project-meta"></div>
         <div id="decision-banner" class="decision-banner" style="display:none"></div>
@@ -2876,7 +2876,7 @@
           <span class="footer-mark">M</span>
           <a href="https://mageid.app/?ref=portal&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Built with MAGE ID</a>
         </div>
-        <div>Snapshot taken <span id="snapshot-time">just now</span> · <a href="mailto:help@mageid.app">Contact support</a></div>
+        <div>Snapshot taken <span id="snapshot-time">just now</span> · <a href="mailto:help@mageid.app">Contact Support</a></div>
       </footer>
     </main>
   </div>
@@ -2884,12 +2884,12 @@
   <!-- Lightbox -->
   <div class="lightbox" id="lightbox">
     <button class="lightbox-close" id="lightbox-close" aria-label="Close">×</button>
-    <button class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous photo">‹</button>
+    <button class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous Photo">‹</button>
     <div class="lightbox-stage" id="lightbox-stage">
       <img id="lightbox-img" alt="" />
       <svg id="lightbox-svg" preserveAspectRatio="none"></svg>
     </div>
-    <button class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next photo">›</button>
+    <button class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next Photo">›</button>
     <div class="lightbox-cap" id="lightbox-cap"></div>
   </div>
 
@@ -2899,13 +2899,13 @@
        stays unchosen. -->
   <div class="confirm-modal" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
     <div class="confirm-card">
-      <div class="confirm-eyebrow" id="confirm-eyebrow">Confirm your selection</div>
+      <div class="confirm-eyebrow" id="confirm-eyebrow">Confirm Your Selection</div>
       <h2 class="confirm-title" id="confirm-title">Pick this option?</h2>
       <div class="confirm-product" id="confirm-product"></div>
       <div class="confirm-replace" id="confirm-replace"></div>
       <div class="confirm-actions">
         <button type="button" class="confirm-btn confirm-btn-cancel" id="confirm-cancel">Cancel</button>
-        <button type="button" class="confirm-btn confirm-btn-primary" id="confirm-go">Confirm pick</button>
+        <button type="button" class="confirm-btn confirm-btn-primary" id="confirm-go">Confirm Pick</button>
       </div>
     </div>
   </div>
@@ -2918,24 +2918,24 @@
        showCOSignModal(). -->
   <div class="esign-modal" id="esign-modal" role="dialog" aria-modal="true" aria-labelledby="esign-title">
     <div class="esign-card">
-      <div class="esign-eyebrow" id="esign-eyebrow">Change order</div>
-      <h2 class="esign-title" id="esign-title">Review &amp; sign</h2>
+      <div class="esign-eyebrow" id="esign-eyebrow">Change Order</div>
+      <h2 class="esign-title" id="esign-title">Review and Sign</h2>
 
       <div class="esign-scope" id="esign-scope"></div>
 
       <div id="esign-approve-fields">
-        <label class="esign-field-label" for="esign-name">Your full legal name</label>
+        <label class="esign-field-label" for="esign-name">Your Full Legal Name</label>
         <input class="esign-input" id="esign-name" type="text" autocomplete="name"
                placeholder="As it appears on your contract" />
 
-        <div class="esign-field-label">Sign here</div>
+        <div class="esign-field-label">Sign Here</div>
         <div class="esign-pad-wrap" id="esign-pad-wrap">
           <canvas class="esign-pad" id="esign-pad"></canvas>
           <div class="esign-pad-baseline"></div>
           <div class="esign-pad-hint" id="esign-pad-hint">Draw your signature with your finger or mouse</div>
         </div>
         <div class="esign-pad-tools">
-          <button type="button" class="esign-clear" id="esign-clear">Clear signature</button>
+          <button type="button" class="esign-clear" id="esign-clear">Clear Signature</button>
           <span class="esign-signed-tag" id="esign-signed-tag">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             Signature captured
@@ -2952,11 +2952,11 @@
       </div>
 
       <div id="esign-decline-fields" style="display:none">
-        <label class="esign-field-label" for="esign-decline-name">Your name</label>
+        <label class="esign-field-label" for="esign-decline-name">Your Name</label>
         <input class="esign-input" id="esign-decline-name" type="text" autocomplete="name" placeholder="Your name" />
         <label class="esign-field-label" for="esign-reason">Why are you declining?</label>
         <textarea class="esign-textarea" id="esign-reason"
-                  placeholder="Tell your contractor what needs to change before you can approve — price, scope, timing…"></textarea>
+                  placeholder="Tell your contractor what needs to change before you can approve: price, scope, timing…"></textarea>
       </div>
 
       <div class="esign-error" id="esign-error"></div>
@@ -2968,7 +2968,7 @@
 
       <div class="esign-actions">
         <button type="button" class="esign-btn esign-btn-cancel" id="esign-cancel">Cancel</button>
-        <button type="button" class="esign-btn esign-btn-primary" id="esign-submit">Sign &amp; approve</button>
+        <button type="button" class="esign-btn esign-btn-primary" id="esign-submit">Sign and Approve</button>
       </div>
       <div class="esign-legal" id="esign-legal"></div>
     </div>
@@ -3005,54 +3005,54 @@
   // string.
   var FALLBACK_STRINGS = {
     latestUpdateEyebrow: 'Latest update from {company}',
-    contractSectionTitle: 'Construction agreement',
+    contractSectionTitle: 'Construction Agreement',
     contractSectionSubtitleSign: 'Review the contract and sign to make it binding.',
     contractSectionSubtitleSigned: 'Signed by both parties on file.',
-    selectionsSectionTitle: 'Selections and allowances',
+    selectionsSectionTitle: 'Selections and Allowances',
     selectionsSectionSubtitle: 'Pick from options within your allowance.',
-    closeoutSectionTitle: 'Closeout binder',
+    closeoutSectionTitle: 'Closeout Binder',
     closeoutSectionSubtitle: 'Everything you need to maintain, troubleshoot and improve this project. Tap Print to save a PDF.',
     invoicesSectionTitle: 'Invoices',
     invoicesSectionSubtitle: 'Tap any invoice to see line items and pay online',
-    paymentAppsTitle: 'Pay applications',
-    activitySectionTitle: 'Recent activity',
+    paymentAppsTitle: 'Pay Applications',
+    activitySectionTitle: 'Recent Activity',
     activitySectionSubtitle: 'The latest from your project, in order',
     scheduleSectionTitle: 'Schedule',
     scheduleSectionSubtitle: 'Live progress against the construction schedule',
-    changeOrdersTitle: 'Change orders',
+    changeOrdersTitle: 'Change Orders',
     changeOrdersSubtitle: 'Approved and pending changes to the original contract',
     changeOrdersSubtitleApprove: 'Tap Approve or Decline to authorize a change order',
-    photosSectionTitle: 'Site photos',
+    photosSectionTitle: 'Site Photos',
     photosSectionSubtitle: 'Tap any photo to view full screen',
-    dailyReportsTitle: 'Daily reports',
+    dailyReportsTitle: 'Daily Reports',
     dailyReportsSubtitle: 'Daily site notes: weather, manpower and work performed',
-    punchListTitle: 'Punch list',
+    punchListTitle: 'Punch List',
     punchListSubtitle: 'Open items remaining before close-out',
-    rfisTitle: 'Requests for information',
+    rfisTitle: 'Requests for Information',
     documentsTitle: 'Documents',
     documentsSubtitle: 'Permits and warranties on record for your project. Ask your contractor for a copy of any of them.',
     messagesTitle: 'Messages',
     messagesSubtitle: 'Message your contractor directly. Replies reach their app right away.',
-    openBookGmpTitle: 'Open book · GMP',
-    openBookOpenTitle: 'Open book',
+    openBookGmpTitle: 'Open Book · GMP',
+    openBookOpenTitle: 'Open Book',
     openBookGmpSubtitle: 'Cost against the GMP cap. Every dollar is shared with you.',
     openBookOpenSubtitle: 'Every dollar tracked from budget through commitment to payout.',
     selectionsAllowance: 'Allowance',
-    selectionsPickOne: 'Pick one',
+    selectionsPickOne: 'Pick One',
     selectionsChosen: 'Chosen',
-    selectionsOverBudget: 'Over budget',
-    selectionsTapToChoose: 'Tap to choose',
-    selectionsYourPick: 'Your pick',
+    selectionsOverBudget: 'Over Budget',
+    selectionsTapToChoose: 'Tap to Choose',
+    selectionsYourPick: 'Your Pick',
     selectionsTierBudget: 'Budget',
-    selectionsTierOnTarget: 'On target',
+    selectionsTierOnTarget: 'On Target',
     selectionsTierPremium: 'Premium',
-    contractStatusSigned: 'Signed by both parties',
+    contractStatusSigned: 'Signed by Both Parties',
     contractTitleLabel: 'Title',
-    contractValueLabel: 'Contract value',
+    contractValueLabel: 'Contract Value',
     contractSignedDisclaimer: 'This is your binding agreement. Keep it for your records.',
     contractSignerExplainer: 'Your contractor has signed and sent this agreement. Read the scope, payment schedule, warranty and terms below, then enter your full legal name to counter-sign and make it binding.',
     contractSignNamePlaceholder: 'Type your full legal name',
-    contractSignButton: 'Sign and make binding',
+    contractSignButton: 'Sign and Make Binding',
     contractFinePrint: 'By typing your name and tapping Sign, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
     // ── The signing moments (wave-next W3, MOMPORTAL) ─────────────────────
     // ENGLISH ONLY, on purpose. No other language table on this page, and no
@@ -3070,7 +3070,7 @@
     contractSealChip: 'Binding',
     contractSignDeniedSigned: 'This contract is already signed.',
     contractSignDeniedPending: 'Your contractor has not published this contract\'s terms to your portal yet, so it cannot be signed here. Nothing was signed. Check back once the terms appear.',
-    contractSignDeniedLink: 'To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.',
+    contractSignDeniedLink: 'To sign, ask your contractor to re-send your portal link. It carries a secure access code required to make this binding.',
     momentRecordedAt: 'Recorded {date}, {time} (server time).',
     momentNoAnswer: 'No answer yet. Refresh the page to check before trying again.',
     momentHint: 'Slide the handle to the end of the line, or press and hold Space.',
@@ -3095,15 +3095,15 @@
     // moments.js did not load. Consent text: never machine-translated.
     contractSlideLabel: 'Slide along the line to make it binding',
     contractFinePrintSlide: 'By typing your name and sliding along the line, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
-    closeoutPrint: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print or save as PDF',
+    closeoutPrint: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print or Save as PDF',
     closeoutDelivered: 'Delivered',
     closeoutFinalized: 'Finalized',
-    closeoutFinishesTitle: 'Finishes and fixtures installed',
-    closeoutWarrantiesTitle: 'Warranties on file',
-    closeoutMaintenanceTitle: 'Maintenance schedule',
-    closeoutContactsTitle: 'Trade contacts',
-    closeoutEmergencyTitle: 'If something breaks during the warranty period',
-    closeoutNoteEyebrow: 'A note from your contractor',
+    closeoutFinishesTitle: 'Finishes and Fixtures Installed',
+    closeoutWarrantiesTitle: 'Warranties on File',
+    closeoutMaintenanceTitle: 'Maintenance Schedule',
+    closeoutContactsTitle: 'Trade Contacts',
+    closeoutEmergencyTitle: 'If Something Breaks During the Warranty Period',
+    closeoutNoteEyebrow: 'A Note from Your Contractor',
     // ── Passport wording, residential ──────────────────────────────────────
     // These read to a homeowner. On a commercial project the recipient is a
     // tenant, property manager or building owner, and "Ask your home" is not
@@ -3116,26 +3116,26 @@
     passportChipTrades: 'trade contacts',
     passportChipMaintenance: 'maintenance tasks',
     passportChipPhotos: 'photos',
-    askHomeFaqTitle: 'Answers ready for you',
-    askHomeTitle: 'Ask your home',
+    askHomeFaqTitle: 'Answers Ready for You',
+    askHomeTitle: 'Ask Your Home',
     askHomeSubtitle: 'What paint is the kitchen? Who did the electrical? When does the roof warranty end?',
     askHomePlaceholder: 'Ask anything about your home…',
     askHomeButton: 'Ask',
     askHomeThinking: 'Checking your home’s records…',
-    askHomeUnavailable: 'Questions aren’t available yet — your contractor’s records are still being prepared. The binder above has everything on file.',
-    askHomeLimit: 'You’ve reached today’s question limit. The answered questions above are always available — try again tomorrow.',
+    askHomeUnavailable: 'Questions aren’t available yet. Your contractor’s records are still being prepared. The binder above has everything on file.',
+    askHomeLimit: 'You’ve reached today’s question limit. The answered questions above are always available. Try again tomorrow.',
     askHomeError: 'Couldn’t reach your home’s records right now. Try again in a moment.',
     empty: 'Nothing shared yet.',
-    payNow: 'Pay now',
+    payNow: 'Pay Now',
     // ── Schedule pace chip (hero) ──────────────────────────────────────────
     // The four labels are the in-app card's words (utils/ownerConfidence.ts
     // STATUS_LABEL) — scripts/validate-portal-owner.ts pins them equal, so the
     // GC's preview and the homeowner's page never name one job two ways.
     // "planned finish", not "now finishing": the date is the schedule's plan,
     // not a re-forecast, and saying "now" would present a guess as a fact.
-    paceOnTrack: 'On track',
-    paceMinorDelays: 'Minor delays',
-    paceBehind: 'Behind schedule',
+    paceOnTrack: 'On Track',
+    paceMinorDelays: 'Minor Delays',
+    paceBehind: 'Behind Schedule',
     paceComplete: 'Complete',
     paceFinishing: 'finishing {date}',
     pacePlannedFinish: 'planned finish {date}',
@@ -3144,7 +3144,7 @@
     // Photos and PDFs on a message (lane MSGPORTAL). utils/portalLanguages.ts
     // carries the same English plus a Spanish draft; scripts/validate-portal-
     // message-files.ts pins the English equal and lints every line.
-    msgFileAttach: 'Attach a photo or PDF',
+    msgFileAttach: 'Attach a Photo or PDF',
     msgFileRemove: 'Remove {name}',
     msgFileRefuseType: '{name} can\'t be sent. Send a photo (JPG, PNG or WebP) or a PDF.',
     msgFileRefuseSize: '{name} is {size}. Files can be up to 20 MB.',
@@ -3159,7 +3159,7 @@
     msgFileFailBusy: 'Too many files at once. Wait a few minutes, then try again.',
     msgFileFailRejected: '{name} isn\'t the photo or PDF it says it is, so it wasn\'t sent.',
     msgFileFailServer: 'The upload didn\'t finish. Try again when you have a good connection.',
-    msgFileTryAgain: 'Try again',
+    msgFileTryAgain: 'Try Again',
     msgFileRemoveMsg: 'Remove',
     msgFileNotKeptOne: '1 message didn\'t send before the page closed. Its text is back in the box. Attach the files again.',
     msgFileNotKeptOther: '{count} messages didn\'t send before the page closed. The last one\'s text is back in the box. Attach the files again.',
@@ -3183,12 +3183,12 @@
   // the language bundles next get touched, and better than showing a Spanish
   // speaker a sudden English string.
   var COMMERCIAL_PASSPORT_STRINGS = {
-    passportEyebrow: 'Your building passport',
-    askHomeTitle: 'Ask your building',
+    passportEyebrow: 'Your Building Passport',
+    askHomeTitle: 'Ask Your Building',
     askHomeSubtitle: 'What is the ceiling tile spec? Who did the electrical? When does the roof warranty end?',
     askHomePlaceholder: 'Ask anything about this space…',
     askHomeThinking: 'Checking the project records…',
-    askHomeUnavailable: 'Questions aren’t available yet — your contractor’s records are still being prepared. The binder above has everything on file.',
+    askHomeUnavailable: 'Questions aren’t available yet. Your contractor’s records are still being prepared. The binder above has everything on file.',
     // A tenant or building owner plans around a completion / turnover date,
     // not "when we're finishing up" — the plainer residential phrasing reads
     // as a house job on a commercial fit-out.
@@ -3349,7 +3349,7 @@
   }
   function termLabel(t) {
     if (!t) return '—';
-    var map = { net_15: 'Net 15', net_30: 'Net 30', net_45: 'Net 45', due_on_receipt: 'Due on receipt' };
+    var map = { net_15: 'Net 15', net_30: 'Net 30', net_45: 'Net 45', due_on_receipt: 'Due on Receipt' };
     return map[t] || statusLabel(t);
   }
 
@@ -3445,7 +3445,7 @@
         events.push({
           kind: 'selection',
           ts: o.chosenAt || cat.updatedAt,
-          title: 'Selection chosen — ' + (cat.category || ''),
+          title: 'Selection chosen: ' + (cat.category || ''),
           body: o.productName || '',
           amount: o.total,
         });
@@ -3745,23 +3745,23 @@
     var headerHtml =
       '<div class="gantt-header">' +
         '<div class="gantt-header-left">' +
-          '<div class="gantt-header-label">Project timeline</div>' +
+          '<div class="gantt-header-label">Project Timeline</div>' +
           '<div class="gantt-header-dates">' +
-            '<span><strong>' + esc(fmtDayShort(projectStart)) + '</strong> &rarr; <strong>' + esc(fmtDayShort(projectEnd)) + '</strong></span>' +
+            '<span><strong>' + esc(fmtDayShort(projectStart)) + '</strong> to <strong>' + esc(fmtDayShort(projectEnd)) + '</strong></span>' +
           '</div>' +
         '</div>' +
         '<div class="gantt-header-right">' +
           '<div class="gantt-stat"><span class="gantt-stat-value">' + tasks.length + '</span><span class="gantt-stat-label">Tasks</span></div>' +
-          '<div class="gantt-stat"><span class="gantt-stat-value">' + maxEndDay + '</span><span class="gantt-stat-label">Working days</span></div>' +
+          '<div class="gantt-stat"><span class="gantt-stat-value">' + maxEndDay + '</span><span class="gantt-stat-label">Working Days</span></div>' +
           (nextMilestone
-            ? '<div class="gantt-stat"><span class="gantt-stat-value">' + esc(fmtDayShort(nextMilestone.date)) + '</span><span class="gantt-stat-label">Next milestone</span></div>'
+            ? '<div class="gantt-stat"><span class="gantt-stat-value">' + esc(fmtDayShort(nextMilestone.date)) + '</span><span class="gantt-stat-label">Next Milestone</span></div>'
             : '') +
         '</div>' +
       '</div>' +
       // Overall % complete bar (reuses the task-progress fill styling).
       '<div class="gantt-overall">' +
         '<div class="gantt-overall-top">' +
-          '<span class="gantt-header-label">Overall progress</span>' +
+          '<span class="gantt-header-label">Overall Progress</span>' +
           '<span class="gantt-stat-value">' + overallPct + '%</span>' +
         '</div>' +
         '<div class="task-progress"><div class="task-progress-fill ' + (overallPct >= 100 ? 'done' : '') + '" style="width:' + overallPct + '%"></div></div>' +
@@ -3880,8 +3880,8 @@
     }
     var lookaheadHtml =
       '<div class="gantt-lookahead">' +
-        lookaheadColumn('This week', 0, 6) +
-        lookaheadColumn('Next week', 7, 13) +
+        lookaheadColumn('This Week', 0, 6) +
+        lookaheadColumn('Next Week', 7, 13) +
       '</div>';
 
     var ganttHtml =
@@ -3891,8 +3891,8 @@
         rulerHtml +
         '<div class="gantt-tasks">' + tasksHtml + '</div>' +
         '<div class="gantt-legend">' +
-          '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-default"></span>In progress</span>' +
-          '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-critical"></span>Critical path</span>' +
+          '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-default"></span>In Progress</span>' +
+          '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-critical"></span>Critical Path</span>' +
           '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-done"></span>Complete</span>' +
           '<span class="gantt-legend-item">◆ Milestone</span>' +
           (inferredStart ? '<span class="gantt-legend-item gantt-legend-note">Start date inferred from today</span>' : '') +
@@ -4021,7 +4021,7 @@
       && contractTermsMissing(c.content) === null;
   }
   var CONTRACT_MISSING_COPY = {
-    no_content: 'Your contractor is still posting the full agreement to this page — the scope, payment schedule and warranty. You can sign here once it is up.',
+    no_content: 'Your contractor is still posting the full agreement to this page: the scope, payment schedule and warranty. You can sign here once it is up.',
     no_schedule: 'The payment schedule has not been posted yet. You can sign once your contractor adds it.',
     unpriced_milestone: 'A payment in the schedule has no amount yet. Your contractor needs to set it before you can sign.',
     no_scope: 'The scope of work has not been posted yet. You can sign once your contractor adds it.',
@@ -4232,7 +4232,7 @@
       var late = Math.abs(days);
       label = 'Was due ' + fmtCalendarDate(due) + ' · ' + late + ' day' + (late === 1 ? '' : 's') + ' past due';
     } else if (days === 0) {
-      label = 'Due today';
+      label = 'Due Today';
     } else if (days <= DECISION_DUE_SOON_DAYS) {
       // Only count down when the deadline is actually near. "26,453 days left"
       // on a far-future date is noise, not urgency.
@@ -4330,7 +4330,7 @@
       target.style.opacity = '1';
       var msg = (err && /denied/.test(String(err.message)))
         ? 'To make selections, ask your contractor to re-send your portal link (it carries a secure access code).'
-        : 'Could not save your pick — check your connection and try again.';
+        : 'Could not save your pick. Check your connection and try again.';
       alert(msg);
       console.error(err);
     });
@@ -4379,7 +4379,7 @@
       modal.removeEventListener('click', onBackdrop);
       document.removeEventListener('keydown', onKey);
       goBtn.disabled = false;
-      goBtn.textContent = 'Confirm pick';
+      goBtn.textContent = 'Confirm Pick';
     }
     function onCancel() { close(); }
     function onGo() {
@@ -5044,14 +5044,14 @@
     if (ob.mode === 'gmp' && typeof ob.gmpCap === 'number' && ob.gmpCap > 0) {
       var capDelta = ob.gmpCap - ob.estimatedFinalCost;
       var capDeltaColor = capDelta >= 0 ? '#12806E' : '#C0392B';
-      capRow = '<div class="ob-row"><span>GMP cap</span><strong>' + fmtMoney(ob.gmpCap) + '</strong></div>'
-             + '<div class="ob-row"><span>Projected vs. cap</span><strong style="color:' + capDeltaColor + '">' + (capDelta >= 0 ? '+' : '−') + fmtMoney(Math.abs(capDelta)) + '</strong></div>';
+      capRow = '<div class="ob-row"><span>GMP Cap</span><strong>' + fmtMoney(ob.gmpCap) + '</strong></div>'
+             + '<div class="ob-row"><span>Projected vs. Cap</span><strong style="color:' + capDeltaColor + '">' + (capDelta >= 0 ? '+' : '−') + fmtMoney(Math.abs(capDelta)) + '</strong></div>';
     }
     var feeRow = '';
     if (typeof ob.feePercent === 'number' && ob.feePercent > 0) {
-      feeRow = '<div class="ob-row"><span>Contractor fee</span><strong>' + ob.feePercent.toFixed(1) + '%</strong></div>';
+      feeRow = '<div class="ob-row"><span>Contractor Fee</span><strong>' + ob.feePercent.toFixed(1) + '%</strong></div>';
     } else if (typeof ob.feeAmount === 'number' && ob.feeAmount > 0) {
-      feeRow = '<div class="ob-row"><span>Contractor fee</span><strong>' + fmtMoney(ob.feeAmount) + '</strong></div>';
+      feeRow = '<div class="ob-row"><span>Contractor Fee</span><strong>' + fmtMoney(ob.feeAmount) + '</strong></div>';
     }
     var rowsHtml = (ob.phases || []).map(function (p) {
       var pct = p.budget > 0 ? Math.min(110, Math.round((p.actual / p.budget) * 100)) : 0;
@@ -5073,17 +5073,17 @@
     return '' +
       '<div class="open-book">' +
         '<div class="ob-summary">' +
-          '<div class="ob-row"><span>Contract value</span><strong>' + fmtMoney(ob.contractValue) + '</strong></div>' +
-          '<div class="ob-row"><span>Total budget</span><strong>' + fmtMoney(ob.budget) + '</strong></div>' +
-          '<div class="ob-row"><span>Committed to date</span><strong>' + fmtMoney(ob.committed) + '</strong></div>' +
-          '<div class="ob-row"><span>Actual paid out</span><strong>' + fmtMoney(ob.actual) + '</strong></div>' +
-          '<div class="ob-row"><span>Estimated final cost</span><strong>' + fmtMoney(ob.estimatedFinalCost) + '</strong></div>' +
+          '<div class="ob-row"><span>Contract Value</span><strong>' + fmtMoney(ob.contractValue) + '</strong></div>' +
+          '<div class="ob-row"><span>Total Budget</span><strong>' + fmtMoney(ob.budget) + '</strong></div>' +
+          '<div class="ob-row"><span>Committed to Date</span><strong>' + fmtMoney(ob.committed) + '</strong></div>' +
+          '<div class="ob-row"><span>Actual Paid Out</span><strong>' + fmtMoney(ob.actual) + '</strong></div>' +
+          '<div class="ob-row"><span>Estimated Final Cost</span><strong>' + fmtMoney(ob.estimatedFinalCost) + '</strong></div>' +
           capRow +
           feeRow +
           '<div class="ob-row ob-row-total"><span>Projected ' + (profit >= 0 ? 'savings to share' : 'over budget') + '</span><strong style="color:' + profitColor + '">' + fmtMoney(Math.abs(profit)) + '</strong></div>' +
         '</div>' +
-        (rowsHtml ? '<div class="ob-phases-head">By phase</div>' + rowsHtml : '') +
-        '<div class="ob-disclaimer">Updated ' + new Date(ob.asOf).toLocaleDateString() + '. ' + (ob.mode === 'gmp' ? 'Cost above the GMP cap is borne by the contractor; savings under cap are subject to your contract.' : 'Every commitment + paid invoice is shown — no markup hidden.') + '</div>' +
+        (rowsHtml ? '<div class="ob-phases-head">By Phase</div>' + rowsHtml : '') +
+        '<div class="ob-disclaimer">Updated ' + new Date(ob.asOf).toLocaleDateString() + '. ' + (ob.mode === 'gmp' ? 'Cost above the GMP cap is borne by the contractor; savings under cap are subject to your contract.' : 'Every commitment and paid invoice is shown, with no markup hidden.') + '</div>' +
       '</div>';
   }
 
@@ -5115,10 +5115,10 @@
     return (
       '<div class="fin-card" data-financing="1">' +
         '<p class="fin-lead">Prefer to pay monthly? Your contractor works with ' + esc(partner) +
-          '. See if you prequalify on their site — it opens in a new tab.</p>' +
+          '. See if you prequalify on their site. It opens in a new tab.</p>' +
         '<a class="invoice-pay-btn fin-btn" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" ' +
-          'aria-label="' + esc('Check financing options with ' + partner) + '">' +
-          icn(ICONS.creditCard, 14) + '<span>Check financing options</span>' +
+          'aria-label="' + esc('Check Financing Options with ' + partner) + '">' +
+          icn(ICONS.creditCard, 14) + '<span>Check Financing Options</span>' +
         '</a>' +
         '<div class="prop-note">' + esc(fin && fin.disclosure) + '</div>' +
       '</div>'
@@ -5143,7 +5143,7 @@
       // #135: to the cent. A whole-dollar "Pay $77,485" beside Stripe's
       // $77,484.88 is a different number from the one he will be charged.
       var amountDisplay = isPaid ? fmtMoney(i.total, {dec:2}) : fmtMoney(balance, {dec:2});
-      var amountLabel = isPaid ? 'Paid' : 'Balance due';
+      var amountLabel = isPaid ? 'Paid' : 'Balance Due';
       var payHtml = checking
         ? payCheckingHtml()
         : canPay
@@ -5152,7 +5152,7 @@
               '<span>Pay '+fmtMoney(balance, {dec:2})+'</span>' +
             '</button>'
           : '';
-      var detailHtml = '<span class="invoice-detail-hint">View details ' + icn(ICONS.chevronR, 12) + '</span>';
+      var detailHtml = '<span class="invoice-detail-hint">View Details ' + icn(ICONS.chevronR, 12) + '</span>';
       return (
         '<div class="invoice-card '+(isPaid ? 'paid' : 'unpaid')+'" data-invoice="'+esc(i.id)+'" data-item-id="'+esc(i.id)+'">' +
           '<div class="row-main">' +
@@ -5270,7 +5270,7 @@
                 // Calendar-day formatter: a billing period bound is a date, not
                 // an instant, so it must not shift by the viewer's timezone.
                 ? 'Billing ' + fmtCalendarDate(a.periodFrom) + ' – ' + fmtCalendarDate(a.periodTo, true)
-                : (a.periodTo ? 'Period ending ' + fmtDate(a.periodTo) : 'Pay application')) +
+                : (a.periodTo ? 'Period ending ' + fmtDate(a.periodTo) : 'Pay Application')) +
               (a.architectName ? ' · '+esc(a.architectName) : '') +
             '</div>' +
             // One-line plain-English headline right on the card, so the
@@ -5281,7 +5281,7 @@
               : '') +
             '<div class="aia-stat-row">' +
               '<div>' +
-                '<div class="aia-stat-label">Earned to date</div>' +
+                '<div class="aia-stat-label">Earned to Date</div>' +
                 '<div class="aia-stat-value num">'+fmtMoney(a.totalEarnedLessRetainage)+'</div>' +
               '</div>' +
               '<div>' +
@@ -5289,7 +5289,7 @@
                 '<div class="aia-stat-value num">'+fmtMoney(a.totalRetainage)+'</div>' +
               '</div>' +
               '<div>' +
-                '<div class="aia-stat-label">Due this period</div>' +
+                '<div class="aia-stat-label">Due This Period</div>' +
                 '<div class="aia-stat-value amber num">'+fmtMoney(a.currentPaymentDue, {dec:2})+'</div>' +
               '</div>' +
             '</div>' +
@@ -5357,7 +5357,7 @@
           '<div class="co-cta">' +
             '<button class="co-decline-btn" data-co-decline="'+esc(c.id)+'">Decline</button>' +
             '<button class="co-approve-btn" data-co-approve="'+esc(c.id)+'">' +
-              icn(ICONS.check, 13) + '<span>Review &amp; sign</span>' +
+              icn(ICONS.check, 13) + '<span>Review and Sign</span>' +
             '</button>' +
           '</div>'
         );
@@ -5392,7 +5392,7 @@
   var sessionCODecisions = {};
   function coDecisionWord(decision) {
     var d = String(decision || '').toLowerCase();
-    if (d === 'approved') return 'Signed & approved';
+    if (d === 'approved') return 'Signed and approved';
     if (d === 'declined' || d === 'rejected') return 'Declined';
     return d ? d.charAt(0).toUpperCase() + d.slice(1).replace(/_/g, ' ') : 'Decided';
   }
@@ -5693,7 +5693,7 @@
       // multiplying 5% by the total on his phone got a different number and
       // called to ask which one was wrong. Neither was; the label was
       // (audit 2026-09-07, worth-doing #27).
-      var retLabel = 'Retainage held';
+      var retLabel = 'Retainage Held';
       if (inv.retentionPercent) {
         retLabel += ' (' + inv.retentionPercent + '% of ' +
           (typeof inv.subtotal === 'number' ? 'the ' + fmtMoney(inv.subtotal, {dec:2}) + ' subtotal' : 'the subtotal') +
@@ -5702,16 +5702,16 @@
       totalsRows += '<div class="detail-row"><span class="detail-row-label">'+esc(retLabel)+'</span><span class="detail-row-value num">−'+fmtMoney(retentionHeld, {dec:2})+'</span></div>';
     }
     if (retentionReleased > 0) {
-      totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage released — now payable</span><span class="detail-row-value num" style="color:var(--success)">'+fmtMoney(retentionReleased, {dec:2})+'</span></div>';
+      totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage Released, Now Payable</span><span class="detail-row-value num" style="color:var(--success)">'+fmtMoney(retentionReleased, {dec:2})+'</span></div>';
     }
-    totalsRows += '<div class="detail-row"><span class="detail-row-label">Total due</span><span class="detail-row-value num">'+fmtMoney(inv.total, {dec:2})+'</span></div>';
+    totalsRows += '<div class="detail-row"><span class="detail-row-label">Total Due</span><span class="detail-row-value num">'+fmtMoney(inv.total, {dec:2})+'</span></div>';
     if (typeof inv.amountPaid === 'number' && inv.amountPaid > 0) {
       totalsRows += '<div class="detail-row"><span class="detail-row-label">Paid</span><span class="detail-row-value num" style="color:var(--success)">−'+fmtMoney(inv.amountPaid, {dec:2})+'</span></div>';
     }
-    totalsRows += '<div class="detail-row total"><span class="detail-row-label">'+(isPaid ? 'Paid in full' : 'Balance due')+'</span><span class="detail-row-value num">'+fmtMoney(isPaid ? 0 : balance, {dec:2})+'</span></div>';
+    totalsRows += '<div class="detail-row total"><span class="detail-row-label">'+(isPaid ? 'Paid in Full' : 'Balance Due')+'</span><span class="detail-row-value num">'+fmtMoney(isPaid ? 0 : balance, {dec:2})+'</span></div>';
 
     var summaryRows = '';
-    summaryRows += '<div class="detail-row"><span class="detail-row-label">Invoice number</span><span class="detail-row-value">#'+esc(inv.number)+'</span></div>';
+    summaryRows += '<div class="detail-row"><span class="detail-row-label">Invoice Number</span><span class="detail-row-value">#'+esc(inv.number)+'</span></div>';
     summaryRows += '<div class="detail-row"><span class="detail-row-label">Status</span><span class="detail-row-value"><span class="pill '+statusPillClass(invStatus)+'">'+esc(statusLabel(invStatus))+'</span></span></div>';
     if (inv.issueDate) summaryRows += '<div class="detail-row"><span class="detail-row-label">Issued</span><span class="detail-row-value">'+fmtDate(inv.issueDate)+'</span></div>';
     summaryRows += '<div class="detail-row"><span class="detail-row-label">Due</span><span class="detail-row-value">'+fmtDate(inv.dueDate)+'</span></div>';
@@ -5730,7 +5730,7 @@
         summaryRows +
       '</div>' +
       '<div class="detail-block">' +
-        '<div class="detail-block-title">Line items</div>' +
+        '<div class="detail-block-title">Line Items</div>' +
         lineItemsHtml +
       '</div>' +
       '<div class="detail-block">' +
@@ -5738,7 +5738,7 @@
       '</div>' +
       notesHtml +
       '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);padding:12px 4px;font-weight:500">' +
-        icn(ICONS.shield, 14) + 'Payments are processed securely by Stripe — your card details never touch this page.' +
+        icn(ICONS.shield, 14) + 'Payments are processed securely by Stripe. Your card details never touch this page.' +
       '</div>';
 
     var canPay = inv.payLinkUrl && !isPaid && balance > 0;
@@ -5748,10 +5748,10 @@
         '</a>'
       : isPaid
         ? '<button class="drawer-btn drawer-btn-ghost" disabled style="opacity:0.7;cursor:default">' +
-            icn(ICONS.check, 16) + ' Paid in full' +
+            icn(ICONS.check, 16) + ' Paid in Full' +
           '</button>'
         : '<button class="drawer-btn drawer-btn-ghost" id="contact-gc">' +
-            icn(ICONS.inbox, 16) + ' Contact contractor' +
+            icn(ICONS.inbox, 16) + ' Contact Contractor' +
           '</button>';
 
     openDrawer('Invoice', '#' + inv.number, bodyHtml, footerHtml);
@@ -5772,7 +5772,7 @@
     return (
       '<div class="aia-narrative' + (isGap ? ' is-gap' : '') + '">' +
         '<div class="aia-narrative-eyebrow">' +
-          (isGap ? 'About this billing period' : 'What this payment covers') +
+          (isGap ? 'About This Billing Period' : 'What This Payment Covers') +
         '</div>' +
         (n.periodLabel
           ? '<div class="aia-narrative-period">Billing period ' + esc(n.periodLabel) + '</div>'
@@ -5786,8 +5786,8 @@
   function renderAIADrawer(a, brandName) {
     var sumRows = '';
     sumRows += '<div class="detail-row"><span class="detail-row-label">Application #</span><span class="detail-row-value">'+esc(a.applicationNumber)+'</span></div>';
-    if (a.applicationDate) sumRows += '<div class="detail-row"><span class="detail-row-label">Application date</span><span class="detail-row-value">'+fmtDate(a.applicationDate)+'</span></div>';
-    if (a.periodTo) sumRows += '<div class="detail-row"><span class="detail-row-label">Period ending</span><span class="detail-row-value">'+fmtDate(a.periodTo)+'</span></div>';
+    if (a.applicationDate) sumRows += '<div class="detail-row"><span class="detail-row-label">Application Date</span><span class="detail-row-value">'+fmtDate(a.applicationDate)+'</span></div>';
+    if (a.periodTo) sumRows += '<div class="detail-row"><span class="detail-row-label">Period Ending</span><span class="detail-row-value">'+fmtDate(a.periodTo)+'</span></div>';
     if (a.ownerName) sumRows += '<div class="detail-row"><span class="detail-row-label">Owner</span><span class="detail-row-value">'+esc(a.ownerName)+'</span></div>';
     if (a.architectName) sumRows += '<div class="detail-row"><span class="detail-row-label">Architect</span><span class="detail-row-value">'+esc(a.architectName)+'</span></div>';
     sumRows += '<div class="detail-row"><span class="detail-row-label">Contractor</span><span class="detail-row-value">'+esc(a.contractorName || brandName || '—')+'</span></div>';
@@ -5849,15 +5849,15 @@
     var bodyHtml =
       renderAIANarrative(a.narrative) +
       '<div class="detail-block">' +
-        '<div class="detail-block-eyebrow">Application details</div>' +
+        '<div class="detail-block-eyebrow">Application Details</div>' +
         sumRows +
       '</div>' +
       '<div class="detail-block">' +
-        '<div class="detail-block-eyebrow">G702 cover summary</div>' +
+        '<div class="detail-block-eyebrow">G702 Cover Summary</div>' +
         coverRows +
       '</div>' +
       '<div class="detail-block">' +
-        '<div class="detail-block-title">G703 schedule of values</div>' +
+        '<div class="detail-block-title">G703 Schedule of Values</div>' +
         sovRows +
       '</div>' +
       // Word for word the notice the generated PDF carries
@@ -5890,11 +5890,11 @@
         : aiaPaid
           ? '<button class="drawer-btn drawer-btn-ghost" disabled style="opacity:0.7;cursor:default">' +
               icn(ICONS.check, 16) +
-              (a.paidAt ? ' Paid ' + fmtDate(a.paidAt) : ' Settled — this period was paid on the invoice') +
+              (a.paidAt ? ' Paid ' + fmtDate(a.paidAt) : ' Settled. This period was paid on the invoice') +
             '</button>'
           : '') +
       '<button class="drawer-btn drawer-btn-secondary" id="aia-print">' +
-        icn(ICONS.print, 16) + ' Print / save PDF' +
+        icn(ICONS.print, 16) + ' Print or Save PDF' +
       '</button>';
 
     openDrawer('AIA-style G702 / G703 · App #' + a.applicationNumber, 'Period ending ' + fmtDate(a.periodTo), bodyHtml, footerHtml);
@@ -5999,7 +5999,7 @@
 
   function buildMailtoFallback(cfg, amount, note, projectName) {
     var to = cfg.contactEmail || 'help@mageid.app';
-    var subject = 'Budget proposal — ' + (projectName || 'project');
+    var subject = 'Budget proposal: ' + (projectName || 'project');
     var bodyLines = [
       'I\'d like to propose a target budget for the project:',
       '',
@@ -6036,8 +6036,8 @@
       // Already submitted — show the thank-you state with the submitted amount.
       banner.innerHTML = (
         '<div class="budget-banner-inner">' +
-          '<div class="budget-eyebrow">Budget submitted</div>' +
-          '<h2>Thanks — we\'ve let ' + esc(contactName) + ' know.</h2>' +
+          '<div class="budget-eyebrow">Budget Submitted</div>' +
+          '<h2>Thanks. We\'ve let ' + esc(contactName) + ' know.</h2>' +
           '<p>You proposed <strong style="color:#fff">' + fmtMoney(existing.amount) + '</strong> as a target budget for ' + esc(projectName) + '. Your contractor will reach out with next steps.</p>' +
           '<div class="budget-success">' +
             '<div class="budget-success-check">' + icn(ICONS.check, 18) + '</div>' +
@@ -6054,12 +6054,12 @@
 
     // Greeting personalized with client name when present
     var greeting = clientName
-      ? 'Hi ' + clientName.split(' ')[0] + ' — what\'s your <em style="font-style: normal;color:var(--brand-on-dark)">target budget</em> for ' + esc(projectName) + '?'
+      ? 'Hi ' + clientName.split(' ')[0] + ', what\'s your <em style="font-style: normal;color:var(--brand-on-dark)">target budget</em> for ' + esc(projectName) + '?'
       : 'What\'s your <em style="font-style: normal;color:var(--brand-on-dark)">target budget</em> for ' + esc(projectName) + '?';
 
     banner.innerHTML = (
       '<div class="budget-banner-inner">' +
-        '<div class="budget-eyebrow">A quick ask from your contractor</div>' +
+        '<div class="budget-eyebrow">A Quick Ask from Your Contractor</div>' +
         '<h2>' + greeting + '</h2>' +
         '<p>' + esc(contactName) + ' is putting together your numbers and would love to start with the ballpark you have in mind. Even a rough range helps anchor the conversation.</p>' +
         '<div class="budget-form">' +
@@ -6072,11 +6072,11 @@
             '<span>Send to ' + esc(contactName.split(' ')[0] || 'contractor') + '</span>' +
           '</button>' +
         '</div>' +
-        '<textarea id="budget-note" class="budget-note" placeholder="Optional note — what\'s included, what flexibility you have, etc."></textarea>' +
+        '<textarea id="budget-note" class="budget-note" placeholder="Optional note: what\'s included and what flexibility you have"></textarea>' +
         '<div class="budget-status" id="budget-status"></div>' +
         '<div class="budget-fineprint">' +
           icn(ICONS.lock, 12) +
-          'Only ' + esc(contactName) + ' sees this — it\'s not posted publicly.' +
+          'Only ' + esc(contactName) + ' sees this. It\'s not posted publicly.' +
         '</div>' +
       '</div>'
     );
@@ -6173,7 +6173,7 @@
             '</div>'
           );
         }).join('') + pendingHtml
-      : '<div class="empty-section">No messages yet — say hi to your contractor.</div>';
+      : '<div class="empty-section">No messages yet. Say hi to your contractor.</div>';
 
     // Tap-to-start prompts. A blank box is the reason a homeowner phones
     // instead of writing — the three things they actually want to do
@@ -6193,7 +6193,7 @@
 
     return (
       '<div id="msg-thread" class="msg-thread">' + threadHtml + '</div>' +
-      '<div class="msg-prompts-label">Start a message — your contractor reads these</div>' +
+      '<div class="msg-prompts-label">Start a message. Your contractor reads these.</div>' +
       '<div class="msg-prompts">' + chips + '</div>' +
       (canAttach ? '<div id="msg-tray" class="msg-tray" hidden></div>' : '') +
       '<div class="msg-compose">' +
@@ -7478,14 +7478,14 @@
     if (!modal || !scopeEl) return;
 
     var isApprove = !!opts.approveMode;
-    var submitLabel = opts.submitLabel || (isApprove ? 'Sign & approve' : 'Send decline');
+    var submitLabel = opts.submitLabel || (isApprove ? 'Sign and Approve' : 'Send Decline');
     var busyLabel = isApprove ? submitLabel : (opts.busyLabel || 'Sending…');
     var Moments = window.MageMoments;
     var useLine = isApprove && !!(Moments && Moments.MomentLine && lineHost);
     var line = null;
 
     document.getElementById('esign-eyebrow').textContent = opts.eyebrow || '';
-    document.getElementById('esign-title').textContent = opts.title || 'Review & sign';
+    document.getElementById('esign-title').textContent = opts.title || 'Review and Sign';
 
     scopeEl.innerHTML = opts.scopeHtml || '';
 
@@ -7677,34 +7677,34 @@
     var deltaText = (amt >= 0 ? '+' : '−') + fmtMoney(Math.abs(amt), { dec: 2 });
 
     var scopeHtml =
-      '<div class="esign-scope-label">What is changing</div>' +
+      '<div class="esign-scope-label">What Is Changing</div>' +
       '<div class="esign-scope-desc">' + esc(c.description || 'No description provided.') + '</div>' +
       (c.reason ? '<div class="esign-scope-reason">' + esc(c.reason) + '</div>' : '') +
       '<div class="esign-delta">' +
-        '<span class="esign-delta-label">' + (amt < 0 ? 'Credit to your contract' : 'Added to your contract') + '</span>' +
+        '<span class="esign-delta-label">' + (amt < 0 ? 'Credit to Your Contract' : 'Added to Your Contract') + '</span>' +
         '<span class="esign-delta-value ' + deltaClass + '">' + deltaText + '</span>' +
       '</div>' +
       // #131: the sales tax and the tax-inclusive figure — the amount this
       // change will actually be invoiced at — before anything is signable.
       (coHasTax(c)
         ? '<div class="esign-delta">' +
-            '<span class="esign-delta-label">Sales tax</span>' +
+            '<span class="esign-delta-label">Sales Tax</span>' +
             '<span class="esign-delta-value small">' + fmtSigned(c.taxAmount) + '</span>' +
           '</div>' +
           '<div class="esign-delta">' +
-            '<span class="esign-delta-label">This change incl. tax</span>' +
+            '<span class="esign-delta-label">This Change Including Tax</span>' +
             '<span class="esign-delta-value small">' + fmtSigned(c.totalWithTax) + '</span>' +
           '</div>'
         : '') +
       (typeof c.newContractTotal === 'number' && c.newContractTotal > 0
         ? '<div class="esign-delta">' +
-            '<span class="esign-delta-label">' + (coHasTax(c) ? 'Your new contract total (before tax)' : 'Your new contract total') + '</span>' +
+            '<span class="esign-delta-label">' + (coHasTax(c) ? 'Your New Contract Total (Before Tax)' : 'Your New Contract Total') + '</span>' +
             '<span class="esign-delta-value small">' + fmtMoney(c.newContractTotal, { dec: 2 }) + '</span>' +
           '</div>'
         : '') +
       (c.scheduleImpactDays
         ? '<div class="esign-delta">' +
-            '<span class="esign-delta-label">Schedule impact</span>' +
+            '<span class="esign-delta-label">Schedule Impact</span>' +
             '<span class="esign-delta-value small">' +
               (c.scheduleImpactDays > 0 ? '+' : '−') + Math.abs(c.scheduleImpactDays) +
               ' day' + (Math.abs(c.scheduleImpactDays) === 1 ? '' : 's') +
@@ -7715,19 +7715,19 @@
     return showDocSignModal({
       approveMode: isApprove,
       clientName: opts.clientName || '',
-      eyebrow: 'Change order #' + (c.number != null ? c.number : '—'),
-      title: isApprove ? 'Review & sign this change' : 'Decline this change',
+      eyebrow: 'Change Order #' + (c.number != null ? c.number : '—'),
+      title: isApprove ? 'Review and Sign This Change' : 'Decline This Change',
       scopeHtml: scopeHtml,
       consentText: ESIGN_DISCLOSURE_TEXT,
       consentLabel: 'I agree to sign this change order electronically, and I approve the scope and the change to my contract total shown above.',
       legal: isApprove
         ? 'Signed electronically. Your contractor keeps a sealed copy of this record, and so can you.'
-        : 'Declining costs you nothing and does not cancel your contract — it tells your contractor what to change.',
-      submitLabel: isApprove ? 'Sign & approve' : 'Send decline',
+        : 'Declining costs you nothing and does not cancel your contract. It tells your contractor what to change.',
+      submitLabel: isApprove ? 'Sign and Approve' : 'Send Decline',
       busyLabel: 'Sending…',
       // Cents always: the amount the signer is approving, as the sheet shows it.
       lineLabel: t('esignSlideApprove').replace('{amount}', function () { return deltaText; }),
-      declinePlaceholder: 'Tell your contractor what needs to change before you can approve — price, scope, timing…',
+      declinePlaceholder: 'Tell your contractor what needs to change before you can approve: price, scope, timing…',
       onConfirm: opts.onConfirm,
     });
   }
@@ -7851,11 +7851,11 @@
           // the date the contractor typed.
           'Your contractor recorded substantial completion on <strong>' +
             esc(fmtDate(ask.completedOn + 'T00:00:00')) + '</strong>. ' +
-          'Telling them how it went — and whether you would recommend them — is the single most useful ' +
+          'Telling them how it went, and whether you would recommend them, is the single most useful ' +
           'thing you can do for a small builder.' +
         '</div>' +
         '<div class="msg-prompts" style="margin-top:12px">' + chips +
-          '<button type="button" class="msg-prompt" data-feedback-dismiss="1">Not now</button>' +
+          '<button type="button" class="msg-prompt" data-feedback-dismiss="1">Not Now</button>' +
         '</div>' +
         '<div class="prop-total-note">' +
           'These write a message in your thread with your contractor. Nothing is published anywhere, ' +
@@ -7972,7 +7972,7 @@
       ? (decided.decision === 'accepted'
           ? '<span class="pill pill-success">Accepted</span>'
           : '<span class="pill pill-muted">Declined</span>')
-      : (canDecide ? '<span class="pill pill-amber">Waiting on you</span>' : '');
+      : (canDecide ? '<span class="pill pill-amber">Waiting on You</span>' : '');
 
     var lineCount = Math.max(0, Number(p.lineCount) || 0);
     var sub = lineCount
@@ -7984,7 +7984,7 @@
       '<div class="prop">' +
         '<div class="prop-head">' +
           '<div>' +
-            '<div class="prop-head-label">Fixed price</div>' +
+            '<div class="prop-head-label">Fixed Price</div>' +
             '<div class="prop-total">' + fmtMoney(p.total, { dec: 2 }) + '</div>' +
             (sub ? '<div class="prop-total-note">' + esc(sub) + '</div>' : '') +
           '</div>' +
@@ -7992,7 +7992,7 @@
         '</div>';
 
     if (scope.length) {
-      html += '<div class="prop-group-head">What is included</div><div class="ob-summary">';
+      html += '<div class="prop-group-head">What Is Included</div><div class="ob-summary">';
       for (var i = 0; i < scope.length; i++) {
         html += '<div class="ob-row"><span>' + esc(scope[i].label || '') + '</span>' +
                 '<strong>' + fmtMoney(scope[i].total, { dec: 2 }) + '</strong></div>';
@@ -8002,7 +8002,7 @@
     }
 
     if (allowances.length) {
-      html += '<div class="prop-group-head">Allowances — you choose within these</div><div class="ob-summary">';
+      html += '<div class="prop-group-head">Allowances (You Choose Within These)</div><div class="ob-summary">';
       for (var a = 0; a < allowances.length; a++) {
         html += '<div class="ob-row"><span>' + esc(allowances[a].name || '') + '</span>' +
                 '<strong>' + fmtMoney(allowances[a].amount, { dec: 0 }) + '</strong></div>';
@@ -8011,7 +8011,7 @@
     }
 
     if (payment.length) {
-      html += '<div class="prop-group-head">How payment works</div><div class="ob-summary">';
+      html += '<div class="prop-group-head">How Payment Works</div><div class="ob-summary">';
       for (var m = 0; m < payment.length; m++) {
         var amt = typeof payment[m].amount === 'number'
           ? fmtMoney(payment[m].amount, { dec: 2 })
@@ -8027,7 +8027,7 @@
     } else if (pending) {
       html += '<div class="prop-note" data-proposal-terms-pending="1">Your contractor is confirming the payment schedule. You can accept here once it is set.</div>';
     } else if (p.acceptanceLive !== true && !decided) {
-      html += '<div class="prop-note" data-proposal-read-only="1">Your contractor will send your agreement for signature — you can\'t accept this proposal from the page yet. Message them with any questions.</div>';
+      html += '<div class="prop-note" data-proposal-read-only="1">Your contractor will send your agreement for signature. You can\'t accept this proposal from the page yet. Message them with any questions.</div>';
     }
 
     html += '<div class="prop-note">' + esc(PROPOSAL_NOT_A_CONTRACT_NOTE) + '</div>';
@@ -8052,7 +8052,7 @@
               (decided.at ? ' ' + esc(timeAgo(decided.at)) : '') + '</span>' +
           '</div>' +
           '<div class="prop-total-note">' +
-            'This proposal had already been accepted, so what you just signed was <strong>not recorded</strong> — ' +
+            'This proposal had already been accepted, so what you just signed was <strong>not recorded</strong>: ' +
             'there is one acceptance per proposal, and it stands. Nothing further is needed from you. ' +
             'If that acceptance was not meant to happen, message your contractor.' +
           '</div>';
@@ -8071,9 +8071,9 @@
     } else if (canDecide) {
       html +=
         '<div class="prop-cta">' +
-          '<button class="co-decline-btn" data-proposal-decline="' + esc(p.id) + '">Not yet — send a note</button>' +
+          '<button class="co-decline-btn" data-proposal-decline="' + esc(p.id) + '">Not Yet, Send a Note</button>' +
           '<button class="co-approve-btn" data-proposal-accept="' + esc(p.id) + '">' +
-            icn(ICONS.check, 13) + '<span>Review &amp; accept</span>' +
+            icn(ICONS.check, 13) + '<span>Review and Accept</span>' +
           '</button>' +
         '</div>';
     }
@@ -8090,10 +8090,10 @@
     var scope = p.scope || [];
 
     var scopeHtml =
-      '<div class="esign-scope-label">What you are accepting</div>' +
+      '<div class="esign-scope-label">What You Are Accepting</div>' +
       '<div class="esign-scope-desc">' + esc(p.title || 'Proposal') + '</div>' +
       '<div class="esign-delta">' +
-        '<span class="esign-delta-label">Fixed price</span>' +
+        '<span class="esign-delta-label">Fixed Price</span>' +
         '<span class="esign-delta-value add">' + fmtMoney(p.total, { dec: 2 }) + '</span>' +
       '</div>' +
       (scope.length
@@ -8109,19 +8109,19 @@
       approveMode: isAccept,
       clientName: opts.clientName || '',
       eyebrow: 'Proposal',
-      title: isAccept ? 'Review & accept this proposal' : 'Send your contractor a note',
+      title: isAccept ? 'Review and Accept This Proposal' : 'Send Your Contractor a Note',
       scopeHtml: scopeHtml,
       consentText: PROPOSAL_DISCLOSURE_TEXT,
       consentLabel: 'I agree to accept this proposal electronically, and I accept the scope and the fixed price shown above.',
       legal: isAccept
         ? 'Accepted electronically. Your contractor keeps a sealed copy of this record, and so can you.'
         : 'Saying not yet costs you nothing. It tells your contractor what to change before you can accept.',
-      submitLabel: isAccept ? 'Sign & accept' : 'Send note',
+      submitLabel: isAccept ? 'Sign and Accept' : 'Send Note',
       busyLabel: 'Sending…',
       lineLabel: t('esignSlideAccept'),
       // Accepting is not signing the agreement: said again beside the line.
       lineNote: PROPOSAL_NOT_A_CONTRACT_NOTE,
-      declinePlaceholder: 'Tell your contractor what needs to change before you can accept — price, scope, timing…',
+      declinePlaceholder: 'Tell your contractor what needs to change before you can accept: price, scope, timing…',
       onConfirm: opts.onConfirm,
     });
   }
@@ -8183,10 +8183,10 @@
     // contractor's screen orders these newest-first and a "Proposal declined"
     // landing on top of an accepted job is a signal he would stop work on.
     if (/proposal_already_accepted/.test(body)) {
-      return 'This proposal has already been accepted, so a decline cannot be filed against it. If something needs to change, send your contractor a message — a change to accepted work is handled as a change order.';
+      return 'This proposal has already been accepted, so a decline cannot be filed against it. If something needs to change, send your contractor a message. A change to accepted work is handled as a change order.';
     }
     if (/proposal_superseded/.test(body)) {
-      return 'Your contractor changed this proposal since this page loaded. Refresh the page to read the current version — a signature has to match the proposal you were shown.';
+      return 'Your contractor changed this proposal since this page loaded. Refresh the page to read the current version. A signature has to match the proposal you were shown.';
     }
     if (/portal_denied/.test(body) || /Supabase 40[13]/.test(body)) {
       // Deliberately one message for two server conditions. The RPC answers a
@@ -8199,7 +8199,7 @@
       return 'To accept, ask your contractor to re-send your portal link. It carries a secure access code, and re-sending also republishes the current proposal.';
     }
     if (/PGRST202|Could not find the function|does not exist|Supabase 404/.test(body)) {
-      return 'Accepting from this page is not switched on for your project yet. Send your contractor a message instead — we have started one for you below.';
+      return 'Accepting from this page is not switched on for your project yet. Send your contractor a message instead. We have started one for you below.';
     }
     if (/hash_mismatch/.test(body)) {
       return 'Something altered this proposal between your screen and our records, so nothing was signed. Refresh the page and try again.';
@@ -8368,8 +8368,8 @@
       // 2 decimals too) — "Outstanding $77,485" sat above an invoice card
       // saying "Pay $77,484.88". The default fmtMoney stays whole dollars
       // for the chart / budget callers that want it.
-      stats.push({ label: 'Contract value', value: fmtMoney(budget.contractValue, {dec:2}), numericValue: budget.contractValue || 0, money: true, cents: true, sub: '' });
-      stats.push({ label: 'Paid to date',  value: fmtMoney(budget.paidToDate, {dec:2}),    numericValue: budget.paidToDate || 0,    money: true, cents: true, sub: '' });
+      stats.push({ label: 'Contract Value', value: fmtMoney(budget.contractValue, {dec:2}), numericValue: budget.contractValue || 0, money: true, cents: true, sub: '' });
+      stats.push({ label: 'Paid to Date',  value: fmtMoney(budget.paidToDate, {dec:2}),    numericValue: budget.paidToDate || 0,    money: true, cents: true, sub: '' });
       // PORTAL-01: `outstanding` is now billed-and-unpaid, not
       // contract-minus-cash, and it is summed over exactly the invoices
       // listed below — nothing in draft, nothing the contractor recalled — so
@@ -8384,13 +8384,13 @@
       // basis. Same gate gates the money bar below.
       var retentionHeld = Number(budget.retentionHeld) || 0;
       var hasBillingBasis = typeof budget.invoicedToDate === 'number';
-      stats.push({ label: 'Outstanding',   value: fmtMoney(budget.outstanding, {dec:2}),   numericValue: budget.outstanding || 0,   money: true, cents: true, amber: budget.outstanding > 0, sub: !hasBillingBasis ? '' : (retentionHeld > 0 ? 'Invoiced and due now — retention excluded' : 'Invoiced and not yet paid') });
+      stats.push({ label: 'Outstanding',   value: fmtMoney(budget.outstanding, {dec:2}),   numericValue: budget.outstanding || 0,   money: true, cents: true, amber: budget.outstanding > 0, sub: !hasBillingBasis ? '' : (retentionHeld > 0 ? 'Invoiced and due now, retention excluded' : 'Invoiced and not yet paid') });
       // PORTAL-01: work complete, not percent paid — and "—" when the
       // schedule carries no progress to report. See deriveWorkProgress.
       var wp = work || { known: false, pct: 0 };
       stats.push(wp.known
-        ? { label: 'Work complete', value: wp.pct + '%', numericValue: wp.pct, percent: true, sub: '', progress: wp.pct }
-        : { label: 'Work complete', value: '—', numericValue: null, sub: 'Not reported yet' });
+        ? { label: 'Work Complete', value: wp.pct + '%', numericValue: wp.pct, percent: true, sub: '', progress: wp.pct }
+        : { label: 'Work Complete', value: '—', numericValue: null, sub: 'Not reported yet' });
     } else {
       var totalInv = (invoices || []).reduce(function (s, i) { return s + (i.total || 0); }, 0);
       var paidInv = (invoices || []).reduce(function (s, i) { return s + ((i.amountPaid != null ? i.amountPaid : (i.status === 'paid' ? i.total : 0))); }, 0);
@@ -8398,7 +8398,7 @@
       stats.push({ label: 'Invoiced', value: fmtMoney(totalInv, {dec:2}), numericValue: totalInv, money: true, cents: true });
       stats.push({ label: 'Paid', value: fmtMoney(paidInv, {dec:2}), numericValue: paidInv, money: true, cents: true });
       stats.push({ label: 'Balance', value: fmtMoney(bal, {dec:2}), numericValue: bal, money: true, cents: true, amber: bal > 0 });
-      stats.push({ label: 'Pay applications', value: String((aia || []).length), numericValue: (aia || []).length });
+      stats.push({ label: 'Pay Applications', value: String((aia || []).length), numericValue: (aia || []).length });
     }
 
     // Build the stat grid with animated count-up containers.
@@ -8466,12 +8466,12 @@
             '</div>'
           : '';
         var retLegend = retHeld > 0
-          ? '<span class="spend-legend-item"><span class="spend-dot spend-dot-rem"></span>Retainage held <strong>' + fmtMoney(retHeld, {dec:2}) + '</strong></span>'
+          ? '<span class="spend-legend-item"><span class="spend-dot spend-dot-rem"></span>Retainage Held <strong>' + fmtMoney(retHeld, {dec:2}) + '</strong></span>'
           : '';
         spendBarHtml =
           '<div class="spend-card">' +
             '<div class="spend-card-head">' +
-              '<div class="spend-eyebrow">Billed to date</div>' +
+              '<div class="spend-eyebrow">Billed to Date</div>' +
               '<div class="spend-headline num">' + fmtMoney(paid, {dec:2}) + ' <span class="spend-of">of</span> ' + fmtMoney(billed, {dec:2}) + ' paid</div>' +
             '</div>' +
             '<div class="spend-bar">' +
@@ -8479,13 +8479,13 @@
                 '<span class="spend-seg-label">Paid</span>' +
               '</div>' +
               '<div class="spend-seg spend-seg-out"  style="width:0"      data-spend="out"         data-target="'+outPct.toFixed(2)+'">' +
-                '<span class="spend-seg-label">Due now</span>' +
+                '<span class="spend-seg-label">Due Now</span>' +
               '</div>' +
               retSeg +
             '</div>' +
             '<div class="spend-legend">' +
               '<span class="spend-legend-item"><span class="spend-dot spend-dot-paid"></span>Paid <strong>' + fmtMoney(paid, {dec:2}) + '</strong></span>' +
-              '<span class="spend-legend-item"><span class="spend-dot spend-dot-out"></span>Due now <strong>' + fmtMoney(outstanding, {dec:2}) + '</strong></span>' +
+              '<span class="spend-legend-item"><span class="spend-dot spend-dot-out"></span>Due Now <strong>' + fmtMoney(outstanding, {dec:2}) + '</strong></span>' +
               retLegend +
             '</div>' +
           '</div>';
@@ -8661,7 +8661,7 @@
 
     // Hero
     var heroEl = document.getElementById('project-name');
-    var rawName = project.name || 'Project portal';
+    var rawName = project.name || 'Project Portal';
     // Add an italic emphasis on the trailing word for a premium typographic feel
     var parts = rawName.trim().split(/\s+/);
     if (parts.length >= 2) {
@@ -8671,7 +8671,7 @@
       heroEl.textContent = rawName;
     }
 
-    var greeting = data.clientName ? 'Hello, ' + data.clientName : 'Project portal';
+    var greeting = data.clientName ? 'Hello, ' + data.clientName : 'Project Portal';
     document.getElementById('hero-eyebrow').textContent = greeting;
 
     // Hero meta
@@ -8695,7 +8695,7 @@
       metaItems.push({
         icon: 'calendar',
         text: 'Started ' + fmtCalendarDate(project.startDate)
-          + ' → scheduled finish ' + fmtCalendarDate(project.targetDate),
+          + ' to scheduled finish ' + fmtCalendarDate(project.targetDate),
       });
     } else if (project.startDate) {
       metaItems.push({ icon: 'calendar', text: 'Started ' + fmtCalendarDate(project.startDate, true) });
@@ -8721,7 +8721,7 @@
       meta.insertAdjacentHTML('afterend',
         '<div id="hero-progress" style="margin-top:16px;max-width:340px">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
-            '<span style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;opacity:.8">Project progress</span>' +
+            '<span style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;opacity:.8">Project Progress</span>' +
             '<span style="font-size:13px;font-weight:800">' + pp + '%</span>' +
           '</div>' +
           '<div style="height:8px;border-radius:5px;background:rgba(255,255,255,0.22);overflow:hidden">' +
@@ -8761,7 +8761,7 @@
     // Welcome message
     if (data.welcomeMessage) {
       var w = document.getElementById('welcome');
-      w.innerHTML = '<strong>A note from your contractor</strong> — ' + esc(data.welcomeMessage);
+      w.innerHTML = '<strong>A note from your contractor:</strong> ' + esc(data.welcomeMessage);
       w.style.display = 'block';
     }
 
@@ -8835,7 +8835,7 @@
         t('contractSectionSubtitleSign'), null, renderContractCard(data.contract));
     } else if (data.contract && data.contract.status === 'sent' && data.contract.needsSignature !== false) {
       addSection('contract', 'dollar', t('contractSectionTitle'),
-        'Your contractor has sent your agreement — the full terms are on their way to this page.', null, renderContractCard(data.contract));
+        'Your contractor has sent your agreement. The full terms are on their way to this page.', null, renderContractCard(data.contract));
     } else if (data.contract && data.contract.status === 'signed') {
       addSection('contract', 'dollar', t('contractSectionTitle'),
         t('contractSectionSubtitleSigned'), null, renderContractCard(data.contract));
@@ -8858,7 +8858,7 @@
         && data.proposal.version === PROPOSAL_ESIGN_VERSION
         && !data.proposal.paymentTermsPending
         && data.proposal.acceptanceLive === true;
-      addSection('proposal', 'fileText', 'Your proposal',
+      addSection('proposal', 'fileText', 'Your Proposal',
         proposalCanDecide
           ? 'Review the scope and the price, then accept to get started.'
           : 'The scope and price your contractor has put together.',
@@ -8890,7 +8890,7 @@
     // doesn't show up. Only renders when something is actually open.
     var ownerDecisions = ownerDecisionList(data, sections);
     if (ownerDecisions.length > 0) {
-      addSection('decisions', 'check', 'Waiting on you',
+      addSection('decisions', 'check', 'Waiting on You',
         ownerDecisionsSubtitle(ownerDecisions),
         ownerDecisions.length, renderOwnerDecisions(ownerDecisions));
     }
@@ -8902,7 +8902,7 @@
     // data; only renders when there's at least 1 event.
     var activityFeed = buildActivityFeed(data);
     if (activityFeed.length > 0) {
-      addSection('activity', 'sparkle', t('activitySectionTitle') || 'Recent activity',
+      addSection('activity', 'sparkle', t('activitySectionTitle') || 'Recent Activity',
         t('activitySectionSubtitle') || 'The latest from your project, in order',
         activityFeed.length, renderActivityFeed(activityFeed));
     }
@@ -8940,7 +8940,7 @@
     // key the redirect needs (see financingPortalUrl).
     var finUrl = data.financing && data.financing.partnerName ? financingPortalUrl(data) : '';
     if (finUrl) {
-      addSection('financing', 'creditCard', 'Paying monthly', 'Financing through ' + data.financing.partnerName, null,
+      addSection('financing', 'creditCard', 'Paying Monthly', 'Financing through ' + data.financing.partnerName, null,
         renderFinancingCard(data.financing, finUrl));
     }
     if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {
@@ -8986,7 +8986,7 @@
         '<div class="section">' +
           '<div class="empty-section">' +
             icn(ICONS.inbox, 32) +
-            '<div style="margin-top:6px">Your contractor hasn\'t shared any project details yet.<br/>Check back soon — or reach out for an update.</div>' +
+            '<div style="margin-top:6px">Your contractor hasn\'t shared any project details yet.<br/>Check back soon, or reach out for an update.</div>' +
           '</div>' +
         '</div>'
       );
@@ -9210,7 +9210,7 @@
               var msg = /co_not_shared/.test(errText)
                 ? 'This change order was withdrawn by your contractor, so it can\'t be signed. Message your contractor if you have questions.'
                 : /Supabase 4/.test(errText)
-                  ? 'To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.'
+                  ? 'To sign, ask your contractor to re-send your portal link. It carries a secure access code required to make this binding.'
                   : "We couldn't record your decision. Check your connection and try again, or message your contractor.";
               ui.setError(msg);
             });
@@ -9548,7 +9548,7 @@
           var pendingHtml = msgPendingBubblesHtml(rows);
           msgRows = rows;
           if (!combined.length && !pendingHtml) {
-            msgThread.innerHTML = '<div class="empty-section">No messages yet — say hi to your contractor.</div>';
+            msgThread.innerHTML = '<div class="empty-section">No messages yet. Say hi to your contractor.</div>';
             return;
           }
           var attOpts = msgAttachmentOpts();
@@ -9883,7 +9883,7 @@
           '<div class="decision-title">' + esc(top.title) + '</div>' +
           '<div class="decision-detail">' + esc(top.detail) + '</div>' +
         '</div>' +
-        '<div class="decision-arrow">→</div>' +
+        '<div class="decision-arrow">›</div>' +
       '</button>';
     banner.style.display = 'block';
     var btn = banner.querySelector('button');
@@ -9986,7 +9986,7 @@
     if (contractSignable(data.contract)) {
       out.push({
         id: 'contract', kind: 'contract', urgency: 'waiting',
-        title: 'Contract waiting for your signature',
+        title: 'Contract Waiting for Your Signature',
         detail: 'Review the scope, payment schedule, and warranty, then counter-sign to make it binding.',
         target: 'sec-contract',
       });
@@ -9996,7 +9996,7 @@
       if (s !== 'submitted' && s !== 'pending' && s !== 'under_review' && s !== 'review') return;
       out.push({
         id: c.id, kind: 'change_order', urgency: 'waiting',
-        title: 'Change order #' + (c.number != null ? c.number : '') + (c.description ? ' — ' + c.description : ''),
+        title: 'Change Order #' + (c.number != null ? c.number : '') + (c.description ? ': ' + c.description : ''),
         // Byte-identical to buildOwnerDecisions in utils/portalOwnerCore.ts —
         // scripts/validate-portal-owner.ts holds the two strings head-to-head.
         // The off-branch spells out that a chat reply is NOT a signed
@@ -10005,7 +10005,7 @@
         // more durable than a text message.
         detail: data.coApprovalEnabled
           ? 'Review the scope and the change to your contract total, then sign to approve or decline with a reason.'
-          : 'Signing is switched off for this portal, so there is no approve button here. Reply in Messages with your answer, then ask your contractor to send this one for signature — a message is not a signed change to your contract.',
+          : 'Signing is switched off for this portal, so there is no approve button here. Reply in Messages with your answer, then ask your contractor to send this one for signature. A message is not a signed change to your contract.',
         // #136: the tax-inclusive figure on a taxed CO — buildOwnerDecisions
         // (utils/portalOwnerCore.ts) uses the same coHasTax test.
         amount: coHasTax(c) ? c.totalWithTax : c.changeAmount,
@@ -10016,7 +10016,7 @@
       if ((cat.options || []).some(function (o) { return o.isChosen; })) return;
       out.push({
         id: cat.id, kind: 'selection', urgency: 'waiting',
-        title: (cat.category || 'Selection') + ' — pick your option',
+        title: (cat.category || 'Selection') + ': pick your option',
         detail: 'Pick a finish so your contractor can order it and hold the schedule.',
         dueDate: cat.dueDate || undefined,
         target: 'sec-selections',
@@ -10041,15 +10041,15 @@
   function decisionFlagLabel(d) {
     if (d.urgency === 'overdue') {
       var n = d.daysOverdue || 0;
-      return n > 0 ? n + ' day' + (n === 1 ? '' : 's') + ' past due' : 'Past due';
+      return n > 0 ? n + ' day' + (n === 1 ? '' : 's') + ' past due' : 'Past Due';
     }
     if (d.urgency === 'due_soon') {
-      if (d.daysUntilDue === 0) return 'Due today';
+      if (d.daysUntilDue === 0) return 'Due Today';
       return d.daysUntilDue != null
         ? 'Due in ' + d.daysUntilDue + ' day' + (d.daysUntilDue === 1 ? '' : 's')
-        : 'Due soon';
+        : 'Due Soon';
     }
-    return 'Waiting on you';
+    return 'Waiting on You';
   }
 
   function renderOwnerDecisions(list) {
@@ -10158,7 +10158,7 @@
       onPass();
     }
     function fail(msg) {
-      err.textContent = msg || 'Incorrect passcode — please try again.';
+      err.textContent = msg || 'Incorrect passcode. Try again.';
       input.value = '';
       input.focus();
       btn.disabled = false;
@@ -10180,7 +10180,7 @@
       // (supabase URL + anon key + portal id).
       var api = data.portalApi;
       if (!api || !api.supabaseUrl || !api.supabaseAnonKey || !api.portalId) {
-        fail('Portal is misconfigured — please contact the contractor.');
+        fail('Portal is misconfigured. Contact the contractor.');
         return;
       }
 
@@ -10198,9 +10198,9 @@
       }).then(function (r) {
         if (r.ok) { unlock(); return; }
         if (r.status === 401) { fail(); return; }
-        fail('Could not verify right now — please try again in a moment.');
+        fail('Could not verify right now. Try again in a moment.');
       }).catch(function () {
-        fail('Network error — check your connection and try again.');
+        fail('Network error. Check your connection and try again.');
       });
     }
 
@@ -10267,11 +10267,11 @@
     },
     no_token: {
       title: 'This link is incomplete',
-      body: 'Part of the link is missing — this usually happens when a link gets shortened, cut off in a text message, or retyped by hand. Ask your contractor to send it again using Copy link or Share in the MAGE ID app, and open it straight from their message.',
+      body: 'Part of the link is missing. This usually happens when a link gets shortened, cut off in a text message, or retyped by hand. Ask your contractor to send it again using Copy link or Share in the MAGE ID app, and open it straight from their message.',
     },
     denied: {
       title: 'This link is no longer valid',
-      body: 'Your contractor may have reset the link to this project. Ask them to send you a fresh one from the MAGE ID app — your project and its records are unaffected.',
+      body: 'Your contractor may have reset the link to this project. Ask them to send you a fresh one from the MAGE ID app. Your project and its records are unaffected.',
     },
     not_published: {
       title: 'Your portal is not ready yet',
@@ -10296,7 +10296,7 @@
     var a = document.createElement('a');
     a.className = 'cta secondary';
     a.href = 'mailto:help@mageid.app?subject=Portal%20Help';
-    a.textContent = 'Contact support';
+    a.textContent = 'Contact Support';
     return a;
   }
 
@@ -10317,7 +10317,7 @@
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'cta';
-      btn.textContent = 'Try again';
+      btn.textContent = 'Try Again';
       btn.addEventListener('click', function () {
         // Disabled while the load runs, and the label says why.
         btn.disabled = true;
@@ -10472,7 +10472,7 @@
       bodyEl.textContent =
         'Project portal links stay open for the whole job and close 30 days after the project is handed over'
         + ' (or on a date your contractor set).' + whenText
-        + ' If you still need access, ask your contractor to send you a new link — your project records are still kept.';
+        + ' If you still need access, ask your contractor to send you a new link. Your project records are still kept.';
       actionsEl.innerHTML = '';
       actionsEl.appendChild(supportLink());
       showFallback();
@@ -10634,7 +10634,7 @@
   }
   function payNotSeenHtml(id) {
     return payNotSeen[id]
-      ? '<div class="prop-note" data-pay-not-seen="1" style="margin-top:8px">No payment has reached your contractor yet. If you just paid, it can take a minute — check back before paying again.</div>'
+      ? '<div class="prop-note" data-pay-not-seen="1" style="margin-top:8px">No payment has reached your contractor yet. If you just paid, it can take a minute. Check back before paying again.</div>'
       : '';
   }
   // #83 / #135: a bank (ACH) payment in flight — the overlay sends
@@ -10644,7 +10644,7 @@
     var amt = typeof pp.amount === 'number' && isFinite(pp.amount) ? fmtMoney(pp.amount, { dec: 2 }) : null;
     return '<div class="prop-note" data-payment-processing="1" style="margin-top:8px">' +
       esc('Bank payment' + (amt ? ' of ' + amt : '') + ' processing' + (pp.since ? ' since ' + fmtDate(pp.since) : '') +
-        '. Bank transfers take a few business days to clear — no need to pay again.') +
+        '. Bank transfers take a few business days to clear. There is no need to pay again.') +
     '</div>';
   }
 

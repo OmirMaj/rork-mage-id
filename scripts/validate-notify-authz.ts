@@ -226,7 +226,7 @@ const digest = read('supabase/functions/homeowner-weekly-digest/index.ts');
 ok('homeowner-weekly-digest loaded', digest.length > 0);
 ok('digest imports portalUrlFor', /import \{ portalUrlFor, storedPortalKey \} from '\.\.\/_shared\/portalLinks\.ts'/.test(digest));
 ok('digest builds the link from client_portal via the helper', /const portalUrl = portalUnpublished \? undefined : \(portalUrlFor\(portal, portalKey\) \?\? undefined\)/.test(digest) && /const portal = project\.client_portal/.test(digest));
-ok('digest omits the CTA when there is no tokenized URL', /cta: opts\.portalUrl \? \{ label: 'View your portal', href: opts\.portalUrl \} : undefined/.test(digest));
+ok('digest omits the CTA when there is no tokenized URL', /cta: opts\.portalUrl \? \{ label: 'View Your Portal', href: opts\.portalUrl \} : undefined/.test(digest));
 ok('digest no longer links /portal/<project.id> (or any token-less portal path)', !/\/portal\/\$\{/.test(digest) && !/mageid\.app\/portal\//.test(digest));
 // closed_at joined the select 2026-09-18 (audit #23: the digest stops at handover).
 ok('both digest project SELECTs include client_portal', (digest.match(/\.select\('id,user_id,name,status,closed_at,location,client_portal,schedule'\)/g) ?? []).length === 2);

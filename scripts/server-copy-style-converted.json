@@ -1,0 +1,24 @@
+{
+  "_comment": "Server and portal files held to the copy style by scripts/validate-server-copy-voice.ts. The list may only grow; its length is pinned by CONVERTED_PINNED in that script.",
+  "files": [
+    "marketing/architect/index.html",
+    "marketing/bid-invite/index.html",
+    "marketing/lien-waiver/index.html",
+    "marketing/paid/index.html",
+    "marketing/portal/index.html",
+    "marketing/preferences/index.html",
+    "marketing/sub-portal/index.html",
+    "marketing/unsubscribe/index.html",
+    "supabase/functions/_shared/email.ts",
+    "supabase/functions/auth-magic-link/copy.ts",
+    "supabase/functions/coi-expiry-watch/index.ts",
+    "supabase/functions/daily-digest/index.ts",
+    "supabase/functions/homeowner-weekly-digest/index.ts",
+    "supabase/functions/morning-digest/index.ts",
+    "supabase/functions/notify-nearby-contractors/reach.ts",
+    "supabase/functions/notify/index.ts",
+    "supabase/functions/portal-link-expiry-notice/index.ts",
+    "supabase/functions/project-invite/index.ts",
+    "supabase/functions/stripe-webhook/index.ts"
+  ]
+}

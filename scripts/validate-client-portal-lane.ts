@@ -160,7 +160,7 @@ async function main() {
     portalRecord(baseArgs) === buildCOConsentRecord(baseArgs as unknown as Parameters<typeof buildCOConsentRecord>[0]));
   check('the handler passes the CO\'s tax into the record',
     /taxAmount: coHasTax\(c\) \? c\.taxAmount : undefined,\s*totalWithTax: coHasTax\(c\) \? c\.totalWithTax : undefined,/.test(html));
-  check('the CO card and the sign sheet show the tax', /' tax = '/.test(html) && /This change incl\. tax/.test(html));
+  check('the CO card and the sign sheet show the tax', /' tax = '/.test(html) && /This Change Including Tax/.test(html));
 
   // ── #29 ────────────────────────────────────────────────────────────────────
   console.log('\n#29 — no signature is collected that nothing can record');

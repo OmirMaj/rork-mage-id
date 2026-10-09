@@ -411,7 +411,7 @@ console.log('\nthe closeout-binder email promises only what is true');
   const n = read('supabase/functions/notify/index.ts');
   const block = n.slice(n.indexOf("case 'closeout_binder_sent': {"), n.indexOf('pushData:', n.indexOf("case 'closeout_binder_sent': {")));
   const said = code(block);
-  ok('found the homeowner email block', said.includes('Open my portal'));
+  ok('found the homeowner email block', said.includes('Open My Portal'));
   ok('it no longer promises a sub contact', !/sub contact/i.test(said));
   ok('it no longer says the portal does not expire', !/doesn't expire|does not expire|never expires/i.test(said));
   ok('it states the real rule: open until 30 days after the job is closed out',

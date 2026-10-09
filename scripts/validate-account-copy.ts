@@ -135,8 +135,8 @@ console.log('\n5. email subjects and push titles');
   const lines = notify.split('\n').filter((l) => /(emailSubject|pushTitle|subject)\s*:/.test(l));
   const emoji = lines.filter((l) => EMOJI.test(l));
   ok('no subject or push title carries an emoji', emoji.length === 0, emoji.map((l) => l.trim()));
-  ok('the closeout email subject is "Closeout binder ready · <project>"', /subject: `Closeout binder ready · \$\{projectName\}`/.test(notify));
-  ok('the award push title is "Bid won · <project>"', /pushTitle: `Bid won · \$\{projectName\}`/.test(notify));
+  ok('the closeout email subject is "Closeout Binder Ready · <project>"', /subject: `Closeout Binder Ready · \$\{projectName\}`/.test(notify));
+  ok('the award push title is "Bid Won · <project>"', /pushTitle: `Bid Won · \$\{projectName\}`/.test(notify));
 }
 
 // ── 6. client portal English bundle ─────────────────────────────────────────
@@ -186,7 +186,7 @@ console.log('\n7. server sentences pass through only when written for a person')
     'Couldn’t send the sign-in email. Try again.',
     'That email address looks off. Check it and try again.',
     "dana.smith@x.com is already on this project. To change what they can see, use the role buttons on their row.",
-    'Your plan includes 2 team seats and 2 are in use. Upgrade for more, or invite them as Field — field access is always free.',
+    'Your plan includes 2 team seats and 2 are in use. Upgrade for more, or invite them as Field. Field access is always free.',
   ];
   const hidden = [
     'Invalid email.',

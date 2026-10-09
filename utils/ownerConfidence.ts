@@ -50,10 +50,10 @@ function clamp01(n: number): number {
 }
 
 export const STATUS_LABEL: Record<ConfidenceStatus, string> = {
-  on_track: 'On track',
-  minor_delays: 'Minor delays',
-  behind: 'Behind schedule',
-  not_started: 'Starting soon',
+  on_track: 'On Track',
+  minor_delays: 'Minor Delays',
+  behind: 'Behind Schedule',
+  not_started: 'Starting Soon',
   complete: 'Complete',
 };
 
@@ -63,8 +63,8 @@ export const STATUS_LABEL: Record<ConfidenceStatus, string> = {
 // other surfaces type the status as that union; only the WORDS change, so the
 // pill never says "Starting soon" on a job that started months ago.
 export const NO_PACE_LABEL = {
-  noProgress: 'Progress not reported yet',
-  noStartDate: 'No start date set',
+  noProgress: 'Progress Not Reported Yet',
+  noStartDate: 'No Start Date Set',
 } as const;
 
 /**

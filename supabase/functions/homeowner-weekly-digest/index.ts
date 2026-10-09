@@ -202,7 +202,7 @@ function buildTemplateSummary(
     bullets.push(`Milestone${milestones.length === 1 ? '' : 's'} reached: ${milestones.slice(0, 3).map(m => m.title).join(', ')}.`);
   }
   if (photos.length > 0) {
-    bullets.push(`${photos.length} photo${photos.length === 1 ? '' : 's'} added — see them in your portal.`);
+    bullets.push(`${photos.length} photo${photos.length === 1 ? '' : 's'} added. See them in your portal.`);
   }
   if (cos.length > 0) {
     // No dollar figure: the amounts are on the change orders themselves in
@@ -212,7 +212,7 @@ function buildTemplateSummary(
   if (bullets.length === 0) {
     bullets.push('A quiet week on this project, with no major activity to report. Reply with any questions.');
   }
-  const headline = `Week in review · ${project.name}`;
+  const headline = `Week in Review · ${project.name}`;
   // The template is never less safe than the AI path: the same post-filter.
   return { headline, bullets: bullets.map(sanitizeBullet).filter(b => b.length > 0) };
 }
@@ -409,12 +409,12 @@ function buildEmailHtml(opts: {
     : '';
 
   return wrapEmailHtml({
-    preheader: `${opts.companyName} — week-in-review for ${opts.projectName} (${opts.weekRange})`,
-    eyebrow: `Weekly update · ${opts.weekRange}`,
+    preheader: `${opts.companyName}: week in review for ${opts.projectName} (${opts.weekRange})`,
+    eyebrow: `Weekly Update · ${opts.weekRange}`,
     title: opts.headline,
     subtitle: `Hi ${greetingFirst}, here's how the week went.`,
     bodyHtml: `${paragraph}${bulletItems}`,
-    cta: opts.portalUrl ? { label: 'View your portal', href: opts.portalUrl } : undefined,
+    cta: opts.portalUrl ? { label: 'View Your Portal', href: opts.portalUrl } : undefined,
     companyName: opts.companyName,
     project: { name: opts.projectName, location: opts.projectLocation },
     sender: opts.senderEmail ? { email: opts.senderEmail } : undefined,
@@ -559,7 +559,7 @@ async function sendForProject(
   let headline: string;
   let bullets: string[];
   let paragraph: string | undefined;
-  let subject = `Week in review · ${project.name}`;
+  let subject = `Week in Review · ${project.name}`;
   let recap: RecapKind;
   if (plan.kind === 'final') {
     // Deterministic, never AI: a finished job has no "this week" to invent.
@@ -579,7 +579,7 @@ async function sendForProject(
         : 'Save copies of anything in your portal you want to keep.',
       `The portal link stops working after ${closesLabel}.`,
     ];
-    subject = `Project complete · ${project.name}`;
+    subject = `Project Complete · ${project.name}`;
     recap = 'final';
   } else {
     // Gate at the data: neither the AI nor the template ever sees a draft CO,

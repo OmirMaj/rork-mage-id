@@ -123,7 +123,7 @@ console.log('\n#9 generated widget text is not quoted as the homeowner\'s words'
     ok('a widget scope is recognised', f2.isWidgetScope('Kitchen · ~200 sq ft · Instant Estimate shown: $1–$2') && f2.isWidgetScope('Deck · Instant Estimate could not price this scope'));
     ok('a quote-form scope is the homeowner\'s own words', !f2.isWidgetScope('Redo the deck before June') && !f2.isWidgetScope(null));
   }
-  ok('the email quotes the scope only when it is not widget-built', /!fromWidget && ownWords \? emailQuote\(/.test(LEAD) && /fromWidget && ownWords \? emailStatRow\('Request details'/.test(LEAD));
+  ok('the email quotes the scope only when it is not widget-built', /!fromWidget && ownWords \? emailQuote\(/.test(LEAD) && /fromWidget && ownWords \? emailStatRow\('Request Details'/.test(LEAD));
 }
 
 console.log('\n#10 the lead reaches the RIGHT GC');

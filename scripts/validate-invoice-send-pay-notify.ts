@@ -74,8 +74,8 @@ if (W) {
 console.log('\nthe wording (exact to the cent)');
 if (N) {
   const paid = N.wave3NotifyText('client_invoice_paid', { number: 7, amount_paid: 77484.88, balance: 0, paid_in_full: true }, 'Henderson');
-  ok('"Client paid Invoice #7 · Henderson" / "$77,484.88 received — paid in full."',
-    paid?.pushTitle === 'Client paid Invoice #7 · Henderson' && paid.pushBody === '$77,484.88 received — paid in full.', JSON.stringify(paid));
+  ok('"Client paid Invoice #7 · Henderson" / "$77,484.88 received, paid in full."',
+    paid?.pushTitle === 'Client paid Invoice #7 · Henderson' && paid.pushBody === '$77,484.88 received, paid in full.', JSON.stringify(paid));
   const part = N.wave3NotifyText('client_invoice_paid', { number: '7', amount_paid: 5000, balance: 72484.88, paid_in_full: false }, 'Henderson');
   ok('a partial names what is still due', part?.pushBody === '$5,000 received · $72,484.88 still due.', part?.pushBody);
   ok('nothing is rounded to $K anywhere in the paid text', !!paid && !/\$\d+K/.test(JSON.stringify(paid)) && !!part && !/\$\d+K/.test(JSON.stringify(part)));
@@ -84,7 +84,7 @@ if (N) {
   const dr = N.wave3NotifyText('field_report_filed', { author_name: 'Luis' }, 'Henderson');
   ok('a filed report names its author and that the client sees nothing yet', dr?.title === 'Luis filed a daily report' && /client/.test(dr.pushBody));
   const rfi = N.wave3NotifyText('pro_response_received', { kind: 'rfi', number: 12, responder_name: 'Arch Co', action_code: 'Answered' }, 'Henderson');
-  ok('an RFI response names the RFI, the responder and the code', rfi?.pushTitle === 'RFI #12 answered · Henderson' && /Arch Co responded — Answered/.test(rfi.pushBody));
+  ok('an RFI response names the RFI, the responder and the code', rfi?.pushTitle === 'RFI #12 answered · Henderson' && /Arch Co responded: Answered/.test(rfi.pushBody));
   const sub = N.wave3NotifyText('pro_response_received', { kind: 'submittal', number: 3, action_code: 'Revise and resubmit' }, 'H');
   ok('a submittal response is labelled Submittal', !!sub && /^Submittal #3/.test(sub.pushTitle) && sub.rows[0]?.[0] === 'Action');
   const pr = N.wave3NotifyText('punch_marked_ready', { sub_name: 'ACME Drywall' }, 'H');

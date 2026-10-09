@@ -80,7 +80,7 @@ export function financingEmailBlockHtml(args: {
   return `
     <div style="margin:18px 0;padding:16px;border:1px solid #E2E5E9;border-radius:12px;background:#F7F8FA;">
       <p style="margin:0 0 10px;font-size:14px;color:#2B3038;">${headline}</p>
-      <a href="${url}" style="display:inline-block;padding:10px 18px;background:#1F6FEB;color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;">Check financing options</a>
+      <a href="${url}" style="display:inline-block;padding:10px 18px;background:#1F6FEB;color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;">Check Financing Options</a>
       <p style="margin:10px 0 0;font-size:11px;color:#9AA3AD;">${monthly ? 'Estimated payment, not an offer. Actual terms from ' + safePartner + ' on approval. ' : ''}${disclosureHtml}</p>
     </div>`;
 }

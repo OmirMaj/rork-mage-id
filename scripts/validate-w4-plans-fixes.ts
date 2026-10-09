@@ -178,7 +178,7 @@ console.log('\n#114 an editor indexes; #118 an editor deletes the sheets he adde
   ok('viewer / field are refused in the server\'s words',
     RA.planControlBlock('viewer', 'index') === RA.PLAN_INDEX_REFUSAL && RA.planControlBlock('field', 'index') === RA.PLAN_INDEX_REFUSAL);
   for (const fn of ['supabase/functions/plan-extract/index.ts', 'supabase/functions/project-memory-embed/index.ts']) {
-    ok(`${fn.split('/')[2]} refuses with the same sentence`, read(fn).includes(RA.PLAN_INDEX_REFUSAL.replace('\u2014', '—')));
+    ok(`${fn.split('/')[2]} refuses with the same sentence`, read(fn).includes(RA.PLAN_INDEX_REFUSAL));
   }
   ok('a viewer / field seat is never told to "tap Index"',
     !/tap Index/i.test(RA.staleMatchesNote(2, true, false) ?? '') && !/Tap Index/.test(RA.staleMatchesNote(2, false, false) ?? '')
