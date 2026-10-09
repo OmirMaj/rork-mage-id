@@ -2,7 +2,7 @@
 //
 // "Today" is the device's local day when the owner taps Create. Everything in
 // the demo is dated from it: the job started DATA_DAY - 1 working days earlier,
-// so the demo is always "about month 10 of 18" whenever it is made.
+// so the demo is always "in month 11 of an 18-month job" whenever it is made.
 //
 // A schedule day is a WORKING-DAY ORDINAL, 1-based, Monday to Friday, exactly
 // as utils/scheduleEngine reads `startDay` (day 1 is the start date itself).
@@ -10,7 +10,7 @@
 import { addCalendarDays, parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 
 /** The working-day ordinal that "today" is on the demo's schedule. */
-export const DATA_DAY = 217;
+export const DATA_DAY = 228;
 
 const isWorkday = (d: Date): boolean => d.getDay() !== 0 && d.getDay() !== 6;
 
