@@ -89,6 +89,8 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
   const [scanChoice, setScanChoice] = useState<ScanChoice>('unasked');
   const [busy, setBusy] = useState(false);
   const [choiceFailed, setChoiceFailed] = useState(false);
+  /** The fingerprint of the model the account is known to hold (the notes' baseFingerprint, as state). */
+  const [matched, setMatched] = useState<string | null>(null);
 
   const gen = useRef(0);
   const metaRef = useRef<ModelSyncMeta | null>(null);
@@ -115,6 +117,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
     metaRef.current = meta;
     setScanChoice(meta.scanChoice);
     setSavedAt(meta.savedAt);
+    setMatched(meta.baseFingerprint);
     await writeSyncMeta(userId, projectId, meta);
   }, [userId, projectId]);
 
@@ -303,6 +306,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
     setLastChange(null);
     setSavedAt(null);
     setScanChoice('unasked');
+    setMatched(null);
     setChoiceFailed(false);
     setStatus(eligibleRef.current && accountReachable() ? 'checking' : 'device');
     void (async () => {
@@ -316,6 +320,7 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
       setKept(k);
       setScanChoice(meta.scanChoice);
       setSavedAt(meta.savedAt);
+      setMatched(meta.baseFingerprint);
       run();
     })();
     return () => { gen.current += 1; };
@@ -420,5 +425,8 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
     return true;
   }), [choose, userId, projectId]);
 
-  return { status, savedAt, lastChange, conflict, kept, scanChoice, busy, choiceFailed, answerScan, keepThisDevice, takeAccountModel, bringBackKept, removeKept };
+  // "Saved to your account." is true of the model the account holds. The moment the model on screen is a different
+  // one (a change that has not been sent yet) the line is the waiting one, until the next save is read back.
+  const shown: SyncStatus = status === 'saved' && fingerprintNow !== null && fingerprintNow !== matched ? 'waiting' : status;
+  return { status: shown, savedAt, lastChange, conflict, kept, scanChoice, busy, choiceFailed, answerScan, keepThisDevice, takeAccountModel, bringBackKept, removeKept };
 }

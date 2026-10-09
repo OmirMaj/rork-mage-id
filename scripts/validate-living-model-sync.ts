@@ -302,6 +302,7 @@ rule('C2', 'each state says its own sentence, and "Saved to your account." is sa
     if (!offlineKnown && !/metaAfterMatch\(|case 'in_sync':/.test(before)) out.push(`"saved" number ${i + 1} is set without a match against the account's row`);
   }
   if (!/setStatus\(meta\.baseRevision > 0 \? 'saved' : 'empty'\)/.test(hook)) out.push('with the account out of reach and nothing to send, the line is not the last known one');
+  if (!/const shown: SyncStatus = status === 'saved' && fingerprintNow !== null && fingerprintNow !== matched \? 'waiting' : status;\s+return \{ status: shown,/.test(hook)) out.push('a change that has not been sent yet still reads "Saved to your account."');
   if (!/if \(outcome === 'queued'\) \{ setStatus\('waiting'\); return; \}/.test(hook)) out.push('a queued save is not shown as waiting');
   if (!/if \(outcome === 'failed'\) \{[\s\S]{0,200}setStatus\('failed'\)/.test(hook)) out.push('a refused save is not shown as failed');
   if (!/<SyncStatus sync=\{sync\} deviceRooms=\{model\.rooms\.length\} hasScanRoom=\{hasScanRoom\} nameOf=\{nameOf\} \/>/.test(w.files[SCREEN])) out.push('the screen does not draw the status line');
@@ -598,6 +599,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'C2', name: 'a failed save is shown as waiting', plant: edit(STATUS, "{status === 'failed' ? <Text style={styles.warn} testID=\"lm-sync-failed\">{copy.syncFailedBody}</Text> : null}", "{status === 'failed' ? <Text style={styles.warn} testID=\"lm-sync-failed\">{copy.syncWaitingBody}</Text> : null}") },
   { rule: 'C2', name: 'a queued save is shown as saved', plant: edit(HOOK, "if (outcome === 'queued') { setStatus('waiting'); return; }", "if (outcome === 'queued') { setStatus('saved'); return; }") },
   { rule: 'C2', name: 'the saved line is shown while waiting', plant: edit(STATUS, "{status === 'waiting' ? <Text style={styles.note} testID=\"lm-sync-waiting\">{copy.syncWaitingBody}</Text> : null}", "{status === 'waiting' ? <Text style={styles.note} testID=\"lm-sync-waiting\">{copy.savedAccountBody}</Text> : null}") },
+  { rule: 'C2', name: 'an unsent change still reads saved', plant: edit(HOOK, 'return { status: shown, savedAt,', 'return { status, savedAt,') },
   { rule: 'C2', name: 'the screen drops the status line', plant: edit(SCREEN, '<SyncStatus sync={sync} deviceRooms', '<NoStatus sync={sync} deviceRooms') },
   { rule: 'C2', name: 'the web scan sheet keeps the phone sentence', plant: edit(EDITOR, "Platform.OS === 'web' ? copy.noScansWebBody : copy.noScansBody", 'copy.noScansBody') },
   { rule: 'D1', name: 'the gate always sends', plant: swap({ scanGate: () => 'send' }) },
