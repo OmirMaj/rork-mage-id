@@ -52,6 +52,7 @@ import { EN as EN_OFFICE_FIRST_JOB } from './office.first-job.generated';
 import { EN as EN_OFFICE_ROOM_SCAN } from './office.room-scan.generated';
 import { EN as EN_OFFICE_LIVING_MODEL } from './office.living-model.generated';
 import { EN as EN_OFFICE_LIVING_MODEL_PHONE } from './office.living-model-phone.generated';
+import { EN as EN_OFFICE_DEMO_JOB } from './office.demo-job.generated';
 import { EN as EN_OFFICE_PROOF_PACK } from './office.proof-pack.generated';
 import { EN as EN_OFFICE_SCAN_CLEARANCE } from './office.scan-clearance.generated';
 import { EN as EN_OFFICE_NOTICES } from './office.notices.generated';
@@ -96,6 +97,7 @@ export const EN_SHARDS: Record<string, EnCatalog> = {
   'office.room-scan': EN_OFFICE_ROOM_SCAN,
   'office.living-model': EN_OFFICE_LIVING_MODEL,
   'office.living-model-phone': EN_OFFICE_LIVING_MODEL_PHONE,
+  'office.demo-job': EN_OFFICE_DEMO_JOB,
   'office.proof-pack': EN_OFFICE_PROOF_PACK,
   'office.scan-clearance': EN_OFFICE_SCAN_CLEARANCE,
   'office.notices': EN_OFFICE_NOTICES,

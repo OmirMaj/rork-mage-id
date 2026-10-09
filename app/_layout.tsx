@@ -1640,6 +1640,7 @@ function RootLayoutNav() {
           headerShown: false,
         }}
       />
+      <Stack.Screen name="demo-job" options={{ title: 'Demo Job', headerShown: false }} />
       <Stack.Screen
         name="dev-seeder"
         options={{

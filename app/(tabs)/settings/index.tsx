@@ -28,6 +28,8 @@ import {
 } from '@/utils/clientPricing';
 import { useAuth, dropPendingWrites } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
+import { demoJobAllowed } from '@/utils/demoJob/allowed';
+import { useDemoJobCopy } from '@/hooks/useDemoJobCopy';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { platformFeeLabel } from '@/utils/platformFees';
 import { getAIUsageStats, describeAIUsageCard, type AIUsageSource, type SubscriptionTierKey } from '@/utils/aiRateLimiter';
@@ -343,6 +345,7 @@ export default function SettingsScreen() {
   const isDesktopWeb = useIsDesktopWeb();
   const params = useLocalSearchParams<{ section?: string }>();
   const owner = isOwner(user?.email);
+  const demoJobCopy = useDemoJobCopy();
   const { group: activeGroup, sectionId } = resolveSettingsParam(params.section, { isOwner: owner });
   const settingsScrollRef = useRef<ScrollView>(null);
   const pickSection = useCallback((key: SettingsGroupKey | SettingsSectionId) => router.setParams({ section: key }), [router]);
@@ -2046,6 +2049,23 @@ export default function SettingsScreen() {
               Only you can see this. Demo data for App Store screenshots.
             </Text>
             <View style={styles.group}>
+              {demoJobAllowed(user?.email) ? (
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => router.push('/demo-job')}
+                  activeOpacity={0.7}
+                  testID="demo-job-link"
+                >
+                  <View style={styles.iconWrap}>
+                    <Building2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowLabel}>{demoJobCopy.settingsRowLabel}</Text>
+                    <Text style={styles.sectionSubtext}>{demoJobCopy.settingsRowSub}</Text>
+                  </View>
+                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={styles.row}
                 onPress={() => router.push('/dev-flagship-seeder' as any)}
