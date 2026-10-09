@@ -90,7 +90,7 @@ console.log('\n#165/#166 the marketplace listing uses the badge, not the raw fla
     fullName: 'Jane Framer', trades: ['Carpenter'], status: 'active', idVerified: true, idMaskedLast4: '4567',
     isPublic: true, projectIds: [], claimedByUserId: 'w1',
   };
-  ok('verified → "ID Verified" license', JSON.stringify(crewMemberToWorkerProfile(base).licenses) === '["ID Verified"]');
+  ok('verified → "ID Verified" license', JSON.stringify(crewMemberToWorkerProfile(base).licenses) === '["ID on File"]');
   ok('flag set but no masked number → no badge', crewMemberToWorkerProfile({ ...base, idMaskedLast4: undefined }).licenses.length === 0);
   ok('expired ID → no badge', crewMemberToWorkerProfile({ ...base, idExpiry: '2001-01-01' }).licenses.length === 0);
 }

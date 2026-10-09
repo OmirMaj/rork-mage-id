@@ -64,6 +64,7 @@ import { SplitView, useSplitRecord } from '@/components/desktop/SplitView';
 import { routeHref } from '@/components/desktop/RowLink';
 import { rowsToCsv } from '@/utils/dataTable';
 import { deliverTextFile } from '@/utils/platformFile';
+import { TemplateNotice } from '@/components/ProtectNotices';
 
 /** A calendar day from whatever the invoice screen passed as prefillThroughDate
  *  (see the seed below): 'YYYY-MM-DD' as-is, an ISO instant as its LOCAL day,
@@ -1281,6 +1282,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
         <View style={[styles.modalCard, f.card]}>
           <Text style={styles.modalTitle}>New Lien Waiver</Text>
           <Text style={styles.modalBody}>Pick the type, fill in the sub + amount, generate the PDF.</Text>
+          <TemplateNotice testID="lien-waiver-template-notice" style={{ marginBottom: 10 }} />
 
           <Text style={styles.modalLabel}>Type</Text>
           <View style={styles.typeRow}>

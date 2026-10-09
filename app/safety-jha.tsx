@@ -43,6 +43,7 @@ import { safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason 
 import { getLang, t } from '@/i18n/core';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { useT } from '@/contexts/LanguageContext';
+import { ProtectNote } from '@/components/ProtectNotices';
 
 function getStatusConfig(tc: ThemeColors, status: JHAStatus): { label: string; color: string; bg: string } {
   switch (status) {
@@ -505,6 +506,9 @@ function SafetyJhaInner() {
                     {generateBlocked ? (
                       <Text style={styles.cardCheckText} testID="jha-generate-blocked">{generateBlocked}</Text>
                     ) : null}
+                    <ProtectNote testID="jha-draft-notice" style={{ marginTop: 6, marginBottom: 6 }}>
+                      {t('safety.protect.aiDraftNotice', 'An AI draft can miss hazards. A competent person on your site must review it before work starts. It is not safety training and not OSHA advice.')}
+                    </ProtectNote>
                   </>
                 ) : null}
 

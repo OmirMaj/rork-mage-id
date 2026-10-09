@@ -196,6 +196,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { describeError, ownSentence } from '@/utils/errorCopy';
 import { ActionBar, cardSurface, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { TemplateNotice } from '@/components/ProtectNotices';
 
 /**
  * The record found someone else's signature already on the contract (the
@@ -2372,6 +2373,9 @@ function ContractScreenInner({ practiceProjectId }: { practiceProjectId?: string
         {/* Terms */}
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Terms and Conditions</Text>
+          {/* Told to the contractor here, where he edits the wording. Not
+              printed on the contract his client signs. */}
+          <TemplateNotice testID="contract-template-notice" style={{ marginBottom: 10 }} />
           <TextInput
             style={[styles.input, styles.inputTermsMultiline, isLocked && styles.inputDisabled]}
             value={contract.termsText}

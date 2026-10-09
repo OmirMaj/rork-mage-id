@@ -239,6 +239,12 @@ export const SURFACES: Surface[] = [
   // block, the roster row lines, the question card and the switch. Every
   // string of the feature lives in the one copy hook.
   { id: 'office.whoson', phase: 2, state: 'pending', keyPrefixes: ['office.whoson.'], files: ['hooks/useWhosOnCopy.ts'], lane: 'WHOKIT' },
+  // PROTECT-TEXT (2026-10-09): the agreement sentence above the sign-in
+  // buttons and the template notice a contractor reads where he edits a
+  // contract, proposal, lien waiver or AIA-style form. Both live in the one
+  // component file. Spanish drafts are in es/office/protect.ts; a legal
+  // translator has not read them.
+  { id: 'office.protect', phase: 2, state: 'pending', keyPrefixes: ['office.protect.'], files: ['components/ProtectNotices.tsx'], lane: 'PROTECT-TEXT' },
   // Your First Job: the interactive starter path on Home (the question, the
   // seven steps, the stage pills, hide / remove, the finish state). Every
   // string lives in the one copy hook. Complete: each key has Spanish

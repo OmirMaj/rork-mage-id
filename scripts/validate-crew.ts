@@ -76,7 +76,7 @@ expect('mapper name', wp.name, 'Jane Framer');
 expect('mapper contactEmail', wp.contactEmail, 'jane@example.com');
 expect('mapper phone', wp.phone, '555-0100');
 expect('mapper tradeCategory', wp.tradeCategory, 'carpenter');
-expect('mapper verified → licenses badge', wp.licenses, ['ID Verified']);
+expect('mapper verified → licenses badge', wp.licenses, ['ID on File']);
 expect('mapper availability default', wp.availability, 'available');
 expect('mapper createdAt passthrough', wp.createdAt, '2026-07-08T00:00:00Z');
 

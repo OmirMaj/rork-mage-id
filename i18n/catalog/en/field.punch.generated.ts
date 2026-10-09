@@ -22,7 +22,7 @@ export const EN: EnCatalog = {
   "field.punch.addedPhotosStillNeed": "{filed} added. {length} photos still need a line",
   "field.punch.advancesStatusOneStep": "Advances status one step",
   "field.punch.ai.addADescription": "Add a Description",
-  "field.punch.ai.aiConfidence": "AI confidence {confidence}%",
+  "field.punch.ai.aiConfidence": "AI self-rating {confidence}%",
   "field.punch.ai.camera": "Camera",
   "field.punch.ai.cameraAccessNeeded": "Camera Access Needed",
   "field.punch.ai.cantAddItems": "Can't Add Items",

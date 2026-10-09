@@ -91,6 +91,7 @@ import { subCoiExpiryAcross } from '@/utils/projectContextPure';
 import { matchSubForPhase } from '@/utils/subTradeMatch';
 import { normalizeTradeKey } from '@/utils/laborSamples';
 import { leveledBidTotal, leveledBuyoutSavings, packageBuyoutSavings, uncoveredScopeOf, openExcludedScope, awardedCommitmentOf } from '@/utils/projectFinancials';
+import { TemplateNotice } from '@/components/ProtectNotices';
 
 // Invite timestamps are instants (timestamptz), shown here as the day they
 // fall on in the reader's own zone — which is what a GC means by "sent Tuesday".
@@ -1885,6 +1886,7 @@ export default function BuyoutPackageScreen() {
   // countersignature before NTP.
   const a401 = pkg.status === 'awarded' && pkg.awardedBidId && (
     <View style={styles.section}>
+      <TemplateNotice testID="subcontract-template-notice" style={{ marginBottom: 8 }} />
       <TouchableOpacity
         style={styles.openCommitmentBtn}
         onPress={handleGenerateSubcontract}

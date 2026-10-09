@@ -30,6 +30,7 @@ import { ES_FIELD_DELIVERY } from './field/delivery';
 import { ES_FIELD_PHOTO } from './field/photo';
 import { ES_FIELD_VOICE } from './field/voice';
 import { ES_OFFICE_FIRST_JOB } from './office/firstJob';
+import { ES_OFFICE_PROTECT } from './office/protect';
 import { ES_OFFICE_ROOM_SCAN } from './office/roomScan';
 import { ES_OFFICE_CODE_FLAGS } from './office/codeFlags';
 import { ES_OFFICE_SCAN_CLEARANCE } from './office/scanClearance';
@@ -56,6 +57,7 @@ export const ES_SHARDS: Record<string, EsCatalog> = {
   'field/photo': ES_FIELD_PHOTO,
   'field/voice': ES_FIELD_VOICE,
   'office/firstJob': ES_OFFICE_FIRST_JOB,
+  'office/protect': ES_OFFICE_PROTECT,
   'office/roomScan': ES_OFFICE_ROOM_SCAN,
   'office/codeFlags': ES_OFFICE_CODE_FLAGS,
   'office/scanClearance': ES_OFFICE_SCAN_CLEARANCE,

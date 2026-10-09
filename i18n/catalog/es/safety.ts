@@ -203,7 +203,7 @@ export const ES_SAFETY: EsCatalog = {
   "safety.hazard.scanFailed": { s: "No se pudo escanear la foto. Registra los peligros a mano.", src: "be41b425" },
   "safety.hazard.scanFound": { s: { one: "Se encontró {count} peligro. Tócalo abajo para revisarlo y registrarlo.", other: "Se encontraron {count} peligros. Toca uno abajo para revisarlo y registrarlo." }, src: "1971f6f0" },
   "safety.hazard.scanNetwork": { s: "Problema de red: no se pudo escanear. Registra los peligros a mano.", src: "3b98381b" },
-  "safety.hazard.scanNone": { s: "No se detectaron peligros en esa foto. Prueba con una toma más amplia o con mejor luz, o registra los peligros a mano.", src: "f20a477a" },
+  "safety.hazard.scanNone": { s: "La IA no identificó ningún peligro en esa foto. Eso no significa que la obra sea segura. Prueba con una toma más amplia o con mejor luz, o registra los peligros a mano.", src: "afa73343" },
   "safety.hazard.scanPhotoForHazards": { s: "Escanear foto en busca de peligros", src: "51e5a1a6" },
   "safety.hazard.scanning": { s: "Escaneando…", src: "c8a0c8b8" },
   "safety.hazard.screenTitle": { s: "Registro de peligros", src: "97ea00b7" },
@@ -314,7 +314,7 @@ export const ES_SAFETY: EsCatalog = {
   "safety.incident.report": { s: "Reportar", src: "4681fa0b" },
   "safety.incident.reportByVoice": { s: "Reportar por voz", src: "b16bfd0a" },
   "safety.incident.reportIncident": { s: "Reportar incidente", src: "136e00bb" },
-  "safety.incident.reportInjuriesNearMisses": { s: "Reporta lesiones, casi accidentes y daños a la propiedad en cuanto pasan. MAGE redacta el reporte a partir de tus notas y clasifica si es registrable ante OSHA.", src: "cdaaa662" },
+  "safety.incident.reportInjuriesNearMisses": { s: "Reporta lesiones, casi accidentes y daños a la propiedad en cuanto pasan. MAGE redacta el reporte a partir de tus notas y sugiere si el caso es registrable ante OSHA. Tú decides.", src: "bf76f670" },
   "safety.incident.restrictedDaysAreCounted": { s: "Hay días restringidos registrados", src: "572433c3" },
   "safety.incident.restrictedDuty": { s: "Trabajo restringido / cambio de puesto", src: "0dd0d909" },
   "safety.incident.restrictedWithDays": { s: { one: "Trabajo restringido / cambio de puesto ({count} día registrado)", other: "Trabajo restringido / cambio de puesto ({count} días registrados)" }, src: "2107fe7a" },
@@ -561,4 +561,8 @@ export const ES_SAFETY: EsCatalog = {
   "safety.toolbox.viewOnly": { s: "Solo lectura", src: "3b8de91a" },
   "safety.toolbox.whatWasTheTalk": { s: "¿De qué trató la charla?", src: "03efcf11" },
   "safety.toolbox.writeOneByVoice": { s: "Dictar una por voz", src: "fb732dd3" },
+  // PROTECT-TEXT (2026-10-09): drafts. A legal translator has not read these.
+  "safety.protect.aiDraftNotice": { s: "Un borrador de IA puede pasar por alto peligros. Una persona competente en tu obra debe revisarlo antes de empezar el trabajo. No es capacitación de seguridad ni asesoría de OSHA.", src: "d334d07a" },
+  "safety.protect.recordNotice": { s: "Este registro es tuyo. MAGE ID no lo revisa. Reportar un incidente o un peligro a OSHA o a cualquier otra autoridad es tu responsabilidad.", src: "c301cf49" },
+  "safety.protect.verdictNotice": { s: "Esta línea sale de las respuestas de arriba. Es una sugerencia, no una resolución. Tú decides qué va en tu registro de OSHA.", src: "ddb144bc" },
 };
