@@ -250,6 +250,13 @@ export function useLivingModelSync({ projectId, userId, project, model, loadStat
         const ok = await saveJobModel(userId, accountModel, new Date().toISOString(), loadStateRef.current);
         if (!live()) return;
         if (!ok) { setStatus('failed'); return; }
+        // A change made in the instant the account's model was being written is his and stands: put it back and decide again.
+        const now = modelRef.current ?? m;
+        if (modelFingerprint(now) !== local.fingerprint) {
+          await saveJobModel(userId, now, new Date().toISOString(), loadStateRef.current);
+          again.current = true;
+          return;
+        }
         await commit(metaAfterMatch(meta, head, fingerprint, scanRoomIds(accountModel)));
         if (!live()) return;
         onAdoptRef.current(accountModel);
