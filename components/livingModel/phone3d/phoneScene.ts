@@ -18,9 +18,7 @@
 // in POINTS of the screen (utils/livingModel/phoneViewCore.viewSize says why
 // the scene's own units are not points on a 3x phone), and so that every
 // drawn frame is shown: expo-gl draws off screen until endFrameEXP is called.
-import { modelBounds } from '@/utils/livingModel/modelCore';
-import { nextZoom, pointsPerMetre, viewSize, type PhoneViewSize } from '@/utils/livingModel/phoneViewCore';
-import { fitSpan } from '@/utils/livingModel/sceneCore';
+import { viewSize, type PhoneViewSize } from '@/utils/livingModel/phoneViewCore';
 import type { PlacedRoom } from '@/utils/livingModel/types';
 import type { JobSceneHandle, RoomLook } from '../threeScene';
 import type { PhoneGl } from './engine';
@@ -67,15 +65,15 @@ export interface PhoneScene {
   pickAt: (xPt: number, yPt: number) => string | null;
   /** Where a room's label goes, in points from the view's top left. */
   labelAt: (roomId: string) => { x: number; y: number } | null;
-  /** Points of screen per metre of floor at the current zoom. */
-  pointsPerMetre: () => number;
+  /** How much room a label has across a room as it is drawn right now, in points. null for a room that is not in the scene. */
+  roomWidthPt: (roomId: string) => number | null;
+  /** Turn the model about its middle (two fingers twisting). */
+  turnBy: (radians: number) => void;
   dispose: () => void;
 }
 
 export function makePhoneScene(handle: JobSceneHandle, gl: PhoneGl): PhoneScene {
   let size: PhoneViewSize | null = null;
-  let spanM = 8;
-  let zoom = 1;
   return {
     layout(widthPt, heightPt) {
       const next = viewSize(widthPt, heightPt, gl.drawingBufferWidth, gl.drawingBufferHeight);
@@ -84,12 +82,7 @@ export function makePhoneScene(handle: JobSceneHandle, gl: PhoneGl): PhoneScene 
       handle.resize(next.width, next.height, next.pixelRatio);
       return true;
     },
-    setRooms(rooms, cutHeightM) {
-      handle.setRooms(rooms, cutHeightM);
-      // The same box and span the scene fits its camera to (threeScene.setRooms).
-      const level = rooms.length ? rooms[0].level : 0;
-      spanM = fitSpan(modelBounds({ version: 1, projectId: '', rooms: [...rooms], links: {}, updatedAt: '' }, level)).span;
-    },
+    setRooms: (rooms, cutHeightM) => handle.setRooms(rooms, cutHeightM),
     apply: (looks) => handle.apply(looks),
     draw(wait) {
       handle.render();
@@ -105,14 +98,9 @@ export function makePhoneScene(handle: JobSceneHandle, gl: PhoneGl): PhoneScene 
       const k = size?.unitsPerPoint ?? 1;
       handle.pan(dxPt * k, dyPt * k);
     },
-    zoomBy(factor) {
-      zoom = nextZoom(zoom, factor);
-      handle.zoomBy(factor);
-    },
-    resetView() {
-      zoom = 1;
-      handle.resetView();
-    },
+    zoomBy: (factor) => handle.zoomBy(factor),
+    turnBy: (radians) => handle.turnBy(radians),
+    resetView: () => handle.resetView(),
     pickAt(xPt, yPt) {
       const k = size?.unitsPerPoint ?? 1;
       return handle.pick(xPt * k, yPt * k);
@@ -122,7 +110,11 @@ export function makePhoneScene(handle: JobSceneHandle, gl: PhoneGl): PhoneScene 
       const k = size?.unitsPerPoint ?? 1;
       return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { x: p.x / k, y: p.y / k } : null;
     },
-    pointsPerMetre: () => (size ? pointsPerMetre(size, spanM, zoom) : 0),
+    roomWidthPt(roomId) {
+      const px = handle.roomWidthPx(roomId);
+      const k = size?.unitsPerPoint ?? 1;
+      return px != null && Number.isFinite(px) ? px / k : null;
+    },
     dispose: () => handle.dispose(),
   };
 }

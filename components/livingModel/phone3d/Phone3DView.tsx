@@ -10,12 +10,13 @@
 // the faint plan ahead of today, the corner card and the two buttons.
 //
 // WHAT IS THE PHONE'S OWN.
-//   Fingers  one finger turns, two fingers move, a pinch zooms, a tap picks
+//   Fingers  one finger turns, two fingers move, a pinch zooms, a twist turns, a tap picks
 //            the room under it (utils/livingModel/phoneViewCore).
 //   Labels   ordinary Text over the drawing, so the words stay sharp. Each is
 //            moved to its room about thirty times a second while the model
 //            turns; a room that is small on the screen shows its name alone,
-//            and a very small one shows no label.
+//            and a very small one a dot (sceneCore.pinSize, the web's rule).
+//            Two labels never sit on one another.
 //   Frames   a frame is drawn only when something changed (a finger, the
 //            scrubber, Play) and nothing is drawn otherwise. Drawing stops
 //            when the screen is not the one in front and when the app is not
@@ -35,11 +36,11 @@ import { usePhone3DCopy } from '@/hooks/usePhone3DCopy';
 import { useReducedMotion } from '@/components/ui';
 import { roomBounds } from '@/utils/livingModel/modelCore';
 import {
-  LABEL_THROTTLE_MS, frameStats, gestureBegin, gestureEnd, gestureMove, labelDetail, labelsToHide,
-  type FingerPoint, type GestureState, type LabelBox, type LabelDetail,
+  LABEL_THROTTLE_MS, frameStats, gestureBegin, gestureEnd, gestureMove, labelsToHide,
+  type FingerPoint, type GestureState, type LabelBox,
 } from '@/utils/livingModel/phoneViewCore';
 import { roomLayers } from '@/utils/livingModel/replayCore';
-import { DEFAULT_CUT_M } from '@/utils/livingModel/sceneCore';
+import { DEFAULT_CUT_M, pinSize, type PinSize } from '@/utils/livingModel/sceneCore';
 import { ToolButton } from '../RoomEditor';
 import type { JobReplay3DProps } from '../jobReplay3DProps';
 import { stageLine, usePalette } from '../replayShared';
@@ -85,7 +86,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
   const rooms = useMemo(() => model.rooms.filter((r) => r.level === level), [model, level]);
   const [ready, setReady] = useState(false);
   const [cut, setCut] = useState(true);
-  const [details, setDetails] = useState<Record<string, LabelDetail>>({});
+  const [details, setDetails] = useState<Record<string, PinSize>>({});
 
   const sceneRef = useRef<PhoneScene | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
@@ -136,18 +137,18 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
   }, []);
 
   const placeLabels = useCallback((scene: PhoneScene) => {
-    const ppm = scene.pointsPerMetre();
-    const next: Record<string, LabelDetail> = {};
+    const next: Record<string, PinSize> = {};
     const boxes: LabelBox[] = [];
     for (const r of roomsRef.current) {
-      const b = roomBounds(r);
-      next[r.id] = b ? labelDetail(b.maxX - b.minX, b.maxY - b.minY, ppm) : 'none';
+      // How much of its label a room carries is the scene's own rule, the same as on the web: both lines, the name, or a dot.
+      next[r.id] = pinSize(scene.roomWidthPt(r.id) ?? Number.NaN, r.id === selectedRef.current);
       const p = scene.labelAt(r.id);
       const size = labelSizes.current.get(r.id);
+      const b = roomBounds(r);
       if (p) labelSpots.current.set(r.id, { x: p.x, y: p.y, hidden: labelSpots.current.get(r.id)?.hidden ?? false });
-      if (p && size && b && next[r.id] !== 'none') boxes.push({ id: r.id, x: p.x, y: p.y, w: size.w, h: size.h, weight: (b.maxX - b.minX) * (b.maxY - b.minY) });
+      if (p && size) boxes.push({ id: r.id, x: p.x, y: p.y, w: size.w, h: size.h, weight: r.id === selectedRef.current ? Number.MAX_VALUE : b ? (b.maxX - b.minX) * (b.maxY - b.minY) : 0 });
     }
-    // Two labels never sit on one another: the larger room keeps its label.
+    // Two labels never sit on one another: the picked room, then the larger room, keeps its label.
     const hide = labelsToHide(boxes);
     for (const box of boxes) {
       const spot = labelSpots.current.get(box.id);
@@ -209,6 +210,9 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, rooms, cut, debug?.orbitDx, debug?.orbitDy, debug?.zoom]);
 
+  // A room was picked or let go: its label may grow or shrink.
+  useEffect(() => { labelsAt.current = 0; requestDraw(); }, [selectedId, requestDraw]);
+
   // The moment, or the reading, changed: show each room's stage.
   useEffect(() => {
     const scene = sceneRef.current;
@@ -221,6 +225,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       looks.set(r.id, {
         solid: roomLayers(m.solid),
         ghost: roomLayers(m.ghost),
+        stage: m.stage,
         opens: a.demolition != null || a.framing != null || a.rough_in != null || a.insulation != null || a.drywall != null,
       });
     }
@@ -326,6 +331,7 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
           if (a.kind === 'orbit') scene.orbit(a.dx, a.dy);
           else if (a.kind === 'pan') scene.pan(a.dx, a.dy);
           else if (a.kind === 'zoom') scene.zoomBy(a.factor);
+          else if (a.kind === 'twist') scene.turnBy(a.radians);
         }
       } catch (e) { fail(e); return; }
       requestDraw();
@@ -363,8 +369,8 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
       />
       {!ready ? <Text style={[styles.note, { position: 'absolute', left: 12, bottom: 12 }]}>{copy.loading3dBody}</Text> : null}
       {ready ? rooms.map((r) => {
-        const detail = details[r.id] ?? 'none';
-        if (detail === 'none') return null;
+        const detail = details[r.id];
+        if (!detail) return null;
         const m = moments.get(r.id);
         const spot = labelSpots.current.get(r.id);
         const size = labelSizes.current.get(r.id);
@@ -378,19 +384,17 @@ export function Phone3DView({ engine, model, level, moments, selectedId, onSelec
               labelsAt.current = 0;
               requestDraw();
             }}
-            style={[styles.pin, r.id === selectedId && styles.pinOn, placed]}
+            style={[styles.pin, detail === 'dot' && { paddingHorizontal: 3, paddingVertical: 3 }, r.id === selectedId && styles.pinOn, placed]}
             pointerEvents="none"
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             testID={`lm-pin-${r.id}`}
           >
-            <Text style={styles.pinName} numberOfLines={1}>{r.name}</Text>
-            {detail === 'full' ? (
-              <View style={styles.legendItem}>
-                <View style={[styles.swatch, { backgroundColor: palette.stage[m?.stage ?? 'no_tasks'], width: 8, height: 8 }]} />
-                <Text style={styles.pinSub} numberOfLines={1}>{stageLine(m, copy)}</Text>
-              </View>
-            ) : null}
+            <View style={styles.pinHead}>
+              <View style={[styles.swatch, styles.pinDot, { backgroundColor: palette.stage[m?.stage ?? 'no_tasks'] }]} />
+              {detail === 'dot' ? null : <Text style={styles.pinName} numberOfLines={1}>{r.name}</Text>}
+            </View>
+            {detail === 'full' ? <Text style={styles.pinSub} numberOfLines={1}>{stageLine(m, copy)}</Text> : null}
           </View>
         );
       }) : null}

@@ -1046,27 +1046,31 @@ function phoneGraph(w: World, roots: string[]): { reached: string[]; libs: Map<s
 
 /** The names scripts/validate-native-surface.ts looks for in the real phone bundle. One list, read out of that script. */
 function nativeSurface3dMarkers(): string[] {
-  const m = /const WEB_ONLY_3D = \[([^\]]+)\]/.exec(read('scripts/validate-native-surface.ts'));
+  const m = /const LIB_3D = \[([^\]]+)\]/.exec(read('scripts/validate-native-surface.ts'));
   return m ? Array.from(m[1].matchAll(/'([A-Za-z]+)'/g)).map((x) => x[1]) : [];
 }
 
-rule('E6', 'the phone never reaches the 3D library: following the phone\'s own imports from the route and the entry row finds no `three`, no web view and no scene builder', (w) => {
+rule('E6', 'the phone reaches the 3D library and the scene builder through ONE file, its engine file, and only lazily: with that file\'s lazy reads taken away, the walk from the route finds no `three`, no web view and no scene builder', (w) => {
   const out: string[] = [];
-  const g = phoneGraph(w, ['app/living-model.tsx', 'components/livingModel/LivingModelEntryRow.tsx']);
-  if (!g.reached.includes('components/livingModel/LivingModelScreen.tsx') || !g.reached.includes('components/livingModel/JobReplay3D.tsx') || g.reached.length < 15) out.push(`the walk from the route reached only ${g.reached.length} files: it is not following the phone's imports`);
-  for (const [lib, from] of g.libs) if (lib === 'three' || lib.startsWith('three/')) out.push(`the phone reaches the 3D library: ${from.join(', ')} imports "${lib}"`);
-  for (const f of g.reached) {
-    if (/\.web\.(tsx|ts|js)$/.test(f)) out.push(`the phone reaches a web-only file: ${f}`);
-    if (f === 'components/livingModel/threeScene.ts') out.push('the phone reaches the scene builder (threeScene.ts)');
-  }
+  const roots = ['app/living-model.tsx', 'components/livingModel/LivingModelEntryRow.tsx'];
+  const g = phoneGraph(w, roots);
+  if (!g.reached.includes('components/livingModel/LivingModelScreen.tsx') || !g.reached.includes('components/livingModel/JobReplay3D.tsx') || !g.reached.includes(PHONE_ENGINE) || g.reached.length < 15) out.push(`the walk from the route reached only ${g.reached.length} files: it is not following the phone's imports`);
+  // Everything the phone reaches at all: the library has exactly one importer, the engine file (lane PHONE3D).
+  for (const [lib, from] of g.libs) if ((lib === 'three' || lib.startsWith('three/')) && from.join() !== PHONE_ENGINE) out.push(`the phone reaches the 3D library from ${from.join(', ')}; want only ${PHONE_ENGINE}`);
+  for (const f of g.reached) if (/\.web\.(tsx|ts|js)$/.test(f)) out.push(`the phone reaches a web-only file: ${f}`);
+  // What the phone reaches when the bundle LOADS: the same walk with the engine file's lazy reads taken away. Nothing 3D may be left.
+  const engine = w.files[PHONE_ENGINE] ?? '';
+  const eager = phoneGraph({ ...w, files: { ...w.files, [PHONE_ENGINE]: engine.replace(/import\s*\(\s*['"][^'"]+['"]\s*\)/g, 'null') } }, roots);
+  for (const [lib, from] of eager.libs) if (lib === 'three' || lib.startsWith('three/') || lib === 'expo-gl') out.push(`${from.join(', ')} reaches "${lib}" when the bundle loads, not when the 3D view opens`);
+  if (eager.reached.includes('components/livingModel/threeScene.ts')) out.push('the phone reaches the scene builder (threeScene.ts) when the bundle loads, not when the 3D view opens');
+  if (!g.reached.includes('components/livingModel/threeScene.ts')) out.push('the phone no longer reaches the scene builder at all: it would not be drawing the web\'s scene');
   // The bundle check in validate-native-surface looks for these names in the real phone bundle. Each has to be a name the 3D code really carries,
-  // so that check is not looking for words nothing has: the scene builder and the library, which the phone must never reach, hold all of them.
+  // so that check is not looking for words nothing has.
   const markers = nativeSurface3dMarkers();
   if (markers.length < 3) out.push('scripts/validate-native-surface.ts no longer lists the names of the 3D code it looks for in the phone bundle');
   const scene = w.files['components/livingModel/threeScene.ts'] ?? '';
   for (const name of markers) {
-    if (!scene.includes(name)) out.push(`validate-native-surface looks for "${name}" in the phone bundle, a name the scene builder does not have: that check would pass with the 3D code in the bundle`);
-    for (const f of g.reached) if ((w.files[f] ?? '').includes(name) && code(w.files[f]).includes(name)) out.push(`${f}, which the phone bundles, carries "${name}": the bundle check in validate-native-surface would go red`);
+    if (!scene.includes(name)) out.push(`validate-native-surface looks for "${name}" in the phone bundle, a name the scene builder does not have: that check would say nothing about the 3D code`);
   }
   return out;
 });
@@ -1843,7 +1847,9 @@ const MUTATIONS: Mutation[] = [
   // The same plant the phone-bundle check in scripts/validate-native-surface.ts exists for: the library imported in the PHONE's file.
   { rule: 'E1', name: '`import \'three\'` in the phone file', plant: edit('components/livingModel/JobReplay3D.tsx', "import type { JobReplay3DProps } from './jobReplay3DProps';", "import 'three';\nimport type { JobReplay3DProps } from './jobReplay3DProps';") },
   { rule: 'E6', name: '`import \'three\'` in the phone file', plant: edit('components/livingModel/JobReplay3D.tsx', "import type { JobReplay3DProps } from './jobReplay3DProps';", "import 'three';\nimport type { JobReplay3DProps } from './jobReplay3DProps';") },
-  { rule: 'E6', name: 'the phone file loads the library with a dynamic import', plant: edit('components/livingModel/JobReplay3D.tsx', 'export const JOB_REPLAY_3D_ON_THIS_PLATFORM = false;', "export const JOB_REPLAY_3D_ON_THIS_PLATFORM = false;\nexport const warm = () => import('three');") },
+  { rule: 'E6', name: 'the phone file loads the library with a dynamic import', plant: edit('components/livingModel/JobReplay3D.tsx', 'export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;', "export const JOB_REPLAY_3D_ON_THIS_PLATFORM = true;\nexport const warm = () => import('three');") },
+  { rule: 'E6', name: 'the engine file imports the scene builder when the bundle loads', plant: edit(PHONE_ENGINE, "import type { JobSceneHandle } from '../threeScene';", "import { createJobScene, type JobSceneHandle } from '../threeScene';\nexport const make = createJobScene;") },
+  { rule: 'E6', name: 'the engine file imports the drawing surface when the bundle loads', plant: edit(PHONE_ENGINE, "import { requireOptionalNativeModule } from 'expo';", "import { requireOptionalNativeModule } from 'expo';\nimport * as Surface from 'expo-gl';\nexport { Surface };") },
   { rule: 'E6', name: 'the flat view builds the scene', plant: edit('components/livingModel/FlatReplay.tsx', "import { ModelPlan } from './ModelPlan';", "import { ModelPlan } from './ModelPlan';\nimport { createJobScene } from './threeScene';\nexport const make = createJobScene;") },
   { rule: 'E6', name: 'the screen names the web file', plant: edit('components/livingModel/LivingModelScreen.tsx', "from './JobReplay3D';", "from './JobReplay3D.web';") },
   { rule: 'E6', name: 'a core file the phone reads requires the library', plant: edit('utils/livingModel/replayCore.ts', "import { BUILD_STAGES,", "const T3 = require('three');\nexport const t3 = T3;\nimport { BUILD_STAGES,") },

@@ -41,8 +41,8 @@ import { EN as EN_SHARD } from '../i18n/catalog/en/office.living-model-phone.gen
 import { ES_OFFICE_LIVING_MODEL_PHONE } from '../i18n/catalog/es/office/livingModelPhone';
 import { spikeFortyRoomJob, spikeSevenRoomJob, spikeTenWeekSchedule } from '../utils/livingModel/phoneSpikeSample';
 import {
-  LABEL_MIN_LONG_PT, LABEL_MIN_SHORT_PT, MAX_ZOOM_STEP, SECOND_LINE_MIN_PT, TAP_MAX_MS, TAP_SLOP_PT,
-  frameStats, gestureBegin, gestureEnd, gestureMove, labelDetail, labelsToHide, nextZoom, pointsPerMetre, viewSize,
+  MAX_TWIST_STEP, MAX_ZOOM_STEP, TAP_MAX_MS, TAP_SLOP_PT,
+  frameStats, gestureBegin, gestureEnd, gestureMove, labelsToHide, viewSize,
 } from '../utils/livingModel/phoneViewCore';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,7 +69,7 @@ try { tracked = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' 
 const ENV_FILES = tracked.filter((f) => /(^|\/)\.env(\.|$)/.test(f));
 const WORKFLOWS = tracked.filter((f) => f.startsWith('.github/workflows/'));
 
-const impl = { spikeSevenRoomJob, spikeTenWeekSchedule, spikeFortyRoomJob, gestureBegin, gestureMove, gestureEnd, viewSize, pointsPerMetre, labelDetail, labelsToHide, nextZoom, frameStats, canvasStandIn, makePhoneScene };
+const impl = { spikeSevenRoomJob, spikeTenWeekSchedule, spikeFortyRoomJob, gestureBegin, gestureMove, gestureEnd, viewSize, labelsToHide, frameStats, canvasStandIn, makePhoneScene };
 type Impl = typeof impl;
 type Catalog = Record<string, unknown>;
 interface World { files: Record<string, string>; EN: Catalog; ES: Catalog; impl: Impl; pkg: { scripts: Record<string, string>; dependencies: Record<string, string> } }
@@ -123,7 +123,7 @@ rule('A1', 'one finger that stays put is a tap and turns nothing; one that trave
   return out;
 });
 
-rule('A2', 'two fingers move the model by their middle and zoom it by their spread; a finger landing or lifting moves nothing and ends the tap', (w) => {
+rule('A2', 'two fingers move the model by their middle, zoom it by their spread and turn it by their twist; a finger landing or lifting moves nothing and ends the tap', (w) => {
   const out: string[] = [];
   const { gestureBegin: B, gestureMove: M, gestureEnd: E } = w.impl;
   // Fingers at (100, 200) and (200, 200): 100 apart, middle (150, 200).
@@ -135,6 +135,18 @@ rule('A2', 'two fingers move the model by their middle and zoom it by their spre
   if (!zoom || zoom.kind !== 'zoom' || !near(zoom.factor, 1.5)) out.push(`the spread went 100 to 150 and the zoom is ${JSON.stringify(zoom)}; want 1.5`);
   if (!pan || pan.kind !== 'pan' || !near(pan.dx, 15) || !near(pan.dy, 10)) out.push(`the middle went (150, 200) to (165, 210) and the move is ${JSON.stringify(pan)}; want 15, 10`);
   if (r.acts.some((a) => a.kind === 'orbit')) out.push('two fingers turned the model');
+  if (r.acts.some((a) => a.kind === 'twist')) out.push('two fingers that stayed level turned the model');
+  // Fingers at (100, 200) and (200, 200) turn a quarter of a right angle about their middle without spreading:
+  // the second goes to (192.39, 238.27), the first to (107.61, 161.73). The model turns by pi / 8 and does not zoom or move.
+  const c8 = Math.cos(Math.PI / 8) * 50;
+  const s8 = Math.sin(Math.PI / 8) * 50;
+  const tw = M(B([{ id: 'a', x: 100, y: 200 }, { id: 'b', x: 200, y: 200 }], 0), [{ id: 'a', x: 150 - c8, y: 200 - s8 }, { id: 'b', x: 150 + c8, y: 200 + s8 }]);
+  const twist = tw.acts.find((a) => a.kind === 'twist');
+  if (!twist || twist.kind !== 'twist' || !near(twist.radians, Math.PI / 8, 1e-9)) out.push(`two fingers turned by pi / 8 and the model turned by ${JSON.stringify(twist)}`);
+  if (tw.acts.some((a) => (a.kind === 'zoom' && !near(a.factor, 1, 1e-9)) || (a.kind === 'pan' && (Math.abs(a.dx) > 1e-9 || Math.abs(a.dy) > 1e-9)))) out.push('a pure twist also zoomed or moved the model');
+  // Two fingers that swap sides in one step are a jump, not a turn.
+  const flip = M(B([{ id: 'a', x: 100, y: 200 }, { id: 'b', x: 200, y: 200 }], 0), [{ id: 'a', x: 150, y: 150 }, { id: 'b', x: 150, y: 250 }]).acts.find((a) => a.kind === 'twist');
+  if (flip) out.push(`a quarter turn in one step turned the model (${JSON.stringify(flip)}); the limit is ${MAX_TWIST_STEP}`);
   // A second finger lands: nothing moves. Then it lifts: nothing moves. Then the first lifts quickly: not a tap.
   let s = B([{ id: 'a', x: 50, y: 50 }], 0);
   let step = M(s, [{ id: 'a', x: 50, y: 50 }, { id: 'b', x: 300, y: 400 }]);
@@ -169,31 +181,18 @@ rule('A3', 'the scene is handed a size that fills the drawing buffer on a 3x and
   return out;
 });
 
-rule('A4', 'a room shows two lines only when it is wide on the screen, its name alone when it is not, and nothing when it is tiny', (w) => {
+rule('A4', 'two labels never sit on one another: the larger room keeps its label; and frame timing is read right', (w) => {
   const out: string[] = [];
-  const { pointsPerMetre: P, labelDetail: L, nextZoom: Z, viewSize: V } = w.impl;
-  // The 3x view above, a job 10 m corner to corner, zoom 1: min(585, 570 x 1.4 = 798) / (10 x 1.3) = 45 units a metre,
-  // and 45 / 1.5 = 30 points a metre.
-  const size = V(390, 380, 1170, 1140);
-  if (!size) return ['the size could not be worked out'];
-  const ppm = P(size, 10, 1);
-  if (!near(ppm, 30)) out.push(`points a metre is ${ppm}; want 30`);
-  if (!near(P(size, 10, 2), 60)) out.push('zooming by 2 does not double the points a metre');
-  if (P(size, 0, 1) !== 0 || P(size, 10, 0) !== 0) out.push('a job with no size, or no zoom, is not answered with 0');
-  // At 30 points a metre. 4 m by 4 m is 120 by 120 points: both lines. 2.9 by 4 is 87 by 120: both lines.
-  // 2 by 4 is 60 by 120: the name. A hall 1 by 4 is 30 by 120: the name. 0.6 by 4 is 18 points deep: nothing.
-  // A closet 1 by 1.5 is 30 by 45: nothing (too short to carry a name).
-  const want: [number, number, string][] = [[4, 4, 'full'], [2.9, 4, 'full'], [2, 4, 'name'], [1, 4, 'name'], [4, 1, 'name'], [0.6, 4, 'none'], [1, 1.5, 'none']];
-  for (const [a, b, d] of want) if (L(a, b, 30) !== d) out.push(`a room ${a} m by ${b} m at 30 points a metre shows "${L(a, b, 30)}"; want "${d}"`);
-  if (L(Number.NaN, 4, 30) !== 'none' || L(4, 4, 0) !== 'none') out.push('a room with no size on the screen gets a label');
-  if (!(LABEL_MIN_SHORT_PT < LABEL_MIN_LONG_PT && LABEL_MIN_LONG_PT < SECOND_LINE_MIN_PT)) out.push('the label limits are out of order');
   // Three labels 60 by 24. A at (100, 100) for a 20 m2 room, B at (130, 110) for a 6 m2 room (on top of A),
   // C at (200, 100) for a 4 m2 room (40 points clear of A's edge). B is hidden; A and C stay.
   const hide = w.impl.labelsToHide([{ id: 'b', x: 130, y: 110, w: 60, h: 24, weight: 6 }, { id: 'a', x: 100, y: 100, w: 60, h: 24, weight: 20 }, { id: 'c', x: 200, y: 100, w: 60, h: 24, weight: 4 }]);
   if ([...hide].join() !== 'b') out.push(`of three labels where the small room's sits on the large room's, hidden: ${[...hide].join(', ') || 'none'}; want only the small room's`);
-  if (Z(1, 100) !== 6 || Z(1, 0.01) !== 0.5 || Z(2, 1.5) !== 3 || Z(2, Number.NaN) !== 2) out.push('the zoom this view keeps does not follow the scene\'s own limits (0.5 to 6)');
+  if (w.impl.labelsToHide([]).size !== 0) out.push('no labels, and something is hidden');
   const st = w.impl.frameStats([10, 30, 20, 40, Number.NaN]);
   if (st.frames !== 4 || st.medianMs !== 30 || st.worstMs !== 40) out.push(`frame timing of 10, 20, 30, 40 gave ${JSON.stringify(st)}`);
+  const view = code(w.files[VIEW] ?? '');
+  if (!/next\[r\.id\] = pinSize\(scene\.roomWidthPt\(r\.id\) \?\? Number\.NaN, r\.id === selectedRef\.current\);/.test(view)) out.push('how much of a label a room carries is not the scene\'s own rule (sceneCore.pinSize), so the phone and the web would differ');
+  if (!/\{detail === 'full' \? <Text style=\{styles\.pinSub\}/.test(view) || !/\{detail === 'dot' \? null : <Text style=\{styles\.pinName\}/.test(view)) out.push('a small room still draws its second line, or a tiny one its name');
   return out;
 });
 
@@ -215,6 +214,10 @@ rule('A5', 'the stand-in for a canvas answers only a WebGL2 context, and the wra
     pan: (dx, dy) => { log.push(`pan ${dx} ${dy}`); },
     zoomBy: (f) => { log.push(`zoom ${f}`); },
     resetView: () => { log.push('reset'); },
+    turnBy: (r) => { log.push(`turn ${r}`); },
+    roomWidthPx: () => 300,
+    floorHex: () => null,
+    roomCount: () => 0,
     pick: (x, y) => { log.push(`pick ${x} ${y}`); return 'kitchen'; },
     project: () => ({ x: 300, y: 150 }),
     dispose: () => { log.push('dispose'); },
@@ -236,6 +239,10 @@ rule('A5', 'the stand-in for a canvas answers only a WebGL2 context, and the wra
   if (scene.pickAt(100, 200) !== 'kitchen' || log.join() !== 'pick 150 300') out.push(`a tap at 100, 200 points asked the scene about ${log.join(', ')}; want 150, 300`);
   const p = scene.labelAt('kitchen');
   if (!p || !near(p.x, 200) || !near(p.y, 100)) out.push(`a label the scene puts at 300, 150 units is drawn at ${JSON.stringify(p)}; want 200, 100 points`);
+  if (scene.roomWidthPt('kitchen') !== 200) out.push(`a room 300 scene units wide is ${scene.roomWidthPt('kitchen')} points wide; want 200`);
+  log.length = 0;
+  scene.turnBy(0.25);
+  if (log.join() !== 'turn 0.25') out.push('a twist does not reach the scene');
   log.length = 0;
   scene.dispose();
   if (log.join() !== 'dispose') out.push('leaving does not give the scene back');
@@ -495,11 +502,12 @@ const MUTATIONS: Mutation[] = [
   { rule: 'A3', name: 'the scene is handed the size in points', plant: swap({ viewSize: (lw, lh, bw, bh) => { const s = viewSize(lw, lh, bw, bh); return s ? { ...s, width: lw, height: lh, unitsPerPoint: 1 } : s; } }) },
   { rule: 'A3', name: 'the ratio is not held to the scene\'s limit', plant: swap({ viewSize: (lw, lh, bw, bh) => { const s = viewSize(lw, lh, bw, bh); return s ? { ...s, pixelRatio: bw / lw, width: lw, height: lh, unitsPerPoint: 1 } : s; } }) },
   { rule: 'A3', name: 'a view with no size is laid out', plant: swap({ viewSize: (lw, lh, bw, bh) => viewSize(Math.max(1, lw || 1), Math.max(1, lh || 1), Math.max(1, bw || 1), Math.max(1, bh || 1)) }) },
-  { rule: 'A4', name: 'every room shows both lines', plant: swap({ labelDetail: () => 'full' }) },
-  { rule: 'A4', name: 'points a metre forgets the 3x factor', plant: swap({ pointsPerMetre: (s, span, z) => pointsPerMetre({ ...s, unitsPerPoint: 1 }, span, z) }) },
+  { rule: 'A2', name: 'a twist is ignored', plant: swap({ gestureMove: (p, f) => { const r = gestureMove(p, f); return { state: r.state, acts: r.acts.filter((a) => a.kind !== 'twist') }; } }) },
+  { rule: 'A2', name: 'a twist turns the model the wrong way', plant: swap({ gestureMove: (p, f) => { const r = gestureMove(p, f); return { state: r.state, acts: r.acts.map((a) => (a.kind === 'twist' ? { kind: 'twist' as const, radians: -a.radians } : a)) }; } }) },
+  { rule: 'A4', name: 'the phone has a label rule of its own', plant: edit(VIEW, "next[r.id] = pinSize(scene.roomWidthPt(r.id) ?? Number.NaN, r.id === selectedRef.current);", "next[r.id] = 'full';") },
+  { rule: 'A5', name: 'a room\'s width is read in scene units', plant: swap({ makePhoneScene: (h, gl) => { const s = makePhoneScene(h, gl); return { ...s, roomWidthPt: (id) => h.roomWidthPx(id) }; } }) },
   { rule: 'A4', name: 'labels may sit on one another', plant: swap({ labelsToHide: () => new Set<string>() }) },
   { rule: 'A4', name: 'the large room loses its label to the small one', plant: swap({ labelsToHide: (boxes) => labelsToHide(boxes.map((x) => ({ ...x, weight: -x.weight }))) }) },
-  { rule: 'A4', name: 'the kept zoom has no limits', plant: swap({ nextZoom: (z, f) => z * f }) },
   { rule: 'A5', name: 'a frame is drawn and never shown', plant: swap({ makePhoneScene: (h, gl) => makePhoneScene(h, { ...gl, endFrameEXP: () => {} }) }) },
   { rule: 'A5', name: 'a tap is asked in points on a 3x phone', plant: swap({ makePhoneScene: (h, gl) => { const s = makePhoneScene(h, gl); return { ...s, pickAt: (x, y) => h.pick(x, y) }; } }) },
   { rule: 'A5', name: 'the stand-in answers any context', plant: swap({ canvasStandIn: (gl) => ({ ...canvasStandIn(gl), getContext: () => gl }) }) },

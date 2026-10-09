@@ -12,8 +12,9 @@
 //   2. Sizes. The scene works in its own units; the screen works in points.
 //      viewSize says how many scene units the drawing buffer is, and the
 //      factor between the two.
-//   3. Labels. A room's second line is shown only when the room is wide
-//      enough on the screen to carry it.
+//   3. Labels. Two labels never sit on one another: the larger room keeps
+//      its label. (How MUCH of a label a room carries is the scene's own
+//      rule, sceneCore.pinSize, the same on the web.)
 
 /** One finger on the glass, in points from the top left of the screen. */
 export interface FingerPoint { id: string; x: number; y: number }
@@ -22,6 +23,7 @@ export type GestureAct =
   | { kind: 'orbit'; dx: number; dy: number }
   | { kind: 'pan'; dx: number; dy: number }
   | { kind: 'zoom'; factor: number }
+  | { kind: 'twist'; radians: number }
   | { kind: 'tap' };
 
 export interface GestureState {
@@ -45,6 +47,11 @@ export const TAP_SLOP_PT = 8;
 export const TAP_MAX_MS = 450;
 /** One step may not zoom by more than this, in or out: a finger that jumps cannot throw the model away. */
 export const MAX_ZOOM_STEP = 1.6;
+
+/** Two fingers closer than this cannot say which way they turned. */
+export const MIN_TWIST_SPREAD_PT = 24;
+/** One step may not turn the model by more than this: a finger that jumps cannot spin it round. */
+export const MAX_TWIST_STEP = 0.6;
 
 const finite = (n: number): boolean => typeof n === 'number' && Number.isFinite(n);
 const clean = (fingers: readonly FingerPoint[]): FingerPoint[] => fingers.filter((f) => finite(f.x) && finite(f.y)).slice(0, 2).map((f) => ({ id: String(f.id), x: f.x, y: f.y }));
@@ -87,6 +94,12 @@ export function gestureMove(prev: GestureState, fingers: readonly FingerPoint[])
       const factor = Math.max(1 / MAX_ZOOM_STEP, Math.min(MAX_ZOOM_STEP, d1 / d0));
       if (factor !== 1) acts.push({ kind: 'zoom', factor });
     }
+    // The two fingers turned about their middle: the model turns with them (the web view does the same).
+    if (d0 > MIN_TWIST_SPREAD_PT && d1 > MIN_TWIST_SPREAD_PT) {
+      let turn = Math.atan2(b1.y - b0.y, b1.x - b0.x) - Math.atan2(a1.y - a0.y, a1.x - a0.x);
+      if (turn > Math.PI) turn -= Math.PI * 2; else if (turn < -Math.PI) turn += Math.PI * 2;
+      if (turn !== 0 && Math.abs(turn) <= MAX_TWIST_STEP) acts.push({ kind: 'twist', radians: turn });
+    }
     const dx = (b0.x + b1.x) / 2 - (a0.x + a1.x) / 2;
     const dy = (b0.y + b1.y) / 2 - (a0.y + a1.y) / 2;
     if (dx !== 0 || dy !== 0) acts.push({ kind: 'pan', dx, dy });
@@ -127,37 +140,6 @@ export function viewSize(layoutWidthPt: number, layoutHeightPt: number, bufferWi
   const pixelRatio = Math.max(1, Math.min(2, scale));
   const width = bufferWidthPx / pixelRatio;
   return { width, height: bufferHeightPx / pixelRatio, pixelRatio, unitsPerPoint: width / layoutWidthPt };
-}
-
-/** The scene's own zoom limits (threeScene.zoomBy), mirrored so the label rule knows the zoom. */
-export const SCENE_ZOOM_MIN = 0.5;
-export const SCENE_ZOOM_MAX = 6;
-export const nextZoom = (zoom: number, factor: number): number => Math.max(SCENE_ZOOM_MIN, Math.min(SCENE_ZOOM_MAX, zoom * (finite(factor) && factor > 0 ? factor : 1)));
-
-/**
- * Points of screen per metre of floor, for the scene's camera
- * (threeScene.updateCamera: min(w, h x 1.4) / (span x 1.3) x zoom, in scene units).
- */
-export function pointsPerMetre(size: PhoneViewSize, spanM: number, zoom: number): number {
-  if (!(spanM > 0) || !(zoom > 0)) return 0;
-  return ((Math.min(size.width, size.height * 1.4) / (spanM * 1.3)) * zoom) / size.unitsPerPoint;
-}
-
-/** A room whose shorter side is under this many points on the screen shows its name alone. */
-export const SECOND_LINE_MIN_PT = 84;
-/** A room needs a longer side of at least this many points to carry its name... */
-export const LABEL_MIN_LONG_PT = 56;
-/** ...and a shorter side of at least this many. Smaller, it shows no label: the room list below still names it. */
-export const LABEL_MIN_SHORT_PT = 22;
-
-export type LabelDetail = 'none' | 'name' | 'full';
-
-/** How much of a room's label fits, from the room's two sides in metres. */
-export function labelDetail(shortSideM: number, longSideM: number, ptPerMetre: number): LabelDetail {
-  const short = Math.min(shortSideM, longSideM) * ptPerMetre;
-  const long = Math.max(shortSideM, longSideM) * ptPerMetre;
-  if (!(short >= LABEL_MIN_SHORT_PT) || !(long >= LABEL_MIN_LONG_PT)) return 'none';
-  return short >= SECOND_LINE_MIN_PT ? 'full' : 'name';
 }
 
 export interface LabelBox { id: string; x: number; y: number; w: number; h: number; weight: number }
