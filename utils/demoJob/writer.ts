@@ -473,6 +473,7 @@ export async function removeDemoJob(projectId: string, ports: DemoPorts): Promis
       del(ports.actions(), id);
       // One at a time, for the same reason as the adds.
       for (let i = 0; i < SHOW_TRIES && has().has(id); i += 1) await ports.pause(BREATH_MS);
+      await ports.pause(BREATH_MS);
     }
   };
   await sweep(shifts, () => idsOf(ports.world().timeEntries), (a, id) => a.deleteTimeEntry(id));
