@@ -32,6 +32,7 @@ import { ES_FIELD_VOICE } from './field/voice';
 import { ES_OFFICE_FIRST_JOB } from './office/firstJob';
 import { ES_OFFICE_ROOM_SCAN } from './office/roomScan';
 import { ES_OFFICE_CODE_FLAGS } from './office/codeFlags';
+import { ES_OFFICE_PROOF_PACK } from './office/proofPack';
 import { ES_OFFICE_SCAN_CLEARANCE } from './office/scanClearance';
 import { ES_OFFICE_NOTICES } from './office/notices';
 
@@ -59,6 +60,7 @@ export const ES_SHARDS: Record<string, EsCatalog> = {
   'office/firstJob': ES_OFFICE_FIRST_JOB,
   'office/roomScan': ES_OFFICE_ROOM_SCAN,
   'office/codeFlags': ES_OFFICE_CODE_FLAGS,
+  'office/proofPack': ES_OFFICE_PROOF_PACK,
   'office/scanClearance': ES_OFFICE_SCAN_CLEARANCE,
   'office/notices': ES_OFFICE_NOTICES,
 };

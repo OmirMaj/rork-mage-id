@@ -1,4 +1,4 @@
-// rfp-attachments-private.mjs — PGlite proof of 20261009120000_rfp_attachments_private.sql (lane PROTECT-SERVER).
+// rfp-attachments-private.mjs — PGlite proof of 20261010120000_rfp_attachments_private.sql (lane PROTECT-SERVER).
 // Usage: [MUTATE=<n>] node scripts/pgq/rfp-attachments-private.mjs <worktree>
 //        node scripts/pgq/rfp-attachments-private.mjs <worktree> --all
 // PGlite has no Storage service: "anonymous GET of a public URL" is modelled by the bucket's
@@ -7,7 +7,7 @@
 import { BASE_SQL, STORAGE_SQL, loadPGlite, makeKit, readMigration, replacer, runAll, worktreeArg } from './_harness.mjs';
 
 const ROOT = worktreeArg('scripts/pgq/rfp-attachments-private.mjs');
-const FILE = '20261009120000_rfp_attachments_private.sql';
+const FILE = '20261010120000_rfp_attachments_private.sql';
 
 if (process.argv[3] === '--all') {
   runAll(import.meta.url, ROOT, {

@@ -6,7 +6,7 @@
 // permanent public URL in a table every signed-in account can list. The fix
 // has a client half (store the PATH, sign at read time: utils/rfpAttachmentPath
 // + utils/rfpAttachmentUrls) and a held migration that makes the bucket private
-// (supabase/migrations/20261009120000_rfp_attachments_private.sql). This guard
+// (supabase/migrations/20261010120000_rfp_attachments_private.sql). This guard
 // keeps both halves from sliding back:
 //
 //   A. the path rule    rfpAttachmentPath() recovers a path from a bare path
@@ -44,7 +44,7 @@ const read = (rel: string): string => readFileSync(path.join(ROOT, rel), 'utf8')
 const PATH_FILE = 'utils/rfpAttachmentPath.ts';
 const URLS_FILE = 'utils/rfpAttachmentUrls.ts';
 const STORAGE_FILE = 'utils/storage.ts';
-const MIGRATION = 'supabase/migrations/20261009120000_rfp_attachments_private.sql';
+const MIGRATION = 'supabase/migrations/20261010120000_rfp_attachments_private.sql';
 const SCRATCH = mkdtempSync(path.join(tmpdir(), 'mageid-rfp-'));
 let evalSeq = 0;
 const READERS = ['app/rfp-detail.tsx', 'app/my-rfps.tsx', 'app/nearby-rfps.tsx'];

@@ -184,6 +184,8 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'permit-path': 'dashboard',
   // Lane SCANROOM: Scan The Room (dark behind SCAN_ROOM_ENABLED). A phone flow; on desktop it reads as a form.
   'scan-room': 'form',
+  // Lane PROOFPACK: the Pay Period Record review (dark behind PROOF_PACK_ENABLED). One column of cards: a form.
+  'proof-pack': 'form',
   'job-detail': 'dashboard', 'lien-waivers': 'dashboard', 'living-estimate': 'dashboard',
   'margin-alerts': 'dashboard', 'margin-risk': 'dashboard', 'my-rfps': 'dashboard',
   'nearby-rfps': 'dashboard', 'notifications-inbox': 'dashboard',

@@ -91,6 +91,16 @@ export const EXPECTED_REDIRECTS: ExpectedRedirect[] = [
     states: ['empty', 'populated'],
   },
   {
+    from: '/proof-pack',
+    to: '/',
+    why:
+      'The Pay Period Record is dark: constants/featureFlags.ts '
+      + 'PROOF_PACK_ENABLED is false and the test world is not the app owner, '
+      + 'so app/proof-pack.tsx redirects to Home before it mounts anything. '
+      + 'Remove this entry in the change that flips the flag on.',
+    states: ['empty', 'populated'],
+  },
+  {
     from: '/construction-news',
     to: '/discover',
     why:

@@ -1,4 +1,4 @@
-// legal-acceptances.mjs — PGlite proof of 20261009100000_legal_acceptances.sql (lane PROTECT-SERVER).
+// legal-acceptances.mjs — PGlite proof of 20261010100000_legal_acceptances.sql (lane PROTECT-SERVER).
 // Usage: [MUTATE=<n>] node scripts/pgq/legal-acceptances.mjs <worktree>   (one run)
 //        node scripts/pgq/legal-acceptances.mjs <worktree> --all            (as written + every planted mutation)
 // A plant softens the migration's own self-check to a notice where it would catch the plant at
@@ -6,7 +6,7 @@
 import { BASE_SQL, loadPGlite, makeKit, readMigration, replacer, runAll, worktreeArg } from './_harness.mjs';
 
 const ROOT = worktreeArg('scripts/pgq/legal-acceptances.mjs');
-const FILE = '20261009100000_legal_acceptances.sql';
+const FILE = '20261010100000_legal_acceptances.sql';
 
 if (process.argv[3] === '--all') {
   runAll(import.meta.url, ROOT, {

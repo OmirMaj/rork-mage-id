@@ -1,4 +1,4 @@
--- 20261009110000_signed_record_tombstones.sql — proof that a signed record
+-- 20261010110000_signed_record_tombstones.sql — proof that a signed record
 -- existed, kept when the account that held it is deleted (lane PROTECT-SERVER;
 -- build list item 6a).
 --

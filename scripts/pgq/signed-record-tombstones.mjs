@@ -1,10 +1,10 @@
-// signed-record-tombstones.mjs — PGlite proof of 20261009110000_signed_record_tombstones.sql (lane PROTECT-SERVER).
+// signed-record-tombstones.mjs — PGlite proof of 20261010110000_signed_record_tombstones.sql (lane PROTECT-SERVER).
 // Usage: [MUTATE=<n>] node scripts/pgq/signed-record-tombstones.mjs <worktree>
 //        node scripts/pgq/signed-record-tombstones.mjs <worktree> --all
 import { BASE_SQL, loadPGlite, makeKit, readMigration, replacer, runAll, worktreeArg } from './_harness.mjs';
 
 const ROOT = worktreeArg('scripts/pgq/signed-record-tombstones.mjs');
-const FILE = '20261009110000_signed_record_tombstones.sql';
+const FILE = '20261010110000_signed_record_tombstones.sql';
 
 if (process.argv[3] === '--all') {
   runAll(import.meta.url, ROOT, {

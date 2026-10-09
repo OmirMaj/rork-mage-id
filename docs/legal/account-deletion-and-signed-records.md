@@ -80,7 +80,7 @@ These are choices of policy. They are not mutually exclusive; A is built, B to E
 
 It changes nothing about what is deleted.
 
-- Migration `supabase/migrations/20261009110000_signed_record_tombstones.sql`: table `public.signed_record_tombstones` and function `public.tombstone_signed_records(user id, project ids, portal ids)`.
+- Migration `supabase/migrations/20261010110000_signed_record_tombstones.sql`: table `public.signed_record_tombstones` and function `public.tombstone_signed_records(user id, project ids, portal ids)`.
 - `delete-account` calls the function once, after it has worked out which projects and portals the account owns and before its first write (step 1b).
 - One row per signed record: change order approvals (all decisions), signed lien waivers, contracts with any signature, field tickets with an authorization on the account's own projects, pay applications with a certification date, sealed punch records.
 - Each row: record kind, record id, the client portal's id for approvals, the signed time, a SHA-256 of the row as it stood (the waiver's signing key left out), the record's own stored document fingerprint where it had one, a non-reversible marker of the deleted account, and the time the tombstone was written.
@@ -93,4 +93,4 @@ It changes nothing about what is deleted.
 
 `marketing/privacy.html:146`: "When you delete your account, your account, every project you own and the files you uploaded are permanently removed within 30 days." Under option A that sentence needs the one addition above. Under B it is no longer true as written.
 
-Acceptance records are a separate, smaller case: `public.legal_acceptances` rows are kept after deletion with the account id removed and a non-reversible marker (migration `20261009100000_legal_acceptances.sql`). The policy should say: "We keep a record that the Terms and Privacy Policy were accepted, and when, after an account is deleted. It no longer identifies the account."
+Acceptance records are a separate, smaller case: `public.legal_acceptances` rows are kept after deletion with the account id removed and a non-reversible marker (migration `20261010100000_legal_acceptances.sql`). The policy should say: "We keep a record that the Terms and Privacy Policy were accepted, and when, after an account is deleted. It no longer identifies the account."

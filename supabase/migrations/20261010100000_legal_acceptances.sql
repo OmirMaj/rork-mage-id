@@ -1,4 +1,4 @@
--- 20261009100000_legal_acceptances.sql — a saved record of every acceptance
+-- 20261010100000_legal_acceptances.sql — a saved record of every acceptance
 -- and acknowledgement (lane PROTECT-SERVER; build list items 1, 2, 3 and 15).
 --
 -- WHY. Nothing recorded that anyone agreed to the Terms of Service or the

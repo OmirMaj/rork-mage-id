@@ -1,4 +1,4 @@
--- 20261009120000_rfp_attachments_private.sql — homeowner photos and drawings
+-- 20261010120000_rfp_attachments_private.sql — homeowner photos and drawings
 -- stop being public (lane PROTECT-SERVER; build list item 11, audit DB-F11b).
 --
 -- ██ DO NOT APPLY until the app update that signs these links has REACHED

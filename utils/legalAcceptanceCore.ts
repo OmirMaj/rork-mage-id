@@ -10,7 +10,7 @@
 // at sign-in, the code-answer notice, the scan notice. The server stamps who
 // (auth.uid()) and when (its own clock); this module only says WHAT (kind,
 // version, a SHA-256 of the words shown) and WHERE (surface, build, platform).
-// Migration: supabase/migrations/20261009100000_legal_acceptances.sql.
+// Migration: supabase/migrations/20261010100000_legal_acceptances.sql.
 //
 // THE VERSION CONSTANTS BELOW ARE PINNED TO THE PUBLISHED PAGES. The hashes are
 // of the text of marketing/terms.html and marketing/privacy.html (the words

@@ -17,7 +17,7 @@
 // admits (the owner; a contractor while the posting is open; a bidder).
 //
 // ORDERING. The migration that flips the bucket private
-// (supabase/migrations/20261009120000_rfp_attachments_private.sql) is applied
+// (supabase/migrations/20261010120000_rfp_attachments_private.sql) is applied
 // AFTER this release has reached phones. So this module works in both worlds:
 //   bucket still public  → the signing call is refused (a public bucket has no
 //                          read policy), and a stored legacy URL is handed back

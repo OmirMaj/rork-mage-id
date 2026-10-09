@@ -180,7 +180,7 @@ export async function uploadProfileImage(
 // Upload a homeowner-RFP attachment (photo or drawing PDF) to the
 // rfp-attachments bucket. Returns the storage PATH, never a URL: the bucket is
 // being made private (audit DB-F11b,
-// supabase/migrations/20261009120000_rfp_attachments_private.sql) and a link is
+// supabase/migrations/20261010120000_rfp_attachments_private.sql) and a link is
 // minted at read time for people allowed to see the posting
 // (utils/rfpAttachmentUrls.ts). Path convention is
 // <userId>/<rfpId>/<timestamp>_<filename>, which the insert policy on
