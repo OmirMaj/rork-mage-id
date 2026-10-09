@@ -149,7 +149,7 @@ describe('MiniSpine', () => {
 });
 
 const LOGIN_IDS = ['login-apple', 'login-google', 'login-email', 'login-magic-link', 'login-show-password-mode', 'login-forgot', 'login-go-signup'];
-const SIGNUP_IDS = ['signup-apple-top', 'signup-google-top', 'signup-name', 'signup-email', 'signup-password', 'signup-submit', 'signup-terms-link', 'signup-privacy-link', 'signup-go-login'];
+const SIGNUP_IDS = ['signup-apple-top', 'signup-google-top', 'signup-name', 'signup-email', 'signup-password', 'signup-submit', 'signup-agreement', 'signup-agreement-terms', 'signup-agreement-privacy', 'signup-go-login'];
 
 /** Let the real app's providers settle (front-door's pump), so nothing is left running at teardown. */
 async function settle(n = 6) {

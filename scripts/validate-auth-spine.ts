@@ -126,7 +126,9 @@ export const BASE_TEST_IDS: Record<string, string[]> = {
   ],
   'app/signup.tsx': [
     'signup-apple-top', 'signup-email', 'signup-go-login', 'signup-google-top', 'signup-name', 'signup-password',
-    'signup-privacy-link', 'signup-submit', 'signup-terms-link',
+    // WEBCANCEL: the older sentence under Create Account (signup-terms-link,
+    // signup-privacy-link) is gone; the shared notice above the buttons stays.
+    'signup-agreement', 'signup-submit',
   ],
   'app/onboarding.tsx': [
     'onboarding-company-name', 'onboarding-cta', 'onboarding-preview-next', 'onboarding-rates-blob', 'onboarding-rates-commit',

@@ -9,8 +9,8 @@ exports[`slick3 front door golden — /login and /signup at rest (a) /login phon
 
 exports[`slick3 front door golden — /login and /signup at rest (b) /signup phone 390 × 844 iOS 1`] = `
 {
-  "lines": 573,
-  "sha256": "ca661b217301e699115637c0d593fbaffe72d15cdbed5c62486e1770a540d393",
+  "lines": 562,
+  "sha256": "8e622a359342ca406fd5b80f5722277acbb0bf3ad4f9a0c826e252a5ac04a408",
 }
 `;
 
@@ -23,7 +23,7 @@ exports[`slick3 front door golden — /login and /signup at rest (c) /login desk
 
 exports[`slick3 front door golden — /login and /signup at rest (d) /signup desktop 1280 × 800 (desktop-web layout forced) 1`] = `
 {
-  "lines": 680,
-  "sha256": "e7527de2a05a3d986ae327e8d5d432f3d6781fe21c40cf42588d2bf41d11338e",
+  "lines": 669,
+  "sha256": "e3a3c67025a473488e924dd4c9f06ea6a400ad845d31dbaf5b6ceb2f19082f73",
 }
 `;

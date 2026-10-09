@@ -9,8 +9,8 @@ exports[`lane P2 — the phone is unchanged (golden) /paywall, iOS 390 (the nati
 
 exports[`lane P2 — the phone is unchanged (golden) /paywall, web 390 (WebPaywallView) 1`] = `
 {
-  "lines": 892,
-  "sha256": "f6a28ad3c397df09c58ee5997db7bb6ea249fb385692ee5a63d8398c13e3a8f1",
+  "lines": 907,
+  "sha256": "98aecf1e319523f712b5a09e78ce69bb682b88f5787b8350723196c1f218c88c",
 }
 `;
 
@@ -72,42 +72,42 @@ exports[`lane P2 — the phone is unchanged (golden) estimate-wizard?projectId (
 
 exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), iOS 390 1`] = `
 {
-  "lines": 1805,
-  "sha256": "d5d883b17602117524b4fdb68c61113478d5e13937e011bf9e9010a18ab36b71",
+  "lines": 1808,
+  "sha256": "54ef611d2f07b4554733dad94d0f1a61aae091975dc9225af0fb8c135077353d",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), web 390 1`] = `
 {
-  "lines": 1805,
-  "sha256": "d5d883b17602117524b4fdb68c61113478d5e13937e011bf9e9010a18ab36b71",
+  "lines": 1808,
+  "sha256": "54ef611d2f07b4554733dad94d0f1a61aae091975dc9225af0fb8c135077353d",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as contractor, iOS 390 1`] = `
 {
-  "lines": 1773,
-  "sha256": "43e9c26696f0d7e941d5e406ce4749b1e1001279aa463d7d6719a8bd6efcf18e",
+  "lines": 1774,
+  "sha256": "89da52d045fdfb733ac28bf6a8b6ab824a5ba6450b0c1f87438dabd876727043",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as contractor, web 390 1`] = `
 {
-  "lines": 1773,
-  "sha256": "43e9c26696f0d7e941d5e406ce4749b1e1001279aa463d7d6719a8bd6efcf18e",
+  "lines": 1774,
+  "sha256": "89da52d045fdfb733ac28bf6a8b6ab824a5ba6450b0c1f87438dabd876727043",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as property_manager, iOS 390 1`] = `
 {
-  "lines": 1565,
-  "sha256": "38d9b2c635dc642fe555649fcbbe3fe82fad3305a33f86e97a8927cb4f718c5e",
+  "lines": 1566,
+  "sha256": "8b3b3ec6606a727202c3bcadbf5ae7ca45ea0a7c0e78f76b6ba6d5b6484fa2b3",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as property_manager, web 390 1`] = `
 {
-  "lines": 1565,
-  "sha256": "38d9b2c635dc642fe555649fcbbe3fe82fad3305a33f86e97a8927cb4f718c5e",
+  "lines": 1566,
+  "sha256": "8b3b3ec6606a727202c3bcadbf5ae7ca45ea0a7c0e78f76b6ba6d5b6484fa2b3",
 }
 `;
