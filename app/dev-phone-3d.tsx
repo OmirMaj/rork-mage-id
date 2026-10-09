@@ -63,7 +63,7 @@ function Spike() {
   const model = useMemo(() => (big ? spikeFortyRoomJob() : spikeSevenRoomJob()), [big]);
   const input = useMemo<ReplayInput>(() => {
     const s = spikeTenWeekSchedule();
-    return { tasks: s.tasks, linkTasks: [], points: s.points, clock: s.clock, startDate: null };
+    return { tasks: s.tasks, linkTasks: [], points: s.points, clock: s.clock, startDate: null, nonWorkingDates: [], stageBy: {}, futureReports: 0 };
   }, []);
   const state = useReplayState(input);
   const roomTasks = useRoomTasks(model, input);
