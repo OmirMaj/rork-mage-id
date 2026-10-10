@@ -23,10 +23,9 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { showAlert } from '@/utils/alert';
 import type { AIAPayApplication } from '@/utils/aiaBilling';
 import { formatMoney } from '@/utils/formatters';
-import { roundCents } from '@/utils/invoiceBilling';
 import {
-  SOV_FIELDS, SOV_FIELD_LABEL, SOV_IMPORT_COPY, applySovImport, detectSovColumns, parseDelimited,
-  planSovImport, sovImportModesFor,
+  SOV_FIELDS, SOV_FIELD_LABEL, SOV_IMPORT_COPY, SOV_IMPORT_ROW_CAP, applySovImport, detectSovColumns,
+  planSovImport, readDelimited, sovImportModesFor, sovImportPreview,
   type SovColumnMapping, type SovField, type SovImportMode,
 } from '@/utils/payApp/sovSpreadsheet';
 import { makePayAppStyles } from './styles';
@@ -65,7 +64,13 @@ export function SovImportSheet({ visible, app, onClose, onApply }: SovImportShee
       showAlert(SOV_IMPORT_COPY.couldNotRead, SOV_IMPORT_COPY.spreadsheetFileBody);
       return;
     }
-    const parsed = parseDelimited(source);
+    const { rows: parsed, unterminatedQuoteRow } = readDelimited(source);
+    // A quotation mark left open swallows every row after it into one cell.
+    // Say so; do not import a guess.
+    if (unterminatedQuoteRow != null) {
+      showAlert(SOV_IMPORT_COPY.couldNotRead, SOV_IMPORT_COPY.unterminatedQuoteBody(unterminatedQuoteRow));
+      return;
+    }
     if (parsed.length === 0) {
       showAlert(SOV_IMPORT_COPY.couldNotRead, SOV_IMPORT_COPY.emptyBody);
       return;
@@ -127,7 +132,13 @@ export function SovImportSheet({ visible, app, onClose, onApply }: SovImportShee
     reset();
   }, [plan, app, onApply, reset]);
 
-  const difference = plan ? roundCents(plan.sumScheduled - app.contractSumToDate) : 0;
+  // What the schedule of values would add up to under each way of landing:
+  // the RESULT, which is what he compares with his contract sum.
+  const previews = useMemo(() => {
+    const out: Partial<Record<SovImportMode, ReturnType<typeof sovImportPreview>>> = {};
+    if (plan && plan.rows.length > 0) for (const mode of modes) out[mode] = sovImportPreview({ app, plan, mode });
+    return out;
+  }, [plan, modes, app]);
 
   return (
     <Sheet
@@ -221,19 +232,15 @@ export function SovImportSheet({ visible, app, onClose, onApply }: SovImportShee
                   ))}
                 </View>
               ) : null}
-              <View style={styles.sumRow}>
-                <Text style={styles.sumLabel}>{SOV_IMPORT_COPY.sumLabel}</Text>
-                <Text style={styles.sumValue}>{formatMoney(plan.sumScheduled, 2)}</Text>
-              </View>
+              {plan.overCap > 0 ? (
+                <Text style={styles.badRow} testID="sov-import-over-cap">{SOV_IMPORT_COPY.overCapLine(SOV_IMPORT_ROW_CAP, plan.overCap)}</Text>
+              ) : null}
+              {plan.duplicateItemNos.length > 0 ? (
+                <Text style={styles.badRow} testID="sov-import-duplicates">{SOV_IMPORT_COPY.duplicateLine(plan.duplicateItemNos)}</Text>
+              ) : null}
               <View style={styles.sumRow}>
                 <Text style={styles.sumLabel}>{SOV_IMPORT_COPY.contractLabel}</Text>
                 <Text style={styles.sumValue}>{formatMoney(app.contractSumToDate, 2)}</Text>
-              </View>
-              <View style={styles.sumRow}>
-                <Text style={styles.sumLabel}>{SOV_IMPORT_COPY.differenceLabel}</Text>
-                <Text style={styles.sumValue}>
-                  {Math.abs(difference) <= 0.01 ? SOV_IMPORT_COPY.noDifference : formatMoney(difference, 2)}
-                </Text>
               </View>
               {plan.rows.length === 0 ? (
                 <Text style={styles.note}>{SOV_IMPORT_COPY.nothingToImport}</Text>
@@ -248,6 +255,20 @@ export function SovImportSheet({ visible, app, onClose, onApply }: SovImportShee
                 >
                   <Text style={styles.modeName}>{MODE_COPY[mode].label}</Text>
                   <Text style={styles.modeHint}>{MODE_COPY[mode].hint}</Text>
+                  {previews[mode] ? (
+                    <View testID={`sov-import-result-${mode}`}>
+                      <View style={styles.sumRow}>
+                        <Text style={styles.sumLabel}>{SOV_IMPORT_COPY.afterImportLabel}</Text>
+                        <Text style={styles.sumValue}>{formatMoney(previews[mode]!.total, 2)}</Text>
+                      </View>
+                      <View style={styles.sumRow}>
+                        <Text style={styles.sumLabel}>{SOV_IMPORT_COPY.differenceLabel}</Text>
+                        <Text style={styles.sumValue}>
+                          {Math.abs(previews[mode]!.difference) <= 0.01 ? SOV_IMPORT_COPY.noDifference : formatMoney(previews[mode]!.difference, 2)}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
                 </Pressable>
               ))}
             </View>

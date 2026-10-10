@@ -39,6 +39,11 @@ import { parseInvoiceFromTranscript, mergeText } from '@/utils/voiceFormParsers'
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { LienClockCard } from '@/components/invoice/LienClockCard';
 import { LIEN_CLOCK_ENABLED } from '@/constants/featureFlags';
+// Lane PAYAPP-1 (owner preview): the invoice behind a Bill This Month period.
+import { payAppEasyAllowed } from '@/utils/payApp/allowed';
+import { comparePeriodInvoice, periodInvoiceApplicationNumber } from '@/utils/payApp/periodInvoice';
+import { SUGGEST_COPY } from '@/utils/payApp/suggestCopy';
+import { savedLineToSov } from '@/utils/aiaBilling';
 import { createPaymentLink, isPayLinkBalanceCode, payLinkBalanceFallback, payLinkRemintRefusalNotice } from '@/utils/stripe';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Banknote } from 'lucide-react-native';
@@ -681,7 +686,11 @@ function InvoiceInner() {
   // chosen, no late-arriving load may overwrite it (a GC choice always wins).
   const [termsOrigin, setTermsOrigin] = useState<'loading' | InvoiceTermsDefault['origin'] | null>(
     invoiceId
-      ? (termsOriginParam === 'cash_flow_setup' || termsOriginParam === 'fallback' || termsOriginParam === 'unconfirmed' ? termsOriginParam : null)
+      ? (termsOriginParam === 'cash_flow_setup' || termsOriginParam === 'fallback' || termsOriginParam === 'unconfirmed' ? termsOriginParam
+        // A draft with NO due date is one whose terms nobody confirmed (Bill
+        // This Month writes it that way rather than stamp Net 30 and a date
+        // silently): say the terms are the app default until he picks.
+        : existingInvoice && existingInvoice.status === 'draft' && !existingInvoice.dueDate ? 'unconfirmed' : null)
       : contractTerms ? 'contract' : 'loading',
   );
   const termsTouchedRef = useRef(false);
@@ -817,6 +826,18 @@ function InvoiceInner() {
     () => getAIAPayAppsForProject(projectId ?? ''),
     [projectId, getAIAPayAppsForProject],
   );
+  // Lane PAYAPP-1 (owner preview): an invoice Bill This Month made is one
+  // document with its pay application. When their saved amounts differ (this
+  // invoice was edited by hand, or it was past the point the application may
+  // rewrite it), that is SAID here and on the application. Nothing is changed.
+  const periodAppDiffers = useMemo(() => {
+    if (!existingInvoice || !payAppEasyAllowed(user?.email)) return null;
+    if (periodInvoiceApplicationNumber(existingInvoice) == null) return null;
+    const rec = projectPayApps.find(a => a.invoiceId === existingInvoice.id);
+    if (!rec) return null;
+    const cmp = comparePeriodInvoice(existingInvoice, rec.lines.map(savedLineToSov));
+    return cmp.differs ? { applicationNumber: rec.applicationNumber, ...cmp } : null;
+  }, [existingInvoice, user?.email, projectPayApps]);
   const retainageSeed = useMemo(() => resolveRetainagePercent({
     invoice: existingInvoice,
     priorInvoices: existingInvoices,
@@ -3404,6 +3425,16 @@ function InvoiceInner() {
               />
             </View>
           )}
+
+          {periodAppDiffers ? (
+            <Text style={styles.termsHint} testID="invoice-period-app-differs">
+              {SUGGEST_COPY.differsOnInvoice(
+                periodAppDiffers.applicationNumber,
+                formatMoney(periodAppDiffers.invoiceWork, 2), formatMoney(periodAppDiffers.applicationWork, 2),
+                formatMoney(periodAppDiffers.invoiceRetainage, 2), formatMoney(periodAppDiffers.applicationRetainage, 2),
+              )}
+            </Text>
+          ) : null}
 
           {/* Hidden for everyone (LIEN_CLOCK_ENABLED): the card computes a legal
               deadline. See constants/featureFlags.ts. */}

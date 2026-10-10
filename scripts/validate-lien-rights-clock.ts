@@ -119,7 +119,15 @@ console.log('\n── the card and the module source');
   assert(!/Date\.now\(|new Date\(\)/.test(lib), 'lienClockFor never reads the clock (no Date.now / new Date())');
   assert(!/you are entitled|guaranteed/i.test(lib), 'module never says "you are entitled" / "guaranteed"');
   const screen = read('app/invoice.tsx');
-  assert(/existingInvoice && effectiveStatus === 'overdue' && daysPastDue >= 30[\s\S]{0,120}<LienClockCard[\s\S]{0,200}\{\/\* Payment reminders\. Two jobs:/.test(screen), 'invoice mounts LienClockCard for a 30+-day-overdue invoice, directly above Payment reminders');
+  // The card computes a legal deadline, so it is HIDDEN for everyone behind
+  // LIEN_CLOCK_ENABLED = false (constants/featureFlags.ts, lane PAYAPP-1). The
+  // old message here said the invoice "mounts" the card for a 30+ day overdue
+  // invoice, which stopped being true when the flag went in. What is pinned
+  // now is the truth: the mount exists, it is behind the flag, the flag is
+  // false, and its place (directly above Payment reminders) is unchanged for
+  // the day the flag is flipped.
+  assert(/\{LIEN_CLOCK_ENABLED && existingInvoice && effectiveStatus === 'overdue' && daysPastDue >= 30[\s\S]{0,120}<LienClockCard[\s\S]{0,200}\{\/\* Payment reminders\. Two jobs:/.test(screen), 'the LienClockCard mount (30+ day overdue invoice, directly above Payment reminders) is behind LIEN_CLOCK_ENABLED');
+  assert(/export const LIEN_CLOCK_ENABLED: boolean = false;/.test(read('constants/featureFlags.ts')), 'LIEN_CLOCK_ENABLED is false: the card is hidden for everyone');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

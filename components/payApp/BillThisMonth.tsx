@@ -13,9 +13,14 @@
 //     task gets no suggestion. There is no project average.
 //   • NOTHING COUNTS UNTIL HE ACCEPTS IT OR TYPES HIS OWN. The only writers of
 //     a line's `thisPeriod` in this file are `accept`, `acceptAll` and
-//     `typePercent`, and each is his tap or his keystroke. The footer adds up
-//     `thisPeriod` and nothing else, and says how many suggestions are not in
-//     it.
+//     `typePercent`, each his tap or his keystroke, and `restoreLine`, which
+//     puts a line back to what it held when a percent he typed was refused.
+//     The footer adds up `thisPeriod` and nothing else, and says how many
+//     suggestions are not in it.
+//   • The footer is the cover's lines 4 to 8 in plain labels, so it adds up
+//     when money carries in from earlier applications.
+//   • The draft invoice behind the period is named, with its total including
+//     tax and its payment terms, BEFORE he saves.
 //   • "Next: Rejection Check" shows the check, which never blocks. Continue
 //     saves the period as a DRAFT: the progress invoice behind it is made from
 //     the lines he entered (utils/payApp/periodInvoice, saved through the same
@@ -26,7 +31,7 @@
 // No date here is a deadline. Period To opens on the last day of the month as
 // a default he confirms or retypes.
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
@@ -37,6 +42,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { PaymentTerms, Project, SavedAIAPayApp } from '@/types';
+import { SAMPLE_DOC_NOT_SENT, isSampleProject } from '@/utils/sampleGuard';
 import { showAlert } from '@/utils/alert';
 import {
   computeAIATotals, isCalendarDay, selectPriorApplication,
@@ -46,22 +52,27 @@ import { INVOICE_OWNER_ONLY_REASON, invoiceRoleGate, nextInvoiceNumberFrom, note
 import { todayCalendarDay } from '@/utils/calendarDate';
 import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
-import { retainageOnWorkValue, roundCents } from '@/utils/invoiceBilling';
+import { effectiveRetentionHeld, roundCents } from '@/utils/invoiceBilling';
 import { payAppEasyIsOwnerPreview } from '@/utils/payApp/allowed';
 import { shortDay } from '@/utils/payApp/days';
-import { buildPeriodInvoice } from '@/utils/payApp/periodInvoice';
-import { checkFingerprint, runRejectionCheck } from '@/utils/payApp/rejectionCheck';
+import { buildPeriodInvoice, periodRetainage } from '@/utils/payApp/periodInvoice';
+import { buildCheckInput, checkFingerprint, runRejectionCheck } from '@/utils/payApp/rejectionCheck';
 import { REJECTION_COPY } from '@/utils/payApp/rejectionCopy';
-import { restatePeriodTo, rollForwardNextApplication, type RollForwardResult } from '@/utils/payApp/rollForward';
+import { defaultApplicationDate, restatePeriodTo, rollForwardNextApplication, type RollForwardResult } from '@/utils/payApp/rollForward';
 import { savedDraftFromApplication } from '@/utils/payApp/saveRecord';
 import { SUGGEST_COPY, fmtPct } from '@/utils/payApp/suggestCopy';
 import {
   acceptSuggestion, enterPercent, suggestForLines, tallyOpenSuggestions,
   type LineAcceptState,
 } from '@/utils/payApp/suggestPercent';
-import { BillThisMonthLine } from './BillThisMonthLine';
+import { BillThisMonthLine, type LineBeforeTyping } from './BillThisMonthLine';
+import { usePeriodInvoiceTerms } from './usePeriodInvoiceTerms';
 import { RejectionCheckSheet } from './RejectionCheckSheet';
 import { makePayAppStyles } from './styles';
+
+const TERMS_LABEL: Record<string, string> = {
+  due_on_receipt: 'Due on Receipt', net_15: 'Net 15', net_30: 'Net 30', net_45: 'Net 45',
+};
 
 export interface BillThisMonthProps {
   project: Project;
@@ -134,6 +145,30 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
     setStates(prev => ({ ...prev, [lineId]: 'changed' }));
   }, [suggestions]);
 
+  // A percent he typed was refused (or he emptied the field): the line goes
+  // back to exactly what it held when he put the cursor in the field.
+  const restoreLine = useCallback((lineId: string, before: LineBeforeTyping) => {
+    setApp(prev => (prev ? {
+      ...prev,
+      lines: prev.lines.map((l) => {
+        if (l.id !== lineId) return l;
+        const { suggestedPercent: _p, suggestionSource: _s, ...rest } = l;
+        void _p; void _s;
+        return {
+          ...rest,
+          thisPeriod: before.thisPeriod,
+          ...(before.suggestedPercent != null ? { suggestedPercent: before.suggestedPercent } : {}),
+          ...(before.suggestionSource ? { suggestionSource: before.suggestionSource } : {}),
+        };
+      }),
+    } : prev));
+    setStates((prev) => {
+      const next = { ...prev };
+      if (before.state === 'untouched') delete next[lineId]; else next[lineId] = before.state;
+      return next;
+    });
+  }, []);
+
   const acceptAll = useCallback(() => {
     if (tally.open === 0) return;
     showAlert(SUGGEST_COPY.acceptAllTitle, SUGGEST_COPY.acceptAllBody(tally.open, tally.openAmount), [
@@ -163,19 +198,71 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
 
   const setPeriodTo = useCallback((v: string) => {
     const cos = getChangeOrdersForProject(project.id);
-    setApp(prev => (prev ? restatePeriodTo(prev, cos, v) : prev));
+    const today = todayCalendarDay();
+    setApp((prev) => {
+      if (!prev) return prev;
+      const next = restatePeriodTo(prev, cos, v);
+      // The application date follows the period end while it is still the
+      // default; a date he typed himself stays.
+      return prev.applicationDate === defaultApplicationDate(today, prev.periodTo) && isCalendarDay(v)
+        ? { ...next, applicationDate: defaultApplicationDate(today, v) }
+        : next;
+    });
   }, [getChangeOrdersForProject, project.id]);
+  const setApplicationDate = useCallback((v: string) => {
+    setApp(prev => (prev ? { ...prev, applicationDate: v } : prev));
+  }, []);
   const setPeriodFrom = useCallback((v: string) => {
     setApp(prev => (prev ? { ...prev, periodFrom: v || undefined, changeOrderSummary: undefined } : prev));
   }, []);
 
-  // The Rejection Check, on the figures on screen.
+  // The Rejection Check, on the figures on screen. Its inputs are built by
+  // the ONE helper the pay application screen uses (buildCheckInput), so this
+  // is the check that screen would show for the same figures: the rate on
+  // record, the change order log and the prior application included.
   const prior = useMemo(() => (app ? selectPriorApplication(saved, {
     thisApplicationNumber: app.applicationNumber, thisPeriodTo: app.periodTo,
   }) : null), [saved, app]);
-  const check = useMemo(() => (app && checkOpen ? runRejectionCheck({
-    app, prior, saved, changeOrders: getChangeOrdersForProject(project.id),
-  }) : null), [app, checkOpen, prior, saved, getChangeOrdersForProject, project.id]);
+  const checkInput = useMemo(() => (app ? buildCheckInput({
+    app, project, savedForProject: saved, changeOrders: getChangeOrdersForProject(project.id),
+  }) : null), [app, project, saved, getChangeOrdersForProject]);
+  const check = useMemo(() => (checkInput && checkOpen ? runRejectionCheck(checkInput) : null), [checkInput, checkOpen]);
+
+  // The draft invoice this period will make: terms first, then the figures.
+  const projectInvoices = useMemo(() => invoices.filter(i => i.projectId === project.id), [invoices, project.id]);
+  const priorInvoice = prior?.invoiceId ? projectInvoices.find(i => i.id === prior.invoiceId) : undefined;
+  const { terms: periodTerms, resolve: resolvePeriodTerms } = usePeriodInvoiceTerms(priorInvoice, user?.id);
+  const invoiceTaxRate = priorInvoice?.taxRate ?? settings?.taxRate ?? 0;
+  const invoicePreview = useMemo(() => (app ? buildPeriodInvoice({
+    projectId: project.id,
+    lines: app.lines,
+    estimateItems: project.linkedEstimate?.items,
+    applicationNumber: app.applicationNumber,
+    number: 0,
+    now: '',
+    taxRate: invoiceTaxRate,
+    terms: { paymentTerms: 'net_30', confirmed: false },
+    newInvoiceId: () => 'preview',
+    newLineId: () => 'preview',
+  }) : null), [app, project.id, project.linkedEstimate?.items, invoiceTaxRate]);
+
+  // He is about to see the check or save: the keyboard goes, and with it any
+  // field that still has the cursor. (A percent is on the line the moment it
+  // is typed, so there is nothing left to carry over.)
+  const openCheck = useCallback(() => {
+    Keyboard.dismiss();
+    setCheckOpen(true);
+  }, []);
+
+  // Leaving with figures entered asks first: nothing is saved until Continue.
+  const entered = Object.keys(states).length;
+  const leave = useCallback(() => {
+    if (entered === 0) { onClose(); return; }
+    showAlert(SUGGEST_COPY.leaveTitle, SUGGEST_COPY.leaveBody(entered), [
+      { text: SUGGEST_COPY.leaveStay, style: 'cancel' },
+      { text: SUGGEST_COPY.leaveConfirm, style: 'destructive', onPress: onClose },
+    ]);
+  }, [entered, onClose]);
 
   const goToLine = useCallback((lineId: string) => {
     setCheckOpen(false);
@@ -195,15 +282,19 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
     ownedLocally: !!project.ownerUserId && !!user?.id && project.ownerUserId === user.id,
   });
 
-  const saveDraft = useCallback(() => {
-    if (!app || savingRef.current) return;
+  const saveDraft = useCallback(async () => {
+    if (!app || !checkInput || savingRef.current) return;
+    Keyboard.dismiss();
     if (roleGate !== 'open') {
       showAlert(SUGGEST_COPY.ownerOnly, INVOICE_OWNER_ONLY_REASON);
       return;
     }
-    const projectInvoices = invoices.filter(i => i.projectId === project.id);
-    const priorInvoice = prior?.invoiceId ? projectInvoices.find(i => i.id === prior.invoiceId) : undefined;
-    const terms: PaymentTerms = priorInvoice?.paymentTerms ?? 'net_30';
+    savingRef.current = true;
+    // The same resolver Bill From Estimate uses, finished here if the tap beat
+    // it (the read is bounded). Terms he has not confirmed put NO due date on
+    // the invoice.
+    let terms: { paymentTerms: PaymentTerms; confirmed: boolean };
+    try { terms = await resolvePeriodTerms(); } catch { terms = { paymentTerms: 'net_30', confirmed: false }; }
     const now = new Date().toISOString();
     const invoice = buildPeriodInvoice({
       projectId: project.id,
@@ -212,18 +303,17 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
       applicationNumber: app.applicationNumber,
       number: nextInvoiceNumberFrom(projectInvoices, sessionIssuedInvoiceMax.get(project.id) ?? 0),
       now,
-      taxRate: priorInvoice?.taxRate ?? settings?.taxRate ?? 0,
-      paymentTerms: terms,
-      retainagePercent: app.retainagePercent,
+      taxRate: invoiceTaxRate,
+      terms: { paymentTerms: terms.paymentTerms, confirmed: terms.confirmed },
       newInvoiceId: generateUUID,
       newLineId: generateUUID,
     });
     if (!invoice) {
+      savingRef.current = false;
       setCheckOpen(false);
       showAlert(SUGGEST_COPY.screenTitle, SUGGEST_COPY.nothingEntered);
       return;
     }
-    savingRef.current = true;
     addInvoice(invoice);
     noteIssuedInvoiceNumber(invoice.projectId, invoice.number);
     addAIAPayApp(savedDraftFromApplication({
@@ -235,15 +325,15 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
       savedAt: now,
     }));
     setCheckOpen(false);
-    onSaved({ invoiceId: invoice.id, checkedFor: checkFingerprint(app) });
-  }, [app, roleGate, invoices, project, prior, settings?.taxRate, addInvoice, addAIAPayApp, getChangeOrdersForProject, onSaved]);
+    onSaved({ invoiceId: invoice.id, checkedFor: checkFingerprint(checkInput) });
+  }, [app, checkInput, roleGate, projectInvoices, project, invoiceTaxRate, resolvePeriodTerms, addInvoice, addAIAPayApp, getChangeOrdersForProject, onSaved]);
 
   const header = (
     <Stack.Screen
       options={{
         title: SUGGEST_COPY.screenTitle,
         headerLeft: () => (
-          <Pressable onPress={onClose} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back" testID="btm-back">
+          <Pressable onPress={leave} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back" testID="btm-back">
             <ChevronLeft size={24} color={colors.accent} strokeWidth={1.75} />
           </Pressable>
         ),
@@ -265,8 +355,8 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
   }
 
   const workThis = roundCents(app.lines.reduce((s, l) => s + l.thisPeriod, 0));
-  const retainageThis = roundCents(app.lines.reduce((s, l) => s + retainageOnWorkValue(l.thisPeriod, l.retainagePercent), 0));
-  const oneRate = app.lines.every(l => l.retainagePercent === app.retainagePercent);
+  const sample = isSampleProject(project);
+  const termsLabel = periodTerms ? (TERMS_LABEL[periodTerms.paymentTerms] ?? '') : '';
   const periodLine = `Pay Application ${app.applicationNumber}`
     + (shortDay(app.periodTo) ? `, ${shortDay(app.periodFrom) ? `${shortDay(app.periodFrom)} to ` : 'through '}${shortDay(app.periodTo)}` : '');
 
@@ -321,7 +411,34 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
           ) : app.periodTo === roll.period.to ? (
             <Text style={styles.note}>{SUGGEST_COPY.periodToDefault}</Text>
           ) : null}
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>Application Date</Text>
+            <TextInput
+              style={styles.fieldInput}
+              value={app.applicationDate}
+              onChangeText={setApplicationDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel="Application Date"
+              testID="btm-application-date"
+            />
+          </View>
+          {!isCalendarDay(app.applicationDate) ? (
+            <Text style={styles.fieldError}>Type the date as year, month, day, like 2026-10-31.</Text>
+          ) : app.applicationDate === app.periodTo ? (
+            <Text style={styles.note}>{SUGGEST_COPY.applicationDateFollows}</Text>
+          ) : null}
         </View>
+
+        {/* Where this period starts from, when that needs saying. */}
+        {roll.notes.map((n) => (n.kind === 'prior_not_sent' ? (
+          <Text key={`ns-${n.applicationNumber}`} style={styles.fieldError} testID="btm-prior-not-sent">{SUGGEST_COPY.priorNotSent(n.applicationNumber)}</Text>
+        ) : n.kind === 'undated_skipped' ? (
+          <Text key={`us-${n.applicationNumber}`} style={styles.fieldError} testID="btm-undated-skipped">{SUGGEST_COPY.undatedSkipped(n.applicationNumber, n.carriedFrom)}</Text>
+        ) : null))}
+        {sample ? <Text style={styles.note} testID="btm-sample">{SAMPLE_DOC_NOT_SENT}</Text> : null}
 
         <Text style={styles.lead}>{SUGGEST_COPY.lead}</Text>
         <Text style={styles.heading}>{SUGGEST_COPY.carriedHeading(roll.carriedFrom.applicationNumber)}</Text>
@@ -334,6 +451,7 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
                 state={states[line.id] ?? 'untouched'}
                 onAccept={() => accept(line.id)}
                 onPercent={(p) => typePercent(line.id, p)}
+                onRestore={(before) => restoreLine(line.id, before)}
               />
             </View>
           ))}
@@ -351,15 +469,42 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
             <Text style={styles.totalLabel}>{SUGGEST_COPY.workThisApplication}</Text>
             <Text style={styles.totalValue} testID="btm-work-total">{formatMoney(workThis, 2)}</Text>
           </View>
+          {/* The cover's lines 4 to 8, so the footer ADDS UP when money
+              carries in from earlier applications: 4 less 5 is 6, and 6 less
+              7 is the payment due. */}
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{oneRate ? SUGGEST_COPY.retainageAt(fmtPct(app.retainagePercent)) : SUGGEST_COPY.retainageMixed}</Text>
-            <Text style={styles.totalValue}>{`-${formatMoney(retainageThis, 2)}`}</Text>
+            <Text style={styles.totalLabel}>{SUGGEST_COPY.completedToDate}</Text>
+            <Text style={styles.totalValue} testID="btm-completed-to-date">{formatMoney(totals.totalCompletedAndStored, 2)}</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>{SUGGEST_COPY.retainageToDate}</Text>
+            <Text style={styles.totalValue} testID="btm-retainage-to-date">{`-${formatMoney(totals.totalRetainage, 2)}`}</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>{SUGGEST_COPY.completedLessRetainage}</Text>
+            <Text style={styles.totalValue} testID="btm-less-retainage">{formatMoney(totals.totalEarnedLessRetainage, 2)}</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>{SUGGEST_COPY.lessPreviousCertificates}</Text>
+            <Text style={styles.totalValue} testID="btm-less-previous">{`-${formatMoney(app.lessPreviousCertificates, 2)}`}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.dueLabel}>{SUGGEST_COPY.paymentDue}</Text>
             <Text style={styles.dueValue} testID="btm-payment-due">{formatMoney(totals.currentPaymentDue, 2)}</Text>
           </View>
-          <Button label={SUGGEST_COPY.next} onPress={() => setCheckOpen(true)} fullWidth testID="btm-next" />
+          <Button label={SUGGEST_COPY.next} onPress={openCheck} fullWidth testID="btm-next" />
+          {/* The draft invoice saving will make, said before he saves. */}
+          {invoicePreview ? (
+            <Text style={styles.footerNote} testID="btm-invoice-line">
+              {SUGGEST_COPY.invoiceLine(formatMoney(invoicePreview.totalDue, 2), invoicePreview.taxRate > 0 ? fmtPct(invoicePreview.taxRate) : null)}
+              {periodRetainage(app.lines) > 0 ? ` ${SUGGEST_COPY.invoiceRetainageLine(formatMoney(effectiveRetentionHeld(invoicePreview), 2))}` : ''}
+              {' '}
+              {!periodTerms ? SUGGEST_COPY.termsChecking
+                : periodTerms.origin === 'prior_invoice' ? SUGGEST_COPY.termsFromPrior(termsLabel)
+                  : periodTerms.origin === 'cash_flow_setup' ? SUGGEST_COPY.termsFromSetup(termsLabel)
+                    : SUGGEST_COPY.termsUnconfirmed}
+            </Text>
+          ) : null}
           {tally.open > 0 ? (
             <Text style={styles.footerNote} testID="btm-not-accepted">{SUGGEST_COPY.notAccepted(tally.open)}</Text>
           ) : null}

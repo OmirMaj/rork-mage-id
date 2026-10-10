@@ -191,7 +191,9 @@ export default function ReportInboxScreen() {
         projectId: inv.projectId,
         projectName: proj.name,
         primary: `${inv.type === 'progress' ? 'Progress bill' : 'Invoice'} #${inv.number}`,
-        secondary: `${formatMoney(inv.totalDue)} · Due ${new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+        secondary: inv.dueDate
+          ? `${formatMoney(inv.totalDue)} · Due ${new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+          : `${formatMoney(inv.totalDue)} · No due date yet`,
         badgeText: humanizeEnum(status),
         badgeColor: status === 'paid' ? themeColors.successLabel : status === 'overdue' ? themeColors.dangerLabel : themeColors.warningLabel,
         badgeBg: status === 'paid' ? themeColors.successSoft : status === 'overdue' ? themeColors.dangerSoft : themeColors.warningSoft,

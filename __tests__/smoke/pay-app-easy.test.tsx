@@ -8,7 +8,7 @@
  *     the period through addInvoice and addAIAPayApp, once each.
  */
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import type { Invoice, Project, SavedAIAPayApp } from '@/types';
@@ -28,6 +28,8 @@ jest.mock('@/hooks/useProjectRole', () => ({
   useProjectRole: () => 'owner',
 }));
 jest.mock('expo-router', () => ({ Stack: { Screen: () => null } }));
+// His cash-flow setup has no payment terms: nothing is confirmed.
+jest.mock('@/utils/cashFlowStorage', () => ({ loadCashFlowSettings: jest.fn(async () => ({ source: 'default' })) }));
 
 // eslint-disable-next-line import/first
 import { BillThisMonth } from '@/components/payApp/BillThisMonth';
@@ -64,7 +66,7 @@ const project = {
 describe('Bill This Month', () => {
   beforeEach(() => { mockCtx.addInvoice = jest.fn(); mockCtx.addAIAPayApp = jest.fn(); mockCtx.invoices = []; });
 
-  it('rolls the last application forward, suggests with a source, and counts nothing until Accept', () => {
+  it('rolls the last application forward, suggests with a source, and counts nothing until Accept', async () => {
     const onSaved = jest.fn();
     render(<BillThisMonth project={project} saved={[prior]} contract={null} onClose={() => {}} onSaved={onSaved} />, { wrapper: Wrapper });
 
@@ -86,6 +88,15 @@ describe('Bill This Month', () => {
     expect(screen.getByTestId('btm-payment-due').props.children).toBe('$225.00');
     expect(screen.queryByTestId('btm-not-accepted')).toBeNull();
     expect(screen.getByTestId('btm-suggest-sov_m1-accepted')).toBeTruthy();
+    // The footer adds up: completed to date less retainage less earlier certificates is the payment due.
+    expect(screen.getByTestId('btm-completed-to-date').props.children).toBe('$850.00');
+    expect(screen.getByTestId('btm-retainage-to-date').props.children).toBe('-$85.00');
+    expect(screen.getByTestId('btm-less-retainage').props.children).toBe('$765.00');
+    expect(screen.getByTestId('btm-less-previous').props.children).toBe('-$540.00');
+    // The draft invoice is named before he saves, with its total, and the terms are not stamped silently.
+    const invoiceLine = JSON.stringify(screen.getByTestId('btm-invoice-line').props.children);
+    expect(invoiceLine).toContain('Saving makes a draft invoice for this period: $250.00. No tax is set.');
+    await waitFor(() => expect(JSON.stringify(screen.getByTestId('btm-invoice-line').props.children)).toContain('No payment terms are set yet'));
 
     // The check never blocks: Continue Anyway saves the period as a draft.
     fireEvent.press(screen.getByTestId('btm-next'));
@@ -94,13 +105,16 @@ describe('Bill This Month', () => {
     expect(screen.getByTestId('btm-check-not-checked')).toBeTruthy();
     expect(mockCtx.addInvoice).not.toHaveBeenCalled();
     fireEvent.press(screen.getByTestId('btm-check-continue'));
-    expect(mockCtx.addInvoice).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockCtx.addInvoice).toHaveBeenCalledTimes(1));
     expect(mockCtx.addAIAPayApp).toHaveBeenCalledTimes(1);
     const invoice = mockCtx.addInvoice.mock.calls[0][0] as Invoice;
     const record = mockCtx.addAIAPayApp.mock.calls[0][0] as SavedAIAPayApp;
     expect(invoice.type).toBe('progress');
     expect(invoice.status).toBe('draft');
     expect(invoice.subtotal).toBe(250);
+    // The invoice holds what the pay application holds for the period, and no due date nobody confirmed.
+    expect(invoice.retentionAmount).toBe(25);
+    expect(invoice.dueDate).toBe('');
     expect(invoice.lineItems).toHaveLength(1);
     expect(record.invoiceId).toBe(invoice.id);
     expect(record.applicationNumber).toBe(4);
@@ -108,6 +122,31 @@ describe('Bill This Month', () => {
     expect(record.payLinkUrl).toBeUndefined();
     expect(record.sentLockedAt).toBeUndefined();
     expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ invoiceId: invoice.id }));
+  });
+
+  it('enters a typed percent as it is typed, and says why a value is refused', () => {
+    render(<BillThisMonth project={project} saved={[prior]} contract={null} onClose={() => {}} onSaved={() => {}} />, { wrapper: Wrapper });
+    const field = screen.getByTestId('btm-pct-sov_m1');
+    fireEvent(field, 'focus');
+    // No blur: the figure is on the line the moment it is typed.
+    fireEvent.changeText(field, '90');
+    expect(screen.getByTestId('btm-amount-sov_m1').props.children).toBe('$300.00');
+    expect(screen.getByTestId('btm-work-total').props.children).toBe('$300.00');
+    fireEvent(field, 'blur');
+    // Over 100: refused with the reason, and the line goes back to what it held before this visit to the field.
+    fireEvent(field, 'focus');
+    fireEvent.changeText(field, '15');
+    fireEvent.changeText(field, '150');
+    expect(screen.getByTestId('btm-pct-refused-sov_m1').props.children).toBe('150 is over 100, so it was not entered. The line is back to where it was.');
+    expect(screen.getByTestId('btm-amount-sov_m1').props.children).toBe('$300.00');
+  });
+
+  it('says when the application it starts from has no record of being sent', () => {
+    const onClose = jest.fn();
+    render(<BillThisMonth project={project} saved={[prior]} contract={null} onClose={onClose} onSaved={() => {}} />, { wrapper: Wrapper });
+    fireEvent.press(screen.getByTestId('btm-suggest-sov_m1-accept'));
+    expect(screen.getByTestId('btm-prior-not-sent')).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('says so when there is no earlier application to start from', () => {
@@ -130,7 +169,8 @@ describe('Rejection Check sheet', () => {
     expect(screen.getByText('Billed to date $1,500.00 against $1,000.00. Over by $500.00.')).toBeTruthy();
     expect(screen.getAllByText('Nothing flagged').length).toBeGreaterThan(5);
     expect(screen.getByText('Not checked by MAGE ID:')).toBeTruthy();
-    expect(screen.getByText('Fix Line 1')).toBeTruthy();
+    expect(screen.getAllByText('Go to Line 1').length).toBe(2);
+    expect(screen.queryByText(/Fix Line/)).toBeNull();
     fireEvent.press(screen.getByTestId('rejection-check-continue'));
     expect(onContinue).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/compliant|verified|passed|ready to submit/i)).toBeNull();

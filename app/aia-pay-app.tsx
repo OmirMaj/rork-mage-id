@@ -50,6 +50,7 @@ import {
   // blocker inside the two inline line mappers and every guard stayed green.
   applicationFromSavedRecord,
   sovLineToSaved,
+  savedLineToSov,
   payAppEditability,
   lineOverBill,
   applyApprovedCOsToApplication,
@@ -145,14 +146,14 @@ import { loadActiveContract } from '@/utils/contractEngine';
 // reached only when payAppEasyAllowed(user email) says yes.
 import { payAppEasyAllowed } from '@/utils/payApp/allowed';
 import {
-  acceptSuggestion, percentOfLine, suggestForLines, tallyOpenSuggestions, thisPeriodForPercent,
+  acceptSuggestion, percentOfLine, suggestForLines, suggestionAmountNow, tallyOpenSuggestions, thisPeriodForPercent,
   type LineAcceptState, type LineSuggestionResult,
 } from '@/utils/payApp/suggestPercent';
 import { SUGGEST_COPY } from '@/utils/payApp/suggestCopy';
-import { checkFingerprint, runRejectionCheck } from '@/utils/payApp/rejectionCheck';
+import { buildCheckInput, checkFingerprint, runRejectionCheck } from '@/utils/payApp/rejectionCheck';
+import { comparePeriodInvoice, periodInvoiceApplicationNumber, periodInvoiceFollowUpdate } from '@/utils/payApp/periodInvoice';
 import { SOV_IMPORT_COPY } from '@/utils/payApp/sovSpreadsheet';
-import { payAppLock, withSentLock, SEND_LOCK_COPY } from '@/utils/payApp/sendLock';
-import { isRecordedRetainageRate } from '@/utils/retainageSource';
+import { canAddPayButton, payAppLock, withPayLinkOnly, withSentLock, SEND_LOCK_COPY } from '@/utils/payApp/sendLock';
 import { BillThisMonth } from '@/components/payApp/BillThisMonth';
 import { RejectionCheckSheet } from '@/components/payApp/RejectionCheckSheet';
 import { SovImportSheet } from '@/components/payApp/SovImportSheet';
@@ -232,7 +233,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   }>();
   const {
     invoices, getProject, getChangeOrdersForProject, settings, projects,
-    addAIAPayApp, getAIAPayAppsForProject, saveAIAPayAppOnline, getDailyReportsForProject,
+    addAIAPayApp, getAIAPayAppsForProject, saveAIAPayAppOnline, getDailyReportsForProject, updateInvoice,
   } = useProjects();
   // Certifying is a legal record: online only, never queued (plan D-2).
   const offline = useOffline();
@@ -251,6 +252,9 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   /** null = closed. 'certify' = on the way to the certify slide. */
   const [checkOpen, setCheckOpen] = useState<null | 'view' | 'certify'>(null);
   const [sovImportOpen, setSovImportOpen] = useState(false);
+  /** The draft invoice behind a Bill This Month period was just rewritten to the saved figures (its number). */
+  const [invoiceFollowed, setInvoiceFollowed] = useState<number | null>(null);
+  const [addingPayButton, setAddingPayButton] = useState(false);
   /** Suggested percents, shown per line with their source. Never applied by themselves. */
   const [suggestions, setSuggestions] = useState<Record<string, LineSuggestionResult> | null>(null);
   const [suggestStates, setSuggestStates] = useState<Record<string, LineAcceptState>>({});
@@ -1105,7 +1109,20 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         periodTo: app.periodTo,
       });
       setSuggestions(found);
-      setSuggestStates({});
+      // Asking again keeps what he already did: a line he accepted stays
+      // accepted while the suggestion is the one he accepted, and a line he
+      // typed over stays his. Only a line whose suggestion has MOVED since is
+      // offered again.
+      setSuggestStates((prev) => {
+        const next: Record<string, LineAcceptState> = {};
+        for (const l of app.lines) {
+          const was = prev[l.id];
+          const r = found[l.id];
+          if (!was || was === 'untouched' || !r || r.kind !== 'suggest') continue;
+          if (l.suggestedPercent != null && Math.abs(l.suggestedPercent - r.suggestion.percent) < 1e-9) next[l.id] = was;
+        }
+        return next;
+      });
       if (!Object.values(found).some(r => r.kind === 'suggest')) {
         showAlert(SUGGEST_COPY.noneFoundTitle, SUGGEST_COPY.noneFoundBody);
       }
@@ -1168,19 +1185,40 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     [suggestions, suggestStates],
   );
 
-  /** The rate on record for this job, only when he entered it himself. */
-  const statedRetainage = project && project.retainagePercentAssumed === false && isRecordedRetainageRate(project.retainagePercent)
-    ? project.retainagePercent
-    : undefined;
-  // Run only while the sheet is open, on the figures on screen. Not saved, not printed.
-  const rejectionCheck = useMemo(() => (app && project && checkOpen ? runRejectionCheck({
+  // What the check reads: built by the ONE helper Bill This Month also uses
+  // (utils/payApp/rejectionCheck buildCheckInput), so the two screens cannot
+  // show different checks for the same figures. The prior application, the
+  // other saved applications, the change order log and the rate on record all
+  // come from it.
+  const checkInput = useMemo(() => (app && project ? buildCheckInput({
     app,
-    prior: priorAIA,
-    saved: savedForProject.filter(a => a.id !== savedForThisInvoice?.id),
+    project,
+    savedForProject,
+    ownInvoiceId: invoice?.id,
     changeOrders: getChangeOrdersForProject(project.id),
-    statedRetainagePercent: statedRetainage,
-    statedRetainageOrigin: statedRetainage != null ? 'you entered it for this project' : undefined,
-  }) : null), [app, project, checkOpen, priorAIA, savedForProject, savedForThisInvoice?.id, getChangeOrdersForProject, statedRetainage]);
+  }) : null), [app, project, savedForProject, invoice?.id, getChangeOrdersForProject]);
+  // Run only while the sheet is open, on the figures on screen. Not saved, not printed.
+  const rejectionCheck = useMemo(() => (checkInput && checkOpen ? runRejectionCheck(checkInput) : null), [checkInput, checkOpen]);
+
+  // THE INVOICE BEHIND A BILL THIS MONTH PERIOD. Its amounts follow the
+  // application's lines whenever the application is saved, as long as the
+  // invoice is still a draft with no payment and no pay link
+  // (periodInvoiceFollowUpdate returns null otherwise). When it cannot follow,
+  // or the invoice was changed by hand, the two saved records are compared and
+  // the difference is SAID, here and on the invoice.
+  const followPeriodInvoice = useCallback((lines: readonly AIASOVLine[]) => {
+    if (!easy || !invoice) return;
+    if (!comparePeriodInvoice(invoice, lines).differs) return;
+    const follow = periodInvoiceFollowUpdate({ invoice, lines, estimateItems: project?.linkedEstimate?.items, newLineId: generateUUID });
+    if (!follow) return;
+    updateInvoice(invoice.id, follow);
+    setInvoiceFollowed(invoice.number);
+  }, [easy, invoice, project?.linkedEstimate?.items, updateInvoice]);
+  const periodInvoiceDiffers = useMemo(() => {
+    if (!easy || !invoice || !savedForThisInvoice || periodInvoiceApplicationNumber(invoice) == null) return null;
+    const cmp = comparePeriodInvoice(invoice, savedForThisInvoice.lines.map(savedLineToSov));
+    return cmp.differs ? cmp : null;
+  }, [easy, invoice, savedForThisInvoice]);
 
   const sovCardRefs = useRef<Record<string, View | null>>({});
   const goToCheckedLine = useCallback((lineId: string) => {
@@ -1372,6 +1410,8 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     // MONEY-F2: remember the amount the link charges (portal shows Pay only
     // while it still equals what is owed).
     addAIAPayApp({ ...rec, payLinkUrl, payLinkId, payLinkAmount: payLinkUrl ? Math.round(due * 100) / 100 : undefined });
+    // Lane PAYAPP-1: the draft invoice behind a Bill This Month period follows.
+    followPeriodInvoice(rec.lines.map(savedLineToSov));
     // Tutorial success point: the plain save wrote the pay app (addAIAPayApp —
     // local first, queued). It certifies nothing; that is the slide's write.
     if (aiaTutorialRef.current.runOnThis) {
@@ -1417,7 +1457,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         [{ text: 'OK', style: 'default' }],
       );
     }
-  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, lockedBySendOnly, isReadOnly, savedPaidAt, pendingBankPayment, tier, invoice, app?.lines]);
+  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, lockedBySendOnly, isReadOnly, savedPaidAt, pendingBankPayment, tier, invoice, app?.lines, followPeriodInvoice]);
 
   /**
    * PERSIST THE ARCHITECT'S RESPONSE, and nothing else.
@@ -1591,22 +1631,22 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     // certify sheet, for the figures on screen. It never blocks: Continue
     // Anyway (continueToCertify) records that it was shown and opens the
     // sheet. A figure changed since brings the check back.
-    if (easy && checkShownForRef.current !== checkFingerprint(app)) {
+    if (easy && checkInput && checkShownForRef.current !== checkFingerprint(checkInput)) {
       setCheckOpen('certify');
       return;
     }
     pinCertifyRecordId(generateUUID());
     setShowPreExportConfirm(true);
-  }, [app, settings?.branding, isLocked, pinCertifyRecordId, easy]);
+  }, [app, settings?.branding, isLocked, pinCertifyRecordId, easy, checkInput]);
 
   /** "Continue Anyway" on the Rejection Check, on the way to certify. */
   const continueToCertify = useCallback(() => {
-    if (!app) return;
-    checkShownForRef.current = checkFingerprint(app);
+    if (!checkInput) return;
+    checkShownForRef.current = checkFingerprint(checkInput);
     setCheckOpen(null);
     pinCertifyRecordId(generateUUID());
     setShowPreExportConfirm(true);
-  }, [app, pinCertifyRecordId]);
+  }, [checkInput, pinCertifyRecordId]);
 
   /** Bill This Month saved the period as a draft: open it here, in the editor. */
   const onBilledThisMonth = useCallback((done: { invoiceId: string; checkedFor: string }) => {
@@ -1617,7 +1657,11 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     setBillThisMonthOpen(false);
   }, []);
   /** There is an earlier application with lines to start the next one from. */
-  const canBillThisMonth = easy && savedForProject.some(a => a.lines.length > 0);
+  // Not while a guided tutorial is running on this job: the coach points at
+  // the full editor's own controls. (A sample job itself is NOT excluded: no
+  // other billing entry point excludes one, and nothing goes out from a
+  // sample either way.)
+  const canBillThisMonth = easy && !practiceProjectId && savedForProject.some(a => a.lines.length > 0);
   /** This screen shows the newest saved application: the next one starts from it. */
   const showsLatestSaved = !!savedForThisInvoice
     && savedForProject.every(a => a.applicationNumber <= savedForThisInvoice.applicationNumber);
@@ -1693,6 +1737,48 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     }
   }, [invoice, pendingBankPayment, savedPaidAt, user, settings, tier]);
 
+  /**
+   * ADD A PAY BUTTON TO A RECORD THAT WENT OUT WITHOUT ONE (lane PAYAPP-1).
+   *
+   * Certify stamps the record as sent and locks it. When the pay link could
+   * not be made then (Stripe not set up, the call failed or ran long), the
+   * lock left no path that could make one later, while the certify result
+   * still said "Share the pay app again later to add one." This is that path.
+   *
+   * It changes no figure. The record written back is the STORED record
+   * (savedForThisInvoice, never the form) with the three pay link fields set
+   * and nothing else: withPayLinkOnly, proved byte-equal on every other field
+   * by scripts/validate-pay-app-easy.ts (figuresOf). The amount is the stored
+   * record's own payable figure.
+   */
+  const addPayButtonBusy = useRef(false);
+  const addPayButtonLater = useCallback(async () => {
+    const stored = savedForThisInvoice;
+    if (!stored || addPayButtonBusy.current) return;
+    const due = aiaPayableNow(stored);
+    if (!canAddPayButton({ payLinkUrl: stored.payLinkUrl, paidAt: savedPaidAt, pendingBankPayment: !!pendingBankPayment, sentLockedAt: stored.sentLockedAt }, due)) return;
+    if (aiaTutorialRef.current.sampleJob) { showAlert('Sample Job', SAMPLE_DOC_NOT_SENT); return; }
+    addPayButtonBusy.current = true;
+    setAddingPayButton(true);
+    try {
+      const pay = await makeCertifiedPayLink(stored, due);
+      if (pay.kind === 'minted') {
+        const amount = Math.round(due * 100) / 100;
+        addAIAPayApp(withPayLinkOnly(stored, { payLinkUrl: pay.url, payLinkId: pay.id, payLinkAmount: amount }));
+        showAlert(SEND_LOCK_COPY.payButtonAddedTitle, SEND_LOCK_COPY.payButtonAddedBody(formatMoney(amount, 2)));
+      } else {
+        showAlert(SEND_LOCK_COPY.payButtonNotAddedTitle,
+          pay.kind === 'not_connected' ? SEND_LOCK_COPY.payButtonNotConnected
+            : pay.kind === 'balance' ? SEND_LOCK_COPY.payButtonBalance
+              : pay.kind === 'failed' ? SEND_LOCK_COPY.payButtonFailed
+                : SEND_LOCK_COPY.payButtonNothingOwed);
+      }
+    } finally {
+      addPayButtonBusy.current = false;
+      setAddingPayButton(false);
+    }
+  }, [savedForThisInvoice, savedPaidAt, pendingBankPayment, makeCertifiedPayLink, addAIAPayApp]);
+
   const certAppNumber = app?.applicationNumber ?? 0;
   // What the owner pays for this period: the architect's certified figure once
   // recorded, line 8 as applied for until then (the same figure the result names).
@@ -1722,6 +1808,9 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     // Stored: the Pay button is made against the row the server now has. It
     // may not hold the answer past 10 s (the slide's own limit is 20 s).
     const record = stored.record ?? rec;
+    // Lane PAYAPP-1: the draft invoice behind a Bill This Month period follows
+    // the figures that were just certified.
+    followPeriodInvoice(record.lines.map(savedLineToSov));
     certifiedLinkRef.current = null;
     const pay = await Promise.race([
       makeCertifiedPayLink(record, due),
@@ -1736,7 +1825,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           : pay.kind === 'pending' ? certPayLinkPending()
             : certNextPdf();
     return fromOnlineOutcome(stored, { title: certConfirmed(certAppNumber, Math.round(due * 100)), next }, words);
-  }, [app?.lines, buildSavedRecord, pinCertifyRecordId, saveAIAPayAppOnline, makeCertifiedPayLink, certAppNumber, easy]);
+  }, [app?.lines, buildSavedRecord, pinCertifyRecordId, saveAIAPayAppOnline, makeCertifiedPayLink, certAppNumber, easy, followPeriodInvoice]);
 
   // Legal (plan rule 2): never queued; offline disables it with the reason.
   const certWriteOptions = useMemo<CommitWriteOptions>(() => ({
@@ -2237,6 +2326,18 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 ? SEND_LOCK_COPY.lockedBody(app.applicationNumber)
                 : `This pay app has an active pay link for ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. To revise the numbers, create the next period. It starts from this period's billed-through totals.`}
             </Text>
+            {lockedBySendOnly && savedForThisInvoice && aiaPayableNow(savedForThisInvoice) > 0 ? (
+              <View style={{ gap: 6 }} testID="aia-add-pay-button">
+                <Text style={styles.lockedBannerBody}>{SEND_LOCK_COPY.addPayButtonHint}</Text>
+                <Button
+                  label={SEND_LOCK_COPY.addPayButton}
+                  onPress={addPayButtonLater}
+                  loading={addingPayButton}
+                  variant="secondary"
+                  testID="aia-add-pay-button-action"
+                />
+              </View>
+            ) : null}
             <TouchableOpacity
               style={styles.lockedBannerCta}
               onPress={() => router.back()}
@@ -2864,6 +2965,17 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
               onOpenCheck={() => setCheckOpen('view')}
             />
           ) : null}
+          {easy && periodInvoiceDiffers && invoice ? (
+            <Text style={styles.sovOverText} testID="aia-period-invoice-differs">
+              {SUGGEST_COPY.differsOnApplication(
+                invoice.number,
+                formatMoney(periodInvoiceDiffers.invoiceWork, 2), formatMoney(periodInvoiceDiffers.applicationWork, 2),
+                formatMoney(periodInvoiceDiffers.invoiceRetainage, 2), formatMoney(periodInvoiceDiffers.applicationRetainage, 2),
+              )}
+            </Text>
+          ) : easy && invoiceFollowed != null && invoiceFollowed === invoice?.number ? (
+            <Text style={styles.sovBasisNote} testID="aia-period-invoice-followed">{SUGGEST_COPY.invoiceFollowed(invoiceFollowed)}</Text>
+          ) : null}
           {easy && suggestions && !isReadOnly ? (
             <View style={styles.suggestPanel} testID="aia-suggestions">
               <Text style={styles.sovBasisNote}>{SUGGEST_COPY.lead}</Text>
@@ -2879,6 +2991,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                     result={suggestions[line.id]}
                     state={suggestStates[line.id] ?? 'untouched'}
                     enteredPercent={percentOfLine(line)}
+                    amountNow={suggestions[line.id]?.kind === 'suggest' ? suggestionAmountNow(line, (suggestions[line.id] as { suggestion: { percent: number } }).suggestion) : undefined}
                     onAccept={() => acceptLineSuggestion(line.id)}
                     testID={`aia-suggest-${line.id}`}
                   />
@@ -3144,6 +3257,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                     result={suggestions[line.id]}
                     state={suggestStates[line.id] ?? 'untouched'}
                     enteredPercent={percentOfLine(line)}
+                    amountNow={suggestions[line.id]?.kind === 'suggest' ? suggestionAmountNow(line, (suggestions[line.id] as { suggestion: { percent: number } }).suggestion) : undefined}
                     onAccept={() => acceptLineSuggestion(line.id)}
                     testID={`aia-suggest-${line.id}`}
                   />

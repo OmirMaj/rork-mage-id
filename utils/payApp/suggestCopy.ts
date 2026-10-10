@@ -42,9 +42,43 @@ export const SUGGEST_COPY = {
   acceptAllConfirm: 'Accept All',
   cancel: 'Cancel',
   workThisApplication: 'Work This Application',
-  retainageAt: (pct: string) => `Retainage at ${pct}%, your rate`,
-  retainageMixed: 'Retainage, your rates',
+  // The footer: the cover's lines 4 to 8 in plain labels, so it adds up when
+  // figures carry in from earlier applications.
+  completedToDate: 'Completed and Stored to Date',
+  retainageToDate: 'Retainage Held to Date',
+  completedLessRetainage: 'Completed Less Retainage',
+  lessPreviousCertificates: 'Less Previous Certificates',
   paymentDue: 'Payment Due This Application',
+  // The draft invoice behind the period, said before he saves.
+  invoiceLine: (total: string, taxPct: string | null) => (taxPct
+    ? `Saving makes a draft invoice for this period: ${total}, including ${taxPct}% tax.`
+    : `Saving makes a draft invoice for this period: ${total}. No tax is set.`),
+  invoiceRetainageLine: (held: string) => `It holds ${held} of retainage, the same as this application holds for the period.`,
+  termsFromPrior: (label: string) => `Payment terms on it: ${label}, the same as your last invoice on this job.`,
+  termsFromSetup: (label: string) => `Payment terms on it: ${label}, from your cash-flow setup.`,
+  termsUnconfirmed: 'No payment terms are set yet, so the draft invoice carries no date for payment until you pick terms on the invoice.',
+  termsChecking: 'Checking the payment terms in your cash-flow setup.',
+  applicationDateFollows: 'Application date is set to the period end. Change it if you date it another day.',
+  // A percent he typed that was not entered, and why.
+  pctOver: (typed: string) => `${typed} is over 100, so it was not entered. The line is back to where it was.`,
+  pctBelowZero: 'A percent below zero was not entered. The line is back to where it was.',
+  pctNotNumber: (typed: string) => `"${typed}" is not a percent, so it was not entered. The line is back to where it was.`,
+  pctBelowBilled: (typed: string, billedPct: string) => `${typed}% is below the ${billedPct}% already billed, so nothing is entered for this period.`,
+  creditLine: 'Credit line. Type the percent of the credit given to date.',
+  // Where this period starts from, when that needs saying.
+  priorNotSent: (n: number) => `Application ${n} has no record of being sent. This one starts from its figures as they are now, and will not follow if you change Application ${n} later.`,
+  undatedSkipped: (n: number, from: number) => `Application ${n} has no period end date, so it could not be placed by date. This one starts from Application ${from}. Check that is the one you mean.`,
+  // Leaving with figures entered.
+  leaveTitle: 'Leave Bill This Month?',
+  leaveBody: (count: number) => `${count} ${count === 1 ? 'line has a figure' : 'lines have figures'} you entered. Nothing is saved yet.`,
+  leaveStay: 'Keep Working',
+  leaveConfirm: 'Leave',
+  // The invoice behind the period and the application, when they differ.
+  invoiceFollowed: (invoiceNumber: number) => `Draft Invoice ${invoiceNumber} for this period was updated to these figures.`,
+  differsOnApplication: (invoiceNumber: number, invoiceWork: string, appWork: string, invoiceHeld: string, appHeld: string) =>
+    `Invoice ${invoiceNumber} for this period and this application differ. The invoice shows ${invoiceWork} of work and ${invoiceHeld} of retainage. This application shows ${appWork} of work and ${appHeld} of retainage.`,
+  differsOnInvoice: (applicationNumber: number, invoiceWork: string, appWork: string, invoiceHeld: string, appHeld: string) =>
+    `This invoice and Pay Application ${applicationNumber} differ. This invoice shows ${invoiceWork} of work and ${invoiceHeld} of retainage. The application shows ${appWork} of work and ${appHeld} of retainage.`,
   next: 'Next: Rejection Check',
   notAccepted: (count: number) =>
     `${count} ${count === 1 ? 'suggestion is' : 'suggestions are'} not accepted and not in the total.`,
@@ -118,7 +152,14 @@ export function allSuggestCopy(): string[] {
   }
   out.push(
     SUGGEST_COPY.carriedHeading(3), SUGGEST_COPY.wasTo('60'), SUGGEST_COPY.acceptAllBody(1, 100), SUGGEST_COPY.acceptAllBody(4, 12345.6),
-    SUGGEST_COPY.retainageAt('10'), SUGGEST_COPY.notAccepted(1), SUGGEST_COPY.notAccepted(3),
+    SUGGEST_COPY.notAccepted(1), SUGGEST_COPY.notAccepted(3),
+    SUGGEST_COPY.invoiceLine('$1,234.50', '8.25'), SUGGEST_COPY.invoiceLine('$1,234.50', null), SUGGEST_COPY.invoiceRetainageLine('$123.45'),
+    SUGGEST_COPY.termsFromPrior('Net 30'), SUGGEST_COPY.termsFromSetup('Net 15'),
+    SUGGEST_COPY.pctOver('150'), SUGGEST_COPY.pctNotNumber('12,5'), SUGGEST_COPY.pctBelowBilled('10', '20'),
+    SUGGEST_COPY.priorNotSent(3), SUGGEST_COPY.undatedSkipped(5, 4), SUGGEST_COPY.leaveBody(1), SUGGEST_COPY.leaveBody(3),
+    SUGGEST_COPY.invoiceFollowed(12),
+    SUGGEST_COPY.differsOnApplication(12, '$100.00', '$120.00', '$10.00', '$12.00'),
+    SUGGEST_COPY.differsOnInvoice(4, '$100.00', '$120.00', '$10.00', '$12.00'),
     scheduleTaskSentence('Framing', 85), scheduleTaskSentence('Install Beam', 100), scheduleTaskSentence('', 10),
     dailyReportSentence('Framing', 85, '2026-10-28'), dailyReportSentence('Framing', 85, ''),
     weightedTasksSentence(3, 41.7),

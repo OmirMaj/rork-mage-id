@@ -41,6 +41,50 @@ export function thisPeriodForPercent(line: MoneyLine, percent: number): number {
   return roundCents(thisPeriod);
 }
 
+/**
+ * A CREDIT line (scheduled value below zero): the dollars a total percent of
+ * the credit puts in this period. 100% of a -500.00 credit with -200.00 given
+ * before is -300.00. Never above zero, never past the credit. Kept apart from
+ * thisPeriodForPercent, which the full screen's percent field shares and which
+ * leaves a credit line at zero, as it always has.
+ */
+export function creditThisPeriodForPercent(line: MoneyLine, percent: number): number {
+  if (!(line.scheduledValue < 0)) return 0;
+  const p = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
+  const totalCredit = line.scheduledValue * (p / 100);
+  return roundCents(Math.min(0, totalCredit - line.fromPreviousApp));
+}
+
+/** Percent of a line taken to date, credit lines included (a credit is its own share of its own value). */
+export function percentOfAnyLine(
+  line: Pick<AIASOVLine, 'scheduledValue' | 'fromPreviousApp' | 'thisPeriod' | 'materialsPresentlyStored'>,
+): number | null {
+  if (line.scheduledValue < 0) return ((line.fromPreviousApp + line.thisPeriod) / line.scheduledValue) * 100;
+  return percentOfLine(line);
+}
+
+export type TypedPercent =
+  | { kind: 'ok'; percent: number }
+  | { kind: 'empty' }
+  | { kind: 'refused'; why: 'over_100' | 'below_zero' | 'not_a_number' };
+
+/**
+ * What he typed in a percent field. Digits with an optional decimal point and
+ * an optional percent sign, from 0 to 100. Anything else is REFUSED with the
+ * reason, never rounded, clamped or guessed at ("12,5" is not read as 12.5 or
+ * as 125).
+ */
+export function parseTypedPercent(text: string): TypedPercent {
+  const s = String(text ?? '').trim().replace(/\s*%$/, '');
+  if (!s) return { kind: 'empty' };
+  if (/^-\s*(\d+\.?\d*|\.\d+)$/.test(s)) return { kind: 'refused', why: 'below_zero' };
+  if (!/^(\d+\.?\d*|\.\d+)$/.test(s)) return { kind: 'refused', why: 'not_a_number' };
+  const n = Number.parseFloat(s);
+  if (!Number.isFinite(n)) return { kind: 'refused', why: 'not_a_number' };
+  if (n > 100) return { kind: 'refused', why: 'over_100' };
+  return { kind: 'ok', percent: n };
+}
+
 /** Total percent complete to date on a line (column G ÷ C), or null when C is not positive. */
 export function percentOfLine(
   line: Pick<AIASOVLine, 'scheduledValue' | 'fromPreviousApp' | 'thisPeriod' | 'materialsPresentlyStored'>,
@@ -222,15 +266,32 @@ export function suggestForLines(input: {
 
 export type LineAcceptState = 'untouched' | 'accepted' | 'changed';
 
-/** The line after he taps Accept: column E is the suggestion, and the record keeps what was suggested. */
+/**
+ * The line after he taps Accept: column E is the suggested PERCENT worked out
+ * on the line AS IT IS NOW, and the record keeps what was suggested.
+ *
+ * Not the dollar figure the suggestion was made with: that was worked out when
+ * the suggestions were built, and a stored-material figure typed since then
+ * would be billed a second time. Scheduled 100,000.00, previous 20,000.00,
+ * suggestion 75% (55,000.00 when it was made), then 40,000.00 stored typed:
+ * Accept puts 15,000.00 in this period, not 55,000.00.
+ */
 export function acceptSuggestion(line: AIASOVLine, s: LineSuggestion): AIASOVLine {
   if (s.lineId !== line.id) return line;
-  return { ...line, thisPeriod: s.thisPeriod, suggestedPercent: s.percent, suggestionSource: s.sentence };
+  return { ...line, thisPeriod: thisPeriodForPercent(line, s.percent), suggestedPercent: s.percent, suggestionSource: s.sentence };
+}
+
+/** What Accept would put in this period on the line as it is now (the figure the row shows). */
+export function suggestionAmountNow(line: MoneyLine, s: Pick<LineSuggestion, 'percent'>): number {
+  return thisPeriodForPercent(line, s.percent);
 }
 
 /** The line after he types his own percent over a suggestion (or with none). */
 export function enterPercent(line: AIASOVLine, percent: number, s?: LineSuggestion | null): AIASOVLine {
-  const next: AIASOVLine = { ...line, thisPeriod: thisPeriodForPercent(line, percent) };
+  const next: AIASOVLine = {
+    ...line,
+    thisPeriod: line.scheduledValue < 0 ? creditThisPeriodForPercent(line, percent) : thisPeriodForPercent(line, percent),
+  };
   if (s && s.lineId === line.id) {
     next.suggestedPercent = s.percent;
     next.suggestionSource = s.sentence;

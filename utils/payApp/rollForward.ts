@@ -35,7 +35,11 @@ export type RollForwardNote =
   /** Change orders approved through Period To that the last application did not have. */
   | { kind: 'co_added'; count: number }
   /** The last application has no period end, so Period From is left blank. */
-  | { kind: 'period_from_unknown' };
+  | { kind: 'period_from_unknown' }
+  /** The application this one starts from carries no record of being sent (no stamp, no pay link, no payment, no certificate). */
+  | { kind: 'prior_not_sent'; applicationNumber: number }
+  /** A saved application with a HIGHER number has no period end, so it could not be placed by date and was not the one carried from. */
+  | { kind: 'undated_skipped'; applicationNumber: number; carriedFrom: number };
 
 export interface RollForwardInput {
   project: Pick<Project, 'id' | 'name' | 'location' | 'description' | 'primaryContact'>;
@@ -100,6 +104,24 @@ function pickPrior(saved: readonly SavedAIAPayApp[], nextNumber: number, today: 
 }
 
 /**
+ * The application date a new period opens with: today, or the period end when
+ * that is later. An application is ordinarily dated on or after the last day
+ * it bills through, and opening on today would put a date before the period
+ * end on every application started before the month is out. A default he can
+ * retype; nothing is computed from it.
+ */
+export function defaultApplicationDate(today: string, periodTo: string | null | undefined): string {
+  const t = dayKeyOf(today) ?? today;
+  const to = dayKeyOf(periodTo);
+  return to && to > t ? to : t;
+}
+
+/** Does the record carry any sign that it went out? Old records were never stamped, so this is "no record of", not "was not". */
+export function hasRecordOfSend(a: Pick<SavedAIAPayApp, 'sentLockedAt' | 'payLinkUrl' | 'paidAt' | 'amountCertified' | 'paymentPendingAt'>): boolean {
+  return !!a.sentLockedAt || !!a.payLinkUrl || !!a.paidAt || !!a.paymentPendingAt || a.amountCertified != null;
+}
+
+/**
  * The next application on this project, or null when there is no earlier one
  * to start from (the first application keeps the invoice path).
  */
@@ -113,11 +135,19 @@ export function rollForwardNextApplication(input: RollForwardInput): RollForward
   const header = seedPayAppHeader(prior, input.contract, input.project);
   const notes: RollForwardNote[] = [{ kind: 'line_one_from_prior', applicationNumber: prior.applicationNumber }];
   if (!from) notes.push({ kind: 'period_from_unknown' });
+  if (!hasRecordOfSend(prior)) notes.push({ kind: 'prior_not_sent', applicationNumber: prior.applicationNumber });
+  // A newer application (by number) that has no period end cannot be placed
+  // by date. It is not carried from, and that is SAID.
+  for (const a of saved) {
+    if (a.id !== prior.id && a.applicationNumber > prior.applicationNumber && !dayKeyOf(a.periodTo)) {
+      notes.push({ kind: 'undated_skipped', applicationNumber: a.applicationNumber, carriedFrom: prior.applicationNumber });
+    }
+  }
 
   const base: AIAPayApplication = {
     sovBasis: prior.sovBasis,
     applicationNumber,
-    applicationDate: dayKeyOf(input.today) ?? input.today,
+    applicationDate: defaultApplicationDate(input.today, to),
     periodTo: to,
     periodFrom: from,
     contractDate: header.contractDate,

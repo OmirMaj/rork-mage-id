@@ -228,12 +228,32 @@ async function main() {
   // Lane PAYAPP-1 moved the rule into utils/payApp/sendLock payAppLock (a pay
   // link, a payment, a pending bank payment, or the send stamp), so the rule is
   // EXECUTED here and the screen is checked for handing it the pending payment.
-  ok('a pending bank payment locks the period',
-    /const lockState = payAppLock\(\{[\s\S]{0,200}pendingBankPayment: !!pendingBankPayment,[\s\S]{0,120}\}\);\s*const isLocked = lockState\.locked;/.test(aia)
+  // Every operand of the call is pinned, each by its own pattern, so deleting
+  // any one (the pay link, the payment, the pending bank payment, the send
+  // stamp) turns this red. Review round 1 (2026-10-09): the first version
+  // pinned only pendingBankPayment and the stamp, so a pay link or a payment
+  // could be dropped from the lock with this guard still green.
+  const lockCall = /const lockState = payAppLock\(\{([\s\S]{0,320}?)\}\);\s*const isLocked = lockState\.locked;/.exec(aia)?.[1] ?? '';
+  const LOCK_OPERANDS: [string, RegExp][] = [
+    ['payLinkUrl', /payLinkUrl: savedForThisAppNumber\?\.payLinkUrl,/],
+    ['paidAt', /paidAt: savedPaidAt,/],
+    ['pendingBankPayment', /pendingBankPayment: !!pendingBankPayment,/],
+    ['sentLockedAt', /sentLockedAt: savedForThisAppNumber\?\.sentLockedAt,/],
+  ];
+  const lockPinned = (call: string): boolean => !!call && LOCK_OPERANDS.every(([, re]) => re.test(call));
+  ok('a pay link, a payment, a pending bank payment and the send stamp all lock the period',
+    lockPinned(lockCall)
     && payAppLock({ pendingBankPayment: true }).locked === true
     && payAppLock({ payLinkUrl: 'https://pay' }).locked === true
     && payAppLock({ paidAt: '2026-09-01T00:00:00Z' }).locked === true
-    && payAppLock({}).locked === false);
+    && payAppLock({ sentLockedAt: '2026-09-01T00:00:00Z' }).locked === true
+    && payAppLock({}).locked === false,
+    lockCall ? `the call reads: ${lockCall.replace(/\s+/g, ' ').trim()}` : 'the payAppLock({…}) call was not found');
+  // Planted mutations: the screen's own call with one operand deleted must fail the pin.
+  for (const [name, re] of LOCK_OPERANDS) {
+    const mutated = lockCall.replace(re, '');
+    ok(`planted: deleting ${name} from the lock call is caught`, mutated !== lockCall && !lockPinned(mutated));
+  }
   ok('…and no new pay link is minted while it settles', /if \(!pendingBankPayment\)\s*if \(!payLinkUrl && due > 0/.test(aia));
   ok('…and the banner says "Bank payment of $X processing since <day>"', /Bank payment\$\{known \? ` of \$\{formatMoney\(amount as number, 2\)\}` : ''\} processing since/.test(aia) && /paymentPendingHolds\(since, Date\.now\(\)\)/.test(aia));
 

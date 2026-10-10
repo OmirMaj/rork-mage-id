@@ -3538,7 +3538,7 @@ export default function ProjectDetailScreen() {
                         {inv.type === 'progress' ? 'Progress Bill' : 'Invoice'} #{inv.number}
                       </Text>
                       <Text style={styles.coDesc} numberOfLines={1}>
-                        {inv.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} · Due {new Date(inv.dueDate).toLocaleDateString()}
+                        {inv.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} · {inv.dueDate ? `Due ${new Date(inv.dueDate).toLocaleDateString()}` : 'No Due Date Yet'}
                       </Text>
                     </View>
                     <View style={styles.coRight}>

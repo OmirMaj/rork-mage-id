@@ -19,12 +19,15 @@ export interface SuggestionRowProps {
   state: LineAcceptState;
   /** The percent on the line now, for "You entered 35%". */
   enteredPercent: number | null;
+  /** What Accept would put in this period on the line AS IT IS NOW (suggestionAmountNow).
+   *  Falls back to the figure the suggestion was made with. */
+  amountNow?: number;
   readOnly?: boolean;
   onAccept: () => void;
   testID?: string;
 }
 
-export function SuggestionRow({ result, state, enteredPercent, readOnly, onAccept, testID }: SuggestionRowProps) {
+export function SuggestionRow({ result, state, enteredPercent, amountNow, readOnly, onAccept, testID }: SuggestionRowProps) {
   const styles = useThemedStyles(makePayAppStyles);
   if (!result) return null;
   if (result.kind === 'none') {
@@ -50,7 +53,7 @@ export function SuggestionRow({ result, state, enteredPercent, readOnly, onAccep
   return (
     <View style={styles.suggest} testID={testID ? `${testID}-open` : undefined}>
       <View style={styles.suggestMain}>
-        <Text style={styles.suggestFigure}>{`${fmtPct(s.percent)}%  ${formatMoney(s.thisPeriod, 2)}`}</Text>
+        <Text style={styles.suggestFigure}>{`${fmtPct(s.percent)}%  ${formatMoney(amountNow ?? s.thisPeriod, 2)}`}</Text>
         <Text style={styles.suggestText}>{s.sentence}</Text>
       </View>
       {readOnly ? null : (

@@ -46,7 +46,44 @@ export function withSentLock<T extends { sentLockedAt?: string }>(rec: T, nowIso
   return { ...rec, sentLockedAt: nowIso };
 }
 
+// ── A Pay button, added later ───────────────────────────────────────────────
+// A record locked at send may have gone out with NO pay link (Stripe not set
+// up yet, or the link could not be made in time). The lock refuses a re-save,
+// so without this the promise the certify result makes ("share the pay app
+// again later to add one") could never be kept. Adding the button is the one
+// thing a 'sent' record may still learn, and it changes no figure:
+// withPayLinkOnly writes the three pay link fields and nothing else, and
+// figuresOf is the proof (the same string before and after).
+
+/** May a Pay button be added to this record now? Only a record locked by the send itself, with money owed. */
+export function canAddPayButton(facts: SendLockFacts | null | undefined, due: number): boolean {
+  return payAppLock(facts).reason === 'sent' && Number.isFinite(due) && due > 0;
+}
+
+export interface MintedPayLink { payLinkUrl: string; payLinkId: string; payLinkAmount: number }
+
+/** The stored record with the pay link on it. Every other field is the same object's own value. */
+export function withPayLinkOnly<T extends object>(rec: T, link: MintedPayLink): T & MintedPayLink {
+  return { ...rec, payLinkUrl: link.payLinkUrl, payLinkId: link.payLinkId, payLinkAmount: link.payLinkAmount };
+}
+
+/** Everything on a record except its pay link, as one string. Equal before and after means no figure moved. */
+export function figuresOf(rec: object): string {
+  const { payLinkUrl: _u, payLinkId: _i, payLinkAmount: _a, ...rest } = rec as Record<string, unknown>;
+  void _u; void _i; void _a;
+  return JSON.stringify(rest);
+}
+
 export const SEND_LOCK_COPY = {
+  addPayButton: 'Add a Pay Button',
+  addPayButtonHint: 'This application went out without a Pay button. Adding one changes no figure on it.',
+  payButtonAddedTitle: 'Pay Button Added',
+  payButtonAddedBody: (amount: string) => `The client portal now shows a Pay button for ${amount}. No figure on the application changed.`,
+  payButtonNotAddedTitle: 'Pay Button Not Added',
+  payButtonNotConnected: 'Stripe is not connected, so no Pay button was made. Set up Stripe, then add the button here. Nothing on the application changed.',
+  payButtonFailed: 'Stripe could not make the pay link. Nothing on the application changed. Try again in a moment.',
+  payButtonBalance: 'The server shows a different balance for this pay app, so no Pay button was made. Nothing on the application changed.',
+  payButtonNothingOwed: 'No Pay button was made: nothing can be collected on this application right now. Nothing on it changed.',
   /** The locked banner's body when the lock is the send itself (no pay link, not paid). */
   lockedBody: (applicationNumber: number) =>
     `You certified and sent Application ${applicationNumber}, so its figures are kept as they went out. `

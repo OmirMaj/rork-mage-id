@@ -44,7 +44,7 @@ export function RejectionCheckSheet({ visible, result, onClose, onGoToLine, onCo
         <View style={styles.actions}>
           {fix && onGoToLine ? (
             <Button
-              label={REJECTION_COPY.fixLine(fix.itemNo)}
+              label={REJECTION_COPY.goToLine(fix.itemNo)}
               onPress={() => onGoToLine(fix.lineId)}
               fullWidth
               testID={`${testID}-fix`}

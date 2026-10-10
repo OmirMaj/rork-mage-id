@@ -18,7 +18,7 @@ import type { AIAPayApplication } from '@/utils/aiaBilling';
 import { deliverTextFile } from '@/utils/platformFile';
 import { REJECTION_COPY } from '@/utils/payApp/rejectionCopy';
 import {
-  SOV_EXPORT_COPY, SOV_IMPORT_COPY, coverFigureRows, sovExportCsv, sovExportFileName,
+  SOV_EXPORT_COPY, SOV_IMPORT_COPY, coverFigureRows, sovExportCsvFile, sovExportFileName,
   sovExportTsv, toDelimited,
 } from '@/utils/payApp/sovSpreadsheet';
 import { makePayAppStyles } from './styles';
@@ -55,7 +55,9 @@ export function SovSpreadsheetBar({ app, onImport, onOpenCheck }: SovSpreadsheet
 
   const exportCsv = useCallback(async () => {
     try {
-      const uri = await deliverTextFile(sovExportFileName(app.applicationNumber), sovExportCsv(app, { entryOnly }), 'text/csv;charset=utf-8');
+      // The FILE carries a byte-order mark (sovExportCsvFile) so a spreadsheet
+      // reads accents and inch marks; the copied text does not need one.
+      const uri = await deliverTextFile(sovExportFileName(app.applicationNumber), sovExportCsvFile(app, { entryOnly }), 'text/csv;charset=utf-8');
       // Web: the browser already downloaded it (uri is null).
       if (uri && Platform.OS !== 'web' && await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'text/csv', UTI: 'public.comma-separated-values-text' });

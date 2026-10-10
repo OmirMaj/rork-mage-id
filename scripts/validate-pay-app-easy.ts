@@ -58,6 +58,33 @@
 //       entry point on the pay application screen asks the gate
 //   E2  the core is pure: no React, no storage, no network, no clock
 //
+// Review round 1 (2026-10-09), one rule per finding:
+//   X3  an exported text cell cannot run as a formula (a leading single quote,
+//       number columns untouched, CSV and copied text alike), the CSV FILE
+//       carries a byte-order mark, and the import takes both back off
+//   X4  import money is read strictly (a comma for decimals, spaces between
+//       digits, a percent sign and three decimals are refused, never guessed);
+//       item numbers "3.0" and "3" match; duplicates, the row cap and an open
+//       quotation mark are said; a contract header is never This Period; the
+//       sheet shows the RESULTING schedule total per way of landing
+//   S5  Accept works the suggested percent out on the line as it is NOW
+//   S6  a typed percent is entered as it is typed; a refused one says why and
+//       the line goes back to what it held; the keyboard goes before the check
+//   P1  the invoice behind Bill This Month matches the pay application to the
+//       cent (work and per-line retainage), carries no due date on terms
+//       nobody confirmed, is named before saving, and follows later edits
+//       while it is still a draft (else both records say they differ)
+//   F1  the footer adds up after a certificate cut (the cover's lines 4 to 8)
+//   R4  ONE builder for what the check reads, used by both screens
+//   R5  a clean row's label says what was compared; a change order line that
+//       matches nothing reads "Could not compare"; "Fix Line" is gone
+//   M1  roll-forward says when it starts from an application with no record
+//       of being sent or skips an undated one; the application date opens on
+//       or after the period end; a credit line bills by percent; leaving with
+//       figures entered asks first
+//   L4  a Pay button can be added to a record locked at send, and every other
+//       byte of the record is the same before and after
+//
 // The modules under utils/payApp are EXECUTED from a copy of their source (a
 // "world"), so a planted mutation is a real edit to the code that then runs.
 // Everything they import from outside utils/payApp is the real module.
@@ -75,6 +102,8 @@ import * as realFormatters from '../utils/formatters';
 import * as realBillCore from '../utils/billFromEstimateCore';
 import * as realRetainage from '../utils/retainage';
 import * as realDataTable from '../utils/dataTable';
+import * as realRetainageSource from '../utils/retainageSource';
+import * as realPasteRows from '../utils/pasteRows';
 import { aiaRowToSaved, savedToAiaRow } from '../utils/projectContextPure';
 import type { ChangeOrder, SavedAIAPayApp } from '../types';
 import type { AIAPayApplication, AIASOVLine } from '../utils/aiaBilling';
@@ -125,6 +154,8 @@ const REAL_MODULES: Record<string, unknown> = {
   '@/utils/billFromEstimateCore': realBillCore,
   '@/utils/retainage': realRetainage,
   '@/utils/dataTable': realDataTable,
+  '@/utils/retainageSource': realRetainageSource,
+  '@/utils/pasteRows': realPasteRows,
 };
 
 type Mod = Record<string, any>;
@@ -246,6 +277,7 @@ const CHECK_CASES: CheckCase[] = [
   { rule: 'app_date_before_period_end', what: 'the application date is before the period ends', expect: ['app_date_before_period_end'], edit: (f) => { f.app.applicationDate = '2026-10-15'; } },
   { rule: 'number_sequence', what: 'the number skips', expect: ['number_sequence'], edit: (f) => { f.app.applicationNumber = 6; } },
   { rule: 'number_sequence', what: 'the number is used twice', expect: ['number_sequence'], edit: (f) => { f.saved.push(savedApp({ applicationNumber: 4, id: 'dup', lines: [] })); } },
+  { rule: 'credit_lines', what: 'a line with a scheduled value below zero', expect: ['credit_lines'], edit: (f) => { f.app.lines[0].scheduledValue = 1100; f.app.lines.push(line('sov_manual_cr', '4', 'Allowance Credit', -100, 0, 0)); } },
   { rule: 'nothing_billed', what: 'no work and no stored change', expect: ['nothing_billed'], edit: (f) => { f.prior.amountCertified = 0; f.app.lessPreviousCertificates = 180; f.app.lines = f.prior.lines.map(l => ({ ...l, fromPreviousApp: l.fromPreviousApp + l.thisPeriod, thisPeriod: 0 })); } },
 ];
 const PHASE_ONE_RULES = [...new Set(CHECK_CASES.map(c => c.rule))];
@@ -512,7 +544,7 @@ const RULES: Record<string, Rule> = {
     if (!(s.suggestion.thisPeriod > 0)) bad.push('the open suggestion is worth nothing');
     const tally = tallyOpenSuggestions(results, {});
     if (tally.open !== 1 || cents(tally.openAmount) !== cents(s.suggestion.thisPeriod)) bad.push(`tally of open suggestions is ${JSON.stringify(tally)}`);
-    if (buildPeriodInvoice({ projectId: 'p1', lines: app.lines, applicationNumber: 3, number: 9, now: '2026-03-20T12:00:00.000Z', taxRate: 0, paymentTerms: 'net_30', retainagePercent: 10, newInvoiceId: () => 'i', newLineId: () => 'l' }) !== null) bad.push('an invoice was made from an application with nothing accepted');
+    if (buildPeriodInvoice({ projectId: 'p1', lines: app.lines, applicationNumber: 3, number: 9, now: '2026-03-20T12:00:00.000Z', taxRate: 0, terms: { paymentTerms: 'net_30', confirmed: true }, newInvoiceId: () => 'i', newLineId: () => 'l' }) !== null) bad.push('an invoice was made from an application with nothing accepted');
     // Accept: exactly that line, exactly that amount.
     const m1 = app.lines.find(l => l.id === 'sov_m1') as AIASOVLine;
     const accepted: AIASOVLine = acceptSuggestion(m1, s.suggestion);
@@ -524,7 +556,7 @@ const RULES: Record<string, Rule> = {
     const typed: AIASOVLine = enterPercent(m1, 70, s.suggestion);
     if (cents(typed.thisPeriod) !== cents(1000 * 0.7 - m1.fromPreviousApp) || typed.suggestedPercent !== s.suggestion.percent) bad.push('enterPercent did not keep what was suggested beside what he typed');
     const afterAccept = { ...app, lines: app.lines.map(l => (l.id === 'sov_m1' ? accepted : l)) };
-    const inv = buildPeriodInvoice({ projectId: 'p1', lines: afterAccept.lines, applicationNumber: 3, number: 9, now: '2026-03-20T12:00:00.000Z', taxRate: 0, paymentTerms: 'net_30', retainagePercent: 10, newInvoiceId: () => 'i', newLineId: () => 'l' });
+    const inv = buildPeriodInvoice({ projectId: 'p1', lines: afterAccept.lines, applicationNumber: 3, number: 9, now: '2026-03-20T12:00:00.000Z', taxRate: 0, terms: { paymentTerms: 'net_30', confirmed: true }, newInvoiceId: () => 'i', newLineId: () => 'l' });
     if (!inv || inv.lineItems.length !== 1 || cents(inv.subtotal) !== cents(accepted.thisPeriod) || inv.status !== 'draft' || inv.type !== 'progress') bad.push('the invoice behind the period is not the accepted lines, as a draft progress invoice');
     else if (inv.lineItems[0].sourceEstimateItemId !== 'm1' || inv.lineItems[0].billedPercent == null) bad.push('the invoice line does not carry sourceEstimateItemId and billedPercent');
     // The screens: only his tap or keystroke writes a line.
@@ -647,7 +679,8 @@ const RULES: Record<string, Rule> = {
     const bad: string[] = [];
     const { checkFingerprint } = loader(w)('@/utils/payApp/rejectionCheck');
     const f = cleanCheck();
-    const base = checkFingerprint(f.app);
+    const fp = (a: AIAPayApplication): string => checkFingerprint({ ...f, app: a });
+    const base = fp(f.app);
     const moved: [string, (a: AIAPayApplication) => void][] = [
       ['this period', (a) => { a.lines[0].thisPeriod += 0.01; }], ['stored', (a) => { a.lines[1].materialsPresentlyStored += 1; }],
       ['previous work', (a) => { a.lines[0].fromPreviousApp += 1; }], ['scheduled value', (a) => { a.lines[0].scheduledValue += 1; }],
@@ -655,20 +688,34 @@ const RULES: Record<string, Rule> = {
       ['period to', (a) => { a.periodTo = '2026-10-30'; }], ['the number', (a) => { a.applicationNumber = 5; }],
       ['a new line', (a) => { a.lines.push(line('sov_manual_n', '9', 'New', 0, 0, 0)); }],
     ];
-    for (const [what, edit] of moved) { const a = clone(f.app); edit(a); if (checkFingerprint(a) === base) bad.push(`changing ${what} does not bring the check back`); }
-    if (checkFingerprint(clone(f.app)) !== base) bad.push('the same figures give a different fingerprint');
+    for (const [what, edit] of moved) { const a = clone(f.app); edit(a); if (fp(a) === base) bad.push(`changing ${what} does not bring the check back`); }
+    if (fp(clone(f.app)) !== base) bad.push('the same figures give a different fingerprint');
+    // What the check READ beyond the application: the change order log, the
+    // prior record, the other saved applications and the rate on record.
+    const around: [string, (x: ReturnType<typeof cleanCheck>) => void][] = [
+      ['a change order approved since', (x) => { x.changeOrders.push(co('co9', 9, 250, 'approved', '2026-10-20')); }],
+      ['a change order\'s status', (x) => { (x.changeOrders[0] as { status: string }).status = 'void'; }],
+      ['a change order\'s amount', (x) => { (x.changeOrders[0] as { changeAmount: number }).changeAmount = 501; }],
+      ['a certificate recorded on the last application', (x) => { x.prior.amountCertified = 900; }],
+      ['a line on the last application', (x) => { x.prior.lines[0].thisPeriod += 1; }],
+      ['a different last application', (x) => { x.prior = { ...x.prior, id: 'other' }; }],
+      ['another saved application', (x) => { x.saved.push(savedApp({ applicationNumber: 9, id: 'nine', lines: [] })); }],
+      ['the rate on record', (x) => { x.statedRetainagePercent = 5; }],
+      ['no rate on record', (x) => { x.statedRetainagePercent = undefined; }],
+    ];
+    for (const [what, edit] of around) { const x = cleanCheck(); edit(x); if (checkFingerprint(x) === checkFingerprint(cleanCheck())) bad.push(`${what} does not bring the check back`); }
     const screen = stripComments(w['app/aia-pay-app.tsx'] ?? '');
     const i = screen.indexOf('const requestGenerate = useCallback(');
     const j = screen.indexOf('const continueToCertify = useCallback(');
     const k = screen.indexOf('const onBilledThisMonth = useCallback(');
     if (i < 0 || j < i || k < j) return [...bad, 'app/aia-pay-app.tsx: requestGenerate / continueToCertify not found'];
     const req = screen.slice(i, j);
-    const gate = req.indexOf("if (easy && checkShownForRef.current !== checkFingerprint(app)) {");
+    const gate = req.indexOf("if (easy && checkInput && checkShownForRef.current !== checkFingerprint(checkInput)) {");
     const open = req.indexOf('setShowPreExportConfirm(true)');
     if (gate < 0 || open < gate || !/setCheckOpen\('certify'\);\s*return;/.test(req.slice(gate, open))) bad.push('requestGenerate opens the certify sheet without the check having been shown for these figures');
     const cont = screen.slice(j, k);
-    if (!/checkShownForRef\.current = checkFingerprint\(app\);[\s\S]*setShowPreExportConfirm\(true\);/.test(cont)) bad.push('Continue Anyway does not record the figures and open the certify sheet');
-    if (/if \((?!\!app\))/.test(cont)) bad.push('Continue Anyway has a condition (the check must never block)');
+    if (!/checkShownForRef\.current = checkFingerprint\(checkInput\);[\s\S]*setShowPreExportConfirm\(true\);/.test(cont)) bad.push('Continue Anyway does not record the figures and open the certify sheet');
+    if (/if \((?!\!checkInput\))/.test(cont)) bad.push('Continue Anyway has a condition (the check must never block)');
     const outside = screen.slice(0, i) + screen.slice(k);
     if (/setShowPreExportConfirm\(true\)/.test(outside)) bad.push('the certify sheet is opened from somewhere that skips the check');
     if (!/onContinue=\{checkOpen === 'certify' \? continueToCertify : undefined\}/.test(screen)) bad.push('the sheet on the way to certify does not offer Continue Anyway');
@@ -953,6 +1000,389 @@ const RULES: Record<string, Rule> = {
     }
     return bad;
   },
+
+  // ── review round 1 (2026-10-09): one rule per finding ────────────────────
+  'X3 an exported cell cannot run as a formula': (w) => {
+    const bad: string[] = [];
+    const S = loader(w)('@/utils/payApp/sovSpreadsheet');
+    const f = cleanCheck();
+    const risky = ['=SUM(A1)', '+1+1', '-2+3', '@cmd', '\tTabbed', '\rReturn', "'already quoted", "'=nested", '=HYPERLINK("http://x","y")', 'Framing'];
+    const lines = risky.map((d, i) => line(`l${i}`, i === 0 ? '=1+1' : i === 1 ? '-7' : String(i + 1), d, -100.5, 0, -20.25));
+    const app = { ...f.app, lines };
+    for (const [name, text] of [['csv', S.sovExportCsv(app)], ['tsv', S.sovExportTsv(app)]] as [string, string][]) {
+      const rows: string[][] = S.readDelimited(text).rows.slice(1);
+      rows.forEach((r, i) => {
+        for (const col of [0, 1]) if (/^[=+\-@\t\r]/.test(r[col])) bad.push(`${name}: row ${i + 1} column ${col === 0 ? 'A' : 'B'} would run as a formula: ${JSON.stringify(r[col])}`);
+        if (r[2] !== '-100.50' || r[4] !== '-20.25') bad.push(`${name}: a number column was changed: ${JSON.stringify([r[2], r[4]])}`);
+      });
+      const parsed: string[][] = S.parseDelimited(text);
+      const det = S.detectSovColumns(parsed);
+      const plan = S.planSovImport({ rows: parsed, mapping: det.mapping, hasHeader: det.hasHeader });
+      const got = plan.rows.map((r: { itemNo: string; description: string }) => [r.itemNo, r.description]);
+      const exp = lines.map(l => [l.itemNo.trim(), l.description.trim()]);
+      if (!same(got, exp)) bad.push(`${name}: the round trip is not lossless: ${JSON.stringify(got.find((g: unknown, i: number) => !same(g, exp[i])))} for ${JSON.stringify(exp.find((e, i) => !same(e, got[i])))}`);
+    }
+    if (S.guardTextCell('Framing') !== 'Framing' || S.guardTextCell('5') !== '5' || S.guardTextCell('=1') !== "'=1") bad.push('guardTextCell guards the wrong cells');
+    if (S.unguardTextCell("'Tis the season") !== "'Tis the season") bad.push('an apostrophe he typed himself is taken off on import');
+    const file: string = S.sovExportCsvFile(app);
+    if (file.charCodeAt(0) !== 0xFEFF) bad.push('the CSV file has no byte-order mark');
+    if (file.slice(1) !== S.sovExportCsv(app)) bad.push('the CSV file is not the same text behind the mark');
+    if (S.sovExportTsv(app).charCodeAt(0) === 0xFEFF || S.sovExportCsv(app).charCodeAt(0) === 0xFEFF) bad.push('the copied text carries a byte-order mark');
+    if (S.readDelimited(file).rows[0]?.[0] !== 'Item No.') bad.push('the import does not take the byte-order mark off');
+    const bar = stripComments(w['components/payApp/SovSpreadsheetBar.tsx'] ?? '');
+    if (!/deliverTextFile\(sovExportFileName\(app\.applicationNumber\), sovExportCsvFile\(app, \{ entryOnly \}\)/.test(bar) || /sovExportCsv\(/.test(bar)) bad.push('SovSpreadsheetBar writes the file without the byte-order mark');
+    return bad;
+  },
+  'X4 import reads money strictly and shows the result': (w) => {
+    const bad: string[] = [];
+    const S = loader(w)('@/utils/payApp/sovSpreadsheet');
+    const ok: [string, number][] = [['1234.56', 1234.56], ['1,234.56', 1234.56], ['$1,234.56', 1234.56], ['(250.00)', -250], ['-250', -250], ['1,234', 1234], ['0.5', 0.5], ['.5', 0.5], ['1200.0000', 1200], ['£12', 12], ['-$5.10', -5.1], ['($5.10)', -5.1], ['12', 12]];
+    for (const [text, want] of ok) { const r = S.parseMoneyCell(text); if (!r.ok || cents(r.value) !== cents(want)) bad.push(`"${text}" was read as ${JSON.stringify(r)}, expected ${want}`); }
+    const no: [string, string][] = [['1.234,56', 'comma_decimal'], ['1,5', 'comma_decimal'], ['1,23', 'comma_decimal'], ['1 234,56', 'spaces'], ['1 234.56', 'spaces'], ['50%', 'percent'], ['TBD', 'not_amount'], ['1.234', 'decimals'], ['12,34,567', 'not_amount'], ['', 'not_amount'], ['1e3', 'not_amount']];
+    for (const [text, why] of no) { const r = S.parseMoneyCell(text); if (r.ok || r.problem !== why) bad.push(`"${text}" was read as ${JSON.stringify(r)}, expected to be refused as ${why}`); }
+    const rows: string[][] = S.parseDelimited([
+      'Item No.,Description of Work,Scheduled Value,This Period',
+      '1,Framing,"1.234,56",0', '2,Tile,1 234,0', '3,Paint,50%,0', '4,Trim,"1,5",0', '5,Doors,"1,500.00",10%', '6,Roof,"2,000.00",100',
+    ].join('\n'));
+    const det = S.detectSovColumns(rows);
+    const plan = S.planSovImport({ rows, mapping: det.mapping, hasHeader: det.hasHeader });
+    if (plan.rows.length !== 1 || plan.rows[0].description !== 'Roof' || plan.bad.length !== 5) bad.push(`ambiguous cells were guessed at: ${plan.rows.length} imported, ${plan.bad.length} refused`);
+    if (!plan.bad.every((b: { reason: string }) => /"/.test(b.reason))) bad.push('a refused cell is not quoted back to him');
+    // Item numbers: "3.0" is "3"; "1.10" is not "1.1".
+    if (S.itemKey('3.0') !== S.itemKey('3') || S.itemKey(' 3.00 ') !== S.itemKey('3') || S.itemKey('1.10') === S.itemKey('1.1') || S.itemKey('A-1') !== S.itemKey('a-1')) bad.push('item numbers are not normalised (or are over-normalised)');
+    const f = cleanCheck();
+    const billed = freeze(clone(f.app));
+    const incoming = { rows: [
+      { rowNumber: 2, itemNo: '1.0', description: 'Framing, revised', scheduledValue: 1500 },
+      { rowNumber: 3, itemNo: '9', description: 'New Scope', scheduledValue: 700 },
+    ] };
+    const upd = S.applySovImport({ app: billed, plan: incoming, mode: 'update_and_append', idSeed: 'x' });
+    if (upd.updated !== 1 || upd.added !== 1) bad.push('"1.0" in the file did not update item "1"');
+    // The RESULTING schedule of values, per way of landing (the file's own sum is 2,200.00 in every case).
+    const pU = S.sovImportPreview({ app: billed, plan: incoming, mode: 'update_and_append' });
+    const pA = S.sovImportPreview({ app: billed, plan: incoming, mode: 'append' });
+    const pR = S.sovImportPreview({ app: billed, plan: incoming, mode: 'replace_all' });
+    if (cents(pU.total) !== 470000 || cents(pA.total) !== 570000 || cents(pU.difference) !== 120000) bad.push(`the result per mode is ${pU.total} / ${pA.total} (difference ${pU.difference})`);
+    if (!pR.refused) bad.push('the preview offers Replace on an application with money on it');
+    const sheet = stripComments(w['components/payApp/SovImportSheet.tsx'] ?? '');
+    if (!/sovImportPreview\(\{ app, plan, mode \}\)/.test(sheet) || !/formatMoney\(previews\[mode\]!\.total, 2\)/.test(sheet) || /plan\.sumScheduled/.test(sheet)) bad.push('SovImportSheet shows the file\'s sum, not the resulting schedule total per mode');
+    // Duplicates, the cap, an open quote.
+    const dup = S.planSovImport({ rows: [['3', 'A', '100'], ['3.0', 'B', '200'], ['4', 'C', '300']], mapping: { itemNo: 0, description: 1, scheduled: 2 }, hasHeader: false });
+    if (!same(dup.duplicateItemNos, ['3'])) bad.push(`duplicate item numbers are not reported: ${JSON.stringify(dup.duplicateItemNos)}`);
+    if (S.SOV_IMPORT_ROW_CAP !== realPasteRows.MAX_PASTE_ROWS) bad.push('the row cap is not MAX_PASTE_ROWS');
+    const many = Array.from({ length: S.SOV_IMPORT_ROW_CAP + 5 }, (_, i) => [String(i + 1), `Line ${i + 1}`, '10']);
+    const capped = S.planSovImport({ rows: many, mapping: { itemNo: 0, description: 1, scheduled: 2 }, hasHeader: false });
+    if (capped.rows.length !== S.SOV_IMPORT_ROW_CAP || capped.overCap !== 5) bad.push(`the cap: ${capped.rows.length} read, ${capped.overCap} said to be left out`);
+    if (S.readDelimited('1,"Framing,100\n2,Tile,200').unterminatedQuoteRow !== 1 || S.readDelimited('1,"Framing",100\n2,Tile,200').unterminatedQuoteRow !== null) bad.push('an unterminated quote is not reported (or a closed one is)');
+    for (const need of ['SOV_IMPORT_COPY.overCapLine(', 'SOV_IMPORT_COPY.duplicateLine(', 'SOV_IMPORT_COPY.unterminatedQuoteBody(']) if (!sheet.includes(need)) bad.push(`SovImportSheet does not show ${need}`);
+    if (!/if \(unterminatedQuoteRow != null\) \{[\s\S]{0,200}return;/.test(sheet)) bad.push('SovImportSheet imports past an unterminated quote');
+    // A contract header is never This Period.
+    const c1 = S.detectSovColumns([['Item', 'Description', 'Current Contract Value']]);
+    const c2 = S.detectSovColumns([['Item', 'Description', 'Contract Value', 'This Period']]);
+    if (c1.mapping.thisPeriod != null || c1.mapping.scheduled !== 2 || c2.mapping.thisPeriod !== 3 || c2.mapping.scheduled !== 2) bad.push(`a contract value header is mapped to This Period: ${JSON.stringify([c1.mapping, c2.mapping])}`);
+    if (!/written from the file/.test(S.SOV_IMPORT_COPY.replaceAllHint)) bad.push('the Replace hint does not say the money columns are written from the file');
+    return bad;
+  },
+  'S5 accept uses the line as it is now': (w) => {
+    const bad: string[] = [];
+    const { acceptSuggestion, suggestionAmountNow } = loader(w)('@/utils/payApp/suggestPercent');
+    const L = line('sov_m1', '1', 'Framing', 100000, 20000, 0);
+    const s = { lineId: 'sov_m1', percent: 75, thisPeriod: 55000, source: { kind: 'schedule_task', taskId: 't', taskTitle: 'Framing', progress: 75 }, sentence: 'Schedule: Framing is marked 75%.' };
+    if (cents(acceptSuggestion(L, s).thisPeriod) !== 5500000) bad.push('an untouched line no longer accepts at the suggested figure');
+    const stored = { ...L, materialsPresentlyStored: 40000 };
+    const got = acceptSuggestion(stored, s);
+    if (cents(got.thisPeriod) !== 1500000) bad.push(`scheduled 100,000.00, previous 20,000.00, 75% suggested, then 40,000.00 stored typed: Accept put ${got.thisPeriod} in this period, not 15,000.00`);
+    if (got.suggestedPercent !== 75) bad.push('the accepted line lost what was suggested');
+    if (cents(suggestionAmountNow(stored, s)) !== 1500000) bad.push('the row shows the figure the suggestion was made with');
+    const row = stripComments(w['components/payApp/SuggestionRow.tsx'] ?? '');
+    if (!/formatMoney\(amountNow \?\? s\.thisPeriod, 2\)/.test(row)) bad.push('SuggestionRow does not draw the amount for the line as it is now');
+    const screen = stripComments(w['app/aia-pay-app.tsx'] ?? '');
+    if ((screen.match(/amountNow=\{suggestions\[line\.id\]\?\.kind === 'suggest' \? suggestionAmountNow\(line,/g) ?? []).length !== 2) bad.push('app/aia-pay-app.tsx: a suggestion row is drawn with the stale figure');
+    if (!/amountNow=\{result\?\.kind === 'suggest' \? suggestionAmountNow\(line, result\.suggestion\) : undefined\}/.test(stripComments(w['components/payApp/BillThisMonthLine.tsx'] ?? ''))) bad.push('BillThisMonthLine draws the stale figure');
+    // Asking for suggestions again keeps what he accepted.
+    const a = screen.indexOf('if (easy) {', screen.indexOf('const handleSyncFromSchedule = useCallback('));
+    const easyPath = screen.slice(a, screen.indexOf('if (!project?.schedule || !project.linkedEstimate || !app) {', a));
+    if (/setSuggestStates\(\{\}\)/.test(easyPath) || !/next\[l\.id\] = was;/.test(easyPath)) bad.push('app/aia-pay-app.tsx: tapping Suggest again forgets the lines he accepted');
+    return bad;
+  },
+  'S6 a typed percent is entered as typed, and a refused one says why': (w) => {
+    const bad: string[] = [];
+    const load = loader(w);
+    const { parseTypedPercent } = load('@/utils/payApp/suggestPercent');
+    const { SUGGEST_COPY } = load('@/utils/payApp/suggestCopy');
+    const want: [string, unknown][] = [
+      ['75', { kind: 'ok', percent: 75 }], ['42.5%', { kind: 'ok', percent: 42.5 }], [' 100 ', { kind: 'ok', percent: 100 }], ['0', { kind: 'ok', percent: 0 }],
+      ['', { kind: 'empty' }], ['150', { kind: 'refused', why: 'over_100' }], ['100.01', { kind: 'refused', why: 'over_100' }], ['-5', { kind: 'refused', why: 'below_zero' }],
+      ['12,5', { kind: 'refused', why: 'not_a_number' }], ['abc', { kind: 'refused', why: 'not_a_number' }], ['1e2', { kind: 'refused', why: 'not_a_number' }], ['$50', { kind: 'refused', why: 'not_a_number' }],
+    ];
+    for (const [text, exp] of want) if (!same(parseTypedPercent(text), exp)) bad.push(`"${text}" was read as ${JSON.stringify(parseTypedPercent(text))}`);
+    if (!/150/.test(SUGGEST_COPY.pctOver('150')) || !/over 100/.test(SUGGEST_COPY.pctOver('150')) || !/not entered/.test(SUGGEST_COPY.pctOver('150'))) bad.push('the over-100 reason does not say what was typed and that it was not entered');
+    const ln = stripComments(w['components/payApp/BillThisMonthLine.tsx'] ?? '');
+    const typed = ln.slice(ln.indexOf('const typed = (text: string) => {'), ln.indexOf('return (', ln.indexOf('const typed = (text: string) => {')));
+    if (!/onChangeText=\{typed\}/.test(ln)) bad.push('BillThisMonthLine: the percent field does not commit as he types');
+    if (!/if \(read\.kind === 'ok'\) \{[\s\S]{0,400}onPercent\(read\.percent\);/.test(typed)) bad.push('BillThisMonthLine: a readable percent is not entered on change');
+    const blur = /onBlur=\{\(\) => \{([^}]*)\}\}/.exec(ln)?.[1] ?? 'missing';
+    if (/onPercent|onRestore/.test(blur)) bad.push('BillThisMonthLine: a value is still committed on blur');
+    if (!/if \(before\.current\) onRestore\(before\.current\);/.test(typed)) bad.push('BillThisMonthLine: a refused value leaves what he typed on the way to it on the line');
+    for (const need of ['SUGGEST_COPY.pctOver(', 'SUGGEST_COPY.pctBelowZero', 'SUGGEST_COPY.pctNotNumber(', 'SUGGEST_COPY.pctBelowBilled(']) if (!typed.includes(need)) bad.push(`BillThisMonthLine: ${need} is never shown`);
+    if (!/\{refusal \? \(\s*<Text[^>]*>\{refusal\}<\/Text>/.test(ln)) bad.push('BillThisMonthLine: a refused value is reverted without a word');
+    const btm = stripComments(w['components/payApp/BillThisMonth.tsx'] ?? '');
+    if (!/const openCheck = useCallback\(\(\) => \{\s*Keyboard\.dismiss\(\);\s*setCheckOpen\(true\);/.test(btm) || !/label=\{SUGGEST_COPY\.next\} onPress=\{openCheck\}/.test(btm) || /onPress=\{\(\) => setCheckOpen\(true\)\}/.test(btm)) bad.push('BillThisMonth: the check opens with the keyboard (and a field) still up');
+    if (!/const saveDraft = useCallback\(async \(\) => \{\s*if \(!app \|\| !checkInput \|\| savingRef\.current\) return;\s*Keyboard\.dismiss\(\);/.test(btm)) bad.push('BillThisMonth: saving does not dismiss the keyboard first');
+    if (!/const restoreLine = useCallback\([\s\S]{0,500}thisPeriod: before\.thisPeriod,/.test(btm)) bad.push('BillThisMonth: restoring a line does not put back what it held');
+    return bad;
+  },
+  'P1 the invoice behind the period matches the pay application': (w) => {
+    const bad: string[] = [];
+    const P = loader(w)('@/utils/payApp/periodInvoice');
+    let n = 0;
+    const base = { projectId: 'p1', applicationNumber: 4, number: 9, now: '2026-10-09T12:00:00.000Z', taxRate: 0, newInvoiceId: () => 'inv', newLineId: () => `li${++n}` };
+    const yes = { paymentTerms: 'net_15', confirmed: true };
+    // The reviewer's case: lines at 10%, 10% and 5%, period work 81,664.00, the pay application holds 6,833.20.
+    const lines = [line('sov_a', '1', 'Framing', 60000, 0, 30000, 0, 10), line('sov_b', '2', 'Plumbing', 50000, 0, 25000, 0, 10), line('sov_c', '3', 'Tile', 40000, 0, 26664, 0, 5)];
+    const app = { ...cleanCheck().app, lines };
+    const inv = P.buildPeriodInvoice({ ...base, lines, terms: yes });
+    if (!inv) return ['no invoice was built'];
+    if (cents(inv.subtotal) !== 8166400) bad.push(`work on the invoice is ${inv.subtotal}`);
+    const payAppHolds = realAia.computeAIATotals(app).totalRetainage;
+    if (cents(payAppHolds) !== 683320) bad.push(`fixture: the pay application holds ${payAppHolds}`);
+    if (cents(realInvoiceBilling.effectiveRetentionHeld(inv)) !== 683320 || cents(inv.retentionAmount ?? 0) !== 683320) bad.push(`the invoice holds ${realInvoiceBilling.effectiveRetentionHeld(inv)} (stored ${inv.retentionAmount} at ${inv.retentionPercent}%), the pay application 6,833.20`);
+    if (cents(P.periodRetainage(lines)) !== 683320 || cents(P.periodWork(lines)) !== 8166400) bad.push('periodRetainage / periodWork are wrong on the case');
+    // One rate on every line stays that rate.
+    const one = P.buildPeriodInvoice({ ...base, lines: lines.map(l => ({ ...l, retainagePercent: 10 })), terms: yes });
+    if (one?.retentionPercent !== 10 || cents(one?.retentionAmount ?? 0) !== 816640) bad.push('one rate on every line is not stored as that rate');
+    // 300 random periods, mixed rates, earlier work on the lines: every reader of the invoice arrives at the pay application's figure.
+    let seed = 99;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const rates = [0, 5, 7.5, 10];
+    for (let k = 0; k < 300; k++) {
+      const ls: AIASOVLine[] = [];
+      const count = 1 + Math.floor(rnd() * 8);
+      for (let i = 0; i < count; i++) {
+        const C = Math.round(rnd() * 9000000) / 100 + 100;
+        const D = Math.round(rnd() * C * 40) / 100;
+        const E = rnd() < 0.2 ? 0 : Math.round(rnd() * (C - D) * 100) / 100;
+        ls.push(line(`sov_r${i}`, String(i + 1), `Line ${i}`, C, D, E, 0, rates[Math.floor(rnd() * rates.length)]));
+      }
+      const made = P.buildPeriodInvoice({ ...base, lines: ls, terms: yes });
+      const a2 = { ...app, lines: ls };
+      const before = realAia.computeAIATotals({ ...a2, lines: ls.map(l => ({ ...l, thisPeriod: 0 })) }).retainageOnCompleted;
+      const holds = Math.round((realAia.computeAIATotals(a2).retainageOnCompleted - before) * 100) / 100;
+      if (!made) { if (ls.some(l => l.thisPeriod !== 0)) bad.push(`period ${k}: no invoice for a period with work`); continue; }
+      const work = Math.round(ls.reduce((s2, l) => s2 + l.thisPeriod, 0) * 100) / 100;
+      if (cents(made.subtotal) !== cents(work) || cents(realInvoiceBilling.effectiveRetentionHeld(made)) !== cents(holds)) {
+        bad.push(`period ${k}: invoice work ${made.subtotal} / held ${realInvoiceBilling.effectiveRetentionHeld(made)}, pay application ${work} / ${holds}`);
+        if (bad.length > 4) break;
+      }
+      if (P.comparePeriodInvoice(made, ls).differs) { bad.push(`period ${k}: a fresh invoice is said to differ from its own application`); break; }
+    }
+    // Payment terms: never a silent Net 30 and a date.
+    if (inv.paymentTerms !== 'net_15' || inv.dueDate !== realRetainage.dueDateForTerms(base.now, 'net_15')) bad.push('terms he confirmed are not carried with their date');
+    const open = P.buildPeriodInvoice({ ...base, lines, terms: { paymentTerms: 'net_30', confirmed: false } });
+    if (!open || open.dueDate !== '') bad.push(`terms he has not confirmed still put a due date on the invoice: ${JSON.stringify(open?.dueDate)}`);
+    // A credit line he entered is a negative line, and the work still agrees.
+    const withCredit = [...lines, { ...line('sov_manual_cr', '4', 'Allowance Credit', -500, 0, -100, 0, 10) }];
+    const cr = P.buildPeriodInvoice({ ...base, lines: withCredit, terms: yes });
+    if (!cr || cr.lineItems.length !== 4 || cents(cr.lineItems[3].total) !== -10000 || cents(cr.subtotal) !== 8156400) bad.push('a credit line is left off the invoice');
+    // The terms resolver is the invoice editor's own, byte for byte.
+    const block = (src: string): string => { const a = src.indexOf('// <invoice-terms-default>'); const b = src.indexOf('// </invoice-terms-default>'); return a < 0 || b < 0 ? '' : src.slice(a, b); };
+    const hook = w['components/payApp/usePeriodInvoiceTerms.ts'] ?? '';
+    if (!block(hook) || block(hook) !== block(w['app/invoice.tsx'] ?? '') || block(hook) !== block(w['app/bill-from-estimate.tsx'] ?? '')) bad.push('usePeriodInvoiceTerms does not carry the invoice editor\'s terms resolver byte for byte');
+    const hookCode = stripComments(hook);
+    if (!/if \(d && d\.origin === 'cash_flow_setup'\) return \{ paymentTerms: d\.terms, confirmed: true, origin: 'cash_flow_setup' \};\s*return \{ paymentTerms: 'net_30', confirmed: false, origin: 'unconfirmed' \};/.test(hookCode)) bad.push('usePeriodInvoiceTerms: terms that are the app default count as confirmed');
+    if (!/if \(!prior \|\| !prior\.paymentTerms \|\| !prior\.dueDate\) return null;/.test(hookCode)) bad.push('usePeriodInvoiceTerms: a prior invoice with no due date confirms terms');
+    if (!/settleInvoiceTermsDefault\(cacheRef\.current, serverRef\.current\)/.test(hookCode)) bad.push('usePeriodInvoiceTerms does not use settleInvoiceTermsDefault');
+    const btm = stripComments(w['components/payApp/BillThisMonth.tsx'] ?? '');
+    if (!/terms = await resolvePeriodTerms\(\);/.test(btm) || !/terms: \{ paymentTerms: terms\.paymentTerms, confirmed: terms\.confirmed \},/.test(btm) || /paymentTerms \?\? 'net_30'/.test(btm)) bad.push('BillThisMonth stamps terms the resolver did not give');
+    const lineAt = btm.indexOf('SUGGEST_COPY.invoiceLine(formatMoney(invoicePreview.totalDue, 2)');
+    if (lineAt < 0 || lineAt > btm.indexOf('<RejectionCheckSheet')) bad.push('BillThisMonth does not say, before saving, that a draft invoice will be made and its total including tax');
+    if (!/SUGGEST_COPY\.termsUnconfirmed/.test(btm)) bad.push('BillThisMonth does not say when the terms are not set');
+    const editor = stripComments(w['app/invoice.tsx'] ?? '');
+    if (!/existingInvoice && existingInvoice\.status === 'draft' && !existingInvoice\.dueDate \? 'unconfirmed' : null/.test(editor)) bad.push('app/invoice.tsx: a draft with no due date is not captioned as unconfirmed terms');
+    // Later edits: the draft invoice follows, or the difference is said on both records.
+    const changed = lines.map((l, i) => (i === 0 ? { ...l, thisPeriod: 31000 } : l));
+    if (!P.comparePeriodInvoice(inv, changed).differs) bad.push('a changed line is not seen as a difference');
+    const firstIds = inv.lineItems.map((li: { id: string }) => li.id);
+    const upd = P.periodInvoiceFollowUpdate({ invoice: inv, lines: changed, newLineId: () => 'fresh' });
+    if (!upd) bad.push('a draft period invoice does not follow the application');
+    else {
+      if (!same(Object.keys(upd).sort(), ['lineItems', 'progressPercent', 'retentionAmount', 'retentionPercent', 'subtotal', 'taxAmount', 'taxRate', 'totalDue'])) bad.push(`the follow writes more than amounts: ${Object.keys(upd).join(', ')}`);
+      if (cents(upd.subtotal) !== 8266400 || P.comparePeriodInvoice({ ...inv, ...upd }, changed).differs) bad.push('after following, the invoice and the application still differ');
+      if (!same(upd.lineItems.map((li: { id: string }) => li.id), firstIds)) bad.push('following replaced the invoice line ids');
+    }
+    for (const [what, edit] of [['sent', { status: 'sent' }], ['with a pay link', { payLinkUrl: 'https://pay' }], ['partly paid', { amountPaid: 10 }]] as [string, object][]) {
+      if (P.periodInvoiceFollowUpdate({ invoice: { ...inv, ...edit }, lines: changed, newLineId: () => 'x' }) !== null) bad.push(`an invoice that is ${what} is rewritten`);
+    }
+    const foreign = { ...inv, lineItems: inv.lineItems.map((li: object) => ({ ...li, description: 'Framing' })) };
+    if (P.periodInvoiceApplicationNumber(inv) !== 4 || P.periodInvoiceApplicationNumber(foreign) !== null || P.periodInvoiceFollowUpdate({ invoice: foreign, lines: changed, newLineId: () => 'x' }) !== null) bad.push('an invoice Bill This Month did not make is treated as one it did');
+    const screen = stripComments(w['app/aia-pay-app.tsx'] ?? '');
+    if ((screen.match(/followPeriodInvoice\((rec|record)\.lines\.map\(savedLineToSov\)\);/g) ?? []).length !== 2) bad.push('app/aia-pay-app.tsx: the invoice does not follow on save and on certify');
+    if (!/const follow = periodInvoiceFollowUpdate\(\{ invoice, lines,[\s\S]{0,160}\}\);\s*if \(!follow\) return;\s*updateInvoice\(invoice\.id, follow\);/.test(screen)) bad.push('app/aia-pay-app.tsx: the follow does not go through periodInvoiceFollowUpdate and updateInvoice');
+    if (!/SUGGEST_COPY\.differsOnApplication\(/.test(screen)) bad.push('app/aia-pay-app.tsx: a difference from the invoice is not said');
+    if (!/SUGGEST_COPY\.differsOnInvoice\(/.test(editor) || !/payAppEasyAllowed\(user\?\.email\)/.test(editor)) bad.push('app/invoice.tsx: a difference from the pay application is not said (or is said to everyone)');
+    return bad;
+  },
+  'F1 the footer adds up after a certificate cut': (w) => {
+    const bad: string[] = [];
+    const { rollForwardNextApplication } = loader(w)('@/utils/payApp/rollForward');
+    // Application 1 applied for 80,500.00 and the architect certified 70,000.00.
+    const p1 = savedApp({
+      applicationNumber: 1, applicationDate: '2026-01-31', periodTo: '2026-01-31', originalContractSum: 100000, netChangeByCO: 0, contractSumToDate: 100000,
+      retainagePercent: 0, amountCertified: 70000, lines: [line('sov_m1', '1', 'All Work', 100000, 0, 80500, 0, 0)],
+    });
+    if (cents(p1.totals?.currentPaymentDue ?? 0) !== 8050000) return ['fixture: application 1 did not apply for 80,500.00'];
+    const roll = rollForwardNextApplication({ project: PROJECT, saved: [p1], changeOrders: [], contract: null, today: '2026-02-20' });
+    if (!roll) return ['no roll-forward'];
+    const t = realAia.computeAIATotals(roll.app);
+    if (cents(roll.app.lessPreviousCertificates) !== 7000000) bad.push(`less previous certificates is ${roll.app.lessPreviousCertificates}, not the 70,000.00 certified`);
+    if (cents(t.currentPaymentDue) !== 1050000) bad.push(`payment due with no new work is ${t.currentPaymentDue}`);
+    if (cents(t.totalCompletedAndStored) - cents(t.totalRetainage) !== cents(t.totalEarnedLessRetainage) || cents(t.totalEarnedLessRetainage) - cents(roll.app.lessPreviousCertificates) !== cents(t.currentPaymentDue)) bad.push('lines 4 to 8 do not add up');
+    // The footer draws those rows, in that order, between the work and the payment due.
+    const btm = stripComments(w['components/payApp/BillThisMonth.tsx'] ?? '');
+    const order = ['testID="btm-work-total"', 'formatMoney(totals.totalCompletedAndStored, 2)', 'formatMoney(totals.totalRetainage, 2)', 'formatMoney(totals.totalEarnedLessRetainage, 2)', 'formatMoney(app.lessPreviousCertificates, 2)', 'formatMoney(totals.currentPaymentDue, 2)'];
+    let at = btm.indexOf('<View style={[styles.footer');
+    for (const piece of order) {
+      const next = btm.indexOf(piece, at);
+      if (at < 0 || next < 0) { bad.push(`BillThisMonth: the footer is missing ${piece} (or it is out of order), so it does not add up when money carries in`); break; }
+      at = next;
+    }
+    for (const label of ['completedToDate', 'retainageToDate', 'completedLessRetainage', 'lessPreviousCertificates']) if (!btm.includes(`SUGGEST_COPY.${label}`)) bad.push(`BillThisMonth: the footer row ${label} has no label`);
+    return bad;
+  },
+  'R4 one builder for what the check reads, on both screens': (w) => {
+    const bad: string[] = [];
+    const { buildCheckInput, runRejectionCheck, STATED_RETAINAGE_ORIGIN } = loader(w)('@/utils/payApp/rejectionCheck');
+    const f = cleanCheck();
+    const own = savedApp({ applicationNumber: 4, id: 'own', invoiceId: 'inv-own', lines: f.app.lines });
+    const input = buildCheckInput({ app: f.app, project: { retainagePercent: 10, retainagePercentAssumed: false }, savedForProject: [f.prior, own], ownInvoiceId: 'inv-own', changeOrders: f.changeOrders });
+    if (input.statedRetainagePercent !== 10 || input.statedRetainageOrigin !== STATED_RETAINAGE_ORIGIN) bad.push('the rate he entered for the project is not handed to the check');
+    if (input.prior?.id !== f.prior.id) bad.push('the prior application is not the one before this');
+    if (input.saved.length !== 1 || input.saved[0].id !== f.prior.id) bad.push('this application\'s own record is counted among the others');
+    if (runRejectionCheck(input).flagged.length) bad.push('the clean fixture is flagged through the builder');
+    for (const project of [{ retainagePercent: 10, retainagePercentAssumed: true }, { retainagePercent: 10 }, null]) {
+      if (buildCheckInput({ app: f.app, project, savedForProject: [f.prior], changeOrders: f.changeOrders }).statedRetainagePercent !== undefined) bad.push(`an assumed rate is treated as the rate on record: ${JSON.stringify(project)}`);
+    }
+    // The gap the review found: a line at 5% on a 10% job, from Bill This Month.
+    const off = clone(f.app); off.lines[0].retainagePercent = 5;
+    const viaBtm = runRejectionCheck(buildCheckInput({ app: off, project: { retainagePercent: 10, retainagePercentAssumed: false }, savedForProject: [f.prior], changeOrders: f.changeOrders }));
+    if (!viaBtm.flagged.some((x: { id: string }) => x.id === 'retainage_rate')) bad.push('a line off the rate on record is not flagged');
+    for (const file of ['components/payApp/BillThisMonth.tsx', 'app/aia-pay-app.tsx']) {
+      const src = stripComments(w[file] ?? '');
+      if ((src.match(/buildCheckInput\(\{/g) ?? []).length !== 1) bad.push(`${file}: the check inputs are not built by buildCheckInput, once`);
+      if (!/runRejectionCheck\(checkInput\)/.test(src) || /runRejectionCheck\(\{/.test(src)) bad.push(`${file}: runs the check on inputs it built itself`);
+      if (/checkFingerprint\((?!checkInput\))/.test(src)) bad.push(`${file}: the fingerprint is not taken of what the check read`);
+    }
+    return bad;
+  },
+  'R5 labels say what was compared, and nothing unmatched reads as clean': (w) => {
+    const bad: string[] = [];
+    const load = loader(w);
+    const { CHECK_LABELS, REJECTION_COPY } = load('@/utils/payApp/rejectionCopy');
+    const { runRejectionCheck } = load('@/utils/payApp/rejectionCheck');
+    for (const [id, fn] of Object.entries(CHECK_LABELS)) {
+      for (const label of [(fn as (a?: number) => string)(), (fn as (a?: number) => string)(3)]) {
+        if (/^(No|Every|All|None)\b/.test(label) || /\b(equals?|is|are|agrees?|sums to|adds? up|carr(y|ies)|follows?|goes|moved|can be)\b/i.test(label)) bad.push(`${id}: the label states a result: "${label}"`);
+      }
+    }
+    if ('fixLine' in REJECTION_COPY || /Fix Line/.test(JSON.stringify(REJECTION_COPY))) bad.push('"Fix Line" is still in the copy');
+    const sheet = stripComments(w['components/payApp/RejectionCheckSheet.tsx'] ?? '');
+    if (!/label=\{REJECTION_COPY\.goToLine\(fix\.itemNo\)\}/.test(sheet) || /Fix Line|fixLine/.test(sheet)) bad.push('the sheet\'s button does not read "Go to Line n"');
+    // A hand-added line that reads as a change order and matches none in the log.
+    for (const description of ['Change Order for Added Outlets', 'CO #7 Extra Framing']) {
+      const f = cleanCheck();
+      f.app.lines.push(line('sov_manual_x', '4', description, 0, 0, 50));
+      const r = runRejectionCheck(f);
+      for (const id of ['co_billed_not_approved', 'co_approved_missing']) {
+        if (r.ranClean.some((c: { id: string }) => c.id === id)) bad.push(`${id}: "${description}" matches nothing in the log and the comparison reads as clean`);
+        const nr = r.notRun.find((x: { id: string; why: string }) => x.id === id);
+        if (!nr || !/^Could not compare\./.test(nr.why) || !/Line 4/.test(nr.why)) bad.push(`${id}: "${description}" is not reported as "Could not compare" with its line`);
+      }
+    }
+    const co2 = cleanCheck();
+    co2.app.lines.push(line('sov_manual_y', '4', 'Acme Millwork Co. Casework', 0, 0, 0));
+    const r2 = runRejectionCheck(co2);
+    for (const id of ['co_billed_not_approved', 'co_approved_missing']) if (!r2.ranClean.some((c: { id: string }) => c.id === id)) bad.push(`${id}: a company name is read as a change order`);
+    return bad;
+  },
+  'M1 the small things': (w) => {
+    const bad: string[] = [];
+    const load = loader(w);
+    const { rollForwardNextApplication, defaultApplicationDate } = load('@/utils/payApp/rollForward');
+    const { buildCheckInput, runRejectionCheck } = load('@/utils/payApp/rejectionCheck');
+    const { enterPercent, creditThisPeriodForPercent, percentOfAnyLine } = load('@/utils/payApp/suggestPercent');
+    const { p1, p2 } = rollFixture();
+    const roll = rollForwardNextApplication({ project: PROJECT, saved: [p1, p2], changeOrders: [], contract: null, today: '2026-03-20' });
+    if (!roll) return ['no roll-forward'];
+    // Rolling forward from an application with no record of being sent is said.
+    const kinds = (r: { notes: { kind: string }[] }): string[] => r.notes.map(n => n.kind);
+    const bare = { ...p2, amountCertified: undefined, certifiedDate: undefined };
+    const fromBare = rollForwardNextApplication({ project: PROJECT, saved: [p1, bare], changeOrders: [], contract: null, today: '2026-03-20' });
+    const note = fromBare?.notes.find((n: { kind: string }) => n.kind === 'prior_not_sent') as { applicationNumber: number } | undefined;
+    if (!note || note.applicationNumber !== p2.applicationNumber) bad.push('rolling forward from an application with no record of being sent says nothing');
+    if (kinds(roll).includes('prior_not_sent')) bad.push('an application with a certificate recorded on it is called unsent');
+    for (const sent of [{ sentLockedAt: '2026-03-01T00:00:00.000Z' }, { payLinkUrl: 'https://pay' }, { paidAt: '2026-03-01T00:00:00.000Z' }]) {
+      const r = rollForwardNextApplication({ project: PROJECT, saved: [p1, { ...bare, ...sent }], changeOrders: [], contract: null, today: '2026-03-20' });
+      if (!r || kinds(r).includes('prior_not_sent')) bad.push(`an application that went out (${Object.keys(sent)[0]}) is called unsent`);
+    }
+    // A newer application with no period end is not skipped silently.
+    const undated = savedApp({ applicationNumber: 3, id: 'rec-undated', invoiceId: 'inv-undated', periodTo: '', lines: p2.lines });
+    const r3 = rollForwardNextApplication({ project: PROJECT, saved: [p1, p2, undated], changeOrders: [], contract: null, today: '2026-03-20' });
+    const skipped = r3?.notes.find((n: { kind: string }) => n.kind === 'undated_skipped') as { applicationNumber: number; carriedFrom: number } | undefined;
+    if (!r3 || r3.carriedFrom.applicationNumber !== p2.applicationNumber) bad.push('fixture: the dated application is not the one carried from');
+    else if (!skipped || skipped.applicationNumber !== 3 || skipped.carriedFrom !== p2.applicationNumber) bad.push('a newer application with no period end is skipped without a word');
+    if (kinds(roll).includes('undated_skipped')) bad.push('an undated application is reported where there is none');
+    // The application date opens on or after the period end, so the check does not flag ordinary use.
+    if (roll.app.applicationDate !== roll.app.periodTo) bad.push(`the application date opens at ${roll.app.applicationDate}, before the period end ${roll.app.periodTo}`);
+    if (defaultApplicationDate('2026-04-05', '2026-03-31') !== '2026-04-05' || defaultApplicationDate('2026-03-20', '2026-03-31') !== '2026-03-31' || defaultApplicationDate('2026-03-20', 'x') !== '2026-03-20') bad.push('defaultApplicationDate is not the later of today and the period end');
+    const check = runRejectionCheck(buildCheckInput({ app: roll.app, project: null, savedForProject: [p1, p2], changeOrders: [] }));
+    if (check.flagged.some((x: { id: string }) => x.id === 'app_date_before_period_end')) bad.push('a freshly rolled application is flagged for its own default date');
+    // A credit line can be billed by percent.
+    const credit = line('sov_manual_cr', '9', 'Allowance Credit', -500, -200, 0);
+    if (cents(creditThisPeriodForPercent(credit, 100)) !== -30000 || cents(creditThisPeriodForPercent(credit, 20)) !== 0 || cents(creditThisPeriodForPercent(credit, 60)) !== -10000) bad.push('the credit arithmetic is wrong');
+    if (cents(enterPercent(credit, 100).thisPeriod) !== -30000) bad.push('a credit line cannot be entered by percent');
+    if (cents(enterPercent(line('sov_m1', '1', 'Framing', 1000, 200, 0), 70).thisPeriod) !== 50000) bad.push('enterPercent changed for an ordinary line');
+    if (Math.round(percentOfAnyLine({ ...credit, thisPeriod: -300 }) ?? -1) !== 100) bad.push('a credit line has no percent');
+    const ln = stripComments(w['components/payApp/BillThisMonthLine.tsx'] ?? '');
+    if (!/const noPercent = line\.scheduledValue === 0;/.test(ln) || !/SUGGEST_COPY\.creditLine/.test(ln)) bad.push('BillThisMonthLine still shuts a credit line out');
+    const btm = stripComments(w['components/payApp/BillThisMonth.tsx'] ?? '');
+    if (!/const leave = useCallback\(\(\) => \{\s*if \(entered === 0\) \{ onClose\(\); return; \}\s*showAlert\(SUGGEST_COPY\.leaveTitle, SUGGEST_COPY\.leaveBody\(entered\)/.test(btm) || !/<Pressable onPress=\{leave\}/.test(btm) || /<Pressable onPress=\{onClose\}/.test(btm)) bad.push('BillThisMonth: leaving with figures entered does not ask first');
+    if (!/SUGGEST_COPY\.priorNotSent\(n\.applicationNumber\)/.test(btm) || !/SUGGEST_COPY\.undatedSkipped\(n\.applicationNumber, n\.carriedFrom\)/.test(btm)) bad.push('BillThisMonth does not show where the period starts from when that needs saying');
+    if (!/applicationDate: defaultApplicationDate\(today, v\)/.test(btm)) bad.push('BillThisMonth: the application date does not follow a changed period end');
+    const screen = stripComments(w['app/aia-pay-app.tsx'] ?? '');
+    if (!/const canBillThisMonth = easy && !practiceProjectId && /.test(screen)) bad.push('app/aia-pay-app.tsx: Bill This Month is offered during a guided tutorial run');
+    return bad;
+  },
+  'L4 a Pay button can be added to a sent record, and no figure moves': (w) => {
+    const bad: string[] = [];
+    const L = loader(w)('@/utils/payApp/sendLock');
+    const stamp = { sentLockedAt: '2026-10-09T12:00:00.000Z' };
+    if (!L.canAddPayButton(stamp, 540)) bad.push('a record locked at send, with money owed, cannot get a Pay button');
+    for (const [what, facts, due] of [
+      ['a draft', {}, 540], ['one with a pay link', { ...stamp, payLinkUrl: 'https://pay' }, 540], ['a paid one', { ...stamp, paidAt: 'x' }, 540],
+      ['one with a bank payment settling', { ...stamp, pendingBankPayment: true }, 540], ['one with nothing owed', stamp, 0], ['one with a bad amount', stamp, Number.NaN],
+    ] as [string, object, number][]) if (L.canAddPayButton(facts, due)) bad.push(`${what} is offered a new Pay button`);
+    const rec = freeze({ ...cleanCheck().prior, ...stamp });
+    const out = L.withPayLinkOnly(rec, { payLinkUrl: 'https://pay/x', payLinkId: 'plink_1', payLinkAmount: 540 });
+    // The proof: every byte of the record except the pay link is the same before and after.
+    if (L.figuresOf(out) !== L.figuresOf(rec)) bad.push('adding a Pay button changed something else on the record');
+    if (JSON.stringify(out.lines) !== JSON.stringify(rec.lines) || JSON.stringify(out.totals) !== JSON.stringify(rec.totals) || out.sentLockedAt !== rec.sentLockedAt || out.savedAt !== rec.savedAt) bad.push('adding a Pay button moved a figure, the stamp or the save time');
+    if (out.payLinkUrl !== 'https://pay/x' || out.payLinkId !== 'plink_1' || out.payLinkAmount !== 540) bad.push('the pay link is not on the record');
+    if (L.payAppLock(out).reason !== 'pay_link') bad.push('the record is not locked by its link afterwards');
+    if (L.figuresOf({ ...rec, totals: { ...rec.totals, currentPaymentDue: 1 } }) === L.figuresOf(rec) || L.figuresOf({ ...rec, lines: [] }) === L.figuresOf(rec)) bad.push('figuresOf does not see a changed figure');
+    const screen = stripComments(w['app/aia-pay-app.tsx'] ?? '');
+    const i = screen.indexOf('const addPayButtonLater = useCallback(');
+    const body = i < 0 ? '' : screen.slice(i, screen.indexOf('\n  }, [', i));
+    if (!body) return [...bad, 'app/aia-pay-app.tsx: there is no way to add a Pay button to a sent record'];
+    if (!/const stored = savedForThisInvoice;/.test(body) || !/addAIAPayApp\(withPayLinkOnly\(stored, \{ payLinkUrl: pay\.url, payLinkId: pay\.id, payLinkAmount: amount \}\)\);/.test(body)) bad.push('app/aia-pay-app.tsx: the Pay button is not written onto the stored record alone');
+    if (/buildSavedRecord\(|setApp\(|withSentLock\(|saveAIAPayAppOnline\(|app\.lines|\btotals\b/.test(body)) bad.push('app/aia-pay-app.tsx: adding a Pay button reads the form or rewrites the record');
+    if ((body.match(/addAIAPayApp\(/g) ?? []).length !== 1) bad.push('app/aia-pay-app.tsx: adding a Pay button writes the record more than once');
+    if (!/if \(!canAddPayButton\(\{[^}]*sentLockedAt: stored\.sentLockedAt \}, due\)\) return;/.test(body)) bad.push('app/aia-pay-app.tsx: the Pay button can be added to a record that is not locked by its send');
+    if (!/const due = aiaPayableNow\(stored\);/.test(body) || !/makeCertifiedPayLink\(stored, due\)/.test(body)) bad.push('app/aia-pay-app.tsx: the Pay button is not made for the stored record\'s own payable figure');
+    if (!/\{lockedBySendOnly && savedForThisInvoice && aiaPayableNow\(savedForThisInvoice\) > 0 \? \([\s\S]{0,500}onPress=\{addPayButtonLater\}/.test(screen)) bad.push('app/aia-pay-app.tsx: the locked banner does not offer Add a Pay Button');
+    // The promise the certify result makes is still made, and is now true.
+    if (!/Share the pay app again later to add one\./.test(w['utils/moments/sites/moneyCopy.ts'] ?? '')) bad.push('utils/moments/sites/moneyCopy.ts no longer makes the promise this keeps');
+    return bad;
+  },
 };
 
 // ── run ─────────────────────────────────────────────────────────────────────
@@ -981,6 +1411,8 @@ const SS = 'utils/payApp/sovSpreadsheet.ts';
 const SCREEN = 'app/aia-pay-app.tsx';
 const BTM = 'components/payApp/BillThisMonth.tsx';
 const SHEET = 'components/payApp/RejectionCheckSheet.tsx';
+const PI = 'utils/payApp/periodInvoice.ts';
+const HOOK = 'components/payApp/usePeriodInvoiceTerms.ts';
 
 const MUTATIONS: Mutation[] = [
   // Carry-forward.
@@ -1026,7 +1458,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'S4 never counted until accepted', what: 'Suggest from Schedule falls through to the old project average', plant: sub(SCREEN, "        showAlert(SUGGEST_COPY.noneFoundTitle, SUGGEST_COPY.noneFoundBody);\n      }\n      return;\n    }", "        showAlert(SUGGEST_COPY.noneFoundTitle, SUGGEST_COPY.noneFoundBody);\n      }\n    }") },
   { rule: 'S4 never counted until accepted', what: 'accepting one line\'s suggestion lands on any line', plant: sub(SP, '  if (s.lineId !== line.id) return line;', '') },
   { rule: 'S4 never counted until accepted', what: 'an untouched suggestion is counted as accepted', plant: sub(SP, "    if ((states[lineId] ?? 'untouched') !== 'untouched') continue;", "    if ((states[lineId] ?? 'accepted') !== 'untouched') continue;") },
-  { rule: 'S4 never counted until accepted', what: 'the invoice behind the period bills lines with nothing entered', plant: sub('utils/payApp/periodInvoice.ts', 'return lines.filter(l => roundCents(l.thisPeriod) > 0);', 'return [...lines];') },
+  { rule: 'S4 never counted until accepted', what: 'the invoice behind the period bills lines with nothing entered', plant: sub('utils/payApp/periodInvoice.ts', 'return lines.filter(l => roundCents(l.thisPeriod) !== 0);', 'return [...lines];') },
 
   // Rejection Check: switching any one rule off must turn its fixture red.
   ...PHASE_ONE_RULES.map((id): Mutation => ({
@@ -1046,14 +1478,14 @@ const MUTATIONS: Mutation[] = [
   { rule: 'R2 the check never blocks and gives no verdict', what: 'rules that cannot run are listed as clean', plant: sub(RC, '      result.notRun.push({ id: rule.id, label: rule.label, why: outcome.notRun });', '      result.ranClean.push({ id: rule.id, label: rule.label });') },
   { rule: 'R2 the check never blocks and gives no verdict', what: 'a green tick is drawn on clean rows', plant: sub(SHEET, "import { Pressable, Text, View } from 'react-native';", "import { Pressable, Text, View } from 'react-native';\nimport { CheckCircle } from 'lucide-react-native';") },
   { rule: 'R2 the check never blocks and gives no verdict', what: 'the check result is stored on the record', plant: sub('utils/payApp/saveRecord.ts', '    savedAt: input.savedAt,', '    savedAt: input.savedAt,\n    rejectionCheck: undefined,') },
-  { rule: 'R3 the certify sheet opens only after the check was shown', what: 'the certify sheet opens without the check', plant: sub(SCREEN, 'if (easy && checkShownForRef.current !== checkFingerprint(app)) {', 'if (false) {') },
-  { rule: 'R3 the certify sheet opens only after the check was shown', what: 'the check blocks the send while anything is flagged', plant: sub(SCREEN, '    checkShownForRef.current = checkFingerprint(app);\n    setCheckOpen(null);', '    if (rejectionCheck && rejectionCheck.flagged.length > 0) return;\n    checkShownForRef.current = checkFingerprint(app);\n    setCheckOpen(null);') },
+  { rule: 'R3 the certify sheet opens only after the check was shown', what: 'the certify sheet opens without the check', plant: sub(SCREEN, 'if (easy && checkInput && checkShownForRef.current !== checkFingerprint(checkInput)) {', 'if (false) {') },
+  { rule: 'R3 the certify sheet opens only after the check was shown', what: 'the check blocks the send while anything is flagged', plant: sub(SCREEN, '    checkShownForRef.current = checkFingerprint(checkInput);\n    setCheckOpen(null);', '    if (rejectionCheck && rejectionCheck.flagged.length > 0) return;\n    checkShownForRef.current = checkFingerprint(app);\n    setCheckOpen(null);') },
   { rule: 'R3 the certify sheet opens only after the check was shown', what: 'the fingerprint ignores this period', plant: sub(RC, 'l.id, l.itemNo, c(l.scheduledValue), c(l.fromPreviousApp), c(l.thisPeriod), c(l.materialsPresentlyStored),', 'l.id, l.itemNo, c(l.scheduledValue), c(l.fromPreviousApp), c(l.materialsPresentlyStored),') },
   { rule: 'R3 the certify sheet opens only after the check was shown', what: 'on the way to certify there is no Continue Anyway', plant: sub(SCREEN, "onContinue={checkOpen === 'certify' ? continueToCertify : undefined}", 'onContinue={undefined}') },
 
   // Wording.
   { rule: 'W1 wording', what: 'a suggestion says the percent is verified', plant: sub('utils/payApp/suggestCopy.ts', '`Schedule: ${name} is marked ${fmtPct(progress)}%.`', '`Schedule: ${name} is verified at ${fmtPct(progress)}%.`') },
-  { rule: 'W1 wording', what: 'a clean check label says compliant', plant: sub('utils/payApp/rejectionCopy.ts', "retainage: (rate?: number) => (rate != null ? `Retainage equals your ${fmtPct(rate)}% rate` : 'Lines carry one retainage rate'),", "retainage: (rate?: number) => (rate != null ? `Retainage is compliant at ${fmtPct(rate)}%` : 'Lines carry one retainage rate'),") },
+  { rule: 'W1 wording', what: 'a clean check label says compliant', plant: sub('utils/payApp/rejectionCopy.ts', "retainage: (rate?: number) => (rate != null ? `Retainage on each line, against your ${fmtPct(rate)}% rate` : 'Retainage rates, line against line'),", "retainage: (rate?: number) => (rate != null ? `Retainage is compliant at ${fmtPct(rate)}%` : 'Lines carry one retainage rate'),") },
   { rule: 'W1 wording', what: 'a finding says what the reviewer will do', plant: sub('utils/payApp/rejectionCopy.ts', "summary: 'Total billed is over the contract sum to date',", "summary: 'This will not be approved',") },
   { rule: 'W1 wording', what: 'the heading reads "Ready To Submit"', plant: sub('utils/payApp/rejectionCopy.ts', "(n === 0 ? 'Nothing Flagged' :", "(n === 0 ? 'Ready To Submit' :") },
   { rule: 'W1 wording', what: 'a date is called a deadline', plant: sub('utils/payApp/suggestCopy.ts', "periodToDefault: 'Period to is set to the end of the month. Change it if your period ends on another day.',", "periodToDefault: 'Your deadline to bill is the end of the month.',") },
@@ -1066,14 +1498,14 @@ const MUTATIONS: Mutation[] = [
   { rule: 'X1 export and round trip', what: 'the columns are out of the standard order', plant: sub(SS, "      num2(l.fromPreviousApp),\n      num2(l.thisPeriod),", "      num2(l.thisPeriod),\n      num2(l.fromPreviousApp),") },
   { rule: 'X1 export and round trip', what: 'cells are written without quoting', plant: sub(SS, "    ? `\"${cell.replace(/\"/g, '\"\"')}\"`\n    : cell;", '    ? cell\n    : cell;') },
   { rule: 'X1 export and round trip', what: 'thousands separators in the numbers', plant: sub(SS, "(Number.isFinite(n) ? roundCents(n).toFixed(2) : '0.00')", "(Number.isFinite(n) ? roundCents(n).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00')") },
-  { rule: 'X2 import is never silent', what: 'a cell that is not an amount is read as zero', plant: sub(SS, "    if (scheduled === null) {\n      plan.bad.push({ rowNumber, reason: SOV_IMPORT_COPY.badScheduled(scheduledText), cells: [...r] });\n      return;\n    }\n    const row: SovImportRow = { rowNumber, itemNo, description, scheduledValue: roundCents(scheduled) };", '    const row: SovImportRow = { rowNumber, itemNo, description, scheduledValue: roundCents(scheduled ?? 0) };') },
-  { rule: 'X2 import is never silent', what: 'unreadable rows are dropped without a word', plant: sub(SS, "      plan.bad.push({ rowNumber, reason: SOV_IMPORT_COPY.badScheduled(scheduledText), cells: [...r] });\n", '') },
+  { rule: 'X2 import is never silent', what: 'a cell that is not an amount is read as zero', plant: sub(SS, "    if (!scheduled.ok) {\n      plan.bad.push({ rowNumber, reason: SOV_IMPORT_COPY.badScheduled(scheduledText, scheduled.problem), cells: [...r] });\n      return;\n    }\n    const row: SovImportRow = { rowNumber, itemNo, description, scheduledValue: roundCents(scheduled.value) };", '    const row: SovImportRow = { rowNumber, itemNo, description, scheduledValue: roundCents(scheduled.ok ? scheduled.value : 0) };') },
+  { rule: 'X2 import is never silent', what: 'unreadable rows are dropped without a word', plant: sub(SS, "      plan.bad.push({ rowNumber, reason: SOV_IMPORT_COPY.badScheduled(scheduledText, scheduled.problem), cells: [...r] });\n", '') },
   { rule: 'X2 import is never silent', what: 'total rows are imported as lines', plant: sub(SS, '    if (isTotalRow(itemNo, description)) {', '    if (false) {') },
   { rule: 'X2 import is never silent', what: 'any description starting with Total is thrown out', plant: sub(SS, 'TOTAL_WORD.test(description) || TOTAL_WORD.test(itemNo) || (!itemNo && TOTAL_LEAD.test(description));', 'TOTAL_LEAD.test(description) || TOTAL_LEAD.test(itemNo);') },
   { rule: 'X2 import is never silent', what: 'replace is allowed on an application with money on it', plant: sub(SS, "  if (mode === 'replace_all' && hasMoney) return { app, updated: 0, added: 0, refused: 'has_money' };", '') },
   { rule: 'X2 import is never silent', what: 'an update overwrites previous work', plant: sub(SS, 'lines[target] = { ...lines[target], description: r.description || lines[target].description, scheduledValue: r.scheduledValue };', 'lines[target] = { ...lines[target], description: r.description || lines[target].description, scheduledValue: r.scheduledValue, fromPreviousApp: r.fromPreviousApp ?? lines[target].fromPreviousApp };') },
   { rule: 'X2 import is never silent', what: 'a new line on a billed application carries the file\'s money', plant: sub(SS, '      lines.push(fresh(r, lines.length + 1, false));', '      lines.push(fresh(r, lines.length + 1, true));') },
-  { rule: 'X2 import is never silent', what: 'the total column is taken for stored materials', plant: sub(SS, 'const idx = first.findIndex((c, i) => !taken.has(i) && !COMPUTED_HEADER.test(c) && re.test(c));', 'const idx = first.findIndex((c, i) => !taken.has(i) && re.test(c));') },
+  { rule: 'X2 import is never silent', what: 'the total column is taken for stored materials', plant: sub(SS, 'const idx = first.findIndex((c, i) => !taken.has(i) && !COMPUTED_HEADER.test(c) && re.test(c)', 'const idx = first.findIndex((c, i) => !taken.has(i) && re.test(c)') },
 
   // Lock at send, and the clean-ups.
   { rule: 'L1 lock at send', what: 'the lock still depends on the pay link', plant: sub('utils/payApp/sendLock.ts', "  if (facts.sentLockedAt) return { locked: true, reason: 'sent' };\n", '') },
@@ -1098,12 +1530,104 @@ const MUTATIONS: Mutation[] = [
   { rule: 'E1 flag off, one reader, every entry gated', what: '`easy` is true for everyone', plant: sub(SCREEN, 'const easy = payAppEasyAllowed(user?.email);', 'const easy = true;') },
   { rule: 'E1 flag off, one reader, every entry gated', what: 'the Rejection Check sheet is mounted for everyone', plant: sub(SCREEN, '      {easy ? (\n        <RejectionCheckSheet', '      {app ? (\n        <RejectionCheckSheet') },
   { rule: 'E1 flag off, one reader, every entry gated', what: 'the spreadsheet bar is shown to everyone', plant: sub(SCREEN, '          {easy ? (\n            <SovSpreadsheetBar', '          {app ? (\n            <SovSpreadsheetBar') },
-  { rule: 'E1 flag off, one reader, every entry gated', what: 'Bill This Month is offered to everyone', plant: sub(SCREEN, 'const canBillThisMonth = easy && savedForProject', 'const canBillThisMonth = savedForProject') },
+  { rule: 'E1 flag off, one reader, every entry gated', what: 'Bill This Month is offered to everyone', plant: sub(SCREEN, 'const canBillThisMonth = easy && !practiceProjectId && savedForProject', 'const canBillThisMonth = !practiceProjectId && savedForProject') },
   { rule: 'E1 flag off, one reader, every entry gated', what: 'the Sync button is relabelled for everyone', plant: sub(SCREEN, "{easy ? SUGGEST_COPY.suggestButton : 'Sync from Schedule'}", '{SUGGEST_COPY.suggestButton}') },
   { rule: 'E1 flag off, one reader, every entry gated', what: 'another screen mounts Bill This Month', plant: (w) => { w['app/invoice.tsx'] = `import { BillThisMonth } from '@/components/payApp/BillThisMonth';\n${w['app/invoice.tsx']}`; } },
-  { rule: 'E2 the core is pure', what: 'the roll-forward reads the clock', plant: sub(RF, "applicationDate: dayKeyOf(input.today) ?? input.today,", 'applicationDate: new Date().toISOString().slice(0, 10),') },
+  { rule: 'E2 the core is pure', what: 'the roll-forward reads the clock', plant: sub(RF, 'applicationDate: defaultApplicationDate(input.today, to),', 'applicationDate: new Date().toISOString().slice(0, 10),') },
   { rule: 'E2 the core is pure', what: 'the check reads device storage', plant: sub(RC, "import { roundCents } from '@/utils/invoiceBilling';", "import { roundCents } from '@/utils/invoiceBilling';\nimport AsyncStorage from '@react-native-async-storage/async-storage';\nvoid AsyncStorage;") },
   { rule: 'E2 the core is pure', what: 'a suggestion asks a model', plant: sub(SP, 'const periodTo = dayKeyOf(input.periodTo);', 'const periodTo = dayKeyOf(input.periodTo); void fetch(\'https://example.com/gemini\');') },
+
+  // ── review round 1 (2026-10-09) ──────────────────────────────────────────
+  { rule: 'X3 an exported cell cannot run as a formula', what: 'a description starting with = leaves as a formula', plant: sub(SS, '      guardTextCell(l.description),', '      l.description,') },
+  { rule: 'X3 an exported cell cannot run as a formula', what: 'the item number is not guarded', plant: sub(SS, '      guardTextCell(l.itemNo),', '      l.itemNo,') },
+  { rule: 'X3 an exported cell cannot run as a formula', what: 'a leading minus or at-sign is let through', plant: sub(SS, "const FORMULA_LEAD = /^[=+\\-@\\t\\r']/;", "const FORMULA_LEAD = /^[=+']/;") },
+  { rule: 'X3 an exported cell cannot run as a formula', what: 'the number columns are quoted too', plant: sub(SS, '      num2(l.scheduledValue),', '      guardTextCell(num2(l.scheduledValue)),') },
+  { rule: 'X3 an exported cell cannot run as a formula', what: 'the import leaves the guard quote on', plant: sub(SS, "return cell.startsWith(\"'\") && FORMULA_LEAD.test(cell.slice(1)) ? cell.slice(1) : cell;", 'return cell;') },
+  { rule: 'X3 an exported cell cannot run as a formula', what: 'the import strips an apostrophe he typed', plant: sub(SS, "return cell.startsWith(\"'\") && FORMULA_LEAD.test(cell.slice(1)) ? cell.slice(1) : cell;", "return cell.startsWith(\"'\") ? cell.slice(1) : cell;") },
+  { rule: 'X3 an exported cell cannot run as a formula', what: 'the CSV file has no byte-order mark', plant: sub(SS, 'return `${CSV_BOM}${sovExportCsv(app, opts)}`;', 'return sovExportCsv(app, opts);') },
+  { rule: 'X3 an exported cell cannot run as a formula', what: 'the screen writes the file without the mark', plant: sub('components/payApp/SovSpreadsheetBar.tsx', 'sovExportCsvFile(app, { entryOnly })', 'sovExportTsv(app, { entryOnly })') },
+
+  { rule: 'X4 import reads money strictly and shows the result', what: 'a percent sign is thrown away and 50% becomes 50 dollars', plant: sub(SS, "  if (s.includes('%')) return bad('percent');\n", "  s = s.replace(/%/g, '');\n") },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'commas are stripped wherever they are, so "1,5" is 15', plant: sub(SS, "  const m = /^(\\d{1,3}(?:,\\d{3})+|\\d+)?(?:\\.(\\d*))?$/.exec(s);", "  s = s.replace(/,/g, '');\n  const m = /^(\\d+)?(?:\\.(\\d*))?$/.exec(s);") },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'spaces are stripped, so "1 234,56" is guessed at', plant: sub(SS, "  if (/^\\d[\\d.,]*\\s+[\\d.,\\s]*\\d$/.test(s) || /^\\d[\\d\\s]*\\s\\d/.test(s)) return bad('spaces');", "  s = s.replace(/\\s/g, '');") },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'three decimals are rounded away', plant: sub(SS, "  if (m[2] && m[2].replace(/0+$/, '').length > 2) return bad('decimals');\n", '') },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'item numbers are compared as written', plant: sub(SS, "  const m = /^(\\d+)\\.0+$/.exec(t);\n  return m ? m[1] : t;", '  return t;') },
+  { rule: 'X4 import reads money strictly and shows the result', what: '"1.10" is folded into "1.1"', plant: sub(SS, "  const m = /^(\\d+)\\.0+$/.exec(t);\n  return m ? m[1] : t;", "  return /^\\d+\\.\\d+$/.test(t) ? String(Number(t)) : t;") },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'duplicate item numbers are not reported', plant: sub(SS, '.filter(([, n]) => n > 1)', '.filter(([, n]) => n > 99)') },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'there is no row cap', plant: sub(SS, 'const body = all.slice(0, SOV_IMPORT_ROW_CAP);', 'const body = all;') },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'rows past the cap are dropped without a word', plant: sub(SS, '  plan.overCap = all.length - body.length;\n', '') },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'an unterminated quote is not reported', plant: sub(SS, 'const unterminatedQuoteRow = quoted ? quoteOpenedOnRow : null;', 'const unterminatedQuoteRow = null;') },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'the sheet imports past an unterminated quote', plant: sub('components/payApp/SovImportSheet.tsx', '    if (unterminatedQuoteRow != null) {', '    if (false) {') },
+  { rule: 'X4 import reads money strictly and shows the result', what: '"Current Contract Value" is mapped to This Period', plant: sub(SS, "\n        && !(field === 'thisPeriod' && NEVER_THIS_PERIOD.test(c)));", ');') },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'the sheet shows the file\'s sum again', plant: sub('components/payApp/SovImportSheet.tsx', 'formatMoney(previews[mode]!.total, 2)', 'formatMoney(plan.sumScheduled, 2)') },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'the preview is the file\'s sum under another name', plant: sub(SS, '  const total = roundCents(out.app.lines.reduce((s, l) => s + l.scheduledValue, 0));', '  const total = roundCents(input.plan.rows.reduce((s, r) => s + r.scheduledValue, 0));') },
+  { rule: 'X4 import reads money strictly and shows the result', what: 'the Replace hint is silent about the money columns', plant: sub(SS, ' Previous work, this period and stored materials are written from the file where you picked those columns.', '') },
+
+  { rule: 'S5 accept uses the line as it is now', what: 'Accept writes the dollar figure the suggestion was made with', plant: sub(SP, 'return { ...line, thisPeriod: thisPeriodForPercent(line, s.percent), suggestedPercent: s.percent, suggestionSource: s.sentence };', 'return { ...line, thisPeriod: s.thisPeriod, suggestedPercent: s.percent, suggestionSource: s.sentence };') },
+  { rule: 'S5 accept uses the line as it is now', what: 'the row shows the stale figure', plant: sub('components/payApp/SuggestionRow.tsx', 'formatMoney(amountNow ?? s.thisPeriod, 2)', 'formatMoney(s.thisPeriod, 2)') },
+  { rule: 'S5 accept uses the line as it is now', what: 'tapping Suggest again forgets accepted lines', plant: sub(SCREEN, ' next[l.id] = was;', ' void was;') },
+
+  { rule: 'S6 a typed percent is entered as typed, and a refused one says why', what: 'the field commits only on blur again', plant: sub('components/payApp/BillThisMonthLine.tsx', 'onChangeText={typed}', 'onChangeText={setDraft}') },
+  { rule: 'S6 a typed percent is entered as typed, and a refused one says why', what: 'a value over 100 is clamped without a word', plant: sub(SP, "  if (n > 100) return { kind: 'refused', why: 'over_100' };\n", '  if (n > 100) return { kind: \'ok\', percent: 100 };\n') },
+  { rule: 'S6 a typed percent is entered as typed, and a refused one says why', what: '"12,5" is read as 125', plant: sub(SP, "  const s = String(text ?? '').trim().replace(/\\s*%$/, '');", "  const s = String(text ?? '').trim().replace(/\\s*%$/, '').replace(/,/g, '');") },
+  { rule: 'S6 a typed percent is entered as typed, and a refused one says why', what: 'a refused value is reverted silently', plant: sub('components/payApp/BillThisMonthLine.tsx', '>{refusal}</Text>', '>{null}</Text>') },
+  { rule: 'S6 a typed percent is entered as typed, and a refused one says why', what: 'a refused value leaves the digits typed on the way', plant: sub('components/payApp/BillThisMonthLine.tsx', '    if (before.current) onRestore(before.current);\n', '') },
+  { rule: 'S6 a typed percent is entered as typed, and a refused one says why', what: 'the check opens over the keyboard', plant: sub(BTM, '    Keyboard.dismiss();\n    setCheckOpen(true);', '    setCheckOpen(true);') },
+  { rule: 'S6 a typed percent is entered as typed, and a refused one says why', what: 'saving does not dismiss the keyboard', plant: sub(BTM, '    if (!app || !checkInput || savingRef.current) return;\n    Keyboard.dismiss();', '    if (!app || !checkInput || savingRef.current) return;') },
+
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the invoice holds the application-wide rate on the subtotal', plant: sub(PI, 'const retention = invoiceRetentionFor(subtotal, periodRetainage(lines), billedLines(lines).map(l => l.retainagePercent));', 'const r0 = lines[0]?.retainagePercent ?? 0; const retention = { retentionPercent: r0, retentionAmount: retainageOnWorkValue(subtotal, r0) };') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'retainage is this period\'s work at each rate, ignoring how the sheet rounds', plant: sub(PI, "    + retainageOnWorkValue(l.fromPreviousApp + l.thisPeriod, l.retainagePercent)\n    - retainageOnWorkValue(l.fromPreviousApp, l.retainagePercent), 0));", '    + l.thisPeriod * (l.retainagePercent / 100) * 1.0001, 0));') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the blended percent is rounded to two decimals', plant: sub(PI, '  const blended = (target / subtotal) * 100;', '  const blended = Math.round((target / subtotal) * 10000) / 100; if (blended > 0) return { retentionPercent: blended, retentionAmount: target };') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'a due date is stamped on terms nobody confirmed', plant: sub(PI, "dueDate: input.terms.confirmed ? dueDateForTerms(input.now, input.terms.paymentTerms) : '',", 'dueDate: dueDateForTerms(input.now, input.terms.paymentTerms),') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'Bill This Month calls every terms answer confirmed', plant: sub(BTM, 'terms: { paymentTerms: terms.paymentTerms, confirmed: terms.confirmed },', 'terms: { paymentTerms: terms.paymentTerms, confirmed: true },') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'Bill This Month goes back to the last invoice\'s terms or Net 30', plant: sub(BTM, 'try { terms = await resolvePeriodTerms(); }', "try { terms = { paymentTerms: priorInvoice?.paymentTerms ?? 'net_30', confirmed: true }; }") },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the app default counts as his terms', plant: sub(HOOK, "if (d && d.origin === 'cash_flow_setup') return", 'if (d) return') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the terms resolver drifts from the invoice editor\'s', plant: sub(HOOK, "  if (cache?.origin === 'cash_flow_setup') return cache;", "  if (cache) return cache;") },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the draft invoice is not named before he saves', plant: sub(BTM, 'SUGGEST_COPY.invoiceLine(formatMoney(invoicePreview.totalDue, 2)', 'SUGGEST_COPY.invoiceLine(formatMoney(invoicePreview.subtotal, 2)') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'credit lines are left off the invoice', plant: sub(PI, 'return lines.filter(l => roundCents(l.thisPeriod) !== 0);', 'return lines.filter(l => roundCents(l.thisPeriod) > 0);') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'a sent invoice is rewritten', plant: sub(PI, "return invoice.status === 'draft' && !(invoice.amountPaid > 0)", 'return !(invoice.amountPaid > 0)') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'an invoice with a pay link is rewritten', plant: sub(PI, ' && !invoice.payLinkUrl;', ';') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'any invoice is taken for a Bill This Month invoice', plant: sub(PI, 'const LINE_TAG = /^Pay Application (\\d+), Item /;', 'const LINE_TAG = /()/;') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the follow rewrites the terms and dates too', plant: sub(PI, '  return { lineItems, ...moneyColumns(input.lines, lineItems, input.invoice.taxRate) };', "  return { lineItems, ...moneyColumns(input.lines, lineItems, input.invoice.taxRate), dueDate: '' } as never;") },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the invoice does not follow a plain save', plant: sub(SCREEN, '    followPeriodInvoice(rec.lines.map(savedLineToSov));\n', '') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the pay application does not say when the invoice differs', plant: sub(SCREEN, '{SUGGEST_COPY.differsOnApplication(', '{String(') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the invoice does not say when the pay application differs', plant: sub('app/invoice.tsx', '{SUGGEST_COPY.differsOnInvoice(', '{String(') },
+  { rule: 'P1 the invoice behind the period matches the pay application', what: 'the invoice editor hides that the terms are unconfirmed', plant: sub('app/invoice.tsx', ": existingInvoice && existingInvoice.status === 'draft' && !existingInvoice.dueDate ? 'unconfirmed' : null)", ': null)') },
+
+  { rule: 'F1 the footer adds up after a certificate cut', what: 'less previous certificates is left off the footer', plant: sub(BTM, '{`-${formatMoney(app.lessPreviousCertificates, 2)}`}', '{null}') },
+  { rule: 'F1 the footer adds up after a certificate cut', what: 'completed to date is left off the footer', plant: sub(BTM, '{formatMoney(totals.totalCompletedAndStored, 2)}', '{null}') },
+  { rule: 'F1 the footer adds up after a certificate cut', what: 'line 7 goes back to what was applied for', plant: sub(RF, 'lessPreviousCertificates: seedLessPreviousCertificates(prior),', 'lessPreviousCertificates: roundCents(prior.totals?.totalEarnedLessRetainage ?? 0),') },
+
+  { rule: 'R4 one builder for what the check reads, on both screens', what: 'Bill This Month runs its own, thinner check', plant: sub(BTM, 'runRejectionCheck(checkInput)', 'runRejectionCheck({ app: checkInput.app, prior: checkInput.prior, saved: checkInput.saved, changeOrders: checkInput.changeOrders })') },
+  { rule: 'R4 one builder for what the check reads, on both screens', what: 'the builder leaves the rate on record out', plant: sub(RC, '    statedRetainagePercent: stated,', '    statedRetainagePercent: undefined,') },
+  { rule: 'R4 one builder for what the check reads, on both screens', what: 'an assumed rate is treated as the rate on record', plant: sub(RC, 'input.project.retainagePercentAssumed === false && isRecordedRetainageRate', 'isRecordedRetainageRate') },
+  { rule: 'R4 one builder for what the check reads, on both screens', what: 'this application\'s own record counts as another one', plant: sub(RC, '    saved: all.filter(a => !own || a.invoiceId !== own),', '    saved: all,') },
+  { rule: 'R4 one builder for what the check reads, on both screens', what: 'Bill This Month hands over a fingerprint of the figures alone', plant: sub(BTM, 'checkedFor: checkFingerprint(checkInput)', 'checkedFor: checkFingerprint({ ...checkInput, changeOrders: [] })') },
+  { rule: 'R3 the certify sheet opens only after the check was shown', what: 'the fingerprint ignores the change order log', plant: sub(RC, "    'cos', [...input.changeOrders]", "    'cos', [...input.changeOrders].slice(0, 0)") },
+  { rule: 'R3 the certify sheet opens only after the check was shown', what: 'the fingerprint ignores the prior application', plant: sub(RC, "    'prior', prior ? [", "    'prior', prior && false ? [") },
+  { rule: 'R3 the certify sheet opens only after the check was shown', what: 'the fingerprint ignores the rate on record', plant: sub(RC, "    'rate', String(input.statedRetainagePercent ?? ''), String(input.statedStoredRetainagePercent ?? ''),\n", '') },
+
+  { rule: 'R5 labels say what was compared, and nothing unmatched reads as clean', what: 'a label states a result again', plant: sub('utils/payApp/rejectionCopy.ts', "line_over_value: () => 'Each line billed to date, against its scheduled value',", "line_over_value: () => 'No line is billed past its scheduled value',") },
+  { rule: 'R5 labels say what was compared, and nothing unmatched reads as clean', what: 'a change order line that matches nothing reads as clean', plant: sub(RC, 'return { co, isCoLine: !!co, unmatched: !co };', 'return { co, isCoLine: !!co, unmatched: false };') },
+  { rule: 'R5 labels say what was compared, and nothing unmatched reads as clean', what: 'a hand-added "Change Order" line with no number reads as clean', plant: sub(RC, 'return { co: null, isCoLine: false, unmatched: reads };', 'return { co: null, isCoLine: false, unmatched: false };') },
+  { rule: 'R5 labels say what was compared, and nothing unmatched reads as clean', what: '"Fix Line n" is back on the sheet', plant: sub(SHEET, 'label={REJECTION_COPY.goToLine(fix.itemNo)}', 'label={`Fix Line ${fix.itemNo}`}') },
+  { rule: 'R5 labels say what was compared, and nothing unmatched reads as clean', what: 'a company name reads as a change order', plant: sub(RC, "/\\bCO\\b|\\bC\\.O\\./.test(l.description)", "/\\bCO\\b|\\bC\\.O\\./i.test(l.description)") },
+
+  { rule: 'M1 the small things', what: 'rolling forward from an unsent draft says nothing', plant: sub(RF, 'if (!hasRecordOfSend(prior)) notes.push(', 'if (false) notes.push(') },
+  { rule: 'M1 the small things', what: 'an undated newer application is skipped silently', plant: sub(RF, '&& !dayKeyOf(a.periodTo)) {', '&& false) {') },
+  { rule: 'M1 the small things', what: 'the application date opens on today', plant: sub(RF, '  return to && to > t ? to : t;', '  return t;') },
+  { rule: 'M1 the small things', what: 'a credit line is clamped to zero', plant: sub(SP, '    thisPeriod: line.scheduledValue < 0 ? creditThisPeriodForPercent(line, percent) : thisPeriodForPercent(line, percent),', '    thisPeriod: thisPeriodForPercent(line, percent),') },
+  { rule: 'M1 the small things', what: 'a credit can run past its own value', plant: sub(SP, '  const p = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));\n  const totalCredit', '  const p = percent * 2;\n  const totalCredit') },
+  { rule: 'M1 the small things', what: 'leaving with figures entered does not ask', plant: sub(BTM, '    if (entered === 0) { onClose(); return; }\n', '    onClose(); return;\n') },
+  { rule: 'M1 the small things', what: 'the unsent-draft notice is not drawn', plant: sub(BTM, '{SUGGEST_COPY.priorNotSent(n.applicationNumber)}', '{null}') },
+  { rule: 'M1 the small things', what: 'Bill This Month is offered during a tutorial run', plant: sub(SCREEN, 'const canBillThisMonth = easy && !practiceProjectId && ', 'const canBillThisMonth = easy && ') },
+
+  { rule: 'L4 a Pay button can be added to a sent record, and no figure moves', what: 'adding the button rewrites the save time', plant: sub('utils/payApp/sendLock.ts', '  return { ...rec, payLinkUrl: link.payLinkUrl,', '  return { ...rec, savedAt: link.payLinkUrl, payLinkUrl: link.payLinkUrl,') },
+  { rule: 'L4 a Pay button can be added to a sent record, and no figure moves', what: 'figuresOf is blind', plant: sub('utils/payApp/sendLock.ts', '  return JSON.stringify(rest);', "  return JSON.stringify(Object.keys(rest));") },
+  { rule: 'L4 a Pay button can be added to a sent record, and no figure moves', what: 'any record can be given a new Pay button', plant: sub('utils/payApp/sendLock.ts', "  return payAppLock(facts).reason === 'sent' && Number.isFinite(due) && due > 0;", '  return Number.isFinite(due) && due > 0;') },
+  { rule: 'L4 a Pay button can be added to a sent record, and no figure moves', what: 'the screen writes the form onto the locked record', plant: sub(SCREEN, 'addAIAPayApp(withPayLinkOnly(stored, {', 'addAIAPayApp(withPayLinkOnly(buildSavedRecord() ?? stored, {') },
+  { rule: 'L4 a Pay button can be added to a sent record, and no figure moves', what: 'the screen skips the lock check', plant: sub(SCREEN, "sentLockedAt: stored.sentLockedAt }, due)) return;", "sentLockedAt: stored.sentLockedAt }, due)) void 0;") },
+  { rule: 'L4 a Pay button can be added to a sent record, and no figure moves', what: 'the banner does not offer the button', plant: sub(SCREEN, 'onPress={addPayButtonLater}', 'onPress={undefined}') },
 ];
 
 console.log('\n── planted mutations (each must turn its own rule red)');

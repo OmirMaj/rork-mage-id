@@ -40,7 +40,6 @@ export const REJECTION_COPY = {
   notCheckedLabel: 'Not checked by MAGE ID:',
   notCheckedBody: 'what your contract allows, whether the work is done, lien and notice deadlines, which waiver form applies. Ask your attorney.',
   goToLine: (itemNo: string) => `Go to Line ${itemNo}`,
-  fixLine: (itemNo: string) => `Fix Line ${itemNo}`,
   continueAnyway: 'Continue Anyway',
   back: 'Back',
   open: 'Rejection Check',
@@ -56,32 +55,46 @@ export const NOT_RUN_WHY = {
   needs_checklist: 'Needs your owner checklist.',
 } as const;
 
-/** The label a check carries when it ran and flagged nothing, and when it did not run. */
+/**
+ * A line that reads as a change order and matches none in the log. The two
+ * change order comparisons cannot be made for it, and a comparison that was
+ * not made is never listed as having flagged nothing.
+ */
+export const couldNotCompareChangeOrders = (itemNos: string[]): string =>
+  `Could not compare. ${itemNos.length === 1 ? `Line ${itemNos[0]} reads` : `Lines ${itemNos.join(', ')} read`} as a change order, and none in your change order log could be matched to ${itemNos.length === 1 ? 'it' : 'them'}.`;
+
+/**
+ * The label a check carries when it ran and flagged nothing, and when it did
+ * not run. Each names WHAT WAS COMPARED, never what was found: a label that
+ * reads "No line is billed past its scheduled value" beside "Nothing flagged"
+ * is the app stating a result, and the app states none.
+ */
 export const CHECK_LABELS = {
-  line_over_value: () => 'No line is billed past its scheduled value',
-  total_over_contract: () => 'Total billed is not over the contract sum to date',
-  sov_not_footing: () => 'Schedule of values sums to contract sum',
-  previous_mismatch: (n?: number) => (n ? `Previous billing equals Application ${n}` : 'Previous billing equals the last application'),
-  previous_line_missing: (n?: number) => (n ? `Every line billed on Application ${n} is on this one` : 'Every line billed before is on this one'),
-  line7_mismatch: (n?: number) => (n ? `Less previous certificates carries from Application ${n}` : 'Less previous certificates carries from the last application'),
-  stored_in_previous: () => 'Stored materials that came down moved into work',
-  went_backwards: () => 'No line goes backwards',
-  retainage: (rate?: number) => (rate != null ? `Retainage equals your ${fmtPct(rate)}% rate` : 'Lines carry one retainage rate'),
-  co_billed_not_approved: () => 'Every change order billed is approved in your log',
-  co_approved_missing: () => 'Every change order approved in this period is on the schedule of values',
-  co_summary_mismatch: () => 'Net change by change orders equals your change order log',
-  contract_sum_math: () => 'Contract sum to date is the original sum plus change orders',
-  cover_vs_sheet: () => 'Totals add up, cover and sheet agree',
-  payment_not_positive: () => 'Payment due on this application is above zero',
-  dates_invalid: () => 'Dates can be read',
-  period_order: () => 'Period from is on or before period to',
-  period_sequence: () => 'Period starts the day after the last one',
-  app_date_before_period_end: () => 'Application date is on or after the period end',
-  number_sequence: (m?: number) => (m != null ? `Application number follows ${m}` : 'Application number is 1'),
-  nothing_billed: () => 'Work or stored materials are entered for this period',
-  stored_no_backup: () => 'Stored materials have backup attached',
-  checklist_missing: () => 'Everything on your owner checklist is in the package',
-  notary_checklist: () => 'Notary block matches your owner checklist',
+  line_over_value: () => 'Each line billed to date, against its scheduled value',
+  total_over_contract: () => 'Total billed, against the contract sum to date',
+  sov_not_footing: () => 'Schedule of values total, against the contract sum',
+  previous_mismatch: (n?: number) => (n ? `Previous work on each line, against Application ${n}` : 'Previous work on each line, against the last application'),
+  previous_line_missing: (n?: number) => (n ? `Lines billed on Application ${n}, against the lines on this one` : 'Lines billed before, against the lines on this one'),
+  line7_mismatch: (n?: number) => (n ? `Less previous certificates, against Application ${n}` : 'Less previous certificates, against the last application'),
+  stored_in_previous: () => 'Stored materials that came down, against work added',
+  went_backwards: () => 'Each line total to date, against the last application',
+  retainage: (rate?: number) => (rate != null ? `Retainage on each line, against your ${fmtPct(rate)}% rate` : 'Retainage rates, line against line'),
+  co_billed_not_approved: () => 'Change orders billed, against their status in your log',
+  co_approved_missing: () => 'Change orders in your log for this period, against the schedule of values',
+  co_summary_mismatch: () => 'Net change by change orders, against your change order log',
+  contract_sum_math: () => 'Contract sum to date, against the original sum plus change orders',
+  cover_vs_sheet: () => 'Cover totals, against the lines added up',
+  payment_not_positive: () => 'Payment due on this application, against zero',
+  dates_invalid: () => 'Dates, read as year, month, day',
+  period_order: () => 'Period from, against period to',
+  period_sequence: () => 'Period start, against the end of the last period',
+  app_date_before_period_end: () => 'Application date, against the period end',
+  number_sequence: (m?: number) => (m != null ? `Application number, against Application ${m}` : 'Application number, against 1'),
+  nothing_billed: () => 'Work and stored materials entered for this period',
+  credit_lines: () => 'Lines with a scheduled value below zero',
+  stored_no_backup: () => 'Stored materials, against backup attached',
+  checklist_missing: () => 'Your owner checklist, against the package',
+  notary_checklist: () => 'Notary block, against your owner checklist',
 } as const;
 
 const lineName = (itemNo: string, description: string): string =>
@@ -203,6 +216,10 @@ export const FINDING_COPY = {
     summary: 'Nothing is entered for this period',
     detail: 'No work or stored materials are entered for this period.',
   }),
+  credit_line: (itemNo: string, description: string, scheduled: number, toDate: number, thisPeriod: number) => ({
+    summary: `${lineName(itemNo, description)} is a credit line`,
+    detail: `Its scheduled value is ${money(scheduled)}. Credit given to date is ${money(toDate)}, with ${money(thisPeriod)} of it in this period.`,
+  }),
 } as const;
 
 export const DATE_FIELD_NAMES = {
@@ -224,10 +241,11 @@ export function allRejectionCopy(): { id: string; text: string }[] {
   const R = REJECTION_COPY;
   add('static', R.title, R.subtitle, R.flaggedHeading(0), R.flaggedHeading(1), R.flaggedHeading(4),
     R.cleanHeading(1), R.cleanHeading(7), R.notRunHeading(1), R.notRunHeading(3), R.nothingFlagged,
-    R.notCheckedHeading, R.notCheckedLabel, R.goToLine('9'), R.fixLine('9'), R.continueAnyway, R.back, R.open, R.openA11y);
+    R.notCheckedHeading, R.notCheckedLabel, R.goToLine('9'), R.continueAnyway, R.back, R.open, R.openA11y);
   add('lead', R.lead);
   add('not_checked', R.notCheckedBody);
   add('static', ...Object.values(NOT_RUN_WHY));
+  add('co_could_not_compare', couldNotCompareChangeOrders(['6']), couldNotCompareChangeOrders(['6', '8']));
   for (const [id, fn] of Object.entries(CHECK_LABELS)) {
     add(`label:${id}`, (fn as (a?: number) => string)(), (fn as (a?: number) => string)(3));
   }
@@ -269,5 +287,7 @@ export function allRejectionCopy(): { id: string; text: string }[] {
   pair('number_sequence', F.number_sequence(6, 4));
   pair('number_sequence', F.number_first(3));
   pair('nothing_billed', F.nothing_billed());
+  pair('credit_lines', F.credit_line('5', 'Allowance Credit', -500, -200, -100));
+  pair('credit_lines', F.credit_line('5', '', -500, -200, -100));
   return out;
 }

@@ -22,15 +22,17 @@
 import type { ChangeOrder, SavedAIAPayApp } from '@/types';
 import {
   changeOrderApprovalDate, computeAIATotals, g703LineFigures, isCalendarDay, lineOverBill,
-  reconcileAIASov, seedLessPreviousCertificates, splitApprovedCOsByPeriod,
+  reconcileAIASov, seedLessPreviousCertificates, selectPriorApplication, splitApprovedCOsByPeriod,
   storedRetainagePercentForLine, summarizeChangeOrders, totalOverBill,
   type AIAPayApplication, type AIASOVLine,
 } from '@/utils/aiaBilling';
 import { roundCents } from '@/utils/invoiceBilling';
 import { CO_BILL_KEY_PREFIX } from '@/utils/changeOrderBilling';
 import { dayAfter, dayKeyOf, daysBetween } from '@/utils/payApp/days';
+import { isRecordedRetainageRate } from '@/utils/retainageSource';
 import {
   CHECK_LABELS, COVER_FIELD_NAMES, DATE_FIELD_NAMES, FINDING_COPY, NOT_RUN_WHY, REJECTION_COPY,
+  couldNotCompareChangeOrders,
 } from '@/utils/payApp/rejectionCopy';
 
 /** One cent: the tolerance for every money comparison here. */
@@ -75,20 +77,31 @@ function lineFinding(id: string, l: AIASOVLine, copy: { summary: string; detail:
   };
 }
 
-/** The change order a schedule-of-values line bills, by id key first, then by "CO #n" in its description. */
-function changeOrderOfLine(l: AIASOVLine, cos: readonly ChangeOrder[]): { co: ChangeOrder | null; isCoLine: boolean } {
+/**
+ * The change order a schedule-of-values line bills, by id key first, then by
+ * "CO #n" in its description.
+ *
+ * `unmatched` is a hand-added line whose description READS as a change order
+ * ("Change Order 7", "CO for added beam") and that no entry in the log could
+ * be matched to. The app does not guess which change order it is, and it does
+ * not call the comparison clean either: the two change order rules report
+ * "Could not compare" for it.
+ */
+function changeOrderOfLine(l: AIASOVLine, cos: readonly ChangeOrder[]): { co: ChangeOrder | null; isCoLine: boolean; unmatched: boolean } {
   const prefix = `sov_${CO_BILL_KEY_PREFIX}`;
   if (l.id.startsWith(prefix)) {
     const coId = l.id.slice(prefix.length).replace(/__\d+$/, '');
-    return { co: cos.find(c => c.id === coId) ?? null, isCoLine: true };
+    return { co: cos.find(c => c.id === coId) ?? null, isCoLine: true, unmatched: false };
   }
   const m = /\b(?:CO|Change Order)\s*#?\s*(\d+)\b/i.exec(l.description);
-  if (!m) return { co: null, isCoLine: false };
-  const n = Number(m[1]);
-  const co = cos.find(c => c.number === n) ?? null;
-  // A description that names a number the log does not have is not evidence
-  // of a change order line; say nothing rather than guess.
-  return { co, isCoLine: !!co };
+  if (m) {
+    const n = Number(m[1]);
+    const co = cos.find(c => c.number === n) ?? null;
+    return { co, isCoLine: !!co, unmatched: !co };
+  }
+  // "CO" in capitals only: "Acme Millwork Co." is a company, not a change order.
+  const reads = /\bchange\s+orders?\b/i.test(l.description) || /\bCO\b|\bC\.O\./.test(l.description);
+  return { co: null, isCoLine: false, unmatched: reads };
 }
 
 function distinctRates(values: number[]): number[] {
@@ -255,6 +268,10 @@ export function runRejectionCheck(input: CheckInput): CheckResult {
             }
           }
         }
+        if (out.length === 0) {
+          const unmatched = app.lines.filter(l => Math.abs(G(l)) > 0.005 && changeOrderOfLine(l, cos).unmatched);
+          if (unmatched.length) return { notRun: couldNotCompareChangeOrders(unmatched.map(l => l.itemNo)) };
+        }
         return out;
       },
     },
@@ -266,9 +283,14 @@ export function runRejectionCheck(input: CheckInput): CheckResult {
           const { co } = changeOrderOfLine(l, cos);
           if (co) onSheet.add(co.id);
         }
-        return splitApprovedCOsByPeriod(cos, app.periodTo || undefined).inPeriod
+        const missing = splitApprovedCOsByPeriod(cos, app.periodTo || undefined).inPeriod
           .filter(co => !onSheet.has(co.id))
           .map(co => ({ id: 'co_approved_missing', ...FINDING_COPY.co_approved_missing(co.number, co.changeAmount) }));
+        if (missing.length === 0) {
+          const unmatched = app.lines.filter(l => changeOrderOfLine(l, cos).unmatched);
+          if (unmatched.length) return { notRun: couldNotCompareChangeOrders(unmatched.map(l => l.itemNo)) };
+        }
+        return missing;
       },
     },
     {
@@ -383,6 +405,13 @@ export function runRejectionCheck(input: CheckInput): CheckResult {
           : [];
       },
     },
+    {
+      // A credit is ordinary. It is listed so he sees every line that takes
+      // money OFF the application before a reviewer asks about it.
+      id: 'credit_lines', label: CHECK_LABELS.credit_lines(),
+      run: () => app.lines.filter(l => l.scheduledValue < -0.005).map(l => lineFinding('credit_lines', l,
+        FINDING_COPY.credit_line(l.itemNo, l.description, l.scheduledValue, roundCents(l.fromPreviousApp + l.thisPeriod), roundCents(l.thisPeriod)))),
+    },
     // Phase 2. Named so the contractor can see they exist and did not run.
     { id: 'stored_no_backup', label: CHECK_LABELS.stored_no_backup(), run: () => ({ notRun: NOT_RUN_WHY.needs_checklist }) },
     { id: 'checklist_missing', label: CHECK_LABELS.checklist_missing(), run: () => ({ notRun: NOT_RUN_WHY.needs_checklist }) },
@@ -403,27 +432,85 @@ export function runRejectionCheck(input: CheckInput): CheckResult {
   return result;
 }
 
-/** The first finding that points at a line: the "Fix Line n" button. */
+/** The first finding that points at a line: the sheet's "Go to Line n" button. */
 export function firstLineFinding(result: CheckResult): CheckAction | null {
   for (const f of result.flagged) if (f.action) return f.action;
   return null;
 }
 
+/** What the project page says about the retainage rate, as far as the check needs it. */
+export interface CheckProjectFacts { retainagePercent?: number | null; retainagePercentAssumed?: boolean | null }
+
+/** Where a rate on record came from, for the finding's detail. */
+export const STATED_RETAINAGE_ORIGIN = 'you entered it for this project';
+
 /**
- * The figures the check read, as one string. The screen remembers the string
- * it last SHOWED the check for; the certify sheet opens only when that equals
- * the application on screen, so a figure changed after the check brings the
- * check back before the slide.
+ * THE ONE PLACE THE CHECK'S INPUTS ARE BUILT. Bill This Month and the pay
+ * application screen both call this, so the check one screen shows is the
+ * check the other would show for the same figures: the same prior
+ * application, the same other saved applications, the same change order log
+ * and the same rate on record. (They used to build their own, and Bill This
+ * Month's left the rate out while handing the other screen a mark that said
+ * the check had been shown.)
  */
-export function checkFingerprint(app: AIAPayApplication): string {
-  const c = (n: number | undefined): string => (n == null || !Number.isFinite(n) ? '' : String(Math.round(n * 100)));
+export function buildCheckInput(input: {
+  app: AIAPayApplication;
+  project: CheckProjectFacts | null | undefined;
+  /** Every saved application on the project, this one's own record included. */
+  savedForProject: readonly SavedAIAPayApp[];
+  /** The invoice this application is keyed to, when it has a saved record already. */
+  ownInvoiceId?: string | null;
+  changeOrders: readonly ChangeOrder[];
+}): CheckInput {
+  const own = input.ownInvoiceId || undefined;
+  const all = [...input.savedForProject];
+  const stated = input.project && input.project.retainagePercentAssumed === false && isRecordedRetainageRate(input.project.retainagePercent)
+    ? input.project.retainagePercent
+    : undefined;
+  return {
+    app: input.app,
+    prior: selectPriorApplication(all, {
+      excludeInvoiceId: own,
+      thisApplicationNumber: input.app.applicationNumber,
+      thisPeriodTo: input.app.periodTo,
+    }),
+    saved: all.filter(a => !own || a.invoiceId !== own),
+    changeOrders: input.changeOrders,
+    statedRetainagePercent: stated,
+    statedRetainageOrigin: stated != null ? STATED_RETAINAGE_ORIGIN : undefined,
+  };
+}
+
+/**
+ * Everything the check READ, as one string: the application's figures, the
+ * prior application it was compared with, the other saved applications'
+ * numbers, the change order log and the rate on record. The screen remembers
+ * the string it last SHOWED the check for; the certify sheet opens only when
+ * that equals the inputs as they are now. So a figure changed after the check
+ * brings the check back, and so does a change order approved since, a
+ * certificate recorded on the last application, or a different rate on record.
+ */
+export function checkFingerprint(input: CheckInput): string {
+  const { app, prior } = input;
+  const c = (n: number | null | undefined): string => (n == null || !Number.isFinite(n) ? '' : String(Math.round(n * 100)));
+  const lineKey = (l: Pick<AIASOVLine, 'id' | 'itemNo' | 'scheduledValue' | 'fromPreviousApp' | 'thisPeriod' | 'materialsPresentlyStored' | 'retainagePercent' | 'storedRetainagePercent'>): string => [
+    l.id, l.itemNo, c(l.scheduledValue), c(l.fromPreviousApp), c(l.thisPeriod), c(l.materialsPresentlyStored),
+    String(l.retainagePercent), String(l.storedRetainagePercent ?? ''),
+  ].join('~');
   return [
     app.applicationNumber, app.applicationDate, app.periodFrom ?? '', app.periodTo,
     c(app.originalContractSum), c(app.netChangeByCO), c(app.contractSumToDate), c(app.lessPreviousCertificates),
     String(app.retainagePercent), String(app.storedRetainagePercent ?? ''),
-    ...app.lines.map(l => [
-      l.id, l.itemNo, c(l.scheduledValue), c(l.fromPreviousApp), c(l.thisPeriod), c(l.materialsPresentlyStored),
-      String(l.retainagePercent), String(l.storedRetainagePercent ?? ''),
-    ].join('~')),
+    ...app.lines.map(lineKey),
+    'prior', prior ? [
+      prior.id, prior.applicationNumber, prior.periodTo ?? '', c(prior.amountCertified), c(prior.lessPreviousCertificates),
+      c(prior.totals?.totalEarnedLessRetainage), ...prior.lines.map(lineKey),
+    ].join('^') : '',
+    'saved', [...input.saved].map(a => a.applicationNumber).sort((a, b) => a - b).join(','),
+    'cos', [...input.changeOrders]
+      .map(co => [co.id, co.number, String(co.status), c(co.changeAmount), dayKeyOf(changeOrderApprovalDate(co)) ?? ''].join('~'))
+      .sort()
+      .join('^'),
+    'rate', String(input.statedRetainagePercent ?? ''), String(input.statedStoredRetainagePercent ?? ''),
   ].join('|');
 }
