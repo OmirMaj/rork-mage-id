@@ -149,10 +149,60 @@ describe('Bill This Month', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('says so when there is no earlier application to start from', () => {
+  it('says it cannot start here when there is no earlier application and the job has no linked estimate', () => {
     render(<BillThisMonth project={project} saved={[]} contract={null} onClose={() => {}} onSaved={() => {}} />, { wrapper: Wrapper });
     expect(screen.getByTestId('btm-none')).toBeTruthy();
-    expect(screen.getByText('No Earlier Application On This Project')).toBeTruthy();
+    expect(screen.getByText('Cannot Start Here')).toBeTruthy();
+  });
+});
+
+describe('Bill This Month, the first application on a job (Phase 1b)', () => {
+  const item = (id: string, name: string, lineTotal: number) => ({ materialId: id, name, category: 'general', unit: 'LS', quantity: 1, unitPrice: lineTotal, markup: 0, lineTotal, bulkPrice: lineTotal, usesBulk: false, supplier: '' });
+  const fresh = {
+    id: 'p9', name: 'Alder Street Kitchen', ownerUserId: 'u1', retainagePercent: 10,
+    linkedEstimate: { id: 'e9', items: [item('demo', 'Demolition', 4000), item('frame', 'Framing', 6000)], grandTotal: 10000 },
+  } as unknown as Project;
+  const withBranding = { taxRate: 0, branding: { companyName: 'Example Builders' } };
+
+  beforeEach(() => { mockCtx.addInvoice = jest.fn(); mockCtx.addAIAPayApp = jest.fn(); mockCtx.invoices = []; (mockCtx as { settings: unknown }).settings = withBranding; });
+  afterEach(() => { (mockCtx as { settings: unknown }).settings = { taxRate: 0 }; });
+
+  it('starts from the linked estimate with this period at zero, says where the retainage rate came from, and saves application 1 once', async () => {
+    const onSaved = jest.fn();
+    render(<BillThisMonth project={fresh} saved={[]} contract={null} onClose={() => {}} onSaved={onSaved} />, { wrapper: Wrapper });
+
+    expect(screen.getByTestId('btm-first')).toBeTruthy();
+    expect(screen.getByText('2 Lines from the Linked Estimate')).toBeTruthy();
+    expect(screen.getByTestId('btm-retainage-record').props.children).toBe('Retainage opens at 10%, from your contract.');
+    // Nothing is billed by starting.
+    expect(screen.getByTestId('btm-work-total').props.children).toBe('$0.00');
+    expect(screen.getByTestId('btm-payment-due').props.children).toBe('$0.00');
+    expect(screen.getByTestId('btm-less-previous').props.children).toBe('$0.00');
+
+    // He types 50 percent on the first line: $2,000 of work, $200 held, $1,800 due.
+    fireEvent.changeText(screen.getByTestId('btm-pct-sov_demo'), '50');
+    expect(screen.getByTestId('btm-work-total').props.children).toBe('$2,000.00');
+    expect(screen.getByTestId('btm-payment-due').props.children).toBe('$1,800.00');
+
+    fireEvent.press(screen.getByTestId('btm-next'));
+    fireEvent.press(await screen.findByText('Continue Anyway'));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mockCtx.addInvoice).toHaveBeenCalledTimes(1);
+    expect(mockCtx.addAIAPayApp).toHaveBeenCalledTimes(1);
+    const savedApp = mockCtx.addAIAPayApp.mock.calls[0][0];
+    const savedInvoice = mockCtx.addInvoice.mock.calls[0][0];
+    expect(savedApp.applicationNumber).toBe(1);
+    expect(savedApp.invoiceId).toBe(savedInvoice.id);
+    expect(savedInvoice.subtotal).toBe(2000);
+    expect(savedInvoice.lineItems).toHaveLength(1);
+  });
+
+  it('does not start at zero on a job that already has an invoice', () => {
+    mockCtx.invoices = [{ id: 'inv-old', projectId: 'p9', number: 1 } as unknown as Invoice];
+    render(<BillThisMonth project={fresh} saved={[]} contract={null} onClose={() => {}} onSaved={() => {}} />, { wrapper: Wrapper });
+    expect(screen.getByTestId('btm-none')).toBeTruthy();
+    expect(screen.getByText('Cannot Start Here')).toBeTruthy();
+    expect(screen.queryByTestId('btm-first')).toBeNull();
   });
 });
 
