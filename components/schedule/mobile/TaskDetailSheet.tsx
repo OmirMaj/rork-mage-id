@@ -28,6 +28,7 @@ import {
   heldByPredecessor, scheduledStartOrdinal, scheduledTaskRange, steppedStartDay, taskCalendarRange, type ScheduledPlacement,
 } from '@/utils/scheduleOps';
 import { taskSheetLocks, type ScheduleWritePath } from '@/utils/fieldScheduleUpdate';
+import { TaskDeliveriesSection } from '@/components/deliveries/DeliveriesFollow';
 
 interface TaskDetailSheetProps {
   visible: boolean;
@@ -386,6 +387,9 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                 <Text style={styles.gVal}>{task.linkedEstimateItems?.length ? `${task.linkedEstimateItems.length} linked` : 'None linked'}</Text>
               </View>
             )}
+            {/* Deliveries for This Task (lane DELIVERIES-1). Draws nothing
+                unless the feature's gate is open for this person. */}
+            {tab === 'docs' && <TaskDeliveriesSection taskId={task.id} />}
             {tab === 'activity' && (
               <View style={styles.card}>
                 <Text style={styles.gLbl}>Notes</Text>

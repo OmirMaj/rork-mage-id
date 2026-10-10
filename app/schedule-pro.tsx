@@ -103,6 +103,7 @@ import {
   type Density, type ProView,
 } from '@/utils/scheduleProLayout';
 import type { SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
+import { DeliveryProposalBanner } from '@/components/deliveries/DeliveriesFollow';
 import type { GanttTabHandle } from '@/components/schedule/tabs/GanttTab';
 import { ScheduleProToolbar } from '@/components/schedule/desktop/ScheduleProToolbar';
 import { ScheduleSignals } from '@/components/schedule/desktop/ScheduleSignals';
@@ -286,7 +287,10 @@ function ScheduleProScreenInner() {
   const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
   const {
     projectId: paramProjectId, taskId: paramTaskId, editSeed: paramEditSeed, focus: paramFocus,
-  } = useLocalSearchParams<{ projectId?: string; taskId?: string; editSeed?: string; focus?: string }>();
+    // "See It on the Schedule" from a delivery (lane DELIVERIES-1). Read only by
+    // DeliveryProposalBanner, which is inert unless that feature's gate is open.
+    deliveryId: paramDeliveryId,
+  } = useLocalSearchParams<{ projectId?: string; taskId?: string; editSeed?: string; focus?: string; deliveryId?: string }>();
   const { user } = useAuth();
   // Wave 6c: the desktop layout gate, and the web-only one for browser
   // behaviour (hotkeys, the Brain FAB). isDesktop is also true on native at
@@ -887,6 +891,10 @@ function ScheduleProScreenInner() {
     nonWorkingDates: project?.schedule?.nonWorkingDates,
     taskCalendars,
   }), [scheduleStartIso, criticalFloatThresholdDays, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates, taskCalendars]);
+
+  // The engine options a delivery's proposal is worked out with, so the overlay
+  // it hands this screen is on this screen's own numbers (lane DELIVERIES-1).
+  const deliveryProposalEngine = useMemo(() => ({ criticalFloatThresholdDays, taskCalendars }), [criticalFloatThresholdDays, taskCalendars]);
 
   const rolledTasks = useMemo(() => {
     const hasSummary = workingTasks.some(t => t.isSummary);
@@ -3349,6 +3357,19 @@ function ScheduleProScreenInner() {
             projectStartDate={project?.schedule?.startDate ? projectStartDate : null}
             onAnswer={answerStartDayBasis}
             style={{ marginHorizontal: 16, marginTop: 8 }}
+          />
+          {/* A delivery's proposal, DRAWN on this screen's own preview. It is
+              applied only by the person's tap, through commitEditorBatch (the
+              same undoable commit the Change tab uses). Draws nothing unless
+              the route names a delivery and that feature's gate is open. */}
+          <DeliveryProposalBanner
+            projectId={project.id}
+            deliveryId={typeof paramDeliveryId === 'string' ? paramDeliveryId : undefined}
+            schedule={project.schedule}
+            tasks={workingTasks}
+            engine={deliveryProposalEngine}
+            onPreview={setPendingPreview}
+            commit={commitEditorBatch}
           />
         </View>
         {/* The work row: the canvas and the pane — exactly two children. The
