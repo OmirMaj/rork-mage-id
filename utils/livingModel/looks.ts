@@ -30,13 +30,16 @@
 // seven-room test job with walls cut at 1.25 m, by
 // scripts/validate-living-model-looks.ts (rule C1 holds these as ceilings):
 //
-//                          shading   shapes drawn  triangles  pictures  shadow map   sky dome
-//   Game Style  web        3 steps   __GW_D__            __GW_T__     2         web's 2048   no
-//   Game Style  phone Std  flat      __GS_D__            __GS_T__     1         quality's    no
-//   Game Style  phone High 3 steps   __GH_D__            __GH_T__     2         quality's    no
-//   Realistic   web        rough     __RW_D__            __RW_T__     7         web's 2048   yes
-//   Realistic   phone Std  flat      __RS_D__            __RS_T__     2         quality's    no
-//   Realistic   phone High rough     __RH_D__            __RH_T__     6         quality's    no
+//                          shading   shapes  triangles  pictures  shadow map   sky dome
+//   Game Style  web        3 steps   88      16,958     2         web's 2048   no
+//   Game Style  phone Std  flat      88      16,958     1         quality's    no
+//   Game Style  phone High 3 steps   88      16,958     2         quality's    no
+//   Realistic   web        rough     94      18,458     6         web's 2048   yes
+//   Realistic   phone Std  flat      94      18,458     2         quality's    no
+//   Realistic   phone High rough     94      18,458     6         quality's    no
+//
+// Before the two looks were drawn apart the same job was 61 shapes and 14,632
+// triangles: the lids, the dark rims and the window frames are the difference.
 //
 // "flat" is the one-step shading the view has always used (the cheapest a lit
 // surface can be). "3 steps" costs about the same per pixel. "rough" is the
@@ -64,7 +67,6 @@
 // scripts/validate-living-model-looks.ts runs every function here, and the
 // scene builder with each look, with planted breaks.
 import type { LivingModelPalette, PaletteMode } from './palette';
-import { MATERIALS } from './palette';
 import type { Phone3DQuality } from './phoneViewCore';
 import type { RoomStage } from './stageCore';
 
@@ -237,7 +239,8 @@ export const REALISTIC_COLOURS: Readonly<Record<PaletteMode, RealisticColours>> 
 
 /**
  * THE GAME STYLE TABLE. Bold, clean colours: white walls, orange timber, a pale tile. The floors are filled with the
- * stage colour (palette.stage) nearly all the way (`floorTint`), so a room is its stage's colour.
+ * stage colour (palette.stage) all the way (`floorTint` 1), so a room is its stage's colour, the one on its label.
+ * The two lamps add up to about pi on a face that looks up, which is what draws a floor in the colour as written.
  */
 export const GAME_COLOURS: Readonly<Record<PaletteMode, GameColours>> = {
   light: {
@@ -261,11 +264,11 @@ export const GAME_COLOURS: Readonly<Record<PaletteMode, GameColours>> = {
     sun: '#FFFFFF',
     contact: '#1F2A24',
     ink: '#1F2A24',
-    skyStrength: 2.3,
-    sunStrength: 1.5,
+    skyStrength: 1.9,
+    sunStrength: 1.25,
     contactOpacity: 0.24,
     groundShadow: 0.2,
-    floorTint: 0.9,
+    floorTint: 1,
   },
   dark: {
     plinth: '#3D453F',
@@ -292,7 +295,7 @@ export const GAME_COLOURS: Readonly<Record<PaletteMode, GameColours>> = {
     sunStrength: 1.3,
     contactOpacity: 0.5,
     groundShadow: 0.45,
-    floorTint: 0.88,
+    floorTint: 1,
   },
 };
 
@@ -521,7 +524,7 @@ export function stageAppearance(look: ModelLook, stage: RoomStage, palette: Livi
   return { colour, floorTint: GAME_COLOURS[palette.mode].floorTint, band: false };
 }
 
-/** Which of Realistic's floor materials a room in a stage stands on: the worn floor before work opens it, the subfloor while the walls are open, the new floor at the end. */
+/** Which of Realistic's floor materials a room in a stage mostly stands on (the band is checked against all three): the worn floor before work opens it, the subfloor while the walls are open, the new floor at the end. */
 export function realisticFloorFor(stage: RoomStage): 'floorOld' | 'floorSub' | 'floorFinished' {
   if (stage === 'finishes' || stage === 'done') return 'floorFinished';
   if (stage === 'no_tasks' || stage === 'not_started' || stage === 'other') return 'floorOld';
@@ -552,4 +555,7 @@ export function colourGap(a: string, b: string): number {
 
 /** A stage's band must stand this far from the floor it lies on, and from every other stage's band, to be told at a glance. */
 export const BAND_MIN_GAP_FROM_FLOOR = 25;
-export const BAND_MIN_GAP_BETWEEN_STAGES = 14;
+export const BAND_MIN_GAP_BETWEEN_STAGES = 18;
+
+/** The most a phone may be asked to draw for the seven-room test job, in either look: shapes and triangles. */
+export const PHONE_LOOK_BUDGET = { drawables: 100, triangles: 20000 } as const;

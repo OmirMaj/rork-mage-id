@@ -119,7 +119,7 @@ export function usePalette(): LivingModelPalette {
 
 /**
  * The palette the 3D view draws with, for the look the person chose and what this device may spend on it
- * (utils/livingModel/looks.ts). Game Style is the theme's own palette, the very object `usePalette` gives. A new look
+ * (utils/livingModel/looks.ts). Each look has its own materials and lights over the theme's own colours. A new look
  * is a new palette, and the 3D views already make a new scene for a new palette, so the old look's shapes and
  * materials are let go the same way a theme change lets them go.
  */

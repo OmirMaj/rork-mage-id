@@ -28,6 +28,6 @@ export interface JobReplay3DProps {
   onHold?: (held: boolean) => void;
   /** The phone only. What the 3D view may cost the phone (utils/livingModel/phoneViewCore.PHONE_3D_QUALITY). Standard when left out. */
   quality?: 'standard' | 'high';
-  /** Which of the two looks the model is drawn in (utils/livingModel/looks.ts). Game Style, the look it has always had, when left out. */
+  /** Which of the two looks the model is drawn in (utils/livingModel/looks.ts). Game Style, the default, when left out. */
   look?: ModelLook;
 }

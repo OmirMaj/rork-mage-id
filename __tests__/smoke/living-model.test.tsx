@@ -81,12 +81,12 @@ let mockThreeLoaded = false;
 jest.mock('three', () => { mockThreeLoaded = true; return {}; });
 
 // The scene builder, faked for tests 22 and 23 (no WebGL here). Each scene made is kept, with what was drawn into it.
-interface MockScene { ground: string; realistic: boolean; rooms: number; setRoomsCalls: number; applyCalls: number; disposed: boolean; canvas: unknown }
+interface MockScene { ground: string; look: string | null; shading: string | null; rooms: number; setRoomsCalls: number; applyCalls: number; disposed: boolean; canvas: unknown }
 const mockScenes: MockScene[] = [];
 jest.mock('@/components/livingModel/threeScene', () => ({
   DEFAULT_VIEW: { azimuth: 0.72, elevation: 0.9 },
-  createJobScene: (_three: unknown, canvas: unknown, palette: { ground: string; finish?: unknown }) => {
-    const rec: MockScene = { ground: palette.ground, realistic: palette.finish != null, rooms: 0, setRoomsCalls: 0, applyCalls: 0, disposed: false, canvas };
+  createJobScene: (_three: unknown, canvas: unknown, palette: { ground: string; finish?: { look: string; cost: { shading: string } } }) => {
+    const rec: MockScene = { ground: palette.ground, look: palette.finish?.look ?? null, shading: palette.finish?.cost.shading ?? null, rooms: 0, setRoomsCalls: 0, applyCalls: 0, disposed: false, canvas };
     mockScenes.push(rec);
     return {
       setRooms: (list: unknown[]) => { rec.rooms = list.length; rec.setRoomsCalls += 1; },
@@ -666,14 +666,16 @@ describe('the web view, with the scene builder and the library faked', () => {
     const r = render(withLook(), { createNodeMock });
     await settle();
     expect(mockScenes).toHaveLength(1);
-    // No look given: the palette carries no finish, so the scene builder draws what it always drew.
-    expect(mockScenes[0].realistic).toBe(false);
+    // No look given: Game Style, the default, with the three steps of light the web affords.
+    expect(mockScenes[0].look).toBe('game');
+    expect(mockScenes[0].shading).toBe('toon');
 
     r.rerender(withLook('realistic'));
     await settle();
     expect(mockScenes).toHaveLength(2);
     expect(mockScenes[0].disposed).toBe(true);
-    expect(mockScenes[1].realistic).toBe(true);
+    expect(mockScenes[1].look).toBe('realistic');
+    expect(mockScenes[1].shading).toBe('surface');
     expect(mockScenes[1].canvas).not.toBe(mockScenes[0].canvas);
     // The page's colour is the theme's in both looks, and the rooms and their stages are drawn into the new scene.
     expect(mockScenes[1].ground).toBe(mockScenes[0].ground);
@@ -685,7 +687,7 @@ describe('the web view, with the scene builder and the library faked', () => {
     await settle();
     expect(mockScenes).toHaveLength(3);
     expect(mockScenes[1].disposed).toBe(true);
-    expect(mockScenes[2].realistic).toBe(false);
+    expect(mockScenes[2].look).toBe('game');
     expect(mockScenes[2].rooms).toBe(3);
     // The same look again makes nothing new.
     r.rerender(withLook('game'));
