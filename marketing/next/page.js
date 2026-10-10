@@ -69,8 +69,8 @@
     var im = new Image();
     im.decoding = 'async'; im.alt = alt; im.width = 393; im.height = 852;
     im.sizes = sizes;
-    im.srcset = 'img/screens/' + stem + '-1x.webp 393w, img/screens/' + stem + '-2x.webp 786w';
-    im.src = 'img/screens/' + stem + '-1x.webp';
+    im.srcset = 'img/screens/' + stem + '-1x.webp?v=4 393w, img/screens/' + stem + '-2x.webp?v=4 786w';
+    im.src = 'img/screens/' + stem + '-1x.webp?v=4';
     return im;
   }
   /* one screen that can show any frame of a list. Frames are only fetched when asked for. */
@@ -328,7 +328,7 @@
       var tabs = doc.createElement('div'); tabs.className = 'tabs'; tabs.setAttribute('role', 'group'); tabs.setAttribute('aria-label', t.title + ': pick a week');
       t.frames.forEach(function (f, i) {
         var b = doc.createElement('button'); b.type = 'button'; b.textContent = f.label; b.setAttribute('aria-pressed', i === start ? 'true' : 'false');
-        b.addEventListener('click', function () { im.srcset = 'img/screens/' + f.img + '-1x.webp 393w, img/screens/' + f.img + '-2x.webp 786w'; im.src = 'img/screens/' + f.img + '-1x.webp'; im.alt = f.alt; all('button', tabs).forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); });
+        b.addEventListener('click', function () { im.srcset = 'img/screens/' + f.img + '-1x.webp?v=4 393w, img/screens/' + f.img + '-2x.webp?v=4 786w'; im.src = 'img/screens/' + f.img + '-1x.webp?v=4'; im.alt = f.alt; all('button', tabs).forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); });
         tabs.appendChild(b);
       });
       fig.appendChild(tabs);
