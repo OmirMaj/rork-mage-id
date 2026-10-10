@@ -334,7 +334,7 @@ window.MageDraw = function (canvas, opts) {
 
     /* casework and fixtures: plain blocks */
     CASE.forEach(function (c, k) {
-      var kc = sm(seg(p, 4.08 + k * 0.07, 4.36 + k * 0.07)); if (kc <= 0) return;
+      var kc = sm(seg(p, 4.08 + k * 0.05, 4.3 + k * 0.05)); if (kc <= 0) return;
       var b = c.b, a = frontA((b[1] + b[3]) / 2); if (a <= 0.02) return;
       box(b[0], b[1], b[2], b[3], 0, b[4] * kc, a);
       if (c.top && kc >= 1) c.top.forEach(function (t) { var g = [[t[0], t[1], b[4] + 0.01], [t[2], t[1], b[4] + 0.01], [t[2], t[3], b[4] + 0.01], [t[0], t[3], b[4] + 0.01]].map(pp); if (se > 0.05) faces.push({ q: g, d: (g[0][2] + g[2][2]) / 2 + 0.05, fill: CARD1, e: 15, a: a, thin: 1 }); });
@@ -464,6 +464,7 @@ window.MageDraw = function (canvas, opts) {
     onDraw: function (f) { listeners.push(f); },
     resize: resize, redraw: invalidate,
     show: function (v) { visible = v; if (v) invalidate(); },
+    settle: function () { free = true; invalidate(); },
     now: function () { if (raf) cancelAnimationFrame(raf); raf = 0; draw(); }
   };
   if (opts.p !== undefined) P = opts.p;
