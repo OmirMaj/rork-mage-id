@@ -81,12 +81,12 @@ let mockThreeLoaded = false;
 jest.mock('three', () => { mockThreeLoaded = true; return {}; });
 
 // The scene builder, faked for tests 22 and 23 (no WebGL here). Each scene made is kept, with what was drawn into it.
-interface MockScene { ground: string; rooms: number; setRoomsCalls: number; applyCalls: number; disposed: boolean; canvas: unknown }
+interface MockScene { ground: string; realistic: boolean; rooms: number; setRoomsCalls: number; applyCalls: number; disposed: boolean; canvas: unknown }
 const mockScenes: MockScene[] = [];
 jest.mock('@/components/livingModel/threeScene', () => ({
   DEFAULT_VIEW: { azimuth: 0.72, elevation: 0.9 },
-  createJobScene: (_three: unknown, canvas: unknown, palette: { ground: string }) => {
-    const rec: MockScene = { ground: palette.ground, rooms: 0, setRoomsCalls: 0, applyCalls: 0, disposed: false, canvas };
+  createJobScene: (_three: unknown, canvas: unknown, palette: { ground: string; finish?: unknown }) => {
+    const rec: MockScene = { ground: palette.ground, realistic: palette.finish != null, rooms: 0, setRoomsCalls: 0, applyCalls: 0, disposed: false, canvas };
     mockScenes.push(rec);
     return {
       setRooms: (list: unknown[]) => { rec.rooms = list.length; rec.setRoomsCalls += 1; },
@@ -356,6 +356,8 @@ describe('Job Replay on the phone', () => {
     expect(screen.getAllByText('3D needs the newest version of the app.')).toHaveLength(1);
     expect(screen.queryByTestId('lm-3d-hint')).toBeNull();
     expect(screen.queryByTestId('lm-3d-quality')).toBeNull();
+    // The look switch belongs to a 3D picture: it is not drawn over the flat replay.
+    expect(screen.queryByTestId('lm-look')).toBeNull();
     expect(screen.queryByTestId('lm-no-webgl')).toBeNull();
     expect(screen.queryByTestId('lm-phone-note')).toBeNull();
     expect(screen.getByTestId('lm-honesty-flat')).toBeTruthy();
@@ -657,5 +659,37 @@ describe('the web view, with the scene builder and the library faked', () => {
     expect(mockScenes[0].disposed).toBe(true);
     expect(mockScenes[1].rooms).toBe(3);
     expect(mockUnavailable).not.toHaveBeenCalled();
+  });
+
+  it('24 a new look makes a new scene on a new canvas: Game Style when none is given, Realistic when it is chosen, and the old scene is let go', async () => {
+    const withLook = (look?: 'realistic' | 'game') => <Wrap><WebJobReplay3D model={model} level={0} moments={moments} selectedId={null} onSelect={() => {}} onUnavailable={mockUnavailable} weekLine="Week 1 of 3" atToday={false} height={400} compact={false} look={look} loadLibrary={mockLibrary} /></Wrap>;
+    const r = render(withLook(), { createNodeMock });
+    await settle();
+    expect(mockScenes).toHaveLength(1);
+    // No look given: the palette carries no finish, so the scene builder draws what it always drew.
+    expect(mockScenes[0].realistic).toBe(false);
+
+    r.rerender(withLook('realistic'));
+    await settle();
+    expect(mockScenes).toHaveLength(2);
+    expect(mockScenes[0].disposed).toBe(true);
+    expect(mockScenes[1].realistic).toBe(true);
+    expect(mockScenes[1].canvas).not.toBe(mockScenes[0].canvas);
+    // The page's colour is the theme's in both looks, and the rooms and their stages are drawn into the new scene.
+    expect(mockScenes[1].ground).toBe(mockScenes[0].ground);
+    expect(mockScenes[1].rooms).toBe(3);
+    expect(mockScenes[1].applyCalls).toBeGreaterThan(0);
+    expect(screen.getByTestId('lm-pin-kitchen')).toBeTruthy();
+
+    r.rerender(withLook('game'));
+    await settle();
+    expect(mockScenes).toHaveLength(3);
+    expect(mockScenes[1].disposed).toBe(true);
+    expect(mockScenes[2].realistic).toBe(false);
+    expect(mockScenes[2].rooms).toBe(3);
+    // The same look again makes nothing new.
+    r.rerender(withLook('game'));
+    await settle();
+    expect(mockScenes).toHaveLength(3);
   });
 });
