@@ -227,5 +227,19 @@ ok(`${lifted} screens lift the FAB over a sticky bar; each pads for the bar too`
       `\n        paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE`
     : '');
 
+// Bill This Month (components/payApp/BillThisMonth.tsx) is a full screen drawn
+// by a component, so the walk over app/ above never sees it. Its footer is the
+// money (the cover's lines 4 to 8 and Payment Due) and is too tall to lift the
+// FAB over: the FAB sat on Payment Due itself (pictures of 2026-10-10). The
+// screen does not draw the FAB at all.
+{
+  const src = readFileSync('components/payApp/BillThisMonth.tsx', 'utf8');
+  const code = src.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  ok('Bill This Month does not draw the FAB over its money footer',
+    /import \{ useHideBrainFab \} from '@\/components\/brain\/brainFabState';/.test(code)
+      && /export function BillThisMonth\([^)]*\) \{\s+const insets = useSafeAreaInsets\(\);\s+useHideBrainFab\(\);/.test(code),
+    'call useHideBrainFab() unconditionally at the top of BillThisMonth');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

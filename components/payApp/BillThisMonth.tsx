@@ -36,6 +36,7 @@ import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import { Button } from '@/components/ui';
+import { useHideBrainFab } from '@/components/brain/brainFabState';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -89,6 +90,10 @@ export interface BillThisMonthProps {
 
 export function BillThisMonth({ project, saved, contract, onClose, onSaved }: BillThisMonthProps) {
   const insets = useSafeAreaInsets();
+  // The floating assistant button is not drawn on this screen. The footer is the money (the cover's lines 4 to
+  // 8 and Payment Due), it is tall, and the button sat on the amounts column: on Payment Due itself once two
+  // lines were entered. Lifting it clear of a footer this tall would park it on the line amounts instead.
+  useHideBrainFab();
   const { colors } = useTheme();
   const styles = useThemedStyles(makePayAppStyles);
   const { user } = useAuth();

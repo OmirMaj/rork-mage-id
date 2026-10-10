@@ -27,7 +27,11 @@ jest.mock('@/hooks/useProjectRole', () => ({
   useProjectRoleState: () => ({ role: 'owner', isLoading: false, isError: false, isPaused: false, refetch: () => {} }),
   useProjectRole: () => 'owner',
 }));
-jest.mock('expo-router', () => ({ Stack: { Screen: () => null } }));
+jest.mock('expo-router', () => ({
+  Stack: { Screen: () => null },
+  // Bill This Month hides the floating button while it has focus (useHideBrainFab).
+  useFocusEffect: (effect: () => void | (() => void)) => { require('react').useEffect(effect, [effect]); },
+}));
 // His cash-flow setup has no payment terms: nothing is confirmed.
 jest.mock('@/utils/cashFlowStorage', () => ({ loadCashFlowSettings: jest.fn(async () => ({ source: 'default' })) }));
 
