@@ -64,6 +64,7 @@ import { rememberServerChangeOrderNumbers } from '@/hooks/useServerChangeOrderNu
 // insert then omits share_token and the column default mints it.
 const mintShareToken = (): string | undefined => mintedShareToken(() => Crypto.randomUUID());
 import type { UnsavedProjectPins, CollaboratorRowLike, PortalFedList, PortalSideList, PortalServerReads } from '@/utils/projectContextPure';
+import { keepsItsServerRow } from '@/utils/payApp/sendLock';
 import { generateUUID } from '@/utils/generateId';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 // Sample fences: no QuickBooks push from a sample, and every create event says
@@ -8849,7 +8850,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (!a.invoiceId && !finalApp.invoiceId) return a.applicationNumber === finalApp.applicationNumber;
       return false;
     };
-    const dedup = aiaPayApps.filter(a => !sameRecord(a));
+    // A LOCKED record is never displaced. The server refuses to delete a pay
+    // application that was sent, has a pay link or was paid, so an older record
+    // of this period that is locked stays on the device too; dropping it here
+    // would only hide a record the next load brings back.
+    const leaves = (a: SavedAIAPayApp) => sameRecord(a) && (a.id === finalApp.id || !keepsItsServerRow(a));
+    const dedup = aiaPayApps.filter(a => !leaves(a));
     const updated = [finalApp, ...dedup];
     setAiaPayApps(updated);
     saveAiaPayAppsMutation.mutate(updated);
@@ -8859,7 +8865,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // aia_pay_apps, where the next server-first load brought it back as a
     // second certificate for one period — the duplicate this de-dupe exists to
     // prevent, reintroduced by the de-dupe itself.
-    const displaced = aiaPayApps.filter(a => sameRecord(a) && a.id !== finalApp.id);
+    const displaced = aiaPayApps.filter(a => leaves(a) && a.id !== finalApp.id);
     if (canSync && userId) {
       displaced.forEach(a => { void touchedWrite(proDocWriteTouchRef, a.id, () => supabaseWrite('aia_pay_apps', 'delete', { id: a.id })); });
     }
@@ -11344,9 +11350,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (res.status !== 'synced') return { status: res.status, ...(res.code ? { code: res.code } : {}), ...(res.message ? { message: res.message } : {}) };
     const base = aiaPayAppsRef.current;
     // A displaced legacy record leaves the server too (housekeeping, queue-backed as in addAIAPayApp).
-    const displaced = base.filter(a => sameRecord(a) && a.id !== finalApp.id);
+    // A locked record is never displaced (see addAIAPayApp): the server keeps it, so the device does too.
+    const leaves = (a: SavedAIAPayApp) => sameRecord(a) && (a.id === finalApp.id || !keepsItsServerRow(a));
+    const displaced = base.filter(a => leaves(a) && a.id !== finalApp.id);
     displaced.forEach(a => { void touchedWrite(proDocWriteTouchRef, a.id, () => supabaseWrite('aia_pay_apps', 'delete', { id: a.id })); });
-    const updated = [finalApp, ...base.filter(a => !sameRecord(a))];
+    const updated = [finalApp, ...base.filter(a => !leaves(a))];
     aiaPayAppsRef.current = updated;
     setAiaPayApps(updated);
     saveAiaPayAppsMutation.mutate(updated);
