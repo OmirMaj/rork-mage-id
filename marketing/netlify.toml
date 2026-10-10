@@ -60,6 +60,19 @@
   to = "/bid-invite/index.html"
   status = 200
 
+# Supplier link — /delivery/?t=<token>. The no-account page a contractor hands
+# a supplier to give a delivery date and a tracking number. Mirrored in
+# _redirects.
+[[redirects]]
+  from = "/delivery"
+  to = "/delivery/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/delivery/*"
+  to = "/delivery/index.html"
+  status = 200
+
 [[redirects]]
   from = "/builders/*"
   to = "/builders/index.html"

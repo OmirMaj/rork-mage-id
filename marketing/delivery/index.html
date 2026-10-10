@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#F3F3F0" />
+<meta name="robots" content="noindex" />
+<meta name="referrer" content="no-referrer" />
+<title>Delivery Date Request · MAGE ID</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap" />
+<style>
+  /* The supplier link page (lane DELIVERIES-2). One delivery, one short form.
+     Paper, ink and thin rules, the same drawing-sheet look as the homepage preview. */
+  :root {
+    --paper: #F3F3F0; --sheet: #FBFBF9; --ink: #161B1E; --ink2: #333C41; --mute: #58626A;
+    --hair: #D2D5CF; --hair2: #B4BAB4; --green: #2F6B3A; --green-d: #24552D; --green-t: #E4EDE5;
+    --teal: #12806E; --warm: #A84A14;
+    --disp: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+    --body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 400 17px/1.5 var(--body); -webkit-font-smoothing: antialiased; }
+  h1, h2, p, dl, dd, dt { margin: 0; padding: 0; }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 28px 20px 56px; }
+  .brand { display: flex; align-items: center; gap: 10px; font: 700 20px/1 var(--disp); letter-spacing: .06em; color: var(--ink); text-decoration: none; }
+  .eyebrow, dt, label, .flag, .small-cap { font-family: var(--disp); font-weight: 600; text-transform: uppercase; letter-spacing: .12em; }
+  .eyebrow { margin-top: 34px; font-size: 13px; color: var(--green); }
+  h1 { margin-top: 10px; font: 700 clamp(34px, 8vw, 46px)/.96 var(--disp); text-transform: uppercase; letter-spacing: .005em; }
+  .lead { margin-top: 14px; font-size: 18px; line-height: 1.42; color: var(--ink2); }
+  .sheet { margin-top: 26px; background: var(--sheet); border: 1px solid var(--ink); }
+  .sheet-head { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--ink); font: 600 12px/1 var(--disp); text-transform: uppercase; letter-spacing: .12em; }
+  .facts div { padding: 11px 14px 10px; border-bottom: 1px solid var(--hair); }
+  .facts div:last-child { border-bottom: 0; }
+  dt { font-size: 11px; color: var(--mute); }
+  dd { margin-top: 2px; font: 600 22px/1.2 var(--disp); letter-spacing: .01em; overflow-wrap: anywhere; }
+  dd small { display: block; margin-top: 3px; font: 400 14px/1.4 var(--body); letter-spacing: 0; color: var(--mute); }
+  form { padding: 4px 14px 16px; }
+  .field { margin-top: 14px; }
+  label { display: block; font-size: 12px; color: var(--ink2); }
+  label span { color: var(--mute); letter-spacing: .08em; }
+  input, textarea { display: block; width: 100%; margin-top: 6px; padding: 12px 12px; min-height: 48px; background: #fff; color: var(--ink); border: 1px solid var(--hair2); border-radius: 3px; font: 500 17px/1.3 var(--body); }
+  textarea { min-height: 84px; resize: vertical; }
+  input:focus, textarea:focus { border-color: var(--ink); }
+  .two { display: grid; gap: 0 14px; }
+  @media (min-width: 520px) { .two { grid-template-columns: 1fr 1fr; } }
+  .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; margin-top: 20px; padding: 0 22px; background: var(--green); color: #fff; border: 1px solid var(--green); border-radius: 3px; font: 600 18px/1 var(--disp); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+  .btn:hover { background: var(--green-d); }
+  .btn[disabled] { opacity: .55; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--ink); }
+  .say { margin-top: 12px; font-size: 14.5px; line-height: 1.45; color: var(--mute); }
+  .err { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--warm); color: var(--warm); background: #fff; font-size: 15.5px; line-height: 1.4; }
+  .done { padding: 16px 14px 18px; }
+  .done h2 { font: 700 30px/1 var(--disp); text-transform: uppercase; color: var(--teal); }
+  .done p { margin-top: 8px; color: var(--ink2); }
+  .flag { display: inline-block; font-size: 11px; line-height: 1; padding: 5px 8px 4px; border: 1px dashed var(--ink); }
+  .state { margin-top: 26px; padding: 18px 16px; background: var(--sheet); border: 1px solid var(--ink); }
+  .state h2 { font: 700 28px/1.05 var(--disp); text-transform: uppercase; }
+  .state p { margin-top: 8px; color: var(--ink2); }
+  .fineprint { margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--hair); font-size: 13.5px; color: var(--mute); }
+  .fineprint a { color: inherit; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<a class="mg-skip" href="#content">Skip to Main Content</a>
+<aside class="mg-notice" data-recipient-notice="1" aria-label="About This Page" style="box-sizing:border-box;padding:12px 16px;background:#F4F5F2;color:#0B0D10;font-size:14px;line-height:1.5;border-bottom:1px solid #C9CDC6;text-align:left">
+  <p style="margin:0 auto;max-width:960px;color:#0B0D10">Prepared by <span data-notice-company>your contractor</span> using MAGE ID software. MAGE ID did not prepare, review or check this document and makes no statement to the reader about its contents.</p>
+  <p style="margin:4px auto 0;max-width:960px;color:#0B0D10">This page is run by MAGE ID for <span data-notice-company>your contractor</span>. <a href="https://mageid.app/terms" style="color:#1F4D29;font-weight:600">Terms of Service</a> · <a href="https://mageid.app/privacy" style="color:#1F4D29;font-weight:600">Privacy Policy</a></p>
+</aside>
+<script src="/protect-notice.js?v=2026-10-09"></script>
+
+<div class="wrap">
+  <a class="brand" href="https://mageid.app" rel="noopener">MAGE ID</a>
+
+  <main id="content" aria-live="polite">
+    <!-- Shown while the link is being read, and with JavaScript off. -->
+    <div class="state" id="stLoading">
+      <h2>Opening The Link</h2>
+      <p>One moment. If nothing shows, this page needs JavaScript turned on.</p>
+    </div>
+
+    <div class="state" id="stGone" hidden>
+      <h2>This Link Is Not Active</h2>
+      <p>The contractor may have turned it off or made a new one. Ask them for a new link.</p>
+    </div>
+
+    <div class="state" id="stOffline" hidden>
+      <h2>Could Not Open The Link</h2>
+      <p>Check your connection, then try again. If it keeps happening, tell the contractor.</p>
+      <button type="button" class="btn ghost" id="retry">Try Again</button>
+    </div>
+
+    <div id="stOpen" hidden>
+      <p class="eyebrow">Delivery Date Request</p>
+      <h1 id="headline">When Is This Delivery Coming?</h1>
+      <p class="lead" id="lead"></p>
+
+      <div class="sheet">
+        <div class="sheet-head"><span>The Delivery</span><span class="flag" id="closedFlag" hidden>Closed</span></div>
+        <dl class="facts" id="facts"></dl>
+      </div>
+
+      <div class="state" id="stClosed" hidden>
+        <h2>This Delivery Is Closed</h2>
+        <p>It was received or cancelled. Nothing more is needed here.</p>
+      </div>
+
+      <div class="sheet" id="lastSheet" hidden>
+        <div class="sheet-head"><span>Your Last Answer</span><span id="lastWhen"></span></div>
+        <dl class="facts" id="lastFacts"></dl>
+      </div>
+
+      <div class="sheet" id="formSheet" hidden>
+        <div class="sheet-head"><span id="formTitle">Your Answer</span></div>
+        <form id="form" novalidate>
+          <div class="two">
+            <div class="field"><label for="fDate">Delivery Date</label><input id="fDate" name="date" type="date" autocomplete="off" /></div>
+            <div class="field"><label for="fWindow">Arrival Window <span>Optional</span></label><input id="fWindow" name="window" type="text" maxlength="40" placeholder="7 to 11 AM" autocomplete="off" /></div>
+          </div>
+          <div class="two">
+            <div class="field"><label for="fTracking">Tracking Number <span>Optional</span></label><input id="fTracking" name="tracking" type="text" maxlength="60" autocomplete="off" autocapitalize="characters" spellcheck="false" /></div>
+            <div class="field"><label for="fCarrier">Carrier Or Truck <span>Optional</span></label><input id="fCarrier" name="carrier" type="text" maxlength="40" placeholder="Our own truck" autocomplete="off" /></div>
+          </div>
+          <div class="field"><label for="fName">Your Name</label><input id="fName" name="name" type="text" maxlength="80" autocomplete="name" /></div>
+          <div class="field"><label for="fNote">Note <span>Optional</span></label><textarea id="fNote" name="note" maxlength="300"></textarea></div>
+          <p class="err" id="err" role="alert" hidden></p>
+          <button type="submit" class="btn" id="send">Send My Answer</button>
+          <p class="say" id="say"></p>
+        </form>
+      </div>
+
+      <div class="sheet" id="doneSheet" hidden>
+        <div class="done">
+          <h2>Sent</h2>
+          <p id="doneSay"></p>
+          <button type="button" class="btn ghost" id="again">Send A New Answer</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <p class="fineprint">This page shows one delivery and nothing else. No account is needed. <a href="https://mageid.app/terms">Terms</a> · <a href="https://mageid.app/privacy">Privacy</a></p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // Public Supabase project URL and anon key. The anon key is meant for client-side use.
+  // The table behind this page gives anon NO access. The two functions below only ever
+  // touch the one link whose token they are handed (20261013090000_delivery_supplier_links.sql).
+  var SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
+  var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  function $(id) { return document.getElementById(id); }
+  function show(id, on) { $(id).hidden = !on; }
+  // The link arrives as ?t=<token>. It is moved to #t=<token>: the part after # is never sent to a server
+  // or passed on as a referrer, and the page still works when the phone reloads the tab.
+  var TOKEN = (function () {
+    try { return new URL(location.href).searchParams.get('t') || (/^#t=([0-9a-f-]{36})$/i.exec(location.hash) || [])[1] || ''; } catch (e) { return ''; }
+  })();
+  try { if (TOKEN && history.replaceState) history.replaceState(null, '', location.pathname + '#t=' + TOKEN); } catch (e) { /* keep the address as it is */ }
+
+  /* A calendar day is built from its parts in local time. new Date('2026-11-13') is UTC midnight, the day before in the US. */
+  function dayLong(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    if (!m) return '';
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+  function stampLong(iso) {
+    var d = new Date(String(iso || ''));
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  function text(v, max) { return typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : ''; }
+
+  function rpc(fn, args) {
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    }).then(function (r) {
+      // Keep the status: a 400 is the server refusing what was sent (a mangled token is not a uuid). Anything else
+      // that is not a 2xx (the function missing, a busy server) is the page's problem, not a dead link.
+      if (!r.ok) { var e = new Error('status ' + r.status); e.status = r.status; throw e; }
+      return r.json();
+    });
+  }
+
+  /* Every value from the server is put on the page as TEXT. Nothing from the link is ever written as markup. */
+  function fact(dl, label, value, sub) {
+    if (!value) return;
+    var row = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = label; dd.textContent = value;
+    if (sub) { var s = document.createElement('small'); s.textContent = sub; dd.appendChild(s); }
+    row.appendChild(dt); row.appendChild(dd); dl.appendChild(row);
+  }
+
+  var company = 'the contractor';
+  function only(id) { ['stLoading', 'stGone', 'stOffline', 'stOpen'].forEach(function (s) { show(s, s === id); }); }
+
+  function paintLast(reply) {
+    var dl = $('lastFacts'); dl.textContent = '';
+    if (!reply || typeof reply !== 'object') { show('lastSheet', false); return; }
+    fact(dl, 'Delivery Date', dayLong(reply.date), text(reply.window, 40));
+    fact(dl, 'Tracking Number', text(reply.tracking, 60), text(reply.carrier, 40));
+    fact(dl, 'From', text(reply.name, 80), text(reply.note, 300));
+    $('lastWhen').textContent = stampLong(reply.at);
+    show('lastSheet', dl.children.length > 0);
+  }
+
+  function paint(v) {
+    var shown = v && typeof v.shown === 'object' && v.shown ? v.shown : {};
+    company = text(shown.company, 80) || 'the contractor';
+    if (window.mageNotice && text(shown.company, 80)) window.mageNotice.setCompany(text(shown.company, 80));
+    $('lead').textContent = company.charAt(0).toUpperCase() + company.slice(1) + ' is asking for your delivery date and, if there is one, a tracking number.';
+    var dl = $('facts'); dl.textContent = '';
+    fact(dl, 'What Is Coming', text(shown.description, 200));
+    fact(dl, 'Supplier', text(shown.supplier, 120));
+    fact(dl, 'Needed on Site By', dayLong(shown.neededBy), 'Taken from the contractor\'s schedule when this link was made. It can change.');
+    fact(dl, 'Asked By', text(shown.company, 80));
+    var open = v.open === true;
+    show('closedFlag', !open); show('stClosed', !open);
+    paintLast(v.reply);
+    show('formSheet', open); show('doneSheet', false);
+    $('formTitle').textContent = v.reply ? 'Send A New Answer' : 'Your Answer';
+    $('say').textContent = 'This sends your answer to ' + company + ' and to nobody else. It does not change their schedule and it is not an order or an acceptance of one. If your date changes, open this link again and send a new answer.';
+    if (v.reply && typeof v.reply === 'object') {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(v.reply.date || ''))) $('fDate').value = v.reply.date;
+      $('fWindow').value = text(v.reply.window, 40); $('fTracking').value = text(v.reply.tracking, 60);
+      $('fCarrier').value = text(v.reply.carrier, 40); $('fName').value = text(v.reply.name, 80);
+    }
+    only('stOpen');
+  }
+
+  function load() {
+    only('stLoading');
+    if (!UUID.test(TOKEN)) { only('stGone'); return; }
+    rpc('delivery_link_view', { p_token: TOKEN }).then(function (v) {
+      if (!v || v.found !== true) { only('stGone'); return; }
+      paint(v);
+    }).catch(function (e) { only(e && e.status === 400 ? 'stGone' : 'stOffline'); });
+  }
+
+  var REASONS = {
+    not_found: 'This link is not active any more. Ask the contractor for a new one.',
+    closed: 'This delivery is closed. Nothing more is needed here.',
+    too_many: 'This link has taken as many answers as it can. Ask the contractor for a new one.',
+    name: 'Type your name so the contractor knows who answered.',
+    nothing: 'Give a delivery date, a tracking number, or both.',
+    date: 'That date is too far away or already past. Check the date.',
+    tracking: 'A tracking number can only have letters, numbers, spaces and dashes, and at least 4 of them.',
+    too_long: 'One of the answers is too long. Shorten it and send again.'
+  };
+  function fail(msg) { var e = $('err'); e.textContent = msg; e.hidden = false; $('send').disabled = false; }
+
+  $('form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    show('err', false);
+    var date = $('fDate').value, name = text($('fName').value, 200), tracking = text($('fTracking').value, 200);
+    if (name.length < 2) { fail(REASONS.name); $('fName').focus(); return; }
+    if (!date && !tracking) { fail(REASONS.nothing); $('fDate').focus(); return; }
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) { fail(REASONS.date); return; }
+    $('send').disabled = true;
+    rpc('delivery_link_reply', {
+      p_token: TOKEN, p_date: date || null, p_window: text($('fWindow').value, 200) || null, p_tracking: tracking || null,
+      p_carrier: text($('fCarrier').value, 200) || null, p_name: name, p_note: text($('fNote').value, 1000) || null
+    }).then(function (r) {
+      if (!r || r.ok !== true) { fail(REASONS[r && r.reason] || 'That did not go through. Try again.'); return; }
+      $('send').disabled = false;
+      show('formSheet', false); show('doneSheet', true);
+      $('doneSay').textContent = 'Your answer is with ' + company + '. They see it when they next open this delivery in their app. MAGE ID does not text or email them for you, so call them if it is urgent.';
+      // Read it back from the server, so "Your Last Answer" is what was stored, not what was typed.
+      rpc('delivery_link_view', { p_token: TOKEN }).then(function (v) { if (v && v.found === true) paintLast(v.reply); }).catch(function () { /* the answer was stored; only the read-back failed */ });
+    }).catch(function (e) {
+      fail(e && e.status ? 'That did not go through, so your answer was not sent. Check the date and try again.' : 'Could not reach the server. Your answer was not sent. Check your connection and try again.');
+    });
+  });
+  $('again').addEventListener('click', function () { show('doneSheet', false); show('formSheet', true); $('formTitle').textContent = 'Send A New Answer'; $('fDate').focus(); });
+  $('retry').addEventListener('click', load);
+  load();
+})();
+</script>
+</body>
+</html>

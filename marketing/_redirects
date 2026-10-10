@@ -32,6 +32,13 @@
 # path-form link can never fall through to the 404 the way /builders/* did.
 /architect/*  /architect/index.html  200
 
+# Supplier link: mageid.app/delivery/?t=<token>, the no-account page a
+# contractor hands a supplier to give a delivery date and a tracking number.
+# The bare path and the wildcard, mirrored in netlify.toml (a rule in only one
+# of the two files is a 404 waiting on whichever wins).
+/delivery  /delivery/index.html  200
+/delivery/*  /delivery/index.html  200
+
 # App-skills certificate check: mageid.app/skills/<code>. The check code is in
 # the path; the page (noindex, no analytics) reads it and asks the
 # skill-certificate-verify edge function. Mirrored in netlify.toml.

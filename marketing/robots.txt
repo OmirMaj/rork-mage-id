@@ -9,6 +9,7 @@ Allow: /
 Disallow: /portal/
 Disallow: /sub-portal/
 Disallow: /architect/
+Disallow: /delivery/
 
 # Email lifecycle subdirs — functional, not content. List-Unsubscribe
 # links land here with one-shot ?e=&k= query params.

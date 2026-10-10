@@ -382,6 +382,31 @@ export const PAY_APP_EASY_ENABLED: boolean = false;
 // Flip it to true only when all of those hold.
 export const DELIVERIES_FOLLOW_SCHEDULE_ENABLED = false;
 
+// THE SUPPLIER LINK (lane DELIVERIES-2, Deliveries phase 2): dark.
+//
+// What it gates: on a delivery's sheet, a person can make a link, look at
+// exactly what it shows, and hand it to the supplier themselves (copy or the
+// phone's own share sheet). The supplier opens mageid.app/delivery/ with no
+// account and gives a delivery date and a tracking number. The answer shows on
+// the delivery's sheet, and a person chooses whether to use the date.
+//
+// What it never does, flag on or off: send the link or any message, change a
+// supplier date by itself, move a task, or raise a notification.
+//
+// With this false and for everyone but the owner account (utils/owner.ts)
+// nothing of it draws. The flag is read in ONE file, utils/deliveryLink/core.ts.
+// The section also stays closed until the device has read
+// public.delivery_supplier_links once without an error.
+//
+// Why it is off: supabase/migrations/20261013090000_delivery_supplier_links.sql
+// is not applied to production; marketing/delivery/index.html is not published;
+// the founder has not seen it; the wording and the page have not been read by
+// a lawyer (the plan calls for that before a supplier ever opens one); there
+// is no Spanish.
+//
+// Flip it to true only when all of those hold.
+export const DELIVERY_SUPPLIER_LINK_ENABLED: boolean = false;
+
 // DEMO JOB BUILDER (owner only, 2026-10-09).
 //
 // The founder's "make me one job that touches everything": app/demo-job.tsx

@@ -300,6 +300,10 @@ export const SURFACES: Surface[] = [
   // and the draft message. Every string lives in the one copy hook. Complete:
   // each key has Spanish (i18n/catalog/es/office/deliveriesSchedule.ts).
   { id: 'office.deliveries-schedule', phase: 2, state: 'complete', keyPrefixes: ['office.deliveriesSchedule.'], files: ['hooks/useDeliveriesScheduleCopy.ts'], lane: 'DELIVERIES-1' },
+  // The Supplier Link (dark behind DELIVERY_SUPPLIER_LINK_ENABLED, owner
+  // preview): the section on a delivery's sheet. Migrated: every string goes
+  // through t() in the one copy hook. There is no Spanish yet.
+  { id: 'office.delivery-supplier-link', phase: 2, state: 'migrated', keyPrefixes: ['office.deliverySupplierLink.'], files: ['hooks/useSupplierLinkCopy.ts'], lane: 'DELIVERIES-2' },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

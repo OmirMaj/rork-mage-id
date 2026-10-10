@@ -84,6 +84,7 @@ const NO_ACCOUNT_PAGES = [
   'marketing/bid-invite/index.html',
   'marketing/lien-waiver/index.html',
   'marketing/architect/index.html',
+  'marketing/delivery/index.html',
   'marketing/paid/index.html',
 ];
 

@@ -3,7 +3,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 /** Load PGlite from PGLITE_DIR (a folder holding node_modules/@electric-sql/pglite), else from wherever node resolves it. */
@@ -82,7 +82,8 @@ export function replacer(get, set, mutate) {
 
 /** `--all`: run MUTATE=0..n in child processes; M0 must be all green, each plant must turn its expected cases red. */
 export function runAll(scriptUrl, root, expect) {
-  const script = new URL(scriptUrl).pathname;
+  // fileURLToPath, not URL.pathname: a checkout path with a space in it comes back percent-encoded from .pathname.
+  const script = fileURLToPath(scriptUrl);
   const n = Math.max(...Object.keys(expect).map(Number));
   let bad = 0;
   for (let m = 0; m <= n; m++) {

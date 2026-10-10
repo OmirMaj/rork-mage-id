@@ -1445,6 +1445,9 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     const NAVLESS_OK = [
       'marketing/404.html', 'marketing/icon-preview.html',
       'marketing/architect/index.html', 'marketing/bid-invite/index.html',
+      // DELIVERIES-2: the supplier link (/delivery/?t=<token>) is a token
+      // surface like lien-waiver: noindex, no analytics, one delivery.
+      'marketing/delivery/index.html',
       'marketing/lien-waiver/index.html', 'marketing/preferences/index.html',
       'marketing/unsubscribe/index.html',
       // LEARNCERT: the app-skills certificate check (/skills/<code>) is a
