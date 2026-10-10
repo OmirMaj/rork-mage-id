@@ -2098,6 +2098,15 @@ export interface SavedAIAPayAppLine {
    * project-level EV % that other lines fall back to.
    */
   linkedTaskId?: string;
+  /**
+   * Easier Pay Applications, Phase 1 (lane PAYAPP-1). The percent the app
+   * SUGGESTED for this line when the contractor accepted or changed it, and
+   * the sentence that named where it came from. For his own record only: they
+   * ride in the `lines` JSON, are never printed on the PDF, never sent to the
+   * portal, and never read back as a figure. `thisPeriod` is the money.
+   */
+  suggestedPercent?: number;
+  suggestionSource?: string;
 }
 
 export interface SavedAIAPayApp {
@@ -2165,6 +2174,15 @@ export interface SavedAIAPayApp {
   // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
   paymentPendingAt?: string;
   paymentPendingAmount?: number;
+  /**
+   * Easier Pay Applications, Phase 1 (lane PAYAPP-1): the moment the
+   * contractor certified and sent this application when NO pay link was made.
+   * The screen treats the record as locked from then on, the same way a pay
+   * link locks it. Rides in the `snapshot_totals` sidecar (no column), so the
+   * lock is the app's own: the database freeze still keys on `certified_at`,
+   * which only create-payment-link stamps.
+   */
+  sentLockedAt?: string;
 }
 
 export interface ManpowerEntry {

@@ -152,6 +152,10 @@ export interface AIASOVLine {
    * project-wide average across all SOV lines.
    */
   linkedTaskId?: string;
+  /** The suggestion the contractor accepted or changed, for his own record
+   *  (see SavedAIAPayAppLine). Never printed, never a figure. */
+  suggestedPercent?: number;
+  suggestionSource?: string;
 }
 
 export interface AIAPayApplication {
@@ -1704,6 +1708,10 @@ export function sovLineToSaved(l: AIASOVLine): SavedAIAPayAppLine {
     retainagePercent: l.retainagePercent,
     storedRetainagePercent: l.storedRetainagePercent,
     linkedTaskId: l.linkedTaskId,
+    // Only when set, so a line that never saw a suggestion writes the same
+    // JSON it always did.
+    ...(l.suggestedPercent != null ? { suggestedPercent: l.suggestedPercent } : {}),
+    ...(l.suggestionSource ? { suggestionSource: l.suggestionSource } : {}),
   };
 }
 
@@ -1719,6 +1727,10 @@ export function savedLineToSov(l: SavedAIAPayAppLine): AIASOVLine {
     retainagePercent: l.retainagePercent,
     storedRetainagePercent: l.storedRetainagePercent,
     linkedTaskId: l.linkedTaskId,
+    // Only when set, so a line that never saw a suggestion writes the same
+    // JSON it always did.
+    ...(l.suggestedPercent != null ? { suggestedPercent: l.suggestedPercent } : {}),
+    ...(l.suggestionSource ? { suggestionSource: l.suggestionSource } : {}),
   };
 }
 

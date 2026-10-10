@@ -1129,6 +1129,8 @@ interface AiaCertificateExtras {
    * linked" branch, telling a GC whose job does have one to go and link it.
    */
   sovBasis?: SavedAIAPayApp['sovBasis'];
+  /** Lane PAYAPP-1: locked at send with no pay link. See SavedAIAPayApp. */
+  sentLockedAt?: string;
 }
 
 function aiaExtrasFor(a: SavedAIAPayApp): AiaCertificateExtras | null {
@@ -1143,6 +1145,7 @@ function aiaExtrasFor(a: SavedAIAPayApp): AiaCertificateExtras | null {
   if (a.notaryState) extras.notaryState = a.notaryState;
   if (a.notaryCounty) extras.notaryCounty = a.notaryCounty;
   if (a.sovBasis) extras.sovBasis = a.sovBasis;
+  if (a.sentLockedAt) extras.sentLockedAt = a.sentLockedAt;
   return Object.keys(extras).length ? extras : null;
 }
 
