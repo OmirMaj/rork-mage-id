@@ -14,7 +14,7 @@ window.MAGE_DATA = (function () {
       main: { title: 'Estimate', plan: 'Free', frames: [
         { img: 'estimate-seq-1', cap: 'Three lines in.', alt: 'MAGE ID estimate screen with three lines priced and a running total of $21,130.00' },
         { img: 'estimate-seq-2', cap: 'Six lines in.', alt: 'MAGE ID estimate screen with six lines priced and a running total of $55,642.80' },
-        { img: 'estimate-seq-3', cap: 'All ten lines, with base, markup and total.', alt: 'MAGE ID estimate screen with all ten lines, base $66,426.00, markup $8,428.70 and total $74,854.70' }
+        { img: 'estimate-seq-3', cap: 'The estimate, with base, markup and total.', alt: 'MAGE ID estimate screen with base $66,426.00, markup $8,428.70 and total $74,854.70' }
       ] },
       side: { title: 'Quick Estimate', plan: 'Pro', img: 'estimate-wizard', cap: 'Eight questions feed an AI draft.', alt: 'MAGE ID Quick Estimate, step 1 of 8, asking what kind of project it is' }
     },
