@@ -76,17 +76,58 @@ shipment).
 | Lien waivers ("received on paper") | 6 | `lien_waivers` | `saveLienWaiver` (needs a connection) |
 | Draft contract | 1 | `project_contracts` | `saveContract` (needs a connection) |
 | Selections with options | 3 + 7 | `selection_categories`, `selection_options` | selections engine (needs a connection) |
-| Plan sheet (the bundled A-101 sample) | 1 | `plan_sheets` + 1 file | the tutorial's `ensureTutorialPlan` (needs a connection) |
+| Plan sheets: A-101 Level 1, A-102 Typical Floor, A-301 Building Section | 3 | `plan_sheets` + 3 files | the tutorial's `addBundledPlan`, which calls the real `addFloorPlan` (needs a connection) |
 | Photos (the bundled sample photo, 4 times) | 4 | `photos` + 4 files | `addProjectPhoto` |
-| Living Model: Level 4, 28 rooms, every room ticked | 1 | none, this device only | `utils/livingModel` core and store |
+| Living Model: Levels 1, 2, 4 and 7, 59 rooms, every room ticked against its own floor's tasks | 1 | none, this device only | `utils/livingModel` core and store |
 
-About 320 rows and 5 small files. The offline queue holds 1,000 writes; the
+About 320 rows and 7 small files. The offline queue holds 1,000 writes; the
 builder refuses to start if fewer than 400 slots are free.
 
 The writer adds one record, waits until the app's own list shows it, then adds
 the next. Many add functions build on the list as of the last render, so two
 adds in one tick keep only the second on the device. This also paces the
 server to a few writes a second.
+
+## The model and the plan sheets
+
+The model holds four of the seven floors, because a job model holds 60 rooms
+and the replay draws one floor at a time:
+
+| Floor | Rooms | Where it stands on the day the job is made |
+|---|---|---|
+| Level 1, the podium | 7: two retail bays, the lobby, the service corridor, back of house, two stairs. The bays, the lobby and the loading room have a door to the outside | Rough-in |
+| Level 2 | 12: one room per apartment, the corridor, the lobby, two stairs | Finishes |
+| Level 4 | 28: eight apartments room by room, the corridor, the lobby, two stairs | Drywall |
+| Level 7 | 12, as Level 2 | Rough-in |
+
+Each room is ticked against the schedule tasks of its own floor, so the floor
+chips in Job Replay show the building at four different stages on the same
+day, and dragging the replay walks each floor through its own dates. A floor is
+kept one model level below its number, so the app's "Floor 4" is Level 4.
+
+The three plan sheets are drawn by `scripts/demo-job/draw-plans.ts` from the
+same room list (`modelRoomSpecs`), so a sheet and the model cannot disagree.
+`sh scripts/demo-job/render.sh` redraws them into `assets/demo-job/` (it needs
+Google Chrome, only to turn each drawing into an image) and writes
+`drawn-from.txt`; rule P1 fails if the images are older than the drawing. Each
+sheet prints "Sample Drawing, Not for Construction" and that no architect or
+engineer drew or reviewed it. There is no seal, signature or licence number on
+a sheet, and rule P1 fails if one is added.
+
+On a second device the model is missing, so the Demo Job screen there shows
+**Finish Creating**, which adds what that device does not have yet: normally
+the model and nothing else.
+
+A sheet counts as on the job when the job has a current sheet with that
+number, whatever it is called. The app files a new sheet over the current one
+with the same number, so the builder never adds an A-101 beside one that is
+there: a sheet the owner renamed or replaced is left alone. Each upload has a
+45 second budget and at most one upload per job and sheet number runs at a
+time (`addBundledPlan`).
+
+A demo job made before the builder had four floors keeps its one-floor model
+and the tutorial's A-101: the builder never writes over a model that has
+rooms. Remove Demo Job, then Create, makes the current one.
 
 ## What is left out, and why
 
@@ -231,7 +272,7 @@ list (rule H8).
 
 What removal cannot take back:
 
-- the plan image and four photo files in private storage, if the server does
+- the three plan images and four photo files in private storage, if the server does
   not delete a project's files with it;
 - a safety incident the owner adds to the demo by hand: the job then cannot be
   deleted until that incident is (the screen shows the app's own reason);

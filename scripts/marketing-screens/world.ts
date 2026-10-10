@@ -22,6 +22,7 @@ import { feetToMetres as ft } from '@/utils/roomScan/units';
 import { parseCapturedRoom } from '@/utils/roomScan/capturedRoomParser';
 import { buildRoomScan } from '@/utils/roomScan/geometryCore';
 import { roomScansKey } from '@/utils/roomScan/storeCore';
+import { buildDemoJob } from '@/utils/demoJob/build';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -34,7 +35,7 @@ const dayOnly = (offset: number) => new Date(NOW.getTime() + offset * 86_400_000
 
 export const USER = { id: 'a1e00000-0000-4000-8000-000000000001', email: 'robin@examplebuilders.example.com', name: 'Robin Vale', company: 'Example Builders' };
 export const CLIENT = { name: 'Casey Linden', email: 'casey.linden@example.com', phone: '(555) 555-0142' };
-export const P = { alder: 'b2e00000-0000-4000-8000-000000000001', birch: 'b2e00000-0000-4000-8000-000000000002', cedar: 'b2e00000-0000-4000-8000-000000000003' };
+export const P = { alder: 'b2e00000-0000-4000-8000-000000000001', birch: 'b2e00000-0000-4000-8000-000000000002', cedar: 'b2e00000-0000-4000-8000-000000000003', harbor: 'b2e00000-0000-4000-8000-000000000004' };
 
 export interface WorldOptions {
   /** Which plan the account is on. */
@@ -361,6 +362,32 @@ function session() {
 }
 
 const snake = (row: Record<string, unknown>) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`), v]));
+
+/**
+ * The owner's Demo Job (utils/demoJob, "Sample — Demo: Harbor Point Mixed-Use")
+ * beside the three small jobs, for shots of a large job: its schedule, its
+ * records and its four-floor Living Model. Built by the app's own generator
+ * with "today" as this rig's clock, so nothing here is written by hand. Its
+ * name starts with "Sample", and every shot of it shows that name.
+ */
+export const withDemoJob: WorldOptions = {
+  patch: (d) => {
+    const job = buildDemoJob({ userId: USER.id, projectId: P.harbor, today: dayOnly(0), contractorName: USER.company });
+    const add = (key: string, rows: readonly unknown[]) => { d[key] = [...((d[key] as unknown[] | undefined) ?? []), ...rows]; };
+    // The stand-in backend holds no project rows, and the three small jobs are seeded without an
+    // owner stamp for that reason: a stamped job the server does not return is, rightly, shown as
+    // "didn't sync". The demo job is seeded the same way here. In the app it is stamped and synced.
+    const { ownerUserId: _owner, ...project } = job.project as typeof job.project & { ownerUserId?: string };
+    add('mageid_projects', [project]);
+    add('mageid_change_orders', job.changeOrders);
+    add('mageid_invoices', job.invoices);
+    add('mageid_daily_reports', job.dailyReports);
+    add('mageid_punch_items', job.punchItems);
+    add('mageid_rfis', job.rfis);
+    add('mageid_commitments', job.commitments);
+    d[livingModelKey(USER.id, P.harbor) as string] = { ...job.model, updatedAt: day(-1) };
+  },
+};
 
 export function buildWorld(opts: WorldOptions = {}): World {
   const tier = opts.tier ?? 'business';

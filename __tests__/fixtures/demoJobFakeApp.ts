@@ -163,10 +163,10 @@ export function makeFakeApp(): FakeApp {
       saveSelection: async (s) => { guard('saveSelection'); engineRows.selections.set(s.category.id, s.category.projectId); return true; },
     },
     assets: {
-      ensurePlan: async (pid) => {
+      ensurePlan: async (pid, sheet) => {
         guard('ensurePlan');
         if (opt.planFails) return opt.planFails;
-        lists.planSheets = [{ id: newId(), projectId: pid }, ...lists.planSheets];
+        lists.planSheets = [{ id: newId(), projectId: pid, sheetNumber: sheet.sheetNumber, name: sheet.name }, ...lists.planSheets];
         return null;
       },
       samplePhotoUri: async () => opt.photoUri,

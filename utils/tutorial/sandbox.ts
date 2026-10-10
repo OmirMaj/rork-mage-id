@@ -347,6 +347,52 @@ function startPlanUpload(
   return work;
 }
 
+/**
+ * Put one bundled plan image on a job through the real addFloorPlan: the same
+ * upload and the same sheet row as a plan he picks himself. For the owner's
+ * Demo Job (hooks/useDemoJobPorts), whose three sheets are bundled like the
+ * tutorial's A-101. Never rejects; resolves to why not, or null when the sheet
+ * is on the job.
+ */
+export async function addBundledPlan(
+  projectId: string,
+  mod: number,
+  sheet: { fileName: string; width: number; height: number; name: string; sheetNumber: string },
+  getActions: () => FloorPlanActions,
+  budgetMs: number = BUNDLED_PLAN_BUDGET_MS,
+): Promise<string | null> {
+  // One upload per job and sheet number at a time, wherever it was started from. A second call
+  // (the screen was left and opened again, or the first one ran past its budget) joins the upload
+  // that is still running, so the job never gets the same sheet twice.
+  const key = `${projectId}\u0000${sheet.sheetNumber}`;
+  let work = bundledPlanUploads.get(key);
+  if (!work) {
+    const started = (async (): Promise<string | null> => {
+      const image = await bundledImage(mod, { fileName: sheet.fileName, mimeType: 'image/png', width: sheet.width, height: sheet.height });
+      if (!image) return "The sample plan sheet couldn't be read on this device.";
+      const res = await addFloorPlan({ projectId, image, name: sheet.name, sheetNumber: sheet.sheetNumber }, getActions);
+      return res.ok ? null : res.reason;
+    })().catch((err: unknown): string => (err instanceof Error ? err.message : 'The sample plan sheet failed to load.'));
+    work = started;
+    bundledPlanUploads.set(key, started);
+    void started.finally(() => { if (bundledPlanUploads.get(key) === started) bundledPlanUploads.delete(key); });
+  }
+  // A budget miss does not cancel the upload: it finishes, and the sheet is found on the job next time.
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<string>((resolve) => {
+    timer = setTimeout(() => resolve('The sample plan sheet took too long to upload. Tap Finish Creating in a minute.'), budgetMs);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** How long one bundled sheet may take before the caller is told so. */
+export const BUNDLED_PLAN_BUDGET_MS = 45_000;
+const bundledPlanUploads = new Map<string, Promise<string | null>>();
+
 // ── Bundled images as files the real pipelines accept ───────────────────────
 
 /**

@@ -22,9 +22,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const PORT = 8797; // baked into the export by build.sh
 const CDP_PORT = Number(process.env.CDP_PORT ?? 9347);
-const VIEW = { width: 393, height: 852, scale: 3 };
-const INSETS = { top: 59, bottom: Number(process.env.INSET_BOTTOM ?? 34), left: 0, right: 0 }; // iPhone 15 / 16
-const OUT = process.env.OUT ?? join(ROOT, '.marketing-screens-out');
+// VIEW=laptop shoots the same screens in a 1440 by 900 window (the desktop layout), with no phone status bar or safe areas.
+const LAPTOP = process.env.VIEW === 'laptop';
+const VIEW = LAPTOP ? { width: 1440, height: 900, scale: 2 } : { width: 393, height: 852, scale: 3 };
+const INSETS = LAPTOP ? { top: 0, bottom: 0, left: 0, right: 0 } : { top: 59, bottom: Number(process.env.INSET_BOTTOM ?? 34), left: 0, right: 0 }; // iPhone 15 / 16
+const OUT = process.env.OUT ?? join(ROOT, process.env.VIEW === 'laptop' ? '.marketing-screens-out-laptop' : '.marketing-screens-out');
 const DIST = (set: 'shipped' | 'in-testing') => process.env[set === 'shipped' ? 'DIST' : 'DIST_TESTING']
   ?? join(ROOT, set === 'shipped' ? '.marketing-screens-dist' : '.marketing-screens-dist-testing');
 
@@ -112,8 +114,8 @@ async function shoot(browser: Browser, screen: Screen, shot: Shot, file: string)
   try {
     await page.send('Page.enable'); await page.send('Runtime.enable'); await page.send('Network.enable');
     page.on('Runtime.consoleAPICalled', (p) => { if (p.type === 'error') consoleErrors.push(p.args.map((a: any) => a.value ?? a.description ?? '').join(' ').slice(0, 300)); });
-    await page.send('Emulation.setDeviceMetricsOverride', { width: VIEW.width, height: VIEW.height, deviceScaleFactor: VIEW.scale, mobile: true, screenWidth: VIEW.width, screenHeight: VIEW.height });
-    await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+    await page.send('Emulation.setDeviceMetricsOverride', { width: VIEW.width, height: VIEW.height, deviceScaleFactor: VIEW.scale, mobile: !LAPTOP, screenWidth: VIEW.width, screenHeight: VIEW.height });
+    await page.send('Emulation.setTouchEmulationEnabled', LAPTOP ? { enabled: false } : { enabled: true, maxTouchPoints: 5 });
     await page.send('Emulation.setTimezoneOverride', { timezoneId: TIMEZONE });
     await page.send('Emulation.setLocaleOverride', { locale: 'en-US' }).catch(() => {});
     await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }] });
@@ -144,7 +146,7 @@ async function shoot(browser: Browser, screen: Screen, shot: Shot, file: string)
     for (const step of [...(shot.route ? [] : screen.steps ?? []), ...(shot.steps ?? [])]) await runStep(page, step);
     await page.eval('document.fonts.ready.then(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); return true; })');
     await wait(shot.settle ?? 700);
-    if (!shot.noStatusBar) await page.eval(statusBarScript(theme, INSETS, shot.statusBar, shot.statusBarFill));
+    if (!shot.noStatusBar && !LAPTOP) await page.eval(statusBarScript(theme, INSETS, shot.statusBar, shot.statusBarFill));
     await wait(120);
     const { data } = await page.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     writeFileSync(file, Buffer.from(data, 'base64'));
