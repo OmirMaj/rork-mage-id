@@ -38,6 +38,7 @@ import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline'
 import { parseInvoiceFromTranscript, mergeText } from '@/utils/voiceFormParsers';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { LienClockCard } from '@/components/invoice/LienClockCard';
+import { LIEN_CLOCK_ENABLED } from '@/constants/featureFlags';
 import { createPaymentLink, isPayLinkBalanceCode, payLinkBalanceFallback, payLinkRemintRefusalNotice } from '@/utils/stripe';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Banknote } from 'lucide-react-native';
@@ -3404,7 +3405,9 @@ function InvoiceInner() {
             </View>
           )}
 
-          {existingInvoice && effectiveStatus === 'overdue' && daysPastDue >= 30 ? (
+          {/* Hidden for everyone (LIEN_CLOCK_ENABLED): the card computes a legal
+              deadline. See constants/featureFlags.ts. */}
+          {LIEN_CLOCK_ENABLED && existingInvoice && effectiveStatus === 'overdue' && daysPastDue >= 30 ? (
             <LienClockCard projectId={existingInvoice.projectId || projectId} />
           ) : null}
 

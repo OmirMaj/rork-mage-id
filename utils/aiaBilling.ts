@@ -1882,7 +1882,9 @@ export function payAppReviewNotice(state: {
   };
   if (state.isLocked) {
     return {
-      title: 'Certified Record',
+      // "Sent Record", not "Certified Record": the contractor certifies, the
+      // app does not (lane PAYAPP-1).
+      title: 'Sent Record',
       body: 'These are the figures on the pay app that went out. They can’t be changed. Bill the next period instead.',
       editLabel: 'Edit Draft',
     };

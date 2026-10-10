@@ -1858,7 +1858,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     // Stripe holding a live obligation for these exact figures IS a lock, and
     // outranks whatever the portal says.
     eq('a certified certificate still reads as uneditable',
-      n({ isLocked: true, portalStatus: 'sent' }).title, 'Certified Record');
+      n({ isLocked: true, portalStatus: 'sent' }).title, 'Sent Record');
   }
   eq('…and the review banner renders that notice rather than its own copy',
     /<Text style=\{styles\.reviewBannerTitle\}>\{reviewNotice\.title\}<\/Text>/.test(aiaScreen)

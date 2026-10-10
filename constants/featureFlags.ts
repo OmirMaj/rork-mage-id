@@ -319,3 +319,34 @@ export const PROOF_PACK_ENABLED = false;
 // Flip it to true only when the model syncs, the wording is approved and the
 // review is done.
 export const LIVING_MODEL_ENABLED = false;
+
+// THE NEW YORK LIEN DEADLINE CLOCK (lane PAYAPP-1, 2026-10-09). The card on a
+// 30+ day overdue invoice (components/invoice/LienClockCard.tsx, dates from
+// utils/lienRightsClock.ts) works out a lien filing deadline from the last
+// daily report. That is a legal deadline computed by the app, and the rule for
+// every document feature is that deadlines are only ones the contractor typed
+// (design-previews/pay-apps/EASIER-PAY-APPS.md, "The Rules For Any Document
+// Feature", rule 5). The card is hidden for everyone, owner included. The code
+// and its validator stay.
+//
+// Flip it to true only after the founder's attorney has read the card and the
+// rule table and signed off, or after it is changed to a date the contractor
+// types.
+export const LIEN_CLOCK_ENABLED: boolean = false;
+
+// EASIER PAY APPLICATIONS, PHASE 1 (lane PAYAPP-1, 2026-10-09): Bill This
+// Month (last period rolls forward, each line shows a suggested percent with
+// its source, nothing counts until the contractor accepts or changes it), the
+// Rejection Check ("Things A Reviewer May Question", shown before certify,
+// never blocks), spreadsheet import and export of the schedule of values, and
+// the lock at send when no pay link is made.
+//
+// When false the feature is dark for everyone EXCEPT the owner account
+// (utils/owner.ts OWNER_EMAILS). The flag is read in ONE file,
+// utils/payApp/allowed.ts; everything else asks payAppEasyAllowed(email).
+// While dark, everyone else keeps today's pay application screen unchanged.
+//
+// Why it is off: nobody has used it on a real job; the check list wording has
+// not had its courtesy read by the founder's attorney; and the lane has not
+// had its independent review.
+export const PAY_APP_EASY_ENABLED: boolean = false;
