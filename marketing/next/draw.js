@@ -14,7 +14,7 @@ window.MageDraw = function (canvas, opts) {
   var INK = '#161B1E', GRAPH = '#566067', HAIR = '#8E9794', GREEN = '#2F6B3A', TEAL = '#12806E', WARM = '#B4531A';
   var COLD = '#2A6FB0', HOT = '#B8402A', ELEC = '#A87B0C';
   var PAPER = opts.paper || '#FBFBF9', WHITE = '#FFFFFF', CARD1 = '#F6F6F3', CARD2 = '#E7E9E5', POCHE = '#2A3135', SLAB = '#FBFBF9';
-  var BW = 30, BD = 22.5, FULL = 8, CUT = 4, TH = 0.25, CUTY = 17.5, CX = 15, CY = 11.25;
+  var BW = 30, BD = 22.5, FULL = 8, CUT = 4, TH = 0.25, CUTY = 19.2, CX = 15, CY = 11.25;
   var FONT = '"Barlow Condensed", "Arial Narrow", sans-serif';
 
   /* ax x: the wall runs across at depth c. ax y: it runs front to back at x = c.
@@ -30,8 +30,8 @@ window.MageDraw = function (canvas, opts) {
     { id: 'S', ax: 'x', c: 22.5, s: 0, e: 30, open: [{ s: 4, e: 9, t: 'w' }, { s: 15.5, e: 18.5, t: 'w' }, { s: 24, e: 27, t: 'd', sw: -1 }] }
   ];
   var ROOMS = [
-    { n: 'Living', x0: 0, y0: 0, x1: 18, y1: 12.5, lx: 9, ly: 7, fin: 'wood', size: '18\'-0" x 12\'-6"' },
-    { n: 'Kitchen', x0: 18, y0: 0, x1: 30, y1: 12.5, lx: 23.4, ly: 10.6, fin: 'tile', size: '12\'-0" x 12\'-6"' },
+    { n: 'Living', x0: 0, y0: 0, x1: 18, y1: 12.5, lx: 9, ly: 6.4, fin: 'wood', size: '18\'-0" x 12\'-6"' },
+    { n: 'Kitchen', x0: 18, y0: 0, x1: 30, y1: 12.5, lx: 24, ly: 9.4, fin: 'tile', size: '12\'-0" x 12\'-6"' },
     { n: 'Bedroom', x0: 0, y0: 12.5, x1: 13, y1: 22.5, lx: 6.5, ly: 16.2, fin: 'wood', size: '13\'-0" x 10\'-0"' },
     { n: 'Bath', x0: 13, y0: 12.5, x1: 21, y1: 22.5, lx: 17, ly: 16.6, fin: 'tile', size: '8\'-0" x 10\'-0"', open: 1 },
     { n: 'Entry', x0: 21, y0: 12.5, x1: 30, y1: 22.5, lx: 25.5, ly: 16.6, fin: 'tile', size: '9\'-0" x 10\'-0"' }
@@ -128,7 +128,7 @@ window.MageDraw = function (canvas, opts) {
   function prj(x, y, z) { var dx = x - CX, dy = y - CY, yr = dx * sa + dy * ca; return [ox + (dx * ca - dy * sa) * sc, oy + (yr * se - z * ce) * sc, yr * ce + z * se]; }
   function pp(a) { return prj(a[0], a[1], a[2]); }
   function fit() {
-    var x0 = -lerp(1.0, 6.2, da), x1 = BW + 4.6, y0 = -lerp(1.0, 6.2, da), y1 = BD + 4.6, z1 = lerp(8.4, 0, pf) + sf * 1.4, z0 = -sf * 2.2;
+    var x0 = -lerp(0.6, 6.2, da), x1 = BW + 3.7, y0 = -lerp(0.6, 6.2, da), y1 = BD + 3.7, z1 = lerp(8.4, 0, pf) + sf * 1.4, z0 = -sf * 2.2;
     var mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9, i, r;
     for (i = 0; i < 8; i++) {
       r = raw(i & 1 ? x1 : x0, i & 2 ? y1 : y0, i & 4 ? z1 : z0);
@@ -213,12 +213,12 @@ window.MageDraw = function (canvas, opts) {
     var kg = sm(seg(p, 0.3, 0.52));
     if (kg > 0) {
       ctx.beginPath();
-      GRIDX.forEach(function (g) { line3([g[0], BD + 3.2, 0], [g[0], -1.2, 0], kg); });
-      GRIDY.forEach(function (g) { line3([BW + 3.2, g[0], 0], [-1.2, g[0], 0], kg); });
+      GRIDX.forEach(function (g) { line3([g[0], BD + 2.4, 0], [g[0], -1.0, 0], kg); });
+      GRIDY.forEach(function (g) { line3([BW + 2.4, g[0], 0], [-1.0, g[0], 0], kg); });
       al(0.75 * (1 - sf)); stroke(HAIR, 0.8, [9, 3, 1.5, 3]);
       var rb = fs * 0.95;
       GRIDX.concat(GRIDY).forEach(function (g, k) {
-        var c = k < GRIDX.length ? prj(g[0], BD + 3.2 + rb / sc, 0) : prj(BW + 3.2 + rb / sc, g[0], 0);
+        var c = k < GRIDX.length ? prj(g[0], BD + 2.4 + rb / sc, 0) : prj(BW + 2.4 + rb / sc, g[0], 0);
         al(kg * (1 - sf));
         ctx.beginPath(); ctx.arc(c[0], c[1], rb, 0, 6.2832); ctx.fillStyle = '#FFFFFF'; ctx.fill(); stroke(GRAPH, 0.9);
         text(g[1], c[0], c[1] + 0.5, fs, INK, 600, 'center', 0);
@@ -382,7 +382,7 @@ window.MageDraw = function (canvas, opts) {
         ctx.save(); ctx.translate((A[0] + B[0]) / 2, (A[1] + B[1]) / 2); ctx.rotate(ang); text(d[2], 0, -fs * 0.75, fs, INK, 600, 'center', 0.4); ctx.restore();
       });
       /* where the section is cut */
-      var s0 = prj(BW + 2.0, CUTY, 0), s1 = prj(-1.4, CUTY, 0);
+      var s0 = prj(BW + 1.6, CUTY, 0), s1 = prj(-1.4, CUTY, 0);
       al(da * kd * 0.9); ctx.beginPath(); ctx.moveTo(s0[0], s0[1]); ctx.lineTo(s0[0] + (s1[0] - s0[0]) * kd, s0[1] + (s1[1] - s0[1]) * kd); stroke(GREEN, 0.9, [12, 3, 2, 3]);
       text('A', s0[0] + fs * 0.9, s0[1], fs * 1.05, GREEN, 700, 'center', 0);
     }

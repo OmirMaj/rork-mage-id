@@ -72,17 +72,17 @@ window.MAGE_DATA = (function () {
     { id: 'est', label: 'Estimate', value: '$74,854.70', stage: 1 },
     { id: 'day', label: 'Schedule', value: 'Day 29 Of 50', stage: 3 },
     { id: 'co', label: 'Change Orders', value: '+$3,340', stage: 4 },
-    { id: 'due', label: 'Due This Period', value: '$24,193.08', stage: 4 }
+    { id: 'due', label: 'Payment Due', value: '$24,193.08', stage: 4 }
   ];
 
   /* Keynotes on the drawing. at: a point on the job in feet (x across, y front to back, z up). show: the part of the job they belong to.
      Each opens a small panel about what the app does there. */
   var PINS = [
-    { id: 'plans', at: [15, 25.3, 0], show: [0.8, 1.55], tag: 'Win It', plan: 'Pro', title: 'Takeoff From Plans',
+    { id: 'plans', at: [15, -4.9, 0], show: [0.8, 1.55], tag: 'Win It', plan: 'Pro', title: 'Takeoff From Plans',
       sub: 'Upload a plan PDF and the app reads quantities off the pages. You check and edit them. You can also measure on a plan by hand.',
       rows: [['Pages read a month on Pro', '', '30'], ['On Business', '', '100'], ['On Enterprise', '', '300']],
       note: 'Takeoff is on Pro and up. It is not on the Free plan.' },
-    { id: 'estimate', at: [24, 6.2, 0], show: [0.8, 1.55], tag: 'Win It', plan: 'Free', title: 'The Estimate',
+    { id: 'estimate', at: [24, 5.2, 0], show: [0.8, 1.55], tag: 'Win It', plan: 'Free', title: 'The Estimate',
       sub: 'Build it line by line on any plan. On Pro, the assistant drafts it and you approve every line.',
       rows: [['Ten lines', 'Example job', '$74,854.70'], ['Base', '', '$66,426.00'], ['Markup', '', '+$8,428.70']],
       note: 'Example numbers. On an AI draft, lines priced from your price book are marked. The rest use market averages until you add a rate.' },
@@ -102,11 +102,11 @@ window.MAGE_DATA = (function () {
       sub: 'Price the change and send it. Your client signs it with a finger in the client portal.',
       rows: [['Under-cabinet lighting, move the range outlet', 'Change order 2', '+$1,860.00'], ['Both change orders', 'Example', '+$3,340.00'], ['Status', '', 'Approved', 'ok']],
       note: 'Change orders and the client portal are on Pro.' },
-    { id: 'bill', at: [6.5, 19.6, 0], show: [3.5, 4.45], tag: 'Get Paid', plan: 'Pro', title: 'Invoices And AIA-Style Pay Apps',
+    { id: 'bill', at: [4.5, 4.2, 0], side: 'r', show: [3.5, 4.45], tag: 'Get Paid', plan: 'Pro', title: 'Invoices And AIA-Style Pay Apps',
       sub: 'Bill the work as it gets done and see what is still owed.',
       rows: [['Pay Application 1', 'Due after 10 percent retainage', '$24,193.08'], ['Balance to finish', 'Example', '$54,001.62']],
       note: 'Billing is on Pro.' },
-    { id: 'punch', at: [18.6, 18.6, 0], show: [4.5, 5.01], tag: 'Close It', plan: 'Business', title: 'Punch List',
+    { id: 'punch', at: [13, 22.5, 4], side: 'l', show: [4.5, 5.01], tag: 'Close It', plan: 'Business', title: 'Punch List',
       sub: 'Each item can carry a location, a photo and the sub who owns it.',
       rows: [['Door stop missing at the bath door', 'Hall bath', 'Closed', 'ok'], ['Shower valve trim not centered', 'Hall bath', 'Open', 'warn']],
       note: 'Example items. The punch list is on the Business plan.' },

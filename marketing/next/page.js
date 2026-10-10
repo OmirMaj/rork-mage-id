@@ -43,7 +43,7 @@
   else if (Q.t !== null) forced = clamp(parseFloat(Q.t) || 0, 0, 5);
   if (forced !== null && live) {
     var keep = Math.round(forced) || (forced > 0.5 ? 1 : 0);
-    if (keep > 0) heroEl.style.display = 'none';
+    if (keep > 0) { heroEl.style.display = 'none'; var tb = doc.querySelector('.top'); if (tb && window.innerWidth < 1100) tb.style.display = 'none'; }
     articles.forEach(function (a, i) { if (i + 1 !== keep) a.style.display = 'none'; });
   }
 
@@ -132,8 +132,9 @@
       var b = pinEls[i], on = P >= p.show[0] && P <= p.show[1] && (!ov || openPin === p);
       if (on) {
         var q = draw.project(p.at), x = clamp(q[0], 14, sz[0] - 14), y = clamp(q[1], 14, sz[1] - 14);
-        b.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)' + (x > sz[0] * 0.56 && wide() ? ' translateX(calc(-100% + 24px))' : '');
-        b.classList.toggle('flip', x > sz[0] * 0.56);
+        var flip = p.side ? p.side === 'l' : x > sz[0] * 0.56;
+        b.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)' + (flip && wide() ? ' translateX(calc(-100% + 24px))' : '');
+        b.classList.toggle('flip', flip);
       }
       if (b.classList.contains('on') !== on) { b.classList.toggle('on', on); b.tabIndex = on ? 0 : -1; if (!on && openPin === p) closePanel(false); }
     });
