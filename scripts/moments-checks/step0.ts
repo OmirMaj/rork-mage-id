@@ -507,6 +507,8 @@ export default async function run(ctx: MomentsCtx): Promise<void> {
         .replace("from '@/utils/networkErrors'", `from ${abs('@/utils/networkErrors')}`)
         .replace("from '@/utils/syncRecordKey'", `from ${abs('@/utils/syncRecordKey')}`)
         .replace("from '@/utils/moments/copy'", `from ${abs('@/utils/moments/copy')}`)
+        // Lane DELIVERIES-1: the queue's one import of that lane (a file with no imports of its own).
+        .replace("from '@/utils/deliveries/columnsGate'", `from ${abs('@/utils/deliveries/columnsGate')}`)
         .replace("import type { OnlineOutcome, OnlineRefusalCode } from '@/utils/moments/commitAdapters';", `import type { OnlineOutcome, OnlineRefusalCode } from ${abs('@/utils/moments/commitAdapters')};`)
         .split("require('@/utils/syncLedger')").join(`require(${abs('@/utils/syncLedger')})`);
       const plant = (from: string, to: string, label: string) => {

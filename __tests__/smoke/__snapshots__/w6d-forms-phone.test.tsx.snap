@@ -72,15 +72,15 @@ exports[`lane P2 — the phone is unchanged (golden) estimate-wizard?projectId (
 
 exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), iOS 390 1`] = `
 {
-  "lines": 1808,
-  "sha256": "54ef611d2f07b4554733dad94d0f1a61aae091975dc9225af0fb8c135077353d",
+  "lines": 1827,
+  "sha256": "f01208390da4ce9f5c46248cb48a486088c71a9fab8a141f544a008ead70203f",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), web 390 1`] = `
 {
-  "lines": 1808,
-  "sha256": "54ef611d2f07b4554733dad94d0f1a61aae091975dc9225af0fb8c135077353d",
+  "lines": 1827,
+  "sha256": "f01208390da4ce9f5c46248cb48a486088c71a9fab8a141f544a008ead70203f",
 }
 `;
 

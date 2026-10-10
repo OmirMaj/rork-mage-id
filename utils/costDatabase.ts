@@ -28,6 +28,7 @@ import { seedsToCostSamples, isSeedSample, type SeededRate } from '@/utils/costS
 import { flagOutliers } from '@/utils/varianceDecomposition';
 import { normalizeUnit } from '@/utils/takeoffPricing';
 import { laborSampleTradeKey, normalizeTradeKey } from '@/utils/laborSamples';
+import { demoProjectIdSet, withoutDemoProjects, withoutDemoRows } from '@/utils/demoJob/marker';
 
 /** Blend constant: at n samples, personal weight = n/(n+K). K=3 ⇒ 50/50 at n=3. */
 const BLEND_K = 3;
@@ -261,12 +262,12 @@ function mean(xs: number[]): number {
 }
 
 export function buildCostDatabase(
-  projects: Project[],
-  commitments: Commitment[],
+  projectsIn: Project[],
+  commitmentsIn: Commitment[],
   /** Snapped supplier invoices. Their line-item unit prices feed the price book
    *  as live `actual` material samples — additive; pass [] (default) for the
    *  original closed-jobs-only behavior. */
-  receipts: MaterialReceipt[] = [],
+  receiptsIn: MaterialReceipt[] = [],
   /** Self-perform labor samples (utils/laborSamples.ts buildLaborSamples):
    *  crew clocked hours priced at the GC's configured loaded rates. Keyed
    *  like everything else, with the unit normalized ("labor — framing|hr").
@@ -282,6 +283,15 @@ export function buildCostDatabase(
    *  Additive; [] (default) = byte-identical to the prior behavior. */
   seeds: SeededRate[] = [],
 ): CostDatabase {
+  // THE DEMO JOB NEVER TEACHES THE COST BOOK (utils/demoJob/marker.isDemoProject).
+  // The owner's made-up $23M job is dropped here, at the one function every
+  // price-book reader goes through (24 callers, and the shared benchmark's
+  // only input): the job itself, so closing it later learns nothing, and its
+  // commitments and receipts, which are read whether or not a job is closed.
+  const demoIds = demoProjectIdSet(projectsIn);
+  const projects = demoIds.size ? withoutDemoProjects(projectsIn) : projectsIn;
+  const commitments = withoutDemoRows(commitmentsIn, demoIds);
+  const receipts = withoutDemoRows(receiptsIn, demoIds);
   const asOf = new Date().toISOString();
   const groups = new Map<string, CostSample[]>();
   const jobs = new Set<string>();

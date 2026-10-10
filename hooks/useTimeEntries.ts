@@ -1274,6 +1274,8 @@ export function useTimeEntriesStore() {
   // known duration — clockIn defaults to 8:00 on the given day, clockOut is
   // clockIn + hours, and totals are computed the same way the live flow does.
   const addManualEntry = useCallback((args: {
+    /** The Demo Job builder's own id, so it finds the shift again by id (utils/demoJob/writer). */
+    id?: string;
     projectId: string;
     projectName: string;
     workerName: string;
@@ -1296,7 +1298,7 @@ export function useTimeEntriesStore() {
       clockInDate.toISOString(), clockOutDate.toISOString(), 0,
     );
     const entry: TimeEntry = {
-      id: generateUUID(),
+      id: args.id ?? generateUUID(),
       projectId: args.projectId,
       projectName: args.projectName,
       workerId: 'self',

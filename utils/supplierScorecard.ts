@@ -36,6 +36,7 @@
 import type { Delivery } from '@/utils/deliverySchedule';
 import { parseLocalDate } from '@/utils/deliverySchedule';
 import { isUnplannedArrival } from '@/utils/deliveryArrival';
+import { scoredPromiseDate } from '@/utils/deliveries/promise';
 
 export type SupplierGrade = 'A' | 'B' | 'C' | 'D' | 'F';
 export type SupplierConfidence = 'low' | 'medium' | 'high';
@@ -116,7 +117,11 @@ function gradeFor(score: number): SupplierGrade {
  *  missing — no promise or no arrival means no signal. */
 export function slipDays(d: Delivery): number | null {
   if (d.status !== 'delivered' || !d.deliveredAt) return null;
-  const promised = parseLocalDate(d.expectedDate);
+  // The ORIGINAL promise when one was recorded (lane DELIVERIES-1): editing the
+  // supplier date to match a late truck must not erase the slip. A delivery
+  // with no recorded promise is scored against its date, as before; one with
+  // no date at all has no promise and gives no score.
+  const promised = parseLocalDate(scoredPromiseDate(d));
   const actual = parseLocalDate(d.deliveredAt);
   if (promised === null || actual === null) return null;
   return Math.round((actual - promised) / 86_400_000);

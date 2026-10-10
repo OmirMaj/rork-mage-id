@@ -1683,6 +1683,9 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       <TaskDetailSheet
         visible={!!detailTask}
         task={detailTask}
+        // The job the task is on, for "Deliveries for This Task" (a task id
+        // alone does not name a job: a cloned job keeps its task ids).
+        projectId={selectedProject.id}
         allTasks={tasks}
         startDate={anchor.iso}
         workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}

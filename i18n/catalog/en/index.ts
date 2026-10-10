@@ -52,9 +52,11 @@ import { EN as EN_OFFICE_FIRST_JOB } from './office.first-job.generated';
 import { EN as EN_OFFICE_ROOM_SCAN } from './office.room-scan.generated';
 import { EN as EN_OFFICE_LIVING_MODEL } from './office.living-model.generated';
 import { EN as EN_OFFICE_LIVING_MODEL_PHONE } from './office.living-model-phone.generated';
+import { EN as EN_OFFICE_DEMO_JOB } from './office.demo-job.generated';
 import { EN as EN_OFFICE_PROOF_PACK } from './office.proof-pack.generated';
 import { EN as EN_OFFICE_SCAN_CLEARANCE } from './office.scan-clearance.generated';
 import { EN as EN_OFFICE_NOTICES } from './office.notices.generated';
+import { EN as EN_OFFICE_DELIVERIES_SCHEDULE } from './office.deliveries-schedule.generated';
 
 /** Every generated shard by surface id (validate-i18n checks duplicates across them). */
 export const EN_SHARDS: Record<string, EnCatalog> = {
@@ -96,9 +98,11 @@ export const EN_SHARDS: Record<string, EnCatalog> = {
   'office.room-scan': EN_OFFICE_ROOM_SCAN,
   'office.living-model': EN_OFFICE_LIVING_MODEL,
   'office.living-model-phone': EN_OFFICE_LIVING_MODEL_PHONE,
+  'office.demo-job': EN_OFFICE_DEMO_JOB,
   'office.proof-pack': EN_OFFICE_PROOF_PACK,
   'office.scan-clearance': EN_OFFICE_SCAN_CLEARANCE,
   'office.notices': EN_OFFICE_NOTICES,
+  'office.deliveries-schedule': EN_OFFICE_DELIVERIES_SCHEDULE,
 };
 
 export { EN_SEED, EN_UNASSIGNED };

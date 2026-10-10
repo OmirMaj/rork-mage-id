@@ -279,6 +279,11 @@ export const SURFACES: Surface[] = [
   // failed start shows, and the touch help. Complete: each key has Spanish
   // (i18n/catalog/es/office/livingModelPhone.ts).
   { id: 'office.living-model-phone', phase: 2, state: 'complete', keyPrefixes: ['office.livingModelPhone.'], files: ['hooks/usePhone3DCopy.ts'], lane: 'PHONE3D' },
+  // The owner's Demo Job builder (app/demo-job.tsx, owner account only behind
+  // DEMO_JOB_BUILDER_ENABLED): what it makes, what it never does, the three
+  // buttons and the list of areas. Every string lives in the one copy hook.
+  // Complete: each key has Spanish (i18n/catalog/es/office/demoJob.ts).
+  { id: 'office.demo-job', phase: 2, state: 'complete', keyPrefixes: ['office.demoJob.'], files: ['hooks/useDemoJobCopy.ts'], lane: 'DEMOJOB' },
   // Clearance Check (owner preview, the room scanner's own gate): distances an
   // inspector commonly looks at, measured off a scan. Every string lives in the
   // one copy hook. Complete: each key has Spanish (i18n/catalog/es/office/scanClearance.ts).
@@ -289,6 +294,12 @@ export const SURFACES: Surface[] = [
   // (i18n/catalog/es/office/notices.ts); the sheet's keys are `.legal.` keys,
   // which only a human legal translator may put into Spanish.
   { id: 'office.notices', phase: 2, state: 'complete', keyPrefixes: ['office.notices.'], files: ['hooks/useLegalCopy.ts'], lane: 'PROTECT' },
+  // Deliveries That Follow The Schedule (dark behind
+  // DELIVERIES_FOLLOW_SCHEDULE_ENABLED, owner preview): the task link, the
+  // three dates and their source lines, the two flags, What to Order This Week
+  // and the draft message. Every string lives in the one copy hook. Complete:
+  // each key has Spanish (i18n/catalog/es/office/deliveriesSchedule.ts).
+  { id: 'office.deliveries-schedule', phase: 2, state: 'complete', keyPrefixes: ['office.deliveriesSchedule.'], files: ['hooks/useDeliveriesScheduleCopy.ts'], lane: 'DELIVERIES-1' },
 ];
 
 /** The id of the English shard file a surface's generated keys live in. */

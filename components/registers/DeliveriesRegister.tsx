@@ -63,18 +63,30 @@ export interface DeliveriesRegisterProps {
   onReceive: (d: Delivery) => void;
   onAdd: () => void;
   onOpenBuildingAccess: () => void;
+  // ── Deliveries That Follow The Schedule (lane DELIVERIES-1). All optional;
+  //    absent, the register is the register from before that lane. ──
+  /** The look-ahead the header's summary line counts (every load), when `look` has had the deliveries drawn above the register taken out. */
+  summaryLook?: DeliveryLookahead;
+  /** Deliveries are drawn above the register (linked to the schedule), so an empty table is not "nothing scheduled". */
+  blockHasRows?: boolean;
+  /** The heading of the table of open deliveries with no date. */
+  noDateGroupLabel?: string;
+  /** Opens a delivery's dates (to link it to a task). Absent unless that feature is on. */
+  onDates?: (d: Delivery) => void;
+  datesLabel?: string;
 }
 
 export function DeliveriesRegister({
   projectId, projectName, look, horizon, onHorizon, conflicts, projectConflicts, hasAccessRules,
   onConfirm, onReceive, onAdd, onOpenBuildingAccess,
+  summaryLook, blockHasRows = false, noDateGroupLabel, onDates, datesLabel,
 }: DeliveriesRegisterProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const byId = useMemo(() => {
     const m = new Map<string, Delivery>();
-    for (const v of [...look.late, ...look.upcoming]) m.set(v.delivery.id, v.delivery);
+    for (const v of [...look.late, ...look.upcoming, ...(look.undated ?? [])]) m.set(v.delivery.id, v.delivery);
     return m;
   }, [look]);
   const toRow = useCallback(
@@ -83,6 +95,8 @@ export function DeliveriesRegister({
   );
   const lateRows = useMemo(() => look.late.map(toRow), [look.late, toRow]);
   const upcomingRows = useMemo(() => look.upcoming.map(toRow), [look.upcoming, toRow]);
+  // Open deliveries with no date: neither late nor upcoming, so they had no table and no Received button.
+  const undatedRows = useMemo(() => (look.undated ?? []).map(toRow), [look.undated, toRow]);
 
   const confirmEach = useOneAtATime((d: Delivery) => onConfirm(d));
   const confirmSelected = useCallback((ids: string[]) => {
@@ -90,7 +104,7 @@ export function DeliveriesRegister({
   }, [byId, confirmEach]);
 
   const csvStem = `deliveries-${fileSlug(projectName)}`;
-  const csv = useCallback(() => rowsToCsv(DELIVERY_CSV_COLUMNS, [...lateRows, ...upcomingRows]), [lateRows, upcomingRows]);
+  const csv = useCallback(() => rowsToCsv(DELIVERY_CSV_COLUMNS, [...lateRows, ...upcomingRows, ...undatedRows]), [lateRows, upcomingRows, undatedRows]);
   const exportSelected = useCallback((ids: string[]) => {
     exportRegisterCsv(csvStem, rowsToCsv(DELIVERY_CSV_COLUMNS, [...lateRows, ...upcomingRows].filter((r) => ids.includes(r.id))));
   }, [csvStem, lateRows, upcomingRows]);
@@ -123,22 +137,26 @@ export function DeliveriesRegister({
         ) : <Text style={styles.muted}>—</Text>),
       },
       {
-        key: 'actions', label: 'Actions', width: 200,
+        key: 'actions', label: 'Actions', width: onDates ? 310 : 200,
         render: (r) => {
           const d = byId.get(r.id);
           if (!d) return null;
           return (
             <View style={styles.actions}>
-              {!r.confirmed ? (
+              {/* No date, nothing to confirm (every delivery made the old way has one). */}
+              {!r.confirmed && r.promisedDay ? (
                 <Button size="sm" variant="secondary" label="Confirm" testID={`confirm-${r.id}`} onPress={() => onConfirm(d)} />
               ) : null}
               <Button size="sm" label="Received" testID={`receive-${r.id}`} onPress={() => onReceive(d)} />
+              {onDates ? (
+                <Button size="sm" variant="secondary" label={datesLabel ?? 'Dates'} testID={`dfs-dates-${r.id}`} onPress={() => onDates(d)} />
+              ) : null}
             </View>
           );
         },
       },
     ];
-  }, [styles, t.dangerLabel, t.accentLabel, t.textSecondary, t.warningLabel, byId, onConfirm, onReceive]);
+  }, [styles, t.dangerLabel, t.accentLabel, t.textSecondary, t.warningLabel, byId, onConfirm, onReceive, onDates, datesLabel]);
 
   const card = (r: DeliveryRegisterRow) => <LogCard title={r.what || '—'} meta={r.flagLabel} />;
   const truck = <Truck size={28} color={t.accent} strokeWidth={1.6} />;
@@ -191,7 +209,11 @@ export function DeliveriesRegister({
     </>
   );
 
-  const emptyState = look.upcoming.length === 0 && look.late.length === 0 ? (
+  const elsewhere = blockHasRows || undatedRows.length > 0;
+  const emptyState = look.upcoming.length === 0 && look.late.length === 0 && elsewhere ? (
+    // Not "nothing scheduled": the open deliveries are above (linked to the schedule) or below (no date).
+    <EmptyState icon={truck} title={`Nothing due in the next ${horizon} days`} message="The other open deliveries are listed on this page." />
+  ) : look.upcoming.length === 0 && look.late.length === 0 ? (
     <EmptyState
       icon={truck}
       title="Nothing Scheduled Yet"
@@ -209,7 +231,7 @@ export function DeliveriesRegister({
       title="Deliveries"
       testID="deliveries-register"
       leadingCrumbs={[{ label: projectName, href: routeHref('/project-detail', { id: projectId }) }]}
-      meta={summarizeLookahead(look, horizon)}
+      meta={summarizeLookahead(summaryLook ?? look, horizon)}
       restoreHeaderOnExit={false}
       csvStem={csvStem}
       csv={csv}
@@ -244,6 +266,22 @@ export function DeliveriesRegister({
             emptyState={emptyState}
             renderCard={card}
           />
+          {undatedRows.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: t.textSecondary }]}>{noDateGroupLabel ?? 'No Date Yet'}</Text>
+              <DataTable<DeliveryRegisterRow>
+                tableId="reg-deliveries-undated"
+                testID="deliveries-register-undated"
+                density="compact"
+                hotkeys={false}
+                rows={undatedRows}
+                columns={columns}
+                rowKey={(r) => r.id}
+                defaultSort={null}
+                renderCard={card}
+              />
+            </View>
+          ) : null}
         </View>
       )}
     />

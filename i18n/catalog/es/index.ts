@@ -37,8 +37,10 @@ import { ES_OFFICE_CODE_FLAGS } from './office/codeFlags';
 import { ES_OFFICE_PROOF_PACK } from './office/proofPack';
 import { ES_OFFICE_LIVING_MODEL } from './office/livingModel';
 import { ES_OFFICE_LIVING_MODEL_PHONE } from './office/livingModelPhone';
+import { ES_OFFICE_DEMO_JOB } from './office/demoJob';
 import { ES_OFFICE_SCAN_CLEARANCE } from './office/scanClearance';
 import { ES_OFFICE_NOTICES } from './office/notices';
+import { ES_OFFICE_DELIVERIES_SCHEDULE } from './office/deliveriesSchedule';
 
 /** Every Spanish file by its path under es/ (validate-i18n checks a key never sits in two). */
 export const ES_SHARDS: Record<string, EsCatalog> = {
@@ -69,8 +71,10 @@ export const ES_SHARDS: Record<string, EsCatalog> = {
   'office/proofPack': ES_OFFICE_PROOF_PACK,
   'office/livingModel': ES_OFFICE_LIVING_MODEL,
   'office/livingModelPhone': ES_OFFICE_LIVING_MODEL_PHONE,
+  'office/demoJob': ES_OFFICE_DEMO_JOB,
   'office/scanClearance': ES_OFFICE_SCAN_CLEARANCE,
   'office/notices': ES_OFFICE_NOTICES,
+  'office/deliveriesSchedule': ES_OFFICE_DELIVERIES_SCHEDULE,
 };
 
 export const ES_CATALOG: EsCatalog = Object.assign({}, ...Object.values(ES_SHARDS)) as EsCatalog;

@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { isTransportError } from '@/utils/networkErrors';
 import { recordIdOf } from '@/utils/syncRecordKey';
+import { DELIVERY_COLUMNS_SEEN_KEY, rewriteForMissingColumns, withoutScheduleColumns } from '@/utils/deliveries/columnsGate';
 import type { OnlineOutcome, OnlineRefusalCode } from '@/utils/moments/commitAdapters';
 import { EARLIER_CHANGE_PENDING_REASON, EARLIER_CHANGE_UNSAVED_REASON } from '@/utils/moments/copy';
 
@@ -359,6 +360,30 @@ function isSchemaCacheError(message: string): boolean {
     m.includes('schema cache') ||
     (m.includes('could not find') && (m.includes('column') || m.includes('table')))
   );
+}
+
+// Lane DELIVERIES-1 (Deliveries That Follow The Schedule). A delivery row can
+// carry seven columns that exist only once 20261012090000 is applied. The
+// feature that writes them opens only on a device that has SEEN the columns,
+// and remembers that it did. If the columns are later gone (the migration's
+// undo, another database), a queued delivery write names a column the table
+// does not have and comes back PGRST204 every time: re-queued "unchanged" as a
+// schema-cache miss it would never land, and every later write of that
+// delivery would wait behind it. So for that ONE case the write is not kept
+// unchanged: the remembered "seen" is forgotten (the feature closes and asks
+// the table again, utils/deliveries/columnsGate.ts) and the row is re-sent
+// with only the columns the table had before the lane. Null = not that case.
+async function deliveryRowWithoutMissingColumns(
+  table: string,
+  data: Record<string, unknown> | null | undefined,
+  message: string,
+  code: string | undefined,
+): Promise<Record<string, unknown> | null> {
+  const rewritten = rewriteForMissingColumns(table, data, message, code);
+  if (!rewritten) return null;
+  try { await AsyncStorage.removeItem(DELIVERY_COLUMNS_SEEN_KEY); } catch { /* the gate is already closed in memory */ }
+  console.warn('[OfflineQueue] The deliveries table lacks a schedule column this write names; re-sending it with the old columns only');
+  return rewritten;
 }
 
 /** The persisted queue, or a THROW if storage could not produce one.
@@ -1494,6 +1519,19 @@ async function runOfflineQueue(): Promise<FlushResult> {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         const code = (err as { code?: string } | null)?.code;
+        // Lane DELIVERIES-1: a delivery write refused for a schedule column
+        // the table does not have is NOT kept unchanged (it would fail the
+        // same way for ever). It, and the rest of the record's writes, stay
+        // queued WITHOUT those columns and go on the next flush.
+        const oldColumnsOnly = mutation.operation === 'rpc' ? null : await deliveryRowWithoutMissingColumns(mutation.table, mutation.data, msg, code);
+        if (oldColumnsOnly) {
+          gRemaining.push({ ...mutation, data: oldColumnsOnly });
+          for (const later of group.slice(index + 1)) {
+            gRemaining.push(later.table === 'deliveries' && later.operation !== 'rpc' ? { ...later, data: withoutScheduleColumns(later.data) } : later);
+          }
+          scheduleQueueDrain();
+          break;
+        }
         if (isNetworkError(err) || isSchemaCacheError(msg) || isAuthTransientError(msg, code)) {
           // Offline / transient — re-queue UNCHANGED. Crucially do NOT bump
           // retryCount: a device that's merely offline (or hitting a not-yet-
@@ -2274,6 +2312,14 @@ async function directWrite(
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Sync failed';
     const code = (err as { code?: string } | null)?.code;
+    // Lane DELIVERIES-1: see deliveryRowWithoutMissingColumns. The row is
+    // queued with the old columns only, and sent on the drain that follows.
+    const oldColumnsOnly = operation === 'rpc' ? null : await deliveryRowWithoutMissingColumns(table, data, msg, code);
+    if (oldColumnsOnly) {
+      const outcome = await enqueueOrFail({ ...m, data: oldColumnsOnly }, writerId, dropNoticeFor(opts));
+      scheduleQueueDrain();
+      return outcome;
+    }
     if (isNetworkError(err) || isSchemaCacheError(msg) || isAuthTransientError(msg, code)) {
       // Offline / transient (incl. a PostgREST schema-cache miss during a
       // migration-before-OTA race, or a token that needs a refresh). Queue the

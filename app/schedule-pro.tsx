@@ -103,6 +103,7 @@ import {
   type Density, type ProView,
 } from '@/utils/scheduleProLayout';
 import type { SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
+import { DeliveryProposalBanner } from '@/components/deliveries/DeliveriesFollow';
 import type { GanttTabHandle } from '@/components/schedule/tabs/GanttTab';
 import { ScheduleProToolbar } from '@/components/schedule/desktop/ScheduleProToolbar';
 import { ScheduleSignals } from '@/components/schedule/desktop/ScheduleSignals';
@@ -286,7 +287,10 @@ function ScheduleProScreenInner() {
   const width = useBreakpointWidth(); // a native phone is a phone sideways too (utils/nativePhone)
   const {
     projectId: paramProjectId, taskId: paramTaskId, editSeed: paramEditSeed, focus: paramFocus,
-  } = useLocalSearchParams<{ projectId?: string; taskId?: string; editSeed?: string; focus?: string }>();
+    // "See It on the Schedule" from a delivery (lane DELIVERIES-1). Read only by
+    // DeliveryProposalBanner, which is inert unless that feature's gate is open.
+    deliveryId: paramDeliveryId,
+  } = useLocalSearchParams<{ projectId?: string; taskId?: string; editSeed?: string; focus?: string; deliveryId?: string }>();
   const { user } = useAuth();
   // Wave 6c: the desktop layout gate, and the web-only one for browser
   // behaviour (hotkeys, the Brain FAB). isDesktop is also true on native at
@@ -1574,8 +1578,14 @@ function ScheduleProScreenInner() {
   // everything but progress/status/notes/actuals — the ticked "Added …" card
   // it used to show was a change that never saved. A field seat's progress-only
   // batch ("drywall is 50% done") still goes through, as a grid edit would.
+  //
+  // `source` is what the change log says the batch came from. The editor's own
+  // callers pass none and read 'AI schedule edit', as before. A change a PERSON
+  // applied from somewhere else names itself (a delivery's proposal reads
+  // "Applied from a delivery"), so the log a schedule is argued from never
+  // credits a person's own press to the AI.
   const commitEditorBatch = useCallback(
-    (producer: (prev: ScheduleTask[]) => ScheduleTask[]): string | void => {
+    (producer: (prev: ScheduleTask[]) => ScheduleTask[], source?: string): string | void => {
       if (writePath === 'field_rpc') {
         const before = workingTasksRef.current;
         const after = producer(before);
@@ -1591,6 +1601,8 @@ function ScheduleProScreenInner() {
       } else if (writePath !== 'row') {
         return 'Not saved: you have view-only access to this project. Ask the project owner for editor access.';
       }
+      const named = source?.trim();
+      if (named) { commitAiBatch(producer, named); return; }
       commitAiBatch(producer, 'AI schedule edit');
     },
     [commitAiBatch, writePath],
@@ -3349,6 +3361,21 @@ function ScheduleProScreenInner() {
             projectStartDate={project?.schedule?.startDate ? projectStartDate : null}
             onAnswer={answerStartDayBasis}
             style={{ marginHorizontal: 16, marginTop: 8 }}
+          />
+          {/* A delivery's proposal, DRAWN on this screen's own preview. It is
+              applied only by the person's tap, through commitEditorBatch (the
+              same undoable commit the Change tab uses), which logs it under
+              the label the banner hands in, not as an AI edit. The banner
+              works the proposal out from project.schedule with the same engine
+              options this screen builds. Draws nothing unless the route names
+              a delivery and that feature's gate is open. */}
+          <DeliveryProposalBanner
+            projectId={project.id}
+            deliveryId={typeof paramDeliveryId === 'string' ? paramDeliveryId : undefined}
+            schedule={project.schedule}
+            tasks={workingTasks}
+            onPreview={setPendingPreview}
+            commit={commitEditorBatch}
           />
         </View>
         {/* The work row: the canvas and the pane — exactly two children. The

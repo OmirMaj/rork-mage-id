@@ -5,6 +5,7 @@
 // No React imports allowed
 
 import { supabaseWrite, onQueueFlushed } from '@/utils/offlineQueue';
+import { isKnownDemoProjectId } from '@/utils/demoJob/marker';
 import { supabase } from '@/lib/supabase';
 import type { PredictionKind, BrainPredictionRow, BrainPredictionReadRow } from './types';
 import { buildPredictionRow as _buildPredictionRow, dedupeBySubject as _dedupeBySubject } from './predictionLedgerCore';
@@ -86,6 +87,9 @@ export function recordPrediction(
   payload: Record<string, unknown>,
   projectId?: string | null,
 ): void {
+  // Nothing is predicted about the owner's made-up Demo Job, so nothing about
+  // it is ever graded or counted in an accuracy report (utils/demoJob/marker).
+  if (isKnownDemoProjectId(projectId)) return;
   const row: BrainPredictionRow = _buildPredictionRow(kind, subjectId, payload, projectId);
   // A new row changes what the open-prediction reads return — drop the cache
   // immediately so the next reader can't serve a pre-write snapshot.

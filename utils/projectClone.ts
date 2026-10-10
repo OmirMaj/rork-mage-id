@@ -94,7 +94,7 @@ export function cloneNameFor(source: Pick<Project, 'name'>): string {
 const TASK_EXECUTION_KEYS = [
   'actualStartDay', 'actualEndDay', 'actualStartDate', 'actualEndDate',
   'photos', 'subscribers', 'baselineStartDay', 'baselineEndDay',
-  'sourceEventRef', 'anchorDate', 'deadline', 'fieldEditedAt',
+  'sourceEventRef', 'anchorDate', 'anchorFromDeliveryId', 'deadline', 'fieldEditedAt',
 ] as const;
 
 /** One task of the plan, with the old job's execution taken off it. */

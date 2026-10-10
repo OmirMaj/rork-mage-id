@@ -155,7 +155,9 @@ console.log('\n#116 — the Friday Close wiring:');
       && /\}, \[enabled, projects, refreshKey, queryClient, userId\]\);/.test(hook));
   ok('…it is one query keyed on the fingerprint, shared by Home and /week-close',
     /queryKey: \['weekClosePaymentForecast', userId, forecastKey\]/.test(hook)
-      && /paymentForecastFingerprint\(invoices, projectsById, userId,/.test(hook));
+      // forecastInvoices = the invoices without the owner's made-up Demo Job (lane DEMOJOB, scripts/validate-demo-job.ts G2).
+      && /paymentForecastFingerprint\(forecastInvoices, projectsById, userId,/.test(hook)
+      && /const forecastInvoices = useMemo\(\s*\(\) => withoutDemoRows\(invoices, demoProjectIdSet\(projects\)\),/.test(hook));
   ok('…fresh for 12 h, never retried (a retry is another charge)',
     /staleTime: 12 \* 60 \* 60 \* 1000/.test(hook) && /retry: false/.test(hook));
   ok('…enabled only with something past due',

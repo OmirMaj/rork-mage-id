@@ -38,6 +38,7 @@ import { shareText } from '@/utils/shareText';
 import { deliverTextFile, openPrintWindowOrThrow, printHtmlDocument, pdfFailureMessage } from '@/utils/platformFile';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { describeError } from '@/utils/errorCopy';
+import { withoutDemoPayees } from '@/utils/demoJob/payees';
 import {
   buildInsuranceAudit, auditGcPaymentsFromReceipts, requestMessageFor, toCsv, toPdfHtml, formatCents,
   STATUS_LABEL, EXEMPTION_NOTE, AUDIT_SOURCES_NOTE, type CoverageStatus, type AuditSubRow, type AuditPayment,
@@ -60,7 +61,13 @@ export default function InsuranceAuditScreen() {
   const insets = useSafeAreaInsets();
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { subcontractors, commitments, cois, settings } = useProjects();
+  const { subcontractors: allSubcontractors, commitments: allCommitments, cois: allCois, settings, projects } = useProjects();
+  // The owner's made-up Demo Job is never in an insurance audit pack.
+  const { subcontractors, commitments, cois } = useMemo(() => {
+    const kept = withoutDemoPayees(projects, allSubcontractors, allCommitments);
+    const keptSubs = new Set(kept.subcontractors.map((s) => s.id));
+    return { ...kept, cois: allCois.filter((c) => keptSubs.has(c.subcontractorId) || !allSubcontractors.some((s) => s.id === c.subcontractorId)) };
+  }, [projects, allSubcontractors, allCommitments, allCois]);
   const { receipts } = useMaterialReceipts();
   const gcName = settings?.branding?.companyName?.trim() || undefined;
 

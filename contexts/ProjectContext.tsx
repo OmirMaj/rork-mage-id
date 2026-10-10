@@ -69,9 +69,11 @@ import { track, AnalyticsEvents } from '@/utils/analytics';
 // Sample fences: no QuickBooks push from a sample, and every create event says
 // whether it came from one (utils/sampleGuard — the outbound invariant).
 import { isSampleProject, noteSampleProject, noteSampleScope } from '@/utils/sampleGuard';
+import { DEMO_RENAME_KEPT_REASON, DEMO_RENAME_KEPT_TITLE, demoRenameDropped, demoSafeUpdates, isDemoProject, noteDemoProjectId, noteDemoScope } from '@/utils/demoJob/marker';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
 import type { Delivery, DeliveryReceipt } from '@/utils/deliverySchedule';
+import { deliveryScheduleColumns, deliveryScheduleFieldsFromRow, expectedDateColumn, expectedDateFromRow } from '@/utils/deliveries/rowCore';
 import type { BuildingAccessRules, AccessReservation } from '@/utils/buildingAccess';
 import {
   geocodeProjectLocation, shouldGeocode, clearCoordsOnLocationChange, geocodeStillApplies,
@@ -1010,7 +1012,7 @@ type FieldDataValue = {
   deleteProjectPhoto: (id: string) => void;
   getPhotosForProject: (projectId: string) => ProjectPhoto[];
   equipment: Equipment[];
-  addEquipment: (equip: Omit<Equipment, 'id' | 'createdAt'>) => void;
+  addEquipment: (equip: Omit<Equipment, 'id' | 'createdAt'>, opts?: { id?: string }) => void;
   updateEquipment: (id: string, updates: Partial<Equipment>) => void;
   deleteEquipment: (id: string) => void;
   logUtilization: (entry: Omit<EquipmentUtilizationEntry, 'id'>) => void;
@@ -1118,7 +1120,7 @@ type DocsDataValue = {
   deleteRFI: (id: string) => void;
   getRFIsForProject: (projectId: string) => RFI[];
   permits: Permit[];
-  addPermit: (permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>) => Permit;
+  addPermit: (permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>, opts?: { id?: string }) => Permit;
   updatePermit: (id: string, updates: Partial<Permit>) => void;
   deletePermit: (id: string) => void;
   getPermitsForProject: (projectId: string) => Permit[];
@@ -1136,7 +1138,7 @@ type DocsDataValue = {
   getSubPortalLinksForProject: (projectId: string) => SubPortalLink[];
   submittals: Submittal[];
   addSubmittal: (sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => void;
-  addSubmittals: (subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[]) => void;
+  addSubmittals: (subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[], opts?: { ids?: readonly string[] }) => void;
   updateSubmittal: (id: string, updates: Partial<Submittal>) => void;
   deleteSubmittal: (id: string) => void;
   getSubmittalsForProject: (projectId: string) => Submittal[];
@@ -3232,7 +3234,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               supplier: (r.supplier as string) ?? '',
               commitmentId: (r.commitment_id as string | null) ?? undefined,
               poNumber: (r.po_number as string | null) ?? undefined,
-              expectedDate: r.expected_date as string,
+              // '' = "No date yet" (a NULL column, lane DELIVERIES-1).
+              expectedDate: expectedDateFromRow(r),
               // Column is delivery_window — `window` is reserved in Postgres.
               window: (r.delivery_window as string | null) ?? undefined,
               status: (r.status as Delivery['status']) ?? 'scheduled',
@@ -3244,6 +3247,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               notes: (r.notes as string | null) ?? undefined,
               createdAt: r.created_at as string,
               updatedAt: r.updated_at as string,
+              // The task link and its dates (lane DELIVERIES-1). {} when the
+              // table has no such columns, so the object is the old one.
+              ...deliveryScheduleFieldsFromRow(r),
             })) as Delivery[];
             await saveOwnedLocal(userId, DELIVERIES_KEY, mapped);
             return mapped;
@@ -5231,6 +5237,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // here queue politely. A country on its own ('United States') is never
   // geocoded — it resolved to the Kansas centroid (2026-09-24).
   const geocodeIfNeeded = useCallback((project: Project) => {
+    // The owner's Demo Job has a made-up street and its coordinates are stamped
+    // at creation: it is never sent to the geocoder.
+    if (isDemoProject(project)) return;
     const hasCoords = project.locationLatitude != null && project.locationLongitude != null;
     if (!shouldGeocode(undefined, project.location, hasCoords, project.locationGeocodedAt)) return;
     const askedFor = project.location;
@@ -5262,6 +5271,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // QuickBooks call sites are handed ids, not projects, and read it; replacing
   // it wholesale here means a sign-out's empty lists empty it too.
   useEffect(() => { noteSampleScope(projects, invoices); }, [projects, invoices]);
+  // The owner's Demo Job (utils/demoJob): its ids, for analytics, which drops its events.
+  useEffect(() => { noteDemoScope(projects); }, [projects]);
   // BACKFILL + CENTROID SCRUB, once this account's server list has landed.
   // (1) A job with an address but no coordinates was never looked up — it was
   //     saved before geocoding, or its lookup failed (The Henderson Residence,
@@ -5318,6 +5329,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // and their create events must already read is_sample: true.
     const projectIsSample = isSampleProject(project);
     noteSampleProject(project);
+    // The Demo Job is known before its own create event, which is then dropped (utils/analytics).
+    if (isDemoProject(project)) noteDemoProjectId(project.id);
     // Activation funnel: fire once at the imperative create (never on hydration,
     // which replaces `projects` via the query, not through addProject).
     track(AnalyticsEvents.PROJECT_CREATED, {
@@ -5378,9 +5391,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     return projectCreateWritesRef.current.get(project.id) ?? Promise.resolve<WriteOutcome>(canSync ? 'synced' : 'failed');
   }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded, canSync, userId]);
 
-  const updateProject = useCallback((id: string, rawUpdates: Partial<Project>) => {
+  const updateProject = useCallback((id: string, updatesIn: Partial<Project>) => {
     const base = projectsRef.current;
     const prior = base.find(p => p.id === id);
+    // The owner's Demo Job cannot be renamed out of its sample name: that name
+    // is what keeps it from emailing, pay links and reminders (utils/demoJob/marker).
+    const rawUpdates = demoSafeUpdates(prior, updatesIn);
+    // A dropped rename is said, once, in one sentence: a name that silently snaps back reads as a bug.
+    if (demoRenameDropped(prior, updatesIn, rawUpdates)) showAlert(DEMO_RENAME_KEPT_TITLE, DEMO_RENAME_KEPT_REASON);
     const nowISO = new Date().toISOString();
     // #25, second writer: a schedule edit is often built from a screen's
     // working copy loaded long before the foreman's field update the refetch
@@ -6872,7 +6890,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     supplier: d.supplier,
     commitment_id: d.commitmentId ?? null,
     po_number: d.poNumber ?? null,
-    expected_date: d.expectedDate,
+    // The day, or null for "No date yet" (only the DELIVERIES-1 screens make one).
+    expected_date: expectedDateColumn(d),
     // Column is delivery_window, NOT window: `window` is a reserved Postgres
     // keyword, so the table could not have been created with it. The TS field
     // keeps the short name — this mapper is the only place they differ.
@@ -6886,6 +6905,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     notes: d.notes ?? null,
     created_at: d.createdAt,
     updated_at: d.updatedAt,
+    // The task link and its dates (lane DELIVERIES-1). {} for a delivery that
+    // carries none of them, so the row is exactly the row from before the
+    // lane and the queue never sends a column an unmigrated table lacks.
+    // Needed On Site By is never here: it is worked out on every read.
+    ...deliveryScheduleColumns(d),
   }), [userId]);
 
   const saveDeliveriesMutation = useMutation({
@@ -8741,9 +8765,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     updated_at: p.updatedAt ?? new Date().toISOString(),
   }), [userId]);
 
-  const addPermit = useCallback((permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>) => {
+  // `opts.id`: the Demo Job builder hands in the id it worked out, so it can
+  // find the record again by id (utils/demoJob/writer). A second argument on
+  // purpose: an `id` riding in on a spread record is never adopted.
+  const addPermit = useCallback((permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>, opts?: { id?: string }) => {
     const now = new Date().toISOString();
-    const newPermit: Permit = { ...permit, id: generateUUID(), createdAt: now, updatedAt: now };
+    const newPermit: Permit = { ...permit, id: opts?.id ?? generateUUID(), createdAt: now, updatedAt: now };
     const updated = [newPermit, ...permits];
     setPermits(updated);
     savePermitsMutation.mutate(updated);
@@ -8985,13 +9012,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const buildSubmittal = useCallback((
     sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>,
     base: Submittal[],
+    id?: string,
   ): { newSub: Submittal; row: Record<string, unknown> } => {
     const projectSubs = base.filter(s => s.projectId === sub.projectId);
     const nextNumber = projectSubs.length > 0 ? Math.max(...projectSubs.map(s => s.number)) + 1 : 1;
     const now = new Date().toISOString();
     const newSub: Submittal = {
       ...sub,
-      id: generateUUID(),
+      id: id ?? generateUUID(),
       number: nextNumber,
       createdAt: now,
       updatedAt: now,
@@ -9024,12 +9052,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // Batch insert — assigns sequential per-project numbers to every row and
   // commits in ONE setState. Use this from bulk flows (e.g. extract-submittals)
   // instead of looping addSubmittal, so the review count matches what persists.
-  const addSubmittals = useCallback((subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[]) => {
+  // `opts.ids`: one id per submittal, in order (the Demo Job builder; see addPermit).
+  const addSubmittals = useCallback((subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[], opts?: { ids?: readonly string[] }) => {
     if (subs.length === 0) return;
     let working = submittalsRef.current;
     const rows: Record<string, unknown>[] = [];
-    for (const sub of subs) {
-      const { newSub, row } = buildSubmittal(sub, working);
+    for (let i = 0; i < subs.length; i += 1) {
+      const { newSub, row } = buildSubmittal(subs[i], working, opts?.ids?.[i]);
       working = [newSub, ...working];
       rows.push(row);
     }
@@ -9320,9 +9349,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     [cois],
   );
 
-  const addEquipment = useCallback((equip: Omit<Equipment, 'id' | 'createdAt'>) => {
+  // `opts.id`: the Demo Job builder's own id (see addPermit).
+  const addEquipment = useCallback((equip: Omit<Equipment, 'id' | 'createdAt'>, opts?: { id?: string }) => {
     const now = new Date().toISOString();
-    const newEquip: Equipment = { ...equip, id: generateUUID(), createdAt: now };
+    const newEquip: Equipment = { ...equip, id: opts?.id ?? generateUUID(), createdAt: now };
     const updated = [newEquip, ...equipment];
     setEquipment(updated);
     saveEquipmentMutation.mutate(updated);

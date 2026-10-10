@@ -28,6 +28,7 @@ import {
   heldByPredecessor, scheduledStartOrdinal, scheduledTaskRange, steppedStartDay, taskCalendarRange, type ScheduledPlacement,
 } from '@/utils/scheduleOps';
 import { taskSheetLocks, type ScheduleWritePath } from '@/utils/fieldScheduleUpdate';
+import { TaskDeliveriesSection } from '@/components/deliveries/DeliveriesFollow';
 
 interface TaskDetailSheetProps {
   visible: boolean;
@@ -50,6 +51,10 @@ interface TaskDetailSheetProps {
    *  and steps from placements.get(task.id), so it shows the dates of the row
    *  he just tapped (#88). Omitted → the stored pin, as before. */
   placements?: ReadonlyMap<string, ScheduledPlacement>;
+  /** The job this sheet's task is on. "Deliveries for This Task" is drawn only
+   *  when it is given: a task id alone does not name a job (a job started from
+   *  another keeps its task ids). */
+  projectId?: string;
 }
 
 type DetailTab = 'overview' | 'resources' | 'docs' | 'activity';
@@ -99,7 +104,7 @@ function ReadOnlyChecklist({ items }: { items: { id: string; label: string; done
   );
 }
 
-export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDaysPerWeek, nonWorkingDates, onClose, onUpdateTask, onDeleteTask, writePath, placements }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDaysPerWeek, nonWorkingDates, onClose, onUpdateTask, onDeleteTask, writePath, placements, projectId }: TaskDetailSheetProps) {
   const { colors } = useTheme();
   // What this access can save here (#139) — see taskSheetLocks for why.
   const locks = taskSheetLocks(writePath);
@@ -386,6 +391,9 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                 <Text style={styles.gVal}>{task.linkedEstimateItems?.length ? `${task.linkedEstimateItems.length} linked` : 'None linked'}</Text>
               </View>
             )}
+            {/* Deliveries for This Task (lane DELIVERIES-1). Draws nothing
+                unless the feature's gate is open for this person. */}
+            {tab === 'docs' && projectId ? <TaskDeliveriesSection taskId={task.id} projectId={projectId} /> : null}
             {tab === 'activity' && (
               <View style={styles.card}>
                 <Text style={styles.gLbl}>Notes</Text>
