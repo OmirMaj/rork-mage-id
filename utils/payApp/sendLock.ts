@@ -7,12 +7,15 @@
 // certifies is stamped on the record (`sentLockedAt`) when no pay link was
 // made, and the screen treats the stamp the way it treats a link.
 //
-// THE LIMIT, STATED PLAINLY. This is the app's own lock. The stamp rides in
-// the record's `snapshot_totals` sidecar (no column, no migration), so the
-// DATABASE freeze, which keys on `certified_at` and is stamped only by
-// create-payment-link, does not cover it. An old build or a direct write could
-// still change the row. Stamping the server column without Stripe is a server
-// change and is not part of this phase.
+// WHO HOLDS THE LOCK. The app holds it first: the stamp rides in the record's
+// `snapshot_totals` sidecar and this file reads it. The DATABASE holds it too
+// once 20261014090000_aia_pay_app_send_lock.sql is applied: the first write
+// that carries the sidecar stamp makes the server set its own
+// `sent_locked_at` column (the server's clock, never a value the app sends),
+// and the freeze trigger then refuses a change to the figures the same way it
+// does for a row with a pay link. The app never writes that column. Before
+// that migration is applied the lock is the app's alone, and an old build or
+// a direct write could still change the row.
 //
 // Pure: no clock (now is passed in), no storage.
 
