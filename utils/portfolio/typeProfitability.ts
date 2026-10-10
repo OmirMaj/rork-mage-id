@@ -10,6 +10,7 @@
 import type { Project, Commitment, ProjectType, ChangeOrder } from '@/types';
 import { PROJECT_TYPES } from '@/types';
 import { realizedMarginPct, realizedRevenue } from '@/utils/judges/typeMargin';
+import { isDemoProject } from '@/utils/demoJob/marker';
 
 export interface TypeProfitRow {
   type: ProjectType;
@@ -64,7 +65,8 @@ export function buildTypeProfitability(
   let closedWithBasis = 0;
 
   for (const p of projects) {
-    if (!isClosed(p)) continue;
+    // A closed Demo Job is not one of his closed jobs (utils/demoJob/marker).
+    if (!isClosed(p) || isDemoProject(p)) continue;
     closedTotal++;
     const acc = typeMap.get(p.type);
     if (!acc) continue; // unrecognized type — skip

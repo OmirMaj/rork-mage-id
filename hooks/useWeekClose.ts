@@ -44,6 +44,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchLastPlannerStore } from '@/hooks/useLastPlanner';
 import type { WeekClose } from '@/utils/weekClose/types';
+import { demoProjectIdSet, withoutDemoRows } from '@/utils/demoJob/marker';
 
 interface AsyncInputs {
   wwp: ComposeWeekCloseInput['wwp'];
@@ -218,20 +219,26 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
     // forecastDay is the key: a new local day is a new "as of".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forecastDay]);
+  // The owner's made-up Demo Job never starts this background forecast and is
+  // never part of what it sends to the model (utils/demoJob/marker).
+  const forecastInvoices = useMemo(
+    () => withoutDemoRows(invoices, demoProjectIdSet(projects)),
+    [invoices, projects],
+  );
   const forecastKey = useMemo(
-    () => paymentForecastFingerprint(invoices, projectsById, userId, forecastAt),
-    [invoices, projectsById, userId, forecastAt],
+    () => paymentForecastFingerprint(forecastInvoices, projectsById, userId, forecastAt),
+    [forecastInvoices, projectsById, userId, forecastAt],
   );
   const hasOverdue = useMemo(
-    () => hasOverdueUnpaidInvoice(invoices, forecastAt),
-    [invoices, forecastAt],
+    () => hasOverdueUnpaidInvoice(forecastInvoices, forecastAt),
+    [forecastInvoices, forecastAt],
   );
   // The query function reads the inputs the key was computed from through a
   // ref, so a new array identity with the same content is not a new call.
   // The plan is read through a ref too: a plan change is not a new forecast.
   const { tier: subscriptionTier } = useSubscription();
-  const forecastInputsRef = useRef({ invoices, projectsById, subscriptionTier });
-  forecastInputsRef.current = { invoices, projectsById, subscriptionTier };
+  const forecastInputsRef = useRef({ invoices: forecastInvoices, projectsById, subscriptionTier });
+  forecastInputsRef.current = { invoices: forecastInvoices, projectsById, subscriptionTier };
   const forecastQuery = useQuery<PaymentPredictionResult | null>({
     queryKey: ['weekClosePaymentForecast', userId, forecastKey],
     queryFn: async () => {

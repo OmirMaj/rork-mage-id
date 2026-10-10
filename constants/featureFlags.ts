@@ -350,3 +350,18 @@ export const LIVING_MODEL_ENABLED = false;
 //
 // Flip it to true only when all of those hold.
 export const DELIVERIES_FOLLOW_SCHEDULE_ENABLED = false;
+
+// DEMO JOB BUILDER (owner only, 2026-10-09).
+//
+// The founder's "make me one job that touches everything": app/demo-job.tsx
+// builds a made-up $23M mixed-use job in HIS account through the app's own
+// creation paths (utils/demoJob), so he can walk every screen, the Living
+// Model included. It is reachable only by the owner account (utils/owner.ts)
+// AND only while this is true: utils/demoJob/allowed.ts is the one reader.
+//
+// This is the kill switch. Set it to false and ship over the air: the Settings
+// row disappears and the route redirects for everyone, the owner included. A
+// demo job that already exists stays what it is (a sample-named job, fenced by
+// utils/sampleGuard and left out of every learning path by
+// utils/demoJob/marker.isDemoProject) and can still be deleted like any job.
+export const DEMO_JOB_BUILDER_ENABLED = true;

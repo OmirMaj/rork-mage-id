@@ -118,6 +118,8 @@ const TITLES_BEFORE: Record<string, string> = {
   // Lane PROOFPACK: dark behind PROOF_PACK_ENABLED; headerShown false, the title names the web tab.
   'proof-pack': 'Pay Period Record',
   'living-model': 'Living Model',
+  // Lane DEMOJOB: the owner's Demo Job builder; headerShown false, the title names the web tab.
+  'demo-job': 'Demo Job',
 };
 
 /** S3 — the tab bar. Keys are the seed's (exact); English = what the UI shows. */

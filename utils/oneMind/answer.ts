@@ -26,6 +26,7 @@ import { resolveScope, applyAnchorScope, type OneMindScope } from './resolveScop
 import { assembleFactBlocks, isColdStart, type FactBlock, type FactBlockDrillIn, type OneMindBundle } from './factBlocks';
 import { composeOneMindPrompt, isAppHowTo, parseCitations, stripCitations } from './composePrompt';
 import { oneMindFailureReply } from './failureAnswer';
+import { withoutDemoFacts } from './demoFence';
 
 export interface OneMindTurn {
   role: 'user' | 'assistant';
@@ -76,9 +77,11 @@ function toCitations(blocks: FactBlock[], refs: string[]): OneMindCitation[] {
 export async function askOneMind(
   question: string,
   turns: OneMindTurn[],
-  bundle: OneMindBundle,
+  bundleIn: OneMindBundle,
   opts: { anchorProjectId?: string | null } = {},
 ): Promise<OneMindAnswer> {
+  // The owner's Demo Job is made up: not one fact of it reaches a prompt (utils/oneMind/demoFence).
+  const bundle = withoutDemoFacts(bundleIn);
   // A named project wins; otherwise an anchored conversation is about its job.
   const scope = applyAnchorScope(
     resolveScope(question, bundle.projects), question, opts.anchorProjectId, bundle.projects,

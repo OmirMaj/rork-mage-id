@@ -31,7 +31,7 @@ import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
 import { usePhone3DCopy } from '@/hooks/usePhone3DCopy';
 import { FlatReplay } from './FlatReplay';
 import type { JobReplay3DProps } from './jobReplay3DProps';
-import { usePalette } from './replayShared';
+import { useLookPalette } from './replayShared';
 import { makeLivingModelStyles } from './styles';
 import { loadPhone3DEngine, phone3DEngineInBuild, type Phone3DEngine } from './phone3d/engine';
 import { Phone3DView, type Phone3DDebug } from './phone3d/Phone3DView';
@@ -58,11 +58,12 @@ export function JobReplay3D(props: JobReplay3DProps & {
   /** For tests, which cannot run a dynamic import: how the engine is read. The app never passes it. */
   loadEngine?: () => Promise<Phone3DEngine | null>;
 }) {
-  const { model, level, moments, selectedId, onSelect, height, onFlat, quality = 'standard', loadEngine = loadPhone3DEngine } = props;
+  const { model, level, moments, selectedId, onSelect, height, onFlat, quality = 'standard', look, loadEngine = loadPhone3DEngine } = props;
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const phoneCopy = usePhone3DCopy();
-  const palette = usePalette();
+  // The palette carries the look as well as the theme (replayShared.useLookPalette), so a new look is a new palette too.
+  const palette = useLookPalette(look, 'phone', quality);
   const [mode, setMode] = useState<Mode>(() => (phone3DEngineInBuild() ? 'loading' : 'no_engine'));
   const [engine, setEngine] = useState<Phone3DEngine | null>(null);
 
@@ -82,7 +83,7 @@ export function JobReplay3D(props: JobReplay3DProps & {
   onFlatRef.current = onFlat;
   useLayoutEffect(() => { onFlatRef.current?.(flat); }, [flat]);
 
-  // A new theme is a new palette: the scene is built again on a new drawing surface.
+  // A new theme, or a new look, is a new palette: the scene is built again on a new drawing surface, and the old one's shapes and materials are let go as its view leaves.
   const paletteKey = useRef({ palette, n: 0 });
   if (paletteKey.current.palette !== palette) paletteKey.current = { palette, n: paletteKey.current.n + 1 };
 

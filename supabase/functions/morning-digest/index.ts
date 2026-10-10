@@ -42,6 +42,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { wrapEmailHtml, resendSend, isEmailUnsubscribed, fetchSignInEmail, pickDigestRecipient, digestPreviewReason } from '../_shared/email.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
 import { verifyUser } from '../_shared/verifyUser.ts';
+import { isSampleProjectName } from '../_shared/sampleFence.ts';
 // Today's tasks by the app's own working-day rules (audit 2026-09-18 #14) and
 // the unsubscribe gate (#15) — see the headers of both files.
 import {
@@ -430,7 +431,12 @@ async function buildDigestForUser(
     .select('id, name, status, location, location_latitude, location_longitude, schedule')
     .eq('user_id', userId)
     .eq('status', 'in_progress');
-  const activeProjects = (projects ?? []) as ProjectRow[];
+  // SAMPLE JOBS ARE NOT BRIEFED. A sample job ("Sample — ...": the tutorials'
+  // small ones and the owner's Demo Job) is made up, and a 6 am email listing
+  // its tasks and crew reads as real work. Same rule, byte for byte, as the
+  // other server fences (_shared/sampleFence.ts). Checked on the name in code,
+  // not in the query: a NOT LIKE in the query would also drop a null name.
+  const activeProjects = ((projects ?? []) as ProjectRow[]).filter((p) => !isSampleProjectName(p.name));
 
   // JOB-SCOPED, NOT AUTHOR-SCOPED (audit round 2 #28). Both reads used to be
   // `.eq('user_id', userId)` — the rows this user WROTE. On a job where the
@@ -465,9 +471,12 @@ async function buildDigestForUser(
 
   const { data: ownedRows } = await supabase
     .from('projects')
-    .select('id')
+    .select('id, name')
     .eq('user_id', userId);
-  const ownedIds = ((ownedRows ?? []) as { id: string }[]).map(p => String(p.id)).filter(Boolean);
+  // Open RFIs on a sample job are made up too: they are not counted.
+  const ownedIds = ((ownedRows ?? []) as { id: string; name?: string | null }[])
+    .filter((p) => !isSampleProjectName(p.name))
+    .map(p => String(p.id)).filter(Boolean);
   let openRfisCount = 0;
   // Chunked: the id list rides in the query string.
   for (let i = 0; i < ownedIds.length; i += 100) {

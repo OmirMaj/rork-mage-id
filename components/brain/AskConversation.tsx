@@ -80,6 +80,7 @@ import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import { checkAILimit, recordAIUsage, nextAiResetLabel } from '@/utils/aiRateLimiter';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import { askOneMind, type OneMindCitation } from '@/utils/oneMind/answer';
+import { withoutDemoFacts } from '@/utils/oneMind/demoFence';
 import { type OneMindBundle, isColdStart } from '@/utils/oneMind/factBlocks';
 import { resolveStarters, ONBOARDING_STARTERS, type Starter, type StarterIcon } from '@/utils/resolveStarters';
 import { followupsForRefs } from '@/utils/oneMind/followupMapping';
@@ -277,7 +278,8 @@ export function AskConversation(props: AskConversationProps) {
     // Local calendar day, not toISOString() (UTC flips the date for evening
     // hours west of Greenwich) — same discipline as the Morning Brief.
     const todayISO = localDateISO(new Date());
-    return {
+    // The owner's Demo Job is made up: it is left out here, where the bundle is built.
+    return withoutDemoFacts({
       projects, commitments, changeOrders, invoices,
       rfis, leads, dailyReports, permits, submittals, punchItems,
       expiringCertifications: safety.expiringCertifications(todayISO) as OneMindBundle['expiringCertifications'],
@@ -292,7 +294,7 @@ export function AskConversation(props: AskConversationProps) {
       constraints: allConstraints,
       // The pipeline horizon's backlog is this company's own jobs only.
       userId,
-    };
+    });
   }, [
     projects, commitments, changeOrders, invoices, rfis, leads, dailyReports,
     permits, submittals, punchItems, safety, bidResponses, aiaPayApps, receipts, costSources, laborSamples,

@@ -188,6 +188,8 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'proof-pack': 'form',
   // Lane LIVINGMODEL: the Living Model (dark behind LIVING_MODEL_ENABLED). The floor and the 3D view beside a side panel: a dashboard.
   'living-model': 'dashboard',
+  // The owner's Demo Job builder: a short column of text, buttons and a list.
+  'demo-job': 'form',
   // Lane PHONE3D: the simulator check for the phone's 3D view. It redirects in every build anyone installs.
   'dev-phone-3d': 'dashboard',
   'job-detail': 'dashboard', 'lien-waivers': 'dashboard', 'living-estimate': 'dashboard',

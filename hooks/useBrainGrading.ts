@@ -21,6 +21,7 @@ import {
   fetchOpenPredictionsDeduped, fetchResolvedPredictions, resolvePrediction,
 } from '@/utils/brain/predictionLedger';
 import { computeResolvableOutcomes } from '@/utils/brain/resolveOutcomes';
+import { isKnownDemoProjectId } from '@/utils/demoJob/marker';
 import { registerGradingHandler } from '@/utils/brain/gradingBus';
 import { buildAccuracyReport, type AccuracyReport } from '@/utils/brain/accuracyReport';
 import type { GradingCtx, TrackedBidRecord } from '@/utils/brain/gradePredictions';
@@ -122,7 +123,9 @@ export function useBrainGrading(): UseBrainGradingResult {
         trackedBids,
       };
 
-      const openRows = await fetchOpenPredictionsDeduped(undefined, projectId ?? null);
+      // Rows about the owner's made-up Demo Job are never graded (utils/demoJob/marker).
+      const openRows = (await fetchOpenPredictionsDeduped(undefined, projectId ?? null))
+        .filter((r) => !isKnownDemoProjectId(r.project_id));
       const outcomes = computeResolvableOutcomes(openRows, ctx);
 
       // Fire-and-forget resolve each — G4

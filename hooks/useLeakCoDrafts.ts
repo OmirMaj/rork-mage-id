@@ -26,6 +26,7 @@ import {
 } from '@/utils/brain/leakCoDraft';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { withoutDemoProjects } from '@/utils/demoJob/marker';
 
 // ─── AsyncStorage key for processed report IDs ────────────────────────────
 
@@ -77,7 +78,8 @@ export function useLeakCoDrafts(): void {
         // Collect candidates.
         const candidates = collectDraftableLeaks({
           dailyReports,
-          projects,
+          // No change order is ever drafted by itself on the made-up Demo Job.
+          projects: withoutDemoProjects(projects),
           changeOrders,
           processedReportIds: processedSet,
           // Owner-only drafting (rule 7 in collectDraftableLeaks).
