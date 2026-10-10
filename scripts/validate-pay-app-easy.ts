@@ -127,7 +127,6 @@ const REAL_MODULES: Record<string, unknown> = {
   '@/utils/dataTable': realDataTable,
 };
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type Mod = Record<string, any>;
 const jsCache = new Map<string, string>();
 function toJs(source: string): string {
@@ -153,7 +152,6 @@ function loader(w: World): (spec: string) => Mod {
     if (hit) return hit;
     const mod: { exports: Mod } = { exports: {} };
     loaded.set(path, mod.exports);
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
     new Function('module', 'exports', 'require', toJs(w[path] ?? ''))(mod, mod.exports, load);
     loaded.set(path, mod.exports);
     return mod.exports;
