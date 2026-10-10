@@ -83,7 +83,7 @@ dt { font-size: 11px; color: var(--mute); }
 .scene-wrap { position: sticky; top: 0; z-index: 6; background: var(--paper); border-bottom: 1px solid var(--hair); }
 .scene { padding: 8px var(--gut) 8px; }
 .sheet { background: var(--sheet); border: 1px solid var(--ink); display: flex; flex-direction: column; min-height: 0; }
-.sheet-head { display: flex; align-items: stretch; justify-content: space-between; border-bottom: 1px solid var(--hair2); min-height: 30px; }
+.sheet-head { display: flex; align-items: stretch; justify-content: space-between; border-bottom: 1px solid var(--hair2); min-height: 36px; }
 .sheet-id { display: flex; align-items: center; font-size: 12px; color: var(--ink); min-width: 0; }
 .sheet-id b { white-space: nowrap; align-self: stretch; display: flex; align-items: center; padding: 0 10px; border-right: 1px solid var(--hair2); font-weight: 700; }
 .sheet-id span { padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -109,6 +109,7 @@ dt { font-size: 11px; color: var(--mute); }
 
 .legend { position: absolute; left: 10px; top: 8px; font-size: 10.5px; color: var(--ink2); opacity: 0; transition: opacity .25s; display: flex; gap: 12px; }
 .legend.on { opacity: 1; }
+.sec .legend { flex-direction: row; gap: 12px; }
 .legend li { display: flex; align-items: center; gap: 5px; }
 .legend i { width: 16px; height: 2px; background: #2A6FB0; }
 .legend .hot { background: #B8402A; } .legend .elec { background: #A87B0C; }
@@ -126,6 +127,15 @@ dt { font-size: 11px; color: var(--mute); }
 .panel li b { grid-column: 2; grid-row: 1; font: 600 16px/1.2 var(--disp); letter-spacing: .03em; font-variant-numeric: tabular-nums; text-align: right; }
 .panel li b.ok { color: var(--teal); } .panel li b.warn { color: var(--warm); }
 .panel-note { margin-top: 9px; font-size: 12.5px; line-height: 1.4; color: var(--mute); }
+
+/* small screens: the names of the numbered marks, listed under the drawing */
+.keys { display: flex; gap: 14px; height: 32px; margin-top: 4px; overflow: hidden; }
+.key { display: none; align-items: center; gap: 6px; min-width: 0; font: 600 11.5px/1 var(--disp); text-transform: uppercase; letter-spacing: .07em; color: var(--ink); }
+.key.on { display: flex; }
+.key i { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--green); color: #fff; font: 700 12px/20px var(--disp); text-align: center; font-style: normal; }
+.key span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--hair2); padding: 3px 0 2px; }
+.key.open i { background: var(--ink); }
+.key.open span { border-color: var(--ink); }
 
 /* the schedule bar chart. Small screens: five segments. Wide screens: a real chart. */
 .gantt { position: relative; display: flex; gap: 4px; margin-top: 8px; }
@@ -203,8 +213,9 @@ td[data-l]::before { content: attr(data-l); font-size: 11.5px; color: var(--mute
 .plans-note { margin-top: 6px; }
 .straight { margin-top: 40px; border-top: 1px solid var(--ink); padding-top: 20px; display: grid; gap: 12px; }
 .straight p { font-size: 16px; color: var(--ink2); max-width: 44em; }
-.straight-links { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.straight-links { display: flex; flex-wrap: wrap; gap: 0 24px; }
 .straight-links a, .foot a { text-underline-offset: 3px; }
+.straight-links a, .foot nav a { display: inline-block; padding: 10px 0; }
 .straight-links a { font: 600 16px/1.2 var(--disp); text-transform: uppercase; letter-spacing: .08em; color: var(--green); }
 
 .testing-copy p:last-child { margin-top: 16px; font-size: 17px; color: var(--ink2); max-width: 30em; }
@@ -228,7 +239,7 @@ td[data-l]::before { content: attr(data-l); font-size: 11.5px; color: var(--mute
 
 .foot { border-top: 1px solid var(--ink); padding: 26px var(--gut) 40px; font-size: 14px; color: var(--ink2); }
 .foot-row { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
-.foot nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.foot nav { display: flex; flex-wrap: wrap; gap: 0 20px; }
 .trust-strip { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--hair); }
 .aia-notice { margin-top: 18px; font-size: 12.5px; line-height: 1.5; color: var(--mute); max-width: 76em; }
 
@@ -280,6 +291,7 @@ td[data-l]::before { content: attr(data-l); font-size: 11.5px; color: var(--mute
   .legend { left: 14px; top: 12px; font-size: 11.5px; flex-direction: column; gap: 5px; }
   .panel { position: absolute; left: auto; right: 12px; bottom: 12px; width: min(340px, calc(100% - 24px)); }
 
+  .keys { display: none; }
   .live .gantt { grid-column: 1; grid-row: 2; display: block; margin-top: 14px; --gn: 104px; padding-bottom: 2px; }
   .g-axis { display: block; position: relative; height: 20px; margin-left: var(--gn); font-size: 10.5px; color: var(--mute); border-bottom: 1px solid var(--ink); }
   .g-axis span { position: absolute; top: 2px; white-space: nowrap; }
@@ -346,6 +358,11 @@ td[data-l]::before { content: attr(data-l); font-size: 11.5px; color: var(--mute
 @media (min-width: 1100px) and (max-height: 760px) {
   .live .scene { padding-top: 76px; }
   .live .step h2 { font-size: 48px; }
+}
+
+/* a phone on its side: too short to pin the drawing, so it scrolls with the page */
+@media (max-height: 480px) and (max-width: 1099px) {
+  .scene-wrap { position: static; }
 }
 
 /* screenshots of one stage or one section */

@@ -69,8 +69,8 @@
     var im = new Image();
     im.decoding = 'async'; im.alt = alt; im.width = 393; im.height = 852;
     im.sizes = sizes;
-    im.srcset = 'img/screens/' + stem + '-1x.webp?v=4 393w, img/screens/' + stem + '-2x.webp?v=4 786w';
-    im.src = 'img/screens/' + stem + '-1x.webp?v=4';
+    im.srcset = 'img/screens/' + stem + '-1x.webp?v=5 393w, img/screens/' + stem + '-2x.webp?v=5 786w';
+    im.src = 'img/screens/' + stem + '-1x.webp?v=5';
     return im;
   }
   /* one screen that can show any frame of a list. Frames are only fetched when asked for. */
@@ -115,7 +115,7 @@
   }
 
   /* ---------- keynotes on the drawing, and the panel they open ---------- */
-  var pinsEl = $('pins'), pinEls = [], panel = $('panel'), openPin = null, counts = {};
+  var pinsEl = $('pins'), pinEls = [], keysEl = $('keys'), keyEls = [], panel = $('panel'), openPin = null, counts = {};
   D.PINS.forEach(function (p) {
     var b = doc.createElement('button'); counts[p.tag] = (counts[p.tag] || 0) + 1;
     b.type = 'button'; b.className = 'pin'; b.setAttribute('aria-expanded', 'false'); b.setAttribute('aria-controls', 'panel');
@@ -123,25 +123,32 @@
     b.setAttribute('aria-label', p.title + ', ' + p.plan + ' plan. Show what the app does here.');
     b.addEventListener('click', function () { if (openPin === p) closePanel(true); else showPanel(p, b); });
     pinsEl.appendChild(b); pinEls.push(b);
+    /* small screens have no room for a name beside each number, so the names are listed under the drawing */
+    var k = doc.createElement('button');
+    k.type = 'button'; k.className = 'key'; k.tabIndex = -1;
+    k.innerHTML = '<i>' + counts[p.tag] + '</i><span>' + (p.short || p.title) + '</span>';
+    k.addEventListener('click', function () { if (openPin === p) closePanel(false); else { showPanel(p, b); b.focus({ preventScroll: true }); } });
+    if (keysEl) keysEl.appendChild(k);
+    keyEls.push(k);
   });
   var P = 0;
   function placePins() {
     if (!draw) return;
     var sz = draw.size(), ov = draw.over();
     D.PINS.forEach(function (p, i) {
-      var b = pinEls[i], on = P >= p.show[0] && P <= p.show[1] && (!ov || openPin === p);
+      var b = pinEls[i], on = P >= p.show[0] && P <= p.show[1] && (ov !== 'section' || openPin === p); /* the marks stay in Plan and Axonometric; the section has no place for them */
       if (on) {
         var q = draw.project(p.at), x = clamp(q[0], 14, sz[0] - 14), y = clamp(q[1], 14, sz[1] - 14);
         var flip = p.side ? p.side === 'l' : x > sz[0] * 0.56;
         b.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)' + (flip && wide() ? ' translateX(calc(-100% + 24px))' : '');
         b.classList.toggle('flip', flip);
       }
-      if (b.classList.contains('on') !== on) { b.classList.toggle('on', on); b.tabIndex = on ? 0 : -1; if (!on && openPin === p) closePanel(false); }
+      if (b.classList.contains('on') !== on) { b.classList.toggle('on', on); keyEls[i].classList.toggle('on', on); b.tabIndex = on ? 0 : -1; if (!on && openPin === p) closePanel(false); }
     });
   }
   function showPanel(p, btn) {
     openPin = p;
-    pinEls.forEach(function (b) { b.setAttribute('aria-expanded', b === btn ? 'true' : 'false'); });
+    pinEls.forEach(function (b, i) { b.setAttribute('aria-expanded', b === btn ? 'true' : 'false'); keyEls[i].classList.toggle('open', b === btn); });
     $('panelTag').innerHTML = p.tag + ' ' + tierTag(p.plan);
     $('panelTitle').textContent = p.title; $('panelSub').textContent = p.sub; $('panelNote').textContent = p.note;
     $('panelRows').innerHTML = p.rows.map(function (r) { return '<li><span>' + r[0] + '</span>' + (r[1] ? '<small>' + r[1] + '</small>' : '') + '<b' + (r[3] ? ' class="' + r[3] + '"' : '') + '>' + r[2] + '</b></li>'; }).join('');
@@ -150,7 +157,7 @@
   function closePanel(refocus) {
     if (!openPin) return;
     var i = D.PINS.indexOf(openPin); openPin = null; panel.hidden = true;
-    pinEls.forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+    pinEls.forEach(function (b, j) { b.setAttribute('aria-expanded', 'false'); keyEls[j].classList.remove('open'); });
     if (refocus && pinEls[i]) pinEls[i].focus();
   }
   $('panelClose').addEventListener('click', function () { closePanel(true); });
@@ -163,6 +170,7 @@
   });
   function syncViews() {
     var n = draw.viewName(); if (n === lastView) return; lastView = n;
+    sheetBody.classList.toggle('sec', n !== 'Plan' && n !== 'Axonometric');
     viewBtns.forEach(function (b) { var v = b.getAttribute('data-view'); b.setAttribute('aria-pressed', (v === 'plan' && n === 'Plan') || (v === 'axon' && n === 'Axonometric') || (v === 'section' && n !== 'Plan' && n !== 'Axonometric') ? 'true' : 'false'); });
   }
 
@@ -328,7 +336,7 @@
       var tabs = doc.createElement('div'); tabs.className = 'tabs'; tabs.setAttribute('role', 'group'); tabs.setAttribute('aria-label', t.title + ': pick a week');
       t.frames.forEach(function (f, i) {
         var b = doc.createElement('button'); b.type = 'button'; b.textContent = f.label; b.setAttribute('aria-pressed', i === start ? 'true' : 'false');
-        b.addEventListener('click', function () { im.srcset = 'img/screens/' + f.img + '-1x.webp?v=4 393w, img/screens/' + f.img + '-2x.webp?v=4 786w'; im.src = 'img/screens/' + f.img + '-1x.webp?v=4'; im.alt = f.alt; all('button', tabs).forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); });
+        b.addEventListener('click', function () { im.srcset = 'img/screens/' + f.img + '-1x.webp?v=5 393w, img/screens/' + f.img + '-2x.webp?v=5 786w'; im.src = 'img/screens/' + f.img + '-1x.webp?v=5'; im.alt = f.alt; all('button', tabs).forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); });
         tabs.appendChild(b);
       });
       fig.appendChild(tabs);

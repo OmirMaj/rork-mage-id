@@ -122,6 +122,8 @@ window.MageDraw = function (canvas, opts) {
   }
   var P = 5, W = 0, H = 0, dpr = 1, cam = baseCam(0), over = null, free = false, last = 0, raf = 0, visible = true;
   var ca, sa, se, ce, sc = 10, ox = 0, oy = 0, GA = 1, pf = 0, sf = 0, da = 0, listeners = [];
+  /* the part of the sheet the current pass draws into, and whether that pass is the small key plan under the section */
+  var VX = 0, VY = 0, VW = 0, VH = 0, keyPass = false;
 
   function setTrig() { ca = Math.cos(cam[0]); sa = Math.sin(cam[0]); se = Math.sin(cam[1]); ce = Math.cos(cam[1]); }
   function raw(x, y, z) { var dx = x - CX, dy = y - CY; return [dx * ca - dy * sa, (dx * sa + dy * ca) * se - z * ce]; }
@@ -134,10 +136,13 @@ window.MageDraw = function (canvas, opts) {
       r = raw(i & 1 ? x1 : x0, i & 2 ? y1 : y0, i & 4 ? z1 : z0);
       if (r[0] < mnx) mnx = r[0]; if (r[0] > mxx) mxx = r[0]; if (r[1] < mny) mny = r[1]; if (r[1] > mxy) mxy = r[1];
     }
-    var padX = Math.max(10, W * 0.03), padT = Math.max(10, H * 0.03), padB = Math.max(26, H * 0.07);
-    sc = Math.min((W - padX * 2) / (mxx - mnx), (H - padT - padB) / (mxy - mny));
-    ox = W / 2 - (mnx + mxx) / 2 * sc;
-    oy = padT + (H - padT - padB) / 2 - (mny + mxy) / 2 * sc;
+    var padX = Math.max(10, VW * 0.03), padT = Math.max(10, VH * 0.03), padB = Math.max(26, VH * 0.07);
+    if (keyPass) { padT = 6; padB = Math.max(22, VH * 0.16); }
+    else if (sf > 0.5) padB = Math.max(padB, 36); /* room for the view title under the section */
+    else if (P > 2.5 && P < 3.2) padT = Math.max(padT, 30 * sm(seg(sf, 0.5, 1))); /* room for the legend above the section */
+    sc = Math.min((VW - padX * 2) / (mxx - mnx), (VH - padT - padB) / (mxy - mny));
+    ox = VX + VW / 2 - (mnx + mxx) / 2 * sc;
+    oy = VY + padT + (VH - padT - padB) / 2 - (mny + mxy) / 2 * sc;
   }
 
   /* ---------- drawing helpers ---------- */
@@ -165,6 +170,15 @@ window.MageDraw = function (canvas, opts) {
     ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
     if (halo) { ctx.strokeStyle = PAPER; ctx.lineWidth = Math.max(3, size * 0.34); ctx.lineJoin = 'round'; ctx.setLineDash([]); ctx.strokeText(s.toUpperCase(), x, y); }
     ctx.fillText(s.toUpperCase(), x, y);
+  }
+  /* a view title the way a sheet letters one: the name over a rule, a note under it. Right aligned at x, sitting on y. */
+  function title(name, note, x, y, a) {
+    var fs = clamp(Math.min(W, H * 1.3) / 46, 8.5, 12.5), tw;
+    ctx.font = '700 ' + fs * 1.08 + 'px ' + FONT; if ('letterSpacing' in ctx) ctx.letterSpacing = fs * 0.1 + 'px';
+    tw = Math.max(ctx.measureText(name.toUpperCase()).width, fs * 6);
+    al(a); text(name, x, y - fs * 1.75, fs * 1.08, INK, 700, 'right', fs * 0.1, true);
+    ctx.beginPath(); ctx.moveTo(x - tw, y - fs * 0.98); ctx.lineTo(x, y - fs * 0.98); stroke(INK, 1.1);
+    text(note, x, y - fs * 0.3, fs * 0.8, GRAPH, 600, 'right', fs * 0.06, true);
   }
   var faces = [];
   function face(pts, nx, ny, nz, fill, edges, a, hatch) {
@@ -287,14 +301,47 @@ window.MageDraw = function (canvas, opts) {
     /* planned walls: dashed outlines stand up where the plan says */
     WALLS.forEach(function (w, wi) {
       var k = sm(seg(p, 1.42 + wi * 0.05, 1.68 + wi * 0.05)), fade = 1 - sm(seg(p, 2.05 + wi * 0.05, 2.3 + wi * 0.05));
+      /* a section cut before any wall stands shows the walls as planned, not an empty box */
+      if (!keyPass && p >= 0.6) k = Math.max(k, sm(seg(sf, 0.5, 1)));
       if (k <= 0 || fade <= 0) return;
       var h = (w.full ? FULL : lerp(CUT, FULL, sf)) * k, c = [[w.s, -TH], [w.e, -TH], [w.e, TH], [w.s, TH]];
+      /* a faint body, so a planned wall reads as a wall and not as loose lines */
+      ctx.beginPath();
+      w.segs.forEach(function (s2) {
+        var z0 = s2.k === 's' ? 0 : s2.k === 'w' ? 7 : 6.8, bands = s2.k === 'w' ? [[0, Math.min(3, h)], [7, h]] : [[z0, h]];
+        bands.forEach(function (b) {
+          if (b[1] - b[0] < 0.05) return;
+          var g = [wp(w, s2.u0, 0, b[0]), wp(w, s2.u1, 0, b[0]), wp(w, s2.u1, 0, b[1]), wp(w, s2.u0, 0, b[1])].map(pp);
+          ctx.moveTo(g[0][0], g[0][1]); ctx.lineTo(g[1][0], g[1][1]); ctx.lineTo(g[2][0], g[2][1]); ctx.lineTo(g[3][0], g[3][1]); ctx.closePath();
+        });
+      });
+      al(fade * frontA(w.ax === 'x' ? w.c : 0) * (w.full ? 0.07 : 0.1)); ctx.fillStyle = GREEN; ctx.fill();
       ctx.beginPath();
       poly3(c.map(function (m) { return wp(w, m[0], m[1], h); }), 1, true);
       c.forEach(function (m) { line3(wp(w, m[0], m[1], 0), wp(w, m[0], m[1], h)); });
       w.open.forEach(function (o) { var zt = o.t === 'w' ? 7 : 6.8; if (h < 3) return; ctx.rect(0, 0, 0, 0); poly3([wp(w, o.s, 0, o.t === 'w' ? 3 : 0), wp(w, o.s, 0, Math.min(h, zt)), wp(w, o.e, 0, Math.min(h, zt)), wp(w, o.e, 0, o.t === 'w' ? 3 : 0)], 1, o.t === 'w'); });
       al(fade * frontA(w.ax === 'x' ? w.c : 0) * 0.95); stroke(k < 1 ? GREEN : '#4E7F57', k < 1 ? 1.2 : 0.9, [5, 3]);
     });
+
+    /* door and window tags on the planned walls, the way a drawing set keys its openings to a schedule */
+    if (!keyPass && sf < 0.5 && pf < 0.5) {
+      var nW = 0, nD = 0, rt = fs * 0.92;
+      WALLS.forEach(function (w, wi) {
+        var k = sm(seg(p, 1.56 + wi * 0.03, 1.7 + wi * 0.03)), fade = 1 - sm(seg(p, 2.05 + wi * 0.05, 2.3 + wi * 0.05));
+        w.open.forEach(function (o) {
+          if (o.t === 'o') return;
+          var lab = o.t === 'w' ? 'W' + (++nW) : 'D' + (++nD);
+          if (k <= 0 || fade <= 0) return;
+          var c = prj.apply(null, wp(w, (o.s + o.e) / 2, 0, o.t === 'w' ? (w.full ? 5 : 3.4) : (w.full ? 3.6 : 2.6))), j;
+          al(k * fade * frontA(w.ax === 'x' ? w.c : 0));
+          ctx.beginPath();
+          if (o.t === 'w') { for (j = 0; j < 6; j++) { var a = Math.PI / 6 + j * Math.PI / 3; if (j) ctx.lineTo(c[0] + Math.cos(a) * rt * 1.08, c[1] + Math.sin(a) * rt * 1.08); else ctx.moveTo(c[0] + Math.cos(a) * rt * 1.08, c[1] + Math.sin(a) * rt * 1.08); } ctx.closePath(); }
+          else ctx.arc(c[0], c[1], rt, 0, 6.2832);
+          ctx.fillStyle = PAPER; ctx.fill(); stroke(GREEN, 0.9);
+          text(lab, c[0], c[1] + 0.5, fs * 0.78, GREEN, 700, 'center', 0);
+        });
+      });
+    }
 
     /* framing: studs at 16 in on centre, stood wall by wall */
     var studFade = 1 - sm(seg(p, 3.08, 3.5));
@@ -360,6 +407,7 @@ window.MageDraw = function (canvas, opts) {
       ctx.beginPath(); ctx.moveTo(d0[0], d0[1]); ctx.lineTo(d1[0], d1[1]); ctx.moveTo(d0[0] - 4, d0[1] + 4); ctx.lineTo(d0[0] + 4, d0[1] - 4); ctx.moveTo(d1[0] - 4, d1[1] + 4); ctx.lineTo(d1[0] + 4, d1[1] - 4); stroke(GRAPH, 0.9);
       ctx.save(); ctx.translate(d0[0] + fs, (d0[1] + d1[1]) / 2); ctx.rotate(-Math.PI / 2); text('8\'-0"', 0, 0, fs, INK, 600); ctx.restore();
       ROOMS.slice(2).forEach(function (r) { var c = prj(r.lx, CUTY, 4.6); text(r.n, c[0], c[1], fs * 1.05, INK, 600); });
+      title('Section A-A', 'Looking North', VX + VW - Math.max(12, W * 0.03), VY + VH - Math.max(12, H * 0.035), sa2);
     }
 
     /* dimension strings with tick marks */
@@ -389,13 +437,13 @@ window.MageDraw = function (canvas, opts) {
 
     /* room names */
     var kl = sm(seg(p, 0.84, 1));
-    if (kl > 0 && sf < 0.4) ROOMS.forEach(function (r, k) {
-      var c = prj(r.lx, r.ly, 0), wNar = W < 420;
+    if (kl > 0 && sf < 0.4 && !(keyPass && sc < 5.2)) ROOMS.forEach(function (r, k) {
+      var c = prj(r.lx, r.ly, 0), wNar = W < 420, kz = 1 - sm(seg(p, 2.3, 2.5));
       al(kl * (1 - sf * 2.5));
-      text(r.n, c[0], c[1], fs * 1.15, INK, 700, 'center', undefined, p > 1.3);
-      if (!wNar && p < 1.9) { al(kl * 0.85 * (1 - sf * 2.5) * (p < 1.5 ? 1 : 0.7)); text(r.size, c[0], c[1] + fs * 1.25, fs * 0.86, GRAPH, 500, 'center', 0.3, p > 1.3); }
+      text(r.n, c[0], c[1], fs * (keyPass ? 0.95 : 1.15), INK, 700, 'center', undefined, p > 1.3);
+      if (!wNar && !keyPass && kz > 0) { al(kl * 0.85 * (1 - sf * 2.5) * (p < 1.5 ? 1 : 0.8) * kz); text(r.size, c[0], c[1] + fs * 1.25, fs * 0.86, GRAPH, 500, 'center', 0.3, p > 1.3); }
       var kc = sm(seg(p, 4.58 + k * 0.06, 4.74 + k * 0.06));
-      if (kc > 0 && !opts.noMarks) {
+      if (kc > 0 && !opts.noMarks && !keyPass) {
         var warm = r.open, y = c[1] + fs * 1.5, tw, lab = warm ? '1 Open' : 'Closed';
         ctx.font = '600 ' + fs * 0.86 + 'px ' + FONT; tw = ctx.measureText(lab.toUpperCase()).width + fs * 1.9;
         al(kc); ctx.beginPath(); ctx.arc(c[0] - tw / 2 + fs * 0.45, y, fs * 0.56, 0, 6.2832); ctx.fillStyle = PAPER; ctx.fill(); ctx.beginPath(); ctx.arc(c[0] - tw / 2 + fs * 0.45, y, fs * 0.42, 0, 6.2832); ctx.fillStyle = warm ? WARM : TEAL; ctx.fill();
@@ -406,10 +454,9 @@ window.MageDraw = function (canvas, opts) {
 
     /* north arrow and scale bar: small, true details */
     var kn = sm(seg(p, 0.32, 0.5));
-    if (kn > 0 && H > 200) {
-      var bx = Math.max(12, W * 0.03), by = H - Math.max(12, H * 0.035), ft = sc, len = ft * 10, half = ft * 5;
+    if (kn > 0 && H > 200 && !keyPass) {
+      var bx = Math.max(12, W * 0.03), by = VY + VH - Math.max(12, H * 0.035), ft = sc, len = ft * 10, half = ft * 5;
       al(kn * 0.95);
-      if (sf < 0.5 || pf > 0.5) { /* scale bar reads true in plan and section */ }
       ctx.fillStyle = INK; ctx.fillRect(bx, by - 4, half, 4); ctx.strokeStyle = INK; ctx.lineWidth = 0.9; ctx.strokeRect(bx, by - 4, len, 4);
       text('0', bx, by - 11, fs * 0.82, GRAPH, 600, 'center', 0); text('5', bx + half, by - 11, fs * 0.82, GRAPH, 600, 'center', 0); text('10 Ft', bx + len, by - 11, fs * 0.82, GRAPH, 600, 'center', 0.3);
       if (sf < 0.5) {
@@ -421,6 +468,22 @@ window.MageDraw = function (canvas, opts) {
     }
     ctx.globalAlpha = 1;
     return done;
+  }
+
+  /* on the key plan: the cut line, its two letters, and arrows for the way the section looks */
+  function keyPlanMarks(a) {
+    var fs = clamp(Math.min(W, H * 1.3) / 46, 8.5, 12.5), s0 = prj(-1.6, CUTY, 0), s1 = prj(BW + 1.6, CUTY, 0), r = fs * 0.78;
+    /* what is in front of the cut is not in the section: tone it back */
+    var f = [[-0.25, CUTY, 0], [BW + 0.25, CUTY, 0], [BW + 0.25, BD + 0.25, 0], [-0.25, BD + 0.25, 0]].map(pp), i;
+    al(a * 0.62); ctx.beginPath(); ctx.moveTo(f[0][0], f[0][1]); for (i = 1; i < 4; i++) ctx.lineTo(f[i][0], f[i][1]); ctx.closePath(); ctx.fillStyle = PAPER; ctx.fill();
+    al(a); ctx.beginPath(); ctx.moveTo(s0[0], s0[1]); ctx.lineTo(s1[0], s1[1]); stroke(GREEN, 1.2, [12, 3, 2, 3]);
+    [s0, s1].forEach(function (c, k) {
+      var x = c[0] + (k ? r : -r);
+      ctx.beginPath(); ctx.moveTo(x - r, c[1]); ctx.lineTo(x, c[1] - r * 1.9); ctx.lineTo(x + r, c[1]); ctx.closePath(); ctx.fillStyle = GREEN; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, c[1], r, 0, 6.2832); ctx.fillStyle = '#FFFFFF'; ctx.fill(); stroke(GREEN, 1);
+      text('A', x, c[1] + 0.5, fs * 0.9, GREEN, 700, 'center', 0);
+    });
+    title('Key Plan', 'Section A-A Is Cut Here', VX + VW - Math.max(12, W * 0.03), VY + VH - Math.max(12, H * 0.035), a);
   }
 
   function draw() {
@@ -439,8 +502,20 @@ window.MageDraw = function (canvas, opts) {
     setTrig();
     pf = sm(seg(cam[1], 1.0, 1.5)); sf = 1 - sm(seg(cam[1], 0.04, 0.5));
     da = pf * (p < 0.3 ? 0 : 1) * (1 - sm(seg(p, 1.1, 1.5)) * 0);
-    fit();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H); ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
+    /* A section of a low, wide job is a thin strip. So the Section view is laid out like a sheet:
+       the section on top, and under it a key plan that shows where the cut is and which way it looks. */
+    var comp = sm(seg(sf, 0.5, 1)), split = Math.round(H * 0.5);
+    if (comp > 0.01) {
+      var keep = [cam[0], cam[1], pf, sf, da];
+      cam = VIEWS.plan.slice(); setTrig(); pf = 1; sf = 0; da = 0; keyPass = true;
+      VX = 0; VY = split; VW = W; VH = H - split; fit();
+      GA = comp * (p < 0.3 ? heroA : 1); state(p < 0.3 ? 5 : Math.max(p, 1));
+      GA = p < 0.3 ? heroA : 1; keyPlanMarks(comp);
+      keyPass = false; cam = [keep[0], keep[1]]; setTrig(); pf = keep[2]; sf = keep[3]; da = keep[4];
+      al(comp * 0.9); ctx.beginPath(); ctx.moveTo(Math.max(12, W * 0.03), split + 0.5); ctx.lineTo(W - Math.max(12, W * 0.03), split + 0.5); stroke(HAIR, 0.8);
+    }
+    VX = 0; VY = 0; VW = W; VH = lerp(H, split, comp); fit();
     if (p < 0.3) { GA = heroA; opts.noMarks = true; state(5); opts.noMarks = false; } else { GA = 1; state(p); }
     listeners.forEach(function (f) { f(api); });
     if (moving) { last = now; raf = requestAnimationFrame(draw); } else last = 0;

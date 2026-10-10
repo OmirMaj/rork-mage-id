@@ -76,7 +76,7 @@ window.MAGE_DATA = (function () {
   ];
 
   /* Keynotes on the drawing. at: a point on the job in feet (x across, y front to back, z up). show: the part of the job they belong to.
-     Each opens a small panel about what the app does there. */
+     Each opens a small panel about what the app does there. short: a shorter name for the list under the drawing on small screens. */
   var PINS = [
     { id: 'plans', at: [20.5, -4.9, 0], side: 'r', show: [0.8, 1.55], tag: 'Win It', plan: 'Pro', title: 'Takeoff From Plans',
       sub: 'Upload a plan PDF and the app reads quantities off the pages. You check and edit them. You can also measure on a plan by hand.',
@@ -90,6 +90,10 @@ window.MAGE_DATA = (function () {
       sub: 'Built from the estimate. On Pro, the critical path is worked out for you.',
       rows: [['Basic schedule', '15 tasks, 50 working days', 'Free'], ['Critical path and share links', 'The client and the subs get a link', 'Pro']],
       note: 'AI drafts are on Pro, with 3 free tries. You approve the draft.' },
+    { id: 'bids', at: [0.4, 22.5, 4], side: 'r', show: [1.6, 2.45], tag: 'Plan It', plan: 'Free', title: 'Bids From Subs',
+      sub: 'Set up a bid package for each scope, add the bids you get back and award the work to one of them.',
+      rows: [['Bid packages', 'One for each scope', 'Free'], ['Bid leveling', '', 'Pro']],
+      note: 'Bid packages are on every plan. Bid leveling is on Pro.' },
     { id: 'report', at: [12.5, 0, 8], show: [2.5, 3.45], tag: 'Build It', plan: 'Free', title: 'Daily Report',
       sub: 'Who was on site, what got done, and what is holding the job up.',
       rows: [['Weather', 'Read in from OpenWeather', '57°F'], ['Report shared with the client', 'Example', 'Sent', 'ok']],
@@ -102,7 +106,7 @@ window.MAGE_DATA = (function () {
       sub: 'Price the change and send it. Your client signs it with a finger in the client portal.',
       rows: [['Under-cabinet lighting, move the range outlet', 'Change order 2', '+$1,860.00'], ['Both change orders', 'Example', '+$3,340.00'], ['Status', '', 'Approved', 'ok']],
       note: 'Change orders and the client portal are on Pro.' },
-    { id: 'bill', at: [4.5, 4.2, 0], side: 'r', show: [3.5, 4.45], tag: 'Get Paid', plan: 'Pro', title: 'Invoices And AIA-Style Pay Apps',
+    { id: 'bill', at: [4.5, 4.2, 0], side: 'r', show: [3.5, 4.45], tag: 'Get Paid', plan: 'Pro', title: 'Invoices And AIA-Style Pay Apps', short: 'Invoices And Pay Apps',
       sub: 'Bill the work as it gets done and see what is still owed.',
       rows: [['Pay Application 1', 'Due after 10 percent retainage', '$24,193.08'], ['Balance to finish', 'Example', '$54,001.62']],
       note: 'Billing is on Pro.' },
