@@ -10,19 +10,23 @@ import { DEFAULT_MODEL_LOOK, MODEL_LOOK_STORAGE_KEY, isModelLook, readModelLook,
 
 /** The look last read or chosen while the app is open, so the view does not start in one look and jump to the other. */
 let remembered: ModelLook | null = null;
+/** How many choices have been made while the app is open: a read that comes back after a choice does not undo it. */
+let choices = 0;
 
 /** The look to start with, before the device has been read: the last one known, or the default. */
 export const rememberedModelLook = (): ModelLook => remembered ?? DEFAULT_MODEL_LOOK;
 
-/** Reads the look the person last chose on this device. Never rejects. */
+/**
+ * Reads the look the person last chose on this device. The device is asked every time, so after a change of account
+ * has swept the key the next person starts from the default. Never rejects.
+ */
 export async function loadModelLook(): Promise<ModelLook> {
-  if (remembered) return remembered;
+  const before = choices;
   try {
     const look = readModelLook(await AsyncStorage.getItem(MODEL_LOOK_STORAGE_KEY));
-    // A choice made while the read was on its way wins.
-    if (!remembered) remembered = look;
+    if (choices === before) remembered = look;
   } catch {
-    /* the default is drawn */
+    /* the look already known, or the default, is drawn */
   }
   return rememberedModelLook();
 }
@@ -31,6 +35,7 @@ export async function loadModelLook(): Promise<ModelLook> {
 export async function saveModelLook(look: ModelLook): Promise<boolean> {
   if (!isModelLook(look)) return false;
   remembered = look;
+  choices += 1;
   try {
     await AsyncStorage.setItem(MODEL_LOOK_STORAGE_KEY, look);
     return true;
