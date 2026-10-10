@@ -223,7 +223,8 @@ describe('2. The schedule moves: the app shows it and asks. It does not act.', (
     expect(textOf(tree.getByTestId('dfs-moved-needed-value').props.children)).toBe('Wed, Oct 28');
     expect(textOf(tree.getByTestId(`dfs-supplier-${LUMBER.id}-basis`).props.children)).toBe('Typed by you, Oct 2. No word on who gave it.');
     expect(tree.getByText('Write a Message opens a draft for you to read and send yourself. MAGE ID sends nothing to a supplier.')).toBeTruthy();
-    expect(tree.getByText('MAGE ID shows what the dates say. It can miss things. Check with your supplier.')).toBeTruthy();
+    // On the block behind and on the sheet in front.
+    expect(tree.getAllByText('MAGE ID shows what the dates say. It can miss things. Check with your supplier.').length).toBe(2);
 
     // The draft: the phone's own mail app, no recipient, facts only.
     await act(async () => { fireEvent.press(tree.getByTestId('dfs-write-message')); });
@@ -369,8 +370,11 @@ describe('Before the migration is applied', () => {
     // The gate open, and the table answers "that column does not exist".
     mockFlagOn = true;
     await seed(GOLDEN_DELIVERIES, { schedule: false });
-    const realFrom = supabase.from;
-    jest.spyOn(supabase, 'from').mockImplementation((table?: string) => {
+    // The jest client (the mock in __tests__/mocks/supabase.ts) takes any table name.
+    type Builder = Record<string, (...a: unknown[]) => unknown>;
+    const client = supabase as unknown as { from: (table?: string) => Builder };
+    const realFrom = client.from;
+    jest.spyOn(client, 'from').mockImplementation((table?: string) => {
       const builder = realFrom(table);
       if (table !== 'deliveries') return builder;
       return new Proxy(builder, {
@@ -380,7 +384,7 @@ describe('Before the migration is applied', () => {
               ? { limit: async () => ({ data: null, error: { code: '42703', message: 'column deliveries.task_id does not exist' } }) }
               : target.select(cols));
           }
-          return target[prop as keyof typeof target];
+          return target[prop as string];
         },
       });
     });
