@@ -1601,7 +1601,9 @@ function ScheduleProScreenInner() {
       } else if (writePath !== 'row') {
         return 'Not saved: you have view-only access to this project. Ask the project owner for editor access.';
       }
-      commitAiBatch(producer, source && source.trim() ? source.trim() : 'AI schedule edit');
+      const named = source?.trim();
+      if (named) { commitAiBatch(producer, named); return; }
+      commitAiBatch(producer, 'AI schedule edit');
     },
     [commitAiBatch, writePath],
   );

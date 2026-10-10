@@ -1683,6 +1683,9 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       <TaskDetailSheet
         visible={!!detailTask}
         task={detailTask}
+        // The job the task is on, for "Deliveries for This Task" (a task id
+        // alone does not name a job: a cloned job keeps its task ids).
+        projectId={selectedProject.id}
         allTasks={tasks}
         startDate={anchor.iso}
         workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
@@ -1690,9 +1693,6 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         onClose={() => setDetailTask(null)}
         onUpdateTask={onUpdateTask}
         onDeleteTask={onDeleteTask}
-        // The job the task is on, for "Deliveries for This Task" (a task id
-        // alone does not name a job: a cloned job keeps its task ids).
-        projectId={selectedProject.id}
         writePath={writePath}
         // The list row's own placement (#88): the sheet prints and steps from
         // the engine's dates, not the stored pin.

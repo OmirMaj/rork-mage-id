@@ -1068,7 +1068,7 @@ section('L. The review fixes that are read from the screens and the queue');
     if (!/const project = useMemo\(\(\) => projects\.find\(\(p\) => p\.id === projectId\) \?\? null, \[projects, projectId\]\);/.test(follow)) out.push('the task section does not find its job by id');
     if (/tasks \?\? \[\]\)\.some\(\(x\) => x\.id === taskId\)/.test(follow)) out.push('a job is looked up by task id');
     if (!/tab === 'docs' && projectId \? <TaskDeliveriesSection taskId=\{task\.id\} projectId=\{projectId\} \/> : null/.test(sheet)) out.push('TaskDetailSheet does not pass its projectId');
-    if (!/<TaskDetailSheet[\s\S]{0,500}projectId=\{selectedProject\.id\}\s*writePath=\{writePath\}/.test(phone)) out.push('the schedule screen does not hand the task sheet its job');
+    if (!/<TaskDetailSheet\s+visible=\{!!detailTask\}\s+task=\{detailTask\}\s+projectId=\{selectedProject\.id\}/.test(phone)) out.push('the schedule screen does not hand the task sheet its job');
     return out;
   };
   const SHEET_TASK = raw('components/schedule/mobile/TaskDetailSheet.tsx');
@@ -1082,13 +1082,13 @@ section('L. The review fixes that are read from the screens and the queue');
   const auditRule = (pro: string, follow: string): string[] => {
     const out: string[] = [];
     if (!/\(producer: \(prev: ScheduleTask\[\]\) => ScheduleTask\[\], source\?: string\): string \| void => \{/.test(pro)) out.push('commitEditorBatch takes no source label');
-    if (!/commitAiBatch\(producer, source && source\.trim\(\) \? source\.trim\(\) : 'AI schedule edit'\);/.test(pro) || /commitAiBatch\(producer, 'AI schedule edit'\);/.test(pro)) out.push('the editor commit always logs "AI schedule edit"');
+    if (!/const named = source\?\.trim\(\);\s*if \(named\) \{ commitAiBatch\(producer, named\); return; \}\s*commitAiBatch\(producer, 'AI schedule edit'\);/.test(pro)) out.push('the editor commit always logs "AI schedule edit"');
     if (!/copy\.auditAppliedSub\);/.test(follow) || !/copy\.auditHoldRemovedSub\);/.test(follow)) out.push('the banner does not name its own change');
     if (!/commit: \(producer: \(prev: ScheduleTask\[\]\) => ScheduleTask\[\], source: string\) => string \| void;/.test(follow)) out.push('the banner\'s commit prop has no required source');
     return out;
   };
   ok('the schedule\'s commit takes a source label, and the banner\'s Apply reads "Applied from a delivery" in the change log (never "AI schedule edit")', auditRule(PRO, FOLLOW).length === 0 && en('auditAppliedSub') === 'Applied from a delivery' && en('auditHoldRemovedSub') === 'Hold removed from a delivery' && !/\bAI\b/.test(String(en('auditAppliedSub'))), auditRule(PRO, FOLLOW).join(' | '));
-  plant('the commit ignores the label', auditRule(PRO.replace("source && source.trim() ? source.trim() : 'AI schedule edit'", "'AI schedule edit'"), FOLLOW).length > 0);
+  plant('the commit ignores the label', auditRule(PRO.replace('if (named) { commitAiBatch(producer, named); return; }', ''), FOLLOW).length > 0);
   plant('the banner applies with no label', auditRule(PRO, FOLLOW.replace(', copy.auditAppliedSub);', ');')).length > 0);
 
   // 5. "NO DATE YET" IS LISTED AND CAN BE RECEIVED.
@@ -1200,6 +1200,10 @@ section('L. The review fixes that are read from the screens and the queue');
     return out;
   };
   ok('the sync queue asks at both places a write fails, BEFORE treating the miss as "keep unchanged", removes the stored key, and queues the row with the old columns', queueRule(QUEUE).length === 0, queueRule(QUEUE).join(' | '));
+  const GATE_SRC = raw('utils/deliveries/columnsGate.ts');
+  const noImports = (src: string) => !/^\s*import\b|\brequire\(/m.test(src);
+  ok('the one file of the lane the sync queue loads imports nothing (the queue does not pull the schedule engine in behind it), and rowCore takes the seven columns from it', noImports(GATE_SRC) && /export \{ DELIVERY_SCHEDULE_COLUMNS, type DeliveryScheduleColumn \};/.test(raw('utils/deliveries/rowCore.ts')) && /from '\.\/columnsGate';/.test(raw('utils/deliveries/rowCore.ts')));
+  plant('columnsGate imports the row mapping (and the engine with it)', !noImports(`import { DELIVERY_SCHEDULE_COLUMNS } from './rowCore';\n${GATE_SRC}`));
   plant('the flush keeps the write unchanged', queueRule(QUEUE.replace('gRemaining.push({ ...mutation, data: oldColumnsOnly });', 'gRemaining.push(mutation);')).length > 0);
   plant('the stored key is left in place', queueRule(QUEUE.replace('try { await AsyncStorage.removeItem(DELIVERY_COLUMNS_SEEN_KEY); }', 'try { await Promise.resolve(); }')).length > 0);
 

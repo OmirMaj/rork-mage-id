@@ -19,9 +19,16 @@
 // A queue entry that names a missing column and is re-sent unchanged would
 // fail the same way every time: that is the wedge this file removes.
 //
-// Pure: no React, no storage, no network. The stored key is read and written
-// by hooks/useDeliveriesFollowSchedule and removed by the sync queue.
-import { DELIVERY_SCHEDULE_COLUMNS } from './rowCore';
+// Pure: no React, no storage, no network, and NO IMPORTS AT ALL: the sync
+// queue loads this file, and must not pull the schedule engine in behind it.
+// The stored key is read and written by hooks/useDeliveriesFollowSchedule and
+// removed by the sync queue.
+
+/** The seven columns the migration adds, in the order it adds them. (utils/deliveries/rowCore re-exports this and maps them.) */
+export const DELIVERY_SCHEDULE_COLUMNS = [
+  'task_id', 'buffer_days', 'lead_time_days', 'ordered_on', 'promised_date', 'date_history', 'task_start_seen',
+] as const;
+export type DeliveryScheduleColumn = (typeof DELIVERY_SCHEDULE_COLUMNS)[number];
 
 /** "This device has seen the delivery columns." A fact about the table, not about a person or a job. */
 export const DELIVERY_COLUMNS_SEEN_KEY = 'mageid_deliveries_fs_columns_seen';

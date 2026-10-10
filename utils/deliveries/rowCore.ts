@@ -27,12 +27,10 @@
 import type { Delivery, DeliveryDateChange } from '@/utils/deliverySchedule';
 import { dayOrEmpty } from './calendar';
 import { DATE_HISTORY_MAX, readHistory } from './provenance';
+import { DELIVERY_SCHEDULE_COLUMNS, type DeliveryScheduleColumn } from './columnsGate';
 
-/** The seven columns the migration adds, in the order it adds them. */
-export const DELIVERY_SCHEDULE_COLUMNS = [
-  'task_id', 'buffer_days', 'lead_time_days', 'ordered_on', 'promised_date', 'date_history', 'task_start_seen',
-] as const;
-export type DeliveryScheduleColumn = (typeof DELIVERY_SCHEDULE_COLUMNS)[number];
+/** The seven columns the migration adds, in the order it adds them. Defined in columnsGate.ts (a file with no imports, so the sync queue can load it). */
+export { DELIVERY_SCHEDULE_COLUMNS, type DeliveryScheduleColumn };
 
 /** The Delivery fields those columns hold, in the same order. */
 export const DELIVERY_SCHEDULE_FIELDS = [
