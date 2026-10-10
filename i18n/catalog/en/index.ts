@@ -57,6 +57,7 @@ import { EN as EN_OFFICE_PROOF_PACK } from './office.proof-pack.generated';
 import { EN as EN_OFFICE_SCAN_CLEARANCE } from './office.scan-clearance.generated';
 import { EN as EN_OFFICE_NOTICES } from './office.notices.generated';
 import { EN as EN_OFFICE_DELIVERIES_SCHEDULE } from './office.deliveries-schedule.generated';
+import { EN as EN_OFFICE_DELIVERY_SUPPLIER_LINK } from './office.delivery-supplier-link.generated';
 
 /** Every generated shard by surface id (validate-i18n checks duplicates across them). */
 export const EN_SHARDS: Record<string, EnCatalog> = {
@@ -103,6 +104,7 @@ export const EN_SHARDS: Record<string, EnCatalog> = {
   'office.scan-clearance': EN_OFFICE_SCAN_CLEARANCE,
   'office.notices': EN_OFFICE_NOTICES,
   'office.deliveries-schedule': EN_OFFICE_DELIVERIES_SCHEDULE,
+  'office.delivery-supplier-link': EN_OFFICE_DELIVERY_SUPPLIER_LINK,
 };
 
 export { EN_SEED, EN_UNASSIGNED };

@@ -928,8 +928,11 @@ section('I. The gate');
   ok('the flag is read in ONE file, utils/deliveries/allowed.ts', eq(readers, ['utils/deliveries/allowed.ts']), readers.join(','));
   // Who reaches the lane from outside it.
   const outside = SOURCES.filter((f) => !LANE_FILES.includes(f) && /@\/(components|utils)\/deliveries\/|useDeliveriesFollowSchedule|useDeliveriesScheduleCopy/.test(strip(read(f))));
-  const DOORS = ['app/deliveries.tsx', 'app/schedule-pro.tsx', 'components/schedule/mobile/TaskDetailSheet.tsx', 'contexts/ProjectContext.tsx', 'utils/supplierScorecard.ts', 'utils/offlineQueue.ts'];
-  ok('the lane is reached from six files and no other: the Deliveries screen, the task sheet, Schedule Pro (the three doors), the delivery row mapping, the scorecard\'s basis, and the sync queue (the one rewrite of a write that names a missing column)', eq(outside.sort(), [...DOORS].sort()), outside.sort().join(','));
+  // The last two are the Supplier Link (lane DELIVERIES-2): its section sits on this lane's sheet and reads this lane's pure
+  // helpers (the settled test, the calendar day, the date record) and its sheet styles. It has its own flag, files and validator
+  // (scripts/validate-delivery-supplier-link.ts).
+  const DOORS = ['app/deliveries.tsx', 'app/schedule-pro.tsx', 'components/schedule/mobile/TaskDetailSheet.tsx', 'contexts/ProjectContext.tsx', 'utils/supplierScorecard.ts', 'utils/offlineQueue.ts', 'components/deliveryLink/SupplierLinkSection.tsx', 'utils/deliveryLink/core.ts'];
+  ok('the lane is reached from eight files and no other: the Deliveries screen, the task sheet, Schedule Pro (the three doors), the delivery row mapping, the scorecard\'s basis, the sync queue (the one rewrite of a write that names a missing column), and the two files of the Supplier Link', eq(outside.sort(), [...DOORS].sort()), outside.sort().join(','));
   const importsOf = (f: string) => [...strip(read(f)).matchAll(/from '(@\/(?:components|utils|hooks)\/[^']*[dD]eliver[^']*)'/g)].map((m) => m[1]).filter((p) => /deliveries\/|DeliveriesFollow|DeliveriesSchedule/.test(p));
   ok('each door imports only its one piece', eq(importsOf('app/deliveries.tsx'), ['@/components/deliveries/DeliveriesFollow']) && eq(importsOf('app/schedule-pro.tsx'), ['@/components/deliveries/DeliveriesFollow']) && eq(importsOf('components/schedule/mobile/TaskDetailSheet.tsx'), ['@/components/deliveries/DeliveriesFollow'])
     && eq(importsOf('contexts/ProjectContext.tsx'), ['@/utils/deliveries/rowCore']) && eq(importsOf('utils/supplierScorecard.ts'), ['@/utils/deliveries/promise']) && eq(importsOf('utils/offlineQueue.ts'), ['@/utils/deliveries/columnsGate']));

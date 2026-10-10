@@ -42,6 +42,7 @@ import { dayOrEmpty } from '@/utils/deliveries/calendar';
 import { DateRow, DeliveryDatesCard } from './DeliveryDatesCard';
 import { cannotSayLine, dayLong, dayShort, gapLine, historyLine, movedHeadline, neededBasisLine, supplierSourceLine } from './words';
 import type { DeliveriesFollowStyles } from './styles';
+import { SupplierLinkSection } from '@/components/deliveryLink/SupplierLinkSection';
 
 /** Local midnight of a calendar day, in milliseconds (0 when it cannot be read). */
 const dayMs = (day: string): number => parseCalendarDay(day)?.getTime() ?? 0;
@@ -281,6 +282,9 @@ export function DeliveryFollowSheet({
             ) : null}
 
             <DeliveryDatesCard delivery={d} schedule={schedule} copy={copy} styles={styles} meId={me.id} />
+
+            {/* The Supplier Link (lane DELIVERIES-2). Draws nothing unless its own gate is open. */}
+            <SupplierLinkSection delivery={d} projectId={projectId} neededBy={needed.date} me={me} styles={styles} onUpdate={onUpdate} />
 
             {!settled ? (
               <>
