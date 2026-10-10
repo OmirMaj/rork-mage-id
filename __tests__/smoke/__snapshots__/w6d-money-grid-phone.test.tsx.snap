@@ -17,7 +17,7 @@ exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390
 exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (c) /aia-pay-app, the saved record with a pay link: locked 1`] = `
 {
   "lines": 859,
-  "sha256": "da1cbb23a34cef4f31a2d836b4c3bc639dcdb2dd3d932e8b7c98d10a896864b1",
+  "sha256": "2c7d9631dbe30d2cca7be461c9489ccfcc08596924d5e3d228e03bdbaadc74ad",
 }
 `;
 
