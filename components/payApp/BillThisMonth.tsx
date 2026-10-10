@@ -59,6 +59,7 @@ import { buildPeriodInvoice, periodRetainage } from '@/utils/payApp/periodInvoic
 import { buildCheckInput, checkFingerprint, runRejectionCheck } from '@/utils/payApp/rejectionCheck';
 import { REJECTION_COPY } from '@/utils/payApp/rejectionCopy';
 import { defaultApplicationDate, restatePeriodTo, rollForwardNextApplication, type RollForwardResult } from '@/utils/payApp/rollForward';
+import { changeOrderLineCount, startFirstApplication } from '@/utils/payApp/firstApplication';
 import { savedDraftFromApplication } from '@/utils/payApp/saveRecord';
 import { SUGGEST_COPY, fmtPct } from '@/utils/payApp/suggestCopy';
 import {
@@ -100,13 +101,15 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
   // list must not rebuild the lines under his hands.
   const rollRef = useRef<RollForwardResult | null | undefined>(undefined);
   if (rollRef.current === undefined) {
-    rollRef.current = rollForwardNextApplication({
-      project,
-      saved,
-      changeOrders: getChangeOrdersForProject(project.id),
-      contract,
-      today: todayCalendarDay(),
-    });
+    const changeOrders = getChangeOrdersForProject(project.id);
+    const today = todayCalendarDay();
+    // The next application rolls forward from the last one. A job with none starts its first from the linked estimate.
+    rollRef.current = rollForwardNextApplication({ project, saved, changeOrders, contract, today })
+      ?? (settings?.branding ? startFirstApplication({
+        project, saved, changeOrders, contract, today,
+        branding: settings.branding,
+        invoices: invoices.filter(i => i.projectId === project.id),
+      }) : null);
   }
   const roll = rollRef.current;
 
@@ -391,7 +394,7 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
           {!!app.periodFrom && !isCalendarDay(app.periodFrom) ? (
             <Text style={styles.fieldError}>Type the date as year, month, day, like 2026-10-01.</Text>
           ) : null}
-          {!app.periodFrom && !roll.period.from ? <Text style={styles.note}>{SUGGEST_COPY.periodNoStart}</Text> : null}
+          {!app.periodFrom && !roll.period.from ? <Text style={styles.note}>{roll.carriedFrom ? SUGGEST_COPY.periodNoStart : SUGGEST_COPY.firstPeriodNoStart}</Text> : null}
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Period To</Text>
             <TextInput
@@ -437,11 +440,16 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
           <Text key={`ns-${n.applicationNumber}`} style={styles.fieldError} testID="btm-prior-not-sent">{SUGGEST_COPY.priorNotSent(n.applicationNumber)}</Text>
         ) : n.kind === 'undated_skipped' ? (
           <Text key={`us-${n.applicationNumber}`} style={styles.fieldError} testID="btm-undated-skipped">{SUGGEST_COPY.undatedSkipped(n.applicationNumber, n.carriedFrom)}</Text>
+        ) : n.kind === 'retainage_from_record' ? (
+          <Text key="rr" style={styles.note} testID="btm-retainage-record">{SUGGEST_COPY.retainageFromRecord(fmtPct(n.percent), n.label)}</Text>
+        ) : n.kind === 'retainage_not_on_record' ? (
+          <Text key="rn" style={styles.fieldError} testID="btm-retainage-none">{SUGGEST_COPY.retainageNotOnRecord}</Text>
         ) : null))}
         {sample ? <Text style={styles.note} testID="btm-sample">{SAMPLE_DOC_NOT_SENT}</Text> : null}
 
+        {roll.carriedFrom ? null : <Text style={styles.lead} testID="btm-first">{SUGGEST_COPY.firstLead}</Text>}
         <Text style={styles.lead}>{SUGGEST_COPY.lead}</Text>
-        <Text style={styles.heading}>{SUGGEST_COPY.carriedHeading(roll.carriedFrom.applicationNumber)}</Text>
+        <Text style={styles.heading}>{roll.carriedFrom ? SUGGEST_COPY.carriedHeading(roll.carriedFrom.applicationNumber) : SUGGEST_COPY.firstHeading(app.lines.length - changeOrderLineCount(app.lines), changeOrderLineCount(app.lines))}</Text>
         <View>
           {app.lines.map(line => (
             <View key={line.id} onLayout={(e) => { lineY.current[line.id] = e.nativeEvent.layout.y; }}>

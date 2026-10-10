@@ -145,6 +145,7 @@ import { loadActiveContract } from '@/utils/contractEngine';
 // Easier Pay Applications, Phase 1 (lane PAYAPP-1). Dark: everything below is
 // reached only when payAppEasyAllowed(user email) says yes.
 import { payAppEasyAllowed } from '@/utils/payApp/allowed';
+import { firstApplicationState } from '@/utils/payApp/firstApplication';
 import {
   acceptSuggestion, percentOfLine, suggestForLines, suggestionAmountNow, tallyOpenSuggestions, thisPeriodForPercent,
   type LineAcceptState, type LineSuggestionResult,
@@ -1662,6 +1663,9 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   // other billing entry point excludes one, and nothing goes out from a
   // sample either way.)
   const canBillThisMonth = easy && !practiceProjectId && savedForProject.some(a => a.lines.length > 0);
+  /** No application yet on this job: can the first one start on the Bill This Month screen (from the linked estimate)? */
+  const firstState = project ? firstApplicationState(project, savedForProject) : 'no_estimate';
+  const canStartFirst = easy && !practiceProjectId && firstState === 'can_start';
   /** This screen shows the newest saved application: the next one starts from it. */
   const showsLatestSaved = !!savedForThisInvoice
     && savedForProject.every(a => a.applicationNumber <= savedForThisInvoice.applicationNumber);
@@ -2065,6 +2069,20 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Pay Apps' }} />
         <ScrollView contentContainerStyle={styles.periodPickContent} showsVerticalScrollIndicator={false}>
+          {/* Lane PAYAPP-1b (owner preview): the job's first application starts here, from the linked estimate. */}
+          {canStartFirst ? (
+            <View style={[styles.billThisMonthEntry, styles.billThisMonthEntryInPicker]} testID="aia-first-application-entry">
+              <Button
+                label={SUGGEST_COPY.firstEntryLabel}
+                onPress={() => setBillThisMonthOpen(true)}
+                fullWidth
+                testID="aia-first-application"
+              />
+              <Text style={styles.periodPickRowMeta}>{SUGGEST_COPY.firstEntryHint}</Text>
+            </View>
+          ) : easy && !practiceProjectId && firstState === 'no_estimate' ? (
+            <Text style={[styles.periodPickRowMeta, styles.billThisMonthEntryInPicker]} testID="aia-first-application-no-estimate">{SUGGEST_COPY.firstNoEstimateHint}</Text>
+          ) : null}
           {progressInvoices.length === 0 ? (
             // The blocked case, said plainly: this is not "nothing here", it is
             // "there is no period to certify". A G702 is a certificate ABOUT a

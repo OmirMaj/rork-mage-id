@@ -39,7 +39,13 @@ export type RollForwardNote =
   /** The application this one starts from carries no record of being sent (no stamp, no pay link, no payment, no certificate). */
   | { kind: 'prior_not_sent'; applicationNumber: number }
   /** A saved application with a HIGHER number has no period end, so it could not be placed by date and was not the one carried from. */
-  | { kind: 'undated_skipped'; applicationNumber: number; carriedFrom: number };
+  | { kind: 'undated_skipped'; applicationNumber: number; carriedFrom: number }
+  /** This is the job's first application: the lines are the linked estimate's, nothing is carried. (utils/payApp/firstApplication) */
+  | { kind: 'first_application'; lineCount: number; changeOrderLines: number }
+  /** The retainage rate on a first application, and where the job's records say it comes from. */
+  | { kind: 'retainage_from_record'; percent: number; label: string }
+  /** Nothing on the job records a retainage rate: the first application opens at 0 and says so. */
+  | { kind: 'retainage_not_on_record' };
 
 export interface RollForwardInput {
   project: Pick<Project, 'id' | 'name' | 'location' | 'description' | 'primaryContact'>;
@@ -54,7 +60,8 @@ export interface RollForwardInput {
 export interface RollForwardResult {
   /** thisPeriod is 0 on every line. */
   app: AIAPayApplication;
-  carriedFrom: { applicationNumber: number; periodTo?: string };
+  /** The application this one starts from, or null on the job's first application. */
+  carriedFrom: { applicationNumber: number; periodTo?: string } | null;
   period: { from?: string; to: string; toIsDefault: true };
   notes: RollForwardNote[];
 }
