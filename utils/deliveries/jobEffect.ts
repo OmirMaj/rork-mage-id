@@ -25,7 +25,7 @@
 //
 // Pure: no React, no storage, no network, no clock.
 import type { ScheduleTask } from '@/types';
-import { runCpm, calendarDayToDate } from '@/utils/cpm';
+import { runCpm, calendarDayToDate, type RunCpmOptions } from '@/utils/cpm';
 import { resolveScheduleAnchor } from '@/utils/scheduleOps';
 import { toCalendarDayString } from '@/utils/calendarDate';
 import { buildSchedulePreviewOverlay, type SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
@@ -93,6 +93,8 @@ function hasStarted(t: ScheduleTask): boolean {
 export function supplierJobEffect(
   delivery: Pick<Delivery, 'status' | 'taskId' | 'bufferDays' | 'expectedDate'>,
   schedule: ScheduleForDeliveries | null | undefined,
+  /** The schedule screen's own engine options (its critical-float setting and per-task calendars), so the overlay it draws is on its own numbers. */
+  engine?: Omit<RunCpmOptions, 'scheduleStartDate' | 'workingDaysPerWeek' | 'nonWorkingDates'>,
 ): JobEffect {
   if (delivery.status === 'delivered' || delivery.status === 'cancelled') return { kind: 'cannot_say', why: 'settled' };
   const supplierDate = dayOrEmpty(delivery.expectedDate);
@@ -117,7 +119,8 @@ export function supplierJobEffect(
 
   const anchor = resolveScheduleAnchor(schedule);
   if (!anchor.dated || !anchor.date || !anchor.iso) return { kind: 'cannot_say', why: 'schedule_undated' };
-  const options = {
+  const options: RunCpmOptions = {
+    ...(engine ?? {}),
     scheduleStartDate: anchor.iso,
     workingDaysPerWeek: schedule.workingDaysPerWeek ?? undefined,
     nonWorkingDates: schedule.nonWorkingDates ? [...schedule.nonWorkingDates] : undefined,
