@@ -15,6 +15,12 @@
 // model's box. The owner also gets a 3D Quality switch there (Standard / High,
 // utils/livingModel/phoneViewCore.PHONE_3D_QUALITY) to compare on his own phone.
 //
+// TWO LOOKS. Under the 3D view a switch picks Realistic or Game Style
+// (utils/livingModel/looks.ts), on the web and on the phone. The choice is
+// kept on this device (utils/livingModel/lookStore.ts) and read when the
+// screen opens, before Job Replay is on the glass. Game Style is the look the
+// view has always had and is what a device that never chose sees.
+//
 // The model is SAVED ON THIS DEVICE FIRST (utils/livingModel/storeCore), at
 // every change, and then to the person's account when it can be
 // (hooks/useLivingModelSync; the rules are utils/livingModel/syncCore). One
@@ -52,6 +58,8 @@ import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { Button, SegmentedControl } from '@/components/ui';
 import { useIsDesktop } from '@/components/ui/desktop';
 import { canRedo, canUndo, historyOf, historyPush, historyRedo, historyUndo, type History } from '@/utils/livingModel/historyCore';
+import { loadModelLook, rememberedModelLook, saveModelLook } from '@/utils/livingModel/lookStore';
+import { MODEL_LOOKS, type ModelLook } from '@/utils/livingModel/looks';
 import { emptyJobModel, modelLevels } from '@/utils/livingModel/modelCore';
 import { cardWhen, weekCount, weekOf } from '@/utils/livingModel/replayCore';
 import { buildReplayInput } from '@/utils/livingModel/replayInput';
@@ -104,6 +112,14 @@ export function LivingModelScreen({ projectId, userId, ownerTools = false, viewO
   const [now] = useState(() => new Date());
   // A finger is on the phone's 3D model: the page does not scroll under it.
   const [modelHeld, setModelHeld] = useState(false);
+  // The look of the 3D view: what this device last chose, read as the screen opens (it opens on Rooms, so the read is back before Job Replay is drawn).
+  const [look, setLook] = useState<ModelLook>(() => rememberedModelLook());
+  useEffect(() => {
+    let alive = true;
+    void loadModelLook().then((l) => { if (alive) setLook(l); });
+    return () => { alive = false; };
+  }, []);
+  const onLook = useCallback((l: ModelLook) => { setLook(l); void saveModelLook(l); }, []);
 
   useEffect(() => {
     let alive = true;
@@ -234,14 +250,14 @@ export function LivingModelScreen({ projectId, userId, ownerTools = false, viewO
           <TaskLinks model={model} input={input} roomId={selectedId} onRoom={setSelectedId} onChange={onChange} />
         ) : null}
         {model && !blocked && tab === 'replay' ? (
-          <ReplayTab model={model} input={input} level={level} onLevel={setLevel} selectedId={selectedId} onSelect={setSelectedId} wide={wide} onSetStartDate={onSetStartDate} onHoldModel={setModelHeld} ownerTools={ownerTools} />
+          <ReplayTab model={model} input={input} level={level} onLevel={setLevel} selectedId={selectedId} onSelect={setSelectedId} wide={wide} onSetStartDate={onSetStartDate} onHoldModel={setModelHeld} ownerTools={ownerTools} look={look} onLook={onLook} />
         ) : null}
       </ScrollView>
     </View>
   );
 }
 
-function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide, onSetStartDate, onHoldModel, ownerTools }: {
+function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide, onSetStartDate, onHoldModel, ownerTools, look, onLook }: {
   model: JobModel;
   input: ReturnType<typeof buildReplayInput>;
   level: number;
@@ -252,6 +268,8 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide, o
   onSetStartDate: () => void;
   onHoldModel: (held: boolean) => void;
   ownerTools: boolean;
+  look: ModelLook;
+  onLook: (l: ModelLook) => void;
 }) {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
@@ -298,9 +316,23 @@ function ReplayTab({ model, input, level, onLevel, selectedId, onSelect, wide, o
       ) : null}
       {try3d ? (
         <>
-          <JobReplay3D model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} onUnavailable={() => setNo3d(true)} onFlat={setPhoneFlat} onHold={onHoldModel} quality={quality} weekLine={weekLine} atToday={atToday} height={wide ? 560 : 380} compact={!wide} />
+          <JobReplay3D model={model} level={level} moments={moments} selectedId={selectedId} onSelect={onSelect} onUnavailable={() => setNo3d(true)} onFlat={setPhoneFlat} onHold={onHoldModel} quality={quality} look={look} weekLine={weekLine} atToday={atToday} height={wide ? 560 : 380} compact={!wide} />
           {wide ? null : <StageLegend />}
           {threeD ? <Text style={styles.note} testID="lm-3d-hint">{onPhone ? phoneCopy.touchHelpSub : wide ? copy.orbitHelpSub : copy.touchHelpSub}</Text> : null}
+          {threeD ? (
+            <View style={styles.stack} testID="lm-look">
+              <Text style={styles.eyebrow}>{copy.lookLabel}</Text>
+              <SegmentedControl<ModelLook>
+                options={MODEL_LOOKS.map((l) => ({ value: l, label: l === 'realistic' ? copy.lookRealisticLabel : copy.lookGameLabel }))}
+                value={look}
+                onChange={onLook}
+                size="sm"
+                accessibilityLabel={copy.lookLabel}
+                testID="lm-look-switch"
+              />
+              <Text style={styles.note}>{copy.lookHelpSub}</Text>
+            </View>
+          ) : null}
           {threeD && onPhone && ownerTools ? (
             <View style={styles.stack} testID="lm-3d-quality">
               <Text style={styles.eyebrow}>{phoneCopy.qualityLabel}</Text>

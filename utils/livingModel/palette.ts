@@ -6,6 +6,7 @@
 // theme has no tokens for. They live here so no React component writes a
 // colour, and the three.js materials take theirs from this object.
 import type { ThemeColors } from '@/constants/colors';
+import type { LookFinish } from './looks';
 import type { RoomStage } from './stageCore';
 
 export type PaletteMode = 'light' | 'dark';
@@ -48,6 +49,11 @@ export interface LivingModelPalette {
   stage: Record<RoomStage, string>;
   /** How far a room's floor is tinted toward its stage colour, 0 to 1. */
   floorTint: number;
+  /**
+   * Set only by utils/livingModel/looks.lookPalette, for the Realistic look: how the scene is to be shaded, lit and
+   * framed. Left out (the palette this file makes), the scene is drawn the way it always has been: Game Style.
+   */
+  finish?: LookFinish;
 }
 
 interface Materials {

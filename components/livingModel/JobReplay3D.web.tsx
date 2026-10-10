@@ -30,6 +30,12 @@
 // finger scrolls the page and two fingers move, turn and zoom the model. A
 // line under the view says so.
 //
+// A NEW LOOK MAKES A NEW SCENE TOO (Realistic or Game Style,
+// utils/livingModel/looks.ts). The look comes in as part of the palette
+// (replayShared.useLookPalette), so choosing the other look goes down the same
+// path as a theme change: the old scene is disposed, shapes, materials and all,
+// and the new one is made on a fresh canvas.
+//
 // A LOST CONTEXT (the browser took the graphics memory back) is said in a plain
 // sentence with a Reload View button, which makes a new scene.
 //
@@ -45,7 +51,7 @@ import { roomLayers } from '@/utils/livingModel/replayCore';
 import { DEFAULT_CUT_M, canvasTouchAction, oneFingerTurnsModel, pinSize, wheelShouldZoom } from '@/utils/livingModel/sceneCore';
 import { ToolButton } from './RoomEditor';
 import type { JobReplay3DProps } from './jobReplay3DProps';
-import { StageLegend, stageLine, usePalette } from './replayShared';
+import { StageLegend, stageLine, useLookPalette } from './replayShared';
 import { makeLivingModelStyles } from './styles';
 import { createJobScene, type JobSceneHandle, type RoomLook } from './threeScene';
 
@@ -62,10 +68,10 @@ function loadThree(): Promise<typeof import('three')> {
  * start, theme change and lost-context paths can be run with no WebGL. The app never passes it (the validator checks),
  * so in the app the library comes from `loadThree` and nowhere else.
  */
-export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUnavailable, weekLine, atToday, height, compact, loadLibrary = loadThree }: JobReplay3DProps & { loadLibrary?: () => Promise<typeof import('three')> }) {
+export function JobReplay3D({ model, level, moments, selectedId, onSelect, onUnavailable, weekLine, atToday, height, compact, look, loadLibrary = loadThree }: JobReplay3DProps & { loadLibrary?: () => Promise<typeof import('three')> }) {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
-  const palette = usePalette();
+  const palette = useLookPalette(look, 'web');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const boxRef = useRef<View | null>(null);
   const sceneRef = useRef<JobSceneHandle | null>(null);

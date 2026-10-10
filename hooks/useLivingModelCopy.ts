@@ -185,6 +185,11 @@ export interface LivingModelCopy {
   cutWallsLabel: string;
   fullWallsLabel: string;
   resetViewLabel: string;
+  /** The switch between the two looks of the 3D view (utils/livingModel/looks.ts). The two names equal MODEL_LOOK_LABELS. */
+  lookLabel: string;
+  lookRealisticLabel: string;
+  lookGameLabel: string;
+  lookHelpSub: string;
   legendHeadingLabel: string;
   orbitHelpSub: string;
   touchHelpSub: string;
@@ -439,6 +444,10 @@ export function useLivingModelCopy(): LivingModelCopy {
       cutWallsLabel: t('office.livingModel.replay.cutWallsLabel', 'Cut Away Walls'),
       fullWallsLabel: t('office.livingModel.replay.fullWallsLabel', 'Full Height Walls'),
       resetViewLabel: t('office.livingModel.replay.resetViewLabel', 'Reset View'),
+      lookLabel: t('office.livingModel.replay.lookLabel', 'Model Look'),
+      lookRealisticLabel: t('office.livingModel.replay.lookRealisticLabel', 'Realistic'),
+      lookGameLabel: t('office.livingModel.replay.lookGameLabel', 'Game Style'),
+      lookHelpSub: t('office.livingModel.replay.lookHelpSub', 'Both looks draw the same schematic and the same reported progress'),
       legendHeadingLabel: t('office.livingModel.replay.legendHeadingLabel', 'Stages'),
       orbitHelpSub: t('office.livingModel.replay.orbitHelpSub', 'Drag to turn. Hold Shift and drag to move. To zoom with the wheel, click the model first or hold Ctrl or Cmd'),
       touchHelpSub: t('office.livingModel.replay.touchHelpSub', 'One finger scrolls the page. Two fingers move, turn and zoom the model'),
