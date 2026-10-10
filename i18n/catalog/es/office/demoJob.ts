@@ -42,7 +42,7 @@ export const ES_OFFICE_DEMO_JOB: EsCatalog = {
   "office.demoJob.area.toolboxTalksLabel": { s: "Pláticas de Seguridad", src: "923730bf" },
   "office.demoJob.area.warrantiesLabel": { s: "Garantías", src: "d25d9fa1" },
   "office.demoJob.backLabel": { s: "Atrás", src: "c2954bc2" },
-  "office.demoJob.briefBody": { s: "Si tu correo del resumen de la mañana está activado, mencionará este trabajo hasta que lo quites.", src: "bffd943c" },
+  "office.demoJob.briefBody": { s: "Tu resumen de la mañana deja fuera este trabajo.", src: "a9b0d7bd" },
   "office.demoJob.checkingBody": { s: "Buscando un trabajo de demostración.", src: "646c7d77" },
   "office.demoJob.completeBody": { s: "El trabajo de demostración está en tu cuenta.", src: "4bd9e525" },
   "office.demoJob.confirmRemoveManyBody": { s: "¿Quitar {count} trabajos de demostración y todo lo que se creó con ellos? Los trabajos son {names}. Esto no se puede deshacer.", src: "21e6d9a2" },

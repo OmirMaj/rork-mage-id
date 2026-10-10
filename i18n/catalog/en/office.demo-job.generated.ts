@@ -36,7 +36,7 @@ export const EN: EnCatalog = {
   "office.demoJob.area.toolboxTalksLabel": "Toolbox Talks",
   "office.demoJob.area.warrantiesLabel": "Warranties",
   "office.demoJob.backLabel": "Back",
-  "office.demoJob.briefBody": "If your morning brief email is turned on, it will mention this job until you remove it.",
+  "office.demoJob.briefBody": "Your morning brief leaves this job out.",
   "office.demoJob.checkingBody": "Checking for a demo job.",
   "office.demoJob.completeBody": "The demo job is in your account.",
   "office.demoJob.confirmRemoveLabel": "Remove Everything",

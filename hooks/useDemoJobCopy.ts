@@ -95,7 +95,7 @@ export function useDemoJobCopy(): DemoJobCopy {
       whatBody: t('office.demoJob.whatBody', 'The job is a seven-storey mixed-use building in Baltimore: ground-floor retail, 48 apartments, a $22,400,000 contract with $640,000 of approved change orders, in month 11 of an 18-month schedule. Every company and person on it is invented.'),
       modelBody: t('office.demoJob.modelBody', 'The job has a Living Model: one typical floor of eight apartments that Job Replay builds month by month. It is saved on this device only. Open the job here, on the phone or computer where you tapped Create, and tap Living Model.'),
       limitsBody: t('office.demoJob.limitsBody', 'The job is a sample job. It cannot email a client, make a pay link, send a reminder, open a client portal or push to QuickBooks, and your cost book never learns from it.'),
-      briefBody: t('office.demoJob.briefBody', 'If your morning brief email is turned on, it will mention this job until you remove it.'),
+      briefBody: t('office.demoJob.briefBody', 'Your morning brief leaves this job out.'),
       offlineBody: t('office.demoJob.offlineBody', 'You are offline. The job is saved on this device and syncs when you are back online. Lien waivers, the draft contract, selections and the plan sheet need a connection.'),
       checkingBody: t('office.demoJob.checkingBody', 'Checking for a demo job.'),
       createLabel: t('office.demoJob.createLabel', 'Create Demo Job'),
