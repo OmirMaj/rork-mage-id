@@ -1,0 +1,7 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>body{margin:0;background:#F4F4F1}canvas{width:100vw;height:100vh;display:block}</style><canvas id="c"></canvas>
+<script src="draw.js"></script><script>
+var q=new URLSearchParams(location.search);var d=MageDraw(document.getElementById('c'),{p:parseFloat(q.get('p')||'5'),still:true});
+if(q.get('v')){d.view(q.get('v'));}
+document.fonts.load('600 12px "Barlow Condensed"').then(function(){d.now()});
+</script>

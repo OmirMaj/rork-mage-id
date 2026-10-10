@@ -8,7 +8,7 @@ window.MAGE_DATA = (function () {
 
   /* img: a file stem in img/screens/ (stem-1x.webp is 393 wide, stem-2x.webp is 786 wide).
      main: the big phone. Its frames play in order as the stage scrolls by, so the screen is seen doing something.
-     side: a second, smaller screen that peeks out behind it. */
+     side: a second, smaller screen that stands beside it. frame: 'browser' draws it in a browser window (only for captures of a web page). */
   var SCREENS = {
     1: {
       main: { title: 'Estimate', plan: 'Free', frames: [
@@ -66,76 +66,67 @@ window.MAGE_DATA = (function () {
       frames: [{ img: 'testing-scan-order-list-seq-1', alt: 'In testing: an order list for the room, starting with 7 drywall sheets for the walls and 2 for the ceiling' }] }
   ];
 
-  /* Example cards that float beside the job. at: a point in the scene. show: the part of the job they belong to.
-     Same figures as the app screens above, so the page is one job from top to bottom. */
-  var CARDS = [
-    { id: 'est', at: [2.2, 2.4, 0.4], show: [0.62, 1.6], side: 'l', hero: 1, tag: 'Estimate', big: '$74,854.70', sub: 'Alder Street Kitchen and Bath', print: ['Demolition', 'Framing', 'Plumbing rough', 'Electrical rough', 'Cabinets'] },
-    { id: 'sch', at: [10.5, 2.2, 0.2], show: [1.6, 2.5], side: 'r', tag: 'Schedule', big: '15 Tasks', sub: '50 working days', bars: 1 },
-    { id: 'day', at: [6.5, 1.8, 0.4], show: [2.5, 3.3], side: 'r', tag: 'Daily Report', big: 'Day 29 Of 50', sub: 'Filed and shared', ok: 1 },
-    { id: 'co', at: [10.4, 2.2, 1.6], show: [3.3, 3.76], side: 'r', hero: 1, tag: 'Change Orders', big: '+$3,340', sub: 'Approved by the client', ok: 1 },
-    { id: 'pay', at: [10.4, 2.2, 1.6], heroAt: [13.2, 0.4, 9.7], show: [3.76, 4.6], side: 'r', hero: 1, tag: 'Pay Application 1', big: '$24,193.08', sub: 'Due after retainage', meter: 34 },
-    { id: 'walk', at: [6.4, 1.6, 4.6], show: [4.6, 5.01], side: 'r', tag: 'Walkthrough', big: '9 Of 9', sub: 'Keys handed over', ok: 1 }
+  /* The four figures in the drawing's title block. Same figures as the app screens above, so the page is one job from top to bottom.
+     stage: the stage where the figure first matters; it counts up and lands on the real number when that stage arrives. */
+  var FIGS = [
+    { id: 'est', label: 'Estimate', value: '$74,854.70', stage: 1 },
+    { id: 'day', label: 'Schedule', value: 'Day 29 Of 50', stage: 3 },
+    { id: 'co', label: 'Change Orders', value: '+$3,340', stage: 4 },
+    { id: 'due', label: 'Due This Period', value: '$24,193.08', stage: 4 }
   ];
 
-  /* Dimension tags that appear along the walls while the job is being priced. */
-  var DIMS = [
-    { at: [6, 0.32, 10.25], text: '30 ft 0 in', show: [0.5, 1.55] },
-    { at: [-1.25, 0.32, 4.5], text: '22 ft 6 in', show: [0.56, 1.55] },
-    { at: [3, 0.32, 3.6], text: 'Living', show: [0.66, 1.9], room: 1 },
-    { at: [10, 0.32, 2.4], text: 'Kitchen', show: [0.7, 1.9], room: 1 },
-    { at: [2.5, 0.32, 7.3], text: 'Bedroom', show: [0.74, 1.9], room: 1 },
-    { at: [6.5, 0.32, 7.3], text: 'Bath', show: [0.78, 1.9], room: 1 }
-  ];
-
-  /* Dots on the job. Each opens a small panel about what the app does there. */
+  /* Keynotes on the drawing. at: a point on the job in feet (x across, y front to back, z up). show: the part of the job they belong to.
+     Each opens a small panel about what the app does there. */
   var PINS = [
-    { id: 'plans', at: [15.5, 1.0, 7.05], show: [0.5, 1.9], tag: 'Win It', plan: 'Pro', title: 'Takeoff From Plans',
+    { id: 'plans', at: [15, 25.3, 0], show: [0.8, 1.55], tag: 'Win It', plan: 'Pro', title: 'Takeoff From Plans',
       sub: 'Upload a plan PDF and the app reads quantities off the pages. You check and edit them. You can also measure on a plan by hand.',
       rows: [['Pages read a month on Pro', '', '30'], ['On Business', '', '100'], ['On Enterprise', '', '300']],
       note: 'Takeoff is on Pro and up. It is not on the Free plan.' },
-    { id: 'estimate', at: [5.8, 0.4, 1.3], show: [0.5, 1.6], tag: 'Win It', plan: 'Free', title: 'The Estimate',
+    { id: 'estimate', at: [24, 6.2, 0], show: [0.8, 1.55], tag: 'Win It', plan: 'Free', title: 'The Estimate',
       sub: 'Build it line by line on any plan. On Pro, the assistant drafts it and you approve every line.',
       rows: [['Ten lines', 'Example job', '$74,854.70'], ['Base', '', '$66,426.00'], ['Markup', '', '+$8,428.70']],
       note: 'Example numbers. On an AI draft, lines priced from your price book are marked. The rest use market averages until you add a rate.' },
-    { id: 'schedule', at: [6, 1.9, 5.5], show: [1.5, 2.45], tag: 'Plan It', plan: 'Free', title: 'The Schedule',
+    { id: 'schedule', at: [18, 1.2, 4], show: [1.6, 2.45], tag: 'Plan It', plan: 'Free', title: 'The Schedule',
       sub: 'Built from the estimate. On Pro, the critical path is worked out for you.',
       rows: [['Basic schedule', '15 tasks, 50 working days', 'Free'], ['Critical path and share links', 'The client and the subs get a link', 'Pro']],
       note: 'AI drafts are on Pro, with 3 free tries. You approve the draft.' },
-    { id: 'report', at: [6.5, 1.5, 6.9], show: [2.55, 3.5], tag: 'Build It', plan: 'Free', title: 'Daily Report',
+    { id: 'report', at: [12.5, 0, 8], show: [2.5, 3.45], tag: 'Build It', plan: 'Free', title: 'Daily Report',
       sub: 'Who was on site, what got done, and what is holding the job up.',
       rows: [['Weather', 'Read in from OpenWeather', '57°F'], ['Report shared with the client', 'Example', 'Sent', 'ok']],
       note: 'Today\'s weather is read in from OpenWeather. You can always type over it. Voice fill is on Pro, with 3 free tries.' },
-    { id: 'truck', at: [3.4, 2.0, 12.5], show: [2.6, 4.3], tag: 'Build It', plan: 'Free', title: 'Deliveries',
+    { id: 'truck', at: [25.5, 22.5, 0], show: [2.5, 3.45], tag: 'Build It', plan: 'Free', title: 'Deliveries',
       sub: 'Deliveries shows what was promised and keeps late loads at the top.',
       rows: [['Drywall, 60 sheets', 'Promised Tuesday', 'On Site', 'ok'], ['Kitchen cabinets', 'Promised last Friday', 'Late', 'warn']],
       note: 'Example loads. Deliveries is on every plan.' },
-    { id: 'change', at: [9.6, 1.4, 2.5], show: [3.2, 4.2], tag: 'Get Paid', plan: 'Pro', title: 'Change Orders',
+    { id: 'change', at: [24, 1.3, 3], show: [3.5, 4.45], tag: 'Get Paid', plan: 'Pro', title: 'Change Orders',
       sub: 'Price the change and send it. Your client signs it with a finger in the client portal.',
       rows: [['Under-cabinet lighting, move the range outlet', 'Change order 2', '+$1,860.00'], ['Both change orders', 'Example', '+$3,340.00'], ['Status', '', 'Approved', 'ok']],
       note: 'Change orders and the client portal are on Pro.' },
-    { id: 'bill', at: [2.4, 1.2, 7.4], show: [3.7, 4.6], tag: 'Get Paid', plan: 'Pro', title: 'Invoices And AIA-Style Pay Apps',
+    { id: 'bill', at: [6.5, 19.6, 0], show: [3.5, 4.45], tag: 'Get Paid', plan: 'Pro', title: 'Invoices And AIA-Style Pay Apps',
       sub: 'Bill the work as it gets done and see what is still owed.',
       rows: [['Pay Application 1', 'Due after 10 percent retainage', '$24,193.08'], ['Balance to finish', 'Example', '$54,001.62']],
       note: 'Billing is on Pro.' },
-    { id: 'punch', at: [6.3, 1.3, 8.4], show: [4.3, 5.01], tag: 'Close It', plan: 'Business', title: 'Punch List',
+    { id: 'punch', at: [18.6, 18.6, 0], show: [4.5, 5.01], tag: 'Close It', plan: 'Business', title: 'Punch List',
       sub: 'Each item can carry a location, a photo and the sub who owns it.',
       rows: [['Door stop missing at the bath door', 'Hall bath', 'Closed', 'ok'], ['Shower valve trim not centered', 'Hall bath', 'Open', 'warn']],
       note: 'Example items. The punch list is on the Business plan.' },
-    { id: 'keys', at: [12.5, 1.9, 6.8], show: [4.6, 5.01], tag: 'Close It', plan: 'Free', title: 'Handover',
+    { id: 'keys', at: [25.5, 22.5, 0], show: [4.5, 5.01], tag: 'Close It', plan: 'Free', title: 'Handover',
       sub: 'Walk the job with the client and tick off what is left.',
       rows: [['Walkthrough checklist', 'Example', '9 Of 9', 'ok'], ['Closeout binder', 'Selections, warranties, photos', 'Ready', 'ok']],
       note: 'Example job. The walkthrough checklist is on every plan.' }
   ];
 
-  /* The stage panel on wide screens: the big word, one sentence, the tools and their plans. */
+  /* The schedule bar chart under the drawing. a and b: where the bar starts and ends, as a share of the chart's width. */
   var STAGES = [
     null,
-    { word: 'Win It', week: 'Before Week 1' },
-    { word: 'Plan It', week: 'Before Week 1' },
-    { word: 'Build It', week: 'Weeks 1 To 8' },
-    { word: 'Get Paid', week: 'As The Work Gets Done' },
-    { word: 'Close It', week: 'Week 10' }
+    { word: 'Win It', when: 'Before Week 1', a: 0.00, b: 0.14, sheet: 'Floor Plan' },
+    { word: 'Plan It', when: 'Before Week 1', a: 0.14, b: 0.26, sheet: 'Planned Walls' },
+    { word: 'Build It', when: 'Weeks 1 To 8', a: 0.26, b: 0.66, sheet: 'Framing And Rough-In' },
+    { word: 'Get Paid', when: 'As The Work Gets Done', a: 0.52, b: 0.90, sheet: 'Board And Finishes' },
+    { word: 'Close It', when: 'Week 10', a: 0.86, b: 1.00, sheet: 'Handover' }
   ];
+  /* Today on the example job: day 29 of 50. */
+  var TODAY = 0.58;
 
-  return { SCREENS: SCREENS, TESTING: TESTING, CARDS: CARDS, DIMS: DIMS, PINS: PINS, STAGES: STAGES };
+  return { SCREENS: SCREENS, TESTING: TESTING, FIGS: FIGS, PINS: PINS, STAGES: STAGES, TODAY: TODAY };
 })();
