@@ -106,7 +106,7 @@ window.MAGE_DATA = (function () {
       sub: 'Bill the work as it gets done and see what is still owed.',
       rows: [['Pay Application 1', 'Due after 10 percent retainage', '$24,193.08'], ['Balance to finish', 'Example', '$54,001.62']],
       note: 'Billing is on Pro.' },
-    { id: 'punch', at: [13, 22.5, 4], side: 'l', show: [4.5, 5.01], tag: 'Close It', plan: 'Business', title: 'Punch List',
+    { id: 'punch', at: [13, 22.5, 0.2], side: 'l', show: [4.5, 5.01], tag: 'Close It', plan: 'Business', title: 'Punch List',
       sub: 'Each item can carry a location, a photo and the sub who owns it.',
       rows: [['Door stop missing at the bath door', 'Hall bath', 'Closed', 'ok'], ['Shower valve trim not centered', 'Hall bath', 'Open', 'warn']],
       note: 'Example items. The punch list is on the Business plan.' },
