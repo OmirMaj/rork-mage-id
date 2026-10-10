@@ -74,6 +74,7 @@ declare module 'three' {
     groups: { start: number; count: number; materialIndex?: number }[];
     setAttribute(name: string, attr: BufferAttribute): this;
     getAttribute(name: string): BufferAttribute;
+    getIndex(): BufferAttribute | null;
     addGroup(start: number, count: number, materialIndex?: number): void;
     dispose(): void;
   }
@@ -83,6 +84,15 @@ declare module 'three' {
   export class PlaneGeometry extends BufferGeometry {
     constructor(width: number, height: number);
   }
+  /** A flat outline of lines and arcs, and the solid it makes when it is given a depth (Game Style's round-cornered tile). */
+  export class Shape {
+    moveTo(x: number, y: number): this;
+    lineTo(x: number, y: number): this;
+    absarc(x: number, y: number, radius: number, startAngle: number, endAngle: number, clockwise?: boolean): this;
+  }
+  export class ExtrudeGeometry extends BufferGeometry {
+    constructor(shape: Shape, options?: { depth?: number; bevelEnabled?: boolean; curveSegments?: number });
+  }
   export class SphereGeometry extends BufferGeometry {
     constructor(radius: number, widthSegments?: number, heightSegments?: number);
   }
@@ -90,6 +100,11 @@ declare module 'three' {
     needsUpdate: boolean;
     magFilter: number;
     minFilter: number;
+    wrapS: number;
+    wrapT: number;
+    repeat: Vector2;
+    colorSpace: string;
+    generateMipmaps: boolean;
     dispose(): void;
   }
   export class DataTexture extends Texture {
@@ -114,10 +129,12 @@ declare module 'three' {
     side?: number;
     emissive?: string | number;
     emissiveIntensity?: number;
+    map?: Texture | null;
   }
   export class MeshLambertMaterial extends Material {
     constructor(p?: MeshLambertMaterialParameters);
     color: Color;
+    map: Texture | null;
     emissive: Color;
     emissiveIntensity: number;
   }
@@ -131,10 +148,19 @@ declare module 'three' {
   export class MeshStandardMaterial extends Material {
     constructor(p?: MeshStandardMaterialParameters);
     color: Color;
+    map: Texture | null;
     emissive: Color;
     emissiveIntensity: number;
     roughness: number;
     metalness: number;
+  }
+  /** Game Style's shading: a face is lit in a few steps (the gradient map's pixels) and nothing between. */
+  export class MeshToonMaterial extends Material {
+    constructor(p?: MeshLambertMaterialParameters & { gradientMap?: Texture | null });
+    color: Color;
+    emissive: Color;
+    emissiveIntensity: number;
+    map: Texture | null;
   }
   /** Draws nothing but the shadow that falls on it. */
   export class ShadowMaterial extends Material {
@@ -172,4 +198,8 @@ declare module 'three' {
   export const BackSide: number;
   export const ACESFilmicToneMapping: number;
   export const LinearFilter: number;
+  export const NearestFilter: number;
+  export const LinearMipmapLinearFilter: number;
+  export const RepeatWrapping: number;
+  export const SRGBColorSpace: string;
 }

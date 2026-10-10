@@ -50,8 +50,9 @@ export interface LivingModelPalette {
   /** How far a room's floor is tinted toward its stage colour, 0 to 1. */
   floorTint: number;
   /**
-   * Set only by utils/livingModel/looks.lookPalette, for the Realistic look: how the scene is to be shaded, lit and
-   * framed. Left out (the palette this file makes), the scene is drawn the way it always has been: Game Style.
+   * Set by utils/livingModel/looks.lookPalette: how the scene is to be built, shaded, lit and framed for one of the two
+   * looks. A palette without one (the palette this file makes) is drawn as Game Style: the scene builder asks looks.ts
+   * for that look's palette itself.
    */
   finish?: LookFinish;
 }
@@ -69,6 +70,12 @@ interface Materials {
  * light screen and once for a dark one. The theme picks which
  * (`livingModelPalette(colors, mode)`); the ground, the ink, the accent and
  * the Done colour come from the theme itself in both.
+ *
+ * THE STAGE COLOURS ARE BOLD AND FAR APART (rust, amber, blue, pink, lilac,
+ * slate, with the theme's green for Finishes and its teal for Done), so a
+ * stage is told by its colour on a label, in the legend, on the flat plan, on
+ * a Game Style floor and on a Realistic band alike.
+ * scripts/validate-living-model-looks.ts measures the gaps.
  *
  * DARK: the same materials at a lower light, so the model sits on a dark page
  * without glaring, and the stage colours are lifted a step so they still read
@@ -95,11 +102,11 @@ export const MATERIALS: Readonly<Record<PaletteMode, Materials>> = {
     sky: '#FFFFFF',
     sun: '#FFFFFF',
     vertexBase: '#FFFFFF',
-    stageDemolition: '#8A8D86',
-    stageFraming: '#B8935A',
+    stageDemolition: '#B5533C',
+    stageFraming: '#E0A12E',
     stageRoughIn: '#2E7FB8',
-    stageInsulation: '#D9968A',
-    stageDrywall: '#A8A49A',
+    stageInsulation: '#E58AA0',
+    stageDrywall: '#9B8FC9',
     stageOther: '#5E6A7D',
     skyStrength: 2.2,
     sunStrength: 1.0,
@@ -125,11 +132,11 @@ export const MATERIALS: Readonly<Record<PaletteMode, Materials>> = {
     sky: '#DDE3DD',
     sun: '#FFF4E0',
     vertexBase: '#FFFFFF',
-    stageDemolition: '#9EA19A',
-    stageFraming: '#C9A46A',
+    stageDemolition: '#D0705A',
+    stageFraming: '#EDB54A',
     stageRoughIn: '#4C9AD0',
-    stageInsulation: '#E0A396',
-    stageDrywall: '#BDB9AE',
+    stageInsulation: '#F0A0B4',
+    stageDrywall: '#B3A8DD',
     stageOther: '#8090A6',
     skyStrength: 1.5,
     sunStrength: 0.8,
