@@ -927,6 +927,14 @@ export interface ScheduleTask {
   anchorType?: AnchorType;
   anchorDate?: string;
   /**
+   * Set when a 'start-no-earlier' anchor was applied from a delivery's
+   * proposal (lane DELIVERIES-1, utils/deliveries/jobEffect.proposedTasks):
+   * the id of that delivery. It lets the delivery offer "Remove the Hold on
+   * This Task" when the supplier's date later improves. Read by nothing else;
+   * the engine ignores it.
+   */
+  anchorFromDeliveryId?: string;
+  /**
    * Soft deadline (no CPM effect — shown as red chevron marker on the Gantt
    * and a "Late vs deadline" column in the grid). Distinct from anchors:
    * anchors move the schedule; deadlines only flag it.

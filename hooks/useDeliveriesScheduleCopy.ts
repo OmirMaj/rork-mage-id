@@ -48,6 +48,13 @@ export interface DeliveriesScheduleCopy {
   iTypedItLabel: string;
   howToldLabel: string;
   howToldPlaceholder: string;
+  whatPlaceholder: string;
+  supplierPlaceholder: string;
+  windowPlaceholder: string;
+  bufferLessLabel: string;
+  bufferMoreLabel: string;
+  scoredDateLabel: string;
+  noDateGroupLabel: string;
   // ── sections and sheets ──
   followSectionLabel: string;
   deliveriesForTaskLabel: string;
@@ -61,6 +68,7 @@ export interface DeliveriesScheduleCopy {
   expectingLabel: string;
   dateHistoryLabel: string;
   proposalLabel: string;
+  holdLabel: string;
   // ── buttons ──
   addForTaskLabel: string;
   addDeliveryLabel: string;
@@ -77,6 +85,10 @@ export interface DeliveriesScheduleCopy {
   discardLabel: string;
   seePlansLabel: string;
   openDeliveriesLabel: string;
+  confirmLabel: string;
+  receivedLabel: string;
+  correctScoredLabel: string;
+  removeHoldLabel: string;
   // ── the honesty lines ──
   supplierWordBody: string;
   reminderBody: string;
@@ -97,6 +109,13 @@ export interface DeliveriesScheduleCopy {
   typedByTeammateBody: (date: string) => string;
   unrecordedBody: (date: string) => string;
   wasBody: (date: string) => string;
+  // ── the date the supplier scorecard counts from, and a correction of it ──
+  scoredBasisBody: string;
+  scoredNoneBody: string;
+  scoredCorrectionBody: string;
+  correctedByYouBody: (date: string, when: string) => string;
+  correctedByNameBody: (date: string, name: string, when: string) => string;
+  correctedByTeammateBody: (date: string, when: string) => string;
   // ── the gap ──
   gapBeforeBody: (workingDays: number) => string;
   gapSameDayBody: string;
@@ -122,7 +141,6 @@ export interface DeliveriesScheduleCopy {
   finishHoldsBody: string;
   laterSub: (workingDays: number) => string;
   noneSlideBody: string;
-  startHoldsBody: (task: string, date: string) => string;
   cannotSayBody: (why: 'cycle' | 'task_pinned' | 'task_started' | 'other', task: string) => string;
   proPlanBody: string;
   widerScreenBody: string;
@@ -144,6 +162,13 @@ export interface DeliveriesScheduleCopy {
   proposalBody: (task: string, date: string, what: string) => string;
   proposalAppliedBody: string;
   proposalGoneBody: string;
+  // ── a hold applied from this delivery, and taking it off ──
+  holdBody: (task: string, date: string) => string;
+  holdImprovedBody: (supplierDate: string, start: string) => string;
+  holdRemovedBody: string;
+  /** What the schedule's change log says the change came from. */
+  auditAppliedSub: string;
+  auditHoldRemovedSub: string;
   // ── the draft message ──
   draft: {
     subject: (what: string) => string;
@@ -189,6 +214,13 @@ export function useDeliveriesScheduleCopy(): DeliveriesScheduleCopy {
     iTypedItLabel: t('office.deliveriesSchedule.iTypedItLabel', 'Typed by Me'),
     howToldLabel: t('office.deliveriesSchedule.howToldLabel', 'How You Were Told'),
     howToldPlaceholder: t('office.deliveriesSchedule.howToldPlaceholder', 'by phone'),
+    whatPlaceholder: t('office.deliveriesSchedule.whatPlaceholder', '14 Windows'),
+    supplierPlaceholder: t('office.deliveriesSchedule.supplierPlaceholder', 'Northside Glass'),
+    windowPlaceholder: t('office.deliveriesSchedule.windowPlaceholder', '07:00-11:00'),
+    bufferLessLabel: t('office.deliveriesSchedule.bufferLessLabel', 'Decrease Buffer'),
+    bufferMoreLabel: t('office.deliveriesSchedule.bufferMoreLabel', 'Increase Buffer'),
+    scoredDateLabel: t('office.deliveriesSchedule.scoredDateLabel', 'Supplier Scorecard Date'),
+    noDateGroupLabel: t('office.deliveriesSchedule.noDateGroupLabel', 'No Date Yet'),
 
     followSectionLabel: t('office.deliveriesSchedule.followSectionLabel', 'Deliveries and the Schedule'),
     deliveriesForTaskLabel: t('office.deliveriesSchedule.deliveriesForTaskLabel', 'Deliveries for This Task'),
@@ -202,6 +234,7 @@ export function useDeliveriesScheduleCopy(): DeliveriesScheduleCopy {
     expectingLabel: t('office.deliveriesSchedule.expectingLabel', 'Expecting a Delivery'),
     dateHistoryLabel: t('office.deliveriesSchedule.dateHistoryLabel', 'Supplier Date History'),
     proposalLabel: t('office.deliveriesSchedule.proposalLabel', 'Proposed from a Delivery'),
+    holdLabel: t('office.deliveriesSchedule.holdLabel', 'Hold from This Delivery'),
 
     addForTaskLabel: t('office.deliveriesSchedule.addForTaskLabel', 'Add a Delivery for This Task'),
     addDeliveryLabel: t('office.deliveriesSchedule.addDeliveryLabel', 'Add Delivery'),
@@ -218,12 +251,16 @@ export function useDeliveriesScheduleCopy(): DeliveriesScheduleCopy {
     discardLabel: t('office.deliveriesSchedule.discardLabel', 'Discard'),
     seePlansLabel: t('office.deliveriesSchedule.seePlansLabel', 'See Plans'),
     openDeliveriesLabel: t('office.deliveriesSchedule.openDeliveriesLabel', 'Open Deliveries'),
+    confirmLabel: t('office.deliveriesSchedule.confirmLabel', 'Confirm'),
+    receivedLabel: t('office.deliveriesSchedule.receivedLabel', 'Received'),
+    correctScoredLabel: t('office.deliveriesSchedule.correctScoredLabel', 'Correct This Date'),
+    removeHoldLabel: t('office.deliveriesSchedule.removeHoldLabel', 'Remove the Hold on This Task'),
 
     supplierWordBody: t('office.deliveriesSchedule.supplierWordBody', 'The supplier date is the supplier\'s word, not a promise from MAGE ID.'),
     reminderBody: t('office.deliveriesSchedule.reminderBody', 'MAGE ID shows what the dates say. It can miss things. Check with your supplier.'),
     previewOnlyBody: t('office.deliveriesSchedule.previewOnlyBody', 'A preview only. Your schedule does not move until you apply it.'),
     draftOnlyBody: t('office.deliveriesSchedule.draftOnlyBody', 'Write a Message opens a draft for you to read and send yourself. MAGE ID sends nothing to a supplier.'),
-    nothingSentBody: t('office.deliveriesSchedule.nothingSentBody', 'Nothing has been sent to the supplier.'),
+    nothingSentBody: t('office.deliveriesSchedule.nothingSentBody', 'MAGE ID has sent nothing.'),
 
     neededBasisBody: (bufferDays, task) => (bufferDays === 0
       ? t('office.deliveriesSchedule.neededBasisZeroBody', 'The day {task} starts. No buffer.', { task })
@@ -253,6 +290,13 @@ export function useDeliveriesScheduleCopy(): DeliveriesScheduleCopy {
     unrecordedBody: (date) => t('office.deliveriesSchedule.unrecordedBody', 'Typed {date}. No record of who gave it.', { date }),
     wasBody: (date) => t('office.deliveriesSchedule.wasBody', 'Was {date}.', { date }),
 
+    scoredBasisBody: t('office.deliveriesSchedule.scoredBasisBody', 'The supplier scorecard counts lateness from this date.'),
+    scoredNoneBody: t('office.deliveriesSchedule.scoredNoneBody', 'No date is recorded. The supplier scorecard counts from the supplier date.'),
+    scoredCorrectionBody: t('office.deliveriesSchedule.scoredCorrectionBody', 'Saving records this correction, and who made it, in the history.'),
+    correctedByYouBody: (date, when) => t('office.deliveriesSchedule.correctedByYouBody', 'Scorecard date corrected to {date}. By you, {when}.', { date, when }),
+    correctedByNameBody: (date, name, when) => t('office.deliveriesSchedule.correctedByNameBody', 'Scorecard date corrected to {date}. By {name}, {when}.', { date, name, when }),
+    correctedByTeammateBody: (date, when) => t('office.deliveriesSchedule.correctedByTeammateBody', 'Scorecard date corrected to {date}. By a teammate, {when}.', { date, when }),
+
     gapBeforeBody: (n) => tn('office.deliveriesSchedule.gapBeforeBody', n, { one: 'The supplier date is 1 working day before the day it is needed.', other: 'The supplier date is {count} working days before the day it is needed.' }),
     gapSameDayBody: t('office.deliveriesSchedule.gapSameDayBody', 'The supplier date is the day it is needed.'),
     gapAfterBody: (n) => tn('office.deliveriesSchedule.gapAfterBody', n, { one: 'The supplier date is 1 working day after the day it is needed.', other: 'The supplier date is {count} working days after the day it is needed.' }),
@@ -264,7 +308,7 @@ export function useDeliveriesScheduleCopy(): DeliveriesScheduleCopy {
 
     slidLaterBody: (task, n) => tn('office.deliveriesSchedule.slidLaterBody', n, { one: '{task} slid 1 working day.', other: '{task} slid {count} working days.' }, { task }),
     movedUpBody: (task, n) => tn('office.deliveriesSchedule.movedUpBody', n, { one: '{task} moved up 1 working day.', other: '{task} moved up {count} working days.' }, { task }),
-    nowEarlyBody: (what, n) => tn('office.deliveriesSchedule.nowEarlyBody', n, { one: '{what} is now 1 working day early.', other: '{what} is now {count} working days early.' }, { what }),
+    nowEarlyBody: (what, n) => tn('office.deliveriesSchedule.nowEarlyBody', n, { one: 'The supplier date for {what} is now 1 working day before the day it is needed.', other: 'The supplier date for {what} is now {count} working days before the day it is needed.' }, { what }),
     nowAfterBody: (what, n) => tn('office.deliveriesSchedule.nowAfterBody', n, { one: '{what} now has a supplier date 1 working day after the day it is needed.', other: '{what} now has a supplier date {count} working days after the day it is needed.' }, { what }),
     nowSameDayBody: (what) => t('office.deliveriesSchedule.nowSameDayBody', '{what} now has its supplier date on the day it is needed.', { what }),
     nowNoDateBody: (what) => t('office.deliveriesSchedule.nowNoDateBody', '{what} has no supplier date yet.', { what }),
@@ -272,12 +316,11 @@ export function useDeliveriesScheduleCopy(): DeliveriesScheduleCopy {
 
     afterHeadBody: (what, supplierDate, neededBy) => t('office.deliveriesSchedule.afterHeadBody', '{what}: the supplier date is {supplierDate}. It is needed by {neededBy}.', { what, supplierDate, neededBy }),
     earliestSub: (date) => t('office.deliveriesSchedule.earliestSub', '{date} at the earliest', { date }),
-    earliestWhyBody: t('office.deliveriesSchedule.earliestWhyBody', 'The first working day after the supplier date. No buffer left.'),
+    earliestWhyBody: t('office.deliveriesSchedule.earliestWhyBody', 'The earliest start that puts the supplier date on or before the day it is needed.'),
     finishLaterBody: (n) => tn('office.deliveriesSchedule.finishLaterBody', n, { one: '1 working day later. Worked out from your schedule.', other: '{count} working days later. Worked out from your schedule.' }),
     finishHoldsBody: t('office.deliveriesSchedule.finishHoldsBody', 'The finish date does not move. Worked out from your schedule.'),
     laterSub: (n) => tn('office.deliveriesSchedule.laterSub', n, { one: '1 working day later', other: '{count} working days later' }),
     noneSlideBody: t('office.deliveriesSchedule.noneSlideBody', 'No other task moves.'),
-    startHoldsBody: (task, date) => t('office.deliveriesSchedule.startHoldsBody', 'The supplier date is inside your buffer. {task} can still start {date} if nothing else changes.', { task, date }),
     cannotSayBody: (why, task) => (why === 'cycle'
       ? t('office.deliveriesSchedule.cannotCycleBody', 'The schedule has a dependency loop, so MAGE ID cannot work out the effect.')
       : why === 'task_pinned'
@@ -304,9 +347,15 @@ export function useDeliveriesScheduleCopy(): DeliveriesScheduleCopy {
     taskEmptyBody: t('office.deliveriesSchedule.taskEmptyBody', 'No deliveries are linked to this task.'),
     needWhatBody: t('office.deliveriesSchedule.needWhatBody', 'Say what is coming and who is sending it.'),
 
-    proposalBody: (task, date, what) => t('office.deliveriesSchedule.proposalBody', '{task} would start no earlier than {date}, the first working day after the supplier date for {what}.', { task, date, what }),
+    proposalBody: (task, date, what) => t('office.deliveriesSchedule.proposalBody', '{task} would start no earlier than {date}. That is the earliest start that puts the supplier date for {what} on or before the day it is needed.', { task, date, what }),
     proposalAppliedBody: t('office.deliveriesSchedule.proposalAppliedBody', 'Applied to the schedule. Undo takes it back.'),
     proposalGoneBody: t('office.deliveriesSchedule.proposalGoneBody', 'There is nothing to propose from this delivery now.'),
+
+    holdBody: (task, date) => t('office.deliveriesSchedule.holdBody', '{task} is held to start no earlier than {date}. That hold was applied from this delivery.', { task, date }),
+    holdImprovedBody: (supplierDate, start) => t('office.deliveriesSchedule.holdImprovedBody', 'The supplier date is now {supplierDate}. With your buffer, that allows a start as early as {start}.', { supplierDate, start }),
+    holdRemovedBody: t('office.deliveriesSchedule.holdRemovedBody', 'The hold is removed. Undo takes it back.'),
+    auditAppliedSub: t('office.deliveriesSchedule.auditAppliedSub', 'Applied from a delivery'),
+    auditHoldRemovedSub: t('office.deliveriesSchedule.auditHoldRemovedSub', 'Hold removed from a delivery'),
 
     draft: {
       subject: (what) => t('office.deliveriesSchedule.draftSubject', 'Delivery date: {what}', { what }),

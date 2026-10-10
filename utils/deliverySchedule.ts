@@ -78,9 +78,9 @@ export interface Delivery {
   leadTimeDays?: number;
   /** The day the contractor marked it ordered (YYYY-MM-DD). */
   orderedOn?: string;
-  /** The ORIGINAL promised date: the first supplier date recorded, or the supplier date standing when it was marked ordered. The Supplier Scorecard scores against this, so editing the supplier date to match a late truck does not erase the slip. */
+  /** The ORIGINAL promised date: the first date recorded as "the supplier said so", or the supplier date standing when it was marked ordered. A date that was only typed, or that has no record of who gave it, never becomes it. Changed afterwards only by a labelled correction in the dates form, which the history records with who made it. The Supplier Scorecard scores against this, so editing the supplier date to match a late truck does not erase the slip. */
   promisedDate?: string;
-  /** Each change of the supplier date, oldest first, capped (utils/deliveries/provenance DATE_HISTORY_MAX). */
+  /** Each change of the supplier date and each correction of the promised date, oldest first, capped (utils/deliveries/provenance DATE_HISTORY_MAX). */
   dateHistory?: DeliveryDateChange[];
   /** The linked task's start date the person last looked at (YYYY-MM-DD). The "schedule moved" flag is today's start against this. A record of what was seen, never a needed-by date. */
   taskStartSeen?: string;
@@ -101,6 +101,17 @@ export interface DeliveryDateChange {
   /** The account that typed it. */
   by?: string;
   byName?: string;
+  /**
+   * Absent on a change of the supplier date. 'promise_corrected' = a person
+   * corrected the ORIGINAL promised date by hand, from the dates form; the
+   * supplier date itself did not change (`date` and `previousDate` are both
+   * the supplier date standing at the time).
+   */
+  kind?: 'promise_corrected';
+  /** On a correction: the original promised date after it. */
+  promisedDate?: string;
+  /** On a correction: the original promised date before it, or '' when there was none. */
+  previousPromisedDate?: string;
 }
 
 /**
@@ -255,6 +266,14 @@ export interface DeliveryLookahead {
   late: DeliveryView[];
   /** Inside the confirm window with no supplier confirmation. */
   unconfirmed: DeliveryView[];
+  /**
+   * Open deliveries with NO date ("No date yet", lane DELIVERIES-1), oldest
+   * record first. They are neither late nor upcoming, and before this list
+   * they were in neither and so on no screen at all: a load nobody could mark
+   * received. Not bounded by the horizon, and not in `counts` (the summary
+   * line counts dated loads, as it always has).
+   */
+  undated: DeliveryView[];
   counts: { upcoming: number; late: number; unconfirmed: number };
 }
 
@@ -290,10 +309,15 @@ export function buildLookahead(
     .filter(v => v.flag === 'unconfirmed')
     .sort((a, b) => (a.daysOut ?? 0) - (b.daysOut ?? 0));
 
+  const undated = views
+    .filter(v => v.daysOut === null && v.delivery.status !== 'delivered' && v.delivery.status !== 'cancelled')
+    .sort((a, b) => (a.delivery.createdAt ?? '').localeCompare(b.delivery.createdAt ?? ''));
+
   return {
     upcoming: inHorizon,
     late,
     unconfirmed,
+    undated,
     counts: { upcoming: inHorizon.length, late: late.length, unconfirmed: unconfirmed.length },
   };
 }

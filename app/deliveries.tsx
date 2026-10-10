@@ -134,12 +134,10 @@ export default function DeliveriesScreen() {
     () => deliveries.filter(d => d.projectId === projectId),
     [deliveries, projectId],
   );
-  const look = useMemo(() => buildLookahead(scoped, horizon), [scoped, horizon]);
-  // Deliveries That Follow The Schedule (lane DELIVERIES-1). Inert unless that
-  // feature's gate is open for this person: `block` and `sheets` are then null
-  // and this screen draws exactly what it drew before.
-  const follow = useDeliveriesFollow(projectId);
-  const openAdd = follow.on ? follow.openAdd : () => setShowAdd(true);
+  // Every load of the job. The lists below draw `look`, which is this with the
+  // deliveries the schedule block draws taken out (the same object when that
+  // feature is closed); the header's summary line counts every load.
+  const allLook = useMemo(() => buildLookahead(scoped, horizon), [scoped, horizon]);
 
   // What the BUILDING will stop, as opposed to what the supplier will. A load
   // with a confirmed date and no freight elevator booked is not a delivery
@@ -166,6 +164,21 @@ export default function DeliveriesScreen() {
   // damage can be recorded honestly — a week later it is your word against the
   // supplier's. The sheet doubles as the mis-tap guard the old dialog provided.
   const receive = useCallback((d: Delivery) => setReceiving(d), []);
+
+  // Deliveries That Follow The Schedule (lane DELIVERIES-1). Inert unless that
+  // feature's gate is open for this person: `block` and `sheets` are then null,
+  // `shownIds` is empty and this screen draws exactly what it drew before.
+  // With the gate open, a delivery the block draws (linked to a task, or with
+  // no date) is ONE row, in the block, with this screen's own Confirm and
+  // Received on its card; it is left out of the rows below.
+  const follow = useDeliveriesFollow(projectId, { onConfirm: confirm, onReceive: receive });
+  const openAdd = follow.on ? follow.openAdd : () => setShowAdd(true);
+  const look = useMemo(() => {
+    const keep = (v: DeliveryView) => !follow.shownIds.has(v.delivery.id);
+    return follow.shownIds.size === 0 ? allLook : { ...allLook, late: allLook.late.filter(keep), upcoming: allLook.upcoming.filter(keep), undated: allLook.undated.filter(keep) };
+  }, [allLook, follow.shownIds]);
+  // Everything open is in the block: the old "Nothing Scheduled Yet" would be false.
+  const blockHasRows = follow.shownIds.size > 0;
 
   const commitReceipt = useCallback((d: Delivery, form: {
     receivedBy: string; hasDamage: boolean; damageNotes: string; notes: string;
@@ -299,11 +312,19 @@ export default function DeliveriesScreen() {
         </View>
       ) : null}
       {isDesktopWeb && follow.block ? <View style={styles.followDesk}>{follow.block}</View> : null}
-      {isDesktopWeb ? (
+      {/* While the feature's remembered answer is being read (a moment, and
+          only for a person its gate allows) neither list is drawn: the old
+          list is not flashed up and then swapped. */}
+      {isDesktopWeb && follow.pending ? null : isDesktopWeb ? (
         <DeliveriesRegister
           projectId={projectId}
           projectName={project.name}
           look={look}
+          summaryLook={allLook}
+          blockHasRows={blockHasRows}
+          noDateGroupLabel={follow.noDateGroupLabel}
+          onDates={follow.on ? follow.openDelivery : undefined}
+          datesLabel={follow.datesLabel}
           horizon={horizon}
           onHorizon={setHorizon}
           conflicts={conflicts}
@@ -319,7 +340,7 @@ export default function DeliveriesScreen() {
           <Header
             onBack={goBack}
             title={project.name}
-            subtitle={summarizeLookahead(look, horizon)}
+            subtitle={summarizeLookahead(allLook, horizon)}
             styles={styles}
             t={t}
             onAdd={openAdd}
@@ -352,6 +373,11 @@ export default function DeliveriesScreen() {
 
             {follow.block}
 
+            {/* While the feature's remembered answer is being read (a moment,
+                and only for a person its gate allows) neither list is drawn:
+                the old rows are not flashed up and then swapped. */}
+            {follow.pending ? null : (
+            <>
             {/* LATE — never inside the horizon toggle, never collapsed. */}
             {look.late.length > 0 && (
               <>
@@ -384,6 +410,7 @@ export default function DeliveriesScreen() {
             </View>
 
             {look.upcoming.length === 0 && look.late.length === 0 ? (
+              blockHasRows || look.undated.length > 0 ? null :
               <EmptyState
                 icon={<Truck size={36} color={t.accent} strokeWidth={1.6} />}
                 title="Nothing Scheduled Yet"
@@ -404,6 +431,25 @@ export default function DeliveriesScreen() {
                   conflicts={conflictsForDelivery(conflicts, v.delivery.id)}
                 />
               ))
+            )}
+
+            {/* NO DATE YET. An open delivery with no date is neither late nor
+                upcoming, so it used to be on no list and could not be marked
+                received. Not bounded by the horizon. There is no date to
+                confirm, so the row offers Received (and its dates, when that
+                feature is on). Empty for every delivery made the old way. */}
+            {look.undated.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: t.textSecondary }]} testID="deliveries-no-date-title">{follow.noDateGroupLabel}</Text>
+                {look.undated.map(v => (
+                  <Row key={v.delivery.id} v={v} tone={t.textSecondary} styles={styles} t={t}
+                       onConfirm={confirm} onReceive={receive} noConfirm
+                       onDates={follow.on ? follow.openDelivery : undefined} datesLabel={follow.datesLabel}
+                       conflicts={conflictsForDelivery(conflicts, v.delivery.id)} />
+                ))}
+              </>
+            )}
+            </>
             )}
 
             {/* Always reachable, not only when something is already wrong — the
@@ -505,7 +551,7 @@ function Header({
 }
 
 function Row({
-  v, tone, styles, t, onConfirm, onReceive, conflicts = [], onDates, datesLabel,
+  v, tone, styles, t, onConfirm, onReceive, conflicts = [], onDates, datesLabel, noConfirm,
 }: {
   v: DeliveryView; tone: string;
   styles: ReturnType<typeof makeStyles>; t: ThemeColors;
@@ -513,6 +559,8 @@ function Row({
   conflicts?: AccessConflict[];
   /** Lane DELIVERIES-1: opens the delivery's dates. Absent unless that feature is on, and then the row is the row from before. */
   onDates?: (d: Delivery) => void; datesLabel?: string;
+  /** A delivery with no date: there is nothing to confirm, so the row offers Received only. */
+  noConfirm?: boolean;
 }) {
   const d = v.delivery;
   return (
@@ -541,7 +589,7 @@ function Row({
         </View>
       ))}
       <View style={styles.rowCtas}>
-        {d.status !== 'confirmed' && (
+        {d.status !== 'confirmed' && !noConfirm && (
           <TouchableOpacity onPress={() => onConfirm(d)} style={styles.rowBtn} accessibilityRole="button" testID={`confirm-${d.id}`}>
             <Check size={13} color={t.textSecondary} strokeWidth={2} />
             <Text style={styles.rowBtnText}>Confirm</Text>

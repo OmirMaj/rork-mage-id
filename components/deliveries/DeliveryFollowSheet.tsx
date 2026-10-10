@@ -11,7 +11,14 @@
 //     (utils/deliveries/messageDraft). The person sends it. MAGE ID does not;
 //   - open the schedule with a PROPOSAL shown ("See It on the Schedule"). The
 //     schedule does not move. Applying is a button on the schedule screen,
-//     through that screen's own undoable save.
+//     through that screen's own undoable save;
+//   - SAY that a hold applied from this delivery is on its task, and, when the
+//     supplier date has since improved, open the schedule where "Remove the
+//     Hold on This Task" is a button (the same undoable save). The hold is
+//     never taken off from here and never on its own.
+// The job effect here and the proposal on the schedule are the same working:
+// both call supplierJobEffect(delivery, schedule), which builds its engine
+// options in one place (jobEffect.engineOptionsFor).
 // It never moves a task, never sends anything and raises no notification.
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, Platform, Linking } from 'react-native';
@@ -28,12 +35,12 @@ import type { Delivery } from '@/utils/deliverySchedule';
 import type { DeliveriesScheduleCopy } from '@/hooks/useDeliveriesScheduleCopy';
 import { neededOnSiteBy, type ScheduleForDeliveries } from '@/utils/deliveries/neededBy';
 import { isSettled, scheduleMovedFlag, supplierGap, supplierLateFlag } from '@/utils/deliveries/flags';
-import { supplierJobEffect, type JobEffect, type SlidTask } from '@/utils/deliveries/jobEffect';
+import { holdRelease, supplierJobEffect, type JobEffect, type SlidTask } from '@/utils/deliveries/jobEffect';
 import { readHistory, recordOrdered, supplierDateSource } from '@/utils/deliveries/provenance';
 import { buildSupplierDraft, draftMailUrl } from '@/utils/deliveries/messageDraft';
 import { dayOrEmpty } from '@/utils/deliveries/calendar';
 import { DateRow, DeliveryDatesCard } from './DeliveryDatesCard';
-import { cannotSayLine, dayLong, dayShort, gapLine, movedHeadline, neededBasisLine, supplierSourceLine } from './words';
+import { cannotSayLine, dayLong, dayShort, gapLine, historyLine, movedHeadline, neededBasisLine, supplierSourceLine } from './words';
 import type { DeliveriesFollowStyles } from './styles';
 
 /** Local midnight of a calendar day, in milliseconds (0 when it cannot be read). */
@@ -92,11 +99,13 @@ export function DeliveryFollowSheet({
     const late = supplierLateFlag(delivery, schedule);
     // The job effect is only worked out for a person whose plan has the preview.
     const effect: JobEffect | null = late && canPreviewJobEffect ? supplierJobEffect(delivery, schedule) : null;
-    return { needed, gap, moved, late, effect };
+    // A hold this delivery's applied proposal left on its task (read from the schedule; nothing is kept here).
+    const hold = canPreviewJobEffect ? holdRelease(delivery, schedule) : { kind: 'none' as const };
+    return { needed, gap, moved, late, effect, hold };
   }, [delivery, schedule, canPreviewJobEffect]);
 
   if (!delivery || !view) return null;
-  const { needed, gap, moved, late, effect } = view;
+  const { needed, gap, moved, late, effect, hold } = view;
   const d = delivery;
   const settled = isSettled(d);
   const source = supplierDateSource(d);
@@ -207,11 +216,6 @@ export function DeliveryFollowSheet({
                       <SlideBar key={s.id} task={s} lo={lo} span={Math.max(1, hi - lo)} tone={s.id === effect.taskId ? t.dangerLabel : t.accentFill} sub={copy.laterSub(Math.max(0, s.workingDaysLater))} styles={styles} />
                     ))}
                   </View>
-                ) : effect && effect.kind === 'start_holds' ? (
-                  <View style={styles.card} testID="dfs-effect-holds">
-                    <Text style={styles.sectionLabel}>{copy.ifNothingElseLabel}</Text>
-                    <Text style={styles.body}>{copy.startHoldsBody(effect.taskTitle, dayLong(effect.taskStart, lang))}</Text>
-                  </View>
                 ) : effect && effect.kind === 'cannot_say' ? (
                   <View style={styles.card} testID="dfs-effect-cannot">
                     <Text style={styles.body}>{cannotSayLine(copy, effect, late.taskTitle)}</Text>
@@ -257,6 +261,25 @@ export function DeliveryFollowSheet({
               </>
             ) : null}
 
+            {hold.kind !== 'none' ? (
+              <View style={styles.card} testID="dfs-hold">
+                <Text style={styles.sectionLabel}>{copy.holdLabel}</Text>
+                <Text style={styles.body}>{copy.holdBody(hold.taskTitle, dayLong(hold.heldTo, lang))}</Text>
+                {hold.kind === 'can_release' ? (
+                  <>
+                    <Text style={styles.body} testID="dfs-hold-improved">{copy.holdImprovedBody(dayLong(hold.supplierDate, lang), dayLong(hold.neededStart, lang))}</Text>
+                    {isWide ? (
+                      <TouchableOpacity style={[styles.btn, styles.btnOutline, styles.btnSmall]} onPress={seeOnSchedule} accessibilityRole="button" testID="dfs-hold-see-schedule">
+                        <Text style={styles.btnOutlineText}>{copy.seeOnScheduleLabel}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.note} testID="dfs-hold-wider">{copy.widerScreenBody}</Text>
+                    )}
+                  </>
+                ) : null}
+              </View>
+            ) : null}
+
             <DeliveryDatesCard delivery={d} schedule={schedule} copy={copy} styles={styles} meId={me.id} />
 
             {!settled ? (
@@ -288,12 +311,7 @@ export function DeliveryFollowSheet({
                 <Text style={styles.sectionLabel}>{copy.dateHistoryLabel}</Text>
                 {history.slice().reverse().map((h, i) => (
                   <View key={`${h.at}-${i}`} style={styles.historyRow}>
-                    <Text style={styles.historyText}>
-                      {h.date ? dayLong(h.date, lang) : copy.noDateYetLabel}. {h.previousDate ? `${copy.wasBody(dayShort(h.previousDate, lang))} ` : ''}
-                      {supplierSourceLine(copy, h.source === 'supplier_said'
-                        ? { kind: 'supplier_said', note: h.note ?? '', at: h.at, by: h.by ?? '', byName: h.byName ?? '' }
-                        : { kind: 'typed', at: h.at, by: h.by ?? '', byName: h.byName ?? '' }, me.id, lang)}
-                    </Text>
+                    <Text style={styles.historyText}>{historyLine(copy, h, me.id, lang)}</Text>
                   </View>
                 ))}
               </View>

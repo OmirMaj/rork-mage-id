@@ -11,6 +11,7 @@ import type { Lang } from '@/i18n/types';
 import type { DeliveriesScheduleCopy } from '@/hooks/useDeliveriesScheduleCopy';
 import type { NeededBy } from '@/utils/deliveries/neededBy';
 import type { SupplierDateSource } from '@/utils/deliveries/provenance';
+import type { DeliveryDateChange } from '@/utils/deliverySchedule';
 import type { ScheduleMovedFlag, SupplierGap } from '@/utils/deliveries/flags';
 import type { JobEffect } from '@/utils/deliveries/jobEffect';
 
@@ -43,6 +44,28 @@ export function supplierSourceLine(copy: DeliveriesScheduleCopy, src: SupplierDa
   }
   if (mine) return copy.typedByYouBody(when);
   return src.byName ? copy.typedByNameBody(src.byName, when) : copy.typedByTeammateBody(when);
+}
+
+/**
+ * One line of the supplier date history. A change of the supplier date says
+ * the date, what it was, and who said it. A correction of the scorecard date
+ * says what it became, what it was, and who made the correction.
+ */
+export function historyLine(copy: DeliveriesScheduleCopy, h: DeliveryDateChange, meId: string | null | undefined, lang: Lang): string {
+  const when = dayShort(h.at, lang);
+  if (h.kind === 'promise_corrected') {
+    const date = h.promisedDate ? dayLong(h.promisedDate, lang) : copy.noDateLabel;
+    const mine = !!meId && h.by === meId;
+    const line = mine ? copy.correctedByYouBody(date, when)
+      : h.byName ? copy.correctedByNameBody(date, h.byName, when) : copy.correctedByTeammateBody(date, when);
+    return h.previousPromisedDate ? `${line} ${copy.wasBody(dayShort(h.previousPromisedDate, lang))}` : line;
+  }
+  const src: SupplierDateSource = h.source === 'supplier_said'
+    ? { kind: 'supplier_said', note: h.note ?? '', at: h.at, by: h.by ?? '', byName: h.byName ?? '' }
+    : { kind: 'typed', at: h.at, by: h.by ?? '', byName: h.byName ?? '' };
+  const head = `${h.date ? dayLong(h.date, lang) : copy.noDateYetLabel}.`;
+  const was = h.previousDate && h.previousDate !== h.date ? ` ${copy.wasBody(dayShort(h.previousDate, lang))}` : '';
+  return `${head}${was} ${supplierSourceLine(copy, src, meId, lang)}`;
 }
 
 /** The working behind Order By, or why there is no date. */

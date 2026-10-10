@@ -24,6 +24,9 @@ export const makeDeliveriesFollowStyles = (t: ThemeColors) => StyleSheet.create(
   cardTitles: { flex: 1 },
   cardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
   cardMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1 },
+  // The screen's own Confirm and Received, on the one row a linked delivery has.
+  cardActions: { flexDirection: 'row' as const, justifyContent: 'flex-end' as const, gap: 8, paddingTop: 10, marginTop: 8, borderTopWidth: 1, borderTopColor: t.line },
+  flagGroup: { gap: 6 },
 
   // One date, always with the line that says where it came from.
   dateRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10, paddingTop: 9, marginTop: 6, borderTopWidth: 1, borderTopColor: t.line },

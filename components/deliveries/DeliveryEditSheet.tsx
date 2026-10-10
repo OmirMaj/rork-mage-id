@@ -7,6 +7,18 @@
 // something to compare with later). Needed On Site By and Order By are shown
 // while typing and are NEVER saved: they are worked out again on every read.
 //
+// A DATE NOBODY ATTRIBUTED STAYS UNATTRIBUTED. A delivery from before the lane
+// has a date and no record of who gave it. Opening it here to link a task and
+// pressing Save writes NOTHING about that date: the form holds the source as
+// 'unrecorded' (neither choice is picked) and provenance.recordFromForm
+// records a history entry only when the person changes the date or picks a
+// source themselves.
+//
+// THE SCORECARD DATE (the original promised date) is shown for an existing
+// delivery with its own labelled "Correct This Date". A correction is saved
+// with one history entry that says what it became, what it was and who made
+// it (provenance.correctPromisedDate). Nothing else in this form moves it.
+//
 // Saving goes through the delivery writers of ProjectContext (the offline
 // queue). It moves no task, sends no message and raises no notification.
 import React, { useEffect, useMemo, useState } from 'react';
@@ -24,10 +36,10 @@ import {
   DEFAULT_BUFFER_WORKING_DAYS, MAX_BUFFER_WORKING_DAYS, bufferDaysOf, neededOnSiteBy, scheduleDays, type ScheduleForDeliveries,
 } from '@/utils/deliveries/neededBy';
 import { leadTimeDaysOf, leadTimeFromInput, leadTimeParts, orderByDate, type LeadTimeUnit } from '@/utils/deliveries/orderBy';
-import { NOTE_MAX, recordSupplierDate, supplierDateSource } from '@/utils/deliveries/provenance';
+import { NOTE_MAX, correctPromisedDate, formSourceFor, recordFromForm, supplierDateSource, type FormDateSource } from '@/utils/deliveries/provenance';
 import { dayOrEmpty } from '@/utils/deliveries/calendar';
 import { DateRow } from './DeliveryDatesCard';
-import { dayLong, neededBasisLine, orderBasisLine } from './words';
+import { dayLong, dayShort, neededBasisLine, orderBasisLine } from './words';
 import type { DeliveriesFollowStyles } from './styles';
 
 export interface DeliveryEditResult {
@@ -45,8 +57,11 @@ interface Form {
   taskId: string;
   bufferDays: number;
   date: string;
-  source: 'supplier_said' | 'typed';
+  /** 'unrecorded' = a date with no record of who gave it, left exactly as it is unless the person changes the date or picks a source. */
+  source: FormDateSource;
   note: string;
+  /** The scorecard date the person picked as a correction, or '' for "leave it". */
+  promiseCorrection: string;
   leadText: string;
   leadUnit: LeadTimeUnit;
 }
@@ -62,8 +77,9 @@ function formFor(d: Delivery | null, presetTaskId: string | undefined): Form {
     taskId: d?.taskId ?? presetTaskId ?? '',
     bufferDays: d ? bufferDaysOf(d) : DEFAULT_BUFFER_WORKING_DAYS,
     date: d ? dayOrEmpty(d.expectedDate) : '',
-    source: src && src.kind === 'typed' ? 'typed' : 'supplier_said',
+    source: formSourceFor(d),
     note: src && src.kind === 'supplier_said' ? src.note : '',
+    promiseCorrection: '',
     leadText: parts ? String(parts.count) : '',
     leadUnit: parts ? parts.unit : 'weeks',
   };
@@ -90,9 +106,10 @@ export function DeliveryEditSheet({
   const frame = useSheetFrame('form', { visible, animationType: 'slide' });
   const [form, setForm] = useState<Form>(() => formFor(delivery, presetTaskId));
   const [pickingDate, setPickingDate] = useState(false);
+  const [pickingPromise, setPickingPromise] = useState(false);
   const [pickingTask, setPickingTask] = useState(false);
   useEffect(() => {
-    if (visible) { setForm(formFor(delivery, presetTaskId)); setPickingTask(false); setPickingDate(false); }
+    if (visible) { setForm(formFor(delivery, presetTaskId)); setPickingTask(false); setPickingDate(false); setPickingPromise(false); }
   }, [visible, delivery, presetTaskId]);
 
   const days = useMemo(() => scheduleDays(schedule), [schedule]);
@@ -106,11 +123,13 @@ export function DeliveryEditSheet({
 
   const save = () => {
     if (!valid) return;
-    const base: Pick<Delivery, 'expectedDate' | 'dateHistory' | 'promisedDate' | 'createdAt'> = delivery
-      ?? { expectedDate: '', dateHistory: undefined, promisedDate: undefined, createdAt: '' };
-    const dateFields = recordSupplierDate(base, {
-      date: form.date, source: form.source, note: form.note, by: me.id, byName: me.name, now: new Date(),
-    });
+    const now = new Date();
+    // Null when there is nothing to record: an unattributed date the person left alone stays unattributed.
+    const dateFields = recordFromForm(delivery, { date: form.date, source: form.source, note: form.note }, { by: me.id, byName: me.name, now });
+    // The labelled correction of the scorecard date, on top of whatever the supplier date did in this save.
+    const corrected = delivery && form.promiseCorrection
+      ? correctPromisedDate({ ...delivery, ...(dateFields ?? {}) }, { date: form.promiseCorrection, by: me.id, byName: me.name, now })
+      : null;
     const start = form.taskId ? days.byTask.get(form.taskId)?.start : undefined;
     onSave({
       description: form.description.trim(),
@@ -123,6 +142,7 @@ export function DeliveryEditSheet({
         // What the person is looking at as they save. A record of what was seen, never a needed-by date.
         taskStartSeen: start || undefined,
         ...(dateFields ?? {}),
+        ...(corrected ?? {}),
       },
     });
   };
@@ -157,9 +177,9 @@ export function DeliveryEditSheet({
           ) : (
             <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Text style={styles.fieldLabel}>{copy.whatLabel}</Text>
-              <TextInput style={styles.input} value={form.description} onChangeText={(x) => set({ description: x })} placeholder="14 Windows" placeholderTextColor={t.textMuted} testID="dfs-what" />
+              <TextInput style={styles.input} value={form.description} onChangeText={(x) => set({ description: x })} placeholder={copy.whatPlaceholder} placeholderTextColor={t.textMuted} testID="dfs-what" />
               <Text style={styles.fieldLabel}>{copy.supplierLabel}</Text>
-              <TextInput style={styles.input} value={form.supplier} onChangeText={(x) => set({ supplier: x })} placeholder="Northside Glass" placeholderTextColor={t.textMuted} testID="dfs-supplier" />
+              <TextInput style={styles.input} value={form.supplier} onChangeText={(x) => set({ supplier: x })} placeholder={copy.supplierPlaceholder} placeholderTextColor={t.textMuted} testID="dfs-supplier" />
 
               <Text style={styles.fieldLabel}>{copy.forTaskLabel}</Text>
               <TouchableOpacity style={[styles.input, styles.pick]} onPress={() => setPickingTask(true)} accessibilityRole="button" accessibilityLabel={copy.forTaskLabel} testID="dfs-task-pick">
@@ -170,11 +190,11 @@ export function DeliveryEditSheet({
                 <>
                   <Text style={styles.fieldLabel}>{copy.bufferLabel}</Text>
                   <View style={styles.stepper}>
-                    <TouchableOpacity style={styles.stepBtn} onPress={() => set({ bufferDays: Math.max(0, form.bufferDays - 1) })} accessibilityRole="button" accessibilityLabel={`${copy.bufferLabel} -1`} testID="dfs-buffer-less">
+                    <TouchableOpacity style={styles.stepBtn} onPress={() => set({ bufferDays: Math.max(0, form.bufferDays - 1) })} accessibilityRole="button" accessibilityLabel={copy.bufferLessLabel} testID="dfs-buffer-less">
                       <Minus size={16} color={t.text} strokeWidth={2} />
                     </TouchableOpacity>
                     <Text style={styles.stepVal} testID="dfs-buffer">{form.bufferDays}</Text>
-                    <TouchableOpacity style={styles.stepBtn} onPress={() => set({ bufferDays: Math.min(MAX_BUFFER_WORKING_DAYS, form.bufferDays + 1) })} accessibilityRole="button" accessibilityLabel={`${copy.bufferLabel} +1`} testID="dfs-buffer-more">
+                    <TouchableOpacity style={styles.stepBtn} onPress={() => set({ bufferDays: Math.min(MAX_BUFFER_WORKING_DAYS, form.bufferDays + 1) })} accessibilityRole="button" accessibilityLabel={copy.bufferMoreLabel} testID="dfs-buffer-more">
                       <Plus size={16} color={t.text} strokeWidth={2} />
                     </TouchableOpacity>
                     <Text style={styles.fieldHint}>{copy.bufferHelpSub}</Text>
@@ -226,6 +246,10 @@ export function DeliveryEditSheet({
                       <TextInput style={styles.input} value={form.note} onChangeText={(x) => set({ note: x.slice(0, NOTE_MAX) })} placeholder={copy.howToldPlaceholder} placeholderTextColor={t.textMuted} maxLength={NOTE_MAX} testID="dfs-note" />
                     </>
                   ) : null}
+                  {/* Neither choice is picked: the record says nobody attributed this date, and saving leaves it so. */}
+                  {form.source === 'unrecorded' && delivery && form.date === dayOrEmpty(delivery.expectedDate) ? (
+                    <Text style={styles.fieldHint} testID="dfs-source-unrecorded">{copy.unrecordedBody(dayShort(delivery.createdAt, lang))}</Text>
+                  ) : null}
                 </>
               ) : (
                 <Text style={styles.fieldHint}>{copy.notGivenBody}</Text>
@@ -251,10 +275,41 @@ export function DeliveryEditSheet({
                 />
               ) : null}
 
+              {delivery && (dayOrEmpty(delivery.promisedDate) || form.date) ? (
+                <>
+                  <DateRow
+                    label={copy.scoredDateLabel}
+                    was={form.promiseCorrection && dayOrEmpty(delivery.promisedDate) ? dayShort(dayOrEmpty(delivery.promisedDate), lang) : undefined}
+                    value={form.promiseCorrection
+                      ? dayLong(form.promiseCorrection, lang)
+                      : dayOrEmpty(delivery.promisedDate) ? dayLong(dayOrEmpty(delivery.promisedDate), lang) : copy.noDateLabel}
+                    basis={form.promiseCorrection ? copy.scoredCorrectionBody : dayOrEmpty(delivery.promisedDate) ? copy.scoredBasisBody : copy.scoredNoneBody}
+                    styles={styles}
+                    testID="dfs-edit-scored"
+                  />
+                  <TouchableOpacity style={[styles.btn, styles.btnQuiet, styles.btnSmall]} onPress={() => setPickingPromise(true)} accessibilityRole="button" accessibilityLabel={`${copy.correctScoredLabel}: ${copy.scoredDateLabel}`} testID="dfs-correct-scored">
+                    <Text style={styles.btnQuietText}>{copy.correctScoredLabel}</Text>
+                  </TouchableOpacity>
+                  <DatePickerModal
+                    visible={pickingPromise}
+                    value={parseCalendarDay(form.promiseCorrection || dayOrEmpty(delivery.promisedDate) || form.date || todayCalendarDay())?.toISOString() ?? ''}
+                    allowFuture
+                    title={copy.scoredDateLabel}
+                    onClose={() => setPickingPromise(false)}
+                    onChange={(iso) => {
+                      const day = calendarDayOf(iso) ?? '';
+                      // Picking the date it already is corrects nothing.
+                      set({ promiseCorrection: day && day !== dayOrEmpty(delivery.promisedDate) ? day : '' });
+                      setPickingPromise(false);
+                    }}
+                  />
+                </>
+              ) : null}
+
               {!delivery ? (
                 <>
                   <Text style={styles.fieldLabel}>{copy.windowLabel}</Text>
-                  <TextInput style={styles.input} value={form.window} onChangeText={(x) => set({ window: x })} placeholder="07:00-11:00" placeholderTextColor={t.textMuted} testID="dfs-window" />
+                  <TextInput style={styles.input} value={form.window} onChangeText={(x) => set({ window: x })} placeholder={copy.windowPlaceholder} placeholderTextColor={t.textMuted} testID="dfs-window" />
                 </>
               ) : null}
 

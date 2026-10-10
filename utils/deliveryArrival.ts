@@ -162,6 +162,11 @@ export function buildArrival(input: {
  * The open delivery from this supplier that is due today or late — the one
  * the truck probably is. Oldest first; null when there is none (or the
  * supplier is blank). Delivered and cancelled loads are never offered.
+ *
+ * An open delivery with NO supplier date ("No date yet", lane DELIVERIES-1)
+ * is considered too, after every dated one: nobody said when it was coming, so
+ * the truck at the gate may well be it, and leaving it out left it open for
+ * ever with a duplicate beside it. Among undated ones, the oldest record first.
  */
 export function lateMatchForSupplier(
   deliveries: readonly Delivery[],
@@ -171,12 +176,18 @@ export function lateMatchForSupplier(
 ): Delivery | null {
   const s = fold(supplier);
   if (!projectId || !s) return null;
-  const hits = deliveries
+  const day = (d: Delivery) => (d.expectedDate ?? '').slice(0, 10);
+  const open = deliveries
     .filter(d => d.projectId === projectId && fold(d.supplier) === s)
-    .filter(d => d.status !== 'delivered' && d.status !== 'cancelled')
-    .filter(d => (d.expectedDate ?? '').slice(0, 10) !== '' && (d.expectedDate ?? '').slice(0, 10) <= today)
+    .filter(d => d.status !== 'delivered' && d.status !== 'cancelled');
+  const dated = open
+    .filter(d => day(d) !== '' && day(d) <= today)
     .sort((a, b) => (a.expectedDate ?? '').localeCompare(b.expectedDate ?? ''));
-  return hits[0] ?? null;
+  if (dated[0]) return dated[0];
+  const undated = open
+    .filter(d => day(d) === '')
+    .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
+  return undated[0] ?? null;
 }
 
 /** "from scan, check it" — the label on a field the scan filled. */

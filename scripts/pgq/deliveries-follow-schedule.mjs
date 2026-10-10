@@ -1,4 +1,6 @@
-// deliveries-follow-schedule.mjs — PGlite proof of 20261012090000_deliveries_follow_schedule.sql (lane DELIVERIES-1).
+// deliveries-follow-schedule.mjs — PGlite proof of 20261012090000_deliveries_follow_schedule.sql (lane DELIVERIES-1):
+// the columns, the checks, the unchanged policies and grants, and the ONE trigger that keeps the record
+// (the promise is written once; the history is not shrunk; nothing is refused, nothing else is touched).
 // Usage: [MUTATE=<n>] node scripts/pgq/deliveries-follow-schedule.mjs <worktree>   (one run)
 //        node scripts/pgq/deliveries-follow-schedule.mjs <worktree> --all            (as written + every planted mutation)
 // A plant softens the migration's own self-check to a notice where it would catch the plant at
@@ -32,6 +34,14 @@ if (process.argv[3] === '--all') {
     12: ['14', '15'],    // anon is given a read policy
     13: ['2'],           // an order-by column is added: the date would be stored
     14: ['11'],          // a column is added the field seat cannot write (a column-level revoke)
+    15: ['16', '18', '19c', '21'], // the trigger is not created: a set promise is overwritten and the history is nulled
+    16: ['19c'],         // the correction need not say what the promise WAS: a stale device's correction lands
+    17: ['21'],          // the shrink guard removed: a second device nulls and cuts the history
+    18: ['23'],          // the function is made SECURITY DEFINER
+    19: ['19b'],         // any last entry that names the new date counts as a correction (the kind is not read)
+    20: ['23'],          // EXECUTE is not revoked: anon and authenticated can call the function
+    21: ['18', '19a', '22'], // the trigger RAISES instead of keeping the two columns: the rest of a stale write is lost
+    22: ['16'],          // the trigger fires on every update, not only one that names the two columns
   });
 }
 
@@ -46,6 +56,9 @@ const HISTORY_CHECK = `alter table public.deliveries add constraint deliveries_f
     and jsonb_array_length(date_history) <= 40
     and octet_length(date_history::text) <= 16384
   ));`;
+const CREATE_TRIGGER = `create trigger deliveries_fs_keep_record
+  before update of promised_date, date_history on public.deliveries
+  for each row execute function public.deliveries_fs_keep_record();`;
 switch (MUTATE) {
   case 0: break;
   case 1: rep('alter table public.deliveries alter column expected_date drop not null;', ''); noSelfCheck(); break;
@@ -62,6 +75,14 @@ switch (MUTATE) {
   case 12: rep(END, `drop policy if exists deliveries_anon_read on public.deliveries;\ncreate policy deliveries_anon_read on public.deliveries for select to anon using (true);\n${END}`); noSelfCheck(); break;
   case 13: rep(END, `alter table public.deliveries add column if not exists order_by_date date;\n${END}`); noSelfCheck(); break;
   case 14: rep(END, `revoke update on public.deliveries from authenticated;\ngrant update (description, supplier, status, expected_date, updated_at) on public.deliveries to authenticated;\n${END}`); break;
+  case 15: rep(CREATE_TRIGGER, ''); noSelfCheck(); break;
+  case 16: rep("\n       or (v_last ->> 'previousPromisedDate') is distinct from to_char(old.promised_date, 'YYYY-MM-DD') then", ' then'); break;
+  case 17: rep('    new.date_history := old.date_history;', '    null;'); break;
+  case 18: rep('security invoker\nset search_path', 'security definer\nset search_path'); noSelfCheck(); break;
+  case 19: rep("\n       or (v_last ->> 'kind') is distinct from 'promise_corrected'", ''); break;
+  case 20: rep('revoke all on function public.deliveries_fs_keep_record() from public, anon, authenticated;', ''); noSelfCheck(); break;
+  case 21: rep('      new.promised_date := old.promised_date;', "      raise exception 'the promised date is written once';"); break;
+  case 22: rep('  before update of promised_date, date_history on public.deliveries', '  before update on public.deliveries'); rep("  return new;\nend\n$fn$;", "  new.updated_at := now();\n  return new;\nend\n$fn$;"); noSelfCheck(); break;
   default: console.error('unknown MUTATE'); process.exit(2);
 }
 if (MUTATE) console.log(`(planted mutation M${MUTATE} applied)`);
@@ -105,6 +126,7 @@ grant execute on function public.can_access_project(uuid, text) to authenticated
 `);
 await db.exec(DELIVERIES);
 const { ok, rows, tryRun, done } = makeKit(db);
+const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // A row from before the migration, written the way every build before the lane writes it.
 const OLD_INSERT = (id, uid, project, extra = '') =>
@@ -119,7 +141,8 @@ const GRANT_SNAPSHOT = `select r as role, p as priv, has_table_privilege(r, 'pub
   from unnest(array['anon','authenticated','service_role']) r, unnest(array['select','insert','update','delete']) p order by 1, 2`;
 const policiesBefore = JSON.stringify(await rows(POLICY_SNAPSHOT));
 const grantsBefore = JSON.stringify(await rows(GRANT_SNAPSHOT));
-const funcsBefore = (await rows(`select count(*)::int as n from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'`))[0].n;
+const FUNCS = `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' order by 1`;
+const funcsBefore = (await rows(FUNCS)).map((r) => r.proname);
 
 let applyErr = null;
 try { await db.exec(MIG); await db.exec(MIG); } catch (e) { applyErr = e; }
@@ -182,8 +205,9 @@ const setCol = (id, sql, uid = OWNER, params = []) => tryRun('authenticated', `u
   const fortyOne = await setCol(D(2), 'date_history = $1::jsonb', OWNER, [JSON.stringify(Array.from({ length: 41 }, (_, i) => ({ at: String(i) })))]);
   const forty = await setCol(D(2), 'date_history = $1::jsonb', OWNER, [JSON.stringify(Array.from({ length: 40 }, (_, i) => ({ at: String(i) })))]);
   ok('9b the history holds at most 40 entries: 41 are refused, 40 are stored', !fortyOne.ok && forty.ok, `41 ${fortyOne.ok ? 'stored' : 'refused'}; 40 ${forty.ok ? 'stored' : forty.err}`);
-  const big = await setCol(D(2), 'date_history = $1::jsonb', OWNER, [JSON.stringify(Array.from({ length: 10 }, (_, i) => entry(i, 'x'.repeat(2000))))]);
-  ok('9c the history is at most 16,384 bytes: ten entries of 2,000 characters each are refused', !big.ok, big.ok ? 'stored' : 'refused');
+  // 40 entries (not fewer than the row holds, so the trigger does not simply keep the old list) of 500 characters each: about 24 KB.
+  const big = await setCol(D(2), 'date_history = $1::jsonb', OWNER, [JSON.stringify(Array.from({ length: 40 }, (_, i) => entry(i, 'x'.repeat(500))))]);
+  ok('9c the history is at most 16,384 bytes: forty entries of 500 characters each are refused', !big.ok, big.ok ? 'stored' : 'refused');
 }
 {
   const empty = await setCol(D(2), "task_id = ''");
@@ -228,17 +252,98 @@ const setCol = (id, sql, uid = OWNER, params = []) => tryRun('authenticated', `u
 }
 {
   const trig = await rows(`select tgname from pg_trigger where tgrelid = 'public.deliveries'::regclass and not tgisinternal`);
-  const funcsAfter = (await rows(`select count(*)::int as n from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'`))[0].n;
-  const before = (await rows(`select notes, updated_at::text as u from public.deliveries where id = '${D(2)}'`))[0];
+  const added = (await rows(FUNCS)).map((r) => r.proname).filter((n) => !funcsBefore.includes(n));
+  const before = (await rows(`select notes, updated_at::text as u, status, description from public.deliveries where id = '${D(2)}'`))[0];
   await setCol(D(2), "task_start_seen = '2026-11-30'");
-  const after = (await rows(`select notes, updated_at::text as u from public.deliveries where id = '${D(2)}'`))[0];
-  ok('16 the migration adds no trigger and no function: nothing acts when a delivery row changes (a write of one column changes that column only)',
-    trig.length === 0 && funcsAfter === funcsBefore && before?.notes === after?.notes && before?.u === after?.u, `triggers [${trig.map((t) => t.tgname).join(',')}] functions ${funcsBefore} -> ${funcsAfter}`);
+  const after = (await rows(`select notes, updated_at::text as u, status, description from public.deliveries where id = '${D(2)}'`))[0];
+  ok('16 the migration adds ONE trigger (deliveries_fs_keep_record) and ONE function, and neither acts on a write that names neither of its two columns (a write of one other column changes that column only)',
+    eq(trig.map((t) => t.tgname), ['deliveries_fs_keep_record']) && eq(added, ['deliveries_fs_keep_record']) && eq(before, after),
+    `triggers [${trig.map((t) => t.tgname).join(',')}] new functions [${added.join(',')}]`);
 }
 {
   const f = await tryRun('authenticated', `delete from public.deliveries where id = '${D(3)}' returning id`, FIELD);
   const o = await tryRun('authenticated', `delete from public.deliveries where id = '${D(3)}' returning id`, OWNER);
   ok('17 only the row\'s owner deletes a delivery, as before', (!f.ok || f.n === 0) && o.ok && o.n === 1, `field ${f.ok ? f.n : 'refused'}; owner ${o.ok ? o.n : o.err}`);
+}
+
+// ── the record is kept: the promise is written once, the history is not shrunk ──
+const rec = async (id) => (await rows(`select promised_date::text as promised, date_history as history, status, expected_date::text as expected, notes from public.deliveries where id = '${id}'`))[0];
+const E1 = { date: '2026-11-12', previousDate: '', at: '2026-10-06T15:00:00.000Z', source: 'supplier_said', note: 'by phone', by: OWNER };
+const E2 = { date: '2026-12-01', previousDate: '2026-11-12', at: '2026-10-09T15:00:00.000Z', source: 'supplier_said', by: OWNER };
+const fix = (to, was, extra = {}) => ({ date: '2026-12-01', previousDate: '2026-12-01', at: '2026-10-10T15:00:00.000Z', source: 'typed', by: OWNER, byName: 'Dana Ortiz', kind: 'promise_corrected', promisedDate: to, previousPromisedDate: was, ...extra });
+{
+  const made = await tryRun('authenticated',
+    `insert into public.deliveries (id, user_id, project_id, description, supplier, expected_date, status, created_at, updated_at, task_id, promised_date, date_history)
+     values ('${D(5)}', '${OWNER}', '${P1}', 'Entry Doors', 'Northside Glass', '2026-12-01', 'scheduled', now(), now(), 'task-doors', '2026-11-12', $1::jsonb)`, OWNER, [JSON.stringify([E1, E2])]);
+  if (!made.ok) { console.error('the fixture row for the record checks could not be written: ' + made.err); process.exit(3); }
+
+  // A second device with an old copy: it writes the supplier date it has, a different promise, and marks the load confirmed.
+  const stale = await setCol(D(5), "promised_date = '2026-12-01', status = 'confirmed', notes = 'gate code 4471'");
+  const a = await rec(D(5));
+  const nulled = await setCol(D(5), 'promised_date = null');
+  const b = await rec(D(5));
+  ok('18 the promise is written once: an update that sets a different promised_date, or NULL, leaves it as it was, and the REST of that update lands (status, notes)',
+    stale.ok && stale.n === 1 && a?.promised === '2026-11-12' && a?.status === 'confirmed' && a?.notes === 'gate code 4471' && nulled.ok && b?.promised === '2026-11-12',
+    `different date: ${stale.ok ? `promise ${a?.promised}, status ${a?.status}` : stale.err}; null: ${nulled.ok ? b?.promised : nulled.err}`);
+
+  // A correction is an update whose history ENDS with an entry that says so.
+  const noEntry = await setCol(D(5), "promised_date = '2026-11-20', date_history = $1::jsonb", OWNER, [JSON.stringify([E1, E2, { ...E2, at: '2026-10-10T15:00:00.000Z' }])]);
+  const afterNoEntry = (await rec(D(5)))?.promised;
+  const wrongDate = await setCol(D(5), "promised_date = '2026-11-20', date_history = $1::jsonb", OWNER, [JSON.stringify([E1, E2, fix('2026-11-21', '2026-11-12')])]);
+  const afterWrongDate = (await rec(D(5)))?.promised;
+  ok('19a a history entry that is not a correction, or a correction that names another date, does not move the promise',
+    noEntry.ok && afterNoEntry === '2026-11-12' && wrongDate.ok && afterWrongDate === '2026-11-12', `plain entry: ${afterNoEntry}; wrong date: ${afterWrongDate}`);
+  const noKind = await setCol(D(5), "promised_date = '2026-11-20', date_history = $1::jsonb", OWNER, [JSON.stringify([E1, E2, fix('2026-11-20', '2026-11-12', { kind: undefined })])]);
+  const afterNoKind = (await rec(D(5)))?.promised;
+  ok('19b an entry that names the new date but is not marked as a correction does not move the promise', noKind.ok && afterNoKind === '2026-11-12', `promise ${afterNoKind}`);
+  const wrongWas = await setCol(D(5), "promised_date = '2026-11-20', date_history = $1::jsonb", OWNER, [JSON.stringify([E1, E2, fix('2026-11-20', '2026-10-30')])]);
+  const afterWrongWas = (await rec(D(5)))?.promised;
+  ok('19c a correction that does not say what the promise WAS (a device correcting from an old copy) does not move it', wrongWas.ok && afterWrongWas === '2026-11-12', `promise ${afterWrongWas}`);
+  const good = [E1, E2, fix('2026-11-20', '2026-11-12')];
+  const corrected = await setCol(D(5), "promised_date = '2026-11-20', date_history = $1::jsonb", OWNER, [JSON.stringify(good)]);
+  const c = await rec(D(5));
+  ok('20 a correction that says what the promise became and what it was moves it, and the history keeps who made it',
+    corrected.ok && corrected.n === 1 && c?.promised === '2026-11-20' && c?.history?.length === 3 && c?.history?.[2]?.kind === 'promise_corrected' && c?.history?.[2]?.by === OWNER && c?.history?.[2]?.byName === 'Dana Ortiz' && c?.history?.[2]?.previousPromisedDate === '2026-11-12',
+    corrected.ok ? `promise ${c?.promised}, ${c?.history?.length} entries` : corrected.err);
+  // Replaying that same history cannot move it again: the last entry names Nov 20, not the new date.
+  const replay = await setCol(D(5), "promised_date = '2026-12-05', date_history = $1::jsonb", OWNER, [JSON.stringify(good)]);
+  ok('20b the same correction entry sent again with another date moves nothing', replay.ok && (await rec(D(5)))?.promised === '2026-11-20', `promise ${(await rec(D(5)))?.promised}`);
+
+  const toNull = await setCol(D(5), "date_history = null, status = 'scheduled'");
+  const n1 = await rec(D(5));
+  const toEmpty = await setCol(D(5), "date_history = '[]'::jsonb");
+  const n2 = await rec(D(5));
+  const shorter = await setCol(D(5), 'date_history = $1::jsonb', OWNER, [JSON.stringify([E1])]);
+  const n3 = await rec(D(5));
+  const sameLength = await setCol(D(5), 'date_history = $1::jsonb', OWNER, [JSON.stringify([E2, good[2], { ...E2, date: '2026-12-03', previousDate: '2026-12-01', at: '2026-10-11T15:00:00.000Z' }])]);
+  const n4 = await rec(D(5));
+  const longer = await setCol(D(5), 'date_history = $1::jsonb', OWNER, [JSON.stringify([...n4.history, { ...E2, date: '2026-12-04', previousDate: '2026-12-03', at: '2026-10-12T15:00:00.000Z' }])]);
+  const n5 = await rec(D(5));
+  ok('21 the history is not shrunk: NULL, an empty list and a shorter list leave it as it was (and the rest of the update lands); the same length (the app at its cap) and a longer list are stored',
+    toNull.ok && n1?.history?.length === 3 && n1?.status === 'scheduled' && toEmpty.ok && n2?.history?.length === 3 && shorter.ok && n3?.history?.length === 3
+      && sameLength.ok && n4?.history?.length === 3 && n4?.history?.[2]?.date === '2026-12-03' && longer.ok && n5?.history?.length === 4,
+    `null ${n1?.history?.length}; [] ${n2?.history?.length}; shorter ${n3?.history?.length}; same length ${n4?.history?.[2]?.date}; longer ${n5?.history?.length}`);
+}
+{
+  // The first promise is free: a row with none takes one, from the owner and from a field seat.
+  const first = await setCol(D(4), "promised_date = '2026-11-12'", FIELD);
+  const set = (await rec(D(4)))?.promised;
+  // And a field seat's ordinary stale write (old promise, no history) still lands everything else.
+  const stale = await setCol(D(5), "promised_date = '2026-11-12', date_history = null, status = 'confirmed', task_start_seen = '2026-12-02'", FIELD);
+  const after = (await rows(`select promised_date::text as promised, jsonb_array_length(date_history) as n, status, task_start_seen::text as seen from public.deliveries where id = '${D(5)}'`))[0];
+  ok('22 setting the promise for the first time is not held back, and a field seat\'s stale write is not refused: its other columns land and the two kept columns stay',
+    first.ok && first.n === 1 && set === '2026-11-12' && stale.ok && stale.n === 1 && after?.promised === '2026-11-20' && after?.n === 4 && after?.status === 'confirmed' && after?.seen === '2026-12-02',
+    `first ${first.ok ? set : first.err}; stale ${stale.ok ? JSON.stringify(after) : stale.err}`);
+}
+{
+  const fn = (await rows(`select p.prosecdef as definer, coalesce(array_to_string(p.proconfig, ','), '') as config, p.prosrc as src,
+      has_function_privilege('anon', p.oid, 'execute') as anon, has_function_privilege('authenticated', p.oid, 'execute') as authed, has_function_privilege('public', p.oid, 'execute') as pub
+    from pg_proc p where p.oid = to_regprocedure('public.deliveries_fs_keep_record()')`))[0];
+  const called = await tryRun('authenticated', 'select public.deliveries_fs_keep_record()', OWNER);
+  ok('23 the trigger function is SECURITY INVOKER with an empty search_path, nobody can call it (anon, authenticated, PUBLIC hold no EXECUTE), and its body writes nothing but the two columns of NEW',
+    !!fn && fn.definer === false && /search_path=(""|)$/.test(fn.config) && fn.anon === false && fn.authed === false && fn.pub === false && !called.ok
+      && !/\b(insert|delete|perform|execute|notify|pg_notify|net\.|http|update\s+public)\b/i.test(fn.src) && (fn.src.match(/new\.[a-z_]+\s*:=/g) ?? []).every((a) => /new\.(promised_date|date_history)\s*:=/.test(a)),
+    fn ? `definer ${fn.definer}; config ${fn.config}; execute anon ${fn.anon} authenticated ${fn.authed} public ${fn.pub}; direct call ${called.ok ? 'ran' : 'refused'}` : 'function missing');
 }
 
 done();

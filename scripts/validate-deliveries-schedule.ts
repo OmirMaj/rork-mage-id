@@ -37,6 +37,15 @@
 //    trigger, no function, no needed-by column, the header, the self-check,
 //    the PGlite proof.
 // K. REGISTRATION.
+// L. THE REVIEW FIXES (2026-10-09), each with its own planted mutations: an
+//    unattributed date stays unattributed; the promise is set from a supplier's
+//    word only; the task sheet is handed its job; a person's Apply is logged as
+//    a person's; "No Date Yet" is listed and can be received; the working week
+//    is the engine's; one row per delivery; the proposal and the flag are one
+//    rule (buffer 0, 1, 3); one set of engine options; the hold is marked and
+//    can be removed by a press; the table holds the record; a write that proves
+//    the columns gone closes the feature and is re-sent the old way; the shared
+//    preview slot; the wording.
 //
 // Run: bun run scripts/validate-deliveries-schedule.ts
 
@@ -47,15 +56,22 @@ import { fileURLToPath } from 'node:url';
 
 import type { ScheduleTask } from '../types';
 import type { Delivery } from '../utils/deliverySchedule';
-import { runCpm } from '../utils/cpm';
+import { ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK, runCpm } from '../utils/cpm';
 import { buildSchedulePreviewOverlay } from '../utils/schedulePreviewOverlay';
 import { slipDays, computeSupplierScorecards } from '../utils/supplierScorecard';
-import { isWorkedDay, stepWorkingDays, workingDaysFromTo, stepCalendarDays } from '../utils/deliveries/calendar';
+import { earliestStartFor, isWorkedDay, stepWorkingDays, weekOf, workingDaysFromTo, stepCalendarDays } from '../utils/deliveries/calendar';
 import { DEFAULT_BUFFER_WORKING_DAYS, bufferDaysOf, neededByForStart, neededOnSiteBy, scheduleDays, type ScheduleForDeliveries } from '../utils/deliveries/neededBy';
 import { flagsFor, scheduleMovedFlag, supplierGap, supplierLateFlag, toReviewCount } from '../utils/deliveries/flags';
-import { proposedTasks, supplierJobEffect } from '../utils/deliveries/jobEffect';
+import { deliveryHold, engineOptionsFor, holdRelease, proposedTasks, releasedTasks, supplierJobEffect } from '../utils/deliveries/jobEffect';
+import { buildLookahead } from '../utils/deliverySchedule';
+import { lateMatchForSupplier } from '../utils/deliveryArrival';
+import {
+  DELIVERY_COLUMNS_SEEN_KEY, columnsAnswer, columnsEpoch, rewriteForMissingColumns, setColumnsAnswer, withoutScheduleColumns,
+} from '../utils/deliveries/columnsGate';
 import { endOfLocalWeek, leadTimeDaysOf, leadTimeFromInput, leadTimeParts, orderByDate, whatToOrderThisWeek } from '../utils/deliveries/orderBy';
-import { DATE_HISTORY_MAX, NOTE_MAX, previousSupplierDate, readHistory, recordOrdered, recordSupplierDate, supplierDateSource } from '../utils/deliveries/provenance';
+import {
+  DATE_HISTORY_MAX, NOTE_MAX, correctPromisedDate, formSourceFor, previousSupplierDate, readHistory, recordFromForm, recordOrdered, recordSupplierDate, supplierDateSource,
+} from '../utils/deliveries/provenance';
 import { scoredPromiseDate } from '../utils/deliveries/promise';
 import {
   DELIVERY_SCHEDULE_COLUMNS, DELIVERY_SCHEDULE_FIELDS, carriesScheduleFields, deliveryScheduleColumns, deliveryScheduleFieldsFromRow,
@@ -64,7 +80,7 @@ import {
 import { deliveriesFollowScheduleAllowedWith } from '../utils/deliveries/allowed';
 import { buildSupplierDraft, draftMailUrl, type DraftWords } from '../utils/deliveries/messageDraft';
 import { DELIVERIES_FOLLOW_SCHEDULE_ENABLED } from '../constants/featureFlags';
-import { gapChip, gapLine, neededBasisLine, orderBasisLine, supplierSourceLine } from '../components/deliveries/words';
+import { gapChip, gapLine, historyLine, neededBasisLine, orderBasisLine, supplierSourceLine } from '../components/deliveries/words';
 import type { DeliveriesScheduleCopy } from '../hooks/useDeliveriesScheduleCopy';
 import { EN as EN_SHARD } from '../i18n/catalog/en/office.deliveries-schedule.generated';
 import { ES_OFFICE_DELIVERIES_SCHEDULE } from '../i18n/catalog/es/office/deliveriesSchedule';
@@ -206,6 +222,31 @@ ok('working-day steps: Fri to Mon is 1; Mon back 1 is Fri; a closed day is not a
 ok('working-day steps cross a clock change without losing a day (Nov 1, 2026 is the end of US daylight time)',
   stepWorkingDays('2026-11-02', -1, { workingDaysPerWeek: 5 }) === '2026-10-30' && stepCalendarDays('2026-11-02', -1) === '2026-11-01' && workingDaysFromTo('2026-10-30', '2026-11-02', { workingDaysPerWeek: 5 }) === 1);
 
+// THE WORKING WEEK OF A SCHEDULE THAT DOES NOT SAY ONE is the engine's own
+// default (7: every day), read from the same constant runCpm falls back to.
+// Framing 12 days from Mon Nov 2 on a 7-day week ends Fri Nov 13; Punch Prep is
+// pinned to working day 8, which is Mon Nov 9. One working day before a Monday
+// is SUNDAY Nov 8 on that calendar. A 5-day default in the lane said Fri Nov 6:
+// a needed-by date two days off the schedule the person is looking at.
+{
+  const unsaid = HOUSE({ workingDaysPerWeek: undefined }, HOUSE_TASKS().map((t) => (t.id === 'P' ? { ...t, startDay: 8 } : t)));
+  const engineStart = scheduleDays(unsaid).byTask.get('P')?.start;
+  const weekRule = (week: (c: { workingDaysPerWeek?: number | null }) => number): boolean => {
+    const cal = { workingDaysPerWeek: week(unsaid) };
+    return engineStart === '2026-11-09' && stepWorkingDays('2026-11-09', -1, cal) === '2026-11-08' && isWorkedDay('2026-11-08', cal);
+  };
+  ok('a schedule that does not say its working week is counted on the ENGINE\'s default (7), so a Monday start with buffer 1 is needed the Sunday before',
+    ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK === 7 && weekOf({}) === ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK && weekOf({ workingDaysPerWeek: null }) === 7 && weekOf({ workingDaysPerWeek: 5 }) === 5
+    && weekRule(weekOf) && neededOnSiteBy({ taskId: 'P', bufferDays: 1 }, unsaid).date === '2026-11-08');
+  plant('the lane falls back to a 5-day week of its own', !weekRule((c) => c.workingDaysPerWeek ?? 5));
+  const CAL = read('utils/deliveries/calendar.ts').replace(/\/\/.*$/gm, '');
+  const calRule = (src: string) => /import \{ ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK, isWorkingDayOfWeek \} from '\.\.\/cpm';/.test(src) && /return cal\.workingDaysPerWeek \?\? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK;/.test(src) && !/\?\?\s*\d/.test(src) && !/: 5;/.test(src);
+  ok('calendar.ts reads the default from the engine\'s constant and has no number of its own', calRule(CAL));
+  plant('a literal default in calendar.ts', !calRule(CAL.replace('cal.workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK', 'cal.workingDaysPerWeek ?? 5')));
+  const CPM = read('utils/cpm.ts');
+  ok('the engine itself falls back to that constant everywhere (no bare `?? 7` left beside it)', /export const ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK = 7;/.test(CPM) && !/orkingDaysPerWeek \?\? 7\b/.test(CPM) && (CPM.match(/orkingDaysPerWeek \?\? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK/g) ?? []).length >= 9);
+}
+
 // Planted wrong needed-by rules, each must fail the table.
 plant('needed-by counted in CALENDAR days', runNeed((d, s) => {
   const r = neededOnSiteBy(d, s);
@@ -225,7 +266,7 @@ plant('the default buffer is 0', runNeed((d, s) => neededOnSiteBy({ ...d, buffer
 
 // The same answers wherever the phone is: four zones, each a child process.
 {
-  const WANT = { needed: '2026-11-13', back: '2026-11-06', gap: 6, moved: ['2026-10-22', '2026-10-30', '2026-10-19', '2026-10-27', 6], effect: ['2026-12-02', '2026-12-16', '2026-12-22', 4], order: '2026-10-02', weekEnd: '2026-10-04' };
+  const WANT = { needed: '2026-11-13', back: '2026-11-06', gap: 6, moved: ['2026-10-22', '2026-10-30', '2026-10-19', '2026-10-27', 6], effect: ['2026-12-04', '2026-12-16', '2026-12-24', 6], order: '2026-10-02', weekEnd: '2026-10-04' };
   // 03:30 UTC on Oct 7 is still Oct 6 in the Americas and already Oct 7 east of Greenwich: the label names the LOCAL day it was typed.
   const SAID: Record<string, string> = { 'America/Los_Angeles': 'Oct 6', 'America/New_York': 'Oct 6', 'Pacific/Kiritimati': 'Oct 7', 'Pacific/Pago_Pago': 'Oct 6', UTC: 'Oct 7' };
   for (const tz of Object.keys(SAID)) {
@@ -292,42 +333,48 @@ section('B. The two flags, as facts from the dates');
 
 // ════════════════════════════════════════════════════════════════════════════
 section('C. The job effect is the schedule\'s own proposed-change preview');
-// The windows are needed Fri Nov 13. The supplier now says Tue Dec 1.
-// The first working day after is Wed Dec 2: Window Install slides from Wed
-// Nov 18, 10 working days (19, 20, 23, 24, 25, 26, 27, 30, Dec 1, Dec 2).
-//   Window Install  Dec 2, 3, 4, 7          (was Nov 18 .. 23)
-//   Exterior Trim   Dec 8 .. 14             (was Nov 24 .. 30)   10 later
-//   Siding          Dec 15 .. 21            (was Dec 1 .. 7)     10 later
+// THE ONE RULE (utils/deliveries/calendar.earliestStartFor): a supplier date
+// raises no flag when it is on or before Needed On Site By, which is the start
+// stepped back the buffer in worked days. The proposal is the EARLIEST start
+// that raises no flag: the first worked day whose own needed-by date is on or
+// after the supplier's date.
+//
+// The windows are needed Fri Nov 13 (buffer 3). The supplier now says Tue Dec 1.
+// Three worked days after Dec 1 is Fri Dec 4 (2, 3, 4): Window Install slides
+// from Wed Nov 18, 12 working days (19, 20, 23, 24, 25, 26, 27, 30, Dec 1, 2, 3, 4).
+//   Window Install  Dec 4, 7, 8, 9          (was Nov 18 .. 23)
+//   Exterior Trim   Dec 10 .. 16            (was Nov 24 .. 30)   12 later
+//   Siding          Dec 17 .. 23            (was Dec 1 .. 7)     12 later
 //   Interior Finishes does not move: Nov 18 .. Dec 15
-//   Final Inspection waits for Siding: Tue Dec 22 (was Wed Dec 16)
-// The finish date moves 4 working days (17, 18, 21, 22): the rest was float.
+//   Final Inspection waits for Siding: Thu Dec 24 (was Wed Dec 16)
+// The finish date moves 6 working days (17, 18, 21, 22, 23, 24): the rest was float.
 {
   const sched = HOUSE();
   freeze(sched);
   const d = freeze(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-12-01' }));
   const e = supplierJobEffect(d, sched);
-  ok('the picture: earliest start Dec 2, 10 working days later', e.kind === 'task_slides' && e.taskStartWas === '2026-11-18' && e.taskStartEarliest === '2026-12-02' && e.taskSlipWorkingDays === 10 && eq(e.proposal, { taskId: 'W', notBefore: '2026-12-02' }), JSON.stringify(e.kind === 'task_slides' ? [e.taskStartEarliest, e.taskSlipWorkingDays] : e));
-  ok('the finish date moves from Wed Dec 16 to Tue Dec 22: 4 working days', e.kind === 'task_slides' && e.finishWas === '2026-12-16' && e.finishNow === '2026-12-22' && e.finishDeltaWorkingDays === 4);
-  ok('three tasks slide: Exterior Trim 10, Siding 10, Final Inspection 4; Interior Finishes and Framing do not',
-    e.kind === 'task_slides' && eq(e.slides.map((s) => [s.id, s.workingDaysLater]), [['T', 10], ['S', 10], ['X', 4]]) && e.linked.id === 'W');
+  ok('the picture: earliest start Fri Dec 4, 12 working days later (the same 12 the flag counts)', e.kind === 'task_slides' && e.taskStartWas === '2026-11-18' && e.taskStartEarliest === '2026-12-04' && e.taskSlipWorkingDays === 12 && eq(e.proposal, { taskId: 'W', notBefore: '2026-12-04' })
+    && supplierLateFlag(d, sched)?.workingDays === 12, JSON.stringify(e.kind === 'task_slides' ? [e.taskStartEarliest, e.taskSlipWorkingDays] : e));
+  ok('the finish date moves from Wed Dec 16 to Thu Dec 24: 6 working days', e.kind === 'task_slides' && e.finishWas === '2026-12-16' && e.finishNow === '2026-12-24' && e.finishDeltaWorkingDays === 6);
+  ok('three tasks slide: Exterior Trim 12, Siding 12, Final Inspection 6; Interior Finishes and Framing do not',
+    e.kind === 'task_slides' && eq(e.slides.map((s) => [s.id, s.workingDaysLater]), [['T', 12], ['S', 12], ['X', 6]]) && e.linked.id === 'W');
   ok('the frozen schedule and the frozen delivery were not changed (a change would have thrown)', e.kind === 'task_slides');
   if (e.kind === 'task_slides') {
     // The reuse, proven: build the schedule's preview directly, the way the copilot's review does, and compare.
     const before = HOUSE_TASKS();
-    const after = proposedTasks(before, 'W', '2026-12-02');
-    const opt = { scheduleStartDate: '2026-11-02', workingDaysPerWeek: 5, nonWorkingDates: undefined };
+    const after = proposedTasks(before, 'W', '2026-12-04', 'd1');
+    const opt = engineOptionsFor(HOUSE(), before, '2026-11-02');
     const direct = buildSchedulePreviewOverlay(before, after, runCpm(before, opt), runCpm(after, opt));
-    ok('the effect\'s overlay IS the object utils/schedulePreviewOverlay builds for the same proposal (finish +6 calendar days)', eq(e.overlay, direct) && direct.finishDeltaDays === 6 && direct.moved.length === 4);
-    ok('the proposal is the schedule\'s own "start no earlier than" anchor on that one task, on a copy',
-      after !== before && after.filter((t, i) => t !== before[i]).length === 1 && after.find((t) => t.id === 'W')?.anchorType === 'start-no-earlier' && after.find((t) => t.id === 'W')?.anchorDate === '2026-12-02' && before.find((t) => t.id === 'W')?.anchorType === undefined);
+    ok('the effect\'s overlay IS the object utils/schedulePreviewOverlay builds for the same proposal (finish +8 calendar days)', eq(e.overlay, direct) && direct.finishDeltaDays === 8 && direct.moved.length === 4);
+    ok('the proposal is the schedule\'s own "start no earlier than" anchor on that one task, on a copy, marked with the delivery it came from',
+      after !== before && after.filter((t, i) => t !== before[i]).length === 1 && after.find((t) => t.id === 'W')?.anchorType === 'start-no-earlier' && after.find((t) => t.id === 'W')?.anchorDate === '2026-12-04'
+      && after.find((t) => t.id === 'W')?.anchorFromDeliveryId === 'd1' && before.find((t) => t.id === 'W')?.anchorType === undefined);
   }
-  // Inside the buffer: the supplier says Mon Nov 16 (after Fri Nov 13). The next working day is Tue Nov 17, before the Wed Nov 18 start.
-  ok('a supplier date inside the buffer: the start holds', supplierJobEffect(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-11-16' }), HOUSE()).kind === 'start_holds');
   // Inside the float: Gutters (2 days after Window Install, nothing waits on it) starts Tue Nov 24, needed Thu Nov 19.
-  // Supplier says Mon Nov 30: Gutters slides to Tue Dec 1 .. Wed Dec 2 and the finish date stays Dec 16.
+  // Supplier says Mon Nov 30: three worked days after is Thu Dec 3. Gutters slides to Dec 3 .. 4 and the finish date stays Dec 16.
   const withGutters = HOUSE({}, [...HOUSE_TASKS(), T('G', 'Gutters', 2, ['W'])]);
   const g = supplierJobEffect(D({ taskId: 'G', bufferDays: 3, expectedDate: '2026-11-30' }), withGutters);
-  ok('a slip inside the float: the task slides, no other task moves and the finish date does not', g.kind === 'task_slides' && g.taskStartEarliest === '2026-12-01' && g.finishDeltaWorkingDays === 0 && g.slides.length === 0 && g.finishNow === '2026-12-16', JSON.stringify(g.kind === 'task_slides' ? [g.taskStartEarliest, g.finishDeltaWorkingDays, g.slides.length] : g));
+  ok('a slip inside the float: the task slides, no other task moves and the finish date does not', g.kind === 'task_slides' && g.taskStartEarliest === '2026-12-03' && g.finishDeltaWorkingDays === 0 && g.slides.length === 0 && g.finishNow === '2026-12-16', JSON.stringify(g.kind === 'task_slides' ? [g.taskStartEarliest, g.finishDeltaWorkingDays, g.slides.length] : g));
   const why = (x: ReturnType<typeof supplierJobEffect>) => (x.kind === 'cannot_say' ? x.why : x.kind);
   ok('nothing is said when nothing can be: no date, not after, a loop, a pinned task, a started task, a settled load, no start date',
     why(supplierJobEffect(D({ taskId: 'W', expectedDate: '' }), HOUSE())) === 'no_supplier_date'
@@ -337,9 +384,113 @@ section('C. The job effect is the schedule\'s own proposed-change preview');
     && why(supplierJobEffect(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-12-01' }), HOUSE({}, HOUSE_TASKS().map((t) => (t.id === 'W' ? { ...t, status: 'in_progress' as const } : t))))) === 'task_started'
     && why(supplierJobEffect(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-12-01', status: 'delivered' }), HOUSE())) === 'settled'
     && why(supplierJobEffect(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-12-01' }), HOUSE({ startDate: undefined }))) === 'schedule_undated');
-  plant('the earliest start is the supplier date itself, not the working day after', e.kind === 'task_slides' && e.taskStartEarliest !== '2026-12-01');
-  plant('the finish moves by the task\'s slip (10), ignoring the float', e.kind === 'task_slides' && e.finishDeltaWorkingDays !== e.taskSlipWorkingDays);
-  plant('a proposal that edits the task list in place', (() => { const f = freeze(HOUSE_TASKS()); try { const w = f.find((t) => t.id === 'W'); if (w) (w as ScheduleTask).anchorDate = '2026-12-02'; return false; } catch { return true; } })());
+  plant('the finish moves by the task\'s slip (12), ignoring the float', e.kind === 'task_slides' && e.finishDeltaWorkingDays !== e.taskSlipWorkingDays);
+  plant('a proposal that edits the task list in place', (() => { const f = freeze(HOUSE_TASKS()); try { const w = f.find((t) => t.id === 'W'); if (w) (w as ScheduleTask).anchorDate = '2026-12-04'; return false; } catch { return true; } })());
+
+  // ── THE PROPOSAL AND THE FLAG ARE ONE RULE: buffer 0, 1 and 3 ──────────────
+  // Window Install starts Wed Nov 18. For each buffer, three supplier dates:
+  //   the needed-by date itself          no flag, so NO proposal
+  //   the next worked day after it       the FIRST flagged date: the smallest move, one worked day (Thu Nov 19)
+  //   and once that proposal is applied  the flag is gone; one worked day earlier it would still be raised
+  //                needed-by   first flagged   proposed start
+  //   buffer 0     Wed Nov 18  Thu Nov 19      Thu Nov 19  (the supplier date itself)
+  //   buffer 1     Tue Nov 17  Wed Nov 18      Thu Nov 19  (the worked day after it)
+  //   buffer 3     Fri Nov 13  Mon Nov 16      Thu Nov 19  (16 + 3 worked days: 17, 18, 19)
+  type Rule = (supplierDate: string, bufferDays: number, cal: ScheduleForDeliveries) => string;
+  const BUFFER_CASES: [number, string, string][] = [[0, '2026-11-18', '2026-11-19'], [1, '2026-11-17', '2026-11-18'], [3, '2026-11-13', '2026-11-16']];
+  const ruleProblems = (rule: Rule): string[] => {
+    const out: string[] = [];
+    for (const [buffer, neededBy, firstFlagged] of BUFFER_CASES) {
+      const base = HOUSE();
+      const load = (date: string) => D({ taskId: 'W', bufferDays: buffer, expectedDate: date });
+      if (neededOnSiteBy(load(neededBy), base).date !== neededBy) out.push(`buffer ${buffer}: needed-by is not ${neededBy}`);
+      // A date that raises no flag proposes no move: the earliest start it needs is on or before today's start.
+      if (supplierLateFlag(load(neededBy), base) !== null) out.push(`buffer ${buffer}: ${neededBy} is flagged`);
+      if (rule(neededBy, buffer, base) > '2026-11-18') out.push(`buffer ${buffer}: an unflagged date (${neededBy}) proposes a move to ${rule(neededBy, buffer, base)}`);
+      // The first flagged date proposes the minimal move.
+      if (supplierLateFlag(load(firstFlagged), base)?.workingDays !== 1) out.push(`buffer ${buffer}: ${firstFlagged} is not flagged by 1 working day`);
+      const start = rule(firstFlagged, buffer, base);
+      if (start !== '2026-11-19') out.push(`buffer ${buffer}: the first flagged date proposes ${start}, not Thu Nov 19`);
+      // Applied, the flag is gone; one worked day earlier it is still raised.
+      const applied = HOUSE({}, proposedTasks(HOUSE_TASKS(), 'W', start, 'd1'));
+      if (supplierLateFlag(load(firstFlagged), applied) !== null) out.push(`buffer ${buffer}: the flag is still raised after the proposal (start ${start})`);
+      const earlier = stepWorkingDays(start, -1, base);
+      const tooEarly = HOUSE({}, proposedTasks(HOUSE_TASKS(), 'W', earlier, 'd1'));
+      if (earlier >= '2026-11-18' && supplierLateFlag(load(firstFlagged), tooEarly) === null && earlier !== start) out.push(`buffer ${buffer}: a start one worked day earlier (${earlier}) would also clear the flag: the move is not minimal`);
+    }
+    return out;
+  };
+  ok('buffer 0, 1 and 3: a supplier date that raises no flag proposes no move, the first flagged date proposes the smallest move, and the applied proposal clears the flag', ruleProblems(earliestStartFor).length === 0, ruleProblems(earliestStartFor).join(' | '));
+  for (const [buffer, neededBy, firstFlagged] of BUFFER_CASES) {
+    const quiet = supplierJobEffect(D({ taskId: 'W', bufferDays: buffer, expectedDate: neededBy }), HOUSE());
+    const first = supplierJobEffect(D({ taskId: 'W', bufferDays: buffer, expectedDate: firstFlagged }), HOUSE());
+    ok(`buffer ${buffer}, through the job effect: ${neededBy} says nothing, ${firstFlagged} slides Window Install exactly 1 working day to Thu Nov 19`,
+      why(quiet) === 'not_after_needed' && first.kind === 'task_slides' && first.taskStartEarliest === '2026-11-19' && first.taskSlipWorkingDays === 1 && first.bufferDays === buffer && first.proposal.notBefore === '2026-11-19',
+      JSON.stringify([why(quiet), first.kind === 'task_slides' ? [first.taskStartEarliest, first.taskSlipWorkingDays] : first]));
+  }
+  ok('a supplier date on a closed day: buffer 0 starts the next worked day, buffer 1 the one after (Sat Nov 14: Mon Nov 16, Tue Nov 17)',
+    earliestStartFor('2026-11-14', 0, HOUSE()) === '2026-11-16' && earliestStartFor('2026-11-14', 1, HOUSE()) === '2026-11-17' && earliestStartFor('', 3, HOUSE()) === '' && earliestStartFor('soon', 0, HOUSE()) === '');
+  plant('the OLD rule: the first worked day after the supplier date, whatever the buffer (buffer 0 moves a day too far, buffer 3 leaves the flag up)', ruleProblems((date, _b, cal) => stepWorkingDays(date, 1, cal)).length > 0);
+  plant('the proposal ignores the buffer and starts on the supplier date', ruleProblems((date) => date).length > 0);
+  plant('the proposal adds the buffer and one more day', ruleProblems((date, b, cal) => stepWorkingDays(date, b + 1, cal)).length > 0);
+  const EFFECT = read('utils/deliveries/jobEffect.ts').replace(/\/\/.*$/gm, '');
+  const effectRule = (src: string) => /const earliest = earliestStartFor\(supplierDate, bufferDays, schedule\);/.test(src) && !/nextWorkedDayAfter/.test(src);
+  ok('the job effect takes its start from earliestStartFor (the flag\'s rule), not from "the next worked day"', effectRule(EFFECT));
+  plant('jobEffect goes back to nextWorkedDayAfter', !effectRule(EFFECT.replace('earliestStartFor(supplierDate, bufferDays, schedule)', 'nextWorkedDayAfter(supplierDate, schedule)')));
+
+  // ── ONE SET OF ENGINE OPTIONS, for the sheet and the banner ────────────────
+  // A schedule with a float setting and a crew on its own 6-day calendar. Both screens call
+  // supplierJobEffect(delivery, schedule) and nothing else, so they cannot be handed different options.
+  const crewed = { ...HOUSE({}, HOUSE_TASKS().map((t) => (t.id === 'T' ? { ...t, resourceIds: ['r1'] } : t))), criticalFloatThresholdDays: 2, resources: [{ id: 'r1', name: 'Trim Crew', calendarKey: 'six' }], resourceCalendars: [{ key: 'six', name: 'Six Days', workingDaysPerWeek: 6, closures: [] }] } as unknown as ScheduleForDeliveries;
+  const opts = engineOptionsFor(crewed, crewed.tasks as ScheduleTask[], '2026-11-02');
+  ok('the engine options are the schedule screen\'s: its start, week and closed days, its float setting and its per-task calendars',
+    opts.scheduleStartDate === '2026-11-02' && opts.workingDaysPerWeek === 5 && opts.criticalFloatThresholdDays === 2 && opts.taskCalendars?.get('T')?.workingDaysPerWeek === 6 && opts.taskCalendars?.size === 1
+    && engineOptionsFor(HOUSE(), HOUSE_TASKS(), '2026-11-02').taskCalendars === undefined && engineOptionsFor(HOUSE(), HOUSE_TASKS(), '2026-11-02').criticalFloatThresholdDays === 0);
+  const ce = supplierJobEffect(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-12-01' }), crewed);
+  const cb = crewed.tasks as ScheduleTask[];
+  const ca = proposedTasks(cb, 'W', '2026-12-04', 'd1');
+  ok('the effect is worked out WITH them: its overlay is the overlay those options give, and differs from the one the bare calendar gives',
+    ce.kind === 'task_slides' && eq(ce.overlay, buildSchedulePreviewOverlay(cb, ca, runCpm(cb, opts), runCpm(ca, opts)))
+    && !eq(ce.overlay, buildSchedulePreviewOverlay(cb, ca, runCpm(cb, { scheduleStartDate: '2026-11-02', workingDaysPerWeek: 5 }), runCpm(ca, { scheduleStartDate: '2026-11-02', workingDaysPerWeek: 5 }))));
+  const SHEET_SRC = read('components/deliveries/DeliveryFollowSheet.tsx').replace(/\/\/.*$/gm, '');
+  const FOLLOW_SRC = read('components/deliveries/DeliveriesFollow.tsx').replace(/\/\/.*$/gm, '');
+  const oneOptions = (effectSrc: string, sheet: string, follow: string, pro: string): string[] => {
+    const out: string[] = [];
+    if (!/export function supplierJobEffect\(\s*delivery: Pick<Delivery, [^>]+>,\s*schedule: ScheduleForDeliveries \| null \| undefined,\s*\): JobEffect/.test(effectSrc)) out.push('supplierJobEffect takes something besides the delivery and the schedule');
+    if ((effectSrc.match(/engineOptionsFor\(schedule, before, anchor\.iso\)/g) ?? []).length !== 2 || /const options: RunCpmOptions = \{/.test(effectSrc)) out.push('the options are assembled somewhere other than engineOptionsFor');
+    for (const [name, src] of [['the sheet', sheet], ['the banner', follow]] as const) {
+      const calls = src.match(/supplierJobEffect\([^)]*\)/g) ?? [];
+      if (calls.length !== 1 || calls[0].split(',').length !== 2) out.push(`${name} does not call supplierJobEffect(delivery, schedule) exactly once with two arguments`);
+      if (/runCpm|RunCpmOptions|taskCalendars|criticalFloatThresholdDays/.test(src)) out.push(`${name} builds engine options of its own`);
+    }
+    if (/deliveryProposalEngine|engine=\{/.test(pro.slice(pro.indexOf('<DeliveryProposalBanner'), pro.indexOf('<DeliveryProposalBanner') + 600))) out.push('Schedule Pro hands the banner options of its own');
+    return out;
+  };
+  const PRO_SRC = read('app/schedule-pro.tsx');
+  ok('the sheet and the banner both call supplierJobEffect(delivery, schedule), which builds the options in one helper; neither screen builds its own', oneOptions(EFFECT, SHEET_SRC, FOLLOW_SRC, PRO_SRC).length === 0, oneOptions(EFFECT, SHEET_SRC, FOLLOW_SRC, PRO_SRC).join(' | '));
+  plant('the banner passes engine options the sheet does not', oneOptions(EFFECT, SHEET_SRC, FOLLOW_SRC.replace('supplierJobEffect(delivery, drawn)', 'supplierJobEffect(delivery, drawn, engine)'), PRO_SRC).length > 0);
+  plant('the effect assembles its options inline again', oneOptions(EFFECT.replace('const options = engineOptionsFor(schedule, before, anchor.iso);', 'const options: RunCpmOptions = { scheduleStartDate: anchor.iso };'), SHEET_SRC, FOLLOW_SRC, PRO_SRC).length > 0);
+
+  // ── THE HOLD: marked with its delivery, offered for removal when the date improves ──
+  const heldTasks = proposedTasks(HOUSE_TASKS(), 'W', '2026-12-04', 'd1');
+  const heldSched = HOUSE({}, heldTasks);
+  const hold = deliveryHold(heldTasks, 'd1');
+  ok('an applied proposal is found again by the delivery\'s id: the task and the day it is held to', eq(hold, { taskId: 'W', taskTitle: 'Window Install', notBefore: '2026-12-04' }) && deliveryHold(heldTasks, 'd2') === null && deliveryHold(HOUSE_TASKS(), 'd1') === null && deliveryHold(heldTasks, '') === null);
+  const still = holdRelease(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-12-01' }), heldSched);
+  ok('while the supplier date still needs it the hold is only stated, and nothing is offered', still.kind === 'held' && still.heldTo === '2026-12-04' && holdRelease(D({ taskId: 'W', bufferDays: 3, expectedDate: '' }), heldSched).kind === 'held' && holdRelease(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-12-02' }), heldSched).kind === 'held');
+  // The supplier improves to Wed Nov 25: three worked days after is Mon Nov 30, before the hold's Fri Dec 4.
+  const better = holdRelease(freeze(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-11-25' })), freeze(heldSched));
+  ok('when the supplier date improves, removing the hold is OFFERED (with the schedule\'s own preview of it), and nothing is changed by asking',
+    better.kind === 'can_release' && better.heldTo === '2026-12-04' && better.neededStart === '2026-11-30' && better.supplierDate === '2026-11-25' && !!better.overlay && better.overlay.finishDeltaDays === -8 && deliveryHold(heldTasks, 'd1') !== null);
+  const released = releasedTasks(heldTasks, 'd1');
+  const w = released.find((t) => t.id === 'W') as ScheduleTask;
+  ok('removing it takes off the anchor and its mark from that task only, on a copy; a hold from another delivery, or a person\'s own anchor, is left alone',
+    released !== heldTasks && !('anchorType' in w) && !('anchorDate' in w) && !('anchorFromDeliveryId' in w) && released.filter((t, i) => t !== heldTasks[i]).length === 1 && heldTasks.find((t) => t.id === 'W')?.anchorFromDeliveryId === 'd1'
+    && eq(releasedTasks(heldTasks, 'd2'), heldTasks) && eq(releasedTasks(HOUSE_TASKS().map((t) => (t.id === 'W' ? { ...t, anchorType: 'must-start-on' as const, anchorDate: '2026-12-04', anchorFromDeliveryId: 'd1' } : t)), 'd1').find((t) => t.id === 'W')?.anchorType, 'must-start-on')
+    && holdRelease(D({ taskId: 'W', bufferDays: 3, expectedDate: '2026-11-25' }), HOUSE({}, released)).kind === 'none');
+  plant('the proposal does not record the delivery it came from (the hold can never be found)', deliveryHold(HOUSE_TASKS().map((t) => (t.id === 'W' ? { ...t, anchorType: 'start-no-earlier' as const, anchorDate: '2026-12-04' } : t)), 'd1') === null);
+  plant('removing a hold strips every anchor on the schedule', (() => { const wrong = (tasks: ScheduleTask[]) => tasks.map(({ anchorType: _a, anchorDate: _b, ...rest }) => rest as ScheduleTask); const mine = HOUSE_TASKS().map((t) => (t.id === 'T' ? { ...t, anchorType: 'must-start-on' as const, anchorDate: '2026-12-10' } : t)); return !eq(wrong(mine), releasedTasks(mine, 'd1')); })());
+  ok('a cloned job does not carry the mark: the template reset drops anchorFromDeliveryId with the anchor\'s date', /'anchorDate', 'anchorFromDeliveryId', 'deadline'/.test(read('utils/projectClone.ts')) && /anchorFromDeliveryId\?: string;/.test(read('types/index.ts')));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -396,15 +547,96 @@ section('E. Who said each date, the history, and the scorecard\'s basis');
   ok('the current date names who said it and when', src.kind === 'supplier_said' && src.note === 'by phone' && src.at === '2026-10-09T15:00:00.000Z' && src.by === 'u1');
   ok('the same date from the same source records nothing', recordSupplierDate(d2, { date: '2026-12-01', source: 'supplier_said', note: 'by phone', now: now('2026-10-10T15:00:00.000Z') }) === null);
   ok('no date is "not given"; a date from before the lane is "no record of who gave it"', supplierDateSource(fresh).kind === 'not_given' && supplierDateSource(D()).kind === 'unrecorded');
-  const legacy = recordSupplierDate(D({ expectedDate: '2026-11-12' }), { date: '2026-12-01', source: 'typed', now: now('2026-10-09T15:00:00.000Z') });
-  ok('a delivery that had a date before the lane keeps THAT date as its promise when the date is changed', legacy?.promisedDate === '2026-11-12' && legacy?.dateHistory?.[0].previousDate === '2026-11-12');
+  // THE PROMISE IS SET FROM THE SUPPLIER'S WORD ONLY. `Rec` is the recorder under test, so a wrong one can be planted.
+  type Rec = typeof recordSupplierDate;
+  const promiseProblems = (rec: Rec): string[] => {
+    const out: string[] = [];
+    const at = now('2026-10-09T15:00:00.000Z');
+    // A date from before the lane (nobody recorded who gave it), now changed by typing: neither date is the promise.
+    const legacy = rec(D({ expectedDate: '2026-11-12' }), { date: '2026-12-01', source: 'typed', now: at });
+    if (legacy?.promisedDate !== undefined) out.push(`a typed change of an unattributed date set the promise to ${legacy?.promisedDate}`);
+    if (legacy?.dateHistory?.[0].previousDate !== '2026-11-12') out.push('the history lost the date it was');
+    // The same change, but the supplier said it: THAT date is the promise, not the unattributed one before it.
+    const said = rec(D({ expectedDate: '2026-11-12' }), { date: '2026-12-01', source: 'supplier_said', now: at });
+    if (said?.promisedDate !== '2026-12-01') out.push(`a supplier's date after an unattributed one gave the promise ${said?.promisedDate}, not Dec 1`);
+    // A first date that was only typed is not a promise; the supplier's word later is.
+    const typedFirst = rec(fresh, { date: '2026-11-12', source: 'typed', now: at });
+    if (typedFirst?.promisedDate !== undefined) out.push('a first date that was only typed became the promise');
+    const thenSaid = rec({ ...fresh, ...typedFirst } as Delivery, { date: '2026-11-20', source: 'supplier_said', now: at });
+    if (thenSaid?.promisedDate !== '2026-11-20') out.push(`after a typed date, the supplier's word gave the promise ${thenSaid?.promisedDate}, not Nov 20`);
+    // Once set, nothing here moves it.
+    const moved = rec({ ...fresh, expectedDate: '2026-11-20', promisedDate: '2026-11-20' } as Delivery, { date: '2026-12-09', source: 'supplier_said', now: at });
+    if (moved?.promisedDate !== '2026-11-20') out.push('a later supplier date moved the promise');
+    // Clearing the date to "No date yet" makes no promise of nothing.
+    const cleared = rec(D({ expectedDate: '2026-11-12' }), { date: '', source: 'supplier_said', now: at });
+    if (cleared?.promisedDate !== undefined) out.push('clearing the date set a promise');
+    return out;
+  };
+  ok('the promise is set only from a date the SUPPLIER is recorded as giving: not the date before it, not a typed date, and never moved after', promiseProblems(recordSupplierDate).length === 0, promiseProblems(recordSupplierDate).join(' | '));
+  plant('the OLD rule: promise = existing || previous || next (an unattributed or typed date locks as the promise)', promiseProblems((d, input) => {
+    const r = recordSupplierDate(d, input);
+    if (!r) return r;
+    const old = (d.promisedDate ?? '') || (d.expectedDate ?? '') || (input.date ?? '');
+    return { expectedDate: r.expectedDate, dateHistory: r.dateHistory, ...(old ? { promisedDate: old } : {}) };
+  }).length > 0);
+  plant('any first date is the promise, typed or not', promiseProblems((d, input) => { const r = recordSupplierDate(d, input); return r && !r.promisedDate && input.date ? { ...r, promisedDate: input.date } : r; }).length > 0);
   let many = fresh as Delivery;
-  for (let i = 0; i < 30; i++) many = { ...many, ...recordSupplierDate(many, { date: `2026-11-${String(1 + (i % 28)).padStart(2, '0')}`, source: 'typed', note: 'x'.repeat(500), now: now(`2026-10-06T15:00:${String(i).padStart(2, '0')}.000Z`) }) } as Delivery;
-  ok(`the history keeps the last ${DATE_HISTORY_MAX} changes, and the promise is still the first date`, many.dateHistory?.length === DATE_HISTORY_MAX && many.promisedDate === '2026-11-01');
+  for (let i = 0; i < 30; i++) many = { ...many, ...recordSupplierDate(many, { date: `2026-11-${String(1 + (i % 28)).padStart(2, '0')}`, source: i === 0 ? 'supplier_said' : 'typed', note: 'x'.repeat(500), now: now(`2026-10-06T15:00:${String(i).padStart(2, '0')}.000Z`) }) } as Delivery;
+  ok(`the history keeps the last ${DATE_HISTORY_MAX} changes, and the promise is still the first date the supplier gave`, many.dateHistory?.length === DATE_HISTORY_MAX && many.promisedDate === '2026-11-01');
+
+  // AN UNATTRIBUTED DATE STAYS UNATTRIBUTED. A delivery from before the lane is opened to link a task and saved.
+  type FormRec = typeof recordFromForm;
+  const who = { by: 'u1', byName: 'Dana Ortiz', now: now('2026-10-09T15:00:00.000Z') };
+  const old1 = D({ expectedDate: '2026-11-12' });
+  const formProblems = (rec: FormRec, sourceFor: typeof formSourceFor): string[] => {
+    const out: string[] = [];
+    const opened = { date: '2026-11-12', source: sourceFor(old1), note: '' };
+    if (opened.source !== 'unrecorded') out.push(`the form opens an unattributed date as "${opened.source}"`);
+    const untouched = rec(old1, opened, who);
+    if (untouched !== null) out.push(`saving without touching the date wrote ${JSON.stringify(untouched.dateHistory)}`);
+    // The person changes the date: recorded as typed (they typed it; no word on who gave it), never as the supplier's word.
+    const changed = rec(old1, { ...opened, date: '2026-12-01' }, who);
+    if (changed?.dateHistory?.[0].source !== 'typed' || changed?.expectedDate !== '2026-12-01' || changed?.promisedDate !== undefined) out.push('a changed date was not recorded as typed');
+    // The person picks "The Supplier Said So" for the date that is there: recorded, as their own explicit word.
+    const picked = rec(old1, { ...opened, source: 'supplier_said', note: 'by phone' }, who);
+    if (picked?.dateHistory?.[0].source !== 'supplier_said' || picked?.dateHistory?.[0].by !== 'u1' || picked?.promisedDate !== '2026-11-12') out.push('an explicitly picked source was not recorded');
+    // A new delivery with no date records nothing; with a date, the form's default is "typed".
+    if (rec(null, { date: '', source: sourceFor(null), note: '' }, who) !== null) out.push('a new delivery with no date recorded something');
+    if (sourceFor(null) !== 'typed' || sourceFor(D({ expectedDate: '' })) !== 'typed') out.push('the default source for a new date is not "typed"');
+    const d1src = sourceFor({ ...old1, ...picked } as Delivery);
+    if (d1src !== 'supplier_said') out.push('a recorded source does not read back into the form');
+    return out;
+  };
+  ok('opening a delivery from before the lane and pressing Save records NOTHING about its date; a changed date is "typed"; a picked source is recorded', formProblems(recordFromForm, formSourceFor).length === 0, formProblems(recordFromForm, formSourceFor).join(' | '));
+  plant('the OLD form: any date that is not "typed" defaults to "the supplier said so" (the history claims a source nobody gave)',
+    formProblems(recordFromForm, (d) => { const k = d ? supplierDateSource(d).kind : 'not_given'; return k === 'typed' ? 'typed' : 'supplier_said'; }).length > 0);
+  plant('the save records the date whatever the form holds', formProblems((d, form, w) => recordSupplierDate(d ?? { expectedDate: '', createdAt: '' }, { date: form.date, source: form.source === 'unrecorded' ? 'typed' : form.source, note: form.note, by: w.by, byName: w.byName, now: w.now }), formSourceFor).length > 0);
+  const EDIT_SRC = read('components/deliveries/DeliveryEditSheet.tsx').replace(/\/\/.*$/gm, '');
+  const editRule = (src: string) => /source: formSourceFor\(d\),/.test(src) && /const dateFields = recordFromForm\(delivery, \{ date: form\.date, source: form\.source, note: form\.note \}/.test(src) && !/recordSupplierDate/.test(src) && !/'supplier_said'\s*,\s*\n\s*note: src/.test(src) && !/: 'supplier_said',/.test(src);
+  ok('the dates form takes its source from formSourceFor and saves through recordFromForm (it never calls recordSupplierDate itself)', editRule(EDIT_SRC));
+  plant('the form defaults the source again', !editRule(EDIT_SRC.replace('source: formSourceFor(d),', "source: src && src.kind === 'typed' ? 'typed' : 'supplier_said',")));
+
+  // THE LABELLED CORRECTION of the promised date.
+  const promised = D({ expectedDate: '2026-12-01', promisedDate: '2026-11-12', dateHistory: [{ date: '2026-12-01', previousDate: '2026-11-12', at: '2026-10-08T15:00:00.000Z', source: 'supplier_said' }] });
+  const fixd = correctPromisedDate(promised, { date: '2026-11-19', by: 'u1', byName: 'Dana Ortiz', now: now('2026-10-10T15:00:00.000Z') });
+  ok('a correction sets the new promise and adds ONE history entry that says what it became, what it was, when and who; the supplier date is not touched',
+    !!fixd && fixd.promisedDate === '2026-11-19' && !('expectedDate' in fixd) && fixd.dateHistory?.length === 2
+    && eq(fixd.dateHistory?.[1], { date: '2026-12-01', previousDate: '2026-12-01', at: '2026-10-10T15:00:00.000Z', source: 'typed', by: 'u1', byName: 'Dana Ortiz', kind: 'promise_corrected', promisedDate: '2026-11-19', previousPromisedDate: '2026-11-12' }));
+  const afterFix = { ...promised, ...fixd } as Delivery;
+  ok('the correction survives a read, and does not change who is said to have given the supplier date or what it was before',
+    readHistory(afterFix)[1].kind === 'promise_corrected' && supplierDateSource(afterFix).kind === 'supplier_said' && previousSupplierDate(afterFix) === '2026-11-12' && scoredPromiseDate(afterFix) === '2026-11-19');
+  ok('correcting to the date it already is, or to no date, records nothing', correctPromisedDate(promised, { date: '2026-11-12', now: now('2026-10-10T15:00:00.000Z') }) === null && correctPromisedDate(promised, { date: '', now: now('2026-10-10T15:00:00.000Z') }) === null);
+  const proxyCopy = new Proxy({}, { get: (_t, k) => (typeof k === 'string' && /Label$/.test(k) ? `<${k}>` : (...a: unknown[]) => `${String(k)}(${a.join('|')})`) }) as unknown as DeliveriesScheduleCopy;
+  const line = historyLine(proxyCopy, readHistory(afterFix)[1], 'u1', 'en');
+  ok('the history prints a correction as a correction, with who made it', line.startsWith('correctedByYouBody(') && line.includes('wasBody(Nov 12)') && historyLine(proxyCopy, readHistory(afterFix)[1], 'someone-else', 'en').startsWith('correctedByNameBody(') && historyLine(proxyCopy, readHistory(afterFix)[0], 'u1', 'en').includes('saidByTeammateBody'), line);
+  plant('a correction that leaves no history entry', (() => { const wrong = (d: Delivery, date: string) => ({ promisedDate: date, dateHistory: readHistory(d) }); return wrong(promised, '2026-11-19').dateHistory.length !== fixd?.dateHistory?.length; })());
+  ok('the form offers the correction under its own label and saves it through correctPromisedDate', /copy\.correctScoredLabel/.test(EDIT_SRC) && /label=\{copy\.scoredDateLabel\}/.test(EDIT_SRC) && /correctPromisedDate\(\{ \.\.\.delivery, \.\.\.\(dateFields \?\? \{\}\) \}, \{ date: form\.promiseCorrection, by: me\.id, byName: me\.name, now \}\)/.test(EDIT_SRC));
+  const PROMISE_DOC = read('utils/deliveries/promise.ts');
+  ok('promise.ts and the Delivery type say the same three ways the promise is set', /the\s+\/\/ first date recorded as "the supplier said so"|first date recorded as "the supplier said so"/.test(PROMISE_DOC) && !/the first supplier date recorded, or the supplier date standing when it was\s*\/\/ marked ordered\)\. A delivery/.test(PROMISE_DOC) && /A date that was only typed, or that has no record of who gave it, never becomes it\./.test(read('utils/deliverySchedule.ts')));
   ok(`a note is cut to ${NOTE_MAX} characters, and a stored history that is not a list reads as empty`,
     (recordSupplierDate(fresh, { date: '2026-11-12', source: 'supplier_said', note: 'y'.repeat(500), now: now('2026-10-06T15:00:00.000Z') })?.dateHistory?.[0].note ?? '').length === NOTE_MAX
     && readHistory({ dateHistory: { date: 'x' } as unknown as Delivery['dateHistory'] }).length === 0 && readHistory({ dateHistory: [null, 3, { date: '2026-11-12' }] as unknown as Delivery['dateHistory'] }).length === 0);
-  ok('marking it ordered records the day, and the promise if none was recorded', eq(recordOrdered(D({ expectedDate: '2026-11-12' }), '2026-09-28'), { orderedOn: '2026-09-28', promisedDate: '2026-11-12' }) && eq(recordOrdered(D({ expectedDate: '2026-12-01', promisedDate: '2026-11-12' }), '2026-09-28'), { orderedOn: '2026-09-28', promisedDate: '2026-11-12' }) && eq(recordOrdered(D({ expectedDate: '' }), '2026-09-28'), { orderedOn: '2026-09-28' }));
+  ok('marking it ordered records the day, and (only when no promise is recorded) the supplier date standing as the promise', eq(recordOrdered(D({ expectedDate: '2026-11-12' }), '2026-09-28'), { orderedOn: '2026-09-28', promisedDate: '2026-11-12' }) && eq(recordOrdered(D({ expectedDate: '2026-12-01', promisedDate: '2026-11-12' }), '2026-09-28'), { orderedOn: '2026-09-28', promisedDate: '2026-11-12' }) && eq(recordOrdered(D({ expectedDate: '' }), '2026-09-28'), { orderedOn: '2026-09-28' }));
 
   // THE SCORECARD. Promised Nov 12. The date was edited to Dec 1 to match the truck, which came Dec 1.
   const truck = { ...d2, status: 'delivered' as const, deliveredAt: '2026-12-01T15:00:00.000' };
@@ -504,7 +736,12 @@ const laneRule = (code: ReadonlyMap<string, string>): string[] => {
   if ((sheet.match(/Linking\.openURL\(/g) ?? []).length !== 1 || !/Linking\.openURL\(draftMailUrl\(draft\)\)/.test(sheet)) out.push('the sheet opens something other than the draft');
   const follow = code.get('components/deliveries/DeliveriesFollow.tsx') ?? '';
   // The only way a task list is ever changed: the HOST's commit, inside the banner's apply, from a press.
-  if ((follow.match(/\bcommit\(/g) ?? []).length !== 1 || !/const apply = \(\) => \{\s*const refused = commit\(\(prev\) => proposedTasks\(prev, proposal\.proposal\.taskId, proposal\.proposal\.notBefore\)\);/.test(follow) || !/onPress=\{apply\}/.test(follow)) out.push('the proposal is applied somewhere other than the banner\'s own button');
+  // Two presses, and no third: Apply (the proposal) and Remove the Hold (an earlier Apply's anchor). Each names itself in the change log.
+  if ((follow.match(/\bcommit\(/g) ?? []).length !== 2
+    || !/const apply = \(\) => \{\s*const refused = commit\(\(prev\) => proposedTasks\(prev, proposal\.proposal\.taskId, proposal\.proposal\.notBefore, delivery\.id\), copy\.auditAppliedSub\);/.test(follow) || (follow.match(/onPress=\{apply\}/g) ?? []).length !== 1
+    || !/const removeHold = \(\) => \{\s*const refused = commit\(\(prev\) => releasedTasks\(prev, delivery\.id\), copy\.auditHoldRemovedSub\);/.test(follow) || (follow.match(/onPress=\{removeHold\}/g) ?? []).length !== 1
+    || (follow.match(/(?<![-\w])apply\b/g) ?? []).length !== 2 || (follow.match(/\bremoveHold\b/g) ?? []).length !== 2) out.push('the proposal is applied, or a hold removed, somewhere other than the banner\'s own two buttons');
+  for (const [file, src] of code) if (file !== 'components/deliveries/DeliveriesFollow.tsx' && file !== 'utils/deliveries/jobEffect.ts' && /\breleasedTasks\b/.test(src)) out.push(`${file} removes a hold`);
   for (const [file, src] of code) if (file !== 'components/deliveries/DeliveriesFollow.tsx' && file !== 'utils/deliveries/jobEffect.ts' && /\bproposedTasks\b/.test(src)) out.push(`${file} builds a proposal`);
   if (!/mailto:\?subject=/.test(code.get('utils/deliveries/messageDraft.ts') ?? '') || /mailto:[^?]/.test(code.get('utils/deliveries/messageDraft.ts') ?? '')) out.push('the draft has a recipient filled in');
   return out;
@@ -516,6 +753,8 @@ const laneRule = (code: ReadonlyMap<string, string>): string[] => {
     ['a core writes the schedule', 'utils/deliveries/jobEffect.ts', 'updateProject(projectId, { schedule: { ...schedule, tasks: after } });'],
     ['the sheet applies the proposal itself', 'components/deliveries/DeliveryFollowSheet.tsx', 'commit((prev) => proposedTasks(prev, d.taskId, earliest));'],
     ['the follow host applies on mount', 'components/deliveries/DeliveriesFollow.tsx', 'useEffect(() => { commit((prev) => proposedTasks(prev, a, b)); }, []);'],
+    ['the hold comes off on its own when the date improves', 'components/deliveries/DeliveriesFollow.tsx', 'useEffect(() => { if (release) removeHold(); }, [release]);'],
+    ['the sheet removes the hold itself', 'components/deliveries/DeliveryFollowSheet.tsx', 'onUpdate(d.id, {}); releasedTasks(tasks, d.id);'],
     ['a flag sends a push', 'utils/deliveries/flags.ts', "import * as Notifications from 'expo-notifications';"],
     ['a flag calls notify', 'components/deliveries/DeliveriesFollow.tsx', "void supabase.functions.invoke('notify', { body: {} });"],
     ['the draft is emailed by the app', 'utils/deliveries/messageDraft.ts', "await fetch('https://api.resend.com/emails');"],
@@ -629,7 +868,7 @@ const wordRule = (en: Cat, es: Cat): string[] => {
   const comp = (f: string) => strip(read(`components/deliveries/${f}`));
   const FOLLOW = comp('DeliveriesFollow.tsx'); const SHEET = comp('DeliveryFollowSheet.tsx'); const CARD = comp('DeliveryDatesCard.tsx'); const EDIT = comp('DeliveryEditSheet.tsx');
   const shown = (follow: string, sheet: string, edit: string) => /copy\.supplierWordBody/.test(follow) && /copy\.reminderBody/.test(follow) && /copy\.supplierWordBody/.test(sheet) && /copy\.reminderBody/.test(sheet)
-    && /copy\.previewOnlyBody/.test(sheet) && /copy\.draftOnlyBody/.test(sheet) && /copy\.ifNothingElseLabel/.test(sheet) && /copy\.supplierWordBody/.test(edit) && /copy\.previewOnlyBody/.test(follow)
+    && /copy\.previewOnlyBody/.test(sheet) && /copy\.draftOnlyBody/.test(sheet) && /copy\.ifNothingElseLabel/.test(sheet) && /copy\.supplierWordBody/.test(edit) && (follow.match(/copy\.previewOnlyBody/g) ?? []).length === 2
     && (follow.match(/copy\.supplierWordBody/g) ?? []).length >= 2;
   ok('the honesty lines are on the Deliveries block, the task section, the delivery sheet, the form and the schedule banner', shown(FOLLOW, SHEET, EDIT));
   plant('the reminder line is taken off the sheet', !shown(FOLLOW, SHEET.replace('copy.reminderBody', 'copy.closeLabel'), EDIT));
@@ -689,32 +928,35 @@ section('I. The gate');
   ok('the flag is read in ONE file, utils/deliveries/allowed.ts', eq(readers, ['utils/deliveries/allowed.ts']), readers.join(','));
   // Who reaches the lane from outside it.
   const outside = SOURCES.filter((f) => !LANE_FILES.includes(f) && /@\/(components|utils)\/deliveries\/|useDeliveriesFollowSchedule|useDeliveriesScheduleCopy/.test(strip(read(f))));
-  const DOORS = ['app/deliveries.tsx', 'app/schedule-pro.tsx', 'components/schedule/mobile/TaskDetailSheet.tsx', 'contexts/ProjectContext.tsx', 'utils/supplierScorecard.ts'];
-  ok('the lane is reached from five files and no other: the Deliveries screen, the task sheet, Schedule Pro (the three doors), the delivery row mapping and the scorecard\'s basis', eq(outside.sort(), [...DOORS].sort()), outside.sort().join(','));
+  const DOORS = ['app/deliveries.tsx', 'app/schedule-pro.tsx', 'components/schedule/mobile/TaskDetailSheet.tsx', 'contexts/ProjectContext.tsx', 'utils/supplierScorecard.ts', 'utils/offlineQueue.ts'];
+  ok('the lane is reached from six files and no other: the Deliveries screen, the task sheet, Schedule Pro (the three doors), the delivery row mapping, the scorecard\'s basis, and the sync queue (the one rewrite of a write that names a missing column)', eq(outside.sort(), [...DOORS].sort()), outside.sort().join(','));
   const importsOf = (f: string) => [...strip(read(f)).matchAll(/from '(@\/(?:components|utils|hooks)\/[^']*[dD]eliver[^']*)'/g)].map((m) => m[1]).filter((p) => /deliveries\/|DeliveriesFollow|DeliveriesSchedule/.test(p));
   ok('each door imports only its one piece', eq(importsOf('app/deliveries.tsx'), ['@/components/deliveries/DeliveriesFollow']) && eq(importsOf('app/schedule-pro.tsx'), ['@/components/deliveries/DeliveriesFollow']) && eq(importsOf('components/schedule/mobile/TaskDetailSheet.tsx'), ['@/components/deliveries/DeliveriesFollow'])
-    && eq(importsOf('contexts/ProjectContext.tsx'), ['@/utils/deliveries/rowCore']) && eq(importsOf('utils/supplierScorecard.ts'), ['@/utils/deliveries/promise']));
+    && eq(importsOf('contexts/ProjectContext.tsx'), ['@/utils/deliveries/rowCore']) && eq(importsOf('utils/supplierScorecard.ts'), ['@/utils/deliveries/promise']) && eq(importsOf('utils/offlineQueue.ts'), ['@/utils/deliveries/columnsGate']));
   const FOLLOW = strip(read('components/deliveries/DeliveriesFollow.tsx'));
-  const doorRule = (s: string) => /if \(!gate\.on \|\| !model\) return \{ on: false, block: null, sheets: null, openAdd, openDelivery, datesLabel: copy\.deliveryDatesLabel \};/.test(s) && /if \(!gate\.on \|\| !project\) return null;/.test(s) && /const active = gate\.on && gate\.canPreviewJobEffect && !!deliveryId;/.test(s) && /if \(!active \|\| !delivery\) return null;/.test(s) && /if \(!gate\.on\) return null;\s*const open = scoped/.test(s) && /if \(gate\.on\) setEdit\(/.test(s) && /if \(gate\.on\) setOpenId\(/.test(s);
+  const doorRule = (s: string) => /if \(!gate\.on \|\| !model\) return \{ on: false, pending: gate\.pending, block: null, sheets: null, openAdd, openDelivery, datesLabel: copy\.deliveryDatesLabel, noDateGroupLabel: copy\.noDateGroupLabel, shownIds: NO_IDS \};/.test(s) && /if \(!gate\.on \|\| !project\) return null;/.test(s) && /const active = gate\.on && gate\.canPreviewJobEffect && !!deliveryId;/.test(s) && /if \(!active \|\| !delivery\) return null;/.test(s) && /if \(!gate\.on\) return null;\s*const open = scoped/.test(s) && /if \(gate\.on\) setEdit\(/.test(s) && /if \(gate\.on\) setOpenId\(/.test(s);
   ok('each of the three doors draws nothing and opens nothing when the gate is closed', doorRule(FOLLOW));
   plant('the task section draws for everyone', !doorRule(FOLLOW.replace('if (!gate.on || !project) return null;', 'if (!project) return null;')));
   plant('the banner previews with the gate closed', !doorRule(FOLLOW.replace('const active = gate.on && gate.canPreviewJobEffect && !!deliveryId;', 'const active = !!deliveryId;')));
   plant('the opener works with the gate closed', !doorRule(FOLLOW.replace('if (gate.on) setEdit(', 'setEdit(')));
   const HOOK = strip(read('hooks/useDeliveriesFollowSchedule.ts'));
-  const hookRule = (s: string) => /const allowed = deliveriesFollowScheduleAllowed\(user\?\.email\) && !!user\?\.id;/.test(s) && /enabled: allowed,/.test(s) && /const on = allowed && probe\.data === true;/.test(s) && /if \(error\) return false;/.test(s) && /canPreviewJobEffect: on && isProOrAbove/.test(s);
-  ok('the gate hook: allowed AND the table has the columns (an error, or offline with nothing seen, keeps it closed); the job effect on Pro and up', hookRule(HOOK));
-  plant('the feature opens before the columns are seen', !hookRule(HOOK.replace('const on = allowed && probe.data === true;', 'const on = allowed;')));
+  const hookRule = (s: string) => /const allowed = deliveriesFollowScheduleAllowed\(user\?\.email\) && !!user\?\.id;/.test(s) && /enabled: allowed && answer === 'unseen',/.test(s) && /const on = allowed && answer === 'seen';/.test(s) && /if \(error\) return false;/.test(s) && /canPreviewJobEffect: on && isProOrAbove/.test(s)
+    && /const pending = allowed && answer === 'unknown';/.test(s) && /queryKey: \['deliveries-follow-schedule-columns', user\?\.id \?\? null, epoch\],/.test(s) && /if \(columnsAnswer\(\) === 'unknown'\) setColumnsAnswer\(seen \? 'seen' : 'unseen'\);/.test(s);
+  ok('the gate hook: allowed AND the table has the columns (an error, or offline with nothing seen, keeps it closed); pending only while the remembered answer is read, and only for a person the gate allows; asked again when a write proves it wrong; the job effect on Pro and up', hookRule(HOOK));
+  plant('the feature opens before the columns are seen', !hookRule(HOOK.replace("const on = allowed && answer === 'seen';", 'const on = allowed;')));
   plant('an error from the table counts as "the columns are there"', !hookRule(HOOK.replace('if (error) return false;', 'if (error) return true;')));
   plant('the job effect is open to every plan', !hookRule(HOOK.replace('canPreviewJobEffect: on && isProOrAbove', 'canPreviewJobEffect: on')));
+  plant('the screen is held for a person the gate does not allow (flag off would no longer be today\'s screen)', !hookRule(HOOK.replace("const pending = allowed && answer === 'unknown';", "const pending = answer === 'unknown';")));
+  plant('the remembered answer is never asked about again (the epoch is out of the key)', !hookRule(HOOK.replace("user?.id ?? null, epoch],", 'user?.id ?? null],')));
   // The Deliveries screen: what it adds is behind follow.on, and the golden pins the rest.
   const SCREEN = strip(read('app/deliveries.tsx'));
-  const screenRule = (s: string) => /const follow = useDeliveriesFollow\(projectId\);/.test(s) && (s.match(/follow\.(block|sheets)/g) ?? []).length >= 2 && /follow\.on \? follow\.openAdd/.test(s) && (s.match(/onDates=\{follow\.on \? follow\.openDelivery : undefined\}/g) ?? []).length === 2 && !/DELIVERIES_FOLLOW|deliveriesFollowScheduleAllowed|isOwner\(/.test(s);
+  const screenRule = (s: string) => /const follow = useDeliveriesFollow\(projectId, \{ onConfirm: confirm, onReceive: receive \}\);/.test(s) && (s.match(/follow\.(block|sheets)/g) ?? []).length >= 2 && /follow\.on \? follow\.openAdd/.test(s) && (s.match(/onDates=\{follow\.on \? follow\.openDelivery : undefined\}/g) ?? []).length === 4 && !/DELIVERIES_FOLLOW|deliveriesFollowScheduleAllowed|isOwner\(/.test(s);
   ok('the Deliveries screen reaches the lane through one hook, and the old form is replaced only when follow.on', screenRule(SCREEN));
   const snap = 'app/../__tests__/smoke/__snapshots__/deliveries-schedule-golden.test.tsx.snap'.replace('app/../', '');
   const golden = existsSync(join(ROOT, snap)) ? read(snap) : '';
   const goldenTest = read('__tests__/smoke/deliveries-schedule-golden.test.tsx');
   ok('the golden of the Deliveries screen (flag off, not the owner) is committed: two snapshots, and its test mocks neither the flag nor the gate', (golden.match(/^exports\[`/gm) ?? []).length === 2 && /Roof Trusses/.test(golden) && /3 days late/.test(golden) && /Expecting a Delivery/.test(golden) && !/dfs-/.test(golden) && !/jest\.mock\(/.test(goldenTest));
-  ok('the storage key the gate remembers is under an app-owned prefix', /DELIVERY_COLUMNS_SEEN_KEY = 'mageid_deliveries_fs_columns_seen'/.test(read('hooks/useDeliveriesFollowSchedule.ts')));
+  ok('the storage key the gate remembers is under an app-owned prefix', /DELIVERY_COLUMNS_SEEN_KEY = 'mageid_deliveries_fs_columns_seen'/.test(read('utils/deliveries/columnsGate.ts')) && DELIVERY_COLUMNS_SEEN_KEY.startsWith('mageid_'));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -728,7 +970,30 @@ const migRule = (sql: string): string[] => {
   if (!eq(adds.map((a) => a[0]), [...DELIVERY_SCHEDULE_COLUMNS])) out.push(`the added columns are not the seven the app writes: ${adds.map((a) => a[0]).join(',')}`);
   for (const [name, type] of adds) if (/not null|default/i.test(type)) out.push(`${name} is added NOT NULL or with a default`);
   if (!/alter table public\.deliveries alter column expected_date drop not null;/.test(code)) out.push('expected_date does not drop NOT NULL');
-  if (/\b(create|drop|alter)\s+policy\b|\bgrant\b|\brevoke\b|\bcreate\s+(or replace\s+)?(function|trigger|procedure)\b|pg_cron|cron\.schedule|net\.http|fire_notify|\bdelete from\b|\bupdate public\./i.test(code.replace(/do \$\$[\s\S]*?end \$\$;/, ''))) out.push('the migration touches a policy, a grant, a trigger, a function, a job or existing rows');
+  // THE ONE TRIGGER, and nothing else that acts. Its function and its trigger are cut out and read on their own; what is left may touch no policy, grant, trigger, function, job or row.
+  const fn = (code.match(/create or replace function public\.deliveries_fs_keep_record\(\)[\s\S]*?\$fn\$;/) ?? [''])[0];
+  const trg = (code.match(/drop trigger if exists deliveries_fs_keep_record on public\.deliveries;\s*create trigger deliveries_fs_keep_record[\s\S]*?;/) ?? [''])[0];
+  const REVOKE = 'revoke all on function public.deliveries_fs_keep_record() from public, anon, authenticated;';
+  const rest = code.replace(/do \$\$[\s\S]*?end \$\$;/, '').replace(fn, '').replace(trg, '').replace(REVOKE, '');
+  if (/\b(create|drop|alter)\s+policy\b|\bgrant\b|\brevoke\b|\bcreate\s+(or replace\s+)?(function|trigger|procedure)\b|pg_cron|cron\.schedule|net\.http|fire_notify|\bdelete from\b|\bupdate public\./i.test(rest)) out.push('the migration touches a policy, a grant, a trigger, a function, a job or existing rows outside its one trigger');
+  if (!fn) out.push('the trigger function deliveries_fs_keep_record() is missing');
+  else {
+    if (!/returns trigger\s+language plpgsql\s+security invoker\s+set search_path = ''/.test(fn) || /security definer/i.test(fn)) out.push('the trigger function is not SECURITY INVOKER with an empty search_path');
+    const body = fn.slice(fn.indexOf('$fn$'));
+    if (/\b(insert|delete|perform|execute|raise|notify|pg_notify|select\s+.*\bfrom\b|update\s+\w)\b|net\.|http/i.test(body)) out.push('the trigger function does more than keep two columns (it raises, writes, reads a table or calls out)');
+    const sets = body.match(/new\.[a-z_]+\s*:=/g) ?? [];
+    if (sets.length !== 2 || !sets.every((a) => /new\.(promised_date|date_history)\s*:=/.test(a))) out.push('the trigger function assigns something other than promised_date and date_history');
+    if (!/new\.promised_date := old\.promised_date;/.test(body) || !/new\.date_history := old\.date_history;/.test(body)) out.push('the trigger function does not keep the two columns as they were');
+    if (!/\(v_last ->> 'kind'\) is distinct from 'promise_corrected'/.test(body) || !/\(v_last ->> 'promisedDate'\) is distinct from to_char\(new\.promised_date, 'YYYY-MM-DD'\)/.test(body) || !/\(v_last ->> 'previousPromisedDate'\) is distinct from to_char\(old\.promised_date, 'YYYY-MM-DD'\)/.test(body)) out.push('the correction is not read from the last history entry (its kind, what it became, what it was)');
+    if (!/jsonb_array_length\(new\.date_history\) < jsonb_array_length\(old\.date_history\)/.test(body) || !/new\.date_history is null/.test(body)) out.push('the history can be shrunk or nulled');
+  }
+  if (!/create trigger deliveries_fs_keep_record\s+before update of promised_date, date_history on public\.deliveries\s+for each row execute function public\.deliveries_fs_keep_record\(\);/.test(trg)) out.push('the trigger is not BEFORE UPDATE OF promised_date, date_history, FOR EACH ROW');
+  if ((code.match(/\bcreate trigger\b/gi) ?? []).length !== 1 || (code.match(/\bcreate (or replace )?function\b/gi) ?? []).length !== 1) out.push('there is more than the one trigger and its one function');
+  if (!code.replace(/do \$\$[\s\S]*?end \$\$;/, '').includes(REVOKE) || /\bgrant\b/i.test(code.replace(/do \$\$[\s\S]*?end \$\$;/, ''))) out.push('EXECUTE on the trigger function is not revoked, or something is granted');
+  if (!/prosecdef/.test(sql) || !/has_function_privilege\('authenticated', 'public\.deliveries_fs_keep_record\(\)', 'execute'\)/.test(sql) || !/v_names is distinct from 'deliveries_fs_keep_record'/.test(sql)) out.push('the self-check does not pin the one trigger, SECURITY INVOKER and no EXECUTE');
+  if (!sql.includes('-- THE ONE TRIGGER.') || !/IT DOES NOT REFUSE THE UPDATE/.test(sql)) out.push('the header does not describe the one trigger');
+  if (/shows it as having no date/.test(sql) || !/AN OLDER BUILD DOES NOT LIST A DELIVERY WITH A NULL\s+--\s+expected_date AT ALL/.test(sql)) out.push('the header still says an older build shows a delivery with no date');
+  if (/the first supplier\s+--\s+date recorded for the delivery, or the supplier date/.test(sql) || !/only typed, or a date from before these columns/.test(sql)) out.push('the header describes the old promise rule');
   if (/add column[^;]*\b(needed|order_by)/i.test(code)) out.push('a needed-by or order-by column is added');
   for (const head of ['-- WHY.', '-- WHAT IS ADDED', '-- WHO WRITES / WHO READS.', '-- DEPLOY ORDER.', '-- VERIFY AFTER', '-- UNDO', '-- WHAT IS NOT ADDED, ON PURPOSE.', '-- ACCOUNT DELETION AND EXPORT.']) if (!sql.includes(head)) out.push(`the header has no "${head}"`);
   if (!/do \$\$[\s\S]*raise exception '\[deliveries_follow_schedule\] verify:[\s\S]*end \$\$;/.test(sql)) out.push('there is no self-check block');
@@ -738,7 +1003,7 @@ const migRule = (sql: string): string[] => {
   return out;
 };
 {
-  ok('nullable columns only, expected_date nullable, no policy, no grant, no trigger, no function, no needed-by column, the header and the self-check', migRule(MIG).length === 0, migRule(MIG).join(' | '));
+  ok('nullable columns only, expected_date nullable, no policy, no grant, no needed-by column, ONE trigger (SECURITY INVOKER, keeps two columns, refuses and touches nothing else), the header and the self-check', migRule(MIG).length === 0, migRule(MIG).join(' | '));
   const MIG_PLANTS: [string, string][] = [
     ['a column added NOT NULL', MIG.replace('add column if not exists buffer_days integer;', 'add column if not exists buffer_days integer not null default 2;')],
     ['a needed-by column', MIG.replace("notify pgrst, 'reload schema';", "alter table public.deliveries add column if not exists needed_by date;\nnotify pgrst, 'reload schema';")],
@@ -749,12 +1014,23 @@ const migRule = (sql: string): string[] => {
     ['the history cap removed', MIG.replace('\n    and jsonb_array_length(date_history) <= 40', '')],
     ['the self-check removed', MIG.replace(/do \$\$[\s\S]*end \$\$;/, '')],
     ['the undo section removed', MIG.replace('-- UNDO', '-- LATER')],
+    ['the trigger function made SECURITY DEFINER', MIG.replace('security invoker\nset search_path', 'security definer\nset search_path')],
+    ['the trigger raises (a stale phone\'s whole write is refused)', MIG.replace('      new.promised_date := old.promised_date;', "      raise exception 'written once';")],
+    ['the trigger writes another column', MIG.replace('    new.date_history := old.date_history;', '    new.date_history := old.date_history;\n    new.notes := old.notes;')],
+    ['the trigger fires on every update', MIG.replace('  before update of promised_date, date_history on public.deliveries', '  before update on public.deliveries')],
+    ['the trigger also fires on insert', MIG.replace('  before update of promised_date, date_history on public.deliveries', '  before insert or update of promised_date, date_history on public.deliveries')],
+    ['the correction need not say what the promise was', MIG.replace("\n       or (v_last ->> 'previousPromisedDate') is distinct from to_char(old.promised_date, 'YYYY-MM-DD') then", ' then')],
+    ['the history may be nulled', MIG.replace('(new.date_history is null\n          or ', '(')],
+    ['EXECUTE left with everyone', MIG.replace('revoke all on function public.deliveries_fs_keep_record() from public, anon, authenticated;', '')],
+    ['execute granted to authenticated', MIG.replace('revoke all on function public.deliveries_fs_keep_record() from public, anon, authenticated;', 'revoke all on function public.deliveries_fs_keep_record() from public, anon, authenticated;\ngrant execute on function public.deliveries_fs_keep_record() to authenticated;')],
+    ['a second function that notifies', MIG.replace("notify pgrst, 'reload schema';", "create or replace function public.deliveries_fs_tell() returns trigger language plpgsql as $t$ begin perform pg_notify('x', 'y'); return new; end $t$;\nnotify pgrst, 'reload schema';")],
+    ['the header keeps the old "older builds show it" line', MIG.replace('AN OLDER BUILD DOES NOT LIST A DELIVERY WITH A NULL', 'An older build shows it as having no date. A NULL')],
     ['an eighth column the app does not write', MIG.replace('alter table public.deliveries add column if not exists task_start_seen date;', 'alter table public.deliveries add column if not exists task_start_seen date;\nalter table public.deliveries add column if not exists supplier_token uuid;')],
   ];
   for (const [name, sql] of MIG_PLANTS) plant(`the migration: ${name}`, migRule(sql).length > 0);
   const proof = existsSync(join(ROOT, 'scripts/pgq/deliveries-follow-schedule.mjs')) ? read('scripts/pgq/deliveries-follow-schedule.mjs') : '';
-  ok('the PGlite proof is committed, names this file, the real deliveries table and the real access rule, and plants 14 mutations',
-    proof.includes("const FILE = '20261012090000_deliveries_follow_schedule.sql';") && proof.includes("readMigration(ROOT, '20260826200000_deliveries.sql')") && proof.includes('20260826130000_field_role.sql') && /\n    14: \[/.test(proof) && !/\n    15: \[/.test(proof)
+  ok('the PGlite proof is committed, names this file, the real deliveries table and the real access rule, and plants 22 mutations (8 of them on the trigger)',
+    proof.includes("const FILE = '20261012090000_deliveries_follow_schedule.sql';") && proof.includes("readMigration(ROOT, '20260826200000_deliveries.sql')") && proof.includes('20260826130000_field_role.sql') && /\n    22: \[/.test(proof) && !/\n    23: \[/.test(proof) && /'23 the trigger function is SECURITY INVOKER/.test(proof) && /'18 the promise is written once/.test(proof) && /'21 the history is not shrunk/.test(proof)
     && read('scripts/pgq/README.md').includes('deliveries-follow-schedule.mjs'));
   ok('the app applies nothing: no file of the lane names apply_migration or db push outside a comment', [...CODE.values()].every((s) => !/apply_migration|db push/.test(s)));
 }
@@ -770,6 +1046,182 @@ section('K. Registration');
   ok(`the ship gate's job name counts ${links} checks (${validators} validators)`, gate.includes(`ship-check — ${links} checks (${validators} validators, typecheck, lint, jest)`), (gate.match(/name: ship-check.*/) ?? [''])[0]);
   ok('the i18n surface is registered to the one copy hook', /id: 'office\.deliveries-schedule'[^\n]*keyPrefixes: \['office\.deliveriesSchedule\.'\][^\n]*files: \['hooks\/useDeliveriesScheduleCopy\.ts'\]/.test(read('i18n/surfaces.ts')));
   ok('the smoke tests of the three screens exist', existsSync(join(ROOT, '__tests__/smoke/deliveries-schedule.test.tsx')) && existsSync(join(ROOT, '__tests__/smoke/deliveries-schedule-golden.test.tsx')));
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+section('L. The review fixes that are read from the screens and the queue');
+{
+  const raw = (f: string) => strip(read(f));
+  const FOLLOW = raw('components/deliveries/DeliveriesFollow.tsx');
+  const SCREEN = raw('app/deliveries.tsx');
+  const REGISTER = raw('components/registers/DeliveriesRegister.tsx');
+  const CARD = raw('components/deliveries/DeliveryDatesCard.tsx');
+  const EDIT = raw('components/deliveries/DeliveryEditSheet.tsx');
+  const PRO = raw('app/schedule-pro.tsx');
+  const QUEUE = raw('utils/offlineQueue.ts');
+  const en = (k: string) => EN[`${P}${k}`];
+
+  // 3. THE TASK SHEET IS HANDED ITS JOB. A cloned job keeps its task ids (utils/projectClone), so a task id names two jobs.
+  const jobRule = (follow: string, sheet: string, phone: string): string[] => {
+    const out: string[] = [];
+    if (!/export function TaskDeliveriesSection\(\{ taskId, projectId \}: \{ taskId: string; projectId: string \}\)/.test(follow)) out.push('the task section is not handed a projectId');
+    if (!/const project = useMemo\(\(\) => projects\.find\(\(p\) => p\.id === projectId\) \?\? null, \[projects, projectId\]\);/.test(follow)) out.push('the task section does not find its job by id');
+    if (/tasks \?\? \[\]\)\.some\(\(x\) => x\.id === taskId\)/.test(follow)) out.push('a job is looked up by task id');
+    if (!/tab === 'docs' && projectId \? <TaskDeliveriesSection taskId=\{task\.id\} projectId=\{projectId\} \/> : null/.test(sheet)) out.push('TaskDetailSheet does not pass its projectId');
+    if (!/<TaskDetailSheet[\s\S]{0,500}projectId=\{selectedProject\.id\}\s*writePath=\{writePath\}/.test(phone)) out.push('the schedule screen does not hand the task sheet its job');
+    return out;
+  };
+  const SHEET_TASK = raw('components/schedule/mobile/TaskDetailSheet.tsx');
+  const PHONE = raw('components/schedule/mobile/MobileScheduleScreen.tsx');
+  ok('"Deliveries for This Task" is handed the job by the schedule screen and finds it by id, never by task id', jobRule(FOLLOW, SHEET_TASK, PHONE).length === 0, jobRule(FOLLOW, SHEET_TASK, PHONE).join(' | '));
+  plant('the job is found by task id again (a cloned job gets the other job\'s deliveries)', jobRule(FOLLOW.replace('projects.find((p) => p.id === projectId) ?? null, [projects, projectId]', 'projects.find((p) => (p.schedule?.tasks ?? []).some((x) => x.id === taskId)) ?? null, [projects, taskId]'), SHEET_TASK, PHONE).length > 0);
+  plant('the task sheet stops passing the job', jobRule(FOLLOW, SHEET_TASK.replace('projectId={projectId} />', '/>'), PHONE).length > 0);
+  ok('utils/projectClone still keeps task ids on a clone (the reason the job must be handed in): the reset deletes no id', !/delete next\.id|id: generate|id: `/.test(raw('utils/projectClone.ts').slice(raw('utils/projectClone.ts').indexOf('export function resetTaskForTemplate'), raw('utils/projectClone.ts').indexOf('export function cloneScheduleAsTemplate'))));
+
+  // 4. A PERSON'S APPLY IS LOGGED AS A PERSON'S.
+  const auditRule = (pro: string, follow: string): string[] => {
+    const out: string[] = [];
+    if (!/\(producer: \(prev: ScheduleTask\[\]\) => ScheduleTask\[\], source\?: string\): string \| void => \{/.test(pro)) out.push('commitEditorBatch takes no source label');
+    if (!/commitAiBatch\(producer, source && source\.trim\(\) \? source\.trim\(\) : 'AI schedule edit'\);/.test(pro) || /commitAiBatch\(producer, 'AI schedule edit'\);/.test(pro)) out.push('the editor commit always logs "AI schedule edit"');
+    if (!/copy\.auditAppliedSub\);/.test(follow) || !/copy\.auditHoldRemovedSub\);/.test(follow)) out.push('the banner does not name its own change');
+    if (!/commit: \(producer: \(prev: ScheduleTask\[\]\) => ScheduleTask\[\], source: string\) => string \| void;/.test(follow)) out.push('the banner\'s commit prop has no required source');
+    return out;
+  };
+  ok('the schedule\'s commit takes a source label, and the banner\'s Apply reads "Applied from a delivery" in the change log (never "AI schedule edit")', auditRule(PRO, FOLLOW).length === 0 && en('auditAppliedSub') === 'Applied from a delivery' && en('auditHoldRemovedSub') === 'Hold removed from a delivery' && !/\bAI\b/.test(String(en('auditAppliedSub'))), auditRule(PRO, FOLLOW).join(' | '));
+  plant('the commit ignores the label', auditRule(PRO.replace("source && source.trim() ? source.trim() : 'AI schedule edit'", "'AI schedule edit'"), FOLLOW).length > 0);
+  plant('the banner applies with no label', auditRule(PRO, FOLLOW.replace(', copy.auditAppliedSub);', ');')).length > 0);
+
+  // 5. "NO DATE YET" IS LISTED AND CAN BE RECEIVED.
+  const NOW = new Date(2026, 9, 14, 12).getTime();
+  const open = [D({ id: 'late', expectedDate: '2026-10-10' }), D({ id: 'soon', expectedDate: '2026-10-16' }), D({ id: 'none2', expectedDate: '', createdAt: '2026-10-03T16:00:00.000Z' }), D({ id: 'none1', expectedDate: '', createdAt: '2026-10-02T16:00:00.000Z' }),
+    D({ id: 'gone', expectedDate: '', status: 'delivered' }), D({ id: 'off', expectedDate: '', status: 'cancelled' })];
+  const look = buildLookahead(open, 7, NOW);
+  ok('the look-ahead keeps open deliveries with no date in their own list (oldest first), outside late, upcoming and the counts; settled ones are not in it',
+    eq(look.undated.map((v) => v.delivery.id), ['none1', 'none2']) && eq(look.late.map((v) => v.delivery.id), ['late']) && eq(look.upcoming.map((v) => v.delivery.id), ['soon']) && eq(look.counts, { upcoming: 1, late: 1, unconfirmed: 1 })
+    && buildLookahead([D()], 7, NOW).undated.length === 0);
+  plant('the OLD look-ahead: a delivery with no date is on no list', (() => { const { undated: _gone, ...old } = look; return !('undated' in old) && [...old.late, ...old.upcoming].every((v) => v.delivery.expectedDate !== ''); })());
+  const listRule = (screen: string, register: string): string[] => {
+    const out: string[] = [];
+    if (!/\{look\.undated\.length > 0 && \(/.test(screen) || !/\{look\.undated\.map\(v => \(\s*<Row key=\{v\.delivery\.id\}[\s\S]{0,200}onReceive=\{receive\} noConfirm/.test(screen)) out.push('the phone list has no "No Date Yet" group with Received');
+    if (!/testID=\{`receive-\$\{d\.id\}`\}/.test(screen) || !/d\.status !== 'confirmed' && !noConfirm && \(/.test(screen)) out.push('the no-date row offers Confirm, or no Received');
+    if (!/const undatedRows = useMemo\(\(\) => \(look\.undated \?\? \[\]\)\.map\(toRow\)/.test(register) || !/testID="deliveries-register-undated"/.test(register) || !/rows=\{undatedRows\}/.test(register)) out.push('the desktop register has no table of deliveries with no date');
+    if (!/onDates\?: \(d: Delivery\) => void;/.test(register) || !/\{onDates \? \(\s*<Button[^>]*testID=\{`dfs-dates-\$\{r\.id\}`\} onPress=\{\(\) => onDates\(d\)\} \/>/.test(register)) out.push('the desktop register cannot open a delivery\'s dates');
+    if (!/<DeliveriesRegister[\s\S]{0,700}onDates=\{follow\.on \? follow\.openDelivery : undefined\}/.test(screen)) out.push('the screen does not pass onDates to the desktop register');
+    return out;
+  };
+  ok('the base list has a "No Date Yet" group with Received (no Confirm: there is no date), on the phone and in the desktop register, and the register can open a delivery\'s dates', listRule(SCREEN, REGISTER).length === 0, listRule(SCREEN, REGISTER).join(' | '));
+  plant('the phone list drops the no-date group', listRule(SCREEN.replace('{look.undated.length > 0 && (', '{false && ('), REGISTER).length > 0);
+  plant('the desktop register is not handed onDates', listRule(SCREEN.replace(/(<DeliveriesRegister[\s\S]{0,700})onDates=\{follow\.on \? follow\.openDelivery : undefined\}/, '$1'), REGISTER).length > 0);
+  plant('the desktop register has no undated table', listRule(SCREEN, REGISTER.replace('rows={undatedRows}', 'rows={[]}')).length > 0);
+  // The Arrived matcher: the truck at the gate may be the load nobody dated.
+  type Match = typeof lateMatchForSupplier;
+  const loads = [D({ id: 'u2', supplier: 'Kessler Lumber Yard', expectedDate: '', createdAt: '2026-10-05T16:00:00.000Z' }), D({ id: 'u1', supplier: 'kessler  lumber yard', expectedDate: '', createdAt: '2026-10-04T16:00:00.000Z' }),
+    D({ id: 'future', supplier: 'Kessler Lumber Yard', expectedDate: '2026-11-20' }), D({ id: 'done', supplier: 'Kessler Lumber Yard', expectedDate: '', status: 'delivered' })];
+  const matchProblems = (m: Match): string[] => {
+    const out: string[] = [];
+    if (m(loads, 'p1', 'Kessler Lumber Yard', '2026-10-14')?.id !== 'u1') out.push('an undated open delivery from the supplier is not offered (oldest first)');
+    if (m([...loads, D({ id: 'due', supplier: 'Kessler Lumber Yard', expectedDate: '2026-10-12' })], 'p1', 'Kessler Lumber Yard', '2026-10-14')?.id !== 'due') out.push('a dated, due delivery does not come before an undated one');
+    if (m(loads.filter((d) => d.expectedDate !== ''), 'p1', 'Kessler Lumber Yard', '2026-10-14') !== null) out.push('a delivery dated in the future is offered');
+    if (m(loads, 'p1', 'Northside Glass', '2026-10-14') !== null || m(loads, 'p2', 'Kessler Lumber Yard', '2026-10-14') !== null) out.push('another supplier\'s or another job\'s delivery is offered');
+    return out;
+  };
+  ok('"It\'s here now" offers an undated open delivery from that supplier (after any dated one that is due), never a settled, future or other supplier\'s load', matchProblems(lateMatchForSupplier).length === 0, matchProblems(lateMatchForSupplier).join(' | '));
+  plant('the OLD matcher: only deliveries with a date', matchProblems((ds, p, sup, today) => lateMatchForSupplier(ds.filter((d) => d.expectedDate !== ''), p, sup, today)).length > 0);
+
+  // 7. ONE ROW, NOT TWO.
+  const oneRow = (follow: string, screen: string, card: string): string[] => {
+    const out: string[] = [];
+    if (!/\.filter\(\(d\) => !!d\.taskId \|\| hasNoSupplierDate\(d\)\)/.test(follow) || !/shownIds: new Set\(rows\.map\(\(x\) => x\.d\.id\)\)/.test(follow)) out.push('the block does not report every delivery it draws');
+    if (!/const keep = \(v: DeliveryView\) => !follow\.shownIds\.has\(v\.delivery\.id\);/.test(screen) || !/late: allLook\.late\.filter\(keep\), upcoming: allLook\.upcoming\.filter\(keep\), undated: allLook\.undated\.filter\(keep\)/.test(screen)) out.push('the screen does not leave the block\'s deliveries out of its own rows');
+    if (/allLook\.(late|upcoming|undated)\.(map|length)\b/.test(screen) || !/look=\{look\}/.test(screen) || !/summaryLook=\{allLook\}/.test(screen)) out.push('a list is drawn from the unfiltered look-ahead');
+    if (!/actions=\{actions\}/.test(follow) || !/testID=\{`dfs-confirm-\$\{id\}`\}/.test(card) || !/testID=\{`dfs-receive-\$\{id\}`\}/.test(card) || !/onPress=\{\(\) => actions\.onReceive\(delivery\)\}/.test(card) || !/onPress=\{\(\) => actions\.onConfirm\(delivery\)\}/.test(card)) out.push('the card does not carry the screen\'s Confirm and Received');
+    if (!/shownIds: NO_IDS \};/.test(follow)) out.push('with the gate closed the screen is told to hide rows');
+    return out;
+  };
+  ok('with the block on, a delivery it draws is left out of the old Late, Upcoming and No Date rows, and its card carries the screen\'s own Confirm and Received; with the gate closed nothing is hidden', oneRow(FOLLOW, SCREEN, CARD).length === 0, oneRow(FOLLOW, SCREEN, CARD).join(' | '));
+  plant('the old rows keep the linked deliveries (two rows each)', oneRow(FOLLOW, SCREEN.replace('late: allLook.late.filter(keep)', 'late: allLook.late'), CARD).length > 0);
+  plant('the card loses Received (a linked delivery could not be received)', oneRow(FOLLOW, SCREEN, CARD.replace('onPress={() => actions.onReceive(delivery)}', 'onPress={() => undefined}')).length > 0);
+  plant('the block hides rows it does not draw', oneRow(FOLLOW.replace('shownIds: new Set(rows.map((x) => x.d.id))', 'shownIds: new Set(open.map((x) => x.id))'), SCREEN, CARD).length > 0);
+
+  // 10. THE APPLIED LINE CLEARS AFTER UNDO; 13. THE SHARED PREVIEW SLOT.
+  const bannerRule = (follow: string): string[] => {
+    const out: string[] = [];
+    if (!/const asLeft = closed === 'applied' \? holdIsOn : !holdIsOn;\s*if \(asLeft\) settledRef\.current = true;\s*else if \(settledRef\.current\) \{ settledRef\.current = false; setClosed\('no'\); \}/.test(follow)) out.push('"Applied… Undo takes it back" does not clear once the hold it applied is gone');
+    if (!/const held = useMemo\(\(\) => \(delivery \? deliveryHold\(tasks, delivery\.id\) : null\), \[delivery, tasks\]\);/.test(follow)) out.push('the banner does not read the hold from the tasks the schedule is drawing');
+    if (!/const mine = overlayRef\.current;\s*onPreviewRef\.current\(mine\);\s*return \(\) => \{ onPreviewRef\.current\(\(current\) => \(current === mine \? null : current\)\); \};/.test(follow)) out.push('the banner\'s cleanup clears the preview slot whoever holds it');
+    if (/onPreviewRef\.current\(null\)/.test(follow)) out.push('the banner sets the shared slot to null outright');
+    if (!/onPreview: React\.Dispatch<React\.SetStateAction<SchedulePreviewOverlay \| null>>;/.test(follow)) out.push('the banner is not handed the slot\'s setter');
+    if (!/r\.kind === 'can_release' \? r : null/.test(follow) || !/testID="dfs-hold-remove"/.test(follow)) out.push('the banner does not offer to remove an improved hold');
+    return out;
+  };
+  ok('the banner: the Applied line clears after Undo; a hold whose supplier date improved is offered for removal; its cleanup clears the shared preview slot only while the slot is still its own', bannerRule(FOLLOW).length === 0, bannerRule(FOLLOW).join(' | '));
+  plant('the cleanup clears the slot outright (it wipes the Change tab\'s preview)', bannerRule(FOLLOW.replace('onPreviewRef.current((current) => (current === mine ? null : current));', 'onPreviewRef.current(null);')).length > 0);
+  plant('the Applied line stays up after Undo', bannerRule(FOLLOW.replace("else if (settledRef.current) { settledRef.current = false; setClosed('no'); }", '')).length > 0);
+
+  // 12. A WRITE THAT PROVES THE COLUMNS GONE: forget, close, re-send the old way.
+  const fullRow = { id: 'x', project_id: 'p1', description: '14 Windows', expected_date: null, status: 'scheduled', ...deliveryScheduleColumns(D({ taskId: 'W', bufferDays: 3, promisedDate: '2026-11-12' })) };
+  const PGRST204 = "Could not find the 'task_id' column of 'deliveries' in the schema cache";
+  type Rewrite = typeof rewriteForMissingColumns;
+  const gateProblems = (rw: Rewrite): string[] => {
+    const out: string[] = [];
+    setColumnsAnswer('seen');
+    const e0 = columnsEpoch();
+    const sent = rw('deliveries', fullRow, PGRST204, 'PGRST204');
+    if (!sent || !eq(Object.keys(sent), ['id', 'project_id', 'description', 'expected_date', 'status'])) out.push(`the row is not re-sent with the old columns only: ${sent ? Object.keys(sent).join(',') : 'null'}`);
+    if (columnsAnswer() !== 'unseen' || columnsEpoch() !== e0 + 1) out.push('the feature is not closed and the table is not asked again');
+    if (!eq(Object.keys(fullRow).length, 12)) out.push('the queued row was changed in place');
+    setColumnsAnswer('seen');
+    const e1 = columnsEpoch();
+    // Not this lane's failure: another table, another error, a row with none of the columns, a column that is not one of the seven.
+    if (rw('invoices', fullRow, PGRST204, 'PGRST204') !== null) out.push('another table\'s write is rewritten');
+    if (rw('deliveries', fullRow, 'new row violates row-level security policy', '42501') !== null) out.push('an access refusal is rewritten');
+    if (rw('deliveries', { id: 'x', description: 'y' }, PGRST204, 'PGRST204') !== null) out.push('a row with none of the columns is rewritten');
+    if (rw('deliveries', fullRow, "Could not find the 'delivery_window' column of 'deliveries' in the schema cache", 'PGRST204') !== null) out.push('a miss on another column is rewritten');
+    if (rw('deliveries', fullRow, 'TypeError: Network request failed', undefined) !== null) out.push('a network failure is rewritten');
+    if (columnsAnswer() !== 'seen' || columnsEpoch() !== e1) out.push('the feature closes on a failure that is not a missing column');
+    if (!rw('deliveries', fullRow, 'column "date_history" of relation "deliveries" does not exist', '42703')) out.push('Postgres\'s own "column does not exist" is not handled');
+    setColumnsAnswer('unknown');
+    return out;
+  };
+  ok('a delivery write refused for one of the seven columns closes the feature, has the table asked again, and is re-sent with the old columns only; nothing else is touched', gateProblems(rewriteForMissingColumns).length === 0 && eq(withoutScheduleColumns({ id: 1, task_id: 'a', notes: null }), { id: 1, notes: null }), gateProblems(rewriteForMissingColumns).join(' | '));
+  plant('the write is kept unchanged (the queue wedges on it)', gateProblems(() => null).length > 0);
+  plant('the row is stripped but the remembered answer is trusted', gateProblems((t, d) => (t === 'deliveries' && d ? withoutScheduleColumns(d) : null)).length > 0);
+  plant('every schema-cache miss on any table is rewritten', gateProblems((_t, d, m, c) => rewriteForMissingColumns('deliveries', d, m, c)).length > 0);
+  const queueRule = (q: string): string[] => {
+    const out: string[] = [];
+    if (!/const rewritten = rewriteForMissingColumns\(table, data, message, code\);\s*if \(!rewritten\) return null;\s*try \{ await AsyncStorage\.removeItem\(DELIVERY_COLUMNS_SEEN_KEY\); \}/.test(q)) out.push('the stored key is not removed when a write proves it wrong');
+    const flush = q.indexOf("const oldColumnsOnly = mutation.operation === 'rpc' ? null : await deliveryRowWithoutMissingColumns(mutation.table, mutation.data, msg, code);");
+    const flushTransient = q.indexOf('if (isNetworkError(err) || isSchemaCacheError(msg) || isAuthTransientError(msg, code)) {', flush);
+    if (flush < 0 || flushTransient < 0 || !/gRemaining\.push\(\{ \.\.\.mutation, data: oldColumnsOnly \}\);/.test(q.slice(flush, flushTransient))) out.push('the flush re-queues the write unchanged (before asking whether a schedule column is missing)');
+    const direct = q.indexOf("const oldColumnsOnly = operation === 'rpc' ? null : await deliveryRowWithoutMissingColumns(table, data, msg, code);");
+    const directTransient = q.indexOf('if (isNetworkError(err) || isSchemaCacheError(msg) || isAuthTransientError(msg, code)) {', direct);
+    if (direct < 0 || directTransient < 0 || !/enqueueOrFail\(\{ \.\.\.m, data: oldColumnsOnly \}, writerId, dropNoticeFor\(opts\)\);/.test(q.slice(direct, directTransient))) out.push('a direct write queues the row unchanged');
+    if ((q.match(/deliveryRowWithoutMissingColumns\(/g) ?? []).length !== 3) out.push('the rewrite is not asked at exactly the two places a write fails');
+    return out;
+  };
+  ok('the sync queue asks at both places a write fails, BEFORE treating the miss as "keep unchanged", removes the stored key, and queues the row with the old columns', queueRule(QUEUE).length === 0, queueRule(QUEUE).join(' | '));
+  plant('the flush keeps the write unchanged', queueRule(QUEUE.replace('gRemaining.push({ ...mutation, data: oldColumnsOnly });', 'gRemaining.push(mutation);')).length > 0);
+  plant('the stored key is left in place', queueRule(QUEUE.replace('try { await AsyncStorage.removeItem(DELIVERY_COLUMNS_SEEN_KEY); }', 'try { await Promise.resolve(); }')).length > 0);
+
+  // 14. THE WORDING, AND THE SCREEN DOES NOT FLASH THE OLD LIST.
+  const copyRule = (cat: Cat, edit: string, screen: string): string[] => {
+    const out: string[] = [];
+    const g = (k: string) => texts(cat[`${P}${k}`] ?? '').join(' ');
+    if (g('nothingSentBody') !== 'MAGE ID has sent nothing.') out.push(`"nothing sent" is not a statement about what MAGE ID did: "${g('nothingSentBody')}"`);
+    if (/\bearly\b|\blate\b|\bahead\b|\bbehind\b/i.test(g('nowEarlyBody')) || !/before the day it is needed\./.test(g('nowEarlyBody')) || !/^The supplier date for \{what\} is now /.test(g('nowEarlyBody'))) out.push(`the moved line gives a verdict, not a position: "${g('nowEarlyBody')}"`);
+    for (const k of ['whatPlaceholder', 'supplierPlaceholder', 'windowPlaceholder', 'bufferLessLabel', 'bufferMoreLabel']) if (!g(k)) out.push(`${k} is not in the catalog`);
+    if (/placeholder="[^"]/.test(edit) || /accessibilityLabel=\{`\$\{copy\.bufferLabel\}/.test(edit) || !/placeholder=\{copy\.whatPlaceholder\}/.test(edit) || !/placeholder=\{copy\.supplierPlaceholder\}/.test(edit) || !/placeholder=\{copy\.windowPlaceholder\}/.test(edit) || !/accessibilityLabel=\{copy\.bufferLessLabel\}/.test(edit) || !/accessibilityLabel=\{copy\.bufferMoreLabel\}/.test(edit)) out.push('the form has a hard-coded placeholder or a stitched-together stepper label');
+    if (!/\{follow\.pending \? null : \(/.test(screen) || !/\{isDesktopWeb && follow\.pending \? null : isDesktopWeb \? \(/.test(screen)) out.push('the old list is drawn before the gate\'s remembered answer is back');
+    return out;
+  };
+  ok('the wording: "MAGE ID has sent nothing."; the moved line says where the supplier date sits; placeholders and stepper labels come from the catalog, in both languages; the old list waits for the remembered answer',
+    copyRule(EN, EDIT, SCREEN).length === 0 && ['whatPlaceholder', 'supplierPlaceholder', 'windowPlaceholder', 'bufferLessLabel', 'bufferMoreLabel', 'nothingSentBody', 'nowEarlyBody'].every((k) => !!ES[`${P}${k}`]) && ES[`${P}nothingSentBody`] === 'MAGE ID no ha enviado nada.',
+    copyRule(EN, EDIT, SCREEN).join(' | '));
+  plant('"Nothing has been sent to the supplier."', copyRule({ ...EN, [`${P}nothingSentBody`]: 'Nothing has been sent to the supplier.' }, EDIT, SCREEN).length > 0);
+  plant('"{what} is now N working days early."', copyRule({ ...EN, [`${P}nowEarlyBody`]: { one: '{what} is now 1 working day early.', other: '{what} is now {count} working days early.' } }, EDIT, SCREEN).length > 0);
+  plant('a hard-coded English placeholder', copyRule(EN, EDIT.replace('placeholder={copy.whatPlaceholder}', 'placeholder="14 Windows"'), SCREEN).length > 0);
+  plant('the stepper label "Buffer -1"', copyRule(EN, EDIT.replace('accessibilityLabel={copy.bufferLessLabel}', 'accessibilityLabel={`${copy.bufferLabel} -1`}'), SCREEN).length > 0);
+  plant('the old list is drawn while the gate is pending', copyRule(EN, EDIT, SCREEN.replace('{follow.pending ? null : (', '{false ? null : (')).length > 0);
 }
 
 console.log(fails === 0

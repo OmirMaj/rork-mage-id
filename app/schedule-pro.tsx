@@ -892,10 +892,6 @@ function ScheduleProScreenInner() {
     taskCalendars,
   }), [scheduleStartIso, criticalFloatThresholdDays, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates, taskCalendars]);
 
-  // The engine options a delivery's proposal is worked out with, so the overlay
-  // it hands this screen is on this screen's own numbers (lane DELIVERIES-1).
-  const deliveryProposalEngine = useMemo(() => ({ criticalFloatThresholdDays, taskCalendars }), [criticalFloatThresholdDays, taskCalendars]);
-
   const rolledTasks = useMemo(() => {
     const hasSummary = workingTasks.some(t => t.isSummary);
     if (!hasSummary) return computeSummaryRollup(workingTasks);
@@ -1582,8 +1578,14 @@ function ScheduleProScreenInner() {
   // everything but progress/status/notes/actuals — the ticked "Added …" card
   // it used to show was a change that never saved. A field seat's progress-only
   // batch ("drywall is 50% done") still goes through, as a grid edit would.
+  //
+  // `source` is what the change log says the batch came from. The editor's own
+  // callers pass none and read 'AI schedule edit', as before. A change a PERSON
+  // applied from somewhere else names itself (a delivery's proposal reads
+  // "Applied from a delivery"), so the log a schedule is argued from never
+  // credits a person's own press to the AI.
   const commitEditorBatch = useCallback(
-    (producer: (prev: ScheduleTask[]) => ScheduleTask[]): string | void => {
+    (producer: (prev: ScheduleTask[]) => ScheduleTask[], source?: string): string | void => {
       if (writePath === 'field_rpc') {
         const before = workingTasksRef.current;
         const after = producer(before);
@@ -1599,7 +1601,7 @@ function ScheduleProScreenInner() {
       } else if (writePath !== 'row') {
         return 'Not saved: you have view-only access to this project. Ask the project owner for editor access.';
       }
-      commitAiBatch(producer, 'AI schedule edit');
+      commitAiBatch(producer, source && source.trim() ? source.trim() : 'AI schedule edit');
     },
     [commitAiBatch, writePath],
   );
@@ -3360,14 +3362,16 @@ function ScheduleProScreenInner() {
           />
           {/* A delivery's proposal, DRAWN on this screen's own preview. It is
               applied only by the person's tap, through commitEditorBatch (the
-              same undoable commit the Change tab uses). Draws nothing unless
-              the route names a delivery and that feature's gate is open. */}
+              same undoable commit the Change tab uses), which logs it under
+              the label the banner hands in, not as an AI edit. The banner
+              works the proposal out from project.schedule with the same engine
+              options this screen builds. Draws nothing unless the route names
+              a delivery and that feature's gate is open. */}
           <DeliveryProposalBanner
             projectId={project.id}
             deliveryId={typeof paramDeliveryId === 'string' ? paramDeliveryId : undefined}
             schedule={project.schedule}
             tasks={workingTasks}
-            engine={deliveryProposalEngine}
             onPreview={setPendingPreview}
             commit={commitEditorBatch}
           />

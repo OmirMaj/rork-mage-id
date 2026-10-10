@@ -221,6 +221,14 @@ function isoToDay(iso: string | undefined, scheduleStart: string | undefined): n
  * the engine degrades to raw-day behavior instead of crashing.
  */
 /**
+ * The working week the engine counts on when a schedule does not say: every
+ * day. ONE definition: every `opts.workingDaysPerWeek ?? …` in this file reads
+ * it, and so does anything outside the engine that must count days the way the
+ * drawn schedule does (utils/deliveries/calendar.ts).
+ */
+export const ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK = 7;
+
+/**
  * THE weekend rule, and the only copy of it. `dayOfWeek` is 0=Sunday..6=Saturday
  * (what both `Date.getDay()` and `Date.getUTCDay()` return).
  *
@@ -391,7 +399,7 @@ export function workingDaysBetween(
   if (!opts.scheduleStartDate) return toDay - fromDay;
   return workingDaysBetweenOn(
     fromDay, toDay,
-    opts.workingDaysPerWeek ?? 7,
+    opts.workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK,
     opts.scheduleStartDate,
     opts.nonWorkingDates && opts.nonWorkingDates.length > 0
       ? new Set(opts.nonWorkingDates)
@@ -543,7 +551,7 @@ export function workingOrdinalToCalendarIndex(
 ): number {
   const n = Math.max(1, Math.floor(ordinal));
   if (!opts.scheduleStartDate) return n;
-  const wd = opts.workingDaysPerWeek ?? 7;
+  const wd = opts.workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK;
   const closures = new Set(opts.nonWorkingDates ?? []);
   if (wd >= 7 && closures.size === 0) return n;
   if (n === 1) return 1;
@@ -567,7 +575,7 @@ export function workingDaysInSpan(
 ): number {
   if (toDay < fromDay) return 0;
   if (!opts.scheduleStartDate) return toDay - fromDay + 1;
-  const wd = opts.workingDaysPerWeek ?? 7;
+  const wd = opts.workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK;
   const closures = new Set(opts.nonWorkingDates ?? []);
   let count = 0;
   for (let d = fromDay; d <= toDay; d++) {
@@ -622,7 +630,7 @@ export function calendarIndexToWorkingOrdinal(
 ): number {
   const idx = Math.max(1, Math.floor(calendarIndex));
   if (!opts.scheduleStartDate) return idx;
-  const wd = opts.workingDaysPerWeek ?? 7;
+  const wd = opts.workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK;
   const closures = new Set(opts.nonWorkingDates ?? []);
   if (wd >= 7 && closures.size === 0) return idx;
   let ordinal = 1;
@@ -936,7 +944,7 @@ interface ForwardRow {
  */
 function makeOrdinalIndexer(opts: DayScaleOptions): (ordinal: number) => number {
   const scheduleStart = opts.scheduleStartDate;
-  const wd = opts.workingDaysPerWeek ?? 7;
+  const wd = opts.workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK;
   const closures = opts.nonWorkingDates && opts.nonWorkingDates.length > 0
     ? new Set(opts.nonWorkingDates) : EMPTY_CLOSURES;
   if (!scheduleStart || (wd >= 7 && closures.size === 0)) {
@@ -968,7 +976,7 @@ function forwardPass(
   const map = new Map<string, ForwardRow>();
   const byId = new Map(all.map(t => [t.id, t]));
   // v2.2b — derive working values once per pass.
-  const wdPerWeek = workingDaysPerWeek ?? 7;
+  const wdPerWeek = workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK;
   const closuresSet = new Set(nonWorkingDates ?? []);
   // v2.2c — per-task calendar cache. Built once per pass; same instance
   // reused at all 3 calendar-aware sites per task (EF + 2 anchor branches).
@@ -1105,7 +1113,7 @@ function backwardPass(
   const byId = new Map(all.map(t => [t.id, t]));
   const result = new Map<string, { ls: number; lf: number }>();
   // v2.2b — derive working values once per pass.
-  const wdPerWeek = workingDaysPerWeek ?? 7;
+  const wdPerWeek = workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK;
   const closuresSet = new Set(nonWorkingDates ?? []);
   // v2.2c — per-task calendar cache (mirror of forwardPass).
   const resolvedCalendars = new Map<string, { wd: number; closures: Set<string> }>();
@@ -1585,7 +1593,7 @@ function makeCalendarResolver(
   taskCalendars: Map<string, { workingDaysPerWeek: number; closures: string[] }> | undefined,
   scheduleStartDate: string | undefined,
 ): (taskId: string) => ResolvedCalendar {
-  const wdPerWeek = workingDaysPerWeek ?? 7;
+  const wdPerWeek = workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK;
   const closuresSet = nonWorkingDates && nonWorkingDates.length > 0
     ? new Set(nonWorkingDates) : EMPTY_CLOSURES;
   const cache = new Map<string, ResolvedCalendar>();
@@ -2089,7 +2097,7 @@ export function detectStartDayBasis(
   tasks: readonly ScheduleTask[],
   opts: DayScaleOptions = {},
 ): StartDayBasisReport {
-  const wd = opts.workingDaysPerWeek ?? 7;
+  const wd = opts.workingDaysPerWeek ?? ENGINE_DEFAULT_WORKING_DAYS_PER_WEEK;
   const closures = new Set(opts.nonWorkingDates ?? []);
   const scalesCoincide = !opts.scheduleStartDate || (wd >= 7 && closures.size === 0);
   const base: StartDayBasisReport = {
