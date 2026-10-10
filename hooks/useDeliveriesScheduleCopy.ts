@@ -201,7 +201,7 @@ export function useDeliveriesScheduleCopy(): DeliveriesScheduleCopy {
     deliveryDatesLabel: t('office.deliveriesSchedule.deliveryDatesLabel', 'Delivery Dates'),
     expectingLabel: t('office.deliveriesSchedule.expectingLabel', 'Expecting a Delivery'),
     dateHistoryLabel: t('office.deliveriesSchedule.dateHistoryLabel', 'Supplier Date History'),
-    proposalLabel: t('office.deliveriesSchedule.proposalLabel', 'Proposed From a Delivery'),
+    proposalLabel: t('office.deliveriesSchedule.proposalLabel', 'Proposed from a Delivery'),
 
     addForTaskLabel: t('office.deliveriesSchedule.addForTaskLabel', 'Add a Delivery for This Task'),
     addDeliveryLabel: t('office.deliveriesSchedule.addDeliveryLabel', 'Add Delivery'),

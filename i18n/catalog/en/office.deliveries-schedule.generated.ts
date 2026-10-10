@@ -98,7 +98,7 @@ export const EN: EnCatalog = {
   "office.deliveriesSchedule.proposalAppliedBody": "Applied to the schedule. Undo takes it back.",
   "office.deliveriesSchedule.proposalBody": "{task} would start no earlier than {date}, the first working day after the supplier date for {what}.",
   "office.deliveriesSchedule.proposalGoneBody": "There is nothing to propose from this delivery now.",
-  "office.deliveriesSchedule.proposalLabel": "Proposed From a Delivery",
+  "office.deliveriesSchedule.proposalLabel": "Proposed from a Delivery",
   "office.deliveriesSchedule.reminderBody": "MAGE ID shows what the dates say. It can miss things. Check with your supplier.",
   "office.deliveriesSchedule.saidByNameBody": "Supplier said so. Typed by {name}, {date}.",
   "office.deliveriesSchedule.saidByNameNoteBody": "Supplier said so {note}. Typed by {name}, {date}.",

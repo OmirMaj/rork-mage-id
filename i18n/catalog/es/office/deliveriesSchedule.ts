@@ -106,7 +106,7 @@ export const ES_OFFICE_DELIVERIES_SCHEDULE: EsCatalog = {
   "office.deliveriesSchedule.proposalAppliedBody": { s: "Aplicado al cronograma. Deshacer lo revierte.", src: "3deaa721" },
   "office.deliveriesSchedule.proposalBody": { s: "{task} empezaría no antes del {date}, el primer día hábil después de la fecha del proveedor para {what}.", src: "dda73e83" },
   "office.deliveriesSchedule.proposalGoneBody": { s: "Ya no hay nada que proponer desde esta entrega.", src: "a895f5cb" },
-  "office.deliveriesSchedule.proposalLabel": { s: "Propuesta desde una entrega", src: "54a5c63a" },
+  "office.deliveriesSchedule.proposalLabel": { s: "Propuesta desde una entrega", src: "c00b011a" },
   "office.deliveriesSchedule.reminderBody": { s: "MAGE ID muestra lo que dicen las fechas. Se le pueden pasar cosas. Confirma con tu proveedor.", src: "b1354460" },
   "office.deliveriesSchedule.saidByNameBody": { s: "Lo dijo el proveedor. Lo escribió {name}, {date}.", src: "1f6a2d12" },
   "office.deliveriesSchedule.saidByNameNoteBody": { s: "Lo dijo el proveedor {note}. Lo escribió {name}, {date}.", src: "20c95bbe" },

@@ -370,8 +370,8 @@ section('D. Lead time, Order By and What to Order This Week');
   ];
   const r = whatToOrderThisWeek(list, () => sched, '2026-09-30');
   ok('the week of Wed Sep 30 ends Sun Oct 4', endOfLocalWeek('2026-09-30') === '2026-10-04' && endOfLocalWeek('2026-10-04') === '2026-10-04' && endOfLocalWeek('2026-10-05') === '2026-10-11');
-  ok('overdue first (9 days past), then this week by date; next week, ordered, delivered, cancelled, no lead time and no task are left out',
-    eq(r.rows.map((x) => [x.delivery.id, x.orderBy, x.daysLeft]), [['trim', '2026-09-21', -9], ['side', '2026-10-02', 2], ['win', '2026-10-02', 2]]) && r.overdue.length === 1 && r.thisWeek.length === 2,
+  ok('overdue first (9 days past), then this week by date (a tie by name); next week, ordered, delivered, cancelled, no lead time and no task are left out',
+    eq(r.rows.map((x) => [x.delivery.id, x.orderBy, x.daysLeft]), [['trim', '2026-09-21', -9], ['win', '2026-10-02', 2], ['side', '2026-10-02', 2]]) && r.overdue.length === 1 && r.thisWeek.length === 2,
     JSON.stringify(r.rows.map((x) => [x.delivery.id, x.orderBy, x.daysLeft])));
   ok('an undated schedule lists nothing', whatToOrderThisWeek(list, () => HOUSE({ startDate: undefined }), '2026-09-30').rows.length === 0);
   ok('overdue is not bounded by the week: a year past is still listed', whatToOrderThisWeek([list[0]], () => sched, '2027-09-30').overdue.length === 1);
@@ -570,7 +570,7 @@ const wordRule = (en: Cat, es: Cat): string[] => {
     const slug = k.slice(P.length);
     if (/Label$/.test(slug) && (!isTitleCase(s) || /[.?]$/.test(s))) out.push(`en ${k}: a label is Title Case with no period: "${s}"`);
     if (/Body$/.test(slug) && !/[.?]$/.test(s)) out.push(`en ${k}: a sentence ends with a period: "${s}"`);
-    if (/Body$/.test(slug) && !/^[A-Z{]/.test(s)) out.push(`en ${k}: a sentence starts with a capital: "${s}"`);
+    if (/Body$/.test(slug) && !/^[A-Z0-9{]/.test(s)) out.push(`en ${k}: a sentence starts with a capital: "${s}"`);
     if (/Sub$/.test(slug) && /\.$/.test(s)) out.push(`en ${k}: a caption has no closing period: "${s}"`);
   }
   for (const [k, s] of all(es)) {
