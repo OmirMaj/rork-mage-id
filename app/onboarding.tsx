@@ -62,6 +62,7 @@ import { track, AnalyticsEvents } from '@/utils/analytics';
 import { takePendingDeepLink } from '@/utils/pendingDeepLink';
 import { ONBOARDING_TUTORIAL_ID, shouldAutoStartOnboardingTutorial } from '@/utils/tutorial/entryPoints';
 import { isTutorialActive, startTutorial } from '@/utils/tutorial/store';
+import { formatMoney } from '@/utils/formatters';
 
 // Funnel screens are never a replay destination — a stash of one is left over
 // from a bounce, and replaying it would loop him back into first-run.
@@ -857,7 +858,7 @@ export default function OnboardingScreen() {
                     {rateReview.rows.slice(0, 6).map((r, i) => (
                       <View key={`${r.trade}-${r.unit}-${i}`} style={styles.nameChip}>
                         <Text style={styles.nameChipText} numberOfLines={1}>
-                          {r.trade} ${r.rate.toFixed(2)}/{r.unit}
+                          {r.trade} {formatMoney(r.rate, 2)}/{r.unit}
                         </Text>
                       </View>
                     ))}

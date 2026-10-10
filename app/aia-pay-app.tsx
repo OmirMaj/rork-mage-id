@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Info, Printer, Check, Save,
@@ -1811,7 +1811,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                   onPress={() => setPickedInvoiceId(inv.id)}
                   activeOpacity={0.8}
                   accessibilityRole="button"
-                  accessibilityLabel={`Invoice ${inv.number}, ${formatMoney(inv.totalDue)}, issued ${inv.issueDate}`}
+                  accessibilityLabel={`Invoice ${inv.number}, ${formatMoney(inv.totalDue)}, issued ${formatCalendarDay(inv.issueDate)}`}
                   testID={`aia-pick-invoice-${inv.id}`}
                 >
                   <View style={{ flex: 1 }}>
@@ -1819,7 +1819,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                       Invoice #{inv.number} · {formatMoney(inv.totalDue)}
                     </Text>
                     <Text style={styles.periodPickRowMeta} numberOfLines={1}>
-                      Issued {inv.issueDate}
+                      Issued {formatCalendarDay(inv.issueDate)}
                       {typeof inv.progressPercent === 'number' ? ` · ${inv.progressPercent}% complete` : ''}
                     </Text>
                   </View>
@@ -1935,7 +1935,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         ref={aiaScrollRef}
         {...fabScroll}
         style={[styles.container, { backgroundColor: themeColors.bg }]}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + bottomBarH + BRAIN_FAB_CLEARANCE }}
         keyboardShouldPersistTaps="handled"
       >
         <MaybeScrollAnchor on={runOnThis} scrollRef={aiaScrollRef}>

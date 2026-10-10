@@ -23,6 +23,7 @@ import { supabase } from '@/lib/supabase';
 import { edgeFunctionError } from '@/utils/edgeError';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Invoice } from '@/types';
+import { formatMoney } from '@/utils/formatters';
 
 // --- BEGIN paymentsNotInQuickBooks ------------------------------------------
 // The client twin of countPaymentsNotInQbo in
@@ -590,7 +591,7 @@ function QboSetupScreenInner() {
                     {stuckPayments.map((p) => (
                       <View key={p.key} style={{ marginTop: 10 }} testID="qbo-stuck-payment">
                         <Text style={styles.cardTitle}>
-                          {`${p.invoiceNumber != null ? `Invoice #${p.invoiceNumber}` : 'Invoice'} · $${p.amount.toFixed(2)} · `}
+                          {`${p.invoiceNumber != null ? `Invoice #${p.invoiceNumber}` : 'Invoice'} · ${formatMoney(p.amount, 2)} · `}
                           {p.state === 'reversed' ? 'refunded, record the net in QuickBooks by hand'
                             : p.state === 'stopped' ? 'stopped trying, match by hand'
                             : p.state === 'refused' ? 'not sent, match by hand'
@@ -603,7 +604,7 @@ function QboSetupScreenInner() {
                     {reversals.map((r) => (
                       <View key={r.key} style={{ marginTop: 10 }} testID="qbo-reversal-not-recorded">
                         <Text style={styles.cardTitle}>
-                          {`${r.invoiceNumber != null ? `Invoice #${r.invoiceNumber}` : 'Invoice'} · −$${r.amount.toFixed(2)} · ${r.kind === 'dispute' ? 'charged back' : 'refunded'} after it was sent to QuickBooks`}
+                          {`${r.invoiceNumber != null ? `Invoice #${r.invoiceNumber}` : 'Invoice'} · −${formatMoney(r.amount, 2)} · ${r.kind === 'dispute' ? 'charged back' : 'refunded'} after it was sent to QuickBooks`}
                         </Text>
                         <Text style={styles.cardSub}>
                           {`QuickBooks still counts this money (its payment ${r.paymentQboId}). Record a refund receipt there, or edit that payment. MAGE does not do it for you, because how to book it is your bookkeeper's call.`}

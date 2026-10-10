@@ -77,3 +77,9 @@ credentials/
 
 # bun is the package manager; a second lockfile makes EAS/expo-doctor guess (audit HEALTH-F3)
 package-lock.json
+
+# scripts/marketing-screens build output and raw shots
+.marketing-screens-dist/
+.marketing-screens-dist-testing/
+.marketing-screens-out/
+*.marketing-screens-backup

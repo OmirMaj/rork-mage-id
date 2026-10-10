@@ -272,7 +272,7 @@ console.log('\n#58 the homeowner update on a submitted report:');
 
 console.log('\n#62 a submitted report can be printed / shared again:');
 {
-  ok('the locked top bar carries Print / Share PDF', /label=\{sharingPdf \? t\('field\.dfr\.makingPdf', 'Making PDF…'\) : t\('field\.dfr\.printSharePdf', 'Print \/ Share PDF'\)\}/.test(code) && /onPress=\{handlePrintOrShareLocked\}/.test(code) && /testID="dfr-locked-print-share"/.test(code));
+  ok('the locked top bar carries Print / Share PDF', /accessibilityLabel=\{sharingPdf \? t\('field\.dfr\.makingPdf', 'Making PDF…'\) : t\('field\.dfr\.printSharePdf', 'Print \/ Share PDF'\)\}/.test(code) && /onPress=\{handlePrintOrShareLocked\}/.test(code) && /testID="dfr-locked-print-share"/.test(code));
   const fn = code.slice(code.indexOf('const handlePrintOrShareLocked = useCallback('), code.indexOf('const handleConfirmSend = useCallback('));
   ok('web prints (the synchronous tab), the phone shares generateDFRPDF with the send path\'s inputs', /if \(Platform\.OS === 'web'\) \{ handlePrintCopy\(\); return; \}/.test(fn)
     && /generateDFRPDF\(doc, project, brandingOrBlank\(\), \{\s*photos: await resolveDfrPhotosForDocument\(doc\.photos, galleryPhotos\),\s*incidentClassification: documentClassification,/.test(fn));

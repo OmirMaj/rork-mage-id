@@ -28,6 +28,7 @@
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { Platform } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 /**
@@ -42,7 +43,18 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
  * stops at the tab bar (~82pt up), so 150 over-pads by ~72 — harmless dead
  * space, and it's the value `app/(tabs)/(home)` already shipped with.
  */
-export const BRAIN_FAB_CLEARANCE = 150;
+export const BRAIN_FAB_CLEARANCE_BASE = 150;
+
+/**
+ * On the web BrainFab sits this much higher than on the phone, so the padding
+ * that clears it has to grow by the same amount. It did not: on the web build
+ * the last row of every screen stopped 24 pt UNDER the circle's top edge (the
+ * marketing captures of 2026-10-09 showed a line total under it). One number,
+ * read by BrainFab for the position and here for the padding.
+ */
+export const BRAIN_FAB_WEB_RAISE = 48;
+
+export const BRAIN_FAB_CLEARANCE = BRAIN_FAB_CLEARANCE_BASE + (Platform.OS === 'web' ? BRAIN_FAB_WEB_RAISE : 0);
 
 export type BrainFabPresentation = {
   /** True when the FAB must not be drawn or hit-tested. */

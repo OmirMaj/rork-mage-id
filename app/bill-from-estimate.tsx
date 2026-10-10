@@ -858,7 +858,7 @@ export default function BillFromEstimateScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           {...fabScroll}
-          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 180, gap: 14 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + bottomBarH + BRAIN_FAB_CLEARANCE, gap: 14 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

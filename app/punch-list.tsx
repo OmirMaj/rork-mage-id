@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Image,
   Animated, FlatList, Keyboard, type ListRenderItemInfo, RefreshControl, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -894,6 +895,9 @@ export default function PunchListScreen() {
   }
   return <PunchListScreenInner ownTier={ownTier} />;
 }
+
+/** Web header: the back button's 52 px plus the Export button and its margins. */
+const PUNCH_HEADER_WEB_RESERVE = 168;
 
 /** The access wall's non-paywall answers (#127): checking, couldn't check,
  *  offline with no role on this phone, not on this job. Never a spinner that
@@ -2656,8 +2660,14 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     () => ({
       title: exportProjectName !== undefined ? t('field.punch.titleWithProject', 'Punch List · {name}', { name: exportProjectName }) : t('field.punch.punchList', 'Punch List'),
       headerRight: exportProjectName !== undefined ? exportHeaderRight : undefined,
+      // Web only. The phone's own header cuts the title short before the Export
+      // button; the web header keeps 52 px for the right side whatever is in it,
+      // so the long "Punch List · job name" title ran under Export.
+      ...(Platform.OS === 'web' && exportProjectName !== undefined
+        ? { headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text, maxWidth: Math.max(120, windowWidth - PUNCH_HEADER_WEB_RESERVE) } as typeof NATIVE_HEADER_TITLE_FACE & { color: string } }
+        : null),
     }),
-    [exportProjectName, exportHeaderRight, t],
+    [exportProjectName, exportHeaderRight, t, windowWidth, themeColors.text],
   );
 
   // Desktop sheets (wave 6c): capped cards centred in the content column.

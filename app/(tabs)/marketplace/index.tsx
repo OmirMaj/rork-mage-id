@@ -29,6 +29,7 @@ import type { Supplier, SupplierListing } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { segmentedDesktop, useIsDesktop, useSheetDialogScope, useSheetFrame } from '@/components/ui';
+import { formatMoney } from '@/utils/formatters';
 
 type ViewMode = 'suppliers' | 'listings';
 
@@ -180,13 +181,13 @@ export default function MarketplaceScreen() {
         <View style={styles.listingPriceRow}>
           <View style={styles.listingPriceBlock}>
             <Text style={styles.listingPriceLabel}>Retail</Text>
-            <Text style={styles.listingRetail}>${item.price.toFixed(2)}</Text>
+            <Text style={styles.listingRetail}>{formatMoney(item.price, 2)}</Text>
             <Text style={styles.listingUnit}>/{item.unit}</Text>
           </View>
           <View style={styles.listingPriceDivider} />
           <View style={styles.listingPriceBlock}>
             <Text style={[styles.listingPriceLabel, { color: themeColors.success }]}>Bulk</Text>
-            <Text style={styles.listingBulk}>${item.bulkPrice.toFixed(2)}</Text>
+            <Text style={styles.listingBulk}>{formatMoney(item.bulkPrice, 2)}</Text>
             <Text style={styles.listingUnit}>/{item.unit}</Text>
           </View>
           {savings > 0 && (
@@ -446,11 +447,11 @@ export default function MarketplaceScreen() {
                         <View style={styles.detailListingInfo}>
                           <Text style={styles.detailListingName}>{listing.name}</Text>
                           <Text style={styles.detailListingMeta}>
-                            ${listing.bulkPrice.toFixed(2)}/{listing.unit} bulk · {listing.leadTimeDays}d lead
+                            {formatMoney(listing.bulkPrice, 2)}/{listing.unit} bulk · {listing.leadTimeDays}d lead
                           </Text>
                         </View>
                         <View style={styles.detailListingRight}>
-                          <Text style={styles.detailListingPrice}>${listing.price.toFixed(2)}</Text>
+                          <Text style={styles.detailListingPrice}>{formatMoney(listing.price, 2)}</Text>
                           {savings > 0 && (
                             <View style={styles.detailSaveBadge}>
                               <Text style={styles.detailSaveText}>-{savings}%</Text>
@@ -509,12 +510,12 @@ export default function MarketplaceScreen() {
                   <View style={styles.popupPriceRow}>
                     <View style={styles.popupPriceBlock}>
                       <Text style={styles.popupPriceLabel}>Retail</Text>
-                      <Text style={styles.popupRetail}>${selectedListing.price.toFixed(2)}</Text>
+                      <Text style={styles.popupRetail}>{formatMoney(selectedListing.price, 2)}</Text>
                       <Text style={styles.popupPriceUnit}>/{selectedListing.unit}</Text>
                     </View>
                     <View style={styles.popupPriceBlock}>
                       <Text style={[styles.popupPriceLabel, { color: themeColors.success }]}>Bulk</Text>
-                      <Text style={styles.popupBulk}>${selectedListing.bulkPrice.toFixed(2)}</Text>
+                      <Text style={styles.popupBulk}>{formatMoney(selectedListing.bulkPrice, 2)}</Text>
                       <Text style={styles.popupPriceUnit}>/{selectedListing.unit}</Text>
                     </View>
                   </View>
@@ -558,7 +559,7 @@ export default function MarketplaceScreen() {
 
                   <View style={styles.popupTotalRow}>
                     <Text style={styles.popupTotalLabel}>Sample Total</Text>
-                    <Text style={styles.popupTotalValue}>${orderTotal.toFixed(2)}</Text>
+                    <Text style={styles.popupTotalValue}>{formatMoney(orderTotal, 2)}</Text>
                   </View>
 
                   <View style={styles.popupLeadRow}>

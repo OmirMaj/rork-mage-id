@@ -35,6 +35,10 @@ import { showAlert } from '@/utils/alert';
 import { REQUIRED_TIER, tierMeetsRequirement } from '@/utils/featureTiers';
 import type { FeatureKey } from '@/utils/featureTiers';
 import { platformFeeLabel } from '@/utils/platformFees';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
+
+/** The last row scrolls clear of the floating Ask button (the container already holds the bottom inset). */
+const FAB_CLEAR = { paddingBottom: BRAIN_FAB_CLEARANCE } as const;
 
 interface FeatureRow {
   label: string;
@@ -408,7 +412,7 @@ export default function PaywallScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, isDesktop && styles.scrollContentDesktop]}
+        contentContainerStyle={[styles.scrollContent, FAB_CLEAR, isDesktop && styles.scrollContentDesktop]}
         showsVerticalScrollIndicator={false}
       >
         {/* Why MAGE — lead the conversion moment with the moat, not just the price grid.
@@ -816,7 +820,7 @@ function WebPaywallView({
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: 40 }, isDesktop && styles.webPageDesktop]} {...(isDesktop ? { onLayout } : null)}>
+      <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: 40 }, FAB_CLEAR, isDesktop && styles.webPageDesktop]} {...(isDesktop ? { onLayout } : null)}>
         {/* Hero */}
         <View style={{ alignItems: 'center', marginBottom: 24 }}>
           <IconWrapper icon={Crown} tone="accent" size="md" />

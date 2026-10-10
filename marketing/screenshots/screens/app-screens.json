@@ -1,0 +1,1330 @@
+{
+  "what": "Screens of the MAGE ID app, shot by scripts/marketing-screens from the real web build of the app with one made-up job. Nothing is drawn by hand except the phone status bar.",
+  "job": "Example Builders, 14 Alder Street (made up: no real people, addresses, companies or phone numbers).",
+  "viewport": {
+    "css": [
+      393,
+      852
+    ],
+    "scale": 3
+  },
+  "rule": "Shipped screens only. The in-testing set is never published here.",
+  "screens": [
+    {
+      "id": "home",
+      "screen": "home",
+      "title": "Home",
+      "about": "The Home tab: the morning brief, what needs attention, and the inbox.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/(tabs)/(home)/index.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/home.png",
+        "2x": "shipped/home@2x.webp",
+        "1x": "shipped/home@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-home.png",
+        "2x": "/screenshots/screens/app-home-2x.webp",
+        "1x": "/screenshots/screens/app-home-1x.webp"
+      },
+      "bytes": {
+        "2x": 71092,
+        "1x": 29080
+      }
+    },
+    {
+      "id": "home-dark",
+      "screen": "home",
+      "title": "Home",
+      "about": "The Home tab: the morning brief, what needs attention, and the inbox.",
+      "theme": "dark",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/(tabs)/(home)/index.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/home-dark.png",
+        "2x": "shipped/home-dark@2x.webp",
+        "1x": "shipped/home-dark@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-home-dark.png",
+        "2x": "/screenshots/screens/app-home-dark-2x.webp",
+        "1x": "/screenshots/screens/app-home-dark-1x.webp"
+      },
+      "bytes": {
+        "2x": 71470,
+        "1x": 28740
+      }
+    },
+    {
+      "id": "projects",
+      "screen": "projects",
+      "title": "Your Projects",
+      "about": "The job cards on the Home tab, each with its stage, size and estimate total.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/(tabs)/(home)/index.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/projects.png",
+        "2x": "shipped/projects@2x.webp",
+        "1x": "shipped/projects@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-projects.png",
+        "2x": "/screenshots/screens/app-projects-2x.webp",
+        "1x": "/screenshots/screens/app-projects-1x.webp"
+      },
+      "bytes": {
+        "2x": 62510,
+        "1x": 24900
+      }
+    },
+    {
+      "id": "summary",
+      "screen": "summary",
+      "title": "Summary",
+      "about": "The Summary tab: who is on site today, the week ahead, contract and outstanding money, and what needs you.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/(tabs)/summary/index.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/summary.png",
+        "2x": "shipped/summary@2x.webp",
+        "1x": "shipped/summary@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-summary.png",
+        "2x": "/screenshots/screens/app-summary-2x.webp",
+        "1x": "/screenshots/screens/app-summary-1x.webp"
+      },
+      "bytes": {
+        "2x": 57036,
+        "1x": 24262
+      }
+    },
+    {
+      "id": "summary-dark",
+      "screen": "summary",
+      "title": "Summary",
+      "about": "The Summary tab: who is on site today, the week ahead, contract and outstanding money, and what needs you.",
+      "theme": "dark",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/(tabs)/summary/index.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/summary-dark.png",
+        "2x": "shipped/summary-dark@2x.webp",
+        "1x": "shipped/summary-dark@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-summary-dark.png",
+        "2x": "/screenshots/screens/app-summary-dark-2x.webp",
+        "1x": "/screenshots/screens/app-summary-dark-1x.webp"
+      },
+      "bytes": {
+        "2x": 57370,
+        "1x": 24140
+      }
+    },
+    {
+      "id": "project",
+      "screen": "project",
+      "title": "Project Page",
+      "about": "One job's page: the quick actions, projected margin from the estimate, and the job's open items.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/project-detail.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/project.png",
+        "2x": "shipped/project@2x.webp",
+        "1x": "shipped/project@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-project.png",
+        "2x": "/screenshots/screens/app-project-2x.webp",
+        "1x": "/screenshots/screens/app-project-1x.webp"
+      },
+      "bytes": {
+        "2x": 54880,
+        "1x": 22728
+      }
+    },
+    {
+      "id": "estimate",
+      "screen": "estimate",
+      "title": "Estimate",
+      "about": "The job's estimate: each line with its quantity, markup and total, and the estimate total at the top.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/project-detail.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/estimate.png",
+        "2x": "shipped/estimate@2x.webp",
+        "1x": "shipped/estimate@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-estimate.png",
+        "2x": "/screenshots/screens/app-estimate-2x.webp",
+        "1x": "/screenshots/screens/app-estimate-1x.webp"
+      },
+      "bytes": {
+        "2x": 64682,
+        "1x": 25662
+      }
+    },
+    {
+      "id": "estimate-seq-1",
+      "screen": "estimate",
+      "title": "Estimate",
+      "about": "Estimate: Three lines in.",
+      "sequence": "estimate",
+      "frame": 1,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/project-detail.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/estimate-seq-1.png",
+        "2x": "shipped/estimate-seq-1@2x.webp",
+        "1x": "shipped/estimate-seq-1@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-estimate-seq-1.png",
+        "2x": "/screenshots/screens/app-estimate-seq-1-2x.webp",
+        "1x": "/screenshots/screens/app-estimate-seq-1-1x.webp"
+      },
+      "bytes": {
+        "2x": 59560,
+        "1x": 22852
+      }
+    },
+    {
+      "id": "estimate-seq-2",
+      "screen": "estimate",
+      "title": "Estimate",
+      "about": "Estimate: Six lines in.",
+      "sequence": "estimate",
+      "frame": 2,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/project-detail.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/estimate-seq-2.png",
+        "2x": "shipped/estimate-seq-2@2x.webp",
+        "1x": "shipped/estimate-seq-2@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-estimate-seq-2.png",
+        "2x": "/screenshots/screens/app-estimate-seq-2-2x.webp",
+        "1x": "/screenshots/screens/app-estimate-seq-2-1x.webp"
+      },
+      "bytes": {
+        "2x": 66524,
+        "1x": 25438
+      }
+    },
+    {
+      "id": "estimate-seq-3",
+      "screen": "estimate",
+      "title": "Estimate",
+      "about": "Estimate: The estimate's lines down to its base, markup and total.",
+      "sequence": "estimate",
+      "frame": 3,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/project-detail.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/estimate-seq-3.png",
+        "2x": "shipped/estimate-seq-3@2x.webp",
+        "1x": "shipped/estimate-seq-3@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-estimate-seq-3.png",
+        "2x": "/screenshots/screens/app-estimate-seq-3-2x.webp",
+        "1x": "/screenshots/screens/app-estimate-seq-3-1x.webp"
+      },
+      "bytes": {
+        "2x": 70254,
+        "1x": 27770
+      }
+    },
+    {
+      "id": "estimate-hero",
+      "screen": "estimate",
+      "title": "Estimate",
+      "about": "Estimate: The last lines of the estimate with its base, markup and total.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/project-detail.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/estimate-hero.png",
+        "2x": "shipped/estimate-hero@2x.webp",
+        "1x": "shipped/estimate-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-estimate-hero.png",
+        "2x": "/screenshots/screens/app-estimate-hero-2x.webp",
+        "1x": "/screenshots/screens/app-estimate-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 67040,
+        "1x": 25496
+      }
+    },
+    {
+      "id": "estimate-wizard",
+      "screen": "estimate-wizard",
+      "title": "Quick Estimate",
+      "about": "The first of the Quick Estimate wizard's eight questions, which feed an AI draft of the estimate.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/estimate-wizard.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/estimate-wizard.png",
+        "2x": "shipped/estimate-wizard@2x.webp",
+        "1x": "shipped/estimate-wizard@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-estimate-wizard.png",
+        "2x": "/screenshots/screens/app-estimate-wizard-2x.webp",
+        "1x": "/screenshots/screens/app-estimate-wizard-1x.webp"
+      },
+      "bytes": {
+        "2x": 45804,
+        "1x": 18932
+      }
+    },
+    {
+      "id": "schedule",
+      "screen": "schedule",
+      "title": "Schedule",
+      "about": "The phone schedule: this week, tomorrow's lineup, and the task list by phase.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/(tabs)/schedule/index.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/schedule.png",
+        "2x": "shipped/schedule@2x.webp",
+        "1x": "shipped/schedule@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-schedule.png",
+        "2x": "/screenshots/screens/app-schedule-2x.webp",
+        "1x": "/screenshots/screens/app-schedule-1x.webp"
+      },
+      "bytes": {
+        "2x": 60914,
+        "1x": 24882
+      }
+    },
+    {
+      "id": "schedule-timeline",
+      "screen": "schedule-timeline",
+      "title": "Schedule Timeline",
+      "about": "The same schedule as a timeline, with the links between tasks and a line at today.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/(tabs)/schedule/index.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/schedule-timeline.png",
+        "2x": "shipped/schedule-timeline@2x.webp",
+        "1x": "shipped/schedule-timeline@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-schedule-timeline.png",
+        "2x": "/screenshots/screens/app-schedule-timeline-2x.webp",
+        "1x": "/screenshots/screens/app-schedule-timeline-1x.webp"
+      },
+      "bytes": {
+        "2x": 59252,
+        "1x": 24296
+      }
+    },
+    {
+      "id": "daily-report",
+      "screen": "daily-report",
+      "title": "Daily Report",
+      "about": "A filed daily report: the weather reading with its source and time, work progress against the schedule, crew and hours.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/daily-report.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/daily-report.png",
+        "2x": "shipped/daily-report@2x.webp",
+        "1x": "shipped/daily-report@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-daily-report.png",
+        "2x": "/screenshots/screens/app-daily-report-2x.webp",
+        "1x": "/screenshots/screens/app-daily-report-1x.webp"
+      },
+      "bytes": {
+        "2x": 46022,
+        "1x": 18588
+      }
+    },
+    {
+      "id": "daily-report-seq-1",
+      "screen": "daily-report",
+      "title": "Daily Report",
+      "about": "Daily Report: A new report for today. The weather is read in with its source and time.",
+      "sequence": "daily-report",
+      "frame": 1,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/daily-report.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/daily-report-seq-1.png",
+        "2x": "shipped/daily-report-seq-1@2x.webp",
+        "1x": "shipped/daily-report-seq-1@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-daily-report-seq-1.png",
+        "2x": "/screenshots/screens/app-daily-report-seq-1-2x.webp",
+        "1x": "/screenshots/screens/app-daily-report-seq-1-1x.webp"
+      },
+      "bytes": {
+        "2x": 55734,
+        "1x": 22340
+      }
+    },
+    {
+      "id": "daily-report-seq-2",
+      "screen": "daily-report",
+      "title": "Daily Report",
+      "about": "Daily Report: The day's work written in.",
+      "sequence": "daily-report",
+      "frame": 2,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/daily-report.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/daily-report-seq-2.png",
+        "2x": "shipped/daily-report-seq-2@2x.webp",
+        "1x": "shipped/daily-report-seq-2@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-daily-report-seq-2.png",
+        "2x": "/screenshots/screens/app-daily-report-seq-2-2x.webp",
+        "1x": "/screenshots/screens/app-daily-report-seq-2-1x.webp"
+      },
+      "bytes": {
+        "2x": 63488,
+        "1x": 25008
+      }
+    },
+    {
+      "id": "daily-report-seq-3",
+      "screen": "daily-report",
+      "title": "Daily Report",
+      "about": "Daily Report: The report as filed and shared with the client.",
+      "sequence": "daily-report",
+      "frame": 3,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/daily-report.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/daily-report-seq-3.png",
+        "2x": "shipped/daily-report-seq-3@2x.webp",
+        "1x": "shipped/daily-report-seq-3@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-daily-report-seq-3.png",
+        "2x": "/screenshots/screens/app-daily-report-seq-3-2x.webp",
+        "1x": "/screenshots/screens/app-daily-report-seq-3-1x.webp"
+      },
+      "bytes": {
+        "2x": 46030,
+        "1x": 18418
+      }
+    },
+    {
+      "id": "daily-report-hero",
+      "screen": "daily-report",
+      "title": "Daily Report",
+      "about": "Daily Report: The filed report: weather with its source, work progress, and the crew on site.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Free",
+      "source": "app/daily-report.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/daily-report-hero.png",
+        "2x": "shipped/daily-report-hero@2x.webp",
+        "1x": "shipped/daily-report-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-daily-report-hero.png",
+        "2x": "/screenshots/screens/app-daily-report-hero-2x.webp",
+        "1x": "/screenshots/screens/app-daily-report-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 46782,
+        "1x": 18698
+      }
+    },
+    {
+      "id": "punch-list",
+      "screen": "punch-list",
+      "title": "Punch List",
+      "about": "The punch list by room, each item with its picture, who it is assigned to, its due date and its status. The pictures here are flat placeholder tiles, not site photos.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Business",
+      "source": "app/punch-list.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/punch-list.png",
+        "2x": "shipped/punch-list@2x.webp",
+        "1x": "shipped/punch-list@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-punch-list.png",
+        "2x": "/screenshots/screens/app-punch-list-2x.webp",
+        "1x": "/screenshots/screens/app-punch-list-1x.webp"
+      },
+      "bytes": {
+        "2x": 51670,
+        "1x": 21462
+      }
+    },
+    {
+      "id": "change-order",
+      "screen": "change-order",
+      "title": "Change Order",
+      "about": "An approved change order: its place in the approval steps, the contract sum before and after, and the client's approval.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/change-order.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/change-order.png",
+        "2x": "shipped/change-order@2x.webp",
+        "1x": "shipped/change-order@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-change-order.png",
+        "2x": "/screenshots/screens/app-change-order-2x.webp",
+        "1x": "/screenshots/screens/app-change-order-1x.webp"
+      },
+      "bytes": {
+        "2x": 61766,
+        "1x": 24968
+      }
+    },
+    {
+      "id": "change-order-seq-1",
+      "screen": "change-order",
+      "title": "Change Order",
+      "about": "Change Order: Submitted to the client.",
+      "sequence": "change-order",
+      "frame": 1,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/change-order.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/change-order-seq-1.png",
+        "2x": "shipped/change-order-seq-1@2x.webp",
+        "1x": "shipped/change-order-seq-1@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-change-order-seq-1.png",
+        "2x": "/screenshots/screens/app-change-order-seq-1-2x.webp",
+        "1x": "/screenshots/screens/app-change-order-seq-1-1x.webp"
+      },
+      "bytes": {
+        "2x": 65576,
+        "1x": 26324
+      }
+    },
+    {
+      "id": "change-order-seq-2",
+      "screen": "change-order",
+      "title": "Change Order",
+      "about": "Change Order: Approved by the client.",
+      "sequence": "change-order",
+      "frame": 2,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/change-order.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/change-order-seq-2.png",
+        "2x": "shipped/change-order-seq-2@2x.webp",
+        "1x": "shipped/change-order-seq-2@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-change-order-seq-2.png",
+        "2x": "/screenshots/screens/app-change-order-seq-2-2x.webp",
+        "1x": "/screenshots/screens/app-change-order-seq-2-1x.webp"
+      },
+      "bytes": {
+        "2x": 61762,
+        "1x": 24966
+      }
+    },
+    {
+      "id": "change-order-seq-3",
+      "screen": "change-order",
+      "title": "Change Order",
+      "about": "Change Order: The client's approval and the change order's lines.",
+      "sequence": "change-order",
+      "frame": 3,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/change-order.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/change-order-seq-3.png",
+        "2x": "shipped/change-order-seq-3@2x.webp",
+        "1x": "shipped/change-order-seq-3@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-change-order-seq-3.png",
+        "2x": "/screenshots/screens/app-change-order-seq-3-2x.webp",
+        "1x": "/screenshots/screens/app-change-order-seq-3-1x.webp"
+      },
+      "bytes": {
+        "2x": 65718,
+        "1x": 26142
+      }
+    },
+    {
+      "id": "change-order-hero",
+      "screen": "change-order",
+      "title": "Change Order",
+      "about": "Change Order: The contract sum before and after this change order, and the client's approval.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/change-order.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/change-order-hero.png",
+        "2x": "shipped/change-order-hero@2x.webp",
+        "1x": "shipped/change-order-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-change-order-hero.png",
+        "2x": "/screenshots/screens/app-change-order-hero-2x.webp",
+        "1x": "/screenshots/screens/app-change-order-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 69060,
+        "1x": 28660
+      }
+    },
+    {
+      "id": "invoice",
+      "screen": "invoice",
+      "title": "Progress Invoice",
+      "about": "A progress invoice built from the estimate's lines, with payment terms, retainage and its sent status.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/invoice.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/invoice.png",
+        "2x": "shipped/invoice@2x.webp",
+        "1x": "shipped/invoice@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-invoice.png",
+        "2x": "/screenshots/screens/app-invoice-2x.webp",
+        "1x": "/screenshots/screens/app-invoice-1x.webp"
+      },
+      "bytes": {
+        "2x": 56882,
+        "1x": 22538
+      }
+    },
+    {
+      "id": "pay-app",
+      "screen": "pay-app",
+      "title": "Pay Application",
+      "about": "A draft AIA-style pay application made from the progress invoice: contract sum, percent complete and the amount due this period after retainage.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/aia-pay-app.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/pay-app.png",
+        "2x": "shipped/pay-app@2x.webp",
+        "1x": "shipped/pay-app@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-pay-app.png",
+        "2x": "/screenshots/screens/app-pay-app-2x.webp",
+        "1x": "/screenshots/screens/app-pay-app-1x.webp"
+      },
+      "bytes": {
+        "2x": 60622,
+        "1x": 24244
+      }
+    },
+    {
+      "id": "pay-app-seq-1",
+      "screen": "pay-app",
+      "title": "Pay Application",
+      "about": "Pay Application: The pay application's cover figures.",
+      "sequence": "pay-app",
+      "frame": 1,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/aia-pay-app.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/pay-app-seq-1.png",
+        "2x": "shipped/pay-app-seq-1@2x.webp",
+        "1x": "shipped/pay-app-seq-1@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-pay-app-seq-1.png",
+        "2x": "/screenshots/screens/app-pay-app-seq-1-2x.webp",
+        "1x": "/screenshots/screens/app-pay-app-seq-1-1x.webp"
+      },
+      "bytes": {
+        "2x": 60622,
+        "1x": 24244
+      }
+    },
+    {
+      "id": "pay-app-seq-2",
+      "screen": "pay-app",
+      "title": "Pay Application",
+      "about": "Pay Application: The schedule of values, one line per estimate line and approved change order.",
+      "sequence": "pay-app",
+      "frame": 2,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/aia-pay-app.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/pay-app-seq-2.png",
+        "2x": "shipped/pay-app-seq-2@2x.webp",
+        "1x": "shipped/pay-app-seq-2@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-pay-app-seq-2.png",
+        "2x": "/screenshots/screens/app-pay-app-seq-2-2x.webp",
+        "1x": "/screenshots/screens/app-pay-app-seq-2-1x.webp"
+      },
+      "bytes": {
+        "2x": 63822,
+        "1x": 25202
+      }
+    },
+    {
+      "id": "pay-app-seq-3",
+      "screen": "pay-app",
+      "title": "Pay Application",
+      "about": "Pay Application: The summary: contract sum to date, completed work, retainage and the payment due.",
+      "sequence": "pay-app",
+      "frame": 3,
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/aia-pay-app.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/pay-app-seq-3.png",
+        "2x": "shipped/pay-app-seq-3@2x.webp",
+        "1x": "shipped/pay-app-seq-3@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-pay-app-seq-3.png",
+        "2x": "/screenshots/screens/app-pay-app-seq-3-2x.webp",
+        "1x": "/screenshots/screens/app-pay-app-seq-3-1x.webp"
+      },
+      "bytes": {
+        "2x": 80706,
+        "1x": 32334
+      }
+    },
+    {
+      "id": "pay-app-hero",
+      "screen": "pay-app",
+      "title": "Pay Application",
+      "about": "Pay Application: The cover summary: contract sum to date, completed work, retainage and the payment due this period.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/aia-pay-app.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/pay-app-hero.png",
+        "2x": "shipped/pay-app-hero@2x.webp",
+        "1x": "shipped/pay-app-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-pay-app-hero.png",
+        "2x": "/screenshots/screens/app-pay-app-hero-2x.webp",
+        "1x": "/screenshots/screens/app-pay-app-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 81056,
+        "1x": 32172
+      }
+    },
+    {
+      "id": "client-portal",
+      "screen": "client-portal",
+      "title": "Client View",
+      "about": "The job as the client sees it in the app: progress, contract and change totals, what has been invoiced and paid, and what is waiting on them.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/client-view.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/client-portal.png",
+        "2x": "shipped/client-portal@2x.webp",
+        "1x": "shipped/client-portal@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-client-portal.png",
+        "2x": "/screenshots/screens/app-client-portal-2x.webp",
+        "1x": "/screenshots/screens/app-client-portal-1x.webp"
+      },
+      "bytes": {
+        "2x": 55742,
+        "1x": 22026
+      }
+    },
+    {
+      "id": "client-portal-hero",
+      "screen": "client-portal",
+      "title": "Client View",
+      "about": "Client View: Progress, the contract and change totals, and what is waiting on the client.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/client-view.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/client-portal-hero.png",
+        "2x": "shipped/client-portal-hero@2x.webp",
+        "1x": "shipped/client-portal-hero@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-client-portal-hero.png",
+        "2x": "/screenshots/screens/app-client-portal-hero-2x.webp",
+        "1x": "/screenshots/screens/app-client-portal-hero-1x.webp"
+      },
+      "bytes": {
+        "2x": 53516,
+        "1x": 20996
+      }
+    },
+    {
+      "id": "code-check",
+      "screen": "code-check",
+      "title": "Code Check",
+      "about": "A Code Check result. The answer text is a sample written for the app's tests, so every line says \"Sample\"; the notes around it are the app's own.",
+      "theme": "light",
+      "status": "shipped",
+      "plan": "Pro",
+      "source": "app/(tabs)/construction-ai/index.tsx",
+      "pixels": {
+        "png": [
+          1179,
+          2556
+        ],
+        "2x": [
+          786,
+          1704
+        ],
+        "1x": [
+          393,
+          852
+        ]
+      },
+      "files": {
+        "png": "shipped/code-check.png",
+        "2x": "shipped/code-check@2x.webp",
+        "1x": "shipped/code-check@1x.webp"
+      },
+      "site": {
+        "png": "/screenshots/screens/app-code-check.png",
+        "2x": "/screenshots/screens/app-code-check-2x.webp",
+        "1x": "/screenshots/screens/app-code-check-1x.webp"
+      },
+      "bytes": {
+        "2x": 98764,
+        "1x": 37490
+      }
+    }
+  ]
+}
