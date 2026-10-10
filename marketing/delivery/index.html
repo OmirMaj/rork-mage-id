@@ -56,6 +56,13 @@
   .done h2 { font: 700 30px/1 var(--disp); text-transform: uppercase; color: var(--teal); }
   .done p { margin-top: 8px; color: var(--ink2); }
   .flag { display: inline-block; font-size: 11px; line-height: 1; padding: 5px 8px 4px; border: 1px dashed var(--ink); }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 14px 14px 4px; }
+  .stepbtn { min-height: 64px; padding: 8px 6px; background: #fff; color: var(--ink); border: 1px solid var(--ink); border-radius: 3px; font: 600 16px/1.1 var(--disp); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .stepbtn small { display: block; margin-top: 5px; font: 500 12.5px/1.2 var(--body); letter-spacing: 0; text-transform: none; color: var(--mute); }
+  .stepbtn.done { background: var(--green-t); border-color: var(--green); color: var(--green-d); }
+  .stepbtn.done small { color: var(--green-d); }
+  .stepbtn[disabled] { cursor: default; }
+  .trip-in { padding: 0 14px 16px; }
   .state { margin-top: 26px; padding: 18px 16px; background: var(--sheet); border: 1px solid var(--ink); }
   .state h2 { font: 700 28px/1.05 var(--disp); text-transform: uppercase; }
   .state p { margin-top: 8px; color: var(--ink2); }
@@ -130,6 +137,20 @@
           <button type="submit" class="btn" id="send">Send My Answer</button>
           <p class="say" id="say"></p>
         </form>
+      </div>
+
+      <div class="sheet" id="tripSheet" hidden>
+        <div class="sheet-head"><span>Where Is The Load?</span><span id="tripWho"></span></div>
+        <div class="steps" role="group" aria-label="Tap where the load is">
+          <button type="button" class="stepbtn" data-step="loaded">Loaded<small>Not yet</small></button>
+          <button type="button" class="stepbtn" data-step="on_the_way">On The Way<small>Not yet</small></button>
+          <button type="button" class="stepbtn" data-step="arrived">Arrived<small>Not yet</small></button>
+        </div>
+        <div class="trip-in">
+          <div class="field"><label for="tName">Your Name</label><input id="tName" name="tripname" type="text" maxlength="80" autocomplete="name" /></div>
+          <p class="err" id="tripErr" role="alert" hidden></p>
+          <p class="say" id="tripSay"></p>
+        </div>
       </div>
 
       <div class="sheet" id="doneSheet" hidden>
@@ -214,6 +235,44 @@
     show('lastSheet', dl.children.length > 0);
   }
 
+  /* The three taps. A step that has a time is done; the buttons are read from what the server stored. */
+  var STEPS = ['loaded', 'on_the_way', 'arrived'];
+  function paintTrip(trip, open) {
+    var t = trip && typeof trip === 'object' ? trip : {};
+    var at = t.arrived ? 3 : t.on_the_way ? 2 : t.loaded ? 1 : 0;
+    Array.prototype.forEach.call(document.querySelectorAll('.stepbtn'), function (b, i) {
+      var when = stampLong(t[STEPS[i]]);
+      b.classList.toggle('done', !!when);
+      b.querySelector('small').textContent = when || 'Not yet';
+      // A step behind the load cannot be tapped again; the server refuses it too.
+      b.disabled = !open || i + 1 <= at;
+    });
+    $('tripWho').textContent = at && text(t.name, 80) ? 'Last tap by ' + text(t.name, 80) : '';
+  }
+  var STEP_REASONS = {
+    not_found: 'This link is not active any more. Ask the contractor for a new one.',
+    closed: 'This delivery is closed. Nothing more is needed here.',
+    name: 'Type your name first, so the contractor knows who tapped.',
+    too_long: 'That name is too long. Shorten it and tap again.',
+    back: 'The load is already past that step.',
+    step: 'That did not go through. Try again.'
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('.stepbtn'), function (b) {
+    b.addEventListener('click', function () {
+      var err = $('tripErr'); err.hidden = true;
+      var name = text($('tName').value, 200);
+      if (name.length < 2) { err.textContent = STEP_REASONS.name; err.hidden = false; $('tName').focus(); return; }
+      b.disabled = true;
+      rpc('delivery_link_step', { p_token: TOKEN, p_step: b.getAttribute('data-step'), p_name: name }).then(function (r) {
+        if (!r || r.ok !== true) { err.textContent = STEP_REASONS[r && r.reason] || STEP_REASONS.step; err.hidden = false; b.disabled = false; return; }
+        paintTrip(r.trip, true);
+      }).catch(function (e) {
+        err.textContent = e && e.status ? STEP_REASONS.step : 'Could not reach the server. Your tap was not sent. Check your connection and try again.';
+        err.hidden = false; b.disabled = false;
+      });
+    });
+  });
+
   function paint(v) {
     var shown = v && typeof v.shown === 'object' && v.shown ? v.shown : {};
     company = text(shown.company, 80) || 'the contractor';
@@ -228,6 +287,10 @@
     show('closedFlag', !open); show('stClosed', !open);
     paintLast(v.reply);
     show('formSheet', open); show('doneSheet', false);
+    show('tripSheet', open || !!v.trip);
+    paintTrip(v.trip, open);
+    $('tripSay').textContent = 'A tap tells ' + company + ' what you tapped and when. It does not share your location, and it does not mark the delivery as received.';
+    if (!$('tName').value) $('tName').value = text((v.trip && v.trip.name) || (v.reply && v.reply.name), 80);
     $('formTitle').textContent = v.reply ? 'Send A New Answer' : 'Your Answer';
     $('say').textContent = 'This sends your answer to ' + company + ' and to nobody else. It does not change their schedule and it is not an order or an acceptance of one. If your date changes, open this link again and send a new answer.';
     if (v.reply && typeof v.reply === 'object') {

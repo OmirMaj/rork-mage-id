@@ -30,7 +30,7 @@ import {
   readLinkRow, supplierLinkAllowed, supplierLinkIsOwnerPreview, type SupplierLink, type SupplierLinkShown,
 } from '@/utils/deliveryLink/core';
 
-const COLUMNS = 'delivery_id, token, shown, made_at, reply, reply_count, reply_at, reply_seen_at';
+const COLUMNS = 'delivery_id, token, shown, made_at, reply, reply_count, reply_at, reply_seen_at, trip';
 const TABLE = 'delivery_supplier_links';
 
 export interface DeliverySupplierLinks {

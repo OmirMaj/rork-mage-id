@@ -33,6 +33,7 @@ import { useSupplierLinkCopy } from '@/hooks/useSupplierLinkCopy';
 import { buildShown, linkMessage, replyDateDiffers, replyDatePatch, replyIsNew, supplierLinkUrl, type SupplierLinkShown } from '@/utils/deliveryLink/core';
 import { DateRow } from '@/components/deliveries/DeliveryDatesCard';
 import type { DeliveriesFollowStyles } from '@/components/deliveries/styles';
+import { TruckRouteStrip } from './TruckRouteStrip';
 
 /** The card's own spacing: the sheet's shared card has none between its rows and buttons. */
 const local = StyleSheet.create({ stack: { gap: 10 } });
@@ -62,6 +63,11 @@ export function SupplierLinkSection({
   if (!links.on || isSettled(delivery)) return null;
   const link = links.linkFor(delivery.id);
   const day = (d: string) => formatCalendarDay(d, { weekday: 'short', month: 'short', day: 'numeric' }, lang);
+  /** An instant as a day and a time of day, in the phone's own zone: "Oct 8, 8:15 AM". */
+  const whenLine = (at: string) => {
+    const d = new Date(at);
+    return Number.isNaN(d.getTime()) ? '' : `${formatCalendarDay(calendarDayOf(at) ?? at, { month: 'short', day: 'numeric' }, lang)}, ${d.toLocaleTimeString(lang === 'es' ? 'es-US' : 'en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  };
   const stamp = (at: string) => formatCalendarDay(calendarDayOf(at) ?? at, { month: 'short', day: 'numeric' }, lang);
   /** Says what an action came to, when it was not 'ok'. */
   const say = (r: LinkActionResult) => { if (r !== 'ok') showAlert(copy.sectionLabel, r === 'offline' ? copy.failBody : copy.refusedBody); };
@@ -178,6 +184,8 @@ export function SupplierLinkSection({
       ) : (
         <Text style={styles.body} testID="dsl-no-answer">{copy.noAnswerBody}</Text>
       )}
+
+      <TruckRouteStrip trip={link.trip} copy={copy} styles={styles} formatWhen={whenLine} />
 
       <Text style={styles.sectionLabel}>{copy.showsLabel}</Text>
       {shownRows(link.shown, true)}

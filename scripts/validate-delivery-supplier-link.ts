@@ -28,7 +28,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   MAX_REPLIES, SHOWN_KEYS, SUPPLIER_LINK_BASE, buildShown, linkMessage, readLinkRow, replyDateDiffers, replyDatePatch,
-  replyIsNew, supplierLinkAllowedWith, supplierLinkUrl,
+  replyIsNew, supplierLinkAllowedWith, supplierLinkUrl, tripStop,
 } from '../utils/deliveryLink/core';
 import { RECIPIENT_NOTICE_PARTS } from '../utils/recipientNotice';
 
@@ -103,6 +103,15 @@ const msg = linkMessage({ ask: (w) => `Please give the date for: ${w}`, sign: (c
 ok('the message a person can paste holds the ask, the link and the company, and no other fact of the job', msg.split('\n').length === 3 && msg.includes(supplierLinkUrl(TOKEN)) && msg.includes('14 Windows') && !/2026|Alvarez|\$/.test(msg), msg);
 ok('with no company name the message is not signed for one', linkMessage({ ask: (w) => w, sign: (c) => `Thank you, ${c}` }, { description: 'x', company: '' }, 'u').split('\n').length === 2);
 
+// The three taps (part 2): what someone tapped on the link, never a position.
+const tripLink = readLinkRow({ ...ROW, trip: { loaded: '2026-10-08T11:42:00Z', on_the_way: '2026-10-08T12:15:00Z', name: '  Dana   at Northside ' } });
+ok('the taps are read: each step\'s time and the name typed', tripLink?.trip?.loaded === '2026-10-08T11:42:00Z' && tripLink.trip.onTheWay === '2026-10-08T12:15:00Z' && tripLink.trip.arrived === '' && tripLink.trip.name === 'Dana at Northside');
+ok('the truck is at the latest step tapped', tripStop(tripLink!.trip) === 2 && tripStop(null) === 0 && tripStop({ loaded: 'x', onTheWay: '', arrived: '' }) === 1 && tripStop({ loaded: 'x', onTheWay: 'y', arrived: 'z' }) === 3);
+ok('no tap, an empty trip, or something that is not a trip reads as no trip', readLinkRow(ROW)?.trip === null && readLinkRow({ ...ROW, trip: {} })?.trip === null && readLinkRow({ ...ROW, trip: [1] })?.trip === null && readLinkRow({ ...ROW, trip: 'arrived' })?.trip === null);
+ok('a step time that is not a time the server stamped is not drawn', readLinkRow({ ...ROW, trip: { loaded: '<b>now</b>', name: 'x' } })?.trip === null && readLinkRow({ ...ROW, trip: { loaded: 'yesterday', on_the_way: '2026-10-08' } })?.trip === null);
+const skipped = readLinkRow({ ...ROW, trip: { arrived: '2026-10-08T13:00:00Z', name: 'Sam' } })?.trip;
+ok('a later step never stands without the ones before it', !!skipped && skipped.loaded === skipped.arrived && skipped.onTheWay === skipped.arrived && tripStop(skipped) === 3);
+
 // ═══ B. The lane's lines ════════════════════════════════════════════════════
 type Files = Map<string, string>;
 const LANE_CODE = [
@@ -113,11 +122,13 @@ const LANE_CODE = [
 ];
 const PAGE = 'marketing/delivery/index.html';
 const MIGRATION = 'supabase/migrations/20261013090000_delivery_supplier_links.sql';
+const MIGRATION_TRIP = 'supabase/migrations/20261013100000_delivery_link_trip.sql';
+const STRIP = 'components/deliveryLink/TruckRouteStrip.tsx';
 const SECTION = 'components/deliveryLink/SupplierLinkSection.tsx';
 const HOOK = 'hooks/useDeliverySupplierLinks.ts';
 const COPY = 'hooks/useSupplierLinkCopy.ts';
 const OTHER = ['constants/featureFlags.ts', 'components/deliveries/DeliveryFollowSheet.tsx', 'marketing/_redirects', 'marketing/netlify.toml', 'marketing/robots.txt', 'scripts/validate-protections.ts', 'i18n/surfaces.ts', 'scripts/pgq/delivery-supplier-links.mjs'];
-const ALL = [...LANE_CODE, PAGE, MIGRATION, ...OTHER];
+const ALL = [...LANE_CODE, PAGE, MIGRATION, MIGRATION_TRIP, 'scripts/pgq/delivery-link-trip.mjs', ...OTHER];
 const missing = ALL.filter((f) => !existsSync(join(ROOT, f)));
 ok('every file of the lane exists', missing.length === 0, missing.join(', '));
 if (missing.length) { console.log(`\n✗ validate-delivery-supplier-link: ${passed} passed, ${failed} failed`); process.exit(1); }
@@ -232,7 +243,7 @@ const RULES: Rule[] = [
     if (!/<meta name="referrer" content="no-referrer" \/>/.test(html)) out.push('the page sends its address (with the token) as a referrer');
     if (/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function/.test(js)) out.push('the page writes a server value as markup');
     const rpcs = [...js.matchAll(/rpc\('([a-z_]+)'/g)].map((m) => m[1]);
-    if (rpcs.length === 0 || rpcs.some((r) => r !== 'delivery_link_view' && r !== 'delivery_link_reply')) out.push(`the page calls ${[...new Set(rpcs)].join(', ') || 'nothing'}`);
+    if (rpcs.length === 0 || rpcs.some((r) => r !== 'delivery_link_view' && r !== 'delivery_link_reply' && r !== 'delivery_link_step')) out.push(`the page calls ${[...new Set(rpcs)].join(', ') || 'nothing'}`);
     if ((js.match(/fetch\(/g) ?? []).length !== 1 || !/fetch\(SUPABASE_URL \+ '\/rest\/v1\/rpc\/' \+ fn,/.test(js)) out.push('the page reaches the network some other way');
     if (/localStorage|sessionStorage|document\.cookie|indexedDB/.test(js)) out.push('the page keeps something in the browser');
     if (/posthog|growth\.js|gtag|analytics|formspree/i.test(html.replace(/<style>[\s\S]*?<\/style>/, ''))) out.push('the page loads analytics');
@@ -251,6 +262,8 @@ const RULES: Rule[] = [
     if (!/It does not change their schedule and it is not an order or an acceptance of one\./.test(js)) out.push('the page does not say what an answer is not');
     if (!/MAGE ID does not text or email them for you/.test(js)) out.push('the page does not say nobody is notified');
     if (!/id="stLoading"[\s\S]*?needs JavaScript turned on/.test(html)) out.push('with JavaScript off the page says nothing');
+    if (!/It does not share your location, and it does not mark the delivery as received\./.test(js)) out.push('the page does not say what a tap is not');
+    if (/geolocation|getCurrentPosition|watchPosition/.test(js)) out.push('the page asks for a location');
     return out;
   } },
   { name: 'the migration: the answer writes one table, anon holds nothing on it, and nothing is called', run: (f) => {
@@ -266,6 +279,28 @@ const RULES: Rule[] = [
     if ((sql.match(/security definer\s+set search_path = ''/g) ?? []).length !== 2) out.push('a function is not SECURITY DEFINER with an empty search_path');
     if (!/'shown', v_link\.shown,\s+'reply', v_link\.reply/.test(sql) || /to_jsonb\(d\)|row_to_json|d\.\*/.test(sql)) out.push('the view returns more than what is shown and the answer');
     if (!/select d\.status into v_status from public\.deliveries d/.test(sql) || (sql.match(/from public\.deliveries/g) ?? []).length !== 3) out.push('the migration reads something other than the status (and the insert policy\'s own check) from deliveries');
+    return out;
+  } },
+  { name: 'the three taps: the supplier\'s word, never a position, and Arrived receives nothing', run: (f) => {
+    const out: string[] = [];
+    const sql = sqlBody(f.get(MIGRATION_TRIP)!);
+    const updates = [...sql.matchAll(/\bupdate\s+(public\.[a-z_]+)/g)].map((m) => m[1]);
+    if (updates.length !== 1 || updates[0] !== 'public.delivery_supplier_links') out.push(`the trip migration updates ${updates.join(', ') || 'nothing'}`);
+    if (/\binsert\s+into\b|\bdelete\s+from\b|pg_notify|net\.http|http_post|\bperform\b|create\s+trigger|cron\.schedule/i.test(sql)) out.push('the trip migration inserts, deletes, notifies, calls out, or adds a trigger or a job');
+    if (/\bgrant\b[^;]*\btrip\b/.test(sql) || /grant (update|insert|all) on public\.delivery_supplier_links to (anon|authenticated)/.test(sql)) out.push('a client is granted the trip column');
+    if ((sql.match(/security definer\s+set search_path = ''/g) ?? []).length !== 2) out.push('a trip function is not SECURITY DEFINER with an empty search_path');
+    if (!/if v_want < v_at then\s+return jsonb_build_object\('ok', false, 'reason', 'back'\);/.test(sql)) out.push('a tap can go back');
+    if (/lat|lng|longitude|latitude|geo|position/i.test(sql.replace(/regexp_replace|translate|update/gi, ''))) out.push('the trip migration stores a position');
+    const strip = strip_(f.get(STRIP)!);
+    if (/useEffect|useState|useQuery|supabase|fetch\(|setInterval|setTimeout|Animated|Location|expo-location/.test(strip)) out.push('the strip has an effect, a timer, an animation, a request or a location');
+    if (!/copy\.tripSourceBody\(/.test(strip) || !/copy\.tripNoneBody/.test(strip)) out.push('the strip does not say whose word the truck is');
+    if (!/at === 3 \? <Text[^>]*>\{copy\.tripArrivedBody\}/.test(strip)) out.push('Arrived does not say the delivery is not received');
+    const section = strip_(f.get(SECTION)!);
+    if ((section.match(/<TruckRouteStrip /g) ?? []).length !== 1 || !/<TruckRouteStrip trip=\{link\.trip\}/.test(section)) out.push('the strip is not drawn once from the stored taps');
+    const lines = english(f.get(COPY)!).join('\n');
+    if (!/MAGE ID does not know where the truck is/.test(lines)) out.push('nothing says MAGE ID does not know where the truck is');
+    if (!/does not mark this delivery as received/.test(lines)) out.push('nothing says Arrived is not Received');
+    if (!/'reply_count, reply_at, reply_seen_at, trip'|reply_seen_at, trip';/.test(f.get(HOOK)!)) out.push('the hook does not read the taps');
     return out;
   } },
   { name: 'the page is routed, kept out of search, and held to the notice by the protections check', run: (f) => {
@@ -295,6 +330,8 @@ function walkCode(): string[] {
   for (const d of ['app', 'components', 'utils', 'constants', 'contexts', 'hooks']) go(d);
   return out;
 }
+
+function strip_(s: string): string { return strip(s); }
 
 for (const r of RULES) {
   const bad = r.run(REAL);
@@ -340,12 +377,21 @@ const PLANTS: [string, number, string, string, string][] = [
   ['a signed-in client may write the answer', 7, MIGRATION, 'grant update (reply_seen_at) on', 'grant update (reply_seen_at, reply) on'],
   ['what the link shows can be rewritten after it is handed out', 7, MIGRATION, 'grant update (reply_seen_at) on', 'grant update (shown, reply_seen_at) on'],
   ['the viewer seat reads the token', 7, MIGRATION, "  for select to authenticated\n  using (public.can_access_project(project_id, 'field'));", '  for select to authenticated\n  using (auth.uid() = user_id or public.can_access_project(project_id));'],
-  ['the catch-all is moved above the delivery rule', 8, 'marketing/_redirects', '/delivery  /delivery/index.html  200', '/*  /404.html  404\n/delivery  /delivery/index.html  200'],
+  ['the catch-all is moved above the delivery rule', 9, 'marketing/_redirects', '/delivery  /delivery/index.html  200', '/*  /404.html  404\n/delivery  /delivery/index.html  200'],
   ['the answer notifies someone', 7, MIGRATION, "  return jsonb_build_object('ok', true);", "  perform pg_notify('supplier_answer', v_link.delivery_id::text);\n  return jsonb_build_object('ok', true);"],
   ['the view returns the delivery row', 7, MIGRATION, "    'shown', v_link.shown,", "    'shown', v_link.shown, 'delivery', (select to_jsonb(d) from public.deliveries d where d.id = v_link.delivery_id),"],
-  ['the path rule is dropped from _redirects', 8, 'marketing/_redirects', '/delivery/*  /delivery/index.html  200', ''],
-  ['robots.txt lets the page be crawled', 8, 'marketing/robots.txt', 'Disallow: /delivery/\n', ''],
-  ['the protections check forgets the page', 8, 'scripts/validate-protections.ts', "  'marketing/delivery/index.html',\n", ''],
+  ['Arrived marks the delivery received', 8, MIGRATION_TRIP, '  update public.delivery_supplier_links set trip = v_trip where delivery_id = v_link.delivery_id;', "  update public.delivery_supplier_links set trip = v_trip where delivery_id = v_link.delivery_id;\n  update public.deliveries set status = 'delivered' where id = v_link.delivery_id;"],
+  ['a tap can go back', 8, MIGRATION_TRIP, "  if v_want < v_at then\n    return jsonb_build_object('ok', false, 'reason', 'back');\n  end if;", ''],
+  ['a client is granted the trip', 8, MIGRATION_TRIP, "notify pgrst, 'reload schema';", "grant update (trip) on public.delivery_supplier_links to authenticated;\nnotify pgrst, 'reload schema';"],
+  ['the strip moves the truck on a timer', 8, STRIP, '  const at = tripStop(trip);', '  const [tick, setTick] = useState(0);\n  const at = tripStop(trip);'],
+  ['the strip drops the line that says whose word it is', 8, STRIP, 'copy.tripSourceBody(trip?.name ?? \'\')', "''"],
+  ['Arrived stops saying it is not Received', 8, STRIP, '{at === 3 ? <Text style={styles.note} testID="dsl-trip-arrived">{copy.tripArrivedBody}</Text> : null}', ''],
+  ['the words stop saying MAGE ID does not know where the truck is', 8, COPY, ' MAGE ID does not know where the truck is.', ''],
+  ['the page asks for the driver\'s location', 6, PAGE, "var STEPS = ['loaded', 'on_the_way', 'arrived'];", "var STEPS = ['loaded', 'on_the_way', 'arrived']; navigator.geolocation.getCurrentPosition(function () {});"],
+  ['the page stops saying a tap is not a location', 6, PAGE, ' It does not share your location, and it does not mark the delivery as received.', ''],
+  ['the path rule is dropped from _redirects', 9, 'marketing/_redirects', '/delivery/*  /delivery/index.html  200', ''],
+  ['robots.txt lets the page be crawled', 9, 'marketing/robots.txt', 'Disallow: /delivery/\n', ''],
+  ['the protections check forgets the page', 9, 'scripts/validate-protections.ts', "  'marketing/delivery/index.html',\n", ''],
 ];
 let caught = 0;
 for (const [what, ruleIndex, file, from, to] of PLANTS) {

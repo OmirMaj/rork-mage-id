@@ -62,6 +62,14 @@ export interface SupplierLinkCopy {
   markSeenLabel: string;
   copyTrackingLabel: string;
   trackingCopiedBody: string;
+  tripLabel: string;
+  stepLoadedLabel: string;
+  stepOnTheWayLabel: string;
+  stepArrivedLabel: string;
+  notYetSub: string;
+  tripNoneBody: string;
+  tripSourceBody: (name: string) => string;
+  tripArrivedBody: string;
   failBody: string;
   refusedBody: string;
   noteFor: (name: string) => string;
@@ -114,6 +122,14 @@ export function useSupplierLinkCopy(): SupplierLinkCopy {
     markSeenLabel: t('office.deliverySupplierLink.markSeenLabel', 'Mark as Seen'),
     copyTrackingLabel: t('office.deliverySupplierLink.copyTrackingLabel', 'Copy Tracking Number'),
     trackingCopiedBody: t('office.deliverySupplierLink.trackingCopiedBody', 'Copied. Paste it into the carrier\'s own tracking page.'),
+    tripLabel: t('office.deliverySupplierLink.tripLabel', 'Where the Load Is'),
+    stepLoadedLabel: t('office.deliverySupplierLink.stepLoadedLabel', 'Loaded'),
+    stepOnTheWayLabel: t('office.deliverySupplierLink.stepOnTheWayLabel', 'On the Way'),
+    stepArrivedLabel: t('office.deliverySupplierLink.stepArrivedLabel', 'At Your Job'),
+    notYetSub: t('office.deliverySupplierLink.notYetSub', 'Not yet'),
+    tripNoneBody: t('office.deliverySupplierLink.tripNoneBody', 'Nobody has tapped a step on the link yet. The supplier can tap Loaded, On The Way and Arrived there.'),
+    tripSourceBody: (name) => t('office.deliverySupplierLink.tripSourceBody', 'Tapped on the link by someone who gave the name {name}. MAGE ID does not know where the truck is.', { name }),
+    tripArrivedBody: t('office.deliverySupplierLink.tripArrivedBody', 'A tap of Arrived does not mark this delivery as received. Press Received once you have looked at the load.'),
     failBody: t('office.deliverySupplierLink.failBody', 'That did not go through. Check your connection and try again.'),
     refusedBody: t('office.deliverySupplierLink.refusedBody', 'That was not saved. You may not have the right to do this on this job, or this delivery has not reached the server yet. Try again in a minute.'),
     noteFor: (name) => t('office.deliverySupplierLink.noteFor', 'through the supplier link, typed by {name}', { name }),
