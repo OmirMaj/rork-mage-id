@@ -1,6 +1,7 @@
 // components/livingModel/jobReplay3DProps.ts — what the 3D view is handed, on
-// the web (JobReplay3D.web.tsx) and on the phone (JobReplay3D.tsx). The last
-// three are the phone's own; the web view does not read them.
+// the web (JobReplay3D.web.tsx) and on the phone (JobReplay3D.tsx). onFlat,
+// onHold and quality are the phone's own; the web view does not read them.
+import type { ModelLook } from '@/utils/livingModel/looks';
 import type { RoomMoment } from '@/utils/livingModel/replayCore';
 import type { JobModel } from '@/utils/livingModel/types';
 
@@ -27,4 +28,6 @@ export interface JobReplay3DProps {
   onHold?: (held: boolean) => void;
   /** The phone only. What the 3D view may cost the phone (utils/livingModel/phoneViewCore.PHONE_3D_QUALITY). Standard when left out. */
   quality?: 'standard' | 'high';
+  /** Which of the two looks the model is drawn in (utils/livingModel/looks.ts). Game Style, the look it has always had, when left out. */
+  look?: ModelLook;
 }

@@ -114,6 +114,22 @@ function wallBox(B: BoxBuf, w: WorldWall, s0: number, s1: number, y0: number, y1
   pushBox(B, w.a.x + ux * sm + w.inward.x * inset, (y0 + y1) / 2, w.a.y + uz * sm + w.inward.y * inset, ux, uz, (s1 - s0) / 2, (y1 - y0) / 2, hn, col);
 }
 
+/** The band of stage colour is this far off the floor at its top, so it sits on the floor and under the baseboard's lip. */
+export const FLOOR_BAND_TOP_M = 0.02;
+
+/**
+ * A flat band round a room's floor, just inside its walls: one long box per wall. The Realistic look draws it in the
+ * room's stage colour (utils/livingModel/looks.ts), so the stage reads while the floor keeps its material. Each box
+ * stops a wall's thickness short of the corner, so it never pokes through the next wall.
+ */
+export function buildFloorBand(room: PlacedRoom, widthM: number): BoxBuf {
+  const B = newBuf();
+  const w = Number.isFinite(widthM) && widthM > 0 ? widthM : 0;
+  if (!w) return B;
+  for (const wall of worldWalls(room)) wallBox(B, wall, WALL_T, wall.lengthM - WALL_T, 0.004, FLOOR_BAND_TOP_M, WALL_T + w / 2, w / 2);
+  return B;
+}
+
 /** Walk a wall and call back for every solid piece, skipping the doors and windows. Pieces are at most `step` long. */
 export function wallSpans(openings: readonly WorldOpening[], lengthM: number, H: number, step: number, fn: (s0: number, s1: number, y0: number, y1: number) => void): void {
   let cur = 0;

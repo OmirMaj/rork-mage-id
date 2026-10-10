@@ -19,7 +19,9 @@ import { useIsDesktop } from '@/components/ui/desktop';
 import { labelOn } from '@/components/ui/ink';
 import { liveLinks } from '@/utils/livingModel/linkCore';
 import { roomAreaM2, roomBounds } from '@/utils/livingModel/modelCore';
+import { DEFAULT_MODEL_LOOK, lookCost, lookPalette, type LookDevice, type ModelLook } from '@/utils/livingModel/looks';
 import { livingModelPalette, type LivingModelPalette } from '@/utils/livingModel/palette';
+import type { Phone3DQuality } from '@/utils/livingModel/phoneViewCore';
 import {
   TODAY_TOLERANCE, offsetOfWeek, roomCard, roomMoment, weekCount, weekOf,
   type ReplayMode, type ReplayTask, type RoomMoment,
@@ -113,6 +115,17 @@ export function useRoomMoments(roomTasks: Map<string, ReplayTask[]>, input: Repl
 export function usePalette(): LivingModelPalette {
   const { colors } = useTheme();
   return useMemo(() => livingModelPalette(colors), [colors]);
+}
+
+/**
+ * The palette the 3D view draws with, for the look the person chose and what this device may spend on it
+ * (utils/livingModel/looks.ts). Game Style is the theme's own palette, the very object `usePalette` gives. A new look
+ * is a new palette, and the 3D views already make a new scene for a new palette, so the old look's shapes and
+ * materials are let go the same way a theme change lets them go.
+ */
+export function useLookPalette(look: ModelLook = DEFAULT_MODEL_LOOK, device: LookDevice = 'web', quality: Phone3DQuality = 'standard'): LivingModelPalette {
+  const base = usePalette();
+  return useMemo(() => lookPalette(base, look, lookCost(look, device, quality)), [base, look, device, quality]);
 }
 
 /** "Rough-In 40%" for a room at a moment: its stage, and how far that stage has come. */

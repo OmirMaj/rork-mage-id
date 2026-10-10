@@ -28,6 +28,9 @@
 //            the surface has, how smooth its edges are, how large the shadow
 //            map is. On a 3x phone at Standard the surface is laid out at two
 //            thirds of the view and scaled back up, so it has 2 pixels a point.
+//            A look (Realistic or Game Style) may spend only what
+//            utils/livingModel/looks.lookCost allows this phone at this
+//            quality: at Standard, Realistic keeps the shading Game Style uses.
 //   The page while a finger is on the model the page behind is told to hold
 //            still (onHold): an iPhone's scrolling page would otherwise take
 //            an up-and-down drag for itself. The page scrolls from anywhere
@@ -52,7 +55,7 @@ import { roomLayers } from '@/utils/livingModel/replayCore';
 import { DEFAULT_CUT_M, pinSize, type PinSize } from '@/utils/livingModel/sceneCore';
 import { ToolButton } from '../RoomEditor';
 import type { JobReplay3DProps } from '../jobReplay3DProps';
-import { stageLine, usePalette } from '../replayShared';
+import { stageLine, useLookPalette } from '../replayShared';
 import { makeLivingModelStyles } from '../styles';
 import type { RoomLook } from '../threeScene';
 import type { Phone3DEngine, PhoneGl } from './engine';
@@ -87,11 +90,12 @@ export type Phone3DViewProps = Omit<JobReplay3DProps, 'onUnavailable' | 'onFlat'
 const touchesOf = (e: GestureResponderEvent): FingerPoint[] =>
   (e.nativeEvent.touches ?? []).map((t) => ({ id: String(t.identifier), x: t.pageX, y: t.pageY }));
 
-export function Phone3DView({ engine, quality, model, level, moments, selectedId, onSelect, onFailed, onHold, weekLine, atToday, height, debug }: Phone3DViewProps) {
+export function Phone3DView({ engine, quality, look, model, level, moments, selectedId, onSelect, onFailed, onHold, weekLine, atToday, height, debug }: Phone3DViewProps) {
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
   const phoneCopy = usePhone3DCopy();
-  const palette = usePalette();
+  // The look, and what this phone may spend on it at this quality (utils/livingModel/looks.lookCost), ride in the palette.
+  const palette = useLookPalette(look, 'phone', quality);
   const reduceMotion = useReducedMotion();
   const { GLView } = engine;
   const rooms = useMemo(() => model.rooms.filter((r) => r.level === level), [model, level]);
@@ -217,7 +221,7 @@ export function Phone3DView({ engine, quality, model, level, moments, selectedId
     } catch (e) {
       fail(e);
     }
-    // The palette is read once per drawing surface: JobReplay3D.tsx mounts a new view when the theme changes.
+    // The palette is read once per drawing surface: JobReplay3D.tsx mounts a new view when the theme or the look changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, fail, settings]);
 

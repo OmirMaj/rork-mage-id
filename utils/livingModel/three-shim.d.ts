@@ -39,11 +39,20 @@ declare module 'three' {
     updateMatrixWorld(force?: boolean): void;
   }
   export class Group extends Object3D {}
-  export class Scene extends Object3D {}
+  export class Scene extends Object3D {
+    /** The picture that lights every rough-and-smooth surface (the Realistic look's sky dome). */
+    environment: Texture | null;
+    environmentIntensity: number;
+  }
   export class Camera extends Object3D {}
   export class OrthographicCamera extends Camera {
     constructor(left: number, right: number, top: number, bottom: number, near: number, far: number);
     left: number; right: number; top: number; bottom: number; near: number; far: number;
+    updateProjectionMatrix(): void;
+  }
+  export class PerspectiveCamera extends Camera {
+    constructor(fov: number, aspect: number, near: number, far: number);
+    fov: number; aspect: number; near: number; far: number;
     updateProjectionMatrix(): void;
   }
   export class HemisphereLight extends Object3D {
@@ -52,15 +61,19 @@ declare module 'three' {
   export class DirectionalLight extends Object3D {
     constructor(color: string | number, intensity?: number);
     target: Object3D;
-    shadow: { mapSize: Vector2; bias: number; normalBias: number; camera: OrthographicCamera };
+    shadow: { mapSize: Vector2; bias: number; normalBias: number; radius: number; camera: OrthographicCamera };
   }
-  export class BufferAttribute {}
+  export class BufferAttribute {
+    count: number;
+    getY(i: number): number;
+  }
   export class Float32BufferAttribute extends BufferAttribute {
     constructor(array: number[] | Float32Array, itemSize: number);
   }
   export class BufferGeometry {
     groups: { start: number; count: number; materialIndex?: number }[];
     setAttribute(name: string, attr: BufferAttribute): this;
+    getAttribute(name: string): BufferAttribute;
     addGroup(start: number, count: number, materialIndex?: number): void;
     dispose(): void;
   }
@@ -69,6 +82,23 @@ declare module 'three' {
   }
   export class PlaneGeometry extends BufferGeometry {
     constructor(width: number, height: number);
+  }
+  export class SphereGeometry extends BufferGeometry {
+    constructor(radius: number, widthSegments?: number, heightSegments?: number);
+  }
+  export class Texture {
+    needsUpdate: boolean;
+    magFilter: number;
+    minFilter: number;
+    dispose(): void;
+  }
+  export class DataTexture extends Texture {
+    constructor(data: Uint8Array, width: number, height: number);
+  }
+  export class PMREMGenerator {
+    constructor(renderer: WebGLRenderer);
+    fromScene(scene: Scene, sigma?: number): { texture: Texture; dispose(): void };
+    dispose(): void;
   }
   export class Material {
     transparent: boolean;
@@ -82,9 +112,36 @@ declare module 'three' {
     depthWrite?: boolean;
     vertexColors?: boolean;
     side?: number;
+    emissive?: string | number;
+    emissiveIntensity?: number;
   }
   export class MeshLambertMaterial extends Material {
     constructor(p?: MeshLambertMaterialParameters);
+    color: Color;
+    emissive: Color;
+    emissiveIntensity: number;
+  }
+  export interface MeshStandardMaterialParameters extends MeshLambertMaterialParameters {
+    roughness?: number;
+    metalness?: number;
+    emissive?: string | number;
+    emissiveIntensity?: number;
+  }
+  /** The rough-and-smooth shading of the Realistic look. */
+  export class MeshStandardMaterial extends Material {
+    constructor(p?: MeshStandardMaterialParameters);
+    color: Color;
+    emissive: Color;
+    emissiveIntensity: number;
+    roughness: number;
+    metalness: number;
+  }
+  /** Draws nothing but the shadow that falls on it. */
+  export class ShadowMaterial extends Material {
+    constructor(p?: { color?: string | number; opacity?: number });
+  }
+  export class MeshBasicMaterial extends Material {
+    constructor(p?: { color?: string | number; map?: Texture; transparent?: boolean; opacity?: number; depthWrite?: boolean; vertexColors?: boolean; side?: number; toneMapped?: boolean });
     color: Color;
   }
   export class Mesh extends Object3D {
@@ -99,6 +156,8 @@ declare module 'three' {
   export class WebGLRenderer {
     constructor(p?: { canvas?: HTMLCanvasElement; antialias?: boolean; alpha?: boolean; preserveDrawingBuffer?: boolean });
     shadowMap: { enabled: boolean; type: number };
+    toneMapping: number;
+    toneMappingExposure: number;
     domElement: HTMLCanvasElement;
     extensions?: { has?: (name: string) => boolean };
     setClearColor(c: string | number, alpha?: number): void;
@@ -110,4 +169,7 @@ declare module 'three' {
   }
   export const PCFSoftShadowMap: number;
   export const DoubleSide: number;
+  export const BackSide: number;
+  export const ACESFilmicToneMapping: number;
+  export const LinearFilter: number;
 }
