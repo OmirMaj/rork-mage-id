@@ -15,7 +15,7 @@ import { EstimateCostBreakdown } from '@/components/estimate/EstimateCostBreakdo
 import { EstimateDivisionTable, type DivisionRow } from '@/components/estimate/EstimateDivisionTable';
 import { EstimateTotalsBar } from '@/components/estimate/EstimateTotalsBar';
 import { EstimateClientView } from '@/components/estimate/EstimateClientView';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
 import { toClientEstimateView } from '@/utils/clientEstimateView';
@@ -106,7 +106,9 @@ export default function EstimateReviewScreen() {
   // this line, hence the inline sum.)
   const hasAnyLineItem = cart.length + laborCart.length + assemblyCart.length > 0;
   const showTotalsBar = hasAnyLineItem && mode === 'contractor';
-  useBrainFabLift(showTotalsBar ? totalsBarH : 0);
+  // Named once: the lift and the scroll padding read the same height (validate-fab-clearance check 4).
+  const fabLift = showTotalsBar ? totalsBarH : 0;
+  useBrainFabLift(fabLift);
   // Scrolling down slides the FAB away so it stops covering division rows.
   const fabScroll = useBrainFabScroll();
 
@@ -362,7 +364,7 @@ export default function EstimateReviewScreen() {
       <ScrollView
         {...fabScroll}
         contentContainerStyle={[
-          { padding: 16, paddingBottom: insets.bottom + (showTotalsBar ? 88 : 40) },
+          { padding: 16, paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE },
           isDesktop && styles.scrollDesktop,
         ]}
         showsVerticalScrollIndicator={false}

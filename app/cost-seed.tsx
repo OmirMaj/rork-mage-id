@@ -212,7 +212,7 @@ function CostSeedInner() {
   }, []);
 
   const handleDelete = useCallback((s: SeededRate) => {
-    showAlert('Remove Rate', `Remove your ${s.trade} rate ($${s.rate.toFixed(2)}/${s.unit})?`, [
+    showAlert('Remove Rate', `Remove your ${s.trade} rate (${formatMoney(s.rate, 2)}/${s.unit})?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -382,7 +382,7 @@ function CostSeedInner() {
                       {r.asOf ? ` · as of ${r.asOf}` : ''}
                     </Text>
                   </View>
-                  <Text style={styles.reviewRate}>${r.rate.toFixed(2)}</Text>
+                  <Text style={styles.reviewRate}>{formatMoney(r.rate, 2)}</Text>
                 </View>
               ))}
 
@@ -530,7 +530,7 @@ function CostSeedInner() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.seedTrade} numberOfLines={1}>{s.trade}</Text>
                   <Text style={styles.seedMeta} numberOfLines={1}>
-                    ${s.rate.toFixed(2)} per {s.unit}
+                    {formatMoney(s.rate, 2)} per {s.unit}
                     {s.reportedJobs != null ? ` · you say ${s.reportedJobs} job${s.reportedJobs === 1 ? '' : 's'}` : ''}
                   </Text>
                   <View style={styles.seedBadge}>

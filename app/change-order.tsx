@@ -4,7 +4,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, useNavigation, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -2771,7 +2771,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
   const declineLine = useMemo(() => (existingCO ? coDeclineLine(existingCO) : null), [existingCO]);
 
-  useBrainFabLift(!isLocked || coBilling ? bottomBarH : 0);
+  // Named once: the lift and the scroll padding read the same height (validate-fab-clearance check 4).
+  const fabLift = !isLocked || coBilling ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
 
   // Desktop: the sheets centre in the content column (null on a phone, and
   // each keeps its own 'slide'); Cmd+S / Cmd+Enter saves the draft, and says
@@ -2840,7 +2842,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           {...fabScroll}
           // The approved-CO billing bar is taller than the edit bar it replaces
           // (it carries an explanatory line), so clear the measured height.
-          contentContainerStyle={[{ paddingBottom: Math.max(insets.bottom + 100, bottomBarH + (isLocked ? 0 : ccdRowH) + 24) }, isDesktop && styles.contentDesktop]}
+          contentContainerStyle={[{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE + (isLocked ? 0 : ccdRowH) }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -2862,7 +2864,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               </View>
             )}
             {existingCO && (
-              <PortalStatusPill portalState={existingCO.portalState} itemUpdatedAt={existingCO.updatedAt} />
+              <View style={styles.heroPillGround}>
+                <PortalStatusPill portalState={existingCO.portalState} itemUpdatedAt={existingCO.updatedAt} />
+              </View>
             )}
           </View>
 
@@ -3967,9 +3971,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       )}
                     </View>
                     <View style={styles.matResultPrices}>
-                      <Text style={styles.matResultRetail}>${material.baseRetailPrice.toFixed(2)}</Text>
-                      <Text style={styles.matResultBulk}>${material.baseBulkPrice.toFixed(2)}</Text>
-                      {markup > 0 && <Text style={styles.matResultFinal}>${finalPrice.toFixed(2)}</Text>}
+                      <Text style={styles.matResultRetail}>{formatMoney(material.baseRetailPrice, 2)}</Text>
+                      <Text style={styles.matResultBulk}>{formatMoney(material.baseBulkPrice, 2)}</Text>
+                      {markup > 0 && <Text style={styles.matResultFinal}>{formatMoney(finalPrice, 2)}</Text>}
                     </View>
                     <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -4053,25 +4057,23 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 // "-$5,000.00", not "$5,000.00". Delegates to the one formatter.
 const formatCurrency = (n: number): string => formatMoney(n, 2);
 
-function getStatusBg(t: ThemeColors, status: string): string {
-  switch (status) {
-    case 'draft': case 'void': return t.line;
-    case 'submitted': case 'sent': return t.info;
-    case 'under_review': case 'revised': return t.accentSoft;
-    case 'approved': return t.successSoft;
-    case 'rejected': return t.danger;
-    default: return t.line;
-  }
+// The status chip sits ON the hero's brand fill, so it is an opaque chip on the
+// theme's surface with a label ink, the same recipe as the invoice hero
+// (getInvoiceStatusColors). The old washes (successSoft, accentSoft, line) are
+// translucent: over the green fill they left teal text on green, and Submitted
+// and Rejected printed the ink on a fill of the same colour.
+function getStatusBg(t: ThemeColors, _status: string): string {
+  return t.surface;
 }
 
 function getStatusText(t: ThemeColors, status: string): string {
   switch (status) {
-    case 'draft': return t.textSecondary;
+    case 'draft': return t.text;
     case 'submitted': case 'sent': return t.info;
-    case 'under_review': case 'revised': return t.accent;
-    case 'approved': return t.success;
-    case 'rejected': return t.danger;
-    case 'void': return t.textMuted;
+    case 'under_review': case 'revised': return t.accentLabel;
+    case 'approved': return t.successLabel;
+    case 'rejected': return t.dangerLabel;
+    case 'void': return t.textSecondary;
     default: return t.text;
   }
 }
@@ -4112,6 +4114,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
+  // The portal pill is a wash over a ground; on the hero's fill it gets the surface as its ground.
+  heroPillGround: { ...cardSurface(themeColors, { radius: 'full', pad: 'none', bordered: false }), alignSelf: 'flex-start', marginTop: 4 },
   statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: themeColors.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },

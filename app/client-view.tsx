@@ -1276,8 +1276,10 @@ export default function ClientViewScreen() {
           <Text style={styles.headerLastUpdated} testID="client-last-updated">
             Last updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </Text>
-          <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? themeColors.success + '40' : '#FF950040' }]}>
-            <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? themeColors.success : Colors.warning }]}>
+          {/* On the header's brand fill the chip is opaque surface with a label ink;
+              a translucent wash left teal on green. */}
+          <View style={[styles.statusBadge, { backgroundColor: themeColors.surface }]}>
+            <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? themeColors.successLabel : themeColors.warningLabel }]}>
               {project.status === 'in_progress' ? 'In Progress' : project.status === 'completed' ? 'Completed' : 'Active'}
             </Text>
           </View>

@@ -384,8 +384,8 @@ console.log('\nF. wiring — no screen re-types the line formula');
   ok('…the Refresh button carries every stale snapshot', /if \(plan\.staleCount > 0\) ctxReplaceCart\(plan\.next\);/.test(full));
   ok('the item pop-up prints the unit prices of the line it prices (popupUnitPrices)',
     /popupUnitPrices\(cart, selectedMaterial\)/.test(full)
-    && /\(popupPrices\?\.material \?\? selectedMaterial\)\.baseRetailPrice\.toFixed\(2\)/.test(full)
-    && /\(popupPrices\?\.material \?\? selectedMaterial\)\.baseBulkPrice\.toFixed\(2\)/.test(full)
+    && /formatMoney\(\(popupPrices\?\.material \?\? selectedMaterial\)\.baseRetailPrice, 2\)/.test(full)
+    && /formatMoney\(\(popupPrices\?\.material \?\? selectedMaterial\)\.baseBulkPrice, 2\)/.test(full)
     && /testID="popup-kept-price-note"/.test(full));
   ok('…and its bulk banner follows the previewed line', /\{popupPreview\.usesBulk && \(/.test(full) && !/\(parseInt\(itemQty, 10\) \|\| 0\) >= selectedMaterial\.bulkMinQty/.test(full));
   ok('the labor pop-up previews the row\'s sell via priceLaborLine, parsed as Add parses',

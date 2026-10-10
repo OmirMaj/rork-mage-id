@@ -35,7 +35,7 @@ import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles, resolveDfrPhotosForDocument, DFR_FILED_PDF_LINK_DAYS } from '@/utils/projectDocuments';
 import { buildDFRHtml, dfrPrintablePhotoSplit, generateDFRPDF } from '@/utils/pdfGenerator';
 import { openPrintWindowAfterOrThrow } from '@/utils/platformFile';
-import { FolderOpen, FileSignature, ChevronRight } from 'lucide-react-native';
+import { FolderOpen, FileSignature, ChevronRight, Printer, Share2 } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -4263,10 +4263,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             accessibilityRole="button"
             accessibilityLabel={t('field.dfr.changeReportDate', 'Change Report Date')}
           >
-            <Text style={styles.topBarTitle}>{t('field.dfr.dailyReport', 'Daily Report')}</Text>
+            <Text style={styles.topBarTitle} numberOfLines={1}>{t('field.dfr.dailyReport', 'Daily Report')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={styles.topBarDate}>
-                {formatDateOptsL(dayOrInstantDate(reportDate), { weekday: 'long', month: 'long', day: 'numeric' }, lang)}
+              {/* Short weekday: the long one wrapped under the title at phone width; the hero below prints the full date. */}
+              <Text style={styles.topBarDate} numberOfLines={1}>
+                {formatDateOptsL(dayOrInstantDate(reportDate), { weekday: 'short', month: 'long', day: 'numeric' }, lang)}
               </Text>
               {!isLocked && <CalendarDays size={11} color={themeColors.textMuted} strokeWidth={1.75} />}
             </View>
@@ -4296,14 +4297,22 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </View>
               {/* #62: the submitted report's PDF, again — print on web, the
                   share sheet on the phone. Nothing is saved or re-stamped. */}
-              <Button
-                label={sharingPdf ? t('field.dfr.makingPdf', 'Making PDF…') : t('field.dfr.printSharePdf', 'Print / Share PDF')}
+              {/* An icon button, so the bar holds on one line at phone width in
+                  every language; the words are the accessibility label. */}
+              <TouchableOpacity
                 onPress={handlePrintOrShareLocked}
-                variant="secondary"
-                size="sm"
                 disabled={sharingPdf}
+                style={[styles.topBarBack, sharingPdf && styles.topBarIconBusy]}
+                accessibilityRole="button"
+                accessibilityLabel={sharingPdf ? t('field.dfr.makingPdf', 'Making PDF…') : t('field.dfr.printSharePdf', 'Print / Share PDF')}
+                accessibilityState={{ disabled: sharingPdf, busy: sharingPdf }}
+                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                 testID="dfr-locked-print-share"
-              />
+              >
+                {Platform.OS === 'web'
+                  ? <Printer size={19} color={themeColors.text} strokeWidth={1.75} />
+                  : <Share2 size={19} color={themeColors.text} strokeWidth={1.75} />}
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -4584,8 +4593,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </View>
             )}
             {existingReport && (
-              <View style={[styles.statusBadge, { backgroundColor: existingReport.status === 'sent' ? themeColors.successSoft : themeColors.line }]}>
-                <Text style={[styles.statusText, { color: existingReport.status === 'sent' ? themeColors.success : themeColors.textSecondary }]}>
+              // On the hero's brand fill the chip is opaque surface with a label ink
+              // (the invoice hero's recipe); a translucent wash left teal on green.
+              <View style={[styles.statusBadge, { backgroundColor: themeColors.surface }]}>
+                <Text style={[styles.statusText, { color: existingReport.status === 'sent' ? themeColors.successLabel : themeColors.text }]}>
                   {existingReport.status === 'sent' ? t('field.dfr.sent', 'Sent') : t('field.dfr.saved', 'Saved')}
                 </Text>
               </View>
@@ -6730,6 +6741,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: themeColors.textMuted,
     marginTop: 1,
   },
+  topBarIconBusy: { opacity: 0.5 },
   topBarActions: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,

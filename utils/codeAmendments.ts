@@ -551,7 +551,7 @@ export function citationEvidenceFor(
       badge: parent ? 'PARENT SECTION NAMED IN LAW' : 'SECTION NAMED IN LAW',
       detail: parent
         ? `${row.cite} names ${what} § ${row.section}, the parent of the number cited. Read off ${row.authorityName} on ${row.checkedOn}. MAGE holds no text for it and did NOT verify § ${citedSection.trim()} itself.`
-        : `${row.cite} names ${what} § ${row.section}. Read off ${row.authorityName} on ${row.checkedOn}. The section number is verified; MAGE does not reproduce what it requires.`,
+        : `${row.cite} names ${what} § ${row.section}. Read off ${row.authorityName} on ${row.checkedOn}. That entry names the section number; MAGE does not reproduce what it requires.`,
       sourceUrl: row.sourceUrl,
       sourceLabel: row.cite,
       parentMatch: parent,
@@ -564,8 +564,10 @@ export function citationEvidenceFor(
     rungIndex: RUNG_INDEX.edition,
     badge: 'MODEL RECALL · EDITION KNOWN',
     detail:
-      `MAGE verified the governing code here (${codesSummary(entry.codes)}, ` +
-      `checked ${entry.checkedOn}) but has no government record naming this section. ${RECALL_TAIL}`,
+      // Not "MAGE verified": what MAGE holds is a record of the adopted edition,
+      // checked against the authority on a date. It says that, and no more.
+      `MAGE’s record of the code in force here is ${codesSummary(entry.codes)} ` +
+      `(checked ${entry.checkedOn} against ${entry.authorityName}). MAGE has no government record naming this section. ${RECALL_TAIL}`,
   };
 }
 

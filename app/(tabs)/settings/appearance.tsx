@@ -8,6 +8,7 @@ import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { EyebrowLabel } from '@/components/ui/EyebrowLabel';
 import type { ThemeColors } from '@/constants/colors';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 
 const OPTIONS: { value: ThemePref; label: string; helper: string }[] = [
   { value: 'light', label: 'Light', helper: 'Light background. The default.' },
@@ -70,7 +71,8 @@ export default function Appearance() {
 
 const makeStyles = (t: ThemeColors) =>
   StyleSheet.create({
-    scroll: { padding: Tokens.spacing.md, gap: Tokens.spacing.lg },
+    // The last row scrolls clear of the floating Ask button.
+    scroll: { padding: Tokens.spacing.md, gap: Tokens.spacing.lg, paddingBottom: BRAIN_FAB_CLEARANCE },
     header: { gap: 0 },
     list: { gap: Tokens.spacing.sm, marginTop: Tokens.spacing.md },
     row: {

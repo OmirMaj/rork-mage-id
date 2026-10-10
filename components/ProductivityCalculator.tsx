@@ -11,6 +11,7 @@ import { PRODUCTIVITY_RATES, PRODUCTIVITY_CATEGORIES, type ProductivityRate } fr
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
+import { formatMoney } from '@/utils/formatters';
 
 interface ProductivityCalculatorProps {
   visible: boolean;
@@ -132,25 +133,25 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
 
                 <View style={s.costRow}>
                   <Text style={s.costLabel}>Materials</Text>
-                  <Text style={s.costSub}>${selectedRate.materialCostPerUnit.toFixed(2)}/{selectedRate.unit}</Text>
-                  <Text style={s.costValue}>${calculation.materialCost.toFixed(2)}</Text>
+                  <Text style={s.costSub}>{formatMoney(selectedRate.materialCostPerUnit, 2)}/{selectedRate.unit}</Text>
+                  <Text style={s.costValue}>{formatMoney(calculation.materialCost, 2)}</Text>
                 </View>
                 <View style={s.costRow}>
                   <Text style={s.costLabel}>Labor</Text>
-                  <Text style={s.costSub}>${selectedRate.laborCostPerUnit.toFixed(2)}/{selectedRate.unit}</Text>
-                  <Text style={s.costValue}>${calculation.laborCost.toFixed(2)}</Text>
+                  <Text style={s.costSub}>{formatMoney(selectedRate.laborCostPerUnit, 2)}/{selectedRate.unit}</Text>
+                  <Text style={s.costValue}>{formatMoney(calculation.laborCost, 2)}</Text>
                 </View>
                 <View style={s.costRow}>
                   <Text style={s.costLabel}>Equipment</Text>
-                  <Text style={s.costSub}>${selectedRate.equipmentCostPerUnit.toFixed(2)}/{selectedRate.unit}</Text>
-                  <Text style={s.costValue}>${calculation.equipmentCost.toFixed(2)}</Text>
+                  <Text style={s.costSub}>{formatMoney(selectedRate.equipmentCostPerUnit, 2)}/{selectedRate.unit}</Text>
+                  <Text style={s.costValue}>{formatMoney(calculation.equipmentCost, 2)}</Text>
                 </View>
 
                 <View style={s.divider} />
 
                 <View style={s.totalRow}>
                   <Text style={s.totalLabel}>Total Cost</Text>
-                  <Text style={s.totalValue}>${calculation.totalCost.toFixed(2)}</Text>
+                  <Text style={s.totalValue}>{formatMoney(calculation.totalCost, 2)}</Text>
                 </View>
 
                 <View style={s.scheduleCard}>
@@ -225,7 +226,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                         <Text style={s.rateCrew}>{rate.crew}</Text>
                       </View>
                       <View style={s.rateRight}>
-                        <Text style={s.rateUnitCost}>${unitCost.toFixed(2)}</Text>
+                        <Text style={s.rateUnitCost}>{formatMoney(unitCost, 2)}</Text>
                         <Text style={s.rateUnit}>/{rate.unit}</Text>
                       </View>
                     </TouchableOpacity>
@@ -238,7 +239,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                     </TouchableOpacity>
                     {isExpanded && (
                       <View style={s.expandedContent}>
-                        <Text style={s.expandedRow}>Materials ${rate.materialCostPerUnit.toFixed(2)} · Labor ${rate.laborCostPerUnit.toFixed(2)} · Equipment ${rate.equipmentCostPerUnit.toFixed(2)}</Text>
+                        <Text style={s.expandedRow}>Materials {formatMoney(rate.materialCostPerUnit, 2)} · Labor {formatMoney(rate.laborCostPerUnit, 2)} · Equipment {formatMoney(rate.equipmentCostPerUnit, 2)}</Text>
                         {rate.notes ? <Text style={s.expandedNotes}>{rate.notes}</Text> : null}
                       </View>
                     )}

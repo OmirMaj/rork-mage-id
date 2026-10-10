@@ -297,6 +297,11 @@ export default function TabLayout() {
           fontWeight: '500',
           letterSpacing: 0.2,
           marginBottom: Platform.OS === 'ios' ? 0 : 4,
+          // Web only. The label is a flex child of the 49 px tab item, and the
+          // browser shrinks a text child that the phone's layout engine never
+          // shrinks: the icon took its room and the label was squeezed to about
+          // 4 px high with its words clipped. Holding its size is phone parity.
+          ...(Platform.OS === 'web' ? { flexShrink: 0 } : null),
         },
         tabBarIconStyle: {
           marginTop: 2,
