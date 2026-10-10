@@ -98,6 +98,43 @@ export interface SupplierReply {
   at: string;
 }
 
+/** The three taps on the link, in order. */
+export const TRIP_STEPS = ['loaded', 'on_the_way', 'arrived'] as const;
+export type TripStep = (typeof TRIP_STEPS)[number];
+
+/**
+ * Where whoever holds the link says the load is. Each value is the instant
+ * that step was first tapped ('' when it has not been). This is what someone
+ * tapped. It is not a position, and MAGE ID does not know where any truck is.
+ */
+export interface SupplierTrip {
+  loaded: string;
+  onTheWay: string;
+  arrived: string;
+  /** The name typed with the latest tap. */
+  name: string;
+  /** Where the load is coming from, as someone typed it on the link ('' when they did not). Words, not a position. */
+  from: string;
+}
+
+/** How far along the taps are: 0 none, 1 Loaded, 2 On the Way, 3 Arrived. */
+export function tripStop(trip: Pick<SupplierTrip, 'loaded' | 'onTheWay' | 'arrived'> | null | undefined): 0 | 1 | 2 | 3 {
+  if (!trip) return 0;
+  return trip.arrived ? 3 : trip.onTheWay ? 2 : trip.loaded ? 1 : 0;
+}
+
+function readTrip(raw: unknown): SupplierTrip | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  // An instant the server stamped: digits, dashes, colons, T and Z. Anything else is not a time and is not drawn.
+  const when = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(v) ? v : '');
+  const trip = { loaded: when(r.loaded), onTheWay: when(r.on_the_way), arrived: when(r.arrived), name: clean(r.name, 80), from: clean(r.from, 120) };
+  // A later step never stands without the ones before it (the server stamps a skipped step with the same time).
+  if (trip.arrived && !trip.onTheWay) trip.onTheWay = trip.arrived;
+  if (trip.onTheWay && !trip.loaded) trip.loaded = trip.onTheWay;
+  return tripStop(trip) === 0 ? null : trip;
+}
+
 export interface SupplierLink {
   deliveryId: string;
   token: string;
@@ -109,6 +146,8 @@ export interface SupplierLink {
   replyAt: string;
   /** When a person on the job marked the latest answer as seen, or ''. */
   replySeenAt: string;
+  /** The taps on the link, or null when nobody has tapped one. */
+  trip: SupplierTrip | null;
 }
 
 /** The most answers one link takes (the table's own check). */
@@ -153,6 +192,7 @@ export function readLinkRow(row: Record<string, unknown> | null | undefined): Su
     replyCount: count,
     replyAt: clean(row.reply_at, 40),
     replySeenAt: clean(row.reply_seen_at, 40),
+    trip: readTrip(row.trip),
   };
 }
 

@@ -62,6 +62,24 @@ export interface SupplierLinkCopy {
   markSeenLabel: string;
   copyTrackingLabel: string;
   trackingCopiedBody: string;
+  tripLabel: string;
+  stepLoadedLabel: string;
+  stepOnTheWayLabel: string;
+  stepArrivedLabel: string;
+  notYetSub: string;
+  tripNoneBody: string;
+  tripSourceBody: (name: string) => string;
+  tripArrivedBody: string;
+  tripNoNameBody: string;
+  comingFromLabel: string;
+  yourJobLabel: string;
+  mapNoteBody: (miles: string) => string;
+  mapCreditSub: string;
+  mapNoPlaceBody: (from: string) => string;
+  mapYardBody: (matched: string) => string;
+  mapTooFarBody: string;
+  mapTilesBody: string;
+  mapCreditHintSub: string;
   failBody: string;
   refusedBody: string;
   noteFor: (name: string) => string;
@@ -114,6 +132,24 @@ export function useSupplierLinkCopy(): SupplierLinkCopy {
     markSeenLabel: t('office.deliverySupplierLink.markSeenLabel', 'Mark as Seen'),
     copyTrackingLabel: t('office.deliverySupplierLink.copyTrackingLabel', 'Copy Tracking Number'),
     trackingCopiedBody: t('office.deliverySupplierLink.trackingCopiedBody', 'Copied. Paste it into the carrier\'s own tracking page.'),
+    tripLabel: t('office.deliverySupplierLink.tripLabel', 'What the Supplier Tapped'),
+    stepLoadedLabel: t('office.deliverySupplierLink.stepLoadedLabel', 'Loaded'),
+    stepOnTheWayLabel: t('office.deliverySupplierLink.stepOnTheWayLabel', 'On the Way'),
+    stepArrivedLabel: t('office.deliverySupplierLink.stepArrivedLabel', 'At Your Job'),
+    notYetSub: t('office.deliverySupplierLink.notYetSub', 'Not yet'),
+    tripNoneBody: t('office.deliverySupplierLink.tripNoneBody', 'Nobody has tapped a step on the link yet. The supplier can tap Loaded, On the Way and Arrived there.'),
+    tripSourceBody: (name) => t('office.deliverySupplierLink.tripSourceBody', 'Last tapped on the link by someone who gave the name {name}. MAGE ID does not know where the truck is.', { name }),
+    tripArrivedBody: t('office.deliverySupplierLink.tripArrivedBody', 'A tap of Arrived does not mark this delivery as received. Press Received once you have looked at the load.'),
+    tripNoNameBody: t('office.deliverySupplierLink.tripNoNameBody', 'Tapped on the link. MAGE ID does not know where the truck is.'),
+    comingFromLabel: t('office.deliverySupplierLink.comingFromLabel', 'Coming From'),
+    yourJobLabel: t('office.deliverySupplierLink.yourJobLabel', 'Your Job'),
+    mapNoteBody: (miles) => t('office.deliverySupplierLink.mapNoteBody', 'About {miles} miles in a straight line. The line is not the road. The truck is drawn from the step that was tapped, so this is not where it is.', { miles }),
+    mapCreditSub: t('office.deliverySupplierLink.mapCreditSub', '© OpenStreetMap contributors'),
+    mapNoPlaceBody: (from) => t('office.deliverySupplierLink.mapNoPlaceBody', 'No map: "{from}" could not be found on a map just now, or this job has no address that could be placed.', { from }),
+    mapYardBody: (matched) => t('office.deliverySupplierLink.mapYardBody', 'The yard pin is where a map lookup put the words typed on the link: {matched}. It can be the wrong place.', { matched }),
+    mapTooFarBody: t('office.deliverySupplierLink.mapTooFarBody', 'No map: the two places are too far apart to draw, or the lookup put the yard in the wrong part of the world.'),
+    mapTilesBody: t('office.deliverySupplierLink.mapTilesBody', 'Some of the map did not load. The pins and the line are still in the right place.'),
+    mapCreditHintSub: t('office.deliverySupplierLink.mapCreditHintSub', 'Opens the OpenStreetMap copyright page'),
     failBody: t('office.deliverySupplierLink.failBody', 'That did not go through. Check your connection and try again.'),
     refusedBody: t('office.deliverySupplierLink.refusedBody', 'That was not saved. You may not have the right to do this on this job, or this delivery has not reached the server yet. Try again in a minute.'),
     noteFor: (name) => t('office.deliverySupplierLink.noteFor', 'through the supplier link, typed by {name}', { name }),

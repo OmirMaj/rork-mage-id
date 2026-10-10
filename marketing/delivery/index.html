@@ -56,6 +56,16 @@
   .done h2 { font: 700 30px/1 var(--disp); text-transform: uppercase; color: var(--teal); }
   .done p { margin-top: 8px; color: var(--ink2); }
   .flag { display: inline-block; font-size: 11px; line-height: 1; padding: 5px 8px 4px; border: 1px dashed var(--ink); }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 14px 14px 4px; }
+  .stepbtn { min-height: 64px; padding: 8px 6px; background: #fff; color: var(--ink); border: 1px solid var(--ink); border-radius: 3px; font: 600 16px/1.1 var(--disp); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .stepbtn small { display: block; margin-top: 5px; font: 500 12.5px/1.2 var(--body); letter-spacing: 0; text-transform: none; color: var(--mute); }
+  .stepbtn.done { background: var(--green-t); border-color: var(--green); color: var(--green-d); }
+  .stepbtn.done small { color: var(--green-d); }
+  .stepbtn[disabled] { cursor: default; }
+  .trip-in { padding: 0 14px 16px; }
+  .trip-who { margin: 8px 14px 4px; overflow-wrap: anywhere; }
+  .trip-who:empty { display: none; }
+  .trip-err { margin: 10px 14px 0; }
   .state { margin-top: 26px; padding: 18px 16px; background: var(--sheet); border: 1px solid var(--ink); }
   .state h2 { font: 700 28px/1.05 var(--disp); text-transform: uppercase; }
   .state p { margin-top: 8px; color: var(--ink2); }
@@ -130,6 +140,23 @@
           <button type="submit" class="btn" id="send">Send My Answer</button>
           <p class="say" id="say"></p>
         </form>
+      </div>
+
+      <div class="sheet" id="tripSheet" hidden>
+        <div class="sheet-head"><span>Where Is the Load?</span></div>
+        <div class="steps" role="group" aria-label="Tap where the load is">
+          <button type="button" class="stepbtn" data-step="loaded" aria-pressed="false">Loaded<small>Not yet</small></button>
+          <button type="button" class="stepbtn" data-step="on_the_way" aria-pressed="false">On the Way<small>Not yet</small></button>
+          <button type="button" class="stepbtn" data-step="arrived" aria-pressed="false">Arrived<small>Not yet</small></button>
+        </div>
+        <p class="say trip-who" id="tripWho"></p>
+        <p class="err trip-err" id="tripErr" role="alert" hidden></p>
+        <div class="trip-in" id="tripIn">
+          <div class="field"><label for="tFrom">Coming From <span>Optional</span></label><input id="tFrom" name="from" type="text" maxlength="120" placeholder="Yard or town" autocomplete="off" /></div>
+          <div class="field"><label for="tName">Your Name</label><input id="tName" name="tripname" type="text" maxlength="80" autocomplete="name" /></div>
+          <button type="button" class="btn ghost" id="saveFrom" hidden>Save Coming From</button>
+          <p class="say" id="tripSay"></p>
+        </div>
       </div>
 
       <div class="sheet" id="doneSheet" hidden>
@@ -214,6 +241,79 @@
     show('lastSheet', dl.children.length > 0);
   }
 
+  /* The three taps. A step that has a time is done; the buttons are read from what the server stored. */
+  var STEPS = ['loaded', 'on_the_way', 'arrived'];
+  var stepBtns = Array.prototype.slice.call(document.querySelectorAll('.stepbtn'));
+  var tripOpen = false, sending = false, armed = null, lastTrip = null;
+  function paintTrip(trip, open) {
+    var t = trip && typeof trip === 'object' ? trip : {};
+    var at = t.arrived ? 3 : t.on_the_way ? 2 : t.loaded ? 1 : 0;
+    tripOpen = !!open; armed = null; lastTrip = trip && typeof trip === 'object' ? trip : null;
+    // Coming From can be added or corrected once a step has been tapped, without tapping a step that has not happened.
+    $('saveFrom').hidden = !open || at === 0;
+    stepBtns.forEach(function (b, i) {
+      var when = stampLong(t[STEPS[i]]);
+      b.classList.toggle('done', !!when);
+      b.setAttribute('aria-pressed', when ? 'true' : 'false');
+      b.firstChild.nodeValue = ['Loaded', 'On the Way', 'Arrived'][i];
+      b.querySelector('small').textContent = when || 'Not yet';
+      // A step the load is at or past cannot be tapped again; the server refuses it too.
+      b.disabled = !open || sending || i + 1 <= at;
+    });
+    var who = text(t.name, 80), from = text(t.from, 120);
+    $('tripWho').textContent = at ? (who ? 'Last tap by ' + who + '.' : '') + (from ? ' Coming from ' + from + '.' : '') : '';
+  }
+  var STEP_REASONS = {
+    not_found: 'This link is not active any more. Ask the contractor for a new one.',
+    closed: 'This delivery is closed. Nothing more is needed here.',
+    name: 'Type your name first, so the contractor knows who tapped.',
+    too_long: 'That is too long. Shorten it and try again.',
+    too_many: 'This link has taken as many changes as it can. Call the contractor if something is still wrong.',
+    back: 'The load is already past that step.',
+    step: 'That did not go through. Try again.'
+  };
+  function tripFail(msg) { var err = $('tripErr'); err.textContent = msg; err.hidden = false; }
+  function busy(on) { sending = on; stepBtns.forEach(function (x) { if (on) x.disabled = true; }); }
+  /* One place sends a step: a tap of a button, or Save Coming From (which sends the step the load is already at). */
+  function sendStep(step) {
+    var name = text($('tName').value, 200);
+    if (name.length < 2) { tripFail(STEP_REASONS.name); $('tName').focus(); return; }
+    busy(true);
+    rpc('delivery_link_step', { p_token: TOKEN, p_step: step, p_name: name, p_from: text($('tFrom').value, 200) || null }).then(function (r) {
+      sending = false;
+      if (r && r.ok === true) { paintTrip(r.trip, true); return; }
+      var reason = r && r.reason;
+      // The page may be out of step with the server (the load moved on, the delivery closed, the link was turned off):
+      // read it again and draw the whole page from the answer. If that read fails, keep what was on the page.
+      rpc('delivery_link_view', { p_token: TOKEN }).then(function (v) {
+        if (v && v.found === true) paint(v); else only('stGone');
+        tripFail(STEP_REASONS[reason] || STEP_REASONS.step);
+      }).catch(function () { paintTrip(lastTrip, tripOpen); tripFail(STEP_REASONS[reason] || STEP_REASONS.step); });
+    }).catch(function (e) {
+      sending = false;
+      paintTrip(lastTrip, tripOpen);
+      tripFail(e && e.status ? STEP_REASONS.step : 'Could not reach the server. Nothing was sent. Check your connection and try again.');
+    });
+  }
+  stepBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (sending || !tripOpen) return;
+      $('tripErr').hidden = true;
+      var step = b.getAttribute('data-step');
+      // Arrived cannot be taken back, so it takes two taps.
+      if (step === 'arrived' && armed !== b) {
+        if (text($('tName').value, 200).length < 2) { tripFail(STEP_REASONS.name); $('tName').focus(); return; }
+        armed = b; b.firstChild.nodeValue = 'Tap Again'; b.querySelector('small').textContent = 'To say it arrived'; return;
+      }
+      sendStep(step);
+    });
+  });
+  $('saveFrom').addEventListener('click', function () {
+    if (sending || !tripOpen || !lastTrip) return;
+    $('tripErr').hidden = true;
+    sendStep(lastTrip.arrived ? 'arrived' : lastTrip.on_the_way ? 'on_the_way' : 'loaded');
+  });
+
   function paint(v) {
     var shown = v && typeof v.shown === 'object' && v.shown ? v.shown : {};
     company = text(shown.company, 80) || 'the contractor';
@@ -228,6 +328,13 @@
     show('closedFlag', !open); show('stClosed', !open);
     paintLast(v.reply);
     show('formSheet', open); show('doneSheet', false);
+    show('tripSheet', open || !!v.trip);
+    // A closed delivery shows what was tapped and asks for nothing more.
+    show('tripIn', open);
+    paintTrip(v.trip, open);
+    $('tripSay').textContent = 'A tap tells ' + company + ' what you tapped and when. Coming From is only the words you type. Their app looks those words up on OpenStreetMap to draw the trip on a map. It does not share your location, and it does not mark the delivery as received.';
+    if (!$('tName').value) $('tName').value = text((v.trip && v.trip.name) || (v.reply && v.reply.name), 80);
+    if (!$('tFrom').value) $('tFrom').value = text(v.trip && v.trip.from, 120);
     $('formTitle').textContent = v.reply ? 'Send A New Answer' : 'Your Answer';
     $('say').textContent = 'This sends your answer to ' + company + ' and to nobody else. It does not change their schedule and it is not an order or an acceptance of one. If your date changes, open this link again and send a new answer.';
     if (v.reply && typeof v.reply === 'object') {
