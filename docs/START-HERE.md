@@ -5,6 +5,10 @@ where this ended. Read this, then `CLAUDE.md`, then `docs/PRODUCT-BIBLE.md`._
 
 ---
 
+> **Newest state: `docs/HANDOFF-2026-10-10.md`.** Read that first. It carries the
+> hard rules, the machine limits, how work ships, what is live and what is owed.
+> The sections below are older and are kept for their operational traps.
+
 > **wave-next W1 notes (2026-09-28, branch claude/wave-next, NOT shipped).**
 > Two scope decisions were accepted at integration, with no code change:
 > - **planSweep neutraliser is per language.** `neutralizeModelText(s, lang = getLang())`

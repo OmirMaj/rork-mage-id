@@ -2,7 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **New session? Read `docs/START-HERE.md` FIRST** — session state, the
+> **New session? Read `docs/HANDOFF-2026-10-10.md` FIRST** (newest state, hard rules, how work ships), then
+> `docs/START-HERE.md` — session state, the
 > operational gotchas that cost hours (worktree test harness, port 8081, Fast
 > Refresh, theme token names), what is blocked on the founder, and the lesson
 > this codebase keeps teaching: documents lie, code doesn't.
