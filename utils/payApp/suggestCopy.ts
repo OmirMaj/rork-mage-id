@@ -32,6 +32,10 @@ export const SUGGEST_COPY = {
   // The job's first application (utils/payApp/firstApplication).
   firstEntryLabel: 'Start the First Pay Application',
   firstEntryHint: 'Starts from the estimate linked to this job, with this period at zero on every line. No progress invoice to make first.',
+  firstHasInvoicesHint: 'This job already has an invoice, so the first pay application starts from the invoice. That way what was already billed is counted.',
+  firstInvoiceInstead: 'Make a Progress Invoice Instead',
+  firstCannotStartTitle: 'Cannot Start Here',
+  firstCannotStartBody: 'This job cannot start a pay application on this screen right now. Go back and open it from a progress invoice.',
   firstNoEstimateHint: 'To start the first pay application on one screen, link an estimate to this job. Without one there is no schedule of values to start from.',
   firstHeading: (estimateLines: number, changeOrderLines: number) =>
     `${estimateLines} ${estimateLines === 1 ? 'Line' : 'Lines'} from the Linked Estimate${changeOrderLines > 0 ? ` and ${changeOrderLines} Approved Change ${changeOrderLines === 1 ? 'Order' : 'Orders'}` : ''}`,

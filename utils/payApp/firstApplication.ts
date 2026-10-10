@@ -20,9 +20,16 @@
 // invoice path, and the screen says why. A job that already has an application
 // with lines rolls forward instead (utils/payApp/rollForward).
 //
+// A JOB THAT ALREADY HAS AN INVOICE IS REFUSED TOO. This path opens every line
+// with nothing billed before, and saving it makes a NEW draft invoice for the
+// period. On a job where work was already invoiced (Bill From Estimate, never
+// turned into a pay application) that would bill the same work a second time.
+// So any invoice on the job, of any kind or status, sends the first
+// application back to the invoice path, where the period IS that invoice.
+//
 // RETAINAGE IS NEVER MADE UP. The rate is the one on record for the job
-// (utils/retainageSource: an earlier invoice that held one, else the rate
-// typed on the job). When nothing records a rate the application opens at 0
+// (utils/retainageSource: the rate typed on the job, or an earlier saved
+// application's). When nothing records a rate the application opens at 0
 // and SAYS that no rate is on record; the contractor sets it on the pay
 // application before he certifies. There is no default percent.
 //
@@ -33,10 +40,10 @@
 // Pure: no clock (today is passed in), no storage, no network.
 import type { ChangeOrder, CompanyBranding, Invoice, Project, SavedAIAPayApp } from '@/types';
 import {
-  seedAIAPayApplicationFromInvoice, splitApprovedCOsByPeriod,
+  nextApplicationNumber, seedAIAPayApplicationFromInvoice, splitApprovedCOsByPeriod,
   type PayAppContractLike,
 } from '@/utils/aiaBilling';
-import { resolveRetainagePercent, type RetainagePriorInvoice } from '@/utils/retainageSource';
+import { resolveRetainagePercent } from '@/utils/retainageSource';
 import { endOfMonth } from '@/utils/payApp/days';
 import { defaultApplicationDate, type RollForwardResult } from '@/utils/payApp/rollForward';
 import { billKeyOfLineId } from '@/utils/payApp/periodInvoice';
@@ -52,14 +59,18 @@ export type FirstApplicationState =
   | 'can_start'
   /** An application with lines exists: the next one rolls forward from it. */
   | 'has_application'
+  /** The job already has an invoice: starting at zero here could bill work a second time. */
+  | 'has_invoices'
   /** No linked estimate, or one with no items: there is no schedule of values to start from. */
   | 'no_estimate';
 
 export function firstApplicationState(
   project: Pick<Project, 'id' | 'linkedEstimate'>,
   saved: readonly Pick<SavedAIAPayApp, 'projectId' | 'lines'>[],
+  invoices: readonly Pick<Invoice, 'projectId'>[],
 ): FirstApplicationState {
   if (saved.some(a => a.projectId === project.id && a.lines.length > 0)) return 'has_application';
+  if (invoices.some(i => i.projectId === project.id)) return 'has_invoices';
   return (project.linkedEstimate?.items?.length ?? 0) > 0 ? 'can_start' : 'no_estimate';
 }
 
@@ -70,8 +81,8 @@ export interface FirstApplicationInput {
   changeOrders: readonly ChangeOrder[];
   contract: PayAppContractLike | null | undefined;
   branding: CompanyBranding;
-  /** Every invoice on this project: only read for a retainage rate one of them recorded. */
-  invoices: readonly RetainagePriorInvoice[];
+  /** Every invoice the account holds (any job). Only asked whether THIS job has one. */
+  invoices: readonly Pick<Invoice, 'projectId'>[];
   /** YYYY-MM-DD, passed in. */
   today: string;
 }
@@ -82,11 +93,14 @@ export interface FirstApplicationInput {
  */
 export function startFirstApplication(input: FirstApplicationInput): RollForwardResult | null {
   const { project, today } = input;
-  if (firstApplicationState(project, input.saved) !== 'can_start') return null;
+  if (firstApplicationState(project, input.saved, input.invoices) !== 'can_start') return null;
   const to = endOfMonth(today);
   if (!to) return null;
 
-  const rate = resolveRetainagePercent({ priorInvoices: [...input.invoices], project, payApps: [] });
+  const mine = input.saved.filter(a => a.projectId === project.id);
+  // No invoice exists on this job (see above), so the rate is the one typed on the job, else one an earlier saved
+  // application recorded (a record saved with no lines still carries its rate).
+  const rate = resolveRetainagePercent({ priorInvoices: [], project, payApps: mine });
   // An invoice that bills nothing: the seeder reads its lines (none), and takes
   // every date and the rate from the options below, not from it.
   const nothingBilled = {
@@ -96,7 +110,8 @@ export function startFirstApplication(input: FirstApplicationInput): RollForward
   const approvedThroughPeriod = splitApprovedCOsByPeriod([...input.changeOrders], to).inPeriod;
 
   const app = seedAIAPayApplicationFromInvoice(nothingBilled, project, approvedThroughPeriod, input.branding, {
-    applicationNumber: 1,
+    // 1 on a clean job. A record saved with no lines still used its number, so the sequence goes on from it.
+    applicationNumber: nextApplicationNumber(mine, undefined),
     retainagePercent: rate.percent,
     contract: input.contract,
     periodTo: to,

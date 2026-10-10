@@ -1594,7 +1594,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'P1 the invoice behind the period matches the pay application', what: 'the invoice does not say when the pay application differs', plant: sub('app/invoice.tsx', '{SUGGEST_COPY.differsOnInvoice(', '{String(') },
   { rule: 'P1 the invoice behind the period matches the pay application', what: 'the invoice editor hides that the terms are unconfirmed', plant: sub('app/invoice.tsx', ": existingInvoice && existingInvoice.status === 'draft' && !existingInvoice.dueDate ? 'unconfirmed' : null)", ': null)') },
 
-  { rule: 'F1 the footer adds up after a certificate cut', what: 'less previous certificates is left off the footer', plant: sub(BTM, '{`-${formatMoney(app.lessPreviousCertificates, 2)}`}', '{null}') },
+  { rule: 'F1 the footer adds up after a certificate cut', what: 'less previous certificates is left off the footer', plant: sub(BTM, '{app.lessPreviousCertificates === 0 ? formatMoney(0, 2) : `-${formatMoney(app.lessPreviousCertificates, 2)}`}', '{null}') },
   { rule: 'F1 the footer adds up after a certificate cut', what: 'completed to date is left off the footer', plant: sub(BTM, '{formatMoney(totals.totalCompletedAndStored, 2)}', '{null}') },
   { rule: 'F1 the footer adds up after a certificate cut', what: 'line 7 goes back to what was applied for', plant: sub(RF, 'lessPreviousCertificates: seedLessPreviousCertificates(prior),', 'lessPreviousCertificates: roundCents(prior.totals?.totalEarnedLessRetainage ?? 0),') },
 

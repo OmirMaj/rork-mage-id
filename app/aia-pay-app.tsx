@@ -1664,8 +1664,10 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   // sample either way.)
   const canBillThisMonth = easy && !practiceProjectId && savedForProject.some(a => a.lines.length > 0);
   /** No application yet on this job: can the first one start on the Bill This Month screen (from the linked estimate)? */
-  const firstState = project ? firstApplicationState(project, savedForProject) : 'no_estimate';
-  const canStartFirst = easy && !practiceProjectId && firstState === 'can_start';
+  const firstState = project ? firstApplicationState(project, savedForProject, invoices) : 'no_estimate';
+  // Not until the contract read has answered: line 1 is the SIGNED contract's figure when there is one, and a
+  // first application opened before the answer would be saved with the estimate's.
+  const canStartFirst = easy && !practiceProjectId && contractSettled && firstState === 'can_start';
   /** This screen shows the newest saved application: the next one starts from it. */
   const showsLatestSaved = !!savedForThisInvoice
     && savedForProject.every(a => a.applicationNumber <= savedForThisInvoice.applicationNumber);
@@ -2082,8 +2084,22 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             </View>
           ) : easy && !practiceProjectId && firstState === 'no_estimate' ? (
             <Text style={[styles.periodPickRowMeta, styles.billThisMonthEntryInPicker]} testID="aia-first-application-no-estimate">{SUGGEST_COPY.firstNoEstimateHint}</Text>
+          ) : easy && !practiceProjectId && firstState === 'has_invoices' && progressInvoices.length === 0 ? (
+            <Text style={[styles.periodPickRowMeta, styles.billThisMonthEntryInPicker]} testID="aia-first-application-has-invoices">{SUGGEST_COPY.firstHasInvoicesHint}</Text>
           ) : null}
-          {progressInvoices.length === 0 ? (
+          {canStartFirst ? (
+            // The first application can start above, so the old "no progress invoice yet" card would contradict it.
+            // The invoice path stays one tap away.
+            <Button
+              label={SUGGEST_COPY.firstInvoiceInstead}
+              variant="secondary"
+              onPress={() => router.push({
+                pathname: '/bill-from-estimate' as never,
+                params: { projectId: project.id, type: 'progress' } as never,
+              })}
+              testID="aia-first-invoice-instead"
+            />
+          ) : progressInvoices.length === 0 ? (
             // The blocked case, said plainly: this is not "nothing here", it is
             // "there is no period to certify". A G702 is a certificate ABOUT a
             // progress invoice — it cannot be the first document on a job.

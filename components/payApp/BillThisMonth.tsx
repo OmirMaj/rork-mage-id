@@ -108,7 +108,7 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
       ?? (settings?.branding ? startFirstApplication({
         project, saved, changeOrders, contract, today,
         branding: settings.branding,
-        invoices: invoices.filter(i => i.projectId === project.id),
+        invoices,
       }) : null);
   }
   const roll = rollRef.current;
@@ -349,8 +349,9 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
       <View style={styles.screen} testID="btm-none">
         {header}
         <View style={styles.body}>
-          <Text style={styles.headerName}>{SUGGEST_COPY.noPriorTitle}</Text>
-          <Text style={styles.lead}>{SUGGEST_COPY.noPriorBody}</Text>
+          {/* With no earlier application the screen was opened to start a first one, and that was refused. */}
+          <Text style={styles.headerName}>{saved.some(a => a.lines.length > 0) ? SUGGEST_COPY.noPriorTitle : SUGGEST_COPY.firstCannotStartTitle}</Text>
+          <Text style={styles.lead}>{saved.some(a => a.lines.length > 0) ? SUGGEST_COPY.noPriorBody : SUGGEST_COPY.firstCannotStartBody}</Text>
           <Button label={REJECTION_COPY.back} onPress={onClose} variant="secondary" />
         </View>
       </View>
@@ -486,7 +487,7 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>{SUGGEST_COPY.retainageToDate}</Text>
-            <Text style={styles.totalValue} testID="btm-retainage-to-date">{`-${formatMoney(totals.totalRetainage, 2)}`}</Text>
+            <Text style={styles.totalValue} testID="btm-retainage-to-date">{totals.totalRetainage === 0 ? formatMoney(0, 2) : `-${formatMoney(totals.totalRetainage, 2)}`}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>{SUGGEST_COPY.completedLessRetainage}</Text>
@@ -494,7 +495,7 @@ export function BillThisMonth({ project, saved, contract, onClose, onSaved }: Bi
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>{SUGGEST_COPY.lessPreviousCertificates}</Text>
-            <Text style={styles.totalValue} testID="btm-less-previous">{`-${formatMoney(app.lessPreviousCertificates, 2)}`}</Text>
+            <Text style={styles.totalValue} testID="btm-less-previous">{app.lessPreviousCertificates === 0 ? formatMoney(0, 2) : `-${formatMoney(app.lessPreviousCertificates, 2)}`}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.dueLabel}>{SUGGEST_COPY.paymentDue}</Text>
