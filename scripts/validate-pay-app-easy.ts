@@ -35,7 +35,7 @@
 //       0.02
 //   R2  the check never blocks and never gives a verdict: the result has no
 //       field to gate on, Continue Anyway is never disabled, the lead sentence
-//       and the "Not Checked By MAGE ID" block are always drawn, a rule that
+//       and the "Not Checked by MAGE ID" block are always drawn, a rule that
 //       did not run is never listed as having flagged nothing
 //   R3  the certify sheet opens only after the check was shown for the figures
 //       on screen
@@ -551,8 +551,8 @@ const RULES: Record<string, Rule> = {
     const easyPath = a < 0 || b < 0 ? '' : screen.slice(a, b);
     if (!easyPath) bad.push('app/aia-pay-app.tsx: the suggest path of Sync From Schedule is gone');
     else {
-      if (/applyPercentToLine|updateLine|setApp\(|legacyEvmMetrics/.test(easyPath)) bad.push('app/aia-pay-app.tsx: Suggest From Schedule writes a line or reads the project average');
-      if (!/setSuggestions\(found\)/.test(easyPath) || !/return;\s*\}\s*$/.test(easyPath)) bad.push('app/aia-pay-app.tsx: Suggest From Schedule does not stop at showing suggestions');
+      if (/applyPercentToLine|updateLine|setApp\(|legacyEvmMetrics/.test(easyPath)) bad.push('app/aia-pay-app.tsx: Suggest from Schedule writes a line or reads the project average');
+      if (!/setSuggestions\(found\)/.test(easyPath) || !/return;\s*\}\s*$/.test(easyPath)) bad.push('app/aia-pay-app.tsx: Suggest from Schedule does not stop at showing suggestions');
     }
     if ((screen.match(/acceptSuggestion\(/g) ?? []).length !== 1 || !/const acceptLineSuggestion = useCallback\(\(lineId: string\) => \{[\s\S]{0,400}acceptSuggestion\(line, r\.suggestion\)/.test(screen)) bad.push('app/aia-pay-app.tsx: acceptSuggestion is called outside the Accept tap');
     return bad;
@@ -589,7 +589,7 @@ const RULES: Record<string, Rule> = {
     const f = cleanCheck();
     f.app.lines[0].thisPeriod = 600;
     const over = runRejectionCheck(f).flagged[0];
-    if (!over || over.lineId !== 'sov_m1' || over.action?.label !== 'Go To Line 1') bad.push('a line finding does not point at its line');
+    if (!over || over.lineId !== 'sov_m1' || over.action?.label !== 'Go to Line 1') bad.push('a line finding does not point at its line');
     else if (over.detail !== 'Billed to date $1,100.00 against $1,000.00. Over by $100.00.') bad.push(`money is not shown with commas and two decimals: "${over.detail}"`);
     return bad;
   },
@@ -602,9 +602,9 @@ const RULES: Record<string, Rule> = {
     if (!same(Object.keys(clean).sort(), ['flagged', 'notRun', 'ranClean'])) bad.push(`the result carries a field to gate on: ${Object.keys(clean).join(', ')}`);
     for (const c of clean.ranClean) if (typeof c.label !== 'string' || !c.label || Object.keys(c).sort().join() !== 'id,label') bad.push(`a clean row carries more than its label: ${JSON.stringify(c)}`);
     if (REJECTION_COPY.nothingFlagged !== 'Nothing flagged') bad.push('a clean row does not read "Nothing flagged"');
-    if (REJECTION_COPY.title !== 'Rejection Check' || REJECTION_COPY.subtitle !== 'Things A Reviewer May Question') bad.push('the title or subtitle changed');
+    if (REJECTION_COPY.title !== 'Rejection Check' || REJECTION_COPY.subtitle !== 'Things a Reviewer May Question') bad.push('the title or subtitle changed');
     if (REJECTION_COPY.lead !== 'Sums and comparisons run on your own numbers. They do not say this application is correct or that it will be accepted.') bad.push('the lead sentence changed');
-    if (REJECTION_COPY.notCheckedLabel !== 'Not checked by MAGE ID:' || REJECTION_COPY.notCheckedBody !== 'what your contract allows, whether the work is done, lien and notice deadlines, which waiver form applies. Ask your attorney.') bad.push('the Not Checked By MAGE ID block changed');
+    if (REJECTION_COPY.notCheckedLabel !== 'Not checked by MAGE ID:' || REJECTION_COPY.notCheckedBody !== 'what your contract allows, whether the work is done, lien and notice deadlines, which waiver form applies. Ask your attorney.') bad.push('the Not Checked by MAGE ID block changed');
     if (REJECTION_COPY.continueAnyway !== 'Continue Anyway') bad.push('Continue Anyway changed');
     // The three Phase 2 rules are named as not run, and a rule that did not run is never clean.
     const notRun = new Set<string>(clean.notRun.map((n: { id: string }) => n.id));
@@ -631,11 +631,11 @@ const RULES: Record<string, Rule> = {
     if (lead < 0 || heading < 0 || lead > heading) bad.push('the lead sentence is not drawn above the list');
     else if (/flagged\.length\s*[>=!]/.test(sheet.slice(sheet.indexOf('{result ? ('), lead))) bad.push('the lead sentence depends on what was flagged');
     const nc = sheet.indexOf('{REJECTION_COPY.notCheckedLabel}');
-    if (nc < 0 || sheet.indexOf('REJECTION_COPY.notCheckedBody') < nc) bad.push('the Not Checked By MAGE ID block is not drawn');
+    if (nc < 0 || sheet.indexOf('REJECTION_COPY.notCheckedBody') < nc) bad.push('the Not Checked by MAGE ID block is not drawn');
     else {
       const open = sheet.lastIndexOf('<Text style={styles.notChecked}', nc);
       const cond = sheet.slice(sheet.lastIndexOf(') : null}', open), open);
-      if (open < 0 || /\? \(\s*$/.test(cond.trimEnd())) bad.push('the Not Checked By MAGE ID block is conditional');
+      if (open < 0 || /\? \(\s*$/.test(cond.trimEnd())) bad.push('the Not Checked by MAGE ID block is conditional');
     }
     if (/\bCheck\b[^'"]*from 'lucide-react-native'|CheckCircle|CircleCheck|BadgeCheck|ShieldCheck|t\.success|colors\.success|✓|✔/.test(sheet + stripComments(w['components/payApp/styles.ts'] ?? ''))) bad.push('the check draws a tick or a pass colour');
     if (/score|percentPassed|passRate/i.test(sheet)) bad.push('the check shows a score');
@@ -705,7 +705,7 @@ const RULES: Record<string, Rule> = {
     // Plus every sentence the fixtures actually produce.
     for (const c of CHECK_CASES) {
       const f = cleanCheck(); c.edit(f);
-      for (const x of runRejectionCheck(f).flagged) rejection.push({ id: x.id, text: x.title }, { id: x.id, text: x.detail });
+      for (const x of runRejectionCheck(f).flagged) rejection.push({ id: x.id, text: x.summary }, { id: x.id, text: x.detail });
     }
     for (const { id, text } of rejection) {
       for (const word of REJECTION_BANNED_WORDS as string[]) if (has(text, word) && !allowed(id, word)) bad.push(`Rejection Check (${id}): "${word}" in "${text}"`);
@@ -743,7 +743,7 @@ const RULES: Record<string, Rule> = {
   'X1 export and round trip': (w) => {
     const bad: string[] = [];
     const S = loader(w)('@/utils/payApp/sovSpreadsheet');
-    const want = ['Item No.', 'Description Of Work', 'Scheduled Value', 'From Previous Application', 'This Period', 'Materials Presently Stored', 'Total Completed And Stored To Date', 'Percent', 'Balance To Finish', 'Retainage'];
+    const want = ['Item No.', 'Description of Work', 'Scheduled Value', 'From Previous Application', 'This Period', 'Materials Presently Stored', 'Total Completed and Stored to Date', 'Percent', 'Balance to Finish', 'Retainage'];
     if (!same(S.SOV_EXPORT_HEADERS, want)) bad.push('the export is not in the standard column order A to J');
     const f = cleanCheck();
     const rows: string[][] = S.sovExportRows(f.app);
@@ -787,7 +787,7 @@ const RULES: Record<string, Rule> = {
     const bad: string[] = [];
     const S = loader(w)('@/utils/payApp/sovSpreadsheet');
     const text = [
-      'Item No.,Description Of Work,Scheduled Value,From Previous Application',
+      'Item No.,Description of Work,Scheduled Value,From Previous Application',
       '1,Framing,"1,200.00",100',
       '2,Tile,TBD,0',
       ',,,',
@@ -814,8 +814,8 @@ const RULES: Record<string, Rule> = {
     // No header: by position. Tabs: tab-separated.
     const pos = S.detectSovColumns(S.parseDelimited('1\tFraming\t1200\n2\tTile\t800'));
     if (pos.hasHeader || pos.mapping.itemNo !== 0 || pos.mapping.description !== 1 || pos.mapping.scheduled !== 2) bad.push(`positional detection: ${JSON.stringify(pos)}`);
-    // "Total Completed And Stored To Date" is never taken for the stored column.
-    const full = S.detectSovColumns([['Item No.', 'Description Of Work', 'Scheduled Value', 'From Previous Application', 'This Period', 'Total Completed And Stored To Date', 'Materials Presently Stored', 'Balance To Finish', 'Retainage']]);
+    // "Total Completed and Stored to Date" is never taken for the stored column.
+    const full = S.detectSovColumns([['Item No.', 'Description of Work', 'Scheduled Value', 'From Previous Application', 'This Period', 'Total Completed and Stored to Date', 'Materials Presently Stored', 'Balance to Finish', 'Retainage']]);
     if (full.mapping.stored !== 6 || full.mapping.thisPeriod !== 4) bad.push(`computed columns are read as input: ${JSON.stringify(full.mapping)}`);
     // Onto an application WITH money: D, E, F and every line stay.
     const f = cleanCheck();
@@ -1024,8 +1024,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'S4 never counted until accepted', what: 'the footer adds the open suggestions to the work total', plant: sub(BTM, 'const workThis = roundCents(app.lines.reduce((s, l) => s + l.thisPeriod, 0));', 'const workThis = roundCents(app.lines.reduce((s, l) => s + l.thisPeriod, 0) + tally.openAmount);') },
   { rule: 'S4 never counted until accepted', what: 'Accept All skips the confirm', plant: sub(BTM, 'showAlert(SUGGEST_COPY.acceptAllTitle, SUGGEST_COPY.acceptAllBody(tally.open, tally.openAmount), [', 'void ([') },
   { rule: 'S4 never counted until accepted', what: 'the footer stops saying what is not in the total', plant: sub(BTM, '{tally.open > 0 ? (', '{tally.open > 99 ? (') },
-  { rule: 'S4 never counted until accepted', what: 'Suggest From Schedule applies each suggestion at once', plant: sub(SCREEN, '      setSuggestions(found);\n', "      setSuggestions(found);\n      Object.values(found).forEach((r) => { if (r.kind === 'suggest') applyPercentToLine(r.suggestion.lineId, r.suggestion.percent); });\n") },
-  { rule: 'S4 never counted until accepted', what: 'Suggest From Schedule falls through to the old project average', plant: sub(SCREEN, "        showAlert(SUGGEST_COPY.noneFoundTitle, SUGGEST_COPY.noneFoundBody);\n      }\n      return;\n    }", "        showAlert(SUGGEST_COPY.noneFoundTitle, SUGGEST_COPY.noneFoundBody);\n      }\n    }") },
+  { rule: 'S4 never counted until accepted', what: 'Suggest from Schedule applies each suggestion at once', plant: sub(SCREEN, '      setSuggestions(found);\n', "      setSuggestions(found);\n      Object.values(found).forEach((r) => { if (r.kind === 'suggest') applyPercentToLine(r.suggestion.lineId, r.suggestion.percent); });\n") },
+  { rule: 'S4 never counted until accepted', what: 'Suggest from Schedule falls through to the old project average', plant: sub(SCREEN, "        showAlert(SUGGEST_COPY.noneFoundTitle, SUGGEST_COPY.noneFoundBody);\n      }\n      return;\n    }", "        showAlert(SUGGEST_COPY.noneFoundTitle, SUGGEST_COPY.noneFoundBody);\n      }\n    }") },
   { rule: 'S4 never counted until accepted', what: 'accepting one line\'s suggestion lands on any line', plant: sub(SP, '  if (s.lineId !== line.id) return line;', '') },
   { rule: 'S4 never counted until accepted', what: 'an untouched suggestion is counted as accepted', plant: sub(SP, "    if ((states[lineId] ?? 'untouched') !== 'untouched') continue;", "    if ((states[lineId] ?? 'accepted') !== 'untouched') continue;") },
   { rule: 'S4 never counted until accepted', what: 'the invoice behind the period bills lines with nothing entered', plant: sub('utils/payApp/periodInvoice.ts', 'return lines.filter(l => roundCents(l.thisPeriod) > 0);', 'return [...lines];') },
@@ -1041,7 +1041,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'R2 the check never blocks and gives no verdict', what: 'the result grows an "ok" field', plant: sub(RC, 'const result: CheckResult = { flagged: [], ranClean: [], notRun: [] };', 'const result: CheckResult = { flagged: [], ranClean: [], notRun: [], ok: true } as CheckResult;') },
   { rule: 'R2 the check never blocks and gives no verdict', what: 'Continue Anyway is disabled while anything is flagged', plant: sub(SHEET, "              variant={fix && onGoToLine ? 'secondary' : 'primary'}", "              variant={fix && onGoToLine ? 'secondary' : 'primary'}\n              disabled={!!result && result.flagged.length > 0}") },
   { rule: 'R2 the check never blocks and gives no verdict', what: 'the lead sentence is dropped', plant: sub(SHEET, /<Text style=\{styles\.lead\} testID=\{`\$\{testID\}-lead`\}>\{REJECTION_COPY\.lead\}<\/Text>/, '') },
-  { rule: 'R2 the check never blocks and gives no verdict', what: 'the Not Checked By MAGE ID block is dropped', plant: sub(SHEET, /<Text style=\{styles\.notChecked\}[\s\S]*?<\/Text>[\s\S]*?<\/Text>/, '') },
+  { rule: 'R2 the check never blocks and gives no verdict', what: 'the Not Checked by MAGE ID block is dropped', plant: sub(SHEET, /<Text style=\{styles\.notChecked\}[\s\S]*?<\/Text>[\s\S]*?<\/Text>/, '') },
   { rule: 'R2 the check never blocks and gives no verdict', what: 'the Not Checked block shows only when something is flagged', plant: sub(SHEET, '          <Text style={styles.notChecked} testID={`${testID}-not-checked`}>', '          {result.flagged.length > 0 ? (\n          <Text style={styles.notChecked} testID={`${testID}-not-checked`}>') },
   { rule: 'R2 the check never blocks and gives no verdict', what: 'a clean row says "Passed"', plant: sub('utils/payApp/rejectionCopy.ts', "nothingFlagged: 'Nothing flagged',", "nothingFlagged: 'Passed',") },
   { rule: 'R2 the check never blocks and gives no verdict', what: 'the lead promises the application is correct', plant: sub('utils/payApp/rejectionCopy.ts', 'They do not say this application is correct or that it will be accepted.', 'This application is correct.') },
@@ -1056,7 +1056,7 @@ const MUTATIONS: Mutation[] = [
   // Wording.
   { rule: 'W1 wording', what: 'a suggestion says the percent is verified', plant: sub('utils/payApp/suggestCopy.ts', '`Schedule: ${name} is marked ${fmtPct(progress)}%.`', '`Schedule: ${name} is verified at ${fmtPct(progress)}%.`') },
   { rule: 'W1 wording', what: 'a clean check label says compliant', plant: sub('utils/payApp/rejectionCopy.ts', "retainage: (rate?: number) => (rate != null ? `Retainage equals your ${fmtPct(rate)}% rate` : 'Lines carry one retainage rate'),", "retainage: (rate?: number) => (rate != null ? `Retainage is compliant at ${fmtPct(rate)}%` : 'Lines carry one retainage rate'),") },
-  { rule: 'W1 wording', what: 'a finding says what the reviewer will do', plant: sub('utils/payApp/rejectionCopy.ts', "title: 'Total billed is over the contract sum to date',", "title: 'This will not be approved',") },
+  { rule: 'W1 wording', what: 'a finding says what the reviewer will do', plant: sub('utils/payApp/rejectionCopy.ts', "summary: 'Total billed is over the contract sum to date',", "summary: 'This will not be approved',") },
   { rule: 'W1 wording', what: 'the heading reads "Ready To Submit"', plant: sub('utils/payApp/rejectionCopy.ts', "(n === 0 ? 'Nothing Flagged' :", "(n === 0 ? 'Ready To Submit' :") },
   { rule: 'W1 wording', what: 'a date is called a deadline', plant: sub('utils/payApp/suggestCopy.ts', "periodToDefault: 'Period to is set to the end of the month. Change it if your period ends on another day.',", "periodToDefault: 'Your deadline to bill is the end of the month.',") },
   { rule: 'W1 wording', what: 'the export says it fills the official form', plant: sub(SS, "claim: 'Export your figures to type or paste into the software your owner requires.',", "claim: 'Fills the official form for you.',") },
@@ -1064,7 +1064,7 @@ const MUTATIONS: Mutation[] = [
   { rule: 'W1 wording', what: 'money without cents', plant: sub('utils/payApp/rejectionCopy.ts', 'const money = (n: number): string => formatMoney(n, 2);', 'const money = (n: number): string => formatMoney(n, 0);') },
 
   // Spreadsheet.
-  { rule: 'X1 export and round trip', what: 'a form name in the header row', plant: sub(SS, "  'Item No.',\n  'Description Of Work',", "  'G703 Item No.',\n  'Description Of Work',") },
+  { rule: 'X1 export and round trip', what: 'a form name in the header row', plant: sub(SS, "  'Item No.',\n  'Description of Work',", "  'G703 Item No.',\n  'Description of Work',") },
   { rule: 'X1 export and round trip', what: 'the columns are out of the standard order', plant: sub(SS, "      num2(l.fromPreviousApp),\n      num2(l.thisPeriod),", "      num2(l.thisPeriod),\n      num2(l.fromPreviousApp),") },
   { rule: 'X1 export and round trip', what: 'cells are written without quoting', plant: sub(SS, "    ? `\"${cell.replace(/\"/g, '\"\"')}\"`\n    : cell;", '    ? cell\n    : cell;') },
   { rule: 'X1 export and round trip', what: 'thousands separators in the numbers', plant: sub(SS, "(Number.isFinite(n) ? roundCents(n).toFixed(2) : '0.00')", "(Number.isFinite(n) ? roundCents(n).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00')") },

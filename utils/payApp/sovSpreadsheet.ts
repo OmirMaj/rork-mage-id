@@ -32,14 +32,14 @@ import { parseGridNumber } from '@/utils/dataTable';
 /** Column headers, in the standard continuation-sheet order A to J. MAGE ID's own words. */
 export const SOV_EXPORT_HEADERS: readonly string[] = [
   'Item No.',
-  'Description Of Work',
+  'Description of Work',
   'Scheduled Value',
   'From Previous Application',
   'This Period',
   'Materials Presently Stored',
-  'Total Completed And Stored To Date',
+  'Total Completed and Stored to Date',
   'Percent',
-  'Balance To Finish',
+  'Balance to Finish',
   'Retainage',
 ];
 /** A to F: the columns a person types. G to J are sums the receiving software works out itself. */
@@ -47,7 +47,7 @@ export const SOV_ENTRY_COLUMN_COUNT = 6;
 
 export const SOV_EXPORT_COPY = {
   claim: 'Export your figures to type or paste into the software your owner requires.',
-  copyForSpreadsheet: 'Copy For Spreadsheet',
+  copyForSpreadsheet: 'Copy for Spreadsheet',
   exportCsv: 'Export CSV',
   copyCover: 'Copy Cover Figures',
   entryOnly: 'Entry Columns Only',
@@ -116,14 +116,14 @@ export function coverFigureRows(app: AIAPayApplication): string[][] {
   const t = computeAIATotals(app);
   return [
     ['1. Original Contract Sum', num2(app.originalContractSum)],
-    ['2. Net Change By Change Orders', num2(app.netChangeByCO)],
-    ['3. Contract Sum To Date', num2(app.contractSumToDate)],
-    ['4. Total Completed And Stored To Date', num2(t.totalCompletedAndStored)],
+    ['2. Net Change by Change Orders', num2(app.netChangeByCO)],
+    ['3. Contract Sum to Date', num2(app.contractSumToDate)],
+    ['4. Total Completed and Stored to Date', num2(t.totalCompletedAndStored)],
     ['5. Retainage', num2(t.totalRetainage)],
     ['6. Total Earned Less Retainage', num2(t.totalEarnedLessRetainage)],
     ['7. Less Previous Certificates', num2(app.lessPreviousCertificates)],
     ['8. Current Payment Due', num2(t.currentPaymentDue)],
-    ['9. Balance To Finish, Including Retainage', num2(t.balanceToFinish)],
+    ['9. Balance to Finish, Including Retainage', num2(t.balanceToFinish)],
   ];
 }
 
@@ -176,7 +176,7 @@ export type SovColumnMapping = Partial<Record<SovField, number>>;
 
 export const SOV_FIELD_LABEL: Record<SovField, string> = {
   itemNo: 'Item No.',
-  description: 'Description Of Work',
+  description: 'Description of Work',
   scheduled: 'Scheduled Value',
   previous: 'From Previous Application',
   thisPeriod: 'This Period',
@@ -213,8 +213,8 @@ export function detectSovColumns(rows: readonly (readonly string[])[]): SovColum
   if (looksLikeHeader) {
     const taken = new Set<number>();
     for (const [field, re] of HEADER_WORDS) {
-      // "Total Completed And Stored To Date" is not the stored column, and
-      // "Balance To Finish" is not anything a person enters.
+      // "Total Completed and Stored to Date" is not the stored column, and
+      // "Balance to Finish" is not anything a person enters.
       const idx = first.findIndex((c, i) => !taken.has(i) && !COMPUTED_HEADER.test(c) && re.test(c));
       if (idx >= 0) { mapping[field] = idx; taken.add(idx); }
     }
@@ -256,16 +256,16 @@ export interface SovImportPlan {
 }
 
 export const SOV_IMPORT_COPY = {
-  title: 'Import Schedule Of Values',
-  open: 'Import Schedule Of Values',
+  title: 'Import Schedule of Values',
+  open: 'Import Schedule of Values',
   pasteHint: 'Paste rows copied from a spreadsheet, or pick a .csv or .tsv file. Nothing changes until you confirm.',
   pasteLabel: 'Pasted Rows',
-  pickFile: 'Pick A File',
+  pickFile: 'Pick a File',
   readRows: 'Read Rows',
   mappingHeading: 'Columns',
   mappingHint: 'These are the first rows under each column the app picked. Change a column if it picked wrong.',
   notMapped: 'Not Used',
-  firstRowIsHeader: 'First Row Is A Header',
+  firstRowIsHeader: 'First Row Is a Header',
   summaryHeading: 'What Will Be Imported',
   needColumns: 'Pick the description and scheduled value columns to continue.',
   rowsLine: (n: number) => `${n} ${n === 1 ? 'row' : 'rows'} read`,
@@ -276,14 +276,14 @@ export const SOV_IMPORT_COPY = {
   badScheduled: (cell: string) => (cell.trim() ? `"${cell}" is not an amount.` : 'The scheduled value is blank.'),
   badMoney: (label: string, cell: string) => `${label} "${cell}" is not an amount.`,
   sumLabel: 'Scheduled Values Add Up To',
-  contractLabel: 'Contract Sum To Date',
+  contractLabel: 'Contract Sum to Date',
   differenceLabel: 'Difference',
   noDifference: 'No difference',
-  replaceAll: 'Replace The Schedule Of Values',
+  replaceAll: 'Replace the Schedule of Values',
   replaceAllHint: 'No line has money on it yet, so the imported rows become the schedule of values.',
-  updateAndAdd: 'Update Matching Lines, Add The Rest',
+  updateAndAdd: 'Update Matching Lines, Add the Rest',
   updateAndAddHint: 'Lines with the same item number get the imported description and scheduled value. Rows with a new item number are added at zero. Billed amounts stay as they are and no line is removed.',
-  appendAll: 'Add All As New Lines',
+  appendAll: 'Add All as New Lines',
   appendAllHint: 'Every imported row is added as a new line at zero. Nothing on the lines you have changes.',
   cancel: 'Cancel',
   back: 'Back',
@@ -291,7 +291,7 @@ export const SOV_IMPORT_COPY = {
   emptyBody: 'No rows were found. Paste rows from a spreadsheet, or pick a .csv or .tsv file.',
   spreadsheetFileBody: 'That looks like a spreadsheet file. Save it as CSV first, or copy the cells and paste them here.',
   nothingToImport: 'No row can be imported. Check the columns above.',
-  doneTitle: 'Schedule Of Values Imported',
+  doneTitle: 'Schedule of Values Imported',
   doneBody: (updated: number, added: number) => {
     const parts: string[] = [];
     if (updated > 0) parts.push(`${updated} ${updated === 1 ? 'line' : 'lines'} updated`);

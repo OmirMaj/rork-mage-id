@@ -70,7 +70,7 @@ export function BillThisMonthLine({ line, result, state, onAccept, onPercent }: 
               keyboardType="decimal-pad"
               selectTextOnFocus
               placeholderTextColor={colors.textMuted}
-              accessibilityLabel={`Percent Complete For Item ${line.itemNo}`}
+              accessibilityLabel={`Percent Complete for Item ${line.itemNo}`}
               testID={`btm-pct-${line.id}`}
             />
             <Text style={styles.pctSign}>%</Text>

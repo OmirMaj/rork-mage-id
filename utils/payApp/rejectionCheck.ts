@@ -1,4 +1,4 @@
-// utils/payApp/rejectionCheck.ts — "Things A Reviewer May Question".
+// utils/payApp/rejectionCheck.ts — "Things a Reviewer May Question".
 //
 // Easier Pay Applications, Phase 1. Arithmetic and comparisons on the
 // contractor's OWN numbers, run before he certifies. Every rule is a sum, a
@@ -54,7 +54,7 @@ export interface CheckInput {
 }
 
 export interface CheckAction { kind: 'line'; lineId: string; itemNo: string; label: string }
-export interface CheckFinding { id: string; lineId?: string; title: string; detail: string; action?: CheckAction }
+export interface CheckFinding { id: string; lineId?: string; summary: string; detail: string; action?: CheckAction }
 export interface CheckResult {
   flagged: CheckFinding[];
   /** Ran and flagged nothing. Each row reads "Nothing flagged". */
@@ -68,9 +68,9 @@ interface Rule { id: string; label: string; run: () => Outcome }
 const G = (l: Pick<AIASOVLine, 'fromPreviousApp' | 'thisPeriod' | 'materialsPresentlyStored'>): number =>
   roundCents((l.fromPreviousApp || 0) + (l.thisPeriod || 0) + (l.materialsPresentlyStored || 0));
 
-function lineFinding(id: string, l: AIASOVLine, copy: { title: string; detail: string }): CheckFinding {
+function lineFinding(id: string, l: AIASOVLine, copy: { summary: string; detail: string }): CheckFinding {
   return {
-    id, lineId: l.id, title: copy.title, detail: copy.detail,
+    id, lineId: l.id, summary: copy.summary, detail: copy.detail,
     action: { kind: 'line', lineId: l.id, itemNo: l.itemNo, label: REJECTION_COPY.goToLine(l.itemNo) },
   };
 }

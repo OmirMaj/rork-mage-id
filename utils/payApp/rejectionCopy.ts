@@ -28,23 +28,23 @@ const money = (n: number): string => formatMoney(n, 2);
 
 export const REJECTION_COPY = {
   title: 'Rejection Check',
-  subtitle: 'Things A Reviewer May Question',
+  subtitle: 'Things a Reviewer May Question',
   /** Always shown, flagged or not. */
   lead: 'Sums and comparisons run on your own numbers. They do not say this application is correct or that it will be accepted.',
-  flaggedHeading: (n: number) => (n === 0 ? 'Nothing Flagged' : n === 1 ? '1 Thing To Look At' : `${n} Things To Look At`),
-  cleanHeading: (n: number) => (n === 1 ? '1 Check Ran And Flagged Nothing' : `${n} Checks Ran And Flagged Nothing`),
+  flaggedHeading: (n: number) => (n === 0 ? 'Nothing Flagged' : n === 1 ? '1 Thing to Look At' : `${n} Things to Look At`),
+  cleanHeading: (n: number) => (n === 1 ? '1 Check Ran and Flagged Nothing' : `${n} Checks Ran and Flagged Nothing`),
   notRunHeading: (n: number) => (n === 1 ? '1 Check Did Not Run' : `${n} Checks Did Not Run`),
   nothingFlagged: 'Nothing flagged',
   /** The fixed block. Always shown, word for word. */
-  notCheckedHeading: 'Not Checked By MAGE ID',
+  notCheckedHeading: 'Not Checked by MAGE ID',
   notCheckedLabel: 'Not checked by MAGE ID:',
   notCheckedBody: 'what your contract allows, whether the work is done, lien and notice deadlines, which waiver form applies. Ask your attorney.',
-  goToLine: (itemNo: string) => `Go To Line ${itemNo}`,
+  goToLine: (itemNo: string) => `Go to Line ${itemNo}`,
   fixLine: (itemNo: string) => `Fix Line ${itemNo}`,
   continueAnyway: 'Continue Anyway',
   back: 'Back',
   open: 'Rejection Check',
-  openA11y: 'Open The Rejection Check',
+  openA11y: 'Open the Rejection Check',
 } as const;
 
 /** Why a check did not run. */
@@ -87,119 +87,120 @@ export const CHECK_LABELS = {
 const lineName = (itemNo: string, description: string): string =>
   (description.trim() ? `Line ${itemNo}, ${description.trim()},` : `Line ${itemNo}`);
 
-/** The findings. Each returns the title and the detail of one flagged thing. */
+/** The findings. Each returns the summary and the detail of one flagged thing: sentences about his
+ *  numbers, in sentence case (they are not labels). */
 export const FINDING_COPY = {
   line_over_value: (itemNo: string, description: string, billed: number, scheduled: number, over: number) => ({
-    title: `${lineName(itemNo, description)} is billed past its scheduled value`,
+    summary: `${lineName(itemNo, description)} is billed past its scheduled value`,
     detail: `Billed to date ${money(billed)} against ${money(scheduled)}. Over by ${money(over)}.`,
   }),
   total_over_contract: (billed: number, contract: number, over: number) => ({
-    title: 'Total billed is over the contract sum to date',
+    summary: 'Total billed is over the contract sum to date',
     detail: `Total completed and stored is ${money(billed)}. Contract sum to date is ${money(contract)}. Over by ${money(over)}.`,
   }),
   sov_not_footing: (sum: number, contract: number, diff: number) => ({
-    title: 'The schedule of values does not add up to the contract sum',
+    summary: 'The schedule of values does not add up to the contract sum',
     detail: `The schedule of values adds up to ${money(sum)}. Contract sum to date is ${money(contract)}. They differ by ${money(Math.abs(diff))}.`,
   }),
   previous_mismatch: (itemNo: string, shown: number, n: number, ended: number) => ({
-    title: `Line ${itemNo}: previous work does not equal Application ${n}`,
+    summary: `Line ${itemNo}: previous work does not equal Application ${n}`,
     detail: `Previous work shows ${money(shown)}. Application ${n} ended at ${money(ended)}.`,
   }),
   previous_line_missing: (n: number, amount: number, description: string, itemNo: string) => ({
-    title: `A line billed on Application ${n} is not on this one`,
+    summary: `A line billed on Application ${n} is not on this one`,
     detail: `Application ${n} billed ${money(amount)} on ${description.trim() || `Item ${itemNo}`}. That line is not on this application.`,
   }),
   line7_mismatch: (shown: number, n: number, carries: number) => ({
-    title: `Less previous certificates does not equal Application ${n}`,
+    summary: `Less previous certificates does not equal Application ${n}`,
     detail: `Less previous certificates shows ${money(shown)}. Application ${n} carries ${money(carries)}.`,
   }),
   stored_in_previous: (itemNo: string, fell: number) => ({
-    title: `Line ${itemNo}: stored materials fell without the same work added`,
+    summary: `Line ${itemNo}: stored materials fell without the same work added`,
     detail: `Stored materials fell by ${money(fell)} and work this period did not rise by the same amount.`,
   }),
   went_backwards_negative: (itemNo: string, amount: number) => ({
-    title: `Line ${itemNo}: work this period is below zero`,
+    summary: `Line ${itemNo}: work this period is below zero`,
     detail: `Work this period shows ${money(amount)}.`,
   }),
   went_backwards_total: (itemNo: string, n: number, now: number, before: number) => ({
-    title: `Line ${itemNo}: total to date is lower than on Application ${n}`,
+    summary: `Line ${itemNo}: total to date is lower than on Application ${n}`,
     detail: `Total to date is ${money(now)}. Application ${n} showed ${money(before)}.`,
   }),
   retainage_rate: (count: number, rates: number[], stated: number, origin: string, stored: boolean) => ({
-    title: stored ? 'Stored material retainage differs from the rate on record' : 'Retainage differs from the rate on record',
+    summary: stored ? 'Stored material retainage differs from the rate on record' : 'Retainage differs from the rate on record',
     detail: `Retainage on ${count} ${count === 1 ? 'line' : 'lines'} is ${rates.map(r => `${fmtPct(r)}%`).join(', ')}. `
       + `The rate on this project is recorded as ${fmtPct(stated)}%${origin ? ` (${origin})` : ''}.`,
   }),
   retainage_mixed: (rates: number[]) => ({
-    title: 'Lines carry different retainage rates',
+    summary: 'Lines carry different retainage rates',
     detail: `Lines carry different retainage rates: ${rates.map(r => `${fmtPct(r)}%`).join(', ')}.`,
   }),
   co_billed_status: (itemNo: string, coNumber: number, status: string) => ({
-    title: `Line ${itemNo} bills a change order that is not approved in your log`,
+    summary: `Line ${itemNo} bills a change order that is not approved in your log`,
     detail: `Line ${itemNo} bills Change Order ${coNumber}. Its status is ${status}.`,
   }),
   co_billed_after_period: (itemNo: string, coNumber: number, approvedOn: string) => ({
-    title: `Line ${itemNo} bills a change order approved after this period`,
+    summary: `Line ${itemNo} bills a change order approved after this period`,
     detail: `Line ${itemNo} bills Change Order ${coNumber}. It was approved on ${longDay(approvedOn) || approvedOn}, after this period ends.`,
   }),
   co_billed_not_in_log: (itemNo: string) => ({
-    title: `Line ${itemNo} bills a change order that is not in your log`,
+    summary: `Line ${itemNo} bills a change order that is not in your log`,
     detail: `Line ${itemNo} is a change order line with money on it, and your change order log has no change order for it.`,
   }),
   co_approved_missing: (coNumber: number, amount: number) => ({
-    title: `Change Order ${coNumber} is approved and is not on the schedule of values`,
+    summary: `Change Order ${coNumber} is approved and is not on the schedule of values`,
     detail: `Change Order ${coNumber} for ${money(amount)} is approved and is not on the schedule of values.`,
   }),
   co_summary_mismatch: (shown: number, log: number) => ({
-    title: 'Net change by change orders does not equal your change order log',
+    summary: 'Net change by change orders does not equal your change order log',
     detail: `Net change by change orders shows ${money(shown)}. The change order summary adds up to ${money(log)}.`,
   }),
   contract_sum_math: (l1: number, l2: number, l3: number) => ({
-    title: 'Contract sum to date is not the original sum plus change orders',
+    summary: 'Contract sum to date is not the original sum plus change orders',
     detail: `Original contract sum ${money(l1)} plus change orders ${money(l2)} is ${money(l1 + l2)}. Contract sum to date shows ${money(l3)}.`,
   }),
   cover_vs_sheet: (field: string, cover: number, sheet: number) => ({
-    title: `The cover and the continuation sheet do not agree on ${field}`,
+    summary: `The cover and the continuation sheet do not agree on ${field}`,
     detail: `The cover shows ${money(cover)}. The lines add up to ${money(sheet)}.`,
   }),
   payment_not_positive: (due: number) => ({
-    title: 'Payment due is not above zero',
+    summary: 'Payment due is not above zero',
     detail: `Payment due on this application is ${money(due)}.`,
   }),
   dates_invalid: (field: string) => ({
-    title: `${field} is not a date the app can read`,
+    summary: `${field} is not a date the app can read`,
     detail: `${field} is not a date the app can read. Type it as year, month, day, like 2026-10-31.`,
   }),
   period_order: () => ({
-    title: 'Period from is after period to',
+    summary: 'Period from is after period to',
     detail: 'Period from is after period to.',
   }),
   period_overlap: (from: string, n: number, through: string) => ({
-    title: `This period starts before Application ${n} ended`,
+    summary: `This period starts before Application ${n} ended`,
     detail: `This period starts ${longDay(from)}. Application ${n} ran through ${longDay(through)}.`,
   }),
   period_gap: (days: number, n: number) => ({
-    title: `There is a gap after Application ${n}`,
+    summary: `There is a gap after Application ${n}`,
     detail: `There ${days === 1 ? 'is 1 day' : `are ${days} days`} between the end of Application ${n} and the start of this one.`,
   }),
   app_date_before_period_end: () => ({
-    title: 'The application date is before the period ends',
+    summary: 'The application date is before the period ends',
     detail: 'The application date is before the period ends.',
   }),
   number_duplicate: (n: number) => ({
-    title: `Application ${n} is used twice on this project`,
+    summary: `Application ${n} is used twice on this project`,
     detail: `This is Application ${n}. Another saved application on this project has the same number.`,
   }),
   number_sequence: (n: number, m: number) => ({
-    title: `Application ${n} does not follow ${m}`,
+    summary: `Application ${n} does not follow ${m}`,
     detail: `This is Application ${n}. The last one on this project is ${m}.`,
   }),
   number_first: (n: number) => ({
-    title: `Application ${n} has no earlier application`,
+    summary: `Application ${n} has no earlier application`,
     detail: `This is Application ${n}. No earlier application is saved on this project.`,
   }),
   nothing_billed: () => ({
-    title: 'Nothing is entered for this period',
+    summary: 'Nothing is entered for this period',
     detail: 'No work or stored materials are entered for this period.',
   }),
 } as const;
@@ -231,7 +232,7 @@ export function allRejectionCopy(): { id: string; text: string }[] {
     add(`label:${id}`, (fn as (a?: number) => string)(), (fn as (a?: number) => string)(3));
   }
   const F = FINDING_COPY;
-  const pair = (id: string, f: { title: string; detail: string }) => add(id, f.title, f.detail);
+  const pair = (id: string, f: { summary: string; detail: string }) => add(id, f.summary, f.detail);
   pair('line_over_value', F.line_over_value('9', 'Tile', 29120, 28000, 1120));
   pair('line_over_value', F.line_over_value('9', '', 29120, 28000, 1120));
   pair('total_over_contract', F.total_over_contract(101, 100, 1));

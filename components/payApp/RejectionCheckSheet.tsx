@@ -7,7 +7,7 @@
 //     the way to certify, and it is never disabled.
 //   • No tick, no score, no colour that reads as a pass. A check that found
 //     nothing says "Nothing flagged" in the muted ink.
-//   • The lead sentence and the "Not Checked By MAGE ID" block are drawn every
+//   • The lead sentence and the "Not Checked by MAGE ID" block are drawn every
 //     time, flagged or not.
 //   • The result is not saved and not printed.
 import React from 'react';
@@ -71,7 +71,7 @@ export function RejectionCheckSheet({ visible, result, onClose, onGoToLine, onCo
           <Text style={styles.heading}>{REJECTION_COPY.flaggedHeading(result.flagged.length)}</Text>
           {result.flagged.map((f, i) => (
             <View key={`${f.id}-${f.lineId ?? ''}-${i}`} style={styles.finding} testID={`${testID}-finding-${f.id}`}>
-              <Text style={styles.findingName}>{f.title}</Text>
+              <Text style={styles.findingName}>{f.summary}</Text>
               <Text style={styles.findingDetail}>{f.detail}</Text>
               {f.action && onGoToLine ? (
                 <Pressable

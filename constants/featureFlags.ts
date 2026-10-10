@@ -337,7 +337,7 @@ export const LIEN_CLOCK_ENABLED: boolean = false;
 // EASIER PAY APPLICATIONS, PHASE 1 (lane PAYAPP-1, 2026-10-09): Bill This
 // Month (last period rolls forward, each line shows a suggested percent with
 // its source, nothing counts until the contractor accepts or changes it), the
-// Rejection Check ("Things A Reviewer May Question", shown before certify,
+// Rejection Check ("Things a Reviewer May Question", shown before certify,
 // never blocks), spreadsheet import and export of the schedule of values, and
 // the lock at send when no pay link is made.
 //
