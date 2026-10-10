@@ -49,6 +49,19 @@ export function withSentLock<T extends { sentLockedAt?: string }>(rec: T, nowIso
   return { ...rec, sentLockedAt: nowIso };
 }
 
+/**
+ * Does the SERVER keep this record's row whatever the app does next? True for
+ * a record locked by the send, by a pay link or by a payment: the database
+ * refuses to delete it (20261014100000_aia_pay_app_delete_guard.sql). The
+ * save path asks this before its housekeeping delete of an older record of
+ * the same period, so it never sends a delete that will be refused and never
+ * drops from the device a record the server still holds.
+ */
+export function keepsItsServerRow(rec: { sentLockedAt?: string | null; payLinkUrl?: string | null; paidAt?: string | null; paymentPendingAt?: string | null } | null | undefined): boolean {
+  if (!rec) return false;
+  return payAppLock({ sentLockedAt: rec.sentLockedAt, payLinkUrl: rec.payLinkUrl, paidAt: rec.paidAt, pendingBankPayment: !!rec.paymentPendingAt }).locked;
+}
+
 // ── A Pay button, added later ───────────────────────────────────────────────
 // A record locked at send may have gone out with NO pay link (Stripe not set
 // up yet, or the link could not be made in time). The lock refuses a re-save,

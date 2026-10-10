@@ -16,7 +16,11 @@
 //      "a Stripe link was made"), touches no policy and no grant, deletes
 //      nothing, and its ONE write to existing rows sets updated_at to itself
 //      on rows that already carry the app's stamp;
-//   D. the app and the migration agree on where the sidecar stamp lives.
+//   D. the app and the migration agree on where the sidecar stamp lives;
+//   E. (20261014100000_aia_pay_app_delete_guard.sql, proved by
+//      scripts/pgq/aia-pay-app-delete-guard.mjs) a frozen row cannot be
+//      deleted by a client, a draft can, and the service role and a cascade
+//      still can.
 // Planted mutations: each line is broken once, in memory, and must go red.
 //
 // Run: bun run scripts/validate-pay-app-send-lock.ts
@@ -24,6 +28,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aiaRowToSaved, savedToAiaRow } from '../utils/projectContextPure';
+import { keepsItsServerRow } from '../utils/payApp/sendLock';
 import type { SavedAIAPayApp } from '../types';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -37,11 +42,15 @@ function ok(name: string, cond: boolean, detail = '') {
 const MIGRATION = 'supabase/migrations/20261014090000_aia_pay_app_send_lock.sql';
 const PRIOR = 'supabase/migrations/20260911090000_aia_certificate_response_writable.sql';
 const PROOF = 'scripts/pgq/aia-pay-app-send-lock.mjs';
+const GUARD = 'supabase/migrations/20261014100000_aia_pay_app_delete_guard.sql';
+const GUARD_PROOF = 'scripts/pgq/aia-pay-app-delete-guard.mjs';
+const QUEUE = 'utils/offlineQueue.ts';
+const CONTEXT = 'contexts/ProjectContext.tsx';
 const MAPPER = 'utils/projectContextPure.ts';
 const LOCK = 'utils/payApp/sendLock.ts';
 const BALANCE = 'supabase/functions/_shared/payLinkBalance.ts';
 type Files = Map<string, string>;
-const REAL: Files = new Map([MIGRATION, PRIOR, PROOF, MAPPER, LOCK, BALANCE].map(f => [f, read(f)]));
+const REAL: Files = new Map([MIGRATION, PRIOR, PROOF, MAPPER, LOCK, BALANCE, GUARD, GUARD_PROOF, QUEUE, CONTEXT].map(f => [f, read(f)]));
 
 /** SQL with `--` comments removed, so a rule cannot be satisfied by prose. */
 const sql = (s: string) => s.split('\n').map(l => l.replace(/--.*$/, '')).join('\n');
@@ -136,6 +145,44 @@ const RULES: Rule[] = [
     if ((proof.match(/^\s+case \d+: rep\(/gm) ?? []).length < 16) out.push('the PGlite proof lost planted mutations');
     return out;
   } },
+  { name: 'E. a frozen row cannot be deleted by a client; a draft, the service role and a cascade are not stopped', run: (f) => {
+    const out: string[] = [];
+    const src = sql(f.get(GUARD)!);
+    const body = fnBody(f.get(GUARD)!, 'aia_pay_app_guard_frozen_delete');
+    if (!body) return ['the delete guard function was not found'];
+    if (!/^\s*begin\s+if \(old\.certified_at is not null or old\.sent_locked_at is not null\)\s+and current_user not in \('service_role', 'postgres', 'supabase_admin'\) then\s+raise exception/.test(body)) out.push('the guard is not the FIRST thing the function does, or does not key on (pay link OR send stamp) AND "not the server" as an allow-list');
+    if (/'authenticated'|'anon'/.test(body)) out.push('the guard names a client role (a deny-list): a role made later would pass');
+    if ((body.match(/\breturn\b/g) ?? []).length !== 1) out.push('the function returns somewhere other than its last line');
+    const count = (re: RegExp) => (src.match(re) ?? []).length;
+    if (count(/create or replace function/g) !== 1 || count(/create trigger/g) !== 1 || count(/drop trigger/g) !== 1 || count(/drop function/g) !== 0) out.push('the file defines or drops more than the one function and the one trigger');
+    if (src.indexOf('drop trigger') > src.indexOf('create trigger')) out.push('the trigger is dropped after it is created');
+    if (!/\$verify\$;\s*$/.test(src)) out.push('something runs after the self-check');
+    if (!/tgtype = 11 and tgenabled = 'O'/.test(src) || !/relowner::regrole::text[^;]*not in \('postgres', 'supabase_admin', 'service_role'\) then\s+raise exception/.test(src) || !/has_table_privilege\('authenticated', 'public\.aia_pay_apps', 'TRUNCATE'\)\s+or has_table_privilege\('anon', 'public\.aia_pay_apps', 'TRUNCATE'\) then\s+raise exception/.test(src)) out.push('the self-check does not hold the trigger enabled, the owner not a client role, and TRUNCATE not held by a client');
+    if (!/end if;\s+return old;\s+end\s*$/.test(body)) out.push('a delete that is allowed is not let through (BEFORE DELETE must return old)');
+    if (!/using errcode = 'check_violation'/.test(body)) out.push('the refusal is not a check_violation');
+    const msg = body.match(/raise exception\s+'([^']*)'/)?.[1] ?? '';
+    if (!/violates/.test(msg) || /foreign key/.test(msg)) out.push('the refusal does not read as final to the offline queue (it would be retried)');
+    if (!/\(m\.includes\('violates'\) && !m\.includes\('foreign key'\)\)/.test(f.get(QUEUE)!)) out.push('utils/offlineQueue.ts no longer reads "violates" as final: re-check the refusal wording');
+    if (!/function public\.aia_pay_app_guard_frozen_delete\(\)\s+returns trigger\s+language plpgsql\s+security invoker\s+set search_path = ''/.test(src)) out.push('the guard is not SECURITY INVOKER with an empty search_path (as definer, current_user would be the owner and nothing would be refused)');
+    if (!/create trigger trg_aia_pay_app_guard_frozen_delete\s+before delete on public\.aia_pay_apps\s+for each row execute function public\.aia_pay_app_guard_frozen_delete\(\);/.test(src)) out.push('the guard is not BEFORE DELETE, per row');
+    if (!/revoke all on function public\.aia_pay_app_guard_frozen_delete\(\) from public, anon, authenticated;/.test(src)) out.push('the guard function is left callable by a client');
+    if (/\b(create|alter|drop)\s+policy\b/i.test(src) || /^\s*grant\b/im.test(src) || /\bupdate\s+public\./i.test(src) || /\bdelete\s+from\b/i.test(src) || /\binsert\s+into\b/i.test(src) || /\balter\s+table\b/i.test(src)) out.push('the file touches a policy, a grant, the table or a row');
+    if (!/apply 20261014090000_aia_pay_app_send_lock\.sql first/.test(src)) out.push('the file does not refuse to apply before the send lock');
+    const proof = f.get(GUARD_PROOF)!;
+    if (!/const FILE = '20261014100000_aia_pay_app_delete_guard\.sql';/.test(proof) || (proof.match(/^\s+case \d+: rep\(/gm) ?? []).length < 9) out.push('the PGlite proof is not of this migration, or lost planted mutations');
+    return out;
+  } },
+  { name: 'F. the app never sends the housekeeping delete for a record the server keeps, and never drops one from the device', run: (f) => {
+    const out: string[] = [];
+    const ctx = f.get(CONTEXT)!;
+    const leaves = "const leaves = (a: SavedAIAPayApp) => sameRecord(a) && (a.id === finalApp.id || !keepsItsServerRow(a));";
+    if (ctx.split(leaves).length - 1 !== 2) out.push('addAIAPayApp and saveAIAPayAppOnline do not both spare a locked record');
+    if (!ctx.includes('const dedup = aiaPayApps.filter(a => !leaves(a));') || !ctx.includes('const updated = [finalApp, ...base.filter(a => !leaves(a))];')) out.push('a locked record is dropped from the device list');
+    if (!ctx.includes('const displaced = aiaPayApps.filter(a => leaves(a) && a.id !== finalApp.id);') || !ctx.includes('const displaced = base.filter(a => leaves(a) && a.id !== finalApp.id);')) out.push('the housekeeping delete can target a locked record');
+    if ((ctx.match(/supabaseWrite\('aia_pay_apps', 'delete'/g) ?? []).length !== 3) out.push('a new delete of a pay application was added: check it against the delete guard');
+    if (!/export function keepsItsServerRow\([^)]*\): boolean \{\s+if \(!rec\) return false;\s+return payAppLock\(\{ sentLockedAt: rec\.sentLockedAt, payLinkUrl: rec\.payLinkUrl, paidAt: rec\.paidAt, pendingBankPayment: !!rec\.paymentPendingAt \}\)\.locked;/.test(f.get(LOCK)!)) out.push('keepsItsServerRow is not the screen\'s own lock test');
+    return out;
+  } },
 ];
 for (const r of RULES) { const bad = r.run(REAL); ok(r.name, bad.length === 0, bad.join(' | ')); }
 
@@ -156,6 +203,14 @@ for (const r of RULES) { const bad = r.run(REAL); ok(r.name, bad.length === 0, b
   ok('a frozen row read by the app and written back is the same in every frozen column', moved.length === 0, moved.join(', '));
   const draft = savedToAiaRow({ ...rec, sentLockedAt: undefined } as SavedAIAPayApp, 'u1') as Record<string, unknown>;
   ok('a draft writes no stamp', !JSON.stringify(draft.snapshot_totals ?? null).includes('sentLockedAt'));
+}
+
+// By running it: which records the server keeps.
+{
+  const keeps = (r: Parameters<typeof keepsItsServerRow>[0]) => keepsItsServerRow(r);
+  ok('a sent record, one with a pay link, a paid one and one with a bank payment settling keep their server row; a draft does not',
+    keeps({ sentLockedAt: '2026-10-10T12:00:00.000Z' }) && keeps({ payLinkUrl: 'https://pay' }) && keeps({ paidAt: '2026-10-10' }) && keeps({ paymentPendingAt: '2026-10-10' })
+      && !keeps({}) && !keeps(null) && !keeps({ sentLockedAt: '', payLinkUrl: null }));
 }
 
 // ═══ Planted mutations ══════════════════════════════════════════════════════
@@ -184,6 +239,21 @@ const PLANTS: [string, number, string, string, string][] = [
   ['every old row with a certificate sidecar is stamped', 3, MIGRATION, "notify pgrst, 'reload schema';", "update public.aia_pay_apps set sent_locked_at = now() where snapshot_totals ? '__mageCertificate';\nnotify pgrst, 'reload schema';"],
   ['rows that already carry the stamp are left open', 3, MIGRATION, 'update public.aia_pay_apps\n   set updated_at = updated_at\n', 'update public.aia_pay_apps\n   set updated_at = now()\n'],
   ['a grant is made', 3, MIGRATION, "notify pgrst, 'reload schema';", "grant update (sent_locked_at) on public.aia_pay_apps to authenticated;\nnotify pgrst, 'reload schema';"],
+  ['a row frozen by the send alone can be deleted', 5, GUARD, '  if (old.certified_at is not null or old.sent_locked_at is not null)', '  if (old.certified_at is not null)'],
+  ['every role is refused: the job and the account cannot be deleted', 5, GUARD, "     and current_user not in ('service_role', 'postgres', 'supabase_admin') then", '     then'],
+  ['the guard is a deny-list again', 5, GUARD, "     and current_user not in ('service_role', 'postgres', 'supabase_admin') then", "     and current_user in ('authenticated', 'anon') then"],
+  ['an allowed delete is silently skipped', 5, GUARD, '  return old;', '  return null;'],
+  ['the guard is SECURITY DEFINER', 5, GUARD, "security invoker\nset search_path = ''\nas $fn$", "security definer\nset search_path = ''\nas $fn$"],
+  ['the guard fires on update', 5, GUARD, '  before delete on public.aia_pay_apps', '  before update on public.aia_pay_apps'],
+  ['the refusal is retried by the queue', 5, GUARD, 'cannot be deleted: that violates its send lock.', 'cannot be deleted.'],
+  ['the guard applies before the send lock exists', 5, GUARD, "    raise exception '[aia_pay_app_delete_guard] apply 20261014090000_aia_pay_app_send_lock.sql first (sent_locked_at is missing)';", '    null;'],
+  ['the queue stops reading "violates" as final', 5, QUEUE, "(m.includes('violates') && !m.includes('foreign key'))", "m.includes('violates constraint')"],
+  ['the guard is skipped by an early return', 5, GUARD, "as $fn$\nbegin\n  if (old.certified_at", "as $fn$\nbegin\n  return old;\n  if (old.certified_at"],
+  ['the trigger is dropped again after the self-check', 5, GUARD, "$verify$;\n", "$verify$;\ndrop trigger if exists trg_aia_pay_app_guard_frozen_delete on public.aia_pay_apps;\n"],
+  ['the self-check stops looking at TRUNCATE', 5, GUARD, "has_table_privilege('authenticated', 'public.aia_pay_apps', 'TRUNCATE')", "has_table_privilege('authenticated', 'public.aia_pay_apps', 'DELETE')"],
+  ['the save path deletes a locked older record again', 6, CONTEXT, "const displaced = base.filter(a => leaves(a) && a.id !== finalApp.id);", "const displaced = base.filter(a => sameRecord(a) && a.id !== finalApp.id);"],
+  ['a locked older record is dropped from the device', 6, CONTEXT, "const dedup = aiaPayApps.filter(a => !leaves(a));", "const dedup = aiaPayApps.filter(a => !sameRecord(a));"],
+  ['a pay link no longer keeps the row', 6, LOCK, "return payAppLock({ sentLockedAt: rec.sentLockedAt, payLinkUrl: rec.payLinkUrl,", "return payAppLock({ sentLockedAt: rec.sentLockedAt, payLinkUrl: null,"],
   ['the sidecar field is renamed in the app', 4, MAPPER, "const AIA_EXTRAS_FIELD = '__mageCertificate';", "const AIA_EXTRAS_FIELD = '__mageExtras';"],
   ['the app stops writing the sidecar stamp', 4, MAPPER, '  if (a.sentLockedAt) extras.sentLockedAt = a.sentLockedAt;\n', ''],
   ['the app writes the server column', 4, MAPPER, '    notes: a.notes ?? null,\n', '    notes: a.notes ?? null,\n    sent_locked_at: a.sentLockedAt ?? null,\n'],
