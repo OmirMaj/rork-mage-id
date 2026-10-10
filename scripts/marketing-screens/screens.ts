@@ -8,7 +8,7 @@
 //
 // `about` is one plain sentence saying what the screen is. No promises.
 import type { WorldOptions } from './world';
-import { P, PORTAL_ID, AI_CODE_CHECK, co2, estimateWith, todayReport, TODAY_WORK, TODAY_MATERIAL } from './world';
+import { P, PORTAL_ID, withDemoJob, AI_CODE_CHECK, co2, estimateWith, todayReport, TODAY_WORK, TODAY_MATERIAL } from './world';
 
 export type Selector = { testID?: string; text?: string; label?: string; css?: string; exact?: boolean; nth?: number };
 export type Step =
@@ -157,6 +157,15 @@ export const SCREENS: Screen[] = [
       { steps: [...times(2, 'lm-prev-week'), ...toTop], caption: 'Week 4, as reported.' },
       { steps: toTop, caption: 'Week 6, today, as reported.' },
       { steps: [{ click: { testID: 'lm-mode-planned' }, then: 400 }, ...times(5, 'lm-next-week'), ...toTop], caption: 'Week 10, as planned.' },
+    ] },
+  { id: 'demo-job-model', set: 'in-testing', title: 'Living Model: Four Floors of the Demo Job', plan: 'Pro', source: 'components/livingModel/LivingModelScreen.tsx', route: `/living-model?projectId=${P.harbor}`,
+    about: 'The made-up demo job (a sample, named as one) in Job Replay. Each floor follows its own schedule tasks, so on the same day the floors stand at different stages.',
+    world: withDemoJob,
+    steps: [...replay, ...toTop],
+    sequence: [
+      { steps: [{ click: { testID: 'lm-replay-level-1' }, then: 1500 }, ...toTop], caption: 'Floor 2 today: finishes.' },
+      { steps: [{ click: { testID: 'lm-replay-level-3' }, then: 1500 }, ...toTop], caption: 'Floor 4 today, room by room: drywall.' },
+      { steps: [{ click: { testID: 'lm-replay-level-6' }, then: 1500 }, ...toTop], caption: 'Floor 7 today: rough-in.' },
     ] },
   { id: 'scan-floor-plan', set: 'in-testing', title: 'Scan The Room: Floor Plan', plan: 'Pro', source: 'components/roomScan/RoomScanFlow.tsx', route: alder('scan-room'),
     about: 'A room\'s floor plan with wall lengths. This room is a hand-built test fixture, not a scan from a phone.',
