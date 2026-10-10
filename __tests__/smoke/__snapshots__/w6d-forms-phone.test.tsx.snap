@@ -3,14 +3,14 @@
 exports[`lane P2 — the phone is unchanged (golden) /paywall, iOS 390 (the native branch) 1`] = `
 {
   "lines": 898,
-  "sha256": "7fc1fe3595c894b834908a69738c4e41afaeb53c9852834f2db2c761a2dd86fa",
+  "sha256": "486fb837dab076d4650fe18d12ca205f93ad331b3c5f3dfb175de4dac7b9a0ae",
 }
 `;
 
 exports[`lane P2 — the phone is unchanged (golden) /paywall, web 390 (WebPaywallView) 1`] = `
 {
   "lines": 907,
-  "sha256": "98aecf1e319523f712b5a09e78ce69bb682b88f5787b8350723196c1f218c88c",
+  "sha256": "46dd38d2b1ade911632bda7859a59f43a73f156c4eafa3e9930614a0cf59e9b1",
 }
 `;
 

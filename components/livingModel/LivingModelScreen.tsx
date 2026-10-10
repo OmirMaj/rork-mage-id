@@ -15,9 +15,14 @@
 // model's box. The owner also gets a 3D Quality switch there (Standard / High,
 // utils/livingModel/phoneViewCore.PHONE_3D_QUALITY) to compare on his own phone.
 //
-// The model is SAVED ON THIS DEVICE ONLY FOR NOW (utils/livingModel/storeCore)
-// and the Room Editor says so. Every change is the person's: this screen
-// writes the model after he changes it and never changes it itself.
+// The model is SAVED ON THIS DEVICE FIRST (utils/livingModel/storeCore), at
+// every change, and then to the person's account when it can be
+// (hooks/useLivingModelSync; the rules are utils/livingModel/syncCore). One
+// line under the tabs says where it is saved, and is true at that moment
+// (SyncStatus). Every change is the person's: this screen writes the model
+// after he changes it. The one time the model on screen is replaced without a
+// tap is when the account holds a later save and this device has no changes of
+// its own; when BOTH have changed he is asked, and nothing is replaced first.
 //
 // A SAVED MODEL THAT CANNOT BE READ IS KEPT. When text is stored for this job
 // and it is not a sound model, the screen says so in a plain sentence, the text
@@ -26,7 +31,9 @@
 // then the tabs are not drawn at all, so there is nothing to edit.
 //
 // NOT IN THIS PHASE, and not built: a money lens, open items, a client view,
-// sharing a replay, reading rooms from an uploaded plan, cloud sync. The seams
+// sharing a replay, reading rooms from an uploaded plan, syncing the scan list
+// (a scan stays on the phone that made it; only a room placed in the model is
+// sent, and only after he says yes). The seams
 // are the model (JobModel), the per-room moment (replayCore.roomMoment) and the
 // 3D view's `looks`; nothing here depends on how those later features are made.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -35,10 +42,13 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useT } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useLivingModelCopy } from '@/hooks/useLivingModelCopy';
+import { useLivingModelSync } from '@/hooks/useLivingModelSync';
 import { usePhone3DCopy } from '@/hooks/usePhone3DCopy';
+import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { Button, SegmentedControl } from '@/components/ui';
 import { useIsDesktop } from '@/components/ui/desktop';
 import { canRedo, canUndo, historyOf, historyPush, historyRedo, historyUndo, type History } from '@/utils/livingModel/historyCore';
@@ -48,11 +58,14 @@ import { buildReplayInput } from '@/utils/livingModel/replayInput';
 import type { Phone3DQuality } from '@/utils/livingModel/phoneViewCore';
 import { loadJobModel, saveJobModel } from '@/utils/livingModel/store';
 import { mayWriteModel, type LoadState } from '@/utils/livingModel/storeCore';
+import { scanRoomIds } from '@/utils/livingModel/syncCore';
+import { recoverKeptSwap } from '@/utils/livingModel/syncStore';
 import type { JobModel } from '@/utils/livingModel/types';
 import { FlatReplay } from './FlatReplay';
 import { HonestyLines } from './HonestyLines';
 import { JOB_REPLAY_3D_ON_THIS_PLATFORM, JobReplay3D } from './JobReplay3D';
 import { RoomEditor } from './RoomEditor';
+import { SyncStatus } from './SyncStatus';
 import { TaskLinks } from './TaskLinks';
 import { ReplayControls, ReplayRoomList, RoomCardPanel, StageLegend, useReplayState, useRoomMoments, useRoomTasks } from './replayShared';
 import { makeLivingModelStyles } from './styles';
@@ -62,12 +75,20 @@ type Tab = 'rooms' | 'tasks' | 'replay';
 /** The quality the owner last chose, kept while the app is open. Nothing is stored. */
 let chosenQuality: Phone3DQuality = 'standard';
 
-export function LivingModelScreen({ projectId, userId, ownerTools = false }: { projectId: string; userId: string | null; /** The owner's own switches (3D Quality on the phone). */ ownerTools?: boolean }) {
+export function LivingModelScreen({ projectId, userId, ownerTools = false, viewOnly = false }: {
+  projectId: string;
+  userId: string | null;
+  /** The owner's own switches (3D Quality on the phone). */
+  ownerTools?: boolean;
+  /** True when his seat reads the model and may not change it. The route refuses such a seat today; the line is here for the day it does not. */
+  viewOnly?: boolean;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeLivingModelStyles);
   const copy = useLivingModelCopy();
+  const { lang } = useT();
   const wide = useIsDesktop();
   const { getProject, getDailyReportsForProject } = useProjects();
   const project = getProject(projectId);
@@ -75,6 +96,8 @@ export function LivingModelScreen({ projectId, userId, ownerTools = false }: { p
   const [saveFailed, setSaveFailed] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>('ready');
   const loadStateRef = useRef<LoadState>('ready');
+  /** False when nothing was stored for this job when the screen opened (a new job here, or the saved model was lost). */
+  const [modelFound, setModelFound] = useState(true);
   const [tab, setTab] = useState<Tab>('rooms');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
@@ -88,8 +111,10 @@ export function LivingModelScreen({ projectId, userId, ownerTools = false }: { p
     loadStateRef.current = 'ready';
     setLoadState('ready');
     // loadJobModel never rejects and never throws on what the device holds; the catch is a last guard so the screen cannot sit on "Reading" for ever.
-    void loadJobModel(userId, projectId).then((loaded) => {
+    // A trade of the kept model that a kill cut short is finished first, so the model read here is the right one.
+    void recoverKeptSwap(userId, projectId, new Date().toISOString()).then(() => loadJobModel(userId, projectId)).then((loaded) => {
       if (!alive) return;
+      setModelFound(loaded.found);
       loadStateRef.current = loaded.state;
       setLoadState(loaded.state);
       setHistory(historyOf(loaded.model));
@@ -110,7 +135,11 @@ export function LivingModelScreen({ projectId, userId, ownerTools = false }: { p
     void saveJobModel(userId, m, new Date().toISOString(), loadStateRef.current).then((ok) => setSaveFailed(!ok));
   }, [userId]);
 
-  /** The person's own choice, from the button: leave the unread model in its backup and begin again. */
+  /**
+   * The person's own choice, from the button: leave the unread model in its backup and begin again. The sync hook
+   * sees 'started_new' and forgets which account revision this device matched, so a copy in the account is put to
+   * him first and is never written over by the new, empty model (syncCore.resetSyncBase).
+   */
   const onStartNew = useCallback(() => {
     loadStateRef.current = 'started_new';
     setLoadState('started_new');
@@ -128,6 +157,22 @@ export function LivingModelScreen({ projectId, userId, ownerTools = false }: { p
   const onRedo = useCallback(() => setHistory((h) => { if (!h || !canRedo(h)) return h; const r = historyRedo(h); persist(r.present); return r; }), [persist]);
 
   const model = history?.present ?? null;
+  /** The device's model was replaced by the account's, or by one he had set aside: show it. The undo list starts again. */
+  const onAdopt = useCallback((m: JobModel) => {
+    setHistory(historyOf(m));
+    setSelectedId(null);
+    const levels = modelLevels(m);
+    setLevel((l) => (levels.length === 0 || levels.includes(l) ? l : levels[0]));
+  }, []);
+  const sync = useLivingModelSync({ projectId, userId, project, model, loadState, modelFound, viewOnly, lang, onAdopt });
+  const { collaborators } = useProjectCollaborators(projectId);
+  const nameOf = useCallback((id: string | null): string | null => {
+    if (!id) return null;
+    const c = collaborators.find((x) => x.userId === id);
+    return c ? (c.name || c.email || null) : null;
+  }, [collaborators]);
+  const hasScanRoom = useMemo(() => (model ? scanRoomIds(model).length > 0 : false), [model]);
+  const roomNameOf = useCallback((id: string): string | null => model?.rooms.find((r) => r.id === id)?.name ?? null, [model]);
   const reports = useMemo(() => getDailyReportsForProject(projectId), [getDailyReportsForProject, projectId]);
   const chosenStages = model?.stages;
   const input = useMemo(() => buildReplayInput(project?.schedule ?? null, reports, now, chosenStages), [project?.schedule, reports, now, chosenStages]);
@@ -165,6 +210,7 @@ export function LivingModelScreen({ projectId, userId, ownerTools = false }: { p
           </View>
         ) : null}
         {model && loadState === 'started_new' ? <Text style={styles.note} testID="lm-started-new">{copy.startedNewBody}</Text> : null}
+        {model && !blocked ? <SyncStatus sync={sync} deviceRooms={model.rooms.length} hasScanRoom={hasScanRoom} nameOf={nameOf} roomNameOf={roomNameOf} /> : null}
         {model && !blocked && tab === 'rooms' ? (
           <>
             <RoomEditor

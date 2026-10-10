@@ -46,7 +46,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Tokens, Motion, Shadow } from '@/constants/designTokens';
 import { nativeDriver, reducedMotion } from '@/components/ui';
 import { StruckSparkFace, StruckSparkRings } from '@/components/brain/StruckSparkMark';
-import { useBrainFabPresentation, resetBrainFabScroll } from '@/components/brain/brainFabState';
+import { useBrainFabPresentation, resetBrainFabScroll, BRAIN_FAB_WEB_RAISE } from '@/components/brain/brainFabState';
 import { useTutorialCoachVisible } from '@/utils/tutorial/store';
 import { anchorProjectIdFor } from '@/utils/resolveStarters';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
@@ -200,7 +200,7 @@ export function BrainFab({ thinking = false }: { thinking?: boolean } = {}) {
         styles.fabWrap,
         dark ? styles.dropDark : styles.dropLight,
         {
-          bottom: insets.bottom + 70 + lift + (Platform.OS === 'web' ? 48 : 0),
+          bottom: insets.bottom + 70 + lift + (Platform.OS === 'web' ? BRAIN_FAB_WEB_RAISE : 0),
           opacity: anim,
           transform: [
             { translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [48, 0] }), liftOffset) },

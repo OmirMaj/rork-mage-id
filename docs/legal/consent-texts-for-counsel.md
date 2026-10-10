@@ -211,6 +211,68 @@ Related, for the same review:
 
 - Stored: **no.** It is a notice on the screen. Nobody taps to accept it.
 
+## 8a. Room scan: the question before a scanned room is sent to the account (added by lane LIVINGSYNC)
+
+**Needs counsel's read, English and Spanish.** Built dark
+(`LIVING_MODEL_ENABLED = false`, owner preview only). Nobody outside the
+founder's account has seen it.
+
+- Where: `components/livingModel/SyncStatus.tsx` (the panel `lm-scan-ask`),
+  words in `hooks/useLivingModelCopy.ts` (`scanAskTitleBody`, `scanAskBody`)
+  and `utils/legalAcceptanceCore.ts` (`SCAN_UPLOAD_VERSION = '1'`,
+  `SCAN_UPLOAD_COPY`). Spanish in `i18n/catalog/es/office/livingModel.ts`.
+- When: before a room that came from a phone scan is sent to the person's
+  account for the first time. It is asked for EACH scanned room, when that
+  room is first about to be sent: a room scanned and added later is asked
+  about again. Until he answers nothing is sent.
+- English:
+
+> **This model includes a room you scanned.**
+> Saving it to your account sends the room’s name and its sizes: floor outline, ceiling height, walls, doors, windows and fixtures, and that the room came from a scan. They go to MAGE ID’s servers so your other devices and your team on this project can see them. No photo or video is sent. You are asked again for each scanned room you add later.
+> Then one line that names the rooms: "Scanned rooms that would be sent: Hall Bathroom."
+> Buttons: "Save to My Account" and "Keep on This Phone"
+
+- Spanish (not yet read by a legal translator or by counsel):
+
+> **Este modelo incluye un cuarto que escaneaste.**
+> Guardarlo en tu cuenta envía el nombre del cuarto y sus medidas: contorno del piso, altura del techo, paredes, puertas, ventanas y muebles fijos, y que el cuarto viene de un escaneo. Van a los servidores de MAGE ID para que tus otros dispositivos y tu equipo en este proyecto puedan verlos. No se envía ninguna foto ni video. Se te pregunta de nuevo por cada cuarto escaneado que agregues después.
+> "Cuartos escaneados que se enviarían: Baño del pasillo."
+> Botones: "Guardar en mi cuenta" y "Dejar en este teléfono"
+
+- What is actually sent for a scanned room (`utils/livingModel/syncCore.ts`,
+  `modelForAccount`, field by field): the room's name and kind, its floor and
+  where it sits, its floor outline, its ceiling height, each wall (end points,
+  length, height, curved or not, on the outline or not), each door and window
+  (wall, offset, width, height, sill), each fixture (Apple's category such as
+  toilet or sink, centre, width, depth, height, turn), and the one word that
+  says the room came from a scan. NOT sent: a photo, a video, Apple's raw scan
+  data, the saved scan or its id, Apple's own width for a wall, which single
+  numbers were typed over, how sure the scanner was, the phone's model, the
+  capture time, the phone's clock.
+- Stored: one row in `public.legal_acceptances`, kind `scan_room_upload`, with
+  the version and a SHA-256 of the title and body in the language he read,
+  once `supabase/migrations/20261011091000_legal_acceptance_scan_room_upload.sql`
+  is applied (it is NOT applied yet). One row per person per wording: it is his
+  first yes to these words. Later answers, room by room, are kept on the phone
+  only. The row does not name the job or the room. The exact words of each
+  language are archived in `docs/legal/versions/scan_room_upload-en-1-05617f16.txt`
+  and `docs/legal/versions/scan_room_upload-es-1-8595d776.txt`.
+- "Keep on This Phone" stops every send of that model from that phone and
+  takes a save that was still waiting back out of the queue. If a copy may
+  already be in the account the screen says "A copy may already be in your
+  account." and offers "Remove It from My Account", which asks once more
+  ("This removes the model from your account for everyone on this project.
+  The model on this phone stays. Your other devices and your team keep the
+  copies they already have, and they will no longer find one in the account.")
+  and then deletes the account's copy. Copies already on other devices are not
+  deleted by it.
+- Questions for counsel: (1) is one stored yes per person per wording enough,
+  when the app asks room by room, or should every answer be a row that names
+  the job; (2) the camera permission sentence still says a scan's measurements
+  are kept on the phone (`docs/living-model-sync-notes.md` section 3): is this
+  question, asked before anything is sent, enough until that sentence changes
+  with the next native build; (3) the Spanish wording.
+
 ## 9. Crew ID scan: the contractor's attestation
 
 - Where: `app/crew.tsx:1055`.

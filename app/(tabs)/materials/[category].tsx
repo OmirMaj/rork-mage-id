@@ -29,7 +29,7 @@ import type { PriceAlert, AlertDirection } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
-import { parseLenientNumber } from '@/utils/formatters';
+import { formatMoney, parseLenientNumber } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
@@ -161,7 +161,7 @@ export default function CategoryDetailScreen() {
     // the same sentence the Materials tab's targets panel already shows.
     showAlert(
       'Target Saved',
-      `MAGE compares ${alertModal.name} with the price book. It does not watch the market. Open Materials › Price targets to see whether it's ${alertDirection} $${price.toFixed(2)}.`,
+      `MAGE compares ${alertModal.name} with the price book. It does not watch the market. Open Materials › Price targets to see whether it's ${alertDirection} ${formatMoney(price, 2)}.`,
     );
   }, [alertModal, alertPrice, alertDirection, addPriceAlert]);
   // Desktop web: the price-alert dialog is a centred card in the content
@@ -200,9 +200,9 @@ export default function CategoryDetailScreen() {
             )}
           </View>
           <View style={styles.itemRight}>
-            <Text style={styles.retailPrice}>${item.baseRetailPrice.toFixed(2)}</Text>
+            <Text style={styles.retailPrice}>{formatMoney(item.baseRetailPrice, 2)}</Text>
             <View style={styles.bulkRow}>
-              <Text style={styles.bulkPrice}>${item.baseBulkPrice.toFixed(2)}</Text>
+              <Text style={styles.bulkPrice}>{formatMoney(item.baseBulkPrice, 2)}</Text>
               {discount > 0 && (
                 <View style={styles.saveBadge}>
                   <Text style={styles.saveBadgeText}>-{discount}%</Text>
@@ -369,7 +369,7 @@ export default function CategoryDetailScreen() {
             {alertModal && (
               <>
                 <Text style={styles.modalMatName}>{alertModal.name}</Text>
-                <Text style={styles.modalCurrentPrice}>Current: ${alertModal.baseRetailPrice.toFixed(2)} / {alertModal.unit}</Text>
+                <Text style={styles.modalCurrentPrice}>Current: {formatMoney(alertModal.baseRetailPrice, 2)} / {alertModal.unit}</Text>
 
                 <Text style={styles.modalFieldLabel}>Alert Direction</Text>
                 <View style={styles.directionRow}>

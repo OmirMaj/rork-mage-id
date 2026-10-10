@@ -14,6 +14,13 @@ export interface LoadedModel {
   model: JobModel;
   /** 'unreadable' when text is stored and could not be read: the screen says so and nothing is written over it. */
   state: LoadState;
+  /**
+   * False when NOTHING is stored under the model key (a new job on this device,
+   * or the key was lost). The sync notes are read against this: notes that say
+   * "matched the account" beside a missing model mean the model was lost, and
+   * then the account's copy is looked at first (syncCore.resetSyncBase).
+   */
+  found: boolean;
 }
 
 /**
@@ -24,14 +31,14 @@ export interface LoadedModel {
  */
 export async function loadJobModel(userId: string | null | undefined, projectId: string): Promise<LoadedModel> {
   const key = livingModelKey(userId, projectId);
-  if (!key) return { model: emptyJobModel(projectId), state: 'ready' };
+  if (!key) return { model: emptyJobModel(projectId), state: 'ready', found: false };
   let raw: string | null = null;
   try { raw = await AsyncStorage.getItem(key); } catch { /* treated as nothing saved */ }
   const read = readSavedModel(raw, projectId);
-  if (read.state === 'ok') return { model: read.model, state: 'ready' };
-  if (read.state === 'empty') return { model: emptyJobModel(projectId), state: 'ready' };
+  if (read.state === 'ok') return { model: read.model, state: 'ready', found: true };
+  if (read.state === 'empty') return { model: emptyJobModel(projectId), state: 'ready', found: false };
   await keepUnreadText(userId, projectId, raw as string);
-  return { model: emptyJobModel(projectId), state: 'unreadable' };
+  return { model: emptyJobModel(projectId), state: 'unreadable', found: true };
 }
 
 /** Copy text that could not be read under the backup key, untouched. Returns false when the device refused. */
@@ -65,8 +72,10 @@ export async function saveJobModel(userId: string | null | undefined, model: Job
 }
 /**
  * The scans saved for this project on this device (the scanner's own list,
- * read only). The scanner keeps scans on the phone that made them, so on the
- * web this is empty until scans sync.
+ * read only). The scanner keeps scans on the phone that made them and the scan
+ * list is NOT synced, so on the web this is empty and the sheet says why. A
+ * room placed in the model from a scan does reach the web, inside the model,
+ * after the person says yes (syncCore.scanGate).
  */
 export async function loadProjectScans(projectId: string): Promise<SavedScan[]> {
   let raw: string | null = null;

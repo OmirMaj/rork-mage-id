@@ -38,7 +38,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import CraneLoader from '@/components/CraneLoader';
 import * as Haptics from 'expo-haptics';
 import {
@@ -382,7 +382,9 @@ function TakeoffEstimateInner() {
   // Set once the estimate is written, so a pending debounce can't re-create
   // the draft the save just cleared.
   const savedRef = useRef(false);
-  useBrainFabLift(!pricing && lines.length > 0 ? bottomBarH : 0);
+  // Named once: the lift and the scroll padding read the same height (validate-fab-clearance check 4).
+  const fabLift = !pricing && lines.length > 0 ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
 
   // ── WHAT HE CHARGES IS NOT THIS SCREEN'S TO GUESS ───────────────────────
   //
@@ -979,7 +981,7 @@ function TakeoffEstimateInner() {
         )}
       </View>
 
-      <ScrollView {...fabScroll} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 220 }}>
+      <ScrollView {...fabScroll} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }}>
         {/* Pricing in flight */}
         {pricing && (
           <View style={[styles.banner, { backgroundColor: themeColors.accent + '12' }]}>

@@ -15,7 +15,7 @@
 // Move buttons nudge one grid step, and each wall has its own Add Door and Add
 // Window buttons.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
+import { PanResponder, Platform, Pressable, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Copy, DoorOpen, Plus, Redo2, RotateCw, ScanLine, Trash2, Undo2, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -192,7 +192,6 @@ export function RoomEditor({ projectId, model, onChange, onUndo, onRedo, canUndo
           <Text key={`open-${w.roomIds[0]}`} style={styles.warn}>{copy.outlineOpenBody(roomName(w.roomIds[0]))}</Text>
         ))}
         {atLimit ? <Text style={styles.note}>{copy.roomLimitBody}</Text> : null}
-        <Text style={styles.note} testID="lm-saved-local">{`${copy.savedLocalBody} ${copy.otherDevicesBody}`}</Text>
         {footer}
       </View>
 
@@ -543,7 +542,7 @@ function ScanSheet({ visible, projectId, onClose, onPick }: { visible: boolean; 
   return (
     <Sheet visible={visible} onClose={onClose} title={copy.scanSheetTitleLabel} secondaryAction={{ label: copy.cancelLabel, onPress: onClose }} testID="lm-scan-sheet">
       <View style={styles.sheetBody}>
-        {scans && scans.length === 0 ? <Text style={styles.para} testID="lm-no-scans">{copy.noScansBody}</Text> : null}
+        {scans && scans.length === 0 ? <Text style={styles.para} testID="lm-no-scans">{Platform.OS === 'web' ? copy.noScansWebBody : copy.noScansBody}</Text> : null}
         {(scans ?? []).map((s, i) => (
           <Pressable key={s.scan.id} style={[styles.row, i === 0 && styles.rowFirst]} onPress={() => onPick(s)} accessibilityRole="button" accessibilityLabel={s.scan.name || copy.scanUnnamedLabel} testID={`lm-scan-row-${i}`}>
             <View style={styles.rowMain}>

@@ -21,7 +21,7 @@ import { isOfflineNow } from '@/hooks/useOnline';
 import { fetchContractsForProject, saveContract } from '@/utils/contractEngine';
 import { fetchLienWaiversForProject, saveLienWaiver } from '@/utils/lienWaiverEngine';
 import { loadJobModel, saveJobModel } from '@/utils/livingModel/store';
-import { livingModelBackupKey, livingModelKey } from '@/utils/livingModel/storeCore';
+import { livingModelBackupKey, livingModelKeptKey, livingModelKey, livingModelSwapKey, livingModelSyncKey } from '@/utils/livingModel/storeCore';
 import { getOwnOfflineQueue, supabaseWrite } from '@/utils/offlineQueue';
 import { fetchSelectionsForProject, saveSelectionCategory, saveSelectionOption } from '@/utils/selectionsEngine';
 import { ensureTutorialPlan, samplePhotoImage } from '@/utils/tutorial/sandbox';
@@ -141,7 +141,9 @@ export function useDemoJobPorts(): DemoPorts {
       has: async (projectId) => (await loadJobModel(userRef.current, projectId)).model.rooms.length > 0,
       save: (model) => saveJobModel(userRef.current, model, new Date().toISOString(), 'ready'),
       remove: async (projectId) => {
-        const keys = [livingModelKey(userRef.current, projectId), livingModelBackupKey(userRef.current, projectId)].filter((k): k is string => !!k);
+        // The model, its unreadable-copy backup, and the sync lane's three notes about it (all on this device).
+        const u = userRef.current;
+        const keys = [livingModelKey(u, projectId), livingModelBackupKey(u, projectId), livingModelSyncKey(u, projectId), livingModelKeptKey(u, projectId), livingModelSwapKey(u, projectId)].filter((k): k is string => !!k);
         if (keys.length) await AsyncStorage.multiRemove(keys).catch(() => undefined);
       },
     },

@@ -45,7 +45,7 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) punch-list 1`] = `
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (answered rfi-1) 1`] = `
 {
   "lines": 847,
-  "sha256": "c05b050075a12ed06247c46440073a89d8f1271e65b6e19a3a22c4a95a638e9c",
+  "sha256": "417c21a2107f119ceeaa18b355733e346dd8e0d3fba8414d2683e5a21a365ebd",
 }
 `;
 
@@ -59,7 +59,7 @@ exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (new) 1`] = `
 exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (open rfi-2) 1`] = `
 {
   "lines": 863,
-  "sha256": "0b8b61aec0699412fc0770ae46da51638257a6138abd10b6106c9b4283064d77",
+  "sha256": "023a1904fb40fd13f14b6cb8ae08479e6f067714472624a516d1d4f63f80a25d",
 }
 `;
 

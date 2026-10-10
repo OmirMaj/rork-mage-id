@@ -43,10 +43,13 @@ PGLITE_DIR=~/pgq-run node scripts/pgq/legal-acceptances.mjs . --all
 PGLITE_DIR=~/pgq-run node scripts/pgq/signed-record-tombstones.mjs . --all
 PGLITE_DIR=~/pgq-run node scripts/pgq/rfp-attachments-private.mjs . --all
 PGLITE_DIR=~/pgq-run node scripts/pgq/bid-responses-closed-posting.mjs . --all
+PGLITE_DIR=~/pgq-run node scripts/pgq/living-models.mjs . --all
+PGLITE_DIR=~/pgq-run node scripts/pgq/legal-acceptance-scan-room-upload.mjs . --all
 ```
 
-The last four (lane PROTECT-SERVER) take the worktree as their first argument
-and share `_harness.mjs`, not `lib.mjs`. Without `--all` they run once, as
+The last six (lane PROTECT-SERVER, and `living-models.mjs` and
+`legal-acceptance-scan-room-upload.mjs` from lane LIVINGSYNC)
+take the worktree as their first argument and share `_harness.mjs`, not `lib.mjs`. Without `--all` they run once, as
 written, and print every case; `--all` also runs each planted mutation and ends
 with `ALL PASS (as written green; N planted mutations red)`. `MUTATE=<n>` runs
 one mutation. Seen green with `@electric-sql/pglite` 0.3.16 on Node.
@@ -65,6 +68,7 @@ stays at one PGlite instance.
 | `signed-record-tombstones.mjs` | `supabase/migrations/20261010110000_signed_record_tombstones.sql` | the service role writes one tombstone per signed record of the account and no client can read, write or call anything; no name, email, signature, amount or token is copied; a project or portal id that is not the account's is dropped; a retry adds nothing; a missing table costs that kind only; after the account is deleted the records are gone and the tombstones remain. |
 | `rfp-attachments-private.mjs` | `supabase/migrations/20261010120000_rfp_attachments_private.sql` (the read rule and its policy, no gate) then `20261010140000_rfp_attachments_flip.sql` (the flip, behind the opt-in line) | part 1 applies with no opt-in and leaves the bucket public, and the rule already answers; part 2 refuses without its opt-in line, before part 1, and while a read policy names no bucket; after part 2 the bucket is private; anon reads nothing; the homeowner reads her own folder; any signed-in account reads an open posting's files; once a posting is closed only the awarded bidder does: a stranger who bid after the close, a declined bidder and a withdrawn bidder do not; a spoofed folder and an odd name open for nobody else; closing or deleting a posting ends access. |
 | `bid-responses-closed-posting.mjs` | `supabase/migrations/20261010130000_bid_responses_closed_posting.sql` | a bid on an open posting lands as submitted; a bid on a closed or awarded posting is stored as withdrawn and nobody can make it live; the bid's date is the server's; a replay of a landed bid after the close still ends as a duplicate key; the homeowner's and the contractor's existing updates still work; the award path is not policed. |
+| `living-models.mjs` | `supabase/migrations/20261011090000_living_models.sql` | the project owner saves a job model and an accepted editor saves it too (the row stays the owner's and names the editor as the author); a viewer and a field seat read it and cannot save; a stranger, an invited editor who has not accepted and a revoked one read nothing and cannot save; anon holds nothing; no signed-in account writes the table directly; a save based on an older revision, on "no row" when there is one, or on a revision from the future is refused with code `stale_revision` and writes nothing; the same save sent twice answers saved and writes nothing; a model over 3 MiB is refused by the function and by the table; the time and the author are the server's; an older build cannot write over a newer model; deleting the editor's account keeps the row; deleting the project deletes it. |
 
 ## What is real and what is a stub
 

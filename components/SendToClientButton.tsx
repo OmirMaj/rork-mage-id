@@ -195,6 +195,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 10,
+    // The reason line under a blocked send is a full-width second line. As a
+    // plain row sibling it took the row and squeezed the button to a circle.
+    flexWrap: 'wrap' as const,
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: t.surface,
@@ -220,5 +223,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 6,
   },
   statusInlineText: { color: t.textMuted, fontSize: 13, fontWeight: '600' as const },
-  hint: { fontSize: 11, color: t.textMuted, marginTop: 4 },
+  hint: { width: '100%' as const, fontSize: 11, lineHeight: 15, color: t.textMuted },
 });

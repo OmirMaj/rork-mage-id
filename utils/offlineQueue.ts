@@ -572,6 +572,52 @@ export async function discardQueuedWrites(reasonFor: (m: OfflineMutation) => str
   return dropped.length;
 }
 
+export interface CancelQueuedRpcResult {
+  /** How many queued calls were taken out. */
+  removed: number;
+  /** True when the queue could not be read: nothing was removed and nothing is known. */
+  readFailed: boolean;
+}
+
+/**
+ * Take a person's OWN queued function call back before it is sent: the entries
+ * that are a call of `fn` on `table` for the record `recordId`, queued under
+ * `userId`. Nothing else is touched: not another record, not another function
+ * on the same record, not another account's entry, not a table write.
+ *
+ * This is for a call the person himself has just withdrawn on the screen (the
+ * Living Model's "Keep on This Phone" after "Save to My Account"). So, unlike
+ * discardQueuedWrites, it writes NO Not-saved line and shows NO toast: nothing
+ * failed, and a Retry would send what he asked not to send.
+ *
+ * Runs under the queue lock. It cannot recall a request that is already on the
+ * wire: the flush's write-back simply finds the entry gone. The caller must
+ * not tell the person "nothing was sent" on the strength of this alone.
+ */
+export async function cancelQueuedRpc(table: string, recordId: string, fn: string, userId: string): Promise<CancelQueuedRpcResult> {
+  if (!table || !recordId || !fn || !userId) return { removed: 0, readFailed: false };
+  let removed = 0;
+  let readFailed = false;
+  let remaining = -1;
+  await withQueueLock(async () => {
+    let current: OfflineMutation[];
+    try { current = await readOfflineQueueOrThrow(); } catch { readFailed = true; return; }
+    const keep = current.filter((m) => !(m.operation === 'rpc' && m.table === table && m.data?.id === recordId && m.rpc?.fn === fn && m.userId === userId));
+    removed = current.length - keep.length;
+    if (removed === 0) return;
+    try {
+      if (keep.length === 0) await AsyncStorage.removeItem(OFFLINE_QUEUE_KEY);
+      else await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(keep));
+      remaining = keep.length;
+    } catch {
+      removed = 0;
+      readFailed = true;
+    }
+  });
+  if (remaining >= 0) notifyQueueChanged(remaining);
+  return { removed, readFailed };
+}
+
 type NewMutation = Omit<OfflineMutation, 'id' | 'timestamp' | 'retryCount' | 'userId'>;
 
 async function buildEntry(mutation: NewMutation, writer?: { userId: string | undefined }): Promise<OfflineMutation> {

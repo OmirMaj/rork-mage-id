@@ -12,3 +12,11 @@ Each file is the exact text the acceptance hash was taken over: the words inside
 - The hash is of the page in this repository (`marketing/terms.html`, `marketing/privacy.html`). The live site is published from that folder on a push to `main`. Nothing compares the live page with the file.
 
 These files are the legal text itself, kept word for word. They are not written in the house style of the app's own copy and must not be reformatted.
+
+## In-App Questions
+
+Two more files hold the Living Model's question before a scanned room is sent to the account (`public.legal_acceptances.kind = 'scan_room_upload'`), one per language:
+
+`scan_room_upload-en-<version>-<first 8 characters of the hash>.txt` and `scan_room_upload-es-<version>-<first 8 characters of the hash>.txt`
+
+Each is the exact string the hash was taken over: the title, one newline, the body, UTF-8, no trailing newline. The same script writes them, and `scripts/validate-living-model-sync.ts` fails the build when a file is missing or does not hash to the constant in `utils/legalAcceptanceCore.ts`. The Spanish text has not been read by counsel yet (`docs/legal/consent-texts-for-counsel.md`).

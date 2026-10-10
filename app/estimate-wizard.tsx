@@ -1847,7 +1847,7 @@ function EstimateWizardScreenInner() {
                   <View key={i} style={styles.lineItemNew}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.lineDesc}>{li.description}</Text>
-                      <Text style={styles.lineMeta}>{li.quantity} {li.unit} × ${li.unitCost.toFixed(2)}</Text>
+                      <Text style={styles.lineMeta}>{li.quantity} {li.unit} × {formatMoney(li.unitCost, 2)}</Text>
                     </View>
                     <Text style={styles.lineTotal}>{formatMoney(li.total, 2)}</Text>
                   </View>

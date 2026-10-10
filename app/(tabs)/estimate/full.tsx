@@ -1498,7 +1498,7 @@ export default function EstimateScreen() {
     // line texted a homeowner $9,020 for an estimate whose own footer read
     // $36,960, and texted "Total: $0.00 (0 items)" for a labor-only job — the
     // one message in the product whose entire content is the number.
-    body += `Total: $${grandTotal.toFixed(2)} (${totalItemCount} ${totalItemCount === 1 ? 'item' : 'items'})\n`;
+    body += `Total: ${formatMoney(grandTotal, 2)} (${totalItemCount} ${totalItemCount === 1 ? 'item' : 'items'})\n`;
     if (settings.branding?.companyName) body += `From: ${settings.branding.companyName}\n`;
     const url = Platform.OS === 'ios'
       ? `sms:&body=${encodeURIComponent(body)}`
@@ -1537,7 +1537,7 @@ export default function EstimateScreen() {
             not as "button". */}
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel={`${item.name}, ${catLabel}, $${item.baseRetailPrice.toFixed(2)} per ${item.unit}${inCart ? `, in estimate, quantity ${inCart.quantity}` : ''}`}
+          accessibilityLabel={`${item.name}, ${catLabel}, ${formatMoney(item.baseRetailPrice, 2)} per ${item.unit}${inCart ? `, in estimate, quantity ${inCart.quantity}` : ''}`}
           accessibilityHint="Opens quantity and markup"
           style={styles.materialCard}
           testID={`material-${item.id}`}
@@ -1575,13 +1575,13 @@ export default function EstimateScreen() {
           <View style={styles.priceRow}>
             <View style={styles.priceBlock}>
               <Text style={styles.priceLabel}>Retail</Text>
-              <Text style={styles.retailPrice}>${item.baseRetailPrice.toFixed(2)}</Text>
+              <Text style={styles.retailPrice}>{formatMoney(item.baseRetailPrice, 2)}</Text>
               <Text style={styles.priceUnit}>/{item.unit}</Text>
             </View>
             <View style={styles.priceDivider} />
             <View style={styles.priceBlock}>
               <Text style={[styles.priceLabel, { color: themeColors.successLabel }]}>Bulk</Text>
-              <Text style={styles.bulkPrice}>${item.baseBulkPrice.toFixed(2)}</Text>
+              <Text style={styles.bulkPrice}>{formatMoney(item.baseBulkPrice, 2)}</Text>
               <Text style={styles.priceUnit}>/{item.unit}</Text>
             </View>
             <View style={styles.bulkSavingsBadge}>
@@ -1654,7 +1654,7 @@ export default function EstimateScreen() {
           <View style={styles.cartItemLeft}>
             <Text style={styles.cartItemName} numberOfLines={1}>{item.material.name}</Text>
             <Text style={styles.cartItemSub}>
-              ${base.toFixed(2)}/{item.material.unit} {item.usesBulk ? '· bulk rate' : '· retail rate'}
+              {formatMoney(base, 2)}/{item.material.unit} {item.usesBulk ? '· bulk rate' : '· retail rate'}
             </Text>
           </View>
           <View style={styles.cartItemRight}>
@@ -1692,20 +1692,20 @@ export default function EstimateScreen() {
             <View style={styles.costBreakdownRow}>
               <View style={[styles.costBreakdownDot, { backgroundColor: Colors.primary }]} />
               <Text style={styles.costBreakdownLabel}>Material</Text>
-              <Text style={styles.costBreakdownRate}>${matCostPerUnit.toFixed(2)}/{item.material.unit}</Text>
-              <Text style={styles.costBreakdownValue}>${(matCostPerUnit * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.costBreakdownRate}>{formatMoney(matCostPerUnit, 2)}/{item.material.unit}</Text>
+              <Text style={styles.costBreakdownValue}>{formatMoney(matCostPerUnit * item.quantity, 2)}</Text>
             </View>
             <View style={styles.costBreakdownRow}>
               <View style={[styles.costBreakdownDot, { backgroundColor: Colors.accent }]} />
               <Text style={styles.costBreakdownLabel}>Labor{installTrade ? ` (${installTrade})` : ''}</Text>
-              <Text style={styles.costBreakdownRate}>${labCostPerUnit.toFixed(2)}/{item.material.unit}{installHrs > 0 ? ` · ${installHrs}hr` : ''}</Text>
-              <Text style={styles.costBreakdownValue}>${(labCostPerUnit * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.costBreakdownRate}>{formatMoney(labCostPerUnit, 2)}/{item.material.unit}{installHrs > 0 ? ` · ${installHrs}hr` : ''}</Text>
+              <Text style={styles.costBreakdownValue}>{formatMoney(labCostPerUnit * item.quantity, 2)}</Text>
             </View>
             <View style={styles.costBreakdownRow}>
               <View style={[styles.costBreakdownDot, { backgroundColor: Colors.info }]} />
               <Text style={styles.costBreakdownLabel}>Equipment</Text>
-              <Text style={styles.costBreakdownRate}>${eqCostPerUnit.toFixed(2)}/{item.material.unit}</Text>
-              <Text style={styles.costBreakdownValue}>${(eqCostPerUnit * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.costBreakdownRate}>{formatMoney(eqCostPerUnit, 2)}/{item.material.unit}</Text>
+              <Text style={styles.costBreakdownValue}>{formatMoney(eqCostPerUnit * item.quantity, 2)}</Text>
             </View>
             <View style={styles.costBreakdownDivider} />
             <View style={styles.costBreakdownRow}>
@@ -1713,7 +1713,7 @@ export default function EstimateScreen() {
               <Text style={[styles.costBreakdownLabel, { fontWeight: '700' as const, color: Colors.text }]}>All-In Total</Text>
               <Text style={styles.costBreakdownRate} />
               <Text style={[styles.costBreakdownValue, { fontWeight: '700' as const, color: Colors.primary }]}>
-                ${((matCostPerUnit + labCostPerUnit + eqCostPerUnit) * item.quantity).toFixed(2)}
+                {formatMoney((matCostPerUnit + labCostPerUnit + eqCostPerUnit) * item.quantity, 2)}
               </Text>
             </View>
           </View>
@@ -2111,7 +2111,7 @@ export default function EstimateScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={aiStyles.recentChipName} numberOfLines={1}>{item.name}</Text>
-                <Text style={aiStyles.recentChipPrice}>${item.unitPrice.toFixed(2)}</Text>
+                <Text style={aiStyles.recentChipPrice}>{formatMoney(item.unitPrice, 2)}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -2137,7 +2137,7 @@ export default function EstimateScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={aiStyles.recentChipName} numberOfLines={1}>{item.name}</Text>
-                <Text style={aiStyles.recentChipPrice}>${item.unitPrice.toFixed(2)}</Text>
+                <Text style={aiStyles.recentChipPrice}>{formatMoney(item.unitPrice, 2)}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -2197,7 +2197,7 @@ export default function EstimateScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={aiStyles.aiResultName}>{aiMat.name}</Text>
                     <View style={aiStyles.aiResultMeta}>
-                      <Text style={aiStyles.aiResultPrice}>${aiMat.unitPrice.toFixed(2)}/{aiMat.unit}</Text>
+                      <Text style={aiStyles.aiResultPrice}>{formatMoney(aiMat.unitPrice, 2)}/{aiMat.unit}</Text>
                       {aiMat.brand && <Text style={aiStyles.aiResultBrand}>{aiMat.brand}</Text>}
                     </View>
                     <View style={aiStyles.aiResultTags}>
@@ -2276,7 +2276,7 @@ export default function EstimateScreen() {
     const inCart = laborCart.find(i => i.labor.id === item.id);
     return (
       <View style={styles.materialCardWrapper}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${item.trade}, $${item.hourlyRate.toFixed(2)} per hour`} style={styles.materialCard} onPress={() => openLaborPopup(item)} activeOpacity={0.7}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${item.trade}, ${formatMoney(item.hourlyRate, 2)} per hour`} style={styles.materialCard} onPress={() => openLaborPopup(item)} activeOpacity={0.7}>
           <View style={styles.materialMain}>
             <View style={styles.materialInfo}>
               <Text style={styles.materialName}>{item.trade}</Text>
@@ -2297,7 +2297,7 @@ export default function EstimateScreen() {
           <View style={styles.priceRow}>
             <View style={styles.priceBlock}>
               <Text style={styles.priceLabel}>Median</Text>
-              <Text style={styles.bulkPrice}>${item.hourlyRate.toFixed(2)}</Text>
+              <Text style={styles.bulkPrice}>{formatMoney(item.hourlyRate, 2)}</Text>
               <Text style={styles.priceUnit}>/hr</Text>
             </View>
             <View style={styles.priceDivider} />
@@ -2361,13 +2361,13 @@ export default function EstimateScreen() {
           <View style={styles.priceRow}>
             <View style={styles.priceBlock}>
               <Text style={styles.priceLabel}>Per Unit</Text>
-              <Text style={styles.bulkPrice}>${sampleCost.totalCost.toFixed(2)}</Text>
+              <Text style={styles.bulkPrice}>{formatMoney(sampleCost.totalCost, 2)}</Text>
               <Text style={styles.priceUnit}>/{item.unit.replace('per ', '')}</Text>
             </View>
             <View style={styles.priceDivider} />
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[styles.priceLabel, { fontSize: 9 }]}>Mat: ${sampleCost.materialsCost.toFixed(2)}</Text>
-              <Text style={[styles.priceLabel, { fontSize: 9, color: Colors.accent }]}>Lab: ${sampleCost.laborCost.toFixed(2)}</Text>
+              <Text style={[styles.priceLabel, { fontSize: 9 }]}>Mat: {formatMoney(sampleCost.materialsCost, 2)}</Text>
+              <Text style={[styles.priceLabel, { fontSize: 9, color: Colors.accent }]}>Lab: {formatMoney(sampleCost.laborCost, 2)}</Text>
             </View>
           </View>
           <View style={styles.materialFooterRow}>
@@ -2804,7 +2804,7 @@ export default function EstimateScreen() {
                     return (
                       <TouchableOpacity
                         accessibilityRole="button"
-                        accessibilityLabel={`${item.name}, $${item.baseBulkPrice.toFixed(2)} per ${item.unit}`}
+                        accessibilityLabel={`${item.name}, ${formatMoney(item.baseBulkPrice, 2)} per ${item.unit}`}
                         key={item.id}
                         style={dStyles.catalogItem}
                         onPress={() => openItemPopup(item)}
@@ -2812,7 +2812,7 @@ export default function EstimateScreen() {
                       >
                         <View style={{ flex: 1 }}>
                           <Text style={dStyles.catalogItemName} numberOfLines={1}>{item.name}</Text>
-                          <Text style={dStyles.catalogItemPrice}>${item.baseBulkPrice.toFixed(2)}/{item.unit}</Text>
+                          <Text style={dStyles.catalogItemPrice}>{formatMoney(item.baseBulkPrice, 2)}/{item.unit}</Text>
                         </View>
                         {inCart ? (
                           <View style={[styles.addButton, styles.addButtonActive, { width: 26, height: 26, borderRadius: 13 }]}>
@@ -2834,10 +2834,10 @@ export default function EstimateScreen() {
                 {filteredLabor.map(item => {
                   const inCart = laborCart.find(i => i.labor.id === item.id);
                   return (
-                    <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${item.trade}, $${item.hourlyRate.toFixed(2)} per hour`} key={item.id} style={dStyles.catalogItem} onPress={() => openLaborPopup(item)} activeOpacity={0.7}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${item.trade}, ${formatMoney(item.hourlyRate, 2)} per hour`} key={item.id} style={dStyles.catalogItem} onPress={() => openLaborPopup(item)} activeOpacity={0.7}>
                       <View style={{ flex: 1 }}>
                         <Text style={dStyles.catalogItemName} numberOfLines={1}>{item.trade}</Text>
-                        <Text style={dStyles.catalogItemPrice}>${item.hourlyRate.toFixed(2)}/hr</Text>
+                        <Text style={dStyles.catalogItemPrice}>{formatMoney(item.hourlyRate, 2)}/hr</Text>
                       </View>
                       {inCart ? (
                         <View style={[styles.addButton, styles.addButtonActive, { width: 26, height: 26, borderRadius: 13 }]}>
@@ -2969,7 +2969,7 @@ export default function EstimateScreen() {
                             <View key={item.material.id} style={[dStyles.wsTableRow, idx % 2 === 0 && dStyles.wsTableRowAlt]}>
                               <Text style={[dStyles.wsCell, { flex: 3, fontWeight: '500' as const }]} numberOfLines={1}>{item.material.name}</Text>
                               <Text style={[dStyles.wsCell, { flex: 1 }]}>{item.quantity}</Text>
-                              <Text style={[dStyles.wsCell, { flex: 1 }]}>${base.toFixed(2)}</Text>
+                              <Text style={[dStyles.wsCell, { flex: 1 }]}>{formatMoney(base, 2)}</Text>
                               <Text style={[dStyles.wsCell, { flex: 1 }]}>{item.markup}%</Text>
                               <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>{formatMoney(lineTotal, 2)}</Text>
                               <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeFromCart(item.material.id)} accessibilityRole="button" accessibilityLabel="Delete">
@@ -2997,7 +2997,7 @@ export default function EstimateScreen() {
                           <View key={item.labor.id} style={[dStyles.wsTableRow, idx % 2 === 0 && dStyles.wsTableRowAlt]}>
                             <Text style={[dStyles.wsCell, { flex: 3, fontWeight: '500' as const }]}>{item.labor.trade}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>{item.hours}</Text>
-                            <Text style={[dStyles.wsCell, { flex: 1 }]}>${item.adjustedRate.toFixed(2)}</Text>
+                            <Text style={[dStyles.wsCell, { flex: 1 }]}>{formatMoney(item.adjustedRate, 2)}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>{globalMarkup}%</Text>
                             <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>{formatMoney(pricedCart.labor[idx]?.sell ?? 0, 2)}</Text>
                             <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeLaborItem(item.labor.id)} accessibilityRole="button" accessibilityLabel="Delete">
@@ -3470,12 +3470,12 @@ export default function EstimateScreen() {
                 <View style={styles.popupPriceRow}>
                   <View style={styles.popupPriceBlock}>
                     <Text style={styles.popupPriceLabel}>Retail</Text>
-                    <Text style={styles.popupRetail}>${(popupPrices?.material ?? selectedMaterial).baseRetailPrice.toFixed(2)}</Text>
+                    <Text style={styles.popupRetail}>{formatMoney((popupPrices?.material ?? selectedMaterial).baseRetailPrice, 2)}</Text>
                     <Text style={styles.popupPriceUnit}>/{selectedMaterial.unit}</Text>
                   </View>
                   <View style={styles.popupPriceBlock}>
                     <Text style={[styles.popupPriceLabel, { color: themeColors.successLabel }]}>Bulk</Text>
-                    <Text style={styles.popupBulk}>${(popupPrices?.material ?? selectedMaterial).baseBulkPrice.toFixed(2)}</Text>
+                    <Text style={styles.popupBulk}>{formatMoney((popupPrices?.material ?? selectedMaterial).baseBulkPrice, 2)}</Text>
                     <Text style={styles.popupPriceUnit}>/{selectedMaterial.unit}</Text>
                   </View>
                 </View>
@@ -3528,9 +3528,9 @@ export default function EstimateScreen() {
                   <View style={styles.popupBreakdown} testID="popup-kept-price-note">
                     <Text style={styles.popupBreakdownTitle}>Kept at Its Earlier Price</Text>
                     <Text style={styles.popupBreakdownLabel}>
-                      This line stays at the price it was added at: ${popupPrices.material.baseRetailPrice.toFixed(2)} retail,
-                      ${popupPrices.material.baseBulkPrice.toFixed(2)} bulk. The {regionLabel} price book reads
-                      ${popupPrices.catalog.baseRetailPrice.toFixed(2)} retail, ${popupPrices.catalog.baseBulkPrice.toFixed(2)} bulk.
+                      This line stays at the price it was added at: {formatMoney(popupPrices.material.baseRetailPrice, 2)} retail,
+                      {formatMoney(popupPrices.material.baseBulkPrice, 2)} bulk. The {regionLabel} price book reads
+                      {formatMoney(popupPrices.catalog.baseRetailPrice, 2)} retail, {formatMoney(popupPrices.catalog.baseBulkPrice, 2)} bulk.
                       Updating the quantity keeps the earlier price.
                     </Text>
                   </View>
@@ -3547,7 +3547,7 @@ export default function EstimateScreen() {
                       <Text style={styles.popupBreakdownTitle}>Price Breakdown</Text>
                       <View style={styles.popupBreakdownRow}>
                         <Text style={styles.popupBreakdownLabel}>MSRP Base</Text>
-                        <Text style={styles.popupBreakdownValue}>${msrp.toFixed(2)}</Text>
+                        <Text style={styles.popupBreakdownValue}>{formatMoney(msrp, 2)}</Text>
                       </View>
                       <View style={styles.popupBreakdownRow}>
                         <Text style={styles.popupBreakdownLabel}>
@@ -3557,13 +3557,13 @@ export default function EstimateScreen() {
                           styles.popupBreakdownValue,
                           { color: regionDelta >= 0 ? themeColors.warningLabel : themeColors.successLabel },
                         ]}>
-                          {regionDelta >= 0 ? '+' : '−'}${Math.abs(regionDelta).toFixed(2)}
+                          {regionDelta >= 0 ? '+' : '−'}{formatMoney(Math.abs(regionDelta), 2)}
                         </Text>
                       </View>
                       <View style={[styles.popupBreakdownRow, styles.popupBreakdownDivider]}>
                         <Text style={styles.popupBreakdownLabelBold}>Retail / {selectedMaterial.unit}</Text>
                         <Text style={styles.popupBreakdownValueBold}>
-                          ${selectedMaterial.baseRetailPrice.toFixed(2)}
+                          {formatMoney(selectedMaterial.baseRetailPrice, 2)}
                         </Text>
                       </View>
                       <View style={styles.popupBreakdownRow}>
@@ -3571,13 +3571,13 @@ export default function EstimateScreen() {
                           Bulk @ {selectedMaterial.bulkMinQty}+ ({bulkPct.toFixed(0)}% off)
                         </Text>
                         <Text style={[styles.popupBreakdownValue, { color: themeColors.successLabel }]}>
-                          ${selectedMaterial.baseBulkPrice.toFixed(2)}
+                          {formatMoney(selectedMaterial.baseBulkPrice, 2)}
                         </Text>
                       </View>
                       <View style={styles.popupBreakdownRow}>
                         <Text style={styles.popupBreakdownLabel}>You save / unit</Text>
                         <Text style={[styles.popupBreakdownValue, { color: themeColors.successLabel }]}>
-                          ${bulkSavings.toFixed(2)}
+                          {formatMoney(bulkSavings, 2)}
                         </Text>
                       </View>
                     </View>
@@ -3728,7 +3728,7 @@ export default function EstimateScreen() {
                                     rows add up to the Grand total below. The
                                     cost rate stays visible, with the markup
                                     the row carries on top of it. */}
-                                <Text style={styles.cartItemSub}>${item.adjustedRate.toFixed(2)}/hr · {item.hours} hrs{globalMarkup > 0 ? ` · +${globalMarkup}% O&P` : ''}</Text>
+                                <Text style={styles.cartItemSub}>{formatMoney(item.adjustedRate, 2)}/hr · {item.hours} hrs{globalMarkup > 0 ? ` · +${globalMarkup}% O&P` : ''}</Text>
                               </View>
                               <View style={styles.cartItemRight}>
                                 <Text style={styles.cartItemTotal} testID={`cart-labor-total-${item.labor.id}`}>{formatMoney(pricedCart.labor[idx]?.sell ?? 0, 2)}</Text>
@@ -4060,7 +4060,7 @@ export default function EstimateScreen() {
                   <View style={styles.existingEstimateWarning}>
                     <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
                     <Text style={styles.existingEstimateText}>
-                      This project already has an estimate (${pendingLinkProject.linkedEstimate.grandTotal.toFixed(2)}).
+                      This project already has an estimate ({formatMoney(pendingLinkProject.linkedEstimate.grandTotal, 2)}).
                     </Text>
                   </View>
                 ) : null}
@@ -4119,7 +4119,7 @@ export default function EstimateScreen() {
                 <View style={styles.popupPriceRow}>
                   <View style={styles.popupPriceBlock}>
                     <Text style={styles.popupPriceLabel}>Median</Text>
-                    <Text style={styles.popupBulk}>${selectedLabor.hourlyRate.toFixed(2)}</Text>
+                    <Text style={styles.popupBulk}>{formatMoney(selectedLabor.hourlyRate, 2)}</Text>
                     <Text style={styles.popupPriceUnit}>/hr</Text>
                   </View>
                   <View style={styles.popupPriceBlock}>
@@ -4216,11 +4216,11 @@ export default function EstimateScreen() {
                     <>
                       <View style={styles.popupRunningRow}>
                         <Text style={styles.popupRunningLabel}>Materials</Text>
-                        <Text style={styles.popupRunningValue}>${costs.materialsCost.toFixed(2)}</Text>
+                        <Text style={styles.popupRunningValue}>{formatMoney(costs.materialsCost, 2)}</Text>
                       </View>
                       <View style={styles.popupRunningRow}>
                         <Text style={styles.popupRunningLabel}>Labor</Text>
-                        <Text style={styles.popupRunningValue}>${costs.laborCost.toFixed(2)}</Text>
+                        <Text style={styles.popupRunningValue}>{formatMoney(costs.laborCost, 2)}</Text>
                       </View>
                       <View style={styles.popupTotalRow}>
                         <Text style={styles.popupTotalLabel}>Total</Text>
