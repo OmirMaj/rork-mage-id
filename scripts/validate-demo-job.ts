@@ -26,7 +26,7 @@
 // twice; H8 nothing is offered before the project list is read, and a second
 // tap is stopped by a ref.
 // Every rule has at least one planted mutation that must turn it red.
-import { readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { makeFakeApp as makeFakeAppRaw, fakeRecordCount, type FakeApp } from '../__tests__/fixtures/demoJobFakeApp';
@@ -54,6 +54,10 @@ import { buildReplayInput } from '../utils/livingModel/replayInput';
 import { roomMoment } from '../utils/livingModel/replayCore';
 import { isSampleTimeEntry } from '../utils/laborSamples';
 import { MAX_ROOMS, validateModel } from '../utils/livingModel/modelCore';
+import { modelRoomSpecs } from '../utils/demoJob/model';
+import { DEMO_PLAN_SHEETS, PLAN_IMAGE } from '../utils/demoJob/planSheets';
+import { drawDemoPlans } from './demo-job/draw-plans';
+import { createHash } from 'node:crypto';
 import { resolveStage, stageForTask } from '../utils/livingModel/stageCore';
 import { MAX_MODEL_CHARS } from '../utils/livingModel/storeCore';
 import { countsTowardFreeCap } from '../utils/projectCap';
@@ -70,6 +74,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string): string => readFileSync(join(ROOT, p), 'utf8');
 const ls = (dir: string): string[] => readdirSync(join(ROOT, dir)).filter((f) => statSync(join(ROOT, dir, f)).isFile()).map((f) => `${dir}/${f}`);
 
+const sha = (text: string): string => createHash('sha256').update(text).digest('hex').slice(0, 16);
 const USER = 'user-0001';
 const PID = '3b1f6c0e-2a4d-4e8f-9a11-5c7d9e0f1a2b';
 const SEED = '2026-10-09';
@@ -136,7 +141,7 @@ const PORT_IMPORTS = [
   'react', '@react-native-async-storage/async-storage', '@/contexts/AuthContext', '@/contexts/CrewContext', '@/contexts/ProjectContext',
   '@/contexts/SafetyContext', '@/hooks/useTimeEntries', '@/hooks/useOnline', '@/utils/contractEngine', '@/utils/lienWaiverEngine',
   '@/utils/livingModel/store', '@/utils/livingModel/storeCore', '@/utils/offlineQueue', '@/utils/selectionsEngine', '@/utils/tutorial/sandbox',
-  '@/utils/demoJob/writer',
+  '@/utils/demoJob/writer', '@/utils/demoJob/planSheets',
 ];
 
 interface Ctx {
@@ -149,7 +154,7 @@ interface Ctx {
 }
 const loadSrc = (): Record<string, string> => {
   const out: Record<string, string> = {};
-  for (const f of new Set([...BUILDER_FILES, ...EXCLUSIONS.map((e) => e[0]), ...FENCES.map((e) => e[0]), ...SERVER_FENCES.map((e) => e[0]), 'app/(tabs)/settings/index.tsx', 'constants/featureFlags.ts', 'app/_layout.tsx', 'hooks/useDemoJobCopy.ts', 'hooks/useTimeEntries.ts'])) out[f] = read(f);
+  for (const f of new Set([...BUILDER_FILES, ...EXCLUSIONS.map((e) => e[0]), ...FENCES.map((e) => e[0]), ...SERVER_FENCES.map((e) => e[0]), 'assets/demo-job/drawn-from.txt', 'app/(tabs)/settings/index.tsx', 'constants/featureFlags.ts', 'app/_layout.tsx', 'hooks/useDemoJobCopy.ts', 'hooks/useTimeEntries.ts'])) out[f] = read(f);
   return out;
 };
 
@@ -632,13 +637,20 @@ const RULES: Rule[] = [
       ['hazards', app.lists.hazards.length, job.hazards.length], ['deliveries', app.lists.deliveries.length, job.deliveries.length], ['access rules', app.lists.buildingAccessRules.length, 1],
       ['reservations', app.lists.accessReservations.length, job.reservations.length], ['delays', app.lists.delayEvents.length, job.delayEvents.length], ['equipment', app.lists.equipment.length, job.equipment.length],
       ['field tickets', app.lists.fieldTickets.length, job.fieldTickets.length], ['crew', app.lists.crew.length, job.crew.length], ['time entries', app.lists.timeEntries.length, job.timeEntries.length],
-      ['photos', app.lists.projectPhotos.length, job.photos.length], ['plan sheets', app.lists.planSheets.length, 1], ['lien waivers', app.engineRows.lienWaivers.size, job.lienWaivers.length],
+      ['photos', app.lists.projectPhotos.length, job.photos.length], ['plan sheets', app.lists.planSheets.length, DEMO_PLAN_SHEETS.length], ['lien waivers', app.engineRows.lienWaivers.size, job.lienWaivers.length],
       ['contracts', app.engineRows.contracts.size, 1], ['selections', app.engineRows.selections.size, job.selections.length], ['models', app.models.size, 1], ['safety incidents', app.lists.safetyIncidents.length, 0],
     ];
     for (const [what, got, n] of want) if (got !== n) out.push(`${what}: ${got}, expected ${n}`);
     const before = app.adds();
     const again = await createDemoJob(job, app.ports, () => {});
     if (!again.ok || app.adds() !== before) out.push(`a second run made ${app.adds() - before} more writes`);
+    // One plan sheet lost: Finish Creating puts that one back and no other.
+    const lost = app.lists.planSheets.find((p) => (p as { sheetNumber?: string }).sheetNumber === 'A-102');
+    app.lists.planSheets = app.lists.planSheets.filter((p) => p !== lost);
+    if ((await demoStatus(job, app.ports)).state !== 'partial') out.push('a missing plan sheet is not noticed');
+    await createDemoJob(job, app.ports, () => {});
+    const numbers = app.lists.planSheets.map((p) => (p as { sheetNumber?: string }).sheetNumber).sort().join();
+    if (numbers !== 'A-101,A-102,A-301') out.push(`after a lost sheet the job holds ${numbers}`);
     // The whole job is well inside the offline queue's cap, with the room the writer asks for.
     if (before > QUEUE_ROOM_NEEDED - 50 || QUEUE_ROOM_NEEDED >= QUEUE_CAP) out.push(`${before} writes against room for ${QUEUE_ROOM_NEEDED}`);
     return out;
@@ -924,13 +936,17 @@ const RULES: Rule[] = [
     return out;
   } },
   // ── L. Living Model ───────────────────────────────────────────────────────
-  { id: 'L1', what: 'the Living Model is sound: a typical floor, every room ticked against real tasks, stages said where a title misleads', run: ({ job }) => {
+  { id: 'L1', what: 'the Living Model is sound: four floors, every room ticked against the tasks of its own floor, stages said where a title misleads', run: ({ job }) => {
     const out: string[] = [];
     const m = job.model;
     const chk = validateModel(m);
     if (!chk.ok || chk.errors.length || chk.warnings.length) out.push(`the model has issues: ${[...chk.errors, ...chk.warnings].map((i) => i.code).join(', ')}`);
-    if (m.rooms.length !== 28 || m.rooms.length > MAX_ROOMS) out.push(`${m.rooms.length} rooms`);
-    if (m.rooms.filter((r) => /^Unit 40\d /.test(r.name)).length !== 24) out.push('not eight apartments of three rooms');
+    // Floor N is kept at model level N - 1, so the app's "Floor 4" is Level 4.
+    const perFloor = [1, 2, 4, 7].map((n) => m.rooms.filter((r) => r.level === n - 1).length).join();
+    if (perFloor !== '7,12,28,12' || m.rooms.length !== 59 || m.rooms.length >= MAX_ROOMS) out.push(`${m.rooms.length} rooms, by floor ${perFloor}`);
+    if (m.rooms.filter((r) => /^Unit 40\d /.test(r.name)).length !== 24) out.push('Level 4 is not eight apartments of three rooms');
+    for (const n of [2, 7]) if (m.rooms.filter((r) => new RegExp(`^Unit ${n}0\\d$`).test(r.name)).length !== 8) out.push(`Level ${n} is not eight apartments`);
+    if (new Set(m.rooms.map((r) => r.name)).size !== m.rooms.length) out.push('two rooms have the same name');
     if (JSON.stringify(m).length > MAX_MODEL_CHARS / 4) out.push('the model is large');
     const tasks = new Map(job.project.schedule!.tasks.map((t) => [t.id, t] as const));
     const rooms = new Set(m.rooms.map((r) => r.id));
@@ -939,15 +955,53 @@ const RULES: Rule[] = [
       for (const t of ids) if (!tasks.has(t)) out.push('a room is ticked against a task that is not there');
     }
     for (const r of m.rooms) {
+      const floor = r.level + 1;
       const linked = (m.links[r.id] ?? []).map((t) => tasks.get(t)!);
       const stages = new Set(linked.map((t) => resolveStage(t.title, t.tradeKey, m.stages?.[t.id]).stage));
-      for (const s of ['framing', 'drywall', 'finishes']) if (!stages.has(s as never)) out.push(`${r.name} never reaches ${s}`);
-      if (!/^Stair/.test(r.name) && !stages.has('rough_in' as never)) out.push(`${r.name} has no rough-in`);
+      // The podium is concrete with a shell fit-out: no insulation or drywall stage of its own.
+      for (const s of floor === 1 ? ['framing', 'finishes'] : ['framing', 'drywall', 'finishes']) if (!stages.has(s as never)) out.push(`${r.name} never reaches ${s}`);
+      if (!/Stair/.test(r.name) && !stages.has('rough_in' as never)) out.push(`${r.name} has no rough-in`);
+      // A task named for a floor ("Level 4 ...") is ticked only on that floor.
+      for (const t of linked) { const named = /^Level (\d) /.exec(t.title); if (named && Number(named[1]) !== floor) out.push(`${r.name} is ticked against ${t.title}`); }
     }
     const frame = job.project.schedule!.tasks.find((t) => t.title === 'Level 4 Wall Panels and Floor Deck')!;
     if (stageForTask(frame.title, frame.tradeKey).stage === 'framing') out.push('the framing override is no longer needed: remove it');
     if (resolveStage(frame.title, frame.tradeKey, m.stages?.[frame.id]).stage !== 'framing') out.push('wall panels are not drawn as framing');
+    const columns = job.project.schedule!.tasks.find((t) => t.title === 'Level 1 Columns and Shear Walls')!;
+    if (resolveStage(columns.title, columns.tradeKey, m.stages?.[columns.id]).stage !== 'framing') out.push('the podium structure is not drawn as framing');
     if (m.updatedAt !== '') out.push('the model claims a save time before it is saved');
+    return out;
+  } },
+  // ── P. The plan sheets ────────────────────────────────────────────────────
+  { id: 'P1', what: 'the three plan sheets are drawn from the model\'s rooms, say they are samples, carry no seal, and the bundled images are current', run: ({ src }) => {
+    const out: string[] = [];
+    const drawn = drawDemoPlans();
+    if (DEMO_PLAN_SHEETS.map((s) => `${s.sheetNumber}:${s.key}`).join() !== 'A-101:a-101,A-102:a-102,A-301:a-301') out.push('the sheet list changed');
+    for (const sheet of DEMO_PLAN_SHEETS) {
+      const svg = drawn[sheet.key] ?? '';
+      if (!/^Sample /.test(sheet.name)) out.push(`${sheet.sheetNumber} is not named as a sample`);
+      for (const must of ['SAMPLE DRAWING', 'NOT FOR CONSTRUCTION', 'No architect or', 'Do not build, price or permit from it.', sheet.sheetNumber]) if (!svg.includes(must)) out.push(`${sheet.sheetNumber} does not say "${must}"`);
+      // Nothing that reads as a professional's mark. \bPE\b etc. are checked on the printed words only.
+      const words = [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((x) => x[1]).join(' | ');
+      const mark = /\bseal|\bstamp|licen[cs]e|registered|\bR\.?A\.?\b|\bP\.?E\.?\b|\bAIA\b|signature|signed|approved|permit set|issued for (?:construction|permit|bid)|verified|compliant/i.exec(words.replace('Do not build, price or permit from it.', ''));
+      if (mark) out.push(`${sheet.sheetNumber} prints "${mark[0]}"`);
+      const png = join(ROOT, `assets/demo-job/plan-${sheet.key}.png`);
+      if (!existsSync(png)) { out.push(`${sheet.sheetNumber} has no bundled image`); continue; }
+      const head = readFileSync(png);
+      if (head.readUInt32BE(16) !== PLAN_IMAGE.w || head.readUInt32BE(20) !== PLAN_IMAGE.h) out.push(`${sheet.sheetNumber}: the image is not ${PLAN_IMAGE.w} by ${PLAN_IMAGE.h}`);
+      if (head.length > 600_000) out.push(`${sheet.sheetNumber}: the image is ${head.length} bytes`);
+    }
+    // Every room of a drawn floor is on its sheet, by its typed size.
+    const size = (r: { w: number; l: number }) => `${r.w}'-0" x ${r.l}'-0"`;
+    for (const r of modelRoomSpecs()) {
+      const svg = r.floor === 1 ? drawn['a-101'] : r.floor === 4 ? drawn['a-102'] : null;
+      if (svg && !/Stair/.test(r.name) && !svg.includes(size(r))) out.push(`${r.name} (${size(r)}) is not on its sheet`);
+    }
+    // The images in assets/demo-job were rendered from exactly these drawings (scripts/demo-job/render.sh writes the note).
+    const note = src['assets/demo-job/drawn-from.txt'] ?? '';
+    for (const sheet of DEMO_PLAN_SHEETS) if (!note.includes(`${sheet.key} ${sha(drawn[sheet.key])}`)) out.push(`${sheet.sheetNumber}: the bundled image is older than the drawing. Run scripts/demo-job/render.sh`);
+    const ports = src['hooks/useDemoJobPorts.ts'];
+    for (const sheet of DEMO_PLAN_SHEETS) if (!ports.includes(`'${sheet.key}': require('../assets/demo-job/plan-${sheet.key}.png')`)) out.push(`${sheet.sheetNumber} is not bundled by the ports`);
     return out;
   } },
   // ── M. The app's own engines read the job the same way ───────────────────
@@ -979,7 +1033,7 @@ const RULES: Rule[] = [
     const input = buildReplayInput(job.project.schedule, job.dailyReports, now, job.model.stages ?? {});
     if (input.clock.todayOffset !== DATA_DAY || input.clock.totalDays !== job.finishDay || input.futureReports !== 0) out.push(`the replay clock: today ${input.clock.todayOffset}, ${input.clock.totalDays} days`);
     const byId = new Map(input.tasks.map((t) => [t.id, t] as const));
-    const room = job.model.rooms[0];
+    const room = job.model.rooms.find((r) => r.name === 'Unit 401 Living Room and Kitchen')!;
     const linked = (job.model.links[room.id] ?? []).map((id) => byId.get(id)).filter((t): t is NonNullable<typeof t> => !!t);
     const seen: string[] = [];
     for (let off = 1; off <= job.finishDay; off += 1) {
@@ -991,6 +1045,14 @@ const RULES: Rule[] = [
     if (walk !== 'not_started > framing > rough_in > insulation > drywall') out.push(`Job Replay walks the room: ${walk}`);
     const end = roomMoment(linked, input.points, job.finishDay, input.clock, 'planned');
     if (!((end.ghost as Record<string, number | null>).finishes ?? 0)) out.push('Job Replay has no finishes planned ahead for the room');
+    // Today the floors stand at different stages, the lower ones ahead: that is the picture the model is for.
+    const today = (name: string): string => {
+      const r = job.model.rooms.find((x) => x.name === name)!;
+      const l = (job.model.links[r.id] ?? []).map((id) => byId.get(id)).filter((t): t is NonNullable<typeof t> => !!t);
+      return roomMoment(l, input.points, input.clock.todayOffset, input.clock, 'planned').stage;
+    };
+    const floorsToday = ['Retail A', 'Unit 201', 'Unit 401 Bedroom', 'Unit 701'].map(today).join(' | ');
+    if (floorsToday !== 'rough_in | finishes | drywall | rough_in') out.push(`today the floors stand at: ${floorsToday}`);
     return out;
   } },
 ];
@@ -1117,9 +1179,15 @@ const MUTATIONS: Mut[] = [
   text('J1', 'the screen stops saying the model is device-local', 'components/demoJob/DemoJobScreen.tsx', '<Text style={styles.note}>{copy.modelBody}</Text>', ''),
   data('M1', 'a change order subcontract bought against its division (the screen would show a third division over)', (j) => { const c = j.commitments.find((x) => x.number === 'SCO-001')!; c.phase = '31 Earthwork'; }),
   data('M1', 'a task the engine would start on another day', (j) => { j.project.schedule!.tasks[40].startDay += 2; }),
-  data('M1', 'the room loses its framing task', (j) => { const r = j.model.rooms[0]; j.model.links[r.id] = j.model.links[r.id].slice(1); }),
+  data('M1', 'the room loses its framing task', (j) => { const r = j.model.rooms.find((x) => x.name === 'Unit 401 Living Room and Kitchen')!; j.model.links[r.id] = j.model.links[r.id].slice(1); }),
   data('L1', 'a room ticked against a task that is not there', (j) => { const k = Object.keys(j.model.links)[0]; j.model.links[k].push('nope'); }),
   data('L1', 'the framing stage override removed', (j) => { delete j.model.stages; }),
+  data('L1', 'a Level 2 room ticked against a Level 4 task', (j) => { const r = j.model.rooms.find((x) => x.name === 'Unit 201')!; const t = j.project.schedule!.tasks.find((x) => x.title === 'Level 4 Drywall Hang and Finish')!; j.model.links[r.id].push(t.id); }),
+  data('L1', 'a floor kept at the wrong level', (j) => { for (const r of j.model.rooms) if (r.level === 6) r.level = 5; }),
+  data('M1', 'Level 7 ticked like Level 2', (j) => { const a = j.model.rooms.find((x) => x.name === 'Unit 201')!; const b = j.model.rooms.find((x) => x.name === 'Unit 701')!; j.model.links[b.id] = [...j.model.links[a.id]]; }),
+  text('P1', 'the ports stop bundling a sheet', 'hooks/useDemoJobPorts.ts', "'a-301': require('../assets/demo-job/plan-a-301.png'),", ''),
+  text('P1', 'the bundled images are older than the drawing', 'assets/demo-job/drawn-from.txt', 'a-102 ', 'a-102 0'),
+  app('H1', 'an app whose plan port ignores which sheet was asked for', (a) => { const real = a.ports.assets.ensurePlan; a.ports.assets.ensurePlan = (pid, sheet) => real(pid, { ...sheet, sheetNumber: 'A-101', name: 'Sample Level 1 Floor Plan' }); }),
   data('L1', 'two rooms on top of each other', (j) => { j.model.rooms[1].placement = { ...j.model.rooms[0].placement }; }),
 ];
 

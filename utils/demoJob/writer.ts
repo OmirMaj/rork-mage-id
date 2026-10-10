@@ -28,6 +28,7 @@
 // next area runs.
 import type { DemoJob } from './build';
 import type { JobModel } from './model';
+import { DEMO_PLAN_SHEETS, hasDemoSheet, type DemoPlanSheet } from './planSheets';
 import { EQUIPMENT_NUMBERS } from './fieldRecords';
 import { isStampedDemoProject } from './marker';
 import { SUBS, CREW, PEOPLE } from './world';
@@ -65,7 +66,7 @@ export interface DemoWorld {
   crew: readonly Row[];
   timeEntries: readonly Row[];
   projectPhotos: readonly Row[];
-  planSheets: readonly Row[];
+  planSheets: readonly (Row & { sheetNumber?: string | null; name?: string | null; superseded?: boolean | null })[];
 }
 
 /** What the writer calls: the app's own functions, as of now. */
@@ -126,8 +127,8 @@ export interface DemoPorts {
     saveSelection: (s: DemoJob['selections'][number]) => Promise<boolean>;
   };
   assets: {
-    /** Put the bundled sample plan sheet on the job. Resolves to why not, or null when it is there. */
-    ensurePlan: (projectId: string) => Promise<string | null>;
+    /** Put one of the demo's bundled plan sheets on the job. Resolves to why not, or null when it is there. */
+    ensurePlan: (projectId: string, sheet: DemoPlanSheet) => Promise<string | null>;
     /** The bundled sample photo as a local file the photo queue accepts, or null. */
     samplePhotoUri: () => Promise<string | null>;
   };
@@ -326,15 +327,19 @@ export function demoAreas(job: DemoJob, ports: DemoPorts): DemoArea[] {
     }),
     {
       key: 'planSheet',
-      total: 1,
+      total: DEMO_PLAN_SHEETS.length,
       needsConnection: true,
-      present: async () => (inProject(ports.world().planSheets, pid).length > 0 ? 1 : 0),
+      present: async () => DEMO_PLAN_SHEETS.filter((s) => hasDemoSheet(ports.world().planSheets, pid, s)).length,
       run: async (tick) => {
-        if (inProject(ports.world().planSheets, pid).length > 0) return;
-        if (!ports.online()) throw new DemoAreaError('offline', 'The sample plan sheet needs a connection. Tap Finish Creating when you are back online.');
-        const why = await ports.assets.ensurePlan(pid);
-        if (why) throw new DemoAreaError('asset', why);
-        tick();
+        for (const sheet of DEMO_PLAN_SHEETS) {
+          // One at a time, and only a sheet that is not there: Finish Creating never puts a second A-101 on the job.
+          if (hasDemoSheet(ports.world().planSheets, pid, sheet)) continue;
+          if (!ports.online()) throw new DemoAreaError('offline', 'The sample plan sheets need a connection. Tap Finish Creating when you are back online.');
+          const why = await ports.assets.ensurePlan(pid, sheet);
+          if (why) throw new DemoAreaError('asset', why);
+          tick();
+          await ports.pause(BREATH_MS);
+        }
       },
     },
     {

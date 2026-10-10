@@ -1,0 +1,4 @@
+# The drawings the images beside this note were rendered from (scripts/demo-job/render.sh).
+a-101 5c1c4bd141b20931
+a-102 b82f22de3ddb2c16
+a-301 865468c4b1b2f4b3

@@ -4,7 +4,7 @@
 // This is the whole list of things the builder can do. Every write is one of
 // the functions a screen already calls: the contexts' add and delete
 // functions, the lien waiver / contract / selections engines' save functions,
-// the tutorial's bundled-image upload, and the Living Model's store. There is
+// the tutorial's bundled-image upload (the demo's own three plan sheets go through it), and the Living Model's store. There is
 // no edge function, no email, no notification and no AI call in this file.
 //
 // `ready` is false until the app has read its project list: before that, "no
@@ -27,8 +27,17 @@ import { loadJobModel, saveJobModel } from '@/utils/livingModel/store';
 import { livingModelBackupKey, livingModelKeptKey, livingModelKey, livingModelSwapKey, livingModelSyncKey } from '@/utils/livingModel/storeCore';
 import { getOwnOfflineQueue, supabaseWrite } from '@/utils/offlineQueue';
 import { fetchSelectionsForProject, saveSelectionCategory, saveSelectionOption } from '@/utils/selectionsEngine';
-import { ensureTutorialPlan, samplePhotoImage } from '@/utils/tutorial/sandbox';
+import { addBundledPlan, samplePhotoImage } from '@/utils/tutorial/sandbox';
+import { PLAN_IMAGE, type DemoPlanSheet } from '@/utils/demoJob/planSheets';
 import type { DemoActions, DemoPorts, DemoWorld } from '@/utils/demoJob/writer';
+
+// Static requires: Metro bundles these into the JS update, so they ship OTA.
+// Drawn by scripts/demo-job/render.sh from the rooms of the demo's job model.
+const PLAN_MODULES: Record<DemoPlanSheet['key'], number> = {
+  'a-101': require('../assets/demo-job/plan-a-101.png'),
+  'a-102': require('../assets/demo-job/plan-a-102.png'),
+  'a-301': require('../assets/demo-job/plan-a-301.png'),
+};
 
 export function useDemoJobPorts(): DemoPorts {
   const { user } = useAuth();
@@ -134,13 +143,13 @@ export function useDemoJobPorts(): DemoPorts {
       },
     },
     assets: {
-      ensurePlan: async (projectId) => {
-        const res = await ensureTutorialPlan(projectId, {
-          getWorld: () => ({ projects: apiRef.current.projects, planSheets: apiRef.current.planSheets, userId: userRef.current }),
-          getActions: () => apiRef.current,
-        });
-        return res.ok ? null : res.reason;
-      },
+      ensurePlan: (projectId, sheet) => addBundledPlan(
+        projectId,
+        PLAN_MODULES[sheet.key],
+        { fileName: `demo-plan-${sheet.key}.png`, width: PLAN_IMAGE.w, height: PLAN_IMAGE.h, name: sheet.name, sheetNumber: sheet.sheetNumber },
+        // A getter: the actions are read when the sheet is written, after the upload.
+        () => apiRef.current,
+      ),
       samplePhotoUri: async () => (await samplePhotoImage())?.uri ?? null,
     },
     model: {

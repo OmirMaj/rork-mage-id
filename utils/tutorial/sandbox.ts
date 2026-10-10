@@ -347,6 +347,29 @@ function startPlanUpload(
   return work;
 }
 
+/**
+ * Put one bundled plan image on a job through the real addFloorPlan: the same
+ * upload and the same sheet row as a plan he picks himself. For the owner's
+ * Demo Job (hooks/useDemoJobPorts), whose three sheets are bundled like the
+ * tutorial's A-101. Never rejects; resolves to why not, or null when the sheet
+ * is on the job.
+ */
+export async function addBundledPlan(
+  projectId: string,
+  mod: number,
+  sheet: { fileName: string; width: number; height: number; name: string; sheetNumber: string },
+  getActions: () => FloorPlanActions,
+): Promise<string | null> {
+  try {
+    const image = await bundledImage(mod, { fileName: sheet.fileName, mimeType: 'image/png', width: sheet.width, height: sheet.height });
+    if (!image) return "The sample plan sheet couldn't be read on this device.";
+    const res = await addFloorPlan({ projectId, image, name: sheet.name, sheetNumber: sheet.sheetNumber }, getActions);
+    return res.ok ? null : res.reason;
+  } catch (err) {
+    return err instanceof Error ? err.message : 'The sample plan sheet failed to load.';
+  }
+}
+
 // ── Bundled images as files the real pipelines accept ───────────────────────
 
 /**
