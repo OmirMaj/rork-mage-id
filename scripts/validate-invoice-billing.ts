@@ -68,6 +68,7 @@ import { buildPortalSnapshot } from '../utils/portalSnapshot';
 import { aiaRowToSaved, savedToAiaRow, aiaTotalsFromLines } from '../utils/projectContextPure';
 import type { SavedAIAPayApp } from '../types';
 import { changeOrderBillKey } from '../utils/changeOrderBilling';
+import { thisPeriodForPercent } from '../utils/payApp/suggestPercent';
 // AIA-F11: the canonical at-cost rule and the canonical total recompute, so the
 // two estimate writers below are checked against the estimator's own contract
 // rather than against a hand-copied formula.
@@ -2241,8 +2242,15 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   // AIA's instructions state none. The warning must not claim otherwise.
   eq('…and the warning does not claim the form requires it',
     /the (G703 )?form requires|the G703 requires|required by the form/i.test(aiaScreen), false);
+  // Lane PAYAPP-1 lifted the arithmetic out of the screen into
+  // utils/payApp/suggestPercent thisPeriodForPercent (one rule for the percent
+  // buttons, the grid and a suggestion), so this EXECUTES it instead of
+  // grepping the screen for the subtraction: 75% on a $100,000 line with
+  // $40,000 stored bills $35,000 of new work, not $75,000.
   eq('…the quick-% buttons include stored material, as column H does',
-    /thisPeriod = Math\.max\(0, totalCompleted - l\.fromPreviousApp - l\.materialsPresentlyStored\)/.test(aiaScreen), true);
+    /thisPeriod: thisPeriodForPercent\(l, percent\)/.test(aiaScreen)
+    && thisPeriodForPercent({ scheduledValue: 100000, fromPreviousApp: 0, materialsPresentlyStored: 40000 }, 75) === 35000
+    && thisPeriodForPercent({ scheduledValue: 100000, fromPreviousApp: 20000, materialsPresentlyStored: 40000 }, 50) === 0, true);
 
   // ── Change orders belong to a period ──────────────────────────────────────
   {

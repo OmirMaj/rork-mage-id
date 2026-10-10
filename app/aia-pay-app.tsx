@@ -106,6 +106,7 @@ import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import {
   cardSurface, useIsDesktop, useIsDesktopWeb, SegmentedControl, ActionBar, desktopProse, useSheetFrame,
+  Button,
 } from '@/components/ui';
 import { KpiStrip } from '@/components/desktop/KpiStrip';
 import { LineItemGrid, type LineItemColumn } from '@/components/desktop/LineItemGrid';
@@ -140,6 +141,23 @@ import { todayCalendarDay } from '@/utils/calendarDate';
 // The read itself (offline, failed, timed out, sample) is ONE shared, tested
 // rule: watchContractRead. This screen only hands it the loader.
 import { loadActiveContract } from '@/utils/contractEngine';
+// Easier Pay Applications, Phase 1 (lane PAYAPP-1). Dark: everything below is
+// reached only when payAppEasyAllowed(user email) says yes.
+import { payAppEasyAllowed } from '@/utils/payApp/allowed';
+import {
+  acceptSuggestion, percentOfLine, suggestForLines, tallyOpenSuggestions, thisPeriodForPercent,
+  type LineAcceptState, type LineSuggestionResult,
+} from '@/utils/payApp/suggestPercent';
+import { SUGGEST_COPY } from '@/utils/payApp/suggestCopy';
+import { checkFingerprint, runRejectionCheck } from '@/utils/payApp/rejectionCheck';
+import { SOV_IMPORT_COPY } from '@/utils/payApp/sovSpreadsheet';
+import { payAppLock, withSentLock, SEND_LOCK_COPY } from '@/utils/payApp/sendLock';
+import { isRecordedRetainageRate } from '@/utils/retainageSource';
+import { BillThisMonth } from '@/components/payApp/BillThisMonth';
+import { RejectionCheckSheet } from '@/components/payApp/RejectionCheckSheet';
+import { SovImportSheet } from '@/components/payApp/SovImportSheet';
+import { SovSpreadsheetBar } from '@/components/payApp/SovSpreadsheetBar';
+import { SuggestionRow } from '@/components/payApp/SuggestionRow';
 import { watchContractRead, nextContractRead, contractOfRead, type ContractReadState } from '@/utils/projectFinancials';
 
 /** G703 money as the PDF prints it: two decimals, no "$". */
@@ -214,13 +232,30 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   }>();
   const {
     invoices, getProject, getChangeOrdersForProject, settings, projects,
-    addAIAPayApp, getAIAPayAppsForProject, saveAIAPayAppOnline,
+    addAIAPayApp, getAIAPayAppsForProject, saveAIAPayAppOnline, getDailyReportsForProject,
   } = useProjects();
   // Certifying is a legal record: online only, never queued (plan D-2).
   const offline = useOffline();
   const certSlideRef = useRef<SlideToConfirmHandle>(null);
 
   const { user } = useAuth();
+  // Easier Pay Applications, Phase 1: the owner preview gate. False for
+  // everyone else, and then nothing below that reads `easy` changes anything.
+  const easy = payAppEasyAllowed(user?.email);
+  /** Bill This Month is open (it replaces this screen's body until it closes). */
+  const [billThisMonthOpen, setBillThisMonthOpen] = useState(false);
+  /** The invoice Bill This Month just made: that period opens in the editor. */
+  const billedThisMonthRef = useRef<string | null>(null);
+  /** The figures the Rejection Check was last SHOWN for (checkFingerprint). */
+  const checkShownForRef = useRef<string | null>(null);
+  /** null = closed. 'certify' = on the way to the certify slide. */
+  const [checkOpen, setCheckOpen] = useState<null | 'view' | 'certify'>(null);
+  const [sovImportOpen, setSovImportOpen] = useState(false);
+  /** Suggested percents, shown per line with their source. Never applied by themselves. */
+  const [suggestions, setSuggestions] = useState<Record<string, LineSuggestionResult> | null>(null);
+  const [suggestStates, setSuggestStates] = useState<Record<string, LineAcceptState>>({});
+  const suggestionsRef = useRef<Record<string, LineSuggestionResult> | null>(null);
+  suggestionsRef.current = suggestions;
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const [pickedInvoiceId, setPickedInvoiceId] = useState<string | null>(null);
   // Set by "Different project" on the period chooser — without it a projectId
@@ -737,7 +772,18 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     const day = formatCalendarDay(calendarDayOf(since));
     return { since, line: `Bank payment${known ? ` of ${formatMoney(amount as number, 2)}` : ''} processing since ${day || 'recently'}` };
   }, [savedForThisAppNumber?.paymentPendingAt, savedForThisAppNumber?.paymentPendingAmount]);
-  const isLocked = !!savedForThisAppNumber?.payLinkUrl || !!savedPaidAt || !!pendingBankPayment;
+  // Lane PAYAPP-1: a record stamped at certify with no pay link (sentLockedAt)
+  // is locked the same way. The stamp is only ever written for the owner
+  // preview (see certify); a record that carries one is locked for whoever
+  // opens it. One rule, executed by scripts/validate-pay-app-easy.ts.
+  const lockState = payAppLock({
+    payLinkUrl: savedForThisAppNumber?.payLinkUrl,
+    paidAt: savedPaidAt,
+    pendingBankPayment: !!pendingBankPayment,
+    sentLockedAt: savedForThisAppNumber?.sentLockedAt,
+  });
+  const isLocked = lockState.locked;
+  const lockedBySendOnly = lockState.reason === 'sent';
 
   /**
    * REVIEW MODE — what the GC sent, as it was sent.
@@ -786,6 +832,13 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   // A different period was chosen: drop the "I want to edit" intent so the
   // next application does not open straight into the editor.
   useEffect(() => { setEditRequested(false); }, [invoice?.id]);
+  // Lane PAYAPP-1: the period Bill This Month just saved opens in the editor,
+  // so Generate is one tap away. Declared after the reset above, so it wins.
+  useEffect(() => {
+    if (invoice?.id && billedThisMonthRef.current === invoice.id) setEditRequested(true);
+    setSuggestions(null);
+    setSuggestStates({});
+  }, [invoice?.id]);
 
   /**
    * PERIOD TO restates the change orders. See effectivePeriodTo above for the
@@ -837,30 +890,43 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
   const updateLine = useCallback((lineId: string, patch: Partial<AIASOVLine>) => {
     if (isReadOnly) return;
     if ('thisPeriod' in patch) touchedLineRef.current = lineId;
+    // He typed over a suggestion (an accept carries suggestedPercent itself):
+    // the line is his now, and the record keeps what was suggested.
+    const typedOver = 'thisPeriod' in patch && !('suggestedPercent' in patch) ? suggestionsRef.current?.[lineId] : undefined;
+    const kept = typedOver && typedOver.kind === 'suggest'
+      ? { suggestedPercent: typedOver.suggestion.percent, suggestionSource: typedOver.suggestion.sentence }
+      : null;
+    if (kept) setSuggestStates(prev => ({ ...prev, [lineId]: 'changed' }));
     setApp(prev => prev ? {
       ...prev,
-      lines: prev.lines.map(l => l.id === lineId ? { ...l, ...patch } : l),
+      lines: prev.lines.map(l => l.id === lineId ? { ...l, ...patch, ...(kept ?? {}) } : l),
     } : prev);
   }, [isReadOnly]);
 
   const applyPercentToLine = useCallback((lineId: string, percent: number) => {
     if (isReadOnly) return;
     touchedLineRef.current = lineId;
+    const typedOver = suggestionsRef.current?.[lineId];
+    const kept = typedOver && typedOver.kind === 'suggest'
+      ? { suggestedPercent: typedOver.suggestion.percent, suggestionSource: typedOver.suggestion.sentence }
+      : null;
+    if (kept) setSuggestStates(prev => ({ ...prev, [lineId]: 'changed' }));
     setApp(prev => {
       if (!prev) return prev;
       return {
         ...prev,
         lines: prev.lines.map(l => {
           if (l.id !== lineId) return l;
-          const totalCompleted = Math.max(0, Math.min(l.scheduledValue, l.scheduledValue * (percent / 100)));
           // STORED MATERIAL COUNTS TOWARD THE PERCENTAGE. Column H on the G703
           // is G ÷ C where G is D + E + F, and the bar directly beneath this
           // button computes the same thing — so omitting F here meant tapping
           // 75% on a line with $40,000 stored made the bar immediately read
           // 95%. The GC either over-billed by the stored figure believing the
           // button, or stopped trusting the fastest control on the screen.
-          const thisPeriod = Math.max(0, totalCompleted - l.fromPreviousApp - l.materialsPresentlyStored);
-          return { ...l, thisPeriod: roundCents(thisPeriod) };
+          // The arithmetic is utils/payApp/suggestPercent thisPeriodForPercent
+          // (lifted from here unchanged), so a suggestion and this field are
+          // one rule.
+          return { ...l, thisPeriod: thisPeriodForPercent(l, percent), ...(kept ?? {}) };
         }),
       };
     });
@@ -1017,9 +1083,32 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       showAlert(
         'Period Locked',
         isLocked
-          ? 'This pay app already has a pay link. Create the next period to revise it.'
+          ? (lockedBySendOnly ? SEND_LOCK_COPY.lockedAlert : 'This pay app already has a pay link. Create the next period to revise it.')
           : 'You are viewing the saved certificate. Tap Edit Draft to change it.'
       );
+      return;
+    }
+    // Lane PAYAPP-1 (owner preview): SUGGEST, never apply. Each line gets a
+    // percent with its source, or the reason it has none. A line with no
+    // linked task gets no suggestion: the project average is not used. No
+    // figure changes here. `thisPeriod` moves only on Accept or a typed value.
+    if (easy) {
+      if (!app) return;
+      if (!project?.schedule) {
+        showAlert(SUGGEST_COPY.noScheduleTitle, SUGGEST_COPY.noScheduleBody);
+        return;
+      }
+      const found = suggestForLines({
+        lines: app.lines,
+        tasks: project.schedule.tasks,
+        dailyReports: getDailyReportsForProject(project.id),
+        periodTo: app.periodTo,
+      });
+      setSuggestions(found);
+      setSuggestStates({});
+      if (!Object.values(found).some(r => r.kind === 'suggest')) {
+        showAlert(SUGGEST_COPY.noneFoundTitle, SUGGEST_COPY.noneFoundBody);
+      }
       return;
     }
     if (!project?.schedule || !project.linkedEstimate || !app) {
@@ -1060,7 +1149,61 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       return;
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [project, app, applyPercentToLine, isReadOnly, isLocked]);
+  }, [project, app, applyPercentToLine, isReadOnly, isLocked, lockedBySendOnly, easy, getDailyReportsForProject]);
+
+  // ── Lane PAYAPP-1: the accept step, the Rejection Check, the import ───────
+  /** He tapped Accept on one line's suggestion. The only way a suggestion becomes money here. */
+  const acceptLineSuggestion = useCallback((lineId: string) => {
+    if (isReadOnly || !app) return;
+    const r = suggestionsRef.current?.[lineId];
+    const line = app.lines.find(l => l.id === lineId);
+    if (!line || !r || r.kind !== 'suggest') return;
+    const next = acceptSuggestion(line, r.suggestion);
+    updateLine(lineId, { thisPeriod: next.thisPeriod, suggestedPercent: next.suggestedPercent, suggestionSource: next.suggestionSource });
+    setSuggestStates(prev => ({ ...prev, [lineId]: 'accepted' }));
+  }, [isReadOnly, app, updateLine]);
+
+  const openSuggestions = useMemo(
+    () => (suggestions ? tallyOpenSuggestions(suggestions, suggestStates) : { open: 0, openAmount: 0 }),
+    [suggestions, suggestStates],
+  );
+
+  /** The rate on record for this job, only when he entered it himself. */
+  const statedRetainage = project && project.retainagePercentAssumed === false && isRecordedRetainageRate(project.retainagePercent)
+    ? project.retainagePercent
+    : undefined;
+  // Run only while the sheet is open, on the figures on screen. Not saved, not printed.
+  const rejectionCheck = useMemo(() => (app && project && checkOpen ? runRejectionCheck({
+    app,
+    prior: priorAIA,
+    saved: savedForProject.filter(a => a.id !== savedForThisInvoice?.id),
+    changeOrders: getChangeOrdersForProject(project.id),
+    statedRetainagePercent: statedRetainage,
+    statedRetainageOrigin: statedRetainage != null ? 'you entered it for this project' : undefined,
+  }) : null), [app, project, checkOpen, priorAIA, savedForProject, savedForThisInvoice?.id, getChangeOrdersForProject, statedRetainage]);
+
+  const sovCardRefs = useRef<Record<string, View | null>>({});
+  const goToCheckedLine = useCallback((lineId: string) => {
+    setCheckOpen(null);
+    const card = sovCardRefs.current[lineId];
+    const scroll = aiaScrollRef.current;
+    if (!card || !scroll) return;
+    try {
+      card.measureLayout(
+        scroll as unknown as Parameters<View['measureLayout']>[0],
+        (_x, y) => scroll.scrollTo({ y: Math.max(0, y - 16), animated: true }),
+        () => { /* the line is still on screen below; nothing to do */ },
+      );
+    } catch { /* measuring is a convenience */ }
+  }, []);
+
+  const applySovImportResult = useCallback((next: AIAPayApplication, summary: { updated: number; added: number }) => {
+    if (isReadOnly) return;
+    setApp(next);
+    setSovImportOpen(false);
+    setSovEditing(true);
+    showAlert(SOV_IMPORT_COPY.doneTitle, SOV_IMPORT_COPY.doneBody(summary.updated, summary.added));
+  }, [isReadOnly]);
 
   // Build a portable SavedAIAPayApp record from the in-memory app + computed
   // totals. Used both for the explicit "Save to Project" tap and as a
@@ -1114,6 +1257,8 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       // with the whole guard suite still green.
       lines: app.lines.map(sovLineToSaved),
       notes: app.notes,
+      // Lane PAYAPP-1: the send stamp is the record's, never the form's.
+      sentLockedAt: existing?.sentLockedAt,
       totals: {
         totalScheduledValue: totals.totalScheduledValue,
         totalCompletedAndStored: totals.totalCompletedAndStored,
@@ -1132,7 +1277,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       showAlert(
         isLocked ? 'Period Locked' : 'Viewing the Saved Certificate',
         isLocked
-          ? 'This pay app already has an active pay link. To revise the numbers, create the next period.'
+          ? (lockedBySendOnly ? SEND_LOCK_COPY.lockedAlert : 'This pay app already has an active pay link. To revise the numbers, create the next period.')
           : 'This is the certificate as it was saved. Tap Edit Draft if you need to change it.'
       );
       return;
@@ -1272,7 +1417,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
         [{ text: 'OK', style: 'default' }],
       );
     }
-  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, isReadOnly, savedPaidAt, pendingBankPayment, tier, invoice, app?.lines]);
+  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, lockedBySendOnly, isReadOnly, savedPaidAt, pendingBankPayment, tier, invoice, app?.lines]);
 
   /**
    * PERSIST THE ARCHITECT'S RESPONSE, and nothing else.
@@ -1442,9 +1587,40 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     const gb = g703DraftBlocker(gridDraftsRef.current, app?.lines ?? []);
     if (gb) { showAlert(gb.title, gb.message); return; }
     if (!app || !settings?.branding) return;
+    // Lane PAYAPP-1 (owner preview): the Rejection Check is shown before the
+    // certify sheet, for the figures on screen. It never blocks: Continue
+    // Anyway (continueToCertify) records that it was shown and opens the
+    // sheet. A figure changed since brings the check back.
+    if (easy && checkShownForRef.current !== checkFingerprint(app)) {
+      setCheckOpen('certify');
+      return;
+    }
     pinCertifyRecordId(generateUUID());
     setShowPreExportConfirm(true);
-  }, [app, settings?.branding, isLocked, pinCertifyRecordId]);
+  }, [app, settings?.branding, isLocked, pinCertifyRecordId, easy]);
+
+  /** "Continue Anyway" on the Rejection Check, on the way to certify. */
+  const continueToCertify = useCallback(() => {
+    if (!app) return;
+    checkShownForRef.current = checkFingerprint(app);
+    setCheckOpen(null);
+    pinCertifyRecordId(generateUUID());
+    setShowPreExportConfirm(true);
+  }, [app, pinCertifyRecordId]);
+
+  /** Bill This Month saved the period as a draft: open it here, in the editor. */
+  const onBilledThisMonth = useCallback((done: { invoiceId: string; checkedFor: string }) => {
+    billedThisMonthRef.current = done.invoiceId;
+    // The check was just shown for exactly these figures.
+    checkShownForRef.current = done.checkedFor;
+    setPickedInvoiceId(done.invoiceId);
+    setBillThisMonthOpen(false);
+  }, []);
+  /** There is an earlier application with lines to start the next one from. */
+  const canBillThisMonth = easy && savedForProject.some(a => a.lines.length > 0);
+  /** This screen shows the newest saved application: the next one starts from it. */
+  const showsLatestSaved = !!savedForThisInvoice
+    && savedForProject.every(a => a.applicationNumber <= savedForThisInvoice.applicationNumber);
 
   /** Reprint a saved certificate exactly as stored. No save, no pay link, no
    *  re-derivation — the whole point of review mode. */
@@ -1533,7 +1709,10 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     };
     const gb = g703DraftBlocker(gridDraftsRef.current, app?.lines ?? []);
     const built = gb ? null : buildSavedRecord();
-    const rec = built ? { ...built, id: pinCertifyRecordId(built.id) } : null;
+    // Lane PAYAPP-1: certifying is the send, so the record is stamped here and
+    // is locked from now on whether or not a pay link gets made below. Owner
+    // preview only (withSentLock returns the record untouched otherwise).
+    const rec = built ? withSentLock({ ...built, id: pinCertifyRecordId(built.id) }, new Date().toISOString(), easy) : null;
     if (!rec) return { status: 'refused', reason: gb ? gb.message : certRefused() };
     const due = aiaPayableNow(rec);
     const stored = await saveAIAPayAppOnline(rec);
@@ -1556,7 +1735,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           : pay.kind === 'pending' ? certPayLinkPending()
             : certNextPdf();
     return fromOnlineOutcome(stored, { title: certConfirmed(certAppNumber, Math.round(due * 100)), next }, words);
-  }, [app?.lines, buildSavedRecord, pinCertifyRecordId, saveAIAPayAppOnline, makeCertifiedPayLink, certAppNumber]);
+  }, [app?.lines, buildSavedRecord, pinCertifyRecordId, saveAIAPayAppOnline, makeCertifiedPayLink, certAppNumber, easy]);
 
   // Legal (plan rule 2): never queued; offline disables it with the reason.
   const certWriteOptions = useMemo<CommitWriteOptions>(() => ({
@@ -1775,6 +1954,20 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
     );
   }
 
+  // Lane PAYAPP-1 (owner preview): Bill This Month takes the screen until it
+  // saves the period or is closed.
+  if (easy && billThisMonthOpen) {
+    return (
+      <BillThisMonth
+        project={project}
+        saved={savedForProject}
+        contract={activeContract}
+        onClose={() => setBillThisMonthOpen(false)}
+        onSaved={onBilledThisMonth}
+      />
+    );
+  }
+
   // Step 2 — which billing period. Only reachable with 0 or 2+ progress
   // invoices; exactly one resolves above without asking.
   if (!invoice) {
@@ -1798,6 +1991,17 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             />
           ) : (
             <>
+              {canBillThisMonth ? (
+                <View style={[styles.billThisMonthEntry, styles.billThisMonthEntryInPicker]} testID="aia-bill-this-month-entry">
+                  <Button
+                    label={SUGGEST_COPY.screenTitle}
+                    onPress={() => setBillThisMonthOpen(true)}
+                    fullWidth
+                    testID="aia-bill-this-month"
+                  />
+                  <Text style={styles.periodPickRowMeta}>{SUGGEST_COPY.entryHint}</Text>
+                </View>
+              ) : null}
               <Text style={styles.periodPickLead}>
                 {project.name} has {progressInvoices.length} progress invoices. A pay
                 app certifies one period. Pick the one you are billing.
@@ -2000,6 +2204,20 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           </View>
         )}
 
+        {/* Lane PAYAPP-1 (owner preview): start the next application from this
+            one, without making a progress invoice first. */}
+        {canBillThisMonth && showsLatestSaved && isReviewMode ? (
+          <View style={[styles.billThisMonthEntry, isDesktop && styles.formColumnDesktop]} testID="aia-bill-this-month-entry">
+            <Button
+              label={SUGGEST_COPY.screenTitle}
+              onPress={() => setBillThisMonthOpen(true)}
+              fullWidth
+              testID="aia-bill-this-month"
+            />
+            <Text style={styles.periodPickRowMeta}>{SUGGEST_COPY.entryHint}</Text>
+          </View>
+        ) : null}
+
         {/* Audit-2026-05-21 (#28.1 HIGH): edit-after-send lock banner.
             Surfaces the locked state immediately so the GC knows why
             edits are being refused. CTA bounces back to the invoice so
@@ -2014,6 +2232,8 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                 ? `${pendingBankPayment.line}. The pay link is retired while it settles, and no new one is made, because a new link would invite a second payment. If the bank payment fails, you can send a new pay link from the invoice.`
                 : savedPaidAt
                 ? `This pay app was paid on ${new Date(savedPaidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. The portal no longer shows a Pay button for it. To bill the next period, create the next pay app. It starts from this period's billed-through totals.`
+                : lockedBySendOnly
+                ? SEND_LOCK_COPY.lockedBody(app.applicationNumber)
                 : `This pay app has an active pay link for ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. To revise the numbers, create the next period. It starts from this period's billed-through totals.`}
             </Text>
             <TouchableOpacity
@@ -2592,7 +2812,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                   activeOpacity={0.8}
                   testID="aia-sync-from-schedule"
                 >
-                  <Text style={styles.chipText}>Sync from Schedule</Text>
+                  <Text style={styles.chipText}>{easy ? SUGGEST_COPY.suggestButton : 'Sync from Schedule'}</Text>
                 </TouchableOpacity>
               )}
               {!isReadOnly && (
@@ -2633,6 +2853,38 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             Tap a line to adjust this period&apos;s work completed. Use the % slider to quickly set line progress.
           </Text>
           )}
+
+          {/* Lane PAYAPP-1 (owner preview): the Rejection Check any time, and
+              the schedule of values in and out of a spreadsheet. */}
+          {easy ? (
+            <SovSpreadsheetBar
+              app={app}
+              onImport={isReadOnly ? undefined : () => setSovImportOpen(true)}
+              onOpenCheck={() => setCheckOpen('view')}
+            />
+          ) : null}
+          {easy && suggestions && !isReadOnly ? (
+            <View style={styles.suggestPanel} testID="aia-suggestions">
+              <Text style={styles.sovBasisNote}>{SUGGEST_COPY.lead}</Text>
+              {openSuggestions.open > 0 ? (
+                <Text style={styles.sovBasisNote} testID="aia-suggestions-open">{SUGGEST_COPY.notAccepted(openSuggestions.open)}</Text>
+              ) : null}
+              {/* The grid has no card to hang a suggestion on, so they are
+                  listed here, each with its own Accept. */}
+              {gridOn ? app.lines.map(line => (suggestions[line.id]?.kind === 'suggest' ? (
+                <View key={line.id} style={{ gap: 4 }}>
+                  <Text style={styles.sovValueLabel}>{`${line.itemNo}  ${line.description}`}</Text>
+                  <SuggestionRow
+                    result={suggestions[line.id]}
+                    state={suggestStates[line.id] ?? 'untouched'}
+                    enteredPercent={percentOfLine(line)}
+                    onAccept={() => acceptLineSuggestion(line.id)}
+                    testID={`aia-suggest-${line.id}`}
+                  />
+                </View>
+              ) : null)) : null}
+            </View>
+          ) : null}
 
           {/* Where column C came from. "Scheduled" is the whole contract line;
               "This Period" is this month's draw. They are equal only on a final
@@ -2720,7 +2972,7 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
             const isOver = over > 0;
             return (
               <TutorialWrap key={line.id} on={runOnThis && lineIdx === 0} wrap={<TutorialTarget id="payApp.lineProgress" />}>
-              <View key={line.id} style={[styles.sovCard, isOver && styles.sovCardOver]}>
+              <View key={line.id} ref={(node) => { sovCardRefs.current[line.id] = node; }} style={[styles.sovCard, isOver && styles.sovCardOver]}>
                 <View style={styles.sovHeaderRow}>
                   {sovEditing && !isReadOnly ? (
                     <TextInput
@@ -2883,6 +3135,18 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
                     {pct.toFixed(0)}%
                   </Text>
                 </View>
+
+                {/* Lane PAYAPP-1: the suggestion and its source, or why there
+                    is none. Drawn only after he asks for suggestions. */}
+                {easy && suggestions && !isReadOnly ? (
+                  <SuggestionRow
+                    result={suggestions[line.id]}
+                    state={suggestStates[line.id] ?? 'untouched'}
+                    enteredPercent={percentOfLine(line)}
+                    onAccept={() => acceptLineSuggestion(line.id)}
+                    testID={`aia-suggest-${line.id}`}
+                  />
+                ) : null}
 
                 {isOver && (
                   <Text style={styles.sovOverText} testID={`aia-overbill-${line.id}`}>
@@ -3220,6 +3484,27 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
           </View>
         </View>
       </Modal>
+      {/* Lane PAYAPP-1 (owner preview). The Rejection Check never blocks: on
+          the way to certify it offers Continue Anyway, which opens the same
+          certify sheet as before. Nothing it shows is saved or printed. */}
+      {easy ? (
+        <RejectionCheckSheet
+          visible={checkOpen != null}
+          result={rejectionCheck}
+          onClose={() => setCheckOpen(null)}
+          onGoToLine={goToCheckedLine}
+          onContinue={checkOpen === 'certify' ? continueToCertify : undefined}
+          testID="aia-rejection-check"
+        />
+      ) : null}
+      {easy && !isReadOnly ? (
+        <SovImportSheet
+          visible={sovImportOpen}
+          app={app}
+          onClose={() => setSovImportOpen(false)}
+          onApply={applySovImportResult}
+        />
+      ) : null}
       {/* Tutorial blocker sentinel: while either RN Modal is up (they draw
           above the root coach layer on iOS), the coach draws nothing. Only
           while a run is live on this job. */}
@@ -3346,6 +3631,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   periodPickRowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
   periodPickRowMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2 },
+  // Lane PAYAPP-1 (owner preview).
+  billThisMonthEntry: { gap: 6, marginHorizontal: 16, marginBottom: 14 },
+  billThisMonthEntryInPicker: { marginHorizontal: 0, marginBottom: 20 },
+  suggestPanel: { gap: 6, marginTop: 10, marginBottom: 4 },
   periodPickAlt: { alignItems: 'center' as const, paddingVertical: 12, marginTop: 4 },
   periodPickAltText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textMuted },

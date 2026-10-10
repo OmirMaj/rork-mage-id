@@ -27,6 +27,7 @@ export function fmtPct(n: number): string {
 export const SUGGEST_COPY = {
   screenTitle: 'Bill This Month',
   ownerPreview: 'Owner Preview',
+  entryHint: 'Start the next pay application from the last one. No progress invoice to make first.',
   carriedHeading: (n: number) => `Carried Forward From Application ${n}`,
   wasTo: (wasPct: string) => `Was ${wasPct}%`,
   to: 'to',
