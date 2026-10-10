@@ -150,13 +150,14 @@ const RULES: Rule[] = [
     const src = sql(f.get(GUARD)!);
     const body = fnBody(f.get(GUARD)!, 'aia_pay_app_guard_frozen_delete');
     if (!body) return ['the delete guard function was not found'];
-    if (!/^\s*begin\s+if \(old\.certified_at is not null or old\.sent_locked_at is not null\)\s+and current_user in \('authenticated', 'anon'\) then\s+raise exception/.test(body)) out.push('the guard is not the FIRST thing the function does, or does not key on (pay link OR send stamp) AND a client role');
+    if (!/^\s*begin\s+if \(old\.certified_at is not null or old\.sent_locked_at is not null\)\s+and current_user not in \('service_role', 'postgres', 'supabase_admin'\) then\s+raise exception/.test(body)) out.push('the guard is not the FIRST thing the function does, or does not key on (pay link OR send stamp) AND "not the server" as an allow-list');
+    if (/'authenticated'|'anon'/.test(body)) out.push('the guard names a client role (a deny-list): a role made later would pass');
     if ((body.match(/\breturn\b/g) ?? []).length !== 1) out.push('the function returns somewhere other than its last line');
     const count = (re: RegExp) => (src.match(re) ?? []).length;
     if (count(/create or replace function/g) !== 1 || count(/create trigger/g) !== 1 || count(/drop trigger/g) !== 1 || count(/drop function/g) !== 0) out.push('the file defines or drops more than the one function and the one trigger');
     if (src.indexOf('drop trigger') > src.indexOf('create trigger')) out.push('the trigger is dropped after it is created');
     if (!/\$verify\$;\s*$/.test(src)) out.push('something runs after the self-check');
-    if (!/tgtype = 11 and tgenabled = 'O'/.test(src) || !/relowner::regrole::text[^;]*in \('authenticated', 'anon'\) then\s+raise exception/.test(src) || !/has_table_privilege\('authenticated', 'public\.aia_pay_apps', 'TRUNCATE'\)\s+or has_table_privilege\('anon', 'public\.aia_pay_apps', 'TRUNCATE'\) then\s+raise exception/.test(src)) out.push('the self-check does not hold the trigger enabled, the owner not a client role, and TRUNCATE not held by a client');
+    if (!/tgtype = 11 and tgenabled = 'O'/.test(src) || !/relowner::regrole::text[^;]*not in \('postgres', 'supabase_admin', 'service_role'\) then\s+raise exception/.test(src) || !/has_table_privilege\('authenticated', 'public\.aia_pay_apps', 'TRUNCATE'\)\s+or has_table_privilege\('anon', 'public\.aia_pay_apps', 'TRUNCATE'\) then\s+raise exception/.test(src)) out.push('the self-check does not hold the trigger enabled, the owner not a client role, and TRUNCATE not held by a client');
     if (!/end if;\s+return old;\s+end\s*$/.test(body)) out.push('a delete that is allowed is not let through (BEFORE DELETE must return old)');
     if (!/using errcode = 'check_violation'/.test(body)) out.push('the refusal is not a check_violation');
     const msg = body.match(/raise exception\s+'([^']*)'/)?.[1] ?? '';
@@ -168,7 +169,7 @@ const RULES: Rule[] = [
     if (/\b(create|alter|drop)\s+policy\b/i.test(src) || /^\s*grant\b/im.test(src) || /\bupdate\s+public\./i.test(src) || /\bdelete\s+from\b/i.test(src) || /\binsert\s+into\b/i.test(src) || /\balter\s+table\b/i.test(src)) out.push('the file touches a policy, a grant, the table or a row');
     if (!/apply 20261014090000_aia_pay_app_send_lock\.sql first/.test(src)) out.push('the file does not refuse to apply before the send lock');
     const proof = f.get(GUARD_PROOF)!;
-    if (!/const FILE = '20261014100000_aia_pay_app_delete_guard\.sql';/.test(proof) || (proof.match(/^\s+case \d+: rep\(/gm) ?? []).length < 8) out.push('the PGlite proof is not of this migration, or lost planted mutations');
+    if (!/const FILE = '20261014100000_aia_pay_app_delete_guard\.sql';/.test(proof) || (proof.match(/^\s+case \d+: rep\(/gm) ?? []).length < 9) out.push('the PGlite proof is not of this migration, or lost planted mutations');
     return out;
   } },
   { name: 'F. the app never sends the housekeeping delete for a record the server keeps, and never drops one from the device', run: (f) => {
@@ -239,7 +240,8 @@ const PLANTS: [string, number, string, string, string][] = [
   ['rows that already carry the stamp are left open', 3, MIGRATION, 'update public.aia_pay_apps\n   set updated_at = updated_at\n', 'update public.aia_pay_apps\n   set updated_at = now()\n'],
   ['a grant is made', 3, MIGRATION, "notify pgrst, 'reload schema';", "grant update (sent_locked_at) on public.aia_pay_apps to authenticated;\nnotify pgrst, 'reload schema';"],
   ['a row frozen by the send alone can be deleted', 5, GUARD, '  if (old.certified_at is not null or old.sent_locked_at is not null)', '  if (old.certified_at is not null)'],
-  ['every role is refused: the job and the account cannot be deleted', 5, GUARD, "     and current_user in ('authenticated', 'anon') then", '     then'],
+  ['every role is refused: the job and the account cannot be deleted', 5, GUARD, "     and current_user not in ('service_role', 'postgres', 'supabase_admin') then", '     then'],
+  ['the guard is a deny-list again', 5, GUARD, "     and current_user not in ('service_role', 'postgres', 'supabase_admin') then", "     and current_user in ('authenticated', 'anon') then"],
   ['an allowed delete is silently skipped', 5, GUARD, '  return old;', '  return null;'],
   ['the guard is SECURITY DEFINER', 5, GUARD, "security invoker\nset search_path = ''\nas $fn$", "security definer\nset search_path = ''\nas $fn$"],
   ['the guard fires on update', 5, GUARD, '  before delete on public.aia_pay_apps', '  before update on public.aia_pay_apps'],

@@ -21,6 +21,7 @@ if (process.argv[3] === '--all') {
     6: ['3', '4'],  // the guard is on update, not delete
     7: ['9'],       // the refusal is retried by the offline queue (no "violates")
     8: ['13'],      // the self-check does not look at TRUNCATE or the owner
+    9: ['14'],      // a deny-list: a role made later is not refused
   });
 }
 
@@ -33,11 +34,12 @@ switch (MUTATE) {
   case 1: rep('  if (old.certified_at is not null or old.sent_locked_at is not null)', '  if (old.certified_at is not null)'); break;
   case 2: rep('  if (old.certified_at is not null or old.sent_locked_at is not null)', '  if (old.sent_locked_at is not null)'); break;
   case 3: rep('  return old;', '  return null;'); break;
-  case 4: rep("     and current_user in ('authenticated', 'anon') then", '     then'); break;
+  case 4: rep("     and current_user not in ('service_role', 'postgres', 'supabase_admin') then", '     then'); break;
   case 5: rep('  if (old.certified_at is not null or old.sent_locked_at is not null)\n', '  if true\n'); break;
   case 6: rep('  before delete on public.aia_pay_apps', '  before update on public.aia_pay_apps'); noSelfCheck(); break;
   case 7: rep('cannot be deleted: that violates its send lock.', 'cannot be deleted.'); break;
-  case 8: rep("    raise exception '[aia_pay_app_delete_guard] verify: a client role holds TRUNCATE", "    raise notice '[aia_pay_app_delete_guard] verify: a client role holds TRUNCATE"); rep("    raise exception '[aia_pay_app_delete_guard] verify: public.aia_pay_apps is owned by a client role", "    raise notice '[aia_pay_app_delete_guard] verify: public.aia_pay_apps is owned by a client role"); break;
+  case 8: rep("    raise exception '[aia_pay_app_delete_guard] verify: a client role holds TRUNCATE", "    raise notice '[aia_pay_app_delete_guard] verify: a client role holds TRUNCATE"); rep("    raise exception '[aia_pay_app_delete_guard] verify: public.aia_pay_apps is not owned by a server role", "    raise notice '[aia_pay_app_delete_guard] verify: public.aia_pay_apps is not owned by a server role"); break;
+  case 9: rep("     and current_user not in ('service_role', 'postgres', 'supabase_admin') then", "     and current_user in ('authenticated', 'anon') then"); break;
   default: console.error('unknown MUTATE'); process.exit(2);
 }
 if (MUTATE) console.log(`(planted mutation M${MUTATE} applied)`);
@@ -140,6 +142,11 @@ const edit = await tryRun('authenticated', `update public.aia_pay_apps set notes
 const priv = await rows(`select has_function_privilege('authenticated', 'public.aia_pay_app_guard_frozen_delete()', 'execute') as b, (select prosecdef from pg_proc where oid = 'public.aia_pay_app_guard_frozen_delete()'::regprocedure) as definer, (select count(*)::int from pg_policies where schemaname = 'public' and tablename = 'aia_pay_apps') as policies`);
 ok('11 nothing else moved: a frozen row still takes a note, the guard is not SECURITY DEFINER or callable, the table has its one policy', edit.ok && edit.affected === 1 && priv[0].b === false && priv[0].definer === false && priv[0].policies === 1, JSON.stringify(priv[0]));
 
+// A role made later, given the table and able to see every row, is a client too.
+await db.exec(`create role partner_api bypassrls; grant usage on schema public to partner_api; grant select, delete on public.aia_pay_apps to partner_api`);
+const later = await del(3, 'partner_api');
+ok('14 a role created later, with DELETE on the table and no row level security, is refused like any client (the guard names who may, not who may not)', refused(later) && await there(3), later.err ?? 'DELETED');
+
 // KNOWN LIMIT, stated in the migration: the round trip through the whole job is still open.
 const jobGone = await tryRun('authenticated', `delete from public.projects where id = '${P(1)}'`, OWNER);
 const jobBack = await tryRun('authenticated', `insert into public.projects (id, user_id, name) values ('${P(1)}', '${OWNER}', 'Job one again')`, OWNER);
@@ -152,6 +159,6 @@ let truncErr = null; try { await db.exec(MIG); } catch (e) { truncErr = String(e
 await db.exec(`revoke truncate on public.aia_pay_apps from authenticated; alter table public.aia_pay_apps owner to authenticated`);
 let ownerErr = null; try { await db.exec(MIG); } catch (e) { ownerErr = String(e.message); }
 await db.exec(`alter table public.aia_pay_apps owner to postgres`);
-ok('13 the file refuses to finish when a client role holds TRUNCATE on the table, or owns it (either would undo the design)', /holds TRUNCATE/.test(truncErr ?? '') && /owned by a client role/.test(ownerErr ?? ''), `${truncErr} | ${ownerErr}`);
+ok('13 the file refuses to finish when a client role holds TRUNCATE on the table, or owns it (either would undo the design)', /holds TRUNCATE/.test(truncErr ?? '') && /not owned by a server role/.test(ownerErr ?? ''), `${truncErr} | ${ownerErr}`);
 
 done();

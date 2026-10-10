@@ -13,14 +13,18 @@
 --     INVOKER, search_path empty. BEFORE DELETE on public.aia_pay_apps, per
 --     row. It refuses the delete when BOTH of these hold:
 --       - the row is frozen: certified_at IS NOT NULL OR sent_locked_at IS NOT NULL;
---       - the delete runs as a client role (current_user is authenticated or anon).
+--       - the delete does not run as the server: current_user is not
+--         service_role, postgres or supabase_admin. That is an ALLOW-LIST, the
+--         same three names as 20261005110000_guard_allowlists.sql: every other
+--         role, the two PostgREST gives a request today and any role made
+--         later, is a client.
 --     Otherwise the delete goes ahead.
 --
 -- WHAT STILL DELETES A FROZEN ROW, ON PURPOSE
 --   - Deleting the whole job: public.projects -> aia_pay_apps is ON DELETE
 --     CASCADE, and Postgres runs a cascade as the OWNER of the table it
---     deletes from, not as the client, so current_user is not a client role
---     there. A contractor can still remove a job and everything on it.
+--     deletes from, not as the client, so current_user there is the owner
+--     (postgres). A contractor can still remove a job and everything on it.
 --   - Deleting the account: the delete-account function runs as the service
 --     role, and auth.users -> aia_pay_apps is ON DELETE CASCADE.
 --   - The service role and the database owner, for support work by hand.
@@ -54,8 +58,9 @@
 --   queued offline, the refusal says "violates", which the queue reads as
 --   final, so it is dropped at once and not retried.
 --
--- SAME PATTERN AS public.punch_seals (20261002150000): current_user tells a
---   client's own statement from the service role and from a cascade.
+-- SAME PATTERN AS public.punch_seals_immutable (20261002150000) and the five
+--   guards of 20261005110000: current_user tells the server (the service role,
+--   or a cascade running as the table's owner) from everyone else.
 --
 -- DEPLOY ORDER. After 20261014090000_aia_pay_app_send_lock.sql (it reads
 --   sent_locked_at). Apply through the Supabase MCP apply_migration, never
@@ -87,7 +92,7 @@ set search_path = ''
 as $fn$
 begin
   if (old.certified_at is not null or old.sent_locked_at is not null)
-     and current_user in ('authenticated', 'anon') then
+     and current_user not in ('service_role', 'postgres', 'supabase_admin') then
     raise exception
       'AIA pay application %/% is certified (sent for payment) and cannot be deleted: that violates its send lock. Bill the next period to revise it.',
       old.project_id, old.application_number
@@ -111,9 +116,10 @@ begin
     raise exception '[aia_pay_app_delete_guard] verify: the delete guard is missing, disabled, or is not BEFORE DELETE per row';
   end if;
   -- The two facts the design rests on. A cascade passes because Postgres runs it as the table's owner, so the
-  -- owner must not be a client role; and TRUNCATE does not fire a row trigger, so no client role may hold it.
-  if (select relowner::regrole::text from pg_class where oid = 'public.aia_pay_apps'::regclass) in ('authenticated', 'anon') then
-    raise exception '[aia_pay_app_delete_guard] verify: public.aia_pay_apps is owned by a client role, so deleting a job would be refused';
+  -- owner must be one of the server roles the guard lets through; and TRUNCATE does not fire a row trigger, so
+  -- no client role may hold it.
+  if (select relowner::regrole::text from pg_class where oid = 'public.aia_pay_apps'::regclass) not in ('postgres', 'supabase_admin', 'service_role') then
+    raise exception '[aia_pay_app_delete_guard] verify: public.aia_pay_apps is not owned by a server role, so deleting a job would be refused';
   end if;
   if has_table_privilege('authenticated', 'public.aia_pay_apps', 'TRUNCATE')
      or has_table_privilege('anon', 'public.aia_pay_apps', 'TRUNCATE') then
