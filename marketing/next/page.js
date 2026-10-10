@@ -277,8 +277,8 @@
     window.addEventListener('resize', function () { measure(); drive(); });
     window.addEventListener('load', function () { measure(); drive(); });
     if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(function () { measure(); drive(); });
-    if (Q.view && draw) draw.view(Q.view);
     drive();
+    if (Q.view && draw) { draw.view(Q.view); draw.now(); }
     if (Q.pin) { var qp = D.PINS.filter(function (x) { return x.id === Q.pin; })[0]; if (qp) showPanel(qp, pinEls[D.PINS.indexOf(qp)]); }
     /* once, when the page opens at the top: the job is drawn from the plan to the finished rooms */
     function playIntro() { if (reduce || frozen || !draw) return; intro.on = true; intro.t0 = performance.now(); drive(); }

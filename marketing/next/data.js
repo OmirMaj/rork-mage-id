@@ -78,7 +78,7 @@ window.MAGE_DATA = (function () {
   /* Keynotes on the drawing. at: a point on the job in feet (x across, y front to back, z up). show: the part of the job they belong to.
      Each opens a small panel about what the app does there. */
   var PINS = [
-    { id: 'plans', at: [15, -4.9, 0], show: [0.8, 1.55], tag: 'Win It', plan: 'Pro', title: 'Takeoff From Plans',
+    { id: 'plans', at: [20.5, -4.9, 0], side: 'r', show: [0.8, 1.55], tag: 'Win It', plan: 'Pro', title: 'Takeoff From Plans',
       sub: 'Upload a plan PDF and the app reads quantities off the pages. You check and edit them. You can also measure on a plan by hand.',
       rows: [['Pages read a month on Pro', '', '30'], ['On Business', '', '100'], ['On Enterprise', '', '300']],
       note: 'Takeoff is on Pro and up. It is not on the Free plan.' },
