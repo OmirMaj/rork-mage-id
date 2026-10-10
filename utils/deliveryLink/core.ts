@@ -105,6 +105,8 @@ export interface SupplierLink {
   madeAt: string;
   reply: SupplierReply | null;
   replyCount: number;
+  /** When the latest answer was stored, exactly as the server gave it ('' with no answer). Mark as Seen is keyed on it. */
+  replyAt: string;
   /** When a person on the job marked the latest answer as seen, or ''. */
   replySeenAt: string;
 }
@@ -149,6 +151,7 @@ export function readLinkRow(row: Record<string, unknown> | null | undefined): Su
     madeAt: clean(row.made_at, 40),
     reply: readReply(row.reply),
     replyCount: count,
+    replyAt: clean(row.reply_at, 40),
     replySeenAt: clean(row.reply_seen_at, 40),
   };
 }

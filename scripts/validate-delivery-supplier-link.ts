@@ -24,14 +24,15 @@
 //
 // Run: bun run scripts/validate-delivery-supplier-link.ts
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   MAX_REPLIES, SHOWN_KEYS, SUPPLIER_LINK_BASE, buildShown, linkMessage, readLinkRow, replyDateDiffers, replyDatePatch,
   replyIsNew, supplierLinkAllowedWith, supplierLinkUrl,
 } from '../utils/deliveryLink/core';
 import { RECIPIENT_NOTICE_PARTS } from '../utils/recipientNotice';
 
-const ROOT = join(import.meta.dir, '..');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (f: string) => readFileSync(join(ROOT, f), 'utf8');
 let passed = 0;
 let failed = 0;
@@ -166,9 +167,10 @@ const RULES: Rule[] = [
     if (!/const TABLE = 'delivery_supplier_links';/.test(src)) out.push('TABLE is not delivery_supplier_links');
     if (/'deliveries'|"deliveries"/.test(src)) out.push('the hook names the deliveries table');
     const updates = src.split('.update(').slice(1);
-    if (updates.length !== 1 || !updates[0].startsWith('{ reply_seen_at: new Date().toISOString() })')) out.push('the hook updates something other than reply_seen_at');
+    if (updates.length !== 1 || !updates[0].startsWith("{ reply_seen_at: new Date().toISOString() }).eq('delivery_id', deliveryId).eq('reply_at', replyAt)")) out.push('the hook updates something other than reply_seen_at, or marks an answer the person did not see');
+    if (!/const wrote = Array\.isArray\(data\) && data\.length > 0;/.test(src) || !/return wrote \? 'ok' : 'refused';/.test(src)) out.push('a write that changed no row is reported as done');
     if ((src.match(/\.insert\(/g) ?? []).length !== 1 || !/\.insert\(\{ delivery_id: deliveryId, project_id: projectId, user_id: userId, shown \}\)/.test(src)) out.push('the hook inserts something other than the link and what it shows');
-    if (!/on: allowed && query\.isSuccess/.test(src)) out.push('the section opens before the table has answered');
+    if (!/on: allowed && links !== undefined/.test(src) || !/const links = query\.data;/.test(src)) out.push('the section opens before the table has answered');
     if (!/enabled: allowed/.test(src)) out.push('the table is read for a person the gate does not allow');
     if (/refetchInterval|setInterval|setTimeout/.test(src)) out.push('the hook polls');
     return out;
@@ -236,7 +238,9 @@ const RULES: Rule[] = [
     if (/posthog|growth\.js|gtag|analytics|formspree/i.test(html.replace(/<style>[\s\S]*?<\/style>/, ''))) out.push('the page loads analytics');
     const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
     if (scripts.length !== 1 || !scripts[0].startsWith('/protect-notice.js')) out.push(`the page loads ${scripts.join(', ')}`);
-    if (!/history\.replaceState\(null, '', location\.pathname\)/.test(js)) out.push('the token is left in the address bar');
+    if (!/history\.replaceState\(null, '', location\.pathname \+ '#t=' \+ TOKEN\)/.test(js)) out.push('the token is left in the part of the address that is sent to servers');
+    if (!/only\(e && e\.status === 400 \? 'stGone' : 'stOffline'\)/.test(js)) out.push('a server problem is shown as a dead link');
+    if (!/<main id="content" aria-live="polite">/.test(html)) out.push('a change of state is not announced');
     const flat = html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
     const notice = `${RECIPIENT_NOTICE_PARTS.before}your contractor${RECIPIENT_NOTICE_PARTS.after} ${RECIPIENT_NOTICE_PARTS.second}`;
     if (!flat.includes(notice)) out.push('the Notice To Recipients is not on the page word for word');
@@ -257,7 +261,8 @@ const RULES: Rule[] = [
     if (/\binsert\s+into\b|\bdelete\s+from\b|pg_notify|net\.http|http_post|\bperform\b|create\s+trigger|cron\.schedule/i.test(sql)) out.push('the migration inserts, deletes, notifies, calls out, or adds a trigger or a job');
     if (!/revoke all on public\.delivery_supplier_links from anon, authenticated, public;/.test(sql)) out.push('the table is not taken back from anon');
     if (/grant[^;]*on public\.delivery_supplier_links to[^;]*\banon\b/.test(sql)) out.push('anon is granted something on the table');
-    if (!/grant update \(shown, reply_seen_at\) on public\.delivery_supplier_links to authenticated;/.test(sql)) out.push('a signed-in client can update more than shown and reply_seen_at');
+    if (!/grant update \(reply_seen_at\) on public\.delivery_supplier_links to authenticated;/.test(sql)) out.push('a signed-in client can update more than reply_seen_at');
+    if (!/for select to authenticated\s+using \(public\.can_access_project\(project_id, 'field'\)\);/.test(sql)) out.push('the viewer seat can read the token');
     if ((sql.match(/security definer\s+set search_path = ''/g) ?? []).length !== 2) out.push('a function is not SECURITY DEFINER with an empty search_path');
     if (!/'shown', v_link\.shown,\s+'reply', v_link\.reply/.test(sql) || /to_jsonb\(d\)|row_to_json|d\.\*/.test(sql)) out.push('the view returns more than what is shown and the answer');
     if (!/select d\.status into v_status from public\.deliveries d/.test(sql) || (sql.match(/from public\.deliveries/g) ?? []).length !== 3) out.push('the migration reads something other than the status (and the insert policy\'s own check) from deliveries');
@@ -269,7 +274,8 @@ const RULES: Rule[] = [
     const toml = f.get('marketing/netlify.toml')!;
     if (!/^\/delivery {2}\/delivery\/index\.html {2}200$/m.test(red) || !/^\/delivery\/\* {2}\/delivery\/index\.html {2}200$/m.test(red)) out.push('_redirects lacks the two rules');
     if (!/from = "\/delivery"\s+to = "\/delivery\/index\.html"\s+status = 200/.test(toml) || !/from = "\/delivery\/\*"\s+to = "\/delivery\/index\.html"\s+status = 200/.test(toml)) out.push('netlify.toml lacks the two rules');
-    if (red.indexOf('/delivery/*') > red.lastIndexOf('/*  ') && /^\/\*\s/m.test(red)) out.push('the catch-all in _redirects comes before the delivery rule');
+    const catchAll = red.search(/^\/\*\s/m);
+    if (catchAll >= 0 && red.indexOf('/delivery/*') > catchAll) out.push('the catch-all in _redirects comes before the delivery rule');
     if (!/^Disallow: \/delivery\/$/m.test(f.get('marketing/robots.txt')!)) out.push('robots.txt does not keep the page out');
     if (!/'marketing\/delivery\/index\.html',/.test(f.get('scripts/validate-protections.ts')!)) out.push('the protections check does not know the page');
     if (!/id: 'office\.delivery-supplier-link'[^\n]*keyPrefixes: \['office\.deliverySupplierLink\.'\][^\n]*files: \['hooks\/useSupplierLinkCopy\.ts'\]/.test(f.get('i18n/surfaces.ts')!)) out.push('the strings are not a registered surface');
@@ -305,8 +311,10 @@ const PLANTS: [string, number, string, string, string][] = [
   ['the section moves the schedule', 1, SECTION, 'if (patch) onUpdate(delivery.id, patch);', 'if (patch) { onUpdate(delivery.id, patch); updateProject(projectId, { schedule: next }); }'],
   ['the section talks to the server itself', 1, SECTION, 'const turnOff = () =>', "const direct = () => supabase.from('delivery_supplier_links').select('*');\n  const turnOff = () =>"],
   ['the hook writes the delivery', 2, HOOK, "supabase.from(TABLE).update({ reply_seen_at: new Date().toISOString() }).eq('delivery_id', deliveryId)", "supabase.from('deliveries').update({ expected_date: null }).eq('id', deliveryId)"],
+  ['Mark as Seen marks whatever answer is newest', 2, HOOK, ".eq('delivery_id', deliveryId).eq('reply_at', replyAt)", ".eq('delivery_id', deliveryId)"],
+  ['a write that changed no row is called done', 2, HOOK, "return wrote ? 'ok' : 'refused';", "return 'ok';"],
   ['the hook forges an answer', 2, HOOK, '.update({ reply_seen_at: new Date().toISOString() })', ".update({ reply: { date: '2026-01-01' } })"],
-  ['the section opens before the table has answered', 2, HOOK, 'on: allowed && query.isSuccess', 'on: allowed'],
+  ['the section opens before the table has answered', 2, HOOK, 'on: allowed && links !== undefined', 'on: allowed'],
   ['the hook polls for an answer', 2, HOOK, 'staleTime: 30 * 1000, retry: false', 'staleTime: 30 * 1000, retry: false, refetchInterval: 5000'],
   ['the answer\'s date is used by itself', 3, SECTION, '  const useDate = () => {', '  useEffect(() => { if (reply && differs) useDate(); }, [reply]);\n  const useDate = () => {'],
   ['the delivery is written while drawing', 3, SECTION, '  const turnOff = () =>', '  if (reply && differs) onUpdate(delivery.id, { expectedDate: reply.date });\n  const turnOff = () =>'],
@@ -324,11 +332,15 @@ const PLANTS: [string, number, string, string, string][] = [
   ['the page loads analytics', 6, PAGE, '<script src="/protect-notice.js?v=2026-10-09"></script>', '<script src="/protect-notice.js?v=2026-10-09"></script>\n<script src="/growth.js"></script>'],
   ['the notice is reworded', 6, PAGE, 'MAGE ID did not prepare, review or check this document', 'MAGE ID reviewed this document'],
   ['the page can be indexed', 6, PAGE, '<meta name="robots" content="noindex" />', ''],
-  ['the page leaves the token in the address', 6, PAGE, "history.replaceState(null, '', location.pathname)", "history.replaceState(null, '', location.href)"],
+  ['the page leaves the token in the address', 6, PAGE, "history.replaceState(null, '', location.pathname + '#t=' + TOKEN)", "history.replaceState(null, '', location.href)"],
+  ['a server problem is shown as a dead link', 6, PAGE, "only(e && e.status === 400 ? 'stGone' : 'stOffline')", "only(e && e.status >= 400 ? 'stGone' : 'stOffline')"],
   ['the page calls the answer confirmed', 6, PAGE, '<h2>Sent</h2>', '<h2>Delivery Confirmed</h2>'],
   ['the answer also writes the delivery', 7, MIGRATION, "  return jsonb_build_object('ok', true);", "  update public.deliveries set expected_date = p_date where id = v_link.delivery_id;\n  return jsonb_build_object('ok', true);"],
   ['anon is given the table', 7, MIGRATION, 'grant select, delete on public.delivery_supplier_links to authenticated;', 'grant select, delete on public.delivery_supplier_links to authenticated;\ngrant select on public.delivery_supplier_links to anon;'],
-  ['a signed-in client may write the answer', 7, MIGRATION, 'grant update (shown, reply_seen_at) on', 'grant update (shown, reply_seen_at, reply) on'],
+  ['a signed-in client may write the answer', 7, MIGRATION, 'grant update (reply_seen_at) on', 'grant update (reply_seen_at, reply) on'],
+  ['what the link shows can be rewritten after it is handed out', 7, MIGRATION, 'grant update (reply_seen_at) on', 'grant update (shown, reply_seen_at) on'],
+  ['the viewer seat reads the token', 7, MIGRATION, "  for select to authenticated\n  using (public.can_access_project(project_id, 'field'));", '  for select to authenticated\n  using (auth.uid() = user_id or public.can_access_project(project_id));'],
+  ['the catch-all is moved above the delivery rule', 8, 'marketing/_redirects', '/delivery  /delivery/index.html  200', '/*  /404.html  404\n/delivery  /delivery/index.html  200'],
   ['the answer notifies someone', 7, MIGRATION, "  return jsonb_build_object('ok', true);", "  perform pg_notify('supplier_answer', v_link.delivery_id::text);\n  return jsonb_build_object('ok', true);"],
   ['the view returns the delivery row', 7, MIGRATION, "    'shown', v_link.shown,", "    'shown', v_link.shown, 'delivery', (select to_jsonb(d) from public.deliveries d where d.id = v_link.delivery_id),"],
   ['the path rule is dropped from _redirects', 8, 'marketing/_redirects', '/delivery/*  /delivery/index.html  200', ''],

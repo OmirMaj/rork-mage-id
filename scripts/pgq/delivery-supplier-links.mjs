@@ -31,10 +31,12 @@ if (process.argv[3] === '--all') {
     11: ['17'],        // control characters are not cleaned out of the answer
     12: ['18'],        // the view returns the whole delivery row
     13: ['19'],        // a function is SECURITY INVOKER: anon cannot use the link at all
-    14: ['8'],         // the delete policy opened to the viewer seat
+    14: ['5'],         // the insert grant covers the token: a signed-in client picks its own
     15: ['16e'],       // the length caps removed
     16: ['12'],        // a new answer does not clear "seen"
     17: ['20'],        // turning the link off keeps the row: the old token still works
+    18: ['6', '6b'],   // the viewer seat reads the links: it holds the token and can answer as the supplier
+    19: ['9b'],        // what the link shows can be rewritten after it is handed out
   });
 }
 
@@ -46,9 +48,9 @@ const END = "notify pgrst, 'reload schema';";
 switch (MUTATE) {
   case 0: break;
   case 1: rep('revoke all on public.delivery_supplier_links from anon, authenticated, public;', 'revoke all on public.delivery_supplier_links from authenticated, public;\ngrant select on public.delivery_supplier_links to anon;\ndrop policy if exists dsl_anon on public.delivery_supplier_links;\ncreate policy dsl_anon on public.delivery_supplier_links for select to anon using (true);'); noSelfCheck(); break;
-  case 2: rep('grant update (shown, reply_seen_at) on public.delivery_supplier_links to authenticated;', 'grant update on public.delivery_supplier_links to authenticated;'); noSelfCheck(); break;
+  case 2: rep('grant update (reply_seen_at) on public.delivery_supplier_links to authenticated;', 'grant update on public.delivery_supplier_links to authenticated;'); noSelfCheck(); break;
   case 3: rep("\n    and exists (select 1 from public.deliveries d where d.id = delivery_id and d.project_id = delivery_supplier_links.project_id)", ''); break;
-  case 4: rep('  using (auth.uid() = user_id or public.can_access_project(project_id));', '  using (true);'); break;
+  case 4: rep("  for select to authenticated\n  using (public.can_access_project(project_id, 'field'));", '  for select to authenticated\n  using (true);'); break;
   case 5: rep("  return jsonb_build_object('ok', true);", "  update public.deliveries set expected_date = coalesce(p_date, expected_date), status = 'confirmed' where id = v_link.delivery_id;\n  return jsonb_build_object('ok', true);"); break;
   case 6: rep("  if coalesce(v_status, 'cancelled') in ('delivered', 'cancelled') then\n    return jsonb_build_object('ok', false, 'reason', 'closed');\n  end if;", ''); break;
   case 7: rep("  if v_link.reply_count >= 20 then\n    return jsonb_build_object('ok', false, 'reason', 'too_many');\n  end if;", ''); rep('  check (reply_count between 0 and 20);', '  check (true);'); break;
@@ -58,10 +60,12 @@ switch (MUTATE) {
   case 11: rep("  v_note text := nullif(btrim(regexp_replace(coalesce(p_note, ''), '[[:cntrl:][:space:]]+', ' ', 'g')), '');", "  v_note text := nullif(coalesce(p_note, ''), '');"); break;
   case 12: rep("    'shown', v_link.shown,", "    'shown', v_link.shown, 'delivery', (select to_jsonb(d) from public.deliveries d where d.id = v_link.delivery_id),"); break;
   case 13: rep("language plpgsql\nstable\nsecurity definer", "language plpgsql\nstable\nsecurity invoker"); noSelfCheck(); break;
-  case 14: rep("  for delete to authenticated\n  using (public.can_access_project(project_id, 'field'));", '  for delete to authenticated\n  using (public.can_access_project(project_id));'); break;
+  case 14: rep('grant insert (delivery_id, project_id, user_id, shown) on public.delivery_supplier_links to authenticated;', 'grant insert (delivery_id, project_id, user_id, shown, token) on public.delivery_supplier_links to authenticated;'); noSelfCheck(); break;
   case 15: rep("  if char_length(v_name) > 80 or char_length(coalesce(v_window, '')) > 40\n     or char_length(coalesce(v_carrier, '')) > 40 or char_length(coalesce(v_note, '')) > 300 then", '  if false then'); break;
   case 16: rep('         reply_at = now(),\n         reply_seen_at = null', '         reply_at = now()'); break;
   case 17: rep(END, `create or replace function public.dsl_keep() returns trigger language plpgsql as $t$ begin return null; end $t$;\ndrop trigger if exists dsl_keep on public.delivery_supplier_links;\ncreate trigger dsl_keep before delete on public.delivery_supplier_links for each row execute function public.dsl_keep();\n${END}`); break;
+  case 18: rep("  for select to authenticated\n  using (public.can_access_project(project_id, 'field'));", '  for select to authenticated\n  using (auth.uid() = user_id or public.can_access_project(project_id));'); break;
+  case 19: rep('grant update (reply_seen_at) on public.delivery_supplier_links to authenticated;', 'grant update (shown, reply_seen_at) on public.delivery_supplier_links to authenticated;'); noSelfCheck(); break;
   default: console.error('unknown MUTATE'); process.exit(2);
 }
 if (MUTATE) console.log(`(planted mutation M${MUTATE} applied)`);
@@ -136,7 +140,15 @@ ok('5 a signed-in client cannot choose the token', !ownChosenToken.ok, ownChosen
 
 const strangerRead = await tryRun('authenticated', `select token from public.delivery_supplier_links`, STRANGER);
 const viewerRead = await tryRun('authenticated', `select token from public.delivery_supplier_links`, VIEWER);
-ok('6 a stranger reads no link; a viewer on the job reads the job\'s links', strangerRead.ok && strangerRead.n === 0 && viewerRead.ok && viewerRead.n === 2, `stranger ${strangerRead.n} viewer ${viewerRead.n}`);
+const fieldRead = await tryRun('authenticated', `select token from public.delivery_supplier_links`, FIELD);
+ok('6 a stranger and a viewer read no link (the row holds the token); a field seat reads the job\'s links', strangerRead.ok && strangerRead.n === 0 && viewerRead.ok && viewerRead.n === 0 && fieldRead.ok && fieldRead.n === 2, `stranger ${strangerRead.n} viewer ${viewerRead.n} field ${fieldRead.n}`);
+{
+  // The hole the review found: a viewer who can read the token can answer as the supplier.
+  const stolen = (await tryRun('authenticated', `select token from public.delivery_supplier_links where delivery_id = '${D(2)}'`, VIEWER)).rows?.[0]?.token;
+  const forged = stolen ? await tryRun('authenticated', `select public.delivery_link_reply('${stolen}', current_date + 5, null, null, null, 'Dana at Northside', null) as r`, VIEWER) : null;
+  const count = (await rows(`select reply_count from public.delivery_supplier_links where delivery_id = '${D(2)}'`))[0]?.reply_count;
+  ok('6b a viewer cannot get a token, so cannot answer as the supplier', !stolen && !forged && count === 0, `token read ${!!stolen}, answers on the link ${count}`);
+}
 
 const crossProject = await tryRun('authenticated', LINK(D(3), P1, OWNER), OWNER, [SHOWN]);
 ok('7 a link cannot be made for a delivery that is on another job', !crossProject.ok, crossProject.ok ? 'a link to another firm\'s delivery was made under the caller\'s own job' : '');
@@ -150,6 +162,16 @@ const forge = await tryRun('authenticated', `update public.delivery_supplier_lin
 const forgeCount = await tryRun('authenticated', `update public.delivery_supplier_links set reply_count = 0 where delivery_id = '${D(1)}'`, OWNER);
 const reToken = await tryRun('authenticated', `update public.delivery_supplier_links set token = gen_random_uuid() where delivery_id = '${D(1)}'`, OWNER);
 ok('9 a signed-in client cannot write the answer, its count or the token', !forge.ok && !forgeCount.ok && !reToken.ok, `reply ${forge.ok} count ${forgeCount.ok} token ${reToken.ok}`);
+const reShown = await tryRun('authenticated', `update public.delivery_supplier_links set shown = '{"company":"Another Firm"}'::jsonb where delivery_id = '${D(1)}'`, OWNER);
+const reProject = await tryRun('authenticated', `update public.delivery_supplier_links set project_id = '${P2}' where delivery_id = '${D(1)}'`, OWNER);
+const reDelivery = await tryRun('authenticated', `update public.delivery_supplier_links set delivery_id = '${D(6)}' where delivery_id = '${D(1)}'`, OWNER);
+const reMade = await tryRun('authenticated', `update public.delivery_supplier_links set made_at = now(), user_id = '${FIELD}' where delivery_id = '${D(1)}'`, OWNER);
+ok('9b what the link shows, its job, its delivery, its maker and its date cannot be changed after it is made', !reShown.ok && !reProject.ok && !reDelivery.ok && !reMade.ok, `shown ${reShown.ok} project ${reProject.ok} delivery ${reDelivery.ok} made ${reMade.ok}`);
+const viewerSeen = await tryRun('authenticated', `update public.delivery_supplier_links set reply_seen_at = now() where delivery_id = '${D(1)}'`, VIEWER);
+const strangerSeen = await tryRun('authenticated', `update public.delivery_supplier_links set reply_seen_at = now() where delivery_id = '${D(1)}'`, STRANGER);
+const fieldSeen = await tryRun('authenticated', `update public.delivery_supplier_links set reply_seen_at = now() where delivery_id = '${D(1)}'`, FIELD);
+const seenNow = (await rows(`select reply_seen_at from public.delivery_supplier_links where delivery_id = '${D(1)}'`))[0]?.reply_seen_at;
+ok('9c a viewer and a stranger cannot mark an answer seen; a field seat can', (viewerSeen.affected ?? 0) === 0 && (strangerSeen.affected ?? 0) === 0 && fieldSeen.ok && (fieldSeen.affected ?? 0) === 1 && seenNow !== null, `viewer ${viewerSeen.affected ?? viewerSeen.err} stranger ${strangerSeen.affected ?? strangerSeen.err} field ${fieldSeen.affected ?? fieldSeen.err}`);
 
 const view = await tryRun('anon', `select public.delivery_link_view('${T1}') as v`);
 const v = view.rows?.[0]?.v;
@@ -190,6 +212,13 @@ ok('16b an answer with neither a date nor a tracking number is refused', (await 
 ok('16c a date more than two years away, or before yesterday, is refused', (await reason(`current_date + 900, null, null, null, 'Dana', null`)) === 'date' && (await reason(`current_date - 30, null, null, null, 'Dana', null`)) === 'date');
 ok('16d a tracking number that is not letters, digits, spaces and dashes is refused', (await reason(`null, null, '<script>alert(1)</script>', null, 'Dana', null`)) === 'tracking' && (await reason(`null, null, 'http://evil.example/x', null, 'Dana', null`)) === 'tracking');
 ok('16e an over-long name, window, carrier or note is refused', (await reason(`current_date + 5, null, null, null, '${'n'.repeat(81)}', null`)) === 'too_long' && (await reason(`current_date + 5, null, null, null, 'Dana', '${'x'.repeat(301)}'`)) === 'too_long' && (await reason(`current_date + 5, '${'w'.repeat(41)}', null, null, 'Dana', null`)) === 'too_long');
+{
+  // The largest answer the character caps let through, in 4-byte characters: it is stored, not turned into an error by the column's byte cap.
+  const l6 = await tryRun('authenticated', LINK(D(6), P1, OWNER), OWNER, [SHOWN]);
+  const r6 = await tryRun('anon', REPLY(l6.rows?.[0]?.token, `current_date + 5, '${'🚚'.repeat(40)}', '${'A1'.repeat(30)}', '${'🚚'.repeat(40)}', '${'🚚'.repeat(80)}', '${'🚚'.repeat(300)}'`));
+  ok('16g the largest answer the caps allow, in 4-byte characters, is stored and not an error', r6.ok && r6.rows[0].r.ok === true, r6.ok ? JSON.stringify(r6.rows[0].r) : r6.err);
+  await tryRun('authenticated', `delete from public.delivery_supplier_links where delivery_id = '${D(6)}'`, OWNER);
+}
 const none5 = (await rows(`select reply, reply_count from public.delivery_supplier_links where delivery_id = '${D(5)}'`))[0];
 ok('16f a refused answer stores nothing and is not counted', none5.reply === null && none5.reply_count === 0, JSON.stringify(none5));
 

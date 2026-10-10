@@ -26,7 +26,7 @@
 --                   day it is needed on site (if the person chose to show it).
 --                   No price, no client name, no address, no other delivery.
 --     made_at       timestamptz.
---     reply         jsonb object, at most 2,000 bytes, or NULL. The supplier's
+--     reply         jsonb object, at most 4,000 bytes, or NULL. The supplier's
 --                   latest answer: {"date","window","tracking","carrier",
 --                   "name","note","at"}. Written ONLY by delivery_link_reply.
 --     reply_count   integer, 0 to 20. How many answers the link has taken.
@@ -57,12 +57,16 @@
 --   anon: NO privilege on the table. anon can only call the two functions, and
 --     a function only ever touches the row whose token it was handed.
 --   authenticated, through row level security:
---     read    the row's maker, or anyone who can access the project.
+--     read    field access to the project. NOT the viewer seat: the row holds
+--             the token, and whoever holds the token can answer as the
+--             supplier. A maker who has left the job reads nothing.
 --     insert  the caller as user_id, with field access to the project, for a
 --             delivery that is on that same project.
---     update  field access to the project; and by a column grant ONLY `shown`
---             and `reply_seen_at`. The token, the answer and its count cannot
---             be written from a signed-in client at all.
+--     update  field access to the project; and by a column grant ONLY
+--             `reply_seen_at`. What the link shows cannot be changed after it
+--             is made (turn the link off and make a new one), and the token,
+--             the answer and its count cannot be written from a signed-in
+--             client at all.
 --     delete  field access to the project (turning the link off).
 --   The functions are EXECUTE for anon and authenticated, revoked from PUBLIC.
 --
@@ -110,7 +114,10 @@ alter table public.delivery_supplier_links add constraint dsl_shown_check
   check (jsonb_typeof(shown) = 'object' and octet_length(shown::text) <= 2000);
 alter table public.delivery_supplier_links drop constraint if exists dsl_reply_check;
 alter table public.delivery_supplier_links add constraint dsl_reply_check
-  check (reply is null or (jsonb_typeof(reply) = 'object' and octet_length(reply::text) <= 2000));
+  -- 4,000 bytes: the function's caps are in characters (80 + 40 + 40 + 300, plus 60 plain ones), so the
+  -- largest answer it lets through is about 2,100 bytes of 4-byte characters. This check is never the
+  -- one that refuses a real answer; it only bounds the column.
+  check (reply is null or (jsonb_typeof(reply) = 'object' and octet_length(reply::text) <= 4000));
 alter table public.delivery_supplier_links drop constraint if exists dsl_reply_count_check;
 alter table public.delivery_supplier_links add constraint dsl_reply_count_check
   check (reply_count between 0 and 20);
@@ -123,7 +130,7 @@ alter table public.delivery_supplier_links enable row level security;
 drop policy if exists dsl_select on public.delivery_supplier_links;
 create policy dsl_select on public.delivery_supplier_links
   for select to authenticated
-  using (auth.uid() = user_id or public.can_access_project(project_id));
+  using (public.can_access_project(project_id, 'field'));
 
 drop policy if exists dsl_insert on public.delivery_supplier_links;
 create policy dsl_insert on public.delivery_supplier_links
@@ -150,7 +157,7 @@ create policy dsl_delete on public.delivery_supplier_links
 revoke all on public.delivery_supplier_links from anon, authenticated, public;
 grant select, delete on public.delivery_supplier_links to authenticated;
 grant insert (delivery_id, project_id, user_id, shown) on public.delivery_supplier_links to authenticated;
-grant update (shown, reply_seen_at) on public.delivery_supplier_links to authenticated;
+grant update (reply_seen_at) on public.delivery_supplier_links to authenticated;
 grant all on public.delivery_supplier_links to service_role;
 
 comment on table public.delivery_supplier_links is
@@ -271,9 +278,12 @@ begin
   if has_column_privilege('authenticated', 'public.delivery_supplier_links', 'reply', 'update')
      or has_column_privilege('authenticated', 'public.delivery_supplier_links', 'token', 'update')
      or has_column_privilege('authenticated', 'public.delivery_supplier_links', 'reply_count', 'update')
+     or has_column_privilege('authenticated', 'public.delivery_supplier_links', 'shown', 'update')
+     or has_column_privilege('authenticated', 'public.delivery_supplier_links', 'project_id', 'update')
+     or has_column_privilege('authenticated', 'public.delivery_supplier_links', 'delivery_id', 'update')
      or has_column_privilege('authenticated', 'public.delivery_supplier_links', 'reply', 'insert')
      or has_column_privilege('authenticated', 'public.delivery_supplier_links', 'token', 'insert') then
-    raise exception '[delivery_supplier_links] verify: a signed-in client can write the token or the answer';
+    raise exception '[delivery_supplier_links] verify: a signed-in client can write the token, the answer or what the link shows';
   end if;
   select string_agg(policyname || ':' || cmd, ',' order by policyname) into v_policies
     from pg_policies where schemaname = 'public' and tablename = 'delivery_supplier_links';

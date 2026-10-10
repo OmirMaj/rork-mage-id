@@ -75,7 +75,7 @@
 <div class="wrap">
   <a class="brand" href="https://mageid.app" rel="noopener">MAGE ID</a>
 
-  <main id="content">
+  <main id="content" aria-live="polite">
     <!-- Shown while the link is being read, and with JavaScript off. -->
     <div class="state" id="stLoading">
       <h2>Opening The Link</h2>
@@ -88,8 +88,8 @@
     </div>
 
     <div class="state" id="stOffline" hidden>
-      <h2>Could Not Reach The Server</h2>
-      <p>Check your connection, then try again.</p>
+      <h2>Could Not Open The Link</h2>
+      <p>Check your connection, then try again. If it keeps happening, tell the contractor.</p>
       <button type="button" class="btn ghost" id="retry">Try Again</button>
     </div>
 
@@ -157,9 +157,12 @@
 
   function $(id) { return document.getElementById(id); }
   function show(id, on) { $(id).hidden = !on; }
-  var TOKEN = (function () { try { return new URL(location.href).searchParams.get('t') || ''; } catch (e) { return ''; } })();
-  // Take the token out of the address bar, so it is not left in a screenshot or a shared tab title.
-  try { if (TOKEN && history.replaceState) history.replaceState(null, '', location.pathname); } catch (e) { /* keep the address as it is */ }
+  // The link arrives as ?t=<token>. It is moved to #t=<token>: the part after # is never sent to a server
+  // or passed on as a referrer, and the page still works when the phone reloads the tab.
+  var TOKEN = (function () {
+    try { return new URL(location.href).searchParams.get('t') || (/^#t=([0-9a-f-]{36})$/i.exec(location.hash) || [])[1] || ''; } catch (e) { return ''; }
+  })();
+  try { if (TOKEN && history.replaceState) history.replaceState(null, '', location.pathname + '#t=' + TOKEN); } catch (e) { /* keep the address as it is */ }
 
   /* A calendar day is built from its parts in local time. new Date('2026-11-13') is UTC midnight, the day before in the US. */
   function dayLong(iso) {
@@ -182,7 +185,8 @@
       headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify(args),
     }).then(function (r) {
-      // A 4xx is the server answering "no" (a mangled token is not a uuid): a dead link, not a connection problem.
+      // Keep the status: a 400 is the server refusing what was sent (a mangled token is not a uuid). Anything else
+      // that is not a 2xx (the function missing, a busy server) is the page's problem, not a dead link.
       if (!r.ok) { var e = new Error('status ' + r.status); e.status = r.status; throw e; }
       return r.json();
     });
@@ -240,7 +244,7 @@
     rpc('delivery_link_view', { p_token: TOKEN }).then(function (v) {
       if (!v || v.found !== true) { only('stGone'); return; }
       paint(v);
-    }).catch(function (e) { only(e && e.status >= 400 && e.status < 500 ? 'stGone' : 'stOffline'); });
+    }).catch(function (e) { only(e && e.status === 400 ? 'stGone' : 'stOffline'); });
   }
 
   var REASONS = {
@@ -270,10 +274,12 @@
       if (!r || r.ok !== true) { fail(REASONS[r && r.reason] || 'That did not go through. Try again.'); return; }
       $('send').disabled = false;
       show('formSheet', false); show('doneSheet', true);
-      $('doneSay').textContent = 'Your answer is with ' + company + '. They see it the next time they open their delivery list. MAGE ID does not text or email them for you, so call them if it is urgent.';
+      $('doneSay').textContent = 'Your answer is with ' + company + '. They see it when they next open this delivery in their app. MAGE ID does not text or email them for you, so call them if it is urgent.';
       // Read it back from the server, so "Your Last Answer" is what was stored, not what was typed.
       rpc('delivery_link_view', { p_token: TOKEN }).then(function (v) { if (v && v.found === true) paintLast(v.reply); }).catch(function () { /* the answer was stored; only the read-back failed */ });
-    }).catch(function () { fail('Could not reach the server. Your answer was not sent. Check your connection and try again.'); });
+    }).catch(function (e) {
+      fail(e && e.status ? 'That did not go through, so your answer was not sent. Check the date and try again.' : 'Could not reach the server. Your answer was not sent. Check your connection and try again.');
+    });
   });
   $('again').addEventListener('click', function () { show('doneSheet', false); show('formSheet', true); $('formTitle').textContent = 'Send A New Answer'; $('fDate').focus(); });
   $('retry').addEventListener('click', load);

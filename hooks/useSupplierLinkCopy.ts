@@ -31,6 +31,10 @@ export interface SupplierLinkCopy {
   neededByLabel: string;
   notShownSub: string;
   theContractorSub: string;
+  companyFromSub: string;
+  neededTodaySub: string;
+  neededAsMadeSub: string;
+  neededOffSub: string;
   noCompanyBody: string;
   showsNothingElseBody: string;
   makeLabel: string;
@@ -59,6 +63,7 @@ export interface SupplierLinkCopy {
   copyTrackingLabel: string;
   trackingCopiedBody: string;
   failBody: string;
+  refusedBody: string;
   noteFor: (name: string) => string;
   messageAsk: (what: string) => string;
   messageSign: (company: string) => string;
@@ -78,6 +83,10 @@ export function useSupplierLinkCopy(): SupplierLinkCopy {
     neededByLabel: t('office.deliverySupplierLink.neededByLabel', 'Needed on Site By'),
     notShownSub: t('office.deliverySupplierLink.notShownSub', 'Not shown'),
     theContractorSub: t('office.deliverySupplierLink.theContractorSub', 'The contractor'),
+    companyFromSub: t('office.deliverySupplierLink.companyFromSub', 'Your company name, from Settings'),
+    neededTodaySub: t('office.deliverySupplierLink.neededTodaySub', 'From your schedule as it stands today'),
+    neededAsMadeSub: t('office.deliverySupplierLink.neededAsMadeSub', 'As it stood when the link was made'),
+    neededOffSub: t('office.deliverySupplierLink.neededOffSub', 'The supplier does not see a needed-by date'),
     noCompanyBody: t('office.deliverySupplierLink.noCompanyBody', 'Your company name is blank, so the page says "the contractor". You can add it in Settings.'),
     showsNothingElseBody: t('office.deliverySupplierLink.showsNothingElseBody', 'The link shows nothing else: no price, no client, no address and no other delivery.'),
     makeLabel: t('office.deliverySupplierLink.makeLabel', 'Make Link'),
@@ -106,7 +115,8 @@ export function useSupplierLinkCopy(): SupplierLinkCopy {
     copyTrackingLabel: t('office.deliverySupplierLink.copyTrackingLabel', 'Copy Tracking Number'),
     trackingCopiedBody: t('office.deliverySupplierLink.trackingCopiedBody', 'Copied. Paste it into the carrier\'s own tracking page.'),
     failBody: t('office.deliverySupplierLink.failBody', 'That did not go through. Check your connection and try again.'),
-    noteFor: (name) => t('office.deliverySupplierLink.noteFor', 'Through the supplier link, typed by {name}', { name }),
+    refusedBody: t('office.deliverySupplierLink.refusedBody', 'That was not saved. You may not have the right to do this on this job, or this delivery has not reached the server yet. Try again in a minute.'),
+    noteFor: (name) => t('office.deliverySupplierLink.noteFor', 'through the supplier link, typed by {name}', { name }),
     messageAsk: (what) => t('office.deliverySupplierLink.messageAsk', 'Please open this link and give the delivery date and tracking number for: {what}', { what }),
     messageSign: (company) => t('office.deliverySupplierLink.messageSign', 'Thank you, {company}', { company }),
   }), [t]);

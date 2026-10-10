@@ -19,7 +19,7 @@
 // offline queue), recorded as the supplier's word with a note that it came
 // through the link. It moves no task.
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, Switch, Share, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Switch, Share, Platform, StyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useT } from '@/contexts/LanguageContext';
@@ -28,11 +28,14 @@ import { showAlert } from '@/utils/alert';
 import { calendarDayOf, formatCalendarDay } from '@/utils/calendarDate';
 import type { Delivery } from '@/utils/deliverySchedule';
 import { isSettled } from '@/utils/deliveries/flags';
-import { useDeliverySupplierLinks } from '@/hooks/useDeliverySupplierLinks';
+import { useDeliverySupplierLinks, type LinkActionResult } from '@/hooks/useDeliverySupplierLinks';
 import { useSupplierLinkCopy } from '@/hooks/useSupplierLinkCopy';
 import { buildShown, linkMessage, replyDateDiffers, replyDatePatch, replyIsNew, supplierLinkUrl, type SupplierLinkShown } from '@/utils/deliveryLink/core';
 import { DateRow } from '@/components/deliveries/DeliveryDatesCard';
 import type { DeliveriesFollowStyles } from '@/components/deliveries/styles';
+
+/** The card's own spacing: the sheet's shared card has none between its rows and buttons. */
+const local = StyleSheet.create({ stack: { gap: 10 } });
 
 export function SupplierLinkSection({
   delivery, projectId, neededBy, me, styles, onUpdate,
@@ -60,26 +63,29 @@ export function SupplierLinkSection({
   const link = links.linkFor(delivery.id);
   const day = (d: string) => formatCalendarDay(d, { weekday: 'short', month: 'short', day: 'numeric' }, lang);
   const stamp = (at: string) => formatCalendarDay(calendarDayOf(at) ?? at, { month: 'short', day: 'numeric' }, lang);
+  /** Says what an action came to, when it was not 'ok'. */
+  const say = (r: LinkActionResult) => { if (r !== 'ok') showAlert(copy.sectionLabel, r === 'offline' ? copy.failBody : copy.refusedBody); };
   const failed = () => showAlert(copy.sectionLabel, copy.failBody);
 
-  const shownRows = (s: SupplierLinkShown) => (
+  const shownRows = (s: SupplierLinkShown, made: boolean) => (
     <>
       <DateRow label={copy.whatLabel} value={s.description} basis={`${copy.supplierLabel}: ${s.supplier}`} styles={styles} testID="dsl-shown-what" />
-      <DateRow label={copy.askedByLabel} value={s.company || copy.theContractorSub} basis={s.company ? copy.showsNothingElseBody : copy.noCompanyBody} styles={styles} testID="dsl-shown-company" />
-      <DateRow label={copy.neededByLabel} value={s.neededBy ? day(s.neededBy) : copy.notShownSub} basis={copy.showsNothingElseBody} styles={styles} testID="dsl-shown-needed" />
+      <DateRow label={copy.askedByLabel} value={s.company || copy.theContractorSub} basis={s.company ? copy.companyFromSub : copy.noCompanyBody} styles={styles} testID="dsl-shown-company" />
+      <DateRow label={copy.neededByLabel} value={s.neededBy ? day(s.neededBy) : copy.notShownSub} basis={s.neededBy ? (made ? copy.neededAsMadeSub : copy.neededTodaySub) : copy.neededOffSub} styles={styles} testID="dsl-shown-needed" />
+      <Text style={styles.note}>{copy.showsNothingElseBody}</Text>
     </>
   );
 
   if (!link) {
     return (
-      <View style={styles.card} testID="dsl-section">
+      <View style={[styles.card, local.stack]} testID="dsl-section">
         <View style={styles.headRow}>
           <Text style={styles.sectionLabel}>{copy.sectionLabel}</Text>
           {links.ownerPreview ? <View style={styles.chip}><Text style={styles.chipText}>{copy.ownerPreviewLabel}</Text></View> : null}
         </View>
         <Text style={styles.body}>{copy.introBody}</Text>
         <Text style={styles.sectionLabel}>{copy.showsLabel}</Text>
-        {shownRows(draft)}
+        {shownRows(draft, false)}
         {neededBy ? (
           <View style={styles.headRow}>
             <Text style={styles.body}>{copy.showNeededLabel}</Text>
@@ -89,7 +95,7 @@ export function SupplierLinkSection({
         <TouchableOpacity
           style={[styles.btn, styles.btnPrimary, links.busy && styles.btnOff]}
           disabled={links.busy}
-          onPress={() => { void links.make(delivery.id, draft).then((ok) => { if (!ok) failed(); }); }}
+          onPress={() => { void links.make(delivery.id, draft).then(say); }}
           accessibilityRole="button"
           testID="dsl-make"
         >
@@ -115,17 +121,19 @@ export function SupplierLinkSection({
   };
   const turnOff = () => showAlert(copy.turnOffLabel, copy.turnOffBody, [
     { text: copy.cancelLabel, style: 'cancel' },
-    { text: copy.turnOffLabel, style: 'destructive', onPress: () => { void links.turnOff(delivery.id).then((ok) => { if (!ok) failed(); }); } },
+    { text: copy.turnOffLabel, style: 'destructive', onPress: () => { void links.turnOff(delivery.id).then(say); } },
   ]);
   const useDate = () => {
     if (!reply) return;
     const patch = replyDatePatch(delivery, reply, { now: new Date(), by: me.id, byName: me.name, noteFor: copy.noteFor });
     if (patch) onUpdate(delivery.id, patch);
-    void links.markSeen(delivery.id);
+    // The date is saved by the line above (through the offline queue) whether or not this reaches the server.
+    // With no signal the answer simply stays marked New until Mark as Seen goes through.
+    void links.markSeen(delivery.id, link.replyAt);
   };
 
   return (
-    <View style={styles.card} testID="dsl-section">
+    <View style={[styles.card, local.stack]} testID="dsl-section">
       <View style={styles.headRow}>
         <Text style={styles.sectionLabel}>{copy.sectionLabel}</Text>
         {fresh ? <View style={[styles.chip, styles.chipWarn]} testID="dsl-new"><Text style={[styles.chipText, styles.chipWarnText]}>{copy.newSub}</Text></View> : null}
@@ -133,7 +141,7 @@ export function SupplierLinkSection({
       </View>
 
       {reply ? (
-        <View testID="dsl-answer">
+        <View style={local.stack} testID="dsl-answer">
           <Text style={styles.sectionLabel}>{copy.answerLabel}</Text>
           <DateRow
             label={copy.dateLabel}
@@ -162,7 +170,7 @@ export function SupplierLinkSection({
             </TouchableOpacity>
           ) : null}
           {fresh ? (
-            <TouchableOpacity style={[styles.btn, styles.btnQuiet, links.busy && styles.btnOff]} disabled={links.busy} onPress={() => { void links.markSeen(delivery.id).then((ok) => { if (!ok) failed(); }); }} accessibilityRole="button" testID="dsl-mark-seen">
+            <TouchableOpacity style={[styles.btn, styles.btnQuiet, links.busy && styles.btnOff]} disabled={links.busy} onPress={() => { void links.markSeen(delivery.id, link.replyAt).then(say); }} accessibilityRole="button" testID="dsl-mark-seen">
               <Text style={styles.btnQuietText}>{copy.markSeenLabel}</Text>
             </TouchableOpacity>
           ) : null}
@@ -172,7 +180,7 @@ export function SupplierLinkSection({
       )}
 
       <Text style={styles.sectionLabel}>{copy.showsLabel}</Text>
-      {shownRows(link.shown)}
+      {shownRows(link.shown, true)}
       <Text style={styles.note} selectable testID="dsl-url">{url}</Text>
       <Text style={styles.note}>{copy.madeSub(stamp(link.madeAt))}</Text>
 
