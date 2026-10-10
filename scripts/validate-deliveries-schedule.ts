@@ -695,7 +695,7 @@ section('I. The gate');
   ok('each door imports only its one piece', eq(importsOf('app/deliveries.tsx'), ['@/components/deliveries/DeliveriesFollow']) && eq(importsOf('app/schedule-pro.tsx'), ['@/components/deliveries/DeliveriesFollow']) && eq(importsOf('components/schedule/mobile/TaskDetailSheet.tsx'), ['@/components/deliveries/DeliveriesFollow'])
     && eq(importsOf('contexts/ProjectContext.tsx'), ['@/utils/deliveries/rowCore']) && eq(importsOf('utils/supplierScorecard.ts'), ['@/utils/deliveries/promise']));
   const FOLLOW = strip(read('components/deliveries/DeliveriesFollow.tsx'));
-  const doorRule = (s: string) => /if \(!gate\.on \|\| !model\) return \{ on: false, block: null, sheets: null, openAdd, openDelivery \};/.test(s) && /if \(!gate\.on \|\| !project\) return null;/.test(s) && /const active = gate\.on && gate\.canPreviewJobEffect && !!deliveryId;/.test(s) && /if \(!active \|\| !delivery\) return null;/.test(s) && /if \(!gate\.on\) return null;\s*const open = scoped/.test(s) && /if \(gate\.on\) setEdit\(/.test(s) && /if \(gate\.on\) setOpenId\(/.test(s);
+  const doorRule = (s: string) => /if \(!gate\.on \|\| !model\) return \{ on: false, block: null, sheets: null, openAdd, openDelivery, datesLabel: copy\.deliveryDatesLabel \};/.test(s) && /if \(!gate\.on \|\| !project\) return null;/.test(s) && /const active = gate\.on && gate\.canPreviewJobEffect && !!deliveryId;/.test(s) && /if \(!active \|\| !delivery\) return null;/.test(s) && /if \(!gate\.on\) return null;\s*const open = scoped/.test(s) && /if \(gate\.on\) setEdit\(/.test(s) && /if \(gate\.on\) setOpenId\(/.test(s);
   ok('each of the three doors draws nothing and opens nothing when the gate is closed', doorRule(FOLLOW));
   plant('the task section draws for everyone', !doorRule(FOLLOW.replace('if (!gate.on || !project) return null;', 'if (!project) return null;')));
   plant('the banner previews with the gate closed', !doorRule(FOLLOW.replace('const active = gate.on && gate.canPreviewJobEffect && !!deliveryId;', 'const active = !!deliveryId;')));
@@ -708,7 +708,7 @@ section('I. The gate');
   plant('the job effect is open to every plan', !hookRule(HOOK.replace('canPreviewJobEffect: on && isProOrAbove', 'canPreviewJobEffect: on')));
   // The Deliveries screen: what it adds is behind follow.on, and the golden pins the rest.
   const SCREEN = strip(read('app/deliveries.tsx'));
-  const screenRule = (s: string) => /const follow = useDeliveriesFollow\(projectId\);/.test(s) && (s.match(/follow\.(block|sheets)/g) ?? []).length >= 2 && /follow\.on \? follow\.openAdd/.test(s) && !/DELIVERIES_FOLLOW|deliveriesFollowScheduleAllowed|isOwner\(/.test(s);
+  const screenRule = (s: string) => /const follow = useDeliveriesFollow\(projectId\);/.test(s) && (s.match(/follow\.(block|sheets)/g) ?? []).length >= 2 && /follow\.on \? follow\.openAdd/.test(s) && (s.match(/onDates=\{follow\.on \? follow\.openDelivery : undefined\}/g) ?? []).length === 2 && !/DELIVERIES_FOLLOW|deliveriesFollowScheduleAllowed|isOwner\(/.test(s);
   ok('the Deliveries screen reaches the lane through one hook, and the old form is replaced only when follow.on', screenRule(SCREEN));
   const snap = 'app/../__tests__/smoke/__snapshots__/deliveries-schedule-golden.test.tsx.snap'.replace('app/../', '');
   const golden = existsSync(join(ROOT, snap)) ? read(snap) : '';

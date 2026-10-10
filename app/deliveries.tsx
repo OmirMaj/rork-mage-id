@@ -66,6 +66,7 @@ import { DeliveriesRegister } from '@/components/registers/DeliveriesRegister';
 import { computeSupplierScorecards, MIN_DELIVERIES_TO_SCORE } from '@/utils/supplierScorecard';
 import { supplierAdvisoryFor } from '@/utils/pace/partyLateness';
 import { SupplierAdvisoryLine } from '@/components/schedule/LatenessPadChip';
+import { useDeliveriesFollow } from '@/components/deliveries/DeliveriesFollow';
 
 /** Today as YYYY-MM-DD in LOCAL time — toISOString() would roll the date over
  *  in the evening for anyone west of UTC. */
@@ -134,6 +135,11 @@ export default function DeliveriesScreen() {
     [deliveries, projectId],
   );
   const look = useMemo(() => buildLookahead(scoped, horizon), [scoped, horizon]);
+  // Deliveries That Follow The Schedule (lane DELIVERIES-1). Inert unless that
+  // feature's gate is open for this person: `block` and `sheets` are then null
+  // and this screen draws exactly what it drew before.
+  const follow = useDeliveriesFollow(projectId);
+  const openAdd = follow.on ? follow.openAdd : () => setShowAdd(true);
 
   // What the BUILDING will stop, as opposed to what the supplier will. A load
   // with a confirmed date and no freight elevator booked is not a delivery
@@ -292,6 +298,7 @@ export default function DeliveriesScreen() {
           </TouchableOpacity>
         </View>
       ) : null}
+      {isDesktopWeb && follow.block ? <View style={styles.followDesk}>{follow.block}</View> : null}
       {isDesktopWeb ? (
         <DeliveriesRegister
           projectId={projectId}
@@ -304,7 +311,7 @@ export default function DeliveriesScreen() {
           hasAccessRules={!!rules}
           onConfirm={confirm}
           onReceive={receive}
-          onAdd={() => setShowAdd(true)}
+          onAdd={openAdd}
           onOpenBuildingAccess={openBuildingAccess}
         />
       ) : (
@@ -315,7 +322,7 @@ export default function DeliveriesScreen() {
             subtitle={summarizeLookahead(look, horizon)}
             styles={styles}
             t={t}
-            onAdd={() => setShowAdd(true)}
+            onAdd={openAdd}
             onArrived={() => setShowArrived(true)}
           />
 
@@ -343,6 +350,8 @@ export default function DeliveriesScreen() {
               </TouchableOpacity>
             ))}
 
+            {follow.block}
+
             {/* LATE — never inside the horizon toggle, never collapsed. */}
             {look.late.length > 0 && (
               <>
@@ -352,6 +361,7 @@ export default function DeliveriesScreen() {
                 {look.late.map(v => (
                   <Row key={v.delivery.id} v={v} tone={t.danger} styles={styles} t={t}
                        onConfirm={confirm} onReceive={receive}
+                       onDates={follow.on ? follow.openDelivery : undefined} datesLabel={follow.datesLabel}
                        conflicts={conflictsForDelivery(conflicts, v.delivery.id)} />
                 ))}
               </>
@@ -389,6 +399,8 @@ export default function DeliveriesScreen() {
                   t={t}
                   onConfirm={confirm}
                   onReceive={receive}
+                  onDates={follow.on ? follow.openDelivery : undefined}
+                  datesLabel={follow.datesLabel}
                   conflicts={conflictsForDelivery(conflicts, v.delivery.id)}
                 />
               ))
@@ -431,6 +443,8 @@ export default function DeliveriesScreen() {
         styles={styles}
         t={t}
       />
+
+      {follow.sheets}
 
       <AddDeliverySheet
         visible={showAdd}
@@ -491,12 +505,14 @@ function Header({
 }
 
 function Row({
-  v, tone, styles, t, onConfirm, onReceive, conflicts = [],
+  v, tone, styles, t, onConfirm, onReceive, conflicts = [], onDates, datesLabel,
 }: {
   v: DeliveryView; tone: string;
   styles: ReturnType<typeof makeStyles>; t: ThemeColors;
   onConfirm: (d: Delivery) => void; onReceive: (d: Delivery) => void;
   conflicts?: AccessConflict[];
+  /** Lane DELIVERIES-1: opens the delivery's dates. Absent unless that feature is on, and then the row is the row from before. */
+  onDates?: (d: Delivery) => void; datesLabel?: string;
 }) {
   const d = v.delivery;
   return (
@@ -535,6 +551,11 @@ function Row({
           <Truck size={13} color={t.accentLabel} strokeWidth={2} />
           <Text style={[styles.rowBtnText, { color: t.accentLabel }]}>Received</Text>
         </TouchableOpacity>
+        {onDates ? (
+          <TouchableOpacity onPress={() => onDates(d)} style={styles.rowBtn} accessibilityRole="button" testID={`dfs-dates-${d.id}`}>
+            <Text style={styles.rowBtnText}>{datesLabel}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -1122,6 +1143,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.accent + '40', backgroundColor: t.accentSoft,
   },
   arrivedBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accentLabel },
+  // Lane DELIVERIES-1: the follow block above the desktop register (drawn only when that feature is on).
+  followDesk: { paddingHorizontal: 16, paddingTop: 12 },
   arrivedDeskRow: { flexDirection: 'row' as const, justifyContent: 'flex-end' as const, paddingHorizontal: 16, paddingTop: 12 },
   chipRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginTop: 8 },
   chip: {

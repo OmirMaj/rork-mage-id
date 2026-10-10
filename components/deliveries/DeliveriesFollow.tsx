@@ -55,6 +55,8 @@ export interface DeliveriesFollowApi {
   openAdd: () => void;
   /** Open one delivery's dates. */
   openDelivery: (d: Delivery) => void;
+  /** The words on the row button that opens a delivery's dates. */
+  datesLabel: string;
 }
 
 function useMe(): { id: string; name: string } {
@@ -149,7 +151,7 @@ export function useDeliveriesFollow(projectId: string): DeliveriesFollowApi {
   const openAdd = useCallback(() => { if (gate.on) setEdit({ id: null }); }, [gate.on, setEdit]);
   const openDelivery = useCallback((d: Delivery) => { if (gate.on) setOpenId(d.id); }, [gate.on, setOpenId]);
 
-  if (!gate.on || !model) return { on: false, block: null, sheets: null, openAdd, openDelivery };
+  if (!gate.on || !model) return { on: false, block: null, sheets: null, openAdd, openDelivery, datesLabel: copy.deliveryDatesLabel };
 
   const block = (
     <View style={styles.block} testID="dfs-block">
@@ -211,7 +213,7 @@ export function useDeliveriesFollow(projectId: string): DeliveriesFollowApi {
       <Text style={styles.note} testID="dfs-reminder">{copy.reminderBody}</Text>
     </View>
   );
-  return { on: true, block, sheets, openAdd, openDelivery };
+  return { on: true, block, sheets, openAdd, openDelivery, datesLabel: copy.deliveryDatesLabel };
 }
 
 /** The schedule's task sheet: "Deliveries for This Task". Draws nothing when the gate is closed. */
