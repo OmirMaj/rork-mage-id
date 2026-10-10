@@ -4,7 +4,8 @@
 // (modelCore.MAX_ROOMS) and the replay draws one floor at a time:
 //
 //   Level 1  the podium: two retail bays, the residential lobby, the service
-//            corridor, back of house and the two stairs (7 rooms);
+//            corridor, back of house and the two stairs (7 rooms). The bays,
+//            the lobby and the loading room each have a door to the outside;
 //   Level 2  one room per apartment, the corridor, the lobby, the stairs (12);
 //   Level 4  room by room: eight apartments (each a living room and kitchen,
 //            a bedroom and a bath), the corridor, the lobby, the stairs (28);
@@ -56,6 +57,8 @@ export interface RoomSpec {
   window?: 1 | 3; door?: 1 | 2 | 3 | 4;
   /** Feet. 5 where left out. */
   windowFt?: number;
+  /** A second door, to the outside: the wall it is on and its middle, in feet from the room's left edge (a top or bottom wall) or its top edge (a side wall). */
+  entry?: { wall: 1 | 2 | 3 | 4; at: number };
 }
 
 const floorTaskSets = (n: number) => {
@@ -126,11 +129,11 @@ function podiumFloor(): RoomSpec[] {
   const shell = ['pod-col', 'l1-mep', 'l1-fin'];
   const c = PODIUM_CEILING_FT;
   return [
-    { floor: 1, key: 'l1:retail-a', name: 'Retail A', kind: 'other', x: 0, y: 0, w: 50, l: UNIT_D, tasks: [...shell, 'storefront'], ceiling: c, window: 1, windowFt: STOREFRONT_FT, door: 3 },
-    { floor: 1, key: 'l1:retail-b', name: 'Retail B', kind: 'other', x: 50, y: 0, w: 50, l: UNIT_D, tasks: [...shell, 'storefront'], ceiling: c, window: 1, windowFt: STOREFRONT_FT, door: 3 },
+    { floor: 1, key: 'l1:retail-a', name: 'Retail A', kind: 'other', x: 0, y: 0, w: 50, l: UNIT_D, tasks: [...shell, 'storefront'], ceiling: c, window: 1, windowFt: STOREFRONT_FT, door: 3, entry: { wall: 1, at: 44 } },
+    { floor: 1, key: 'l1:retail-b', name: 'Retail B', kind: 'other', x: 50, y: 0, w: 50, l: UNIT_D, tasks: [...shell, 'storefront'], ceiling: c, window: 1, windowFt: STOREFRONT_FT, door: 3, entry: { wall: 1, at: 6 } },
     { floor: 1, key: 'l1:service', name: 'Level 1 Service Corridor', kind: 'hall', x: 0, y: UNIT_D, w: UNIT_W * 4, l: CORRIDOR_D, tasks: shell, ceiling: c },
-    { floor: 1, key: 'l1:boh', name: 'Mail, Bike Room, Loading and Utility Rooms', kind: 'other', x: 0, y: UNIT_D + CORRIDOR_D, w: UNIT_W * 4, l: UNIT_D, tasks: shell, ceiling: c, door: 1 },
-    { floor: 1, key: 'l1:lobby', name: 'Residential Lobby and Elevators', kind: 'hall', x: -15, y: UNIT_D - 6, w: 15, l: 18, tasks: [...shell, 'elev', 'common'], ceiling: c, door: 2 },
+    { floor: 1, key: 'l1:boh', name: 'Mail, Bike Room, Loading and Utility Rooms', kind: 'other', x: 0, y: UNIT_D + CORRIDOR_D, w: UNIT_W * 4, l: UNIT_D, tasks: shell, ceiling: c, door: 1, entry: { wall: 3, at: 85 } },
+    { floor: 1, key: 'l1:lobby', name: 'Residential Lobby and Elevators', kind: 'hall', x: -15, y: UNIT_D - 6, w: 15, l: 18, tasks: [...shell, 'elev', 'common'], ceiling: c, door: 2, entry: { wall: 1, at: 7.5 } },
     { floor: 1, key: 'l1:stair1', name: 'Level 1 Stair 1', kind: 'other', x: -25, y: UNIT_D - 6, w: 10, l: 18, tasks: ['pod-col', 'stairs', 'common'], ceiling: c, door: 2 },
     { floor: 1, key: 'l1:stair2', name: 'Level 1 Stair 2', kind: 'other', x: UNIT_W * 4, y: UNIT_D - 6, w: 10, l: 18, tasks: ['pod-col', 'stairs', 'common'], ceiling: c, door: 4 },
   ];
@@ -139,6 +142,14 @@ function podiumFloor(): RoomSpec[] {
 /** Every room of the model, floor by floor from the podium up. */
 export function modelRoomSpecs(): RoomSpec[] {
   return [...podiumFloor(), ...unitFloor(UNIT_LEVELS[0]), ...detailedFloor(MODEL_LEVEL), ...unitFloor(UNIT_LEVELS[1])];
+}
+
+/** The core's walls run clockwise from the top left corner, so the bottom wall runs right to left and the left wall bottom to top. */
+function entryAlong(r: RoomSpec): number {
+  const e = r.entry!;
+  if (e.wall === 3) return r.w - e.at;
+  if (e.wall === 4) return r.l - e.at;
+  return e.at;
 }
 
 export function buildDemoModel(id: (key: string) => string): JobModel {
@@ -158,6 +169,7 @@ export function buildDemoModel(id: (key: string) => string): JobModel {
     }));
     if (r.window) model = addOpening(model, { roomId, wallId: `${roomId}-w${r.window}`, id: `${roomId}-win`, kind: 'window', widthM: feetToMetres(r.windowFt ?? WINDOW_FT) });
     if (r.door) model = addOpening(model, { roomId, wallId: `${roomId}-w${r.door}`, id: `${roomId}-door`, kind: 'door', widthM: feetToMetres(DOOR_FT) });
+    if (r.entry) model = addOpening(model, { roomId, wallId: `${roomId}-w${r.entry.wall}`, id: `${roomId}-entry`, kind: 'door', widthM: feetToMetres(DOOR_FT), centreAlongM: feetToMetres(entryAlong(r)) });
     for (const t of r.tasks) model = setRoomTaskLink(model, roomId, id(`task:${t}`), true);
   }
   // Stage overrides. "Wall Panels and Floor Deck" has the word "floor" in it, which the

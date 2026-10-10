@@ -95,7 +95,7 @@ and the replay draws one floor at a time:
 
 | Floor | Rooms | Where it stands on the day the job is made |
 |---|---|---|
-| Level 1, the podium | 7: two retail bays, the lobby, the service corridor, back of house, two stairs | Rough-in |
+| Level 1, the podium | 7: two retail bays, the lobby, the service corridor, back of house, two stairs. The bays, the lobby and the loading room have a door to the outside | Rough-in |
 | Level 2 | 12: one room per apartment, the corridor, the lobby, two stairs | Finishes |
 | Level 4 | 28: eight apartments room by room, the corridor, the lobby, two stairs | Drywall |
 | Level 7 | 12, as Level 2 | Rough-in |
@@ -115,7 +115,19 @@ engineer drew or reviewed it. There is no seal, signature or licence number on
 a sheet, and rule P1 fails if one is added.
 
 On a second device the model is missing, so the Demo Job screen there shows
-**Finish Creating**, which adds the model on that device and nothing else.
+**Finish Creating**, which adds what that device does not have yet: normally
+the model and nothing else.
+
+A sheet counts as on the job when the job has a current sheet with that
+number, whatever it is called. The app files a new sheet over the current one
+with the same number, so the builder never adds an A-101 beside one that is
+there: a sheet the owner renamed or replaced is left alone. Each upload has a
+45 second budget and at most one upload per job and sheet number runs at a
+time (`addBundledPlan`).
+
+A demo job made before the builder had four floors keeps its one-floor model
+and the tutorial's A-101: the builder never writes over a model that has
+rooms. Remove Demo Job, then Create, makes the current one.
 
 ## What is left out, and why
 

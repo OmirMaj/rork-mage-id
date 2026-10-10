@@ -83,3 +83,4 @@ package-lock.json
 .marketing-screens-dist-testing/
 .marketing-screens-out/
 *.marketing-screens-backup
+.marketing-screens-out-laptop/

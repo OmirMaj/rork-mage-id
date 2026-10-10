@@ -149,6 +149,8 @@ interface Ctx {
   src: Record<string, string>;
   /** Planted: a stand-in app that misbehaves, to prove the H rules notice. */
   tweak?: (app: FakeApp) => void;
+  /** Planted: sheets drawn wrongly, to prove the P rule notices. */
+  draw?: () => Record<string, string>;
   /** Planted: a builder that misbehaves, to prove the K rule notices. */
   build?: (day: string) => DemoJob;
 }
@@ -651,6 +653,12 @@ const RULES: Rule[] = [
     await createDemoJob(job, app.ports, () => {});
     const numbers = app.lists.planSheets.map((p) => (p as { sheetNumber?: string }).sheetNumber).sort().join();
     if (numbers !== 'A-101,A-102,A-301') out.push(`after a lost sheet the job holds ${numbers}`);
+    // A sheet he renamed, or his own under one of the numbers, is left alone: a second A-101 would push his aside as an old revision.
+    const first = app.lists.planSheets.find((p) => (p as { sheetNumber?: string }).sheetNumber === 'A-101') as { name?: string } | undefined;
+    if (first) first.name = 'My Own Ground Floor';
+    const sheetsBefore = app.lists.planSheets.length;
+    await createDemoJob(job, app.ports, () => {});
+    if (app.lists.planSheets.length !== sheetsBefore || (await demoStatus(job, app.ports)).state !== 'complete') out.push('a renamed sheet was uploaded again');
     // The whole job is well inside the offline queue's cap, with the room the writer asks for.
     if (before > QUEUE_ROOM_NEEDED - 50 || QUEUE_ROOM_NEEDED >= QUEUE_CAP) out.push(`${before} writes against room for ${QUEUE_ROOM_NEEDED}`);
     return out;
@@ -967,15 +975,27 @@ const RULES: Rule[] = [
     const frame = job.project.schedule!.tasks.find((t) => t.title === 'Level 4 Wall Panels and Floor Deck')!;
     if (stageForTask(frame.title, frame.tradeKey).stage === 'framing') out.push('the framing override is no longer needed: remove it');
     if (resolveStage(frame.title, frame.tradeKey, m.stages?.[frame.id]).stage !== 'framing') out.push('wall panels are not drawn as framing');
+    // Level 1 can be walked into: both retail bays, the lobby and the loading room have a door on an outside wall, where the sheet draws it.
+    const FT = 0.3048;
+    for (const [name, wall, fromLeftFt] of [['Retail A', 1, 44], ['Retail B', 1, 6], ['Residential Lobby and Elevators', 1, 7.5], ['Mail, Bike Room, Loading and Utility Rooms', 3, 85]] as const) {
+      const r = m.rooms.find((x) => x.name === name);
+      const o = r?.room.openings.find((x) => x.id.endsWith('-entry'));
+      const w = r?.room.walls.find((x) => x.id === o?.wallId);
+      if (!r || !o || !w || !w.id.endsWith(`-w${wall}`)) { out.push(`${name} has no door to the outside`); continue; }
+      // Where the door's middle is, measured from the room's left edge.
+      const t = (o.offsetM + o.widthM / 2) / Math.hypot(w.b.x - w.a.x, w.b.y - w.a.y);
+      const x = (w.a.x + (w.b.x - w.a.x) * t) / FT;
+      if (Math.abs(x - fromLeftFt) > 0.05) out.push(`${name}: the outside door is ${x.toFixed(1)} ft from the left, the sheet draws it at ${fromLeftFt}`);
+    }
     const columns = job.project.schedule!.tasks.find((t) => t.title === 'Level 1 Columns and Shear Walls')!;
     if (resolveStage(columns.title, columns.tradeKey, m.stages?.[columns.id]).stage !== 'framing') out.push('the podium structure is not drawn as framing');
     if (m.updatedAt !== '') out.push('the model claims a save time before it is saved');
     return out;
   } },
   // ── P. The plan sheets ────────────────────────────────────────────────────
-  { id: 'P1', what: 'the three plan sheets are drawn from the model\'s rooms, say they are samples, carry no seal, and the bundled images are current', run: ({ src }) => {
+  { id: 'P1', what: 'the three plan sheets are drawn from the model\'s rooms, say they are samples, carry no seal, and the bundled images are current', run: ({ src, draw }) => {
     const out: string[] = [];
-    const drawn = drawDemoPlans();
+    const drawn = (draw ?? drawDemoPlans)();
     if (DEMO_PLAN_SHEETS.map((s) => `${s.sheetNumber}:${s.key}`).join() !== 'A-101:a-101,A-102:a-102,A-301:a-301') out.push('the sheet list changed');
     for (const sheet of DEMO_PLAN_SHEETS) {
       const svg = drawn[sheet.key] ?? '';
@@ -991,15 +1011,20 @@ const RULES: Rule[] = [
       if (head.readUInt32BE(16) !== PLAN_IMAGE.w || head.readUInt32BE(20) !== PLAN_IMAGE.h) out.push(`${sheet.sheetNumber}: the image is not ${PLAN_IMAGE.w} by ${PLAN_IMAGE.h}`);
       if (head.length > 600_000) out.push(`${sheet.sheetNumber}: the image is ${head.length} bytes`);
     }
-    // Every room of a drawn floor is on its sheet, by its typed size.
-    const size = (r: { w: number; l: number }) => `${r.w}'-0" x ${r.l}'-0"`;
-    for (const r of modelRoomSpecs()) {
-      const svg = r.floor === 1 ? drawn['a-101'] : r.floor === 4 ? drawn['a-102'] : null;
-      if (svg && !/Stair/.test(r.name) && !svg.includes(size(r))) out.push(`${r.name} (${size(r)}) is not on its sheet`);
+    // Every room of a drawn floor is on its sheet once, as its own outline, and no other room is.
+    for (const [key, floor] of [['a-101', 1], ['a-102', 4]] as const) {
+      const want = modelRoomSpecs().filter((r) => r.floor === floor).map((r) => r.key).sort().join();
+      const got = [...(drawn[key] ?? '').matchAll(/<rect data-room='([^']+)'/g)].map((x) => x[1]).sort().join();
+      if (got !== want) out.push(`${key.toUpperCase()} does not draw exactly the rooms of Level ${floor}`);
     }
-    // The images in assets/demo-job were rendered from exactly these drawings (scripts/demo-job/render.sh writes the note).
+    // The images in assets/demo-job were rendered from exactly these drawings, and are the files that render wrote
+    // (scripts/demo-job/render.sh writes the note: the drawing's hash, then the image's).
     const note = src['assets/demo-job/drawn-from.txt'] ?? '';
-    for (const sheet of DEMO_PLAN_SHEETS) if (!note.includes(`${sheet.key} ${sha(drawn[sheet.key])}`)) out.push(`${sheet.sheetNumber}: the bundled image is older than the drawing. Run scripts/demo-job/render.sh`);
+    for (const sheet of DEMO_PLAN_SHEETS) {
+      const png = join(ROOT, `assets/demo-job/plan-${sheet.key}.png`);
+      const pngSha = existsSync(png) ? createHash('sha256').update(readFileSync(png)).digest('hex').slice(0, 16) : 'missing';
+      if (!note.includes(`${sheet.key} ${sha(drawn[sheet.key] ?? '')} ${pngSha}`)) out.push(`${sheet.sheetNumber}: the bundled image is not the one rendered from this drawing. Run scripts/demo-job/render.sh`);
+    }
     const ports = src['hooks/useDemoJobPorts.ts'];
     for (const sheet of DEMO_PLAN_SHEETS) if (!ports.includes(`'${sheet.key}': require('../assets/demo-job/plan-${sheet.key}.png')`)) out.push(`${sheet.sheetNumber} is not bundled by the ports`);
     return out;
@@ -1183,8 +1208,12 @@ const MUTATIONS: Mut[] = [
   data('L1', 'a room ticked against a task that is not there', (j) => { const k = Object.keys(j.model.links)[0]; j.model.links[k].push('nope'); }),
   data('L1', 'the framing stage override removed', (j) => { delete j.model.stages; }),
   data('L1', 'a Level 2 room ticked against a Level 4 task', (j) => { const r = j.model.rooms.find((x) => x.name === 'Unit 201')!; const t = j.project.schedule!.tasks.find((x) => x.title === 'Level 4 Drywall Hang and Finish')!; j.model.links[r.id].push(t.id); }),
+  data('L1', 'the loading door measured from the wrong end of its wall', (j) => { const r = j.model.rooms.find((x) => /^Mail/.test(x.name))!; const o = r.room.openings.find((x) => x.id.endsWith('-entry'))!; o.offsetM = 83.5 * 0.3048; }),
   data('L1', 'a floor kept at the wrong level', (j) => { for (const r of j.model.rooms) if (r.level === 6) r.level = 5; }),
   data('M1', 'Level 7 ticked like Level 2', (j) => { const a = j.model.rooms.find((x) => x.name === 'Unit 201')!; const b = j.model.rooms.find((x) => x.name === 'Unit 701')!; j.model.links[b.id] = [...j.model.links[a.id]]; }),
+  { rule: 'P1', name: 'a sheet that no longer says it is not for construction', plant: (c) => ({ ...c, draw: () => { const d = drawDemoPlans(); return { ...d, 'a-102': d['a-102'].replace('NOT FOR CONSTRUCTION', 'FLOOR PLAN') }; } }) },
+  { rule: 'P1', name: 'a sheet with a seal on it', plant: (c) => ({ ...c, draw: () => { const d = drawDemoPlans(); return { ...d, 'a-301': d['a-301'].replace('</svg>', "<text x='0' y='0'>Architect's Seal</text></svg>") }; } }) },
+  { rule: 'P1', name: 'a sheet missing one of its rooms', plant: (c) => ({ ...c, draw: () => { const d = drawDemoPlans(); return { ...d, 'a-102': d['a-102'].replace("<rect data-room='403-bath'", '<rect') }; } }) },
   text('P1', 'the ports stop bundling a sheet', 'hooks/useDemoJobPorts.ts', "'a-301': require('../assets/demo-job/plan-a-301.png'),", ''),
   text('P1', 'the bundled images are older than the drawing', 'assets/demo-job/drawn-from.txt', 'a-102 ', 'a-102 0'),
   app('H1', 'an app whose plan port ignores which sheet was asked for', (a) => { const real = a.ports.assets.ensurePlan; a.ports.assets.ensurePlan = (pid, sheet) => real(pid, { ...sheet, sheetNumber: 'A-101', name: 'Sample Level 1 Floor Plan' }); }),

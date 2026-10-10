@@ -26,7 +26,7 @@ const CDP_PORT = Number(process.env.CDP_PORT ?? 9347);
 const LAPTOP = process.env.VIEW === 'laptop';
 const VIEW = LAPTOP ? { width: 1440, height: 900, scale: 2 } : { width: 393, height: 852, scale: 3 };
 const INSETS = LAPTOP ? { top: 0, bottom: 0, left: 0, right: 0 } : { top: 59, bottom: Number(process.env.INSET_BOTTOM ?? 34), left: 0, right: 0 }; // iPhone 15 / 16
-const OUT = process.env.OUT ?? join(ROOT, '.marketing-screens-out');
+const OUT = process.env.OUT ?? join(ROOT, process.env.VIEW === 'laptop' ? '.marketing-screens-out-laptop' : '.marketing-screens-out');
 const DIST = (set: 'shipped' | 'in-testing') => process.env[set === 'shipped' ? 'DIST' : 'DIST_TESTING']
   ?? join(ROOT, set === 'shipped' ? '.marketing-screens-dist' : '.marketing-screens-dist-testing');
 

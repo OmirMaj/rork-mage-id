@@ -33,9 +33,17 @@ export const DEMO_PLAN_SHEETS: readonly [DemoPlanSheet, DemoPlanSheet, DemoPlanS
   { key: 'a-301', sheetNumber: 'A-301', name: 'Sample Building Section', titleLines: ['Building', 'Section'] },
 ];
 
-type SheetRow = { projectId?: string | null; sheetNumber?: string | null; name?: string | null; superseded?: boolean | null };
+type SheetRow = { projectId?: string | null; sheetNumber?: string | null; superseded?: boolean | null };
 
-/** The demo sheet already on the job, by its number and its name. A sheet he replaced or renamed is his, not the builder's. */
+/**
+ * True when the job already has a current sheet with this sheet's NUMBER,
+ * whatever it is called. The app files a new sheet over the current one with
+ * the same number (utils/planSheetBatchCore `sameSheet`), so adding "A-101"
+ * to a job that has an A-101 would push his aside as an old revision. A sheet
+ * he renamed, or one he uploaded himself under that number, therefore counts
+ * as there, and Finish Creating leaves it alone. So does the tutorial's A-101
+ * on a demo job made before the builder had sheets of its own.
+ */
 export function hasDemoSheet(sheets: readonly SheetRow[], projectId: string, sheet: DemoPlanSheet): boolean {
-  return sheets.some((s) => s.projectId === projectId && s.sheetNumber === sheet.sheetNumber && s.name === sheet.name && !s.superseded);
+  return sheets.some((s) => s.projectId === projectId && s.sheetNumber === sheet.sheetNumber && !s.superseded);
 }

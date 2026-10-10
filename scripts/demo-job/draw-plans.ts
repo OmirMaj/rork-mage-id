@@ -33,7 +33,8 @@ const line = (x1: number, y1: number, x2: number, y2: number, w = 1, stroke = IN
   `<line x1='${x1}' y1='${y1}' x2='${x2}' y2='${y2}' stroke='${stroke}' stroke-width='${w}'${dash ? ` stroke-dasharray='${dash}'` : ''}/>`;
 const feetInches = (ft: number): string => `${Math.floor(ft)}'-${Math.round((ft % 1) * 12)}"`;
 
-function frame(sheet: (typeof DEMO_PLAN_SHEETS)[number], body: string, scaleNote: string): string {
+function frame(sheet: (typeof DEMO_PLAN_SHEETS)[number], body: string, drawnFrom: string): string {
+  const scaleNote = 'Not to Scale';
   const x = W - M - TB_W;
   const tb: string[] = [];
   tb.push(`<rect x='${x}' y='${M}' width='${TB_W}' height='${H - 2 * M}' fill='#ffffff' stroke='${INK}' stroke-width='2'/>`);
@@ -57,7 +58,7 @@ function frame(sheet: (typeof DEMO_PLAN_SHEETS)[number], body: string, scaleNote
   tb.push(text(x + 24, M + 684, 'SCALE', 13, { fill: SOFT, spacing: 2 }));
   tb.push(text(x + 24, M + 714, scaleNote, 19));
   tb.push(text(x + 24, M + 766, 'DRAWN FROM', 13, { fill: SOFT, spacing: 2 }));
-  tb.push(text(x + 24, M + 796, 'The same rooms as the job model', 19));
+  tb.push(text(x + 24, M + 796, drawnFrom, 19));
   tb.push(line(x, H - M - 330, x + TB_W, H - M - 330, 2));
   tb.push(text(x + 24, H - M - 292, 'SHEET TITLE', 13, { fill: SOFT, spacing: 2 }));
   sheet.titleLines.forEach((s, i) => tb.push(text(x + 24, H - M - 252 + i * 34, s.toUpperCase(), 26, { weight: 700 })));
@@ -90,11 +91,12 @@ function wallEnds(r: RoomSpec, wall: 1 | 2 | 3 | 4): [number, number, number, nu
   return [r.x, r.y, r.x, r.y + r.l];
 }
 
-function opening(r: RoomSpec, wall: 1 | 2 | 3 | 4, kind: 'door' | 'window', widthFt: number): string {
+function opening(r: RoomSpec, wall: 1 | 2 | 3 | 4, kind: 'door' | 'window', widthFt: number, atFt?: number): string {
   const [x1, y1, x2, y2] = wallEnds(r, wall);
-  const cx = (x1 + x2) / 2;
-  const cy = (y1 + y2) / 2;
   const horizontal = y1 === y2;
+  // The middle of the wall, or `atFt` from the room's left edge (a top or bottom wall) or top edge (a side wall).
+  const cx = atFt != null && horizontal ? x1 + atFt : (x1 + x2) / 2;
+  const cy = atFt != null && !horizontal ? y1 + atFt : (y1 + y2) / 2;
   const a = horizontal ? [cx - widthFt / 2, cy] : [cx, cy - widthFt / 2];
   const b = horizontal ? [cx + widthFt / 2, cy] : [cx, cy + widthFt / 2];
   const out: string[] = [];
@@ -162,7 +164,7 @@ function floorPlan(sheet: (typeof DEMO_PLAN_SHEETS)[number], floor: number, typi
     out.push(text(px(FOOTPRINT.x0 - 4) - 20, py(r) + 7, 'ABCD'[i], 19, { anchor: 'middle', weight: 700 }));
   });
   // Walls: every room's four sides. A wall two rooms share is drawn twice in the same place.
-  for (const r of rooms) out.push(`<rect x='${px(r.x)}' y='${py(r.y)}' width='${(r.w * PX).toFixed(1)}' height='${(r.l * PX).toFixed(1)}' fill='#ffffff' fill-opacity='0.92' stroke='${INK}' stroke-width='5'/>`);
+  for (const r of rooms) out.push(`<rect data-room='${r.key}' x='${px(r.x)}' y='${py(r.y)}' width='${(r.w * PX).toFixed(1)}' height='${(r.l * PX).toFixed(1)}' fill='#ffffff' fill-opacity='0.92' stroke='${INK}' stroke-width='5'/>`);
   // The outside walls again, heavier.
   const outer = `M ${px(0)} ${py(0)} H ${px(100)} V ${py(24)} H ${px(110)} V ${py(42)} H ${px(100)} V ${py(66)} H ${px(0)} V ${py(42)} H ${px(-25)} V ${py(24)} H ${px(0)} Z`;
   out.push(`<path d='${outer}' fill='none' stroke='${INK}' stroke-width='9' stroke-linejoin='miter'/>`);
@@ -170,6 +172,7 @@ function floorPlan(sheet: (typeof DEMO_PLAN_SHEETS)[number], floor: number, typi
     if (/Stair/.test(r.name)) out.push(stairTreads(r));
     if (r.window) out.push(opening(r, r.window, 'window', r.windowFt ?? WINDOW_FT));
     if (r.door) out.push(opening(r, r.door, 'door', DOOR_FT));
+    if (r.entry) out.push(opening(r, r.entry.wall, 'door', DOOR_FT, r.entry.at));
     out.push(labelFor(r, typical));
   }
   // Overall dimensions.
@@ -186,16 +189,12 @@ function floorPlan(sheet: (typeof DEMO_PLAN_SHEETS)[number], floor: number, typi
   out.push(text(M + 60, ty, caption.toUpperCase(), 34, { weight: 700, spacing: 1 }));
   out.push(line(M + 60, ty + 14, M + 760, ty + 14, 3));
   out.push(text(M + 60, ty + 46, 'Sample drawing, not for construction. Sizes are the rooms typed into the job model.', 18, { fill: SOFT }));
-  const bx = M + 60;
-  const by = ty + 84;
-  [0, 1, 2, 3].forEach((i) => out.push(`<rect x='${bx + i * 10 * PX}' y='${by}' width='${10 * PX}' height='10' fill='${i % 2 ? '#ffffff' : INK}' stroke='${INK}' stroke-width='1.2'/>`));
-  [0, 10, 20, 40].forEach((f) => out.push(text(bx + f * PX, by + 32, `${f}'`, 15, { anchor: 'middle', fill: SOFT })));
   const nx = M + AREA_W - 110;
   const ny = ty + 30;
   out.push(`<circle cx='${nx}' cy='${ny}' r='38' fill='none' stroke='${INK}' stroke-width='2'/>`);
   out.push(`<path d='M ${nx} ${ny - 34} L ${nx + 13} ${ny + 20} L ${nx} ${ny + 8} L ${nx - 13} ${ny + 20} Z' fill='${INK}'/>`);
   out.push(text(nx, ny - 48, 'N', 22, { anchor: 'middle', weight: 700 }));
-  return frame(sheet, out.join('\n'), 'Not to Scale');
+  return frame(sheet, out.join('\n'), 'The same rooms as the job model');
 }
 
 // ── the section ─────────────────────────────────────────────────────────────
@@ -261,8 +260,8 @@ function section(sheet: (typeof DEMO_PLAN_SHEETS)[number]): string {
   out.push(text(M + 60, ty, 'BUILDING SECTION, LOOKING NORTH', 34, { weight: 700, spacing: 1 }));
   out.push(line(M + 60, ty + 14, M + 760, ty + 14, 3));
   out.push(text(M + 60, ty + 46, 'Sample drawing, not for construction. Cut through the north row of apartments and both stairs.', 18, { fill: SOFT }));
-  out.push(text(M + 60, ty + 76, `The job model holds Levels 1, 2, ${MODEL_LEVEL} and 7.`, 18, { fill: SOFT }));
-  return frame(sheet, out.join('\n'), 'Not to Scale');
+  out.push(text(M + 60, ty + 76, `The job model holds the rooms of Levels 1, 2, ${MODEL_LEVEL} and 7. Footings, the roof and the overrun are drawn here only.`, 18, { fill: SOFT }));
+  return frame(sheet, out.join('\n'), 'A made-up section for the demo');
 }
 
 export function drawDemoPlans(): Record<string, string> {
