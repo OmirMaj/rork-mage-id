@@ -874,7 +874,7 @@ const RULES: Record<string, Rule> = {
     if ('sentLockedAt' in aiaRowToSaved(row).totals) bad.push('the stamp leaked into totals');
     const screen = stripComments(w['app/aia-pay-app.tsx'] ?? '');
     if (!/const lockState = payAppLock\(\{[\s\S]{0,260}sentLockedAt: savedForThisAppNumber\?\.sentLockedAt,\s*\}\);\s*const isLocked = lockState\.locked;/.test(screen)) bad.push('app/aia-pay-app.tsx: isLocked is not payAppLock with the send stamp');
-    if (!/const rec = built \? withSentLock\(\{ \.\.\.built, id: pinCertifyRecordId\(built\.id\) \}, new Date\(\)\.toISOString\(\), easy\) : null;/.test(screen)) bad.push('app/aia-pay-app.tsx: certify does not stamp the record (owner preview only)');
+    if (!/const draft = gb \? null : buildSavedRecord\(\);\s*const built = draft \? withSentLock\(draft, new Date\(\)\.toISOString\(\), easy\) : null;\s*const rec = built \? \{ \.\.\.built, id: pinCertifyRecordId\(built\.id\) \} : null;/.test(screen) || !/const stored = await saveAIAPayAppOnline\(rec\);/.test(screen)) bad.push('app/aia-pay-app.tsx: certify does not store the stamped record (owner preview only)');
     if ((screen.match(/withSentLock\(/g) ?? []).length !== 1) bad.push('app/aia-pay-app.tsx: the stamp is written somewhere other than certify');
     if (!/sentLockedAt: existing\?\.sentLockedAt,/.test(screen)) bad.push('app/aia-pay-app.tsx: a re-save would drop the stamp');
     return bad;
@@ -1080,7 +1080,8 @@ const MUTATIONS: Mutation[] = [
   { rule: 'L1 lock at send', what: 'a second certify moves the stamp', plant: sub('utils/payApp/sendLock.ts', '  if (rec.sentLockedAt) return rec;\n', '') },
   { rule: 'L1 lock at send', what: 'everyone is stamped, not only the preview', plant: sub('utils/payApp/sendLock.ts', '  if (!allowed) return rec;\n', '') },
   { rule: 'L1 lock at send', what: 'the screen goes back to the pay link alone', plant: sub(SCREEN, 'const isLocked = lockState.locked;', "const isLocked = lockState.locked && lockState.reason !== 'sent';") },
-  { rule: 'L1 lock at send', what: 'certify stops stamping', plant: sub(SCREEN, 'withSentLock({ ...built, id: pinCertifyRecordId(built.id) }, new Date().toISOString(), easy)', '({ ...built, id: pinCertifyRecordId(built.id) })') },
+  { rule: 'L1 lock at send', what: 'certify stops stamping', plant: sub(SCREEN, 'const built = draft ? withSentLock(draft, new Date().toISOString(), easy) : null;', 'const built = draft;') },
+  { rule: 'L1 lock at send', what: 'certify stamps everyone, not only the preview', plant: sub(SCREEN, 'withSentLock(draft, new Date().toISOString(), easy)', 'withSentLock(draft, new Date().toISOString(), true)') },
   { rule: 'L1 lock at send', what: 'a plain save stamps the record too', plant: sub(SCREEN, '    const rec = buildSavedRecord();\n    if (!rec) return;\n', '    const rec = withSentLock(buildSavedRecord() as SavedAIAPayApp, new Date().toISOString(), easy);\n    if (!rec) return;\n') },
   { rule: 'L2 the lien deadline card is hidden', what: 'LIEN_CLOCK_ENABLED is flipped on', plant: sub('constants/featureFlags.ts', 'export const LIEN_CLOCK_ENABLED: boolean = false;', 'export const LIEN_CLOCK_ENABLED: boolean = true;') },
   { rule: 'L2 the lien deadline card is hidden', what: 'the invoice screen mounts the card without the flag', plant: sub('app/invoice.tsx', "{LIEN_CLOCK_ENABLED && existingInvoice && effectiveStatus === 'overdue'", "{existingInvoice && effectiveStatus === 'overdue'") },

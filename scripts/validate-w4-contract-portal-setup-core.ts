@@ -22,6 +22,7 @@ import {
 } from '../utils/contractSignatureCore';
 import { jobProposalSplit, quotedSplitOf, resolvePaymentSplit } from '../utils/paymentTerms';
 import { portalSettingsDiffer } from '../utils/portalLiteSync';
+import { payAppLock } from '../utils/payApp/sendLock';
 import { digestPortalGate } from '../supabase/functions/homeowner-weekly-digest/clientVisible';
 import type { ClientPortalSettings, ContractSignature, ContractStatus } from '../types';
 
@@ -224,7 +225,15 @@ async function main() {
   console.log('\n#15 / #83 — the AIA screen');
   const aia = strip(read('app/aia-pay-app.tsx'));
   ok('the bottom bar no longer promises the portal on save', !/Saved pay applications appear in your client portal/.test(aia));
-  ok('a pending bank payment locks the period', /const isLocked = !!savedForThisAppNumber\?\.payLinkUrl \|\| !!savedPaidAt \|\| !!pendingBankPayment;/.test(aia));
+  // Lane PAYAPP-1 moved the rule into utils/payApp/sendLock payAppLock (a pay
+  // link, a payment, a pending bank payment, or the send stamp), so the rule is
+  // EXECUTED here and the screen is checked for handing it the pending payment.
+  ok('a pending bank payment locks the period',
+    /const lockState = payAppLock\(\{[\s\S]{0,200}pendingBankPayment: !!pendingBankPayment,[\s\S]{0,120}\}\);\s*const isLocked = lockState\.locked;/.test(aia)
+    && payAppLock({ pendingBankPayment: true }).locked === true
+    && payAppLock({ payLinkUrl: 'https://pay' }).locked === true
+    && payAppLock({ paidAt: '2026-09-01T00:00:00Z' }).locked === true
+    && payAppLock({}).locked === false);
   ok('…and no new pay link is minted while it settles', /if \(!pendingBankPayment\)\s*if \(!payLinkUrl && due > 0/.test(aia));
   ok('…and the banner says "Bank payment of $X processing since <day>"', /Bank payment\$\{known \? ` of \$\{formatMoney\(amount as number, 2\)\}` : ''\} processing since/.test(aia) && /paymentPendingHolds\(since, Date\.now\(\)\)/.test(aia));
 

@@ -1020,9 +1020,11 @@ console.log('\n7. From the read state to the rule, and to the client');
   ok('…the seeder gets `activeContract` as it is, and so does the late answer',
     count(src.pay, /contract: activeContract,\n/g) === 1
     && count(src.pay, /applyContractAnswerToLineOne\(prev, lineOneProjectRef\.current, activeContract\)/g) === 1
-    // activeContract appears six times: the line above, the seeder option and
-    // its dependency, and the late-answer effect (guard, call, dependency).
-    && count(payCode, /\bactiveContract\b/g) === 6
+    // activeContract appears seven times: the line above, the seeder option
+    // and its dependency, the late-answer effect (guard, call, dependency),
+    // and Bill This Month (lane PAYAPP-1), which is handed it as it is.
+    && count(payCode, /\bactiveContract\b/g) === 7
+    && count(payCode, /contract=\{activeContract\}/g) === 1
     && /\n    if \(hasSavedRecord \|\| !contractSettled \|\| activeContract === undefined\) return;\n/.test(payCode));
   ok('the two views go through contractOfRead as well (no second copy of the rule in either file)',
     /const \{ settled, contract \} = contractOfRead\(read, projectId\);\n  const r = contractSumBasis\(project, contract, onDocument\);/.test(src.fin)

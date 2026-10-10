@@ -1708,11 +1708,12 @@ function AIAPayAppScreenInner({ practiceProjectId }: { practiceProjectId?: strin
       offline: certOfflineRefused(),
     };
     const gb = g703DraftBlocker(gridDraftsRef.current, app?.lines ?? []);
-    const built = gb ? null : buildSavedRecord();
+    const draft = gb ? null : buildSavedRecord();
     // Lane PAYAPP-1: certifying is the send, so the record is stamped here and
     // is locked from now on whether or not a pay link gets made below. Owner
     // preview only (withSentLock returns the record untouched otherwise).
-    const rec = built ? withSentLock({ ...built, id: pinCertifyRecordId(built.id) }, new Date().toISOString(), easy) : null;
+    const built = draft ? withSentLock(draft, new Date().toISOString(), easy) : null;
+    const rec = built ? { ...built, id: pinCertifyRecordId(built.id) } : null;
     if (!rec) return { status: 'refused', reason: gb ? gb.message : certRefused() };
     const due = aiaPayableNow(rec);
     const stored = await saveAIAPayAppOnline(rec);
