@@ -164,7 +164,8 @@ export function buildRfis(id: IdOf, clock: DemoClock, contractorName: string): R
 
 // ── Submittals ──────────────────────────────────────────────────────────────
 
-type SubmittalInput = Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>;
+// The id is the builder's own (utils/demoJob/ids): the app's add function is handed it, so the record is found again by id.
+type SubmittalInput = Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'> & { id: string };
 interface SubmittalSpec { title: string; spec: string; by: string; day: number; back?: number; status: Submittal['currentStatus']; note?: string; resubmit?: { day: number; back?: number; status: Submittal['currentStatus'] }; task?: string; type: string }
 
 const SUBMITTALS: readonly SubmittalSpec[] = [
@@ -188,17 +189,24 @@ const SUBMITTALS: readonly SubmittalSpec[] = [
   { title: 'Fire Alarm Shop Drawings', spec: '28 31 00', by: 'fire', day: 222, status: 'pending', task: 'fa-test', type: 'Shop Drawings' },
 ];
 
+/**
+ * On EVERY review cycle, with or without a reviewer's comment: a cycle names a
+ * reviewer and a result, and nobody but the contractor entered either.
+ */
+export const REVIEW_TYPED_NOTE = '(Typed in by the contractor.)';
+
 export function buildSubmittals(id: IdOf, clock: DemoClock): SubmittalInput[] {
   const reviewer = `${fullName(person('architect2'))}, ${JOB.architect}`;
   return SUBMITTALS.map((s) => {
     const cycles: Submittal['reviewCycles'] = [];
     if (s.status !== 'pending') {
-      cycles.push({ cycleNumber: 1, sentDate: clock.dayOf(s.day), ...(s.back ? { returnDate: clock.dayOf(s.back) } : {}), reviewer, status: s.status, ...(s.note ? { comments: `${s.note} (Typed in by the contractor.)` } : {}) });
+      cycles.push({ cycleNumber: 1, sentDate: clock.dayOf(s.day), ...(s.back ? { returnDate: clock.dayOf(s.back) } : {}), reviewer, status: s.status, comments: s.note ? `${s.note} ${REVIEW_TYPED_NOTE}` : REVIEW_TYPED_NOTE });
     }
     if (s.resubmit) {
-      cycles.push({ cycleNumber: 2, sentDate: clock.dayOf(s.resubmit.day), ...(s.resubmit.back ? { returnDate: clock.dayOf(s.resubmit.back) } : {}), reviewer, status: s.resubmit.status });
+      cycles.push({ cycleNumber: 2, sentDate: clock.dayOf(s.resubmit.day), ...(s.resubmit.back ? { returnDate: clock.dayOf(s.resubmit.back) } : {}), reviewer, status: s.resubmit.status, comments: REVIEW_TYPED_NOTE });
     }
     return {
+      id: id(`submittal:${s.title}`),
       projectId: id('project'),
       title: s.title,
       specSection: s.spec,
@@ -270,11 +278,12 @@ export function buildPunchItems(id: IdOf, clock: DemoClock): PunchItem[] {
 
 // ── Permits and inspections ─────────────────────────────────────────────────
 
-type PermitInput = Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>;
+type PermitInput = Omit<Permit, 'id' | 'createdAt' | 'updatedAt'> & { id: string };
 
 export function buildPermits(id: IdOf, clock: DemoClock): PermitInput[] {
   const insp = fullName(person('inspector'));
   const mk = (type: Permit['type'], number: string, status: Permit['status'], applied: number, approved: number | null, fee: number, phase: string, notes: string, inspections: [string, number, 'passed' | 'failed' | 'scheduled', string?][]): PermitInput => ({
+    id: id(`permit:${number}`),
     projectId: id('project'),
     projectName: DEMO_PROJECT_NAME,
     type,
@@ -544,13 +553,16 @@ export function buildDelayEvents(id: IdOf, clock: DemoClock, contractorName: str
 
 // ── Equipment ───────────────────────────────────────────────────────────────
 
-type EquipmentInput = Omit<Equipment, 'id' | 'createdAt'>;
-/** Demo equipment is found again by this serial-number prefix (the app makes the id). */
+type EquipmentInput = Omit<Equipment, 'id' | 'createdAt'> & { id: string };
+/** The demo's machines, by number. Their ids are `equip:<n>` (utils/demoJob/writer.demoAccountIds removes them by id). */
+export const EQUIPMENT_NUMBERS = [1, 2, 3] as const;
+/** What a demo machine's serial number starts with (a label only: nothing is found or deleted by it). */
 export const equipmentSerialPrefix = (projectId: string): string => `DEMO-${projectId.slice(0, 8)}-`;
 
 export function buildEquipment(id: IdOf, clock: DemoClock): EquipmentInput[] {
   const prefix = equipmentSerialPrefix(id('project'));
-  const mk = (n: number, name: string, type: Equipment['type'], category: Equipment['category'], make: string, rate: number, days: number[]): EquipmentInput => ({
+  const mk = (n: (typeof EQUIPMENT_NUMBERS)[number], name: string, type: Equipment['type'], category: Equipment['category'], make: string, rate: number, days: number[]): EquipmentInput => ({
+    id: id(`equip:${n}`),
     name: `Demo: ${name}`,
     type,
     category,
@@ -699,15 +711,15 @@ export function buildCrew(id: IdOf, clock: DemoClock, userId: string): CrewMembe
   }));
 }
 
-export interface DemoTimeEntry { workerName: string; trade: string; hours: number; date: string; notes: string }
+export interface DemoTimeEntry { id: string; workerName: string; trade: string; hours: number; date: string; notes: string }
 export const TIME_ENTRY_DAYS = 10;
 
-export function buildTimeEntries(clock: DemoClock): DemoTimeEntry[] {
+export function buildTimeEntries(id: IdOf, clock: DemoClock): DemoTimeEntry[] {
   const out: DemoTimeEntry[] = [];
   for (let i = TIME_ENTRY_DAYS; i >= 1; i -= 1) {
     const day = DATA_DAY - i;
     for (const c of CREW.slice(2)) {
-      out.push({ workerName: c.name, trade: c.trades[0], hours: (day + c.name.length) % 7 === 0 ? 9 : 8, date: clock.dayOf(day), notes: 'Made-up demo shift.' });
+      out.push({ id: id(`time:${day}:${c.key}`), workerName: c.name, trade: c.trades[0], hours: (day + c.name.length) % 7 === 0 ? 9 : 8, date: clock.dayOf(day), notes: 'Made-up demo shift.' });
     }
   }
   return out;

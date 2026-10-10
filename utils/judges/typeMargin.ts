@@ -15,6 +15,7 @@
 import type { Project, Commitment, ProjectType, ChangeOrder } from '@/types';
 import { computeEstimateActuals } from '@/utils/estimateActuals';
 import { getContractValue } from '@/utils/projectFinancials';
+import { isDemoProject } from '@/utils/demoJob/marker';
 import type { TypeMarginSummary } from './types';
 
 const isClosed = (p: Project) => p.status === 'completed' || p.status === 'closed';
@@ -27,6 +28,9 @@ export function realizedRevenue(project: Project, changeOrders: ChangeOrder[]): 
 }
 
 export function realizedMarginPct(project: Project, commitments: Commitment[], changeOrders: ChangeOrder[]): number | null {
+  // The owner's Demo Job is made up: it has no realized margin, so it never
+  // feeds the bid advisor, the type profitability table or prediction grading.
+  if (isDemoProject(project)) return null;
   const revenue = realizedRevenue(project, changeOrders);
   if (revenue <= 0) return null;
   const report = computeEstimateActuals(project, commitments);
@@ -51,7 +55,7 @@ export function aggregateTypeMargin(
   if (type === 'other') return { avgMarginPct: null, jobCount: 0 };
   const margins: number[] = [];
   for (const p of closedProjects) {
-    if (!isClosed(p) || p.type !== type) continue;
+    if (!isClosed(p) || p.type !== type || isDemoProject(p)) continue;
     const m = realizedMarginPct(p, commitments, changeOrders);
     if (m !== null) margins.push(m);
   }

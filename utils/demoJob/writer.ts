@@ -9,8 +9,14 @@
 // (Removal queues four deletes by id for tables the server does not cascade.)
 //
 // RESUMABLE AND IDEMPOTENT. Each area knows which of its records are already
-// there (by id, or by a natural key where the app makes the id) and adds only
-// the missing ones. "Finish Creating" is the same call as "Create".
+// there BY ID and adds only the missing ones: every record has an id worked out
+// from the project's id (utils/demoJob/ids), handed to the app's add function,
+// so a record the user has since edited (a new title, a new permit number) is
+// still found and never written twice. "Finish Creating" is the same call as
+// "Create".
+//
+// THE BUILDER ONLY TOUCHES THE JOB IT MADE. A demo job is found, finished and
+// removed by its stamp alone (marker.isStampedDemoProject), never by its name.
 //
 // ONE AT A TIME, IN ORDER, WITH A BREATH BETWEEN. Many add functions build
 // their next list from the list as of the last render, so two calls in one
@@ -22,8 +28,8 @@
 // next area runs.
 import type { DemoJob } from './build';
 import type { JobModel } from './model';
-import { equipmentSerialPrefix } from './fieldRecords';
-import { isDemoProject } from './marker';
+import { EQUIPMENT_NUMBERS } from './fieldRecords';
+import { isStampedDemoProject } from './marker';
 import { SUBS, CREW, PEOPLE } from './world';
 import { childIds } from './ids';
 import { DATA_DAY } from './clock';
@@ -42,9 +48,9 @@ export interface DemoWorld {
   aiaPayApps: readonly Row[];
   dailyReports: readonly Row[];
   rfis: readonly Row[];
-  submittals: readonly (Row & { title: string })[];
+  submittals: readonly Row[];
   punchItems: readonly Row[];
-  permits: readonly (Row & { permitNumber?: string })[];
+  permits: readonly Row[];
   oacMeetings: readonly Row[];
   warranties: readonly Row[];
   toolboxTalks: readonly Row[];
@@ -54,10 +60,10 @@ export interface DemoWorld {
   buildingAccessRules: readonly { projectId: string }[];
   accessReservations: readonly Row[];
   delayEvents: readonly Row[];
-  equipment: readonly { id: string; serialNumber?: string }[];
+  equipment: readonly { id: string }[];
   fieldTickets: readonly Row[];
   crew: readonly Row[];
-  timeEntries: readonly (Row & { workerName: string; date: string })[];
+  timeEntries: readonly Row[];
   projectPhotos: readonly Row[];
   planSheets: readonly Row[];
 }
@@ -88,10 +94,12 @@ export interface DemoActions {
   addEquipment: (e: DemoJob['equipment'][number]) => unknown;
   addFieldTicket: (t: DemoJob['fieldTickets'][number]) => unknown;
   addCrewMember: (c: DemoJob['crew'][number]) => unknown;
-  addManualEntry: (e: { projectId: string; projectName: string; workerName: string; trade?: string; hours: number; notes?: string; date?: string }) => unknown;
+  addManualEntry: (e: { id: string; projectId: string; projectName: string; workerName: string; trade?: string; hours: number; notes?: string; date?: string }) => unknown;
   addProjectPhoto: (p: { id: string; projectId: string; uri: string; timestamp: string; location?: string; tag?: string; linkedTaskId?: string; linkedTaskName?: string; createdAt: string }) => unknown;
-  // Removal.
-  deleteProject: (id: string, opts?: { safetyIncidentCount?: number }) => Promise<{ ok: true } | { ok: false; reason: string }>;
+  // Removal. deleteProject takes the id and NOTHING ELSE: with no count handed
+  // in, the app's own delete asks the server whether the job holds a safety
+  // record before anything is removed (ProjectContext.safetyIncidentCountForDelete).
+  deleteProject: (id: string) => Promise<{ ok: true } | { ok: false; reason: string }>;
   deleteSubcontractor: (id: string) => unknown;
   deleteContact: (id: string) => unknown;
   deleteEquipment: (id: string) => unknown;
@@ -102,6 +110,8 @@ export interface DemoActions {
 export interface DemoPorts {
   world: () => DemoWorld;
   actions: () => DemoActions;
+  /** True once the app has read its project list. Before that nothing is known, so nothing is created. */
+  ready: () => boolean;
   /** True when the device is online and signed in (the engines and the plan upload need it). */
   online: () => boolean;
   pause: (ms: number) => Promise<void>;
@@ -228,7 +238,6 @@ export function demoAreas(job: DemoJob, ports: DemoPorts): DemoArea[] {
   const pid = job.project.id;
   const byId = <T extends { id: string }>(key: AreaKey, items: readonly T[], rows: (w: DemoWorld) => readonly Row[], add: (a: DemoActions, item: T) => void) =>
     listArea(ports, key, items, (i) => i.id, (w) => idsOf(rows(w)), add);
-  const timeKey = (e: { workerName: string; date: string }) => `${e.date}|${e.workerName}`;
 
   const engineArea = (key: AreaKey, wanted: string[], have: () => Promise<string[]>, write: (tick: () => void, missing: Set<string>) => Promise<void>): DemoArea => ({
     key,
@@ -257,9 +266,9 @@ export function demoAreas(job: DemoJob, ports: DemoPorts): DemoArea[] {
     byId('payApps', job.payApps, (w) => w.aiaPayApps, (a, p) => a.addAIAPayApp(p)),
     byId('dailyReports', job.dailyReports, (w) => w.dailyReports, (a, d) => a.addDailyReport(d)),
     batchArea(ports, 'rfis', job.rfis, (r) => r.id, (w) => idsOf(w.rfis), (a, rs) => a.addRFIs(rs)),
-    batchArea(ports, 'submittals', job.submittals, (s) => s.title, (w) => new Set(inProject(w.submittals, pid).map((s) => s.title)), (a, ss) => a.addSubmittals(ss)),
+    batchArea(ports, 'submittals', job.submittals, (s) => s.id, (w) => idsOf(w.submittals), (a, ss) => a.addSubmittals(ss)),
     batchArea(ports, 'punchItems', job.punchItems, (p) => p.id, (w) => idsOf(w.punchItems), (a, ps) => a.addPunchItems(ps)),
-    listArea(ports, 'permits', job.permits, (p) => p.permitNumber ?? '', (w) => new Set(inProject(w.permits, pid).map((p) => p.permitNumber ?? '')), (a, p) => a.addPermit(p)),
+    byId('permits', job.permits, (w) => w.permits, (a, p) => a.addPermit(p)),
     byId('meetings', job.oacMeetings, (w) => w.oacMeetings, (a, m) => a.addOACMeeting(m)),
     byId('warranties', job.warranties, (w) => w.warranties, (a, x) => a.addWarranty(x)),
     byId('toolboxTalks', job.toolboxTalks, (w) => w.toolboxTalks, (a, t) => a.addToolboxTalk(t)),
@@ -289,11 +298,11 @@ export function demoAreas(job: DemoJob, ports: DemoPorts): DemoArea[] {
       },
     },
     byId('delays', job.delayEvents, (w) => w.delayEvents, (a, e) => a.addDelayEvent(e)),
-    listArea(ports, 'equipment', job.equipment, (e) => e.serialNumber ?? '', (w) => new Set(w.equipment.map((e) => e.serialNumber ?? '')), (a, e) => a.addEquipment(e)),
+    byId('equipment', job.equipment, (w) => w.equipment, (a, e) => a.addEquipment(e)),
     byId('fieldTickets', job.fieldTickets, (w) => w.fieldTickets, (a, t) => a.addFieldTicket(t)),
     byId('crew', job.crew, (w) => w.crew, (a, c) => a.addCrewMember(c)),
-    listArea(ports, 'timeEntries', job.timeEntries, timeKey, (w) => new Set(inProject(w.timeEntries, pid).map(timeKey)), (a, e) =>
-      a.addManualEntry({ projectId: pid, projectName: job.project.name, workerName: e.workerName, trade: e.trade, hours: e.hours, notes: e.notes, date: e.date })),
+    byId('timeEntries', job.timeEntries, (w) => w.timeEntries, (a, e) =>
+      a.addManualEntry({ id: e.id, projectId: pid, projectName: job.project.name, workerName: e.workerName, trade: e.trade, hours: e.hours, notes: e.notes, date: e.date })),
     engineArea('lienWaivers', job.lienWaivers.map((w) => w.id), () => ports.engines.lienWaiverIds(pid), async (tick, missing) => {
       for (const w of job.lienWaivers) {
         if (!missing.has(w.id)) continue;
@@ -383,11 +392,16 @@ export async function demoStatus(job: DemoJob, ports: DemoPorts): Promise<{ stat
 
 export interface DemoProgress { key: AreaKey; done: number; total: number }
 export interface DemoFailure { key: AreaKey; code: DemoAreaError['code'] | 'error'; message: string }
-export interface DemoRunResult { ok: boolean; failures: DemoFailure[]; refused?: 'queue_full' | 'exists_elsewhere' }
+export interface DemoRunResult { ok: boolean; failures: DemoFailure[]; refused?: 'queue_full' | 'exists_elsewhere' | 'not_ready' }
 
-/** The demo projects in the app's list right now. */
-export function existingDemoProjects(world: DemoWorld): { id: string }[] {
-  return world.projects.filter((p) => isDemoProject(p));
+/**
+ * The jobs THE BUILDER made that are in the app's list right now: the stamp,
+ * and nothing else (marker.isStampedDemoProject). A job that only carries the
+ * sample name (typed by hand, or a copy) is not one of them, so the builder
+ * never finishes it, counts it or deletes it.
+ */
+export function existingDemoProjects(world: DemoWorld): { id: string; name: string }[] {
+  return world.projects.filter((p) => isStampedDemoProject(p)).map((p) => ({ id: p.id, name: p.name ?? '' }));
 }
 
 /**
@@ -396,6 +410,8 @@ export function existingDemoProjects(world: DemoWorld): { id: string }[] {
  * even if an earlier one failed.
  */
 export async function createDemoJob(job: DemoJob, ports: DemoPorts, onProgress: (p: DemoProgress) => void): Promise<DemoRunResult> {
+  // Not before the project list is read: an empty list that has not loaded is not "no demo job".
+  if (!ports.ready()) return { ok: false, failures: [], refused: 'not_ready' };
   // One demo at a time: never a second job beside one that is already there.
   if (existingDemoProjects(ports.world()).some((p) => p.id !== job.project.id)) return { ok: false, failures: [], refused: 'exists_elsewhere' };
   if ((await ports.queuedWrites()) > QUEUE_CAP - QUEUE_ROOM_NEEDED) return { ok: false, failures: [], refused: 'queue_full' };
@@ -422,29 +438,44 @@ export async function createDemoJob(job: DemoJob, ports: DemoPorts, onProgress: 
 
 export interface DemoRemoveResult { ok: boolean; reason?: string }
 
+/** Said when removal is asked for a job that does not carry the builder's stamp. */
+export const NOT_THE_BUILDERS_REASON = 'This job was not made by the demo builder, so it was left alone. Delete it from its own project screen.';
+/** Said when the app accepted the delete and the job is still in the list. */
+export const STILL_THERE_REASON = 'The job is still in your account, so nothing else was removed. Try again.';
+
 /** The account-level records a demo job with this project id made (they are not deleted with the project). */
-export function demoAccountIds(projectId: string): { subcontractors: string[]; contacts: string[]; crew: string[] } {
+export function demoAccountIds(projectId: string): { subcontractors: string[]; contacts: string[]; crew: string[]; equipment: string[] } {
   const id = childIds(projectId);
   return {
     subcontractors: SUBS.map((s) => id(`sub:${s.key}`)),
     contacts: PEOPLE.map((p) => id(`contact:${p.key}`)),
     crew: CREW.map((c) => id(`crew:${c.key}`)),
+    equipment: EQUIPMENT_NUMBERS.map((n) => id(`equip:${n}`)),
   };
 }
 
 /**
  * Remove a demo job and everything made with it.
  *
- * The project goes first, through the app's own deleteProject: the server
- * cascades its children and the app forgets its own copies. If that is refused
- * (a safety incident was added to the job by hand: those are kept by law)
- * nothing else is touched. Then the rows a project delete does not reach:
- * the four tables the server does not cascade, the directory records, the
- * equipment, the crew, the shifts, and the Living Model on this device.
+ * ONLY A JOB WITH THE BUILDER'S STAMP. A job that merely has the sample name
+ * is refused before anything is read or removed.
+ *
+ * The project goes first, through the app's own deleteProject, which is handed
+ * the id and nothing else: it asks the server (not only this device) whether
+ * the job holds a safety record, and refuses when it does or when it cannot
+ * ask. Those records are kept by law.
+ *
+ * NOTHING ELSE IS TOUCHED UNLESS THE JOB IS GONE. If the delete is refused, or
+ * the app says yes and the job is still in its list, removal stops there. Only
+ * then the rows a project delete does not reach: the four tables the server
+ * does not cascade, the directory records, the equipment, the crew, the shifts
+ * (each by the id the builder gave it, never by a name or a number), and the
+ * Living Model on this device.
  */
 export async function removeDemoJob(projectId: string, ports: DemoPorts): Promise<DemoRemoveResult> {
   const w = ports.world();
-  const incidents = inProject(w.safetyIncidents, projectId).length;
+  const project = w.projects.find((p) => p.id === projectId);
+  if (project && !isStampedDemoProject(project)) return { ok: false, reason: NOT_THE_BUILDERS_REASON };
   // Snapshot what a project delete would make this device forget.
   const strays: [DemoDeleteTable, string[]][] = [
     ['cois', inProject(w.cois, projectId).map((r) => r.id)],
@@ -453,14 +484,16 @@ export async function removeDemoJob(projectId: string, ports: DemoPorts): Promis
     ['field_tickets', inProject(w.fieldTickets, projectId).map((r) => r.id)],
   ];
   const shifts = inProject(w.timeEntries, projectId).map((r) => r.id);
-  const prefix = equipmentSerialPrefix(projectId);
-  const machines = w.equipment.filter((e) => (e.serialNumber ?? '').startsWith(prefix)).map((e) => e.id);
   const account = demoAccountIds(projectId);
 
-  if (w.projects.some((p) => p.id === projectId)) {
-    const res = await ports.actions().deleteProject(projectId, { safetyIncidentCount: incidents });
+  const stillThere = (): boolean => ports.world().projects.some((p) => p.id === projectId);
+  if (project) {
+    const res = await ports.actions().deleteProject(projectId);
     if (!res.ok) return { ok: false, reason: res.reason };
+    for (let i = 0; i < SHOW_TRIES && stillThere(); i += 1) await ports.pause(BREATH_MS);
   }
+  // Confirmed gone, or nothing below runs.
+  if (stillThere()) return { ok: false, reason: STILL_THERE_REASON };
   for (const [table, ids] of strays) {
     for (const id of ids) {
       await ports.queueDelete(table, id);
@@ -477,7 +510,7 @@ export async function removeDemoJob(projectId: string, ports: DemoPorts): Promis
     }
   };
   await sweep(shifts, () => idsOf(ports.world().timeEntries), (a, id) => a.deleteTimeEntry(id));
-  await sweep(machines, () => new Set(ports.world().equipment.map((e) => e.id)), (a, id) => a.deleteEquipment(id));
+  await sweep(account.equipment, () => new Set(ports.world().equipment.map((e) => e.id)), (a, id) => a.deleteEquipment(id));
   await sweep(account.crew, () => idsOf(ports.world().crew), (a, id) => a.deleteCrewMember(id));
   await sweep(account.contacts, () => idsOf(ports.world().contacts), (a, id) => a.deleteContact(id));
   await sweep(account.subcontractors, () => idsOf(ports.world().subcontractors), (a, id) => a.deleteSubcontractor(id));

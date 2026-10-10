@@ -7,9 +7,12 @@
 //     RENDER (`stale`), so two adds in one tick keep only the second;
 //   - the batch adds (change orders, RFIs, submittals, punch items) and the
 //     functional ones (photos, time entries) are safe;
-//   - permits, equipment, submittals and time entries get their id here;
-//   - deleting a project forgets every project-scoped list on the device and
-//     is refused when the job has a safety incident.
+//   - every record keeps the id it is handed (the builder hands the real add
+//     functions its own id for permits, equipment, submittals and shifts);
+//   - deleting a project forgets every project-scoped list on the device. Like
+//     the real one it trusts a safety-record count that is HANDED to it, and
+//     with none it counts what the device knows plus what only the server
+//     knows (`serverIncidents`), and refuses when there is any.
 // Every call is written to `log`, so a test can prove what was and was not called.
 import type { JobModel } from '@/utils/demoJob/model';
 import type { DemoActions, DemoPorts, DemoWorld, DemoDeleteTable } from '@/utils/demoJob/writer';
@@ -29,8 +32,10 @@ export interface FakeApp {
   models: Map<string, JobModel>;
   /** Server rows by table that only a queued delete removes (the tables the server does not cascade). */
   serverDeletes: { table: string; id: string }[];
+  /** Every deleteProject call, with the options it was handed (the writer must hand it none). */
+  deleteCalls: { id: string; opts?: { safetyIncidentCount?: number } }[];
   engineRows: { lienWaivers: Map<string, string>; contracts: Map<string, string>; selections: Map<string, string> };
-  set: (o: Partial<{ online: boolean; queued: number; dropAdds: keyof DemoWorld | null; stopAfterAdds: number | null; photoUri: string | null; planFails: string | null }>) => void;
+  set: (o: Partial<{ ready: boolean; serverIncidents: number; deleteKeepsJob: boolean; online: boolean; queued: number; dropAdds: keyof DemoWorld | null; stopAfterAdds: number | null; photoUri: string | null; planFails: string | null }>) => void;
   adds: () => number;
 }
 
@@ -53,8 +58,9 @@ export function makeFakeApp(): FakeApp {
   const log: string[] = [];
   const models = new Map<string, JobModel>();
   const serverDeletes: { table: string; id: string }[] = [];
+  const deleteCalls: { id: string; opts?: { safetyIncidentCount?: number } }[] = [];
   const engineRows = { lienWaivers: new Map<string, string>(), contracts: new Map<string, string>(), selections: new Map<string, string>() };
-  const opt = { online: true, queued: 0, dropAdds: null as keyof DemoWorld | null, stopAfterAdds: null as number | null, photoUri: 'file:///sample-outlet.jpg' as string | null, planFails: null as string | null };
+  const opt = { ready: true, serverIncidents: 0, deleteKeepsJob: false, online: true, queued: 0, dropAdds: null as keyof DemoWorld | null, stopAfterAdds: null as number | null, photoUri: 'file:///sample-outlet.jpg' as string | null, planFails: null as string | null };
   let addCount = 0;
   let seq = 0;
   const newId = () => `fake-${(seq += 1)}`;
@@ -97,9 +103,9 @@ export function makeFakeApp(): FakeApp {
     addAIAPayApp: staleAdd('aiaPayApps', 'addAIAPayApp'),
     addDailyReport: safeAdd('dailyReports', 'addDailyReport'),
     addRFIs: safeAdd('rfis', 'addRFIs'),
-    addSubmittals: safeAdd('submittals', 'addSubmittals', (s) => ({ ...s, id: newId() })),
+    addSubmittals: safeAdd('submittals', 'addSubmittals'),
     addPunchItems: safeAdd('punchItems', 'addPunchItems'),
-    addPermit: (p) => staleAdd('permits', 'addPermit')({ ...p, id: newId() }),
+    addPermit: staleAdd('permits', 'addPermit'),
     addOACMeeting: staleAdd('oacMeetings', 'addOACMeeting'),
     addWarranty: staleAdd('warranties', 'addWarranty'),
     addToolboxTalk: staleAdd('toolboxTalks', 'addToolboxTalk'),
@@ -108,15 +114,18 @@ export function makeFakeApp(): FakeApp {
     setBuildingAccess: staleAdd('buildingAccessRules', 'setBuildingAccess'),
     addReservation: staleAdd('accessReservations', 'addReservation'),
     addDelayEvent: staleAdd('delayEvents', 'addDelayEvent'),
-    addEquipment: (e) => staleAdd('equipment', 'addEquipment')({ ...e, id: newId() }),
+    addEquipment: staleAdd('equipment', 'addEquipment'),
     addFieldTicket: staleAdd('fieldTickets', 'addFieldTicket'),
     addCrewMember: staleAdd('crew', 'addCrewMember'),
-    addManualEntry: (e) => safeAdd('timeEntries', 'addManualEntry')({ ...e, id: newId() }),
+    addManualEntry: safeAdd('timeEntries', 'addManualEntry'),
     addProjectPhoto: safeAdd('projectPhotos', 'addProjectPhoto'),
-    deleteProject: async (id, opts) => {
+    deleteProject: async (id: string, opts?: { safetyIncidentCount?: number }) => {
       log.push('deleteProject');
-      const incidents = opts?.safetyIncidentCount ?? lists.safetyIncidents.filter((r) => r.projectId === id).length;
+      deleteCalls.push({ id, opts });
+      const incidents = opts?.safetyIncidentCount ?? (lists.safetyIncidents.filter((r) => r.projectId === id).length + opt.serverIncidents);
       if (incidents > 0) return { ok: false, reason: 'This job has a safety incident on it. Those records are kept.' };
+      // An app that says yes and keeps the job (the writer must notice and stop).
+      if (opt.deleteKeepsJob) return { ok: true };
       lists.projects = lists.projects.filter((p) => p.id !== id);
       for (const key of PROJECT_SCOPED) (lists[key] as { projectId?: string | null }[]) = (lists[key] as { projectId?: string | null }[]).filter((r) => r.projectId !== id);
       lists.buildingAccessRules = lists.buildingAccessRules.filter((r) => r.projectId !== id);
@@ -141,6 +150,7 @@ export function makeFakeApp(): FakeApp {
   const ports: DemoPorts = {
     world: () => lists,
     actions: () => actions,
+    ready: () => opt.ready,
     online: () => opt.online,
     pause: () => Promise.resolve(),
     queuedWrites: async () => opt.queued,
@@ -170,7 +180,7 @@ export function makeFakeApp(): FakeApp {
   };
 
   return {
-    ports, lists, log, models, serverDeletes, engineRows,
+    ports, lists, log, models, serverDeletes, deleteCalls, engineRows,
     set: (o) => { Object.assign(opt, o); },
     adds: () => addCount,
   };

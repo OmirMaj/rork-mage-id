@@ -13,7 +13,14 @@
 //
 // A second signal keeps the answer true if the job is ever renamed:
 // `leadSource` is stamped DEMO_LEAD_SOURCE at creation and is not editable on
-// any screen. Either signal makes a project a demo.
+// any screen. Either signal makes a project a demo FOR LEAVING IT OUT (the
+// cost book, the brain, the reports): leaving out one job too many costs
+// nothing.
+//
+// DELETING IS STRICTER. The builder finds the job it made, and removes it,
+// by the stamp ALONE (`isStampedDemoProject`): a job somebody named
+// 'Sample — Demo: ...' by hand, or a copy of the demo, is not the builder's
+// and is never finished, counted or deleted by it.
 //
 // Pure: no React, no storage. utils/costDatabase, utils/analytics and the
 // other excluded paths import this file and nothing else from utils/demoJob.
@@ -32,6 +39,15 @@ export function isDemoProject(project: MaybeDemo): boolean {
   if (!project) return false;
   if (project.leadSource === DEMO_LEAD_SOURCE) return true;
   return typeof project.name === 'string' && project.name.startsWith(`${SAMPLE_PROJECT_PREFIX}${DEMO_NAME_TAG}`);
+}
+
+/**
+ * True when `project` is the job the builder itself made: the stamp, and
+ * nothing else. This is the ONLY test the builder's create, finish and remove
+ * may use (utils/demoJob/writer). The name is never enough to delete a job.
+ */
+export function isStampedDemoProject(project: MaybeDemo): boolean {
+  return !!project && project.leadSource === DEMO_LEAD_SOURCE;
 }
 
 /** True when a bare project name is the Demo Job's (time entries carry only the name). */
@@ -99,3 +115,12 @@ export function demoSafeUpdates<T extends { name?: string | null; leadSource?: s
   if (clearsMarker) delete next.leadSource;
   return next;
 }
+
+/** True when `demoSafeUpdates` dropped a rename the user asked for (the caller says why, once). */
+export function demoRenameDropped(prior: MaybeDemo, asked: { name?: string | null }, kept: { name?: string | null }): boolean {
+  return isDemoProject(prior) && typeof asked.name === 'string' && asked.name !== prior?.name && kept.name === undefined;
+}
+
+export const DEMO_RENAME_KEPT_TITLE = 'Name Not Changed';
+/** The one sentence a dropped rename is explained with. */
+export const DEMO_RENAME_KEPT_REASON = 'The demo job keeps its sample name, because that name is what stops it from sending anything to anyone.';

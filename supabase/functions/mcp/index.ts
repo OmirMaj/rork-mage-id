@@ -25,6 +25,7 @@ import { hashMcpToken, TOKEN_PREFIX } from "../_shared/mcpToken.ts";
 // MONEY-F5: what a client can be asked for is NET of the retention the
 // contract lets them hold. The same rule the Stripe webhook settles on.
 import { netPayable, type SettlementInput } from "../_shared/paymentMath.ts";
+import { isSampleProjectName } from "../_shared/sampleFence.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -265,21 +266,45 @@ const TOOLS = [
 //
 // Money tools (invoices, change orders, financial_summary) stay OWNER-scoped by
 // user_id: the name map being wider changes only the label they print.
+//
+// SAMPLE JOBS ARE LEFT OUT OF EVERY TOOL. A sample job ("Sample — ...": the
+// tutorials' small ones and the owner's Demo Job) is made up, and an assistant
+// handed its invoices, change orders and RFIs would report them as the
+// contractor's business. Same rule, byte for byte, as the other server fences
+// (_shared/sampleFence.ts isSampleProjectName), checked on the name in code.
 async function accessibleProjectNames(userId: string): Promise<Record<string, string>> {
   const m: Record<string, string> = {};
-  for (const r of await rest<{ id: string; name: string }>(`projects?user_id=eq.${userId}&select=id,name`)) m[r.id] = r.name;
+  for (const r of await rest<{ id: string; name: string }>(`projects?user_id=eq.${userId}&select=id,name`)) {
+    if (!isSampleProjectName(r.name)) m[r.id] = r.name;
+  }
   const memberIds = (await rest<{ project_id: string }>(
     `project_collaborators?user_id=eq.${userId}&status=eq.accepted&select=project_id`,
   )).map((r) => String(r.project_id)).filter((id) => /^[0-9a-f-]{36}$/i.test(id) && !(id in m));
   for (let i = 0; i < memberIds.length; i += 100) {
     // uuid-shaped ids only (checked above), so the in-list cannot be spliced.
     for (const r of await rest<{ id: string; name: string }>(`projects?id=in.(${memberIds.slice(i, i + 100).join(",")})&select=id,name`)) {
-      m[r.id] = r.name;
+      if (!isSampleProjectName(r.name)) m[r.id] = r.name;
     }
   }
   return m;
 }
 const projectNameMap = accessibleProjectNames;
+
+/** The caller's own projects, sample jobs marked. One read for the money tools. */
+async function ownedProjects(userId: string): Promise<{ real: number; sampleIds: Set<string> }> {
+  const rows = await rest<{ id: string; name: string }>(`projects?user_id=eq.${userId}&select=id,name`);
+  const sampleIds = new Set(rows.filter((r) => isSampleProjectName(r.name)).map((r) => String(r.id)));
+  return { real: rows.length - sampleIds.size, sampleIds };
+}
+/** Keeps rows that are NOT on a sample job (a row with no project is kept). */
+const offSample = (sampleIds: Set<string>) => (r: Record<string, unknown>): boolean =>
+  !sampleIds.has(String(r.project_id ?? ""));
+// The Demo Job's made-up subcontractors are account-level rows with no project
+// on them. Every one is named "Sample ..." (utils/demoJob/world, pinned by
+// scripts/validate-demo-job.ts D2), and they are left out only while the
+// account holds a sample job.
+const SAMPLE_COMPANY_PREFIX = "Sample ";
+const isSampleCompany = (name: unknown): boolean => typeof name === "string" && name.startsWith(SAMPLE_COMPANY_PREFIX);
 
 /**
  * Open RFIs on every job the user works on, whoever logged them. One request
@@ -316,9 +341,10 @@ const loggedBy = (userId: string, authors: Record<string, string>, r: Record<str
 async function runTool(name: string, args: Record<string, unknown>, userId: string): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
   switch (name) {
     case "financial_summary": {
-      const invoices = await rest<Record<string, unknown>>(
-        `invoices?user_id=eq.${userId}&select=total_due,amount_paid,status,due_date,subtotal,retention_percent,retention_amount,retention_released`,
-      );
+      const owned = await ownedProjects(userId);
+      const invoices = (await rest<Record<string, unknown>>(
+        `invoices?user_id=eq.${userId}&select=total_due,amount_paid,status,due_date,subtotal,retention_percent,retention_amount,retention_released,project_id`,
+      )).filter(offSample(owned.sampleIds));
       let invoiced = 0, paid = 0, outstanding = 0, overdue = 0, overdueCount = 0;
       const t = today();
       for (const inv of invoices) {
@@ -341,9 +367,8 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
           if (inv.due_date && String(inv.due_date) < t) { overdue += bal; overdueCount++; }
         }
       }
-      const projects = await rest<Record<string, unknown>>(`projects?user_id=eq.${userId}&select=id`);
       const lines = [
-        `Across ${projects.length} project(s) and ${invoices.length} invoice(s):`,
+        `Across ${owned.real} project(s) and ${invoices.length} invoice(s):`,
         `• Total invoiced: ${money(invoiced)}`,
         `• Total collected: ${money(paid)}`,
         `• Outstanding (unpaid): ${money(outstanding)}`,
@@ -354,9 +379,10 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
 
     case "list_projects": {
       const limit = Math.min(200, Math.max(1, num(args.limit) || 50));
-      let q = `projects?user_id=eq.${userId}&select=id,name,type,status,location,square_footage&order=created_at.desc&limit=${limit}`;
+      // Over-read by a few rows so leaving the sample jobs out does not shorten the page.
+      let q = `projects?user_id=eq.${userId}&select=id,name,type,status,location,square_footage&order=created_at.desc&limit=${limit + 20}`;
       if (args.status) q += `&status=eq.${encodeURIComponent(String(args.status))}`;
-      const rows = await rest<Record<string, unknown>>(q);
+      const rows = (await rest<Record<string, unknown>>(q)).filter((p) => !isSampleProjectName(p.name as string | null)).slice(0, limit);
       if (!rows.length) return text("No projects found.");
       // One batched lookup for the whole page, not one per project.
       const moneyMap = await moneyByProject(userId);
@@ -394,7 +420,8 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
     case "list_change_orders": {
       let q = `change_orders?user_id=eq.${userId}&select=number,description,change_amount,new_contract_total,status,project_id&order=created_at.desc&limit=200`;
       if (args.status) q += `&status=eq.${encodeURIComponent(String(args.status))}`;
-      const rows = await rest<Record<string, unknown>>(q);
+      const owned = await ownedProjects(userId);
+      const rows = (await rest<Record<string, unknown>>(q)).filter(offSample(owned.sampleIds));
       if (!rows.length) return text("No change orders found.");
       const names = await projectNameMap(userId);
       const total = rows.reduce((s, r) => s + num(r.change_amount), 0);
@@ -407,9 +434,10 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
 
     case "list_overdue": {
       const t = today();
-      const invoices = await rest<Record<string, unknown>>(
+      const owned = await ownedProjects(userId);
+      const invoices = (await rest<Record<string, unknown>>(
         `invoices?user_id=eq.${userId}&select=number,total_due,amount_paid,status,due_date,project_id,subtotal,retention_percent,retention_amount,retention_released&order=due_date.asc`,
-      );
+      )).filter(offSample(owned.sampleIds));
       const names = await projectNameMap(userId);
       const overdueInv = invoices.filter((inv) => {
         const bal = invoiceBalance(inv);
@@ -443,9 +471,10 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
     }
 
     case "list_subcontractors": {
-      const rows = await rest<Record<string, unknown>>(
+      const owned = await ownedProjects(userId);
+      const rows = (await rest<Record<string, unknown>>(
         `subcontractors?user_id=eq.${userId}&select=company_name,trade,phone,email,coi_expiry,license_expiry,w9_on_file&order=company_name.asc`,
-      );
+      )).filter((s) => owned.sampleIds.size === 0 || !isSampleCompany(s.company_name));
       if (!rows.length) return text("No subcontractors on file.");
       const t = today();
       const lines = rows.map((s) => {

@@ -67,7 +67,8 @@ const rfiAt = digest.indexOf(".from('rfis')");
 const rfiQuery = digest.slice(rfiAt, digest.indexOf(';', rfiAt));
 ok('the open-RFI count is over the user\'s own jobs', /\.in\('project_id', ownedIds/.test(rfiQuery), rfiQuery);
 ok('…not by author', !/\.eq\('user_id'/.test(rfiQuery));
-ok('the owned-job list the count uses is the user\'s projects', /from\('projects'\)\s*\.select\('id'\)\s*\.eq\('user_id', userId\)/.test(digest));
+ok('the owned-job list the count uses is the user\'s projects', /from\('projects'\)\s*\.select\('id, name'\)\s*\.eq\('user_id', userId\)/.test(digest));
+// The name is read so sample jobs ("Sample — ...") can be left out of the count (validate-demo-job F4).
 ok('an empty job list skips the report read instead of sending an empty in-list',
   /if \(activeIds\.length > 0\)\s*\{[\s\S]{0,80}from\('daily_reports'\)/.test(digest));
 

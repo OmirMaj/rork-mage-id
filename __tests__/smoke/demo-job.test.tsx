@@ -16,6 +16,10 @@
  *   6  one failed area is reported in plain words and the rest continues
  *   7  Remove asks first, then deletes everything, and Create comes back with a new id
  *   8  a removal the app refuses is said, and nothing is deleted
+ *   9  before the app has read its project list: still checking, no button, nothing written
+ *  10  two taps on Create in one frame make one job
+ *  11  a job that only has the demo's name is not the builder's: not counted, not offered for removal
+ *  12  the confirmation names every job it will delete, and how many
  */
 
 import React from 'react';
@@ -43,7 +47,7 @@ const TODAY = '2026-10-09';
 let nextId = 0;
 const newProjectId = () => `00000000-0000-4000-8000-${String((nextId += 1)).padStart(12, '0')}`;
 
-function Harness({ app, offline = false, onOpenJob = () => {} }: { app: FakeApp; offline?: boolean; onOpenJob?: (id: string) => void }) {
+function Harness({ app, offline = false, ready = true, onOpenJob = () => {} }: { app: FakeApp; offline?: boolean; ready?: boolean; onOpenJob?: (id: string) => void }) {
   const copy = useDemoJobCopy();
   return (
     <DemoJobScreen
@@ -54,6 +58,7 @@ function Harness({ app, offline = false, onOpenJob = () => {} }: { app: FakeApp;
       today={TODAY}
       newProjectId={newProjectId}
       offline={offline}
+      ready={ready}
       topInset={0}
       onBack={() => {}}
       onOpenJob={onOpenJob}
@@ -70,7 +75,7 @@ async function settle(): Promise<void> {
   }
 }
 
-async function mount(app: FakeApp, props: { offline?: boolean; onOpenJob?: (id: string) => void } = {}) {
+async function mount(app: FakeApp, props: { offline?: boolean; ready?: boolean; onOpenJob?: (id: string) => void } = {}) {
   render(<Harness app={app} {...props} />);
   await settle();
 }
@@ -184,7 +189,8 @@ describe('the Demo Job builder', () => {
     await press('demo-job-create');
     const firstId = app.lists.projects[0].id;
     fireEvent.press(screen.getByTestId('demo-job-remove'));
-    // Asking is not removing.
+    // Asking is not removing, and the question names the job and the count.
+    expect(screen.getByTestId('demo-job-remove-names').props.children).toBe('Remove 1 demo job and everything created with it? The job is Sample — Demo: Harbor Point Mixed-Use. This cannot be undone.');
     expect(app.lists.projects).toHaveLength(1);
     fireEvent.press(screen.getByTestId('demo-job-remove-cancel'));
     expect(app.lists.projects).toHaveLength(1);
@@ -210,7 +216,64 @@ describe('the Demo Job builder', () => {
     await press('demo-job-remove-confirm');
     expect(fakeRecordCount(app)).toBe(before);
     expect(app.serverDeletes).toHaveLength(0);
+    // The app's own delete was handed the id and no count, so it is the one that asks.
+    expect(app.deleteCalls).toEqual([{ id: app.lists.projects[0].id, opts: undefined }]);
     expect(screen.getByTestId('demo-job-message').props.children).toBe('The demo job was not removed. This job has a safety incident on it. Those records are kept.');
     expect(screen.getByTestId('demo-job-remove')).toBeTruthy();
+  });
+
+  it('9  before the app has read its project list: still checking, no button, nothing written', async () => {
+    const app = makeFakeApp();
+    app.set({ ready: false });
+    await mount(app, { ready: false });
+    expect(screen.getByTestId('demo-job-state').props.children).toBe('Checking for a demo job.');
+    expect(screen.queryByTestId('demo-job-create')).toBeNull();
+    expect(screen.queryByTestId('demo-job-finish')).toBeNull();
+    expect(screen.queryByTestId('demo-job-remove')).toBeNull();
+    expect(app.adds()).toBe(0);
+  });
+
+  it('10  two taps on Create in one frame make one job', async () => {
+    const whole = makeFakeApp();
+    const job = buildDemoJob({ userId: USER, projectId: newProjectId(), today: TODAY, contractorName: 'Example Builder' });
+    await createDemoJob(job, whole.ports, () => {});
+    const app = makeFakeApp();
+    await mount(app);
+    const button = screen.getByTestId('demo-job-create');
+    // Both presses land before the screen draws again, so both see the same enabled button.
+    act(() => { fireEvent.press(button); fireEvent.press(button); });
+    await settle();
+    expect(app.lists.projects).toHaveLength(1);
+    expect(app.log.filter((l) => l === 'addProject')).toHaveLength(1);
+    expect(app.adds()).toBe(whole.adds());
+    expect(fakeRecordCount(app)).toBe(fakeRecordCount(whole));
+  });
+
+  it('11  a job that only has the demo name is not the builder\'s: not counted, not offered for removal', async () => {
+    const app = makeFakeApp();
+    app.lists.projects.push({ id: 'hand-named', name: 'Sample — Demo: Harbor Point Mixed-Use' });
+    await mount(app);
+    expect(screen.getByTestId('demo-job-state').props.children).toBe('There is no demo job in your account.');
+    expect(screen.queryByTestId('demo-job-remove')).toBeNull();
+    await press('demo-job-create');
+    expect(app.lists.projects).toHaveLength(2);
+    fireEvent.press(screen.getByTestId('demo-job-remove'));
+    await press('demo-job-remove-confirm');
+    expect(app.lists.projects).toEqual([{ id: 'hand-named', name: 'Sample — Demo: Harbor Point Mixed-Use' }]);
+    expect(app.deleteCalls.map((c) => c.id)).not.toContain('hand-named');
+  });
+
+  it('12  the confirmation names every job it will delete, and how many', async () => {
+    const app = makeFakeApp();
+    await mount(app);
+    await press('demo-job-create');
+    // A second stamped job (made on another device before this one synced).
+    app.lists.projects.push({ id: 'second-demo', name: 'Sample — Demo: Harbor Point Mixed-Use', leadSource: 'mage_demo_job' });
+    const firstId = app.lists.projects.find((p) => p.id !== 'second-demo')!.id;
+    fireEvent.press(screen.getByTestId('demo-job-remove'));
+    expect(screen.getByTestId('demo-job-remove-names').props.children).toBe('Remove 2 demo jobs and everything created with them? The jobs are Sample — Demo: Harbor Point Mixed-Use, Sample — Demo: Harbor Point Mixed-Use. This cannot be undone.');
+    await press('demo-job-remove-confirm');
+    expect(app.lists.projects).toHaveLength(0);
+    expect(app.deleteCalls.map((c) => c.id).sort()).toEqual([firstId, 'second-demo'].sort());
   });
 });

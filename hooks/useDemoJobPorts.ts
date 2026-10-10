@@ -7,6 +7,9 @@
 // the tutorial's bundled-image upload, and the Living Model's store. There is
 // no edge function, no email, no notification and no AI call in this file.
 //
+// `ready` is false until the app has read its project list: before that, "no
+// demo job" is not known, and Create would make a second one.
+//
 // The lists and functions are read through refs that are refreshed on every
 // render, so the writer always sees the app's LATEST list after an add (many
 // add functions build on the list as of the last render).
@@ -76,9 +79,10 @@ export function useDemoJobPorts(): DemoPorts {
     addAIAPayApp: api.addAIAPayApp,
     addDailyReport: api.addDailyReport,
     addRFIs: api.addRFIs,
-    addSubmittals: api.addSubmittals,
+    // The four records whose id the app would otherwise make are handed the builder's own id.
+    addSubmittals: (subs) => api.addSubmittals(subs, { ids: subs.map((s) => s.id) }),
     addPunchItems: api.addPunchItems,
-    addPermit: api.addPermit,
+    addPermit: ({ id, ...permit }) => api.addPermit(permit, { id }),
     addOACMeeting: api.addOACMeeting,
     addWarranty: api.addWarranty,
     addToolboxTalk: safety.addToolboxTalk,
@@ -87,12 +91,13 @@ export function useDemoJobPorts(): DemoPorts {
     setBuildingAccess: api.setBuildingAccess,
     addReservation: api.addReservation,
     addDelayEvent: api.addDelayEvent,
-    addEquipment: api.addEquipment,
+    addEquipment: ({ id, ...equip }) => api.addEquipment(equip, { id }),
     addFieldTicket: api.addFieldTicket,
     addCrewMember: crew.addCrewMember,
     addManualEntry: time.addManualEntry,
     addProjectPhoto: api.addProjectPhoto,
-    deleteProject: api.deleteProject,
+    // The id and nothing else: with no count handed in, the app's delete asks the server about safety records.
+    deleteProject: (id) => api.deleteProject(id),
     deleteSubcontractor: api.deleteSubcontractor,
     deleteContact: api.deleteContact,
     deleteEquipment: api.deleteEquipment,
@@ -112,6 +117,7 @@ export function useDemoJobPorts(): DemoPorts {
   return useMemo<DemoPorts>(() => ({
     world: () => worldRef.current,
     actions: () => actionsRef.current,
+    ready: () => apiRef.current.projectsLoaded,
     online: () => !isOfflineNow() && !!userRef.current,
     pause: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     queuedWrites: async () => (await getOwnOfflineQueue().catch(() => [])).length,

@@ -5,6 +5,12 @@
 // creates, finishes and removes the job through utils/demoJob/writer, which
 // only ever calls the app's own add and delete functions (the ports).
 //
+// NOTHING IS OFFERED UNTIL THE APP HAS READ ITS PROJECT LIST (`ready`): before
+// that an empty list is not "no demo job", and Create would make a second one.
+// A second tap is stopped by a ref, not by state: two taps in one frame both
+// see the same render. Remove names the job or jobs it will delete, and how
+// many, and deletes exactly those.
+//
 // The route (app/demo-job.tsx) does the owner check; this component is handed
 // its ports so the smoke test can run it against a stand-in app.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,6 +39,8 @@ export interface DemoJobScreenProps {
   /** A fresh project id for a job that does not exist yet. */
   newProjectId: () => string;
   offline: boolean;
+  /** True once the app has read its project list (ProjectContext.projectsLoaded). */
+  ready: boolean;
   topInset: number;
   onBack: () => void;
   onOpenJob: (projectId: string) => void;
@@ -43,7 +51,7 @@ export interface DemoJobScreenProps {
 type Phase = 'checking' | 'idle' | 'working' | 'removing';
 
 export function DemoJobScreen(props: DemoJobScreenProps) {
-  const { ports, copy, userId, contractorName, today, newProjectId, offline, topInset, onBack, onOpenJob, startDateOf } = props;
+  const { ports, copy, userId, contractorName, today, newProjectId, offline, ready, topInset, onBack, onOpenJob, startDateOf } = props;
   const styles = useThemedStyles(makeDemoJobStyles);
   const { colors } = useTheme();
   const [phase, setPhase] = useState<Phase>('checking');
@@ -51,11 +59,14 @@ export function DemoJobScreen(props: DemoJobScreenProps) {
   const [areas, setAreas] = useState<AreaStatus[]>([]);
   const [failures, setFailures] = useState<DemoFailure[]>([]);
   const [message, setMessage] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  /** The jobs the open confirmation names. Remove deletes these and no others. */
+  const [confirmJobs, setConfirmJobs] = useState<{ id: string; name: string }[] | null>(null);
   const [demoCount, setDemoCount] = useState(0);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [taskCount, setTaskCount] = useState(1);
   const freshId = useRef<string | null>(null);
+  /** One create or remove at a time. A ref, so a second tap in the same frame is stopped too. */
+  const running = useRef(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
 
@@ -81,54 +92,75 @@ export function DemoJobScreen(props: DemoJobScreenProps) {
   }, [jobNow, ports]);
 
   useEffect(() => {
+    // Until the project list is read the screen keeps saying it is checking and offers nothing.
+    if (!ready) return;
     void refresh().finally(() => { if (alive.current) setPhase((p) => (p === 'checking' ? 'idle' : p)); });
-  }, [refresh]);
+  }, [refresh, ready]);
 
   const create = useCallback(async () => {
-    if (phase !== 'idle') return;
-    setPhase('working');
-    setMessage(null);
-    setFailures([]);
-    const job = jobNow();
-    // Known to analytics before the first write, so not one event of the demo is sent.
-    noteDemoProjectId(job.project.id);
-    const res = await createDemoJob(job, ports, (p) => {
-      if (!alive.current) return;
-      setAreas((prev) => {
-        const next = prev.length ? [...prev] : [];
-        const i = next.findIndex((a) => a.key === p.key);
-        const row: AreaStatus = { key: p.key, present: p.done, total: p.total, needsConnection: i >= 0 ? next[i].needsConnection : false };
-        if (i >= 0) next[i] = row; else next.push(row);
-        return next;
+    if (!ready || running.current) return;
+    running.current = true;
+    try {
+      setPhase('working');
+      setMessage(null);
+      setFailures([]);
+      const job = jobNow();
+      // Known to analytics before the first write, so not one event of the demo is sent.
+      noteDemoProjectId(job.project.id);
+      const res = await createDemoJob(job, ports, (p) => {
+        if (!alive.current) return;
+        setAreas((prev) => {
+          const next = prev.length ? [...prev] : [];
+          const i = next.findIndex((a) => a.key === p.key);
+          const row: AreaStatus = { key: p.key, present: p.done, total: p.total, needsConnection: i >= 0 ? next[i].needsConnection : false };
+          if (i >= 0) next[i] = row; else next.push(row);
+          return next;
+        });
       });
-    });
-    if (!alive.current) return;
-    if (res.refused === 'queue_full') setMessage(copy.queueFullBody);
-    if (res.refused === 'exists_elsewhere') setMessage(copy.twoJobsBody);
-    setFailures(res.failures);
-    await refresh();
-    if (alive.current) setPhase('idle');
-  }, [phase, jobNow, ports, copy, refresh]);
+      if (!alive.current) return;
+      if (res.refused === 'queue_full') setMessage(copy.queueFullBody);
+      if (res.refused === 'exists_elsewhere') setMessage(copy.twoJobsBody);
+      setFailures(res.failures);
+      await refresh();
+      if (alive.current) setPhase('idle');
+    } finally {
+      running.current = false;
+    }
+  }, [ready, jobNow, ports, copy, refresh]);
+
+  const askRemove = useCallback(() => {
+    if (running.current) return;
+    setConfirmJobs(existingDemoProjects(ports.world()));
+  }, [ports]);
 
   const remove = useCallback(async () => {
-    if (phase !== 'idle') return;
-    setConfirming(false);
-    setPhase('removing');
-    setMessage(null);
-    setFailures([]);
-    let refused: string | null = null;
-    for (const p of existingDemoProjects(ports.world())) {
-      const res = await removeDemoJob(p.id, ports);
-      if (!res.ok) { refused = res.reason ?? ''; break; }
+    const named = confirmJobs;
+    if (!ready || !named || named.length === 0 || running.current) return;
+    running.current = true;
+    try {
+      setConfirmJobs(null);
+      setPhase('removing');
+      setMessage(null);
+      setFailures([]);
+      let refused: string | null = null;
+      // Exactly the jobs the confirmation named, each only while it still carries the builder's stamp.
+      const still = new Set(existingDemoProjects(ports.world()).map((p) => p.id));
+      for (const p of named) {
+        if (!still.has(p.id)) continue;
+        const res = await removeDemoJob(p.id, ports);
+        if (!res.ok) { refused = res.reason ?? ''; break; }
+      }
+      if (!alive.current) return;
+      // A job made after this one must not reuse its id.
+      freshId.current = null;
+      await refresh();
+      if (!alive.current) return;
+      setMessage(refused !== null ? copy.removeRefusedBody(refused) : copy.removedBody);
+      setPhase('idle');
+    } finally {
+      running.current = false;
     }
-    if (!alive.current) return;
-    // A job made after this one must not reuse its id.
-    freshId.current = null;
-    await refresh();
-    if (!alive.current) return;
-    setMessage(refused !== null ? copy.removeRefusedBody(refused) : copy.removedBody);
-    setPhase('idle');
-  }, [phase, ports, copy, refresh]);
+  }, [ready, confirmJobs, ports, copy, refresh]);
 
   const busy = phase !== 'idle';
   const tooMany = demoCount > 1;
@@ -170,15 +202,15 @@ export function DemoJobScreen(props: DemoJobScreenProps) {
           <View style={styles.panel}>
             <Text style={styles.noteStrong} testID="demo-job-state">{stateBody}</Text>
             {message ? <Text style={styles.warn} testID="demo-job-message">{message}</Text> : null}
-            {confirming ? (
+            {confirmJobs ? (
               <View style={styles.stack}>
-                <Text style={styles.para}>{copy.confirmRemoveBody}</Text>
+                <Text style={styles.para} testID="demo-job-remove-names">{copy.confirmRemoveBody(confirmJobs.length, confirmJobs.map((j) => j.name).join(', '))}</Text>
                 <View style={styles.toolbar}>
                   <Button label={copy.confirmRemoveLabel} variant="destructive" onPress={() => { void remove(); }} disabled={busy} testID="demo-job-remove-confirm" />
-                  <Button label={copy.keepLabel} variant="secondary" onPress={() => setConfirming(false)} disabled={busy} testID="demo-job-remove-cancel" />
+                  <Button label={copy.keepLabel} variant="secondary" onPress={() => setConfirmJobs(null)} disabled={busy} testID="demo-job-remove-cancel" />
                 </View>
               </View>
-            ) : (
+            ) : phase === 'checking' ? null : (
               <View style={styles.toolbar}>
                 {state === 'none' && !tooMany ? (
                   <Button label={copy.createLabel} variant="primary" onPress={() => { void create(); }} disabled={busy} loading={phase === 'working'} testID="demo-job-create" />
@@ -190,7 +222,7 @@ export function DemoJobScreen(props: DemoJobScreenProps) {
                   <Button label={copy.openJobLabel} variant="primary" onPress={() => onOpenJob(projectId)} disabled={busy} testID="demo-job-open" />
                 ) : null}
                 {state !== 'none' || tooMany ? (
-                  <Button label={copy.removeLabel} variant="secondary" onPress={() => setConfirming(true)} disabled={busy} loading={phase === 'removing'} testID="demo-job-remove" />
+                  <Button label={copy.removeLabel} variant="secondary" onPress={askRemove} disabled={busy} loading={phase === 'removing'} testID="demo-job-remove" />
                 ) : null}
               </View>
             )}

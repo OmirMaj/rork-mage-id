@@ -111,7 +111,7 @@ export function buildDemoJob(input: DemoJobInput): DemoJob {
     contract: buildContract(id, clock, schedule.finishDay),
     selections: buildSelections(id, clock),
     crew: buildCrew(id, clock, input.userId),
-    timeEntries: buildTimeEntries(clock),
+    timeEntries: buildTimeEntries(id, clock),
     photos: PHOTO_SPECS,
     model: buildDemoModel(id),
   };

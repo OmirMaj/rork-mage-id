@@ -32,7 +32,7 @@ function DemoJobBuilder({ userId }: { userId: string }) {
   const copy = useDemoJobCopy();
   const ports = useDemoJobPorts();
   const offline = useOffline();
-  const { settings, projects } = useProjects();
+  const { settings, projects, projectsLoaded } = useProjects();
   const startDateOf = useCallback(
     (projectId: string) => projects.find((p) => p.id === projectId)?.schedule?.startDate ?? null,
     [projects],
@@ -48,6 +48,7 @@ function DemoJobBuilder({ userId }: { userId: string }) {
         today={todayCalendarDay()}
         newProjectId={generateUUID}
         offline={offline}
+        ready={projectsLoaded}
         topInset={insets.top}
         onBack={() => router.back()}
         onOpenJob={(projectId) => router.push({ pathname: '/project-detail', params: { id: projectId } })}

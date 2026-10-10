@@ -69,7 +69,7 @@ import { track, AnalyticsEvents } from '@/utils/analytics';
 // Sample fences: no QuickBooks push from a sample, and every create event says
 // whether it came from one (utils/sampleGuard — the outbound invariant).
 import { isSampleProject, noteSampleProject, noteSampleScope } from '@/utils/sampleGuard';
-import { demoSafeUpdates, isDemoProject, noteDemoProjectId, noteDemoScope } from '@/utils/demoJob/marker';
+import { DEMO_RENAME_KEPT_REASON, DEMO_RENAME_KEPT_TITLE, demoRenameDropped, demoSafeUpdates, isDemoProject, noteDemoProjectId, noteDemoScope } from '@/utils/demoJob/marker';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
 import type { Delivery, DeliveryReceipt } from '@/utils/deliverySchedule';
@@ -1011,7 +1011,7 @@ type FieldDataValue = {
   deleteProjectPhoto: (id: string) => void;
   getPhotosForProject: (projectId: string) => ProjectPhoto[];
   equipment: Equipment[];
-  addEquipment: (equip: Omit<Equipment, 'id' | 'createdAt'>) => void;
+  addEquipment: (equip: Omit<Equipment, 'id' | 'createdAt'>, opts?: { id?: string }) => void;
   updateEquipment: (id: string, updates: Partial<Equipment>) => void;
   deleteEquipment: (id: string) => void;
   logUtilization: (entry: Omit<EquipmentUtilizationEntry, 'id'>) => void;
@@ -1119,7 +1119,7 @@ type DocsDataValue = {
   deleteRFI: (id: string) => void;
   getRFIsForProject: (projectId: string) => RFI[];
   permits: Permit[];
-  addPermit: (permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>) => Permit;
+  addPermit: (permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>, opts?: { id?: string }) => Permit;
   updatePermit: (id: string, updates: Partial<Permit>) => void;
   deletePermit: (id: string) => void;
   getPermitsForProject: (projectId: string) => Permit[];
@@ -1137,7 +1137,7 @@ type DocsDataValue = {
   getSubPortalLinksForProject: (projectId: string) => SubPortalLink[];
   submittals: Submittal[];
   addSubmittal: (sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => void;
-  addSubmittals: (subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[]) => void;
+  addSubmittals: (subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[], opts?: { ids?: readonly string[] }) => void;
   updateSubmittal: (id: string, updates: Partial<Submittal>) => void;
   deleteSubmittal: (id: string) => void;
   getSubmittalsForProject: (projectId: string) => Submittal[];
@@ -5392,6 +5392,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // The owner's Demo Job cannot be renamed out of its sample name: that name
     // is what keeps it from emailing, pay links and reminders (utils/demoJob/marker).
     const rawUpdates = demoSafeUpdates(prior, updatesIn);
+    // A dropped rename is said, once, in one sentence: a name that silently snaps back reads as a bug.
+    if (demoRenameDropped(prior, updatesIn, rawUpdates)) showAlert(DEMO_RENAME_KEPT_TITLE, DEMO_RENAME_KEPT_REASON);
     const nowISO = new Date().toISOString();
     // #25, second writer: a schedule edit is often built from a screen's
     // working copy loaded long before the foreman's field update the refetch
@@ -8752,9 +8754,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     updated_at: p.updatedAt ?? new Date().toISOString(),
   }), [userId]);
 
-  const addPermit = useCallback((permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>) => {
+  // `opts.id`: the Demo Job builder hands in the id it worked out, so it can
+  // find the record again by id (utils/demoJob/writer). A second argument on
+  // purpose: an `id` riding in on a spread record is never adopted.
+  const addPermit = useCallback((permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>, opts?: { id?: string }) => {
     const now = new Date().toISOString();
-    const newPermit: Permit = { ...permit, id: generateUUID(), createdAt: now, updatedAt: now };
+    const newPermit: Permit = { ...permit, id: opts?.id ?? generateUUID(), createdAt: now, updatedAt: now };
     const updated = [newPermit, ...permits];
     setPermits(updated);
     savePermitsMutation.mutate(updated);
@@ -8996,13 +9001,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const buildSubmittal = useCallback((
     sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>,
     base: Submittal[],
+    id?: string,
   ): { newSub: Submittal; row: Record<string, unknown> } => {
     const projectSubs = base.filter(s => s.projectId === sub.projectId);
     const nextNumber = projectSubs.length > 0 ? Math.max(...projectSubs.map(s => s.number)) + 1 : 1;
     const now = new Date().toISOString();
     const newSub: Submittal = {
       ...sub,
-      id: generateUUID(),
+      id: id ?? generateUUID(),
       number: nextNumber,
       createdAt: now,
       updatedAt: now,
@@ -9035,12 +9041,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // Batch insert — assigns sequential per-project numbers to every row and
   // commits in ONE setState. Use this from bulk flows (e.g. extract-submittals)
   // instead of looping addSubmittal, so the review count matches what persists.
-  const addSubmittals = useCallback((subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[]) => {
+  // `opts.ids`: one id per submittal, in order (the Demo Job builder; see addPermit).
+  const addSubmittals = useCallback((subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[], opts?: { ids?: readonly string[] }) => {
     if (subs.length === 0) return;
     let working = submittalsRef.current;
     const rows: Record<string, unknown>[] = [];
-    for (const sub of subs) {
-      const { newSub, row } = buildSubmittal(sub, working);
+    for (let i = 0; i < subs.length; i += 1) {
+      const { newSub, row } = buildSubmittal(subs[i], working, opts?.ids?.[i]);
       working = [newSub, ...working];
       rows.push(row);
     }
@@ -9331,9 +9338,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     [cois],
   );
 
-  const addEquipment = useCallback((equip: Omit<Equipment, 'id' | 'createdAt'>) => {
+  // `opts.id`: the Demo Job builder's own id (see addPermit).
+  const addEquipment = useCallback((equip: Omit<Equipment, 'id' | 'createdAt'>, opts?: { id?: string }) => {
     const now = new Date().toISOString();
-    const newEquip: Equipment = { ...equip, id: generateUUID(), createdAt: now };
+    const newEquip: Equipment = { ...equip, id: opts?.id ?? generateUUID(), createdAt: now };
     const updated = [newEquip, ...equipment];
     setEquipment(updated);
     saveEquipmentMutation.mutate(updated);

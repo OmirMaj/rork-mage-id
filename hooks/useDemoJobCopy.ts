@@ -29,7 +29,8 @@ export interface DemoJobCopy {
   finishLabel: string;
   removeLabel: string;
   openJobLabel: string;
-  confirmRemoveBody: string;
+  /** Names the job or jobs that will be deleted, and how many. */
+  confirmRemoveBody: (count: number, names: string) => string;
   confirmRemoveLabel: string;
   keepLabel: string;
   workingBody: string;
@@ -101,7 +102,9 @@ export function useDemoJobCopy(): DemoJobCopy {
       finishLabel: t('office.demoJob.finishLabel', 'Finish Creating'),
       removeLabel: t('office.demoJob.removeLabel', 'Remove Demo Job'),
       openJobLabel: t('office.demoJob.openJobLabel', 'Open the Job'),
-      confirmRemoveBody: t('office.demoJob.confirmRemoveBody', 'Remove the demo job and everything created with it? This cannot be undone.'),
+      confirmRemoveBody: (count, names) => (count === 1
+        ? t('office.demoJob.confirmRemoveOneBody', 'Remove 1 demo job and everything created with it? The job is {names}. This cannot be undone.', { names })
+        : t('office.demoJob.confirmRemoveManyBody', 'Remove {count} demo jobs and everything created with them? The jobs are {names}. This cannot be undone.', { count, names })),
       confirmRemoveLabel: t('office.demoJob.confirmRemoveLabel', 'Remove Everything'),
       keepLabel: t('office.demoJob.keepLabel', 'Keep It'),
       workingBody: t('office.demoJob.workingBody', 'Creating the demo job. Keep this screen open.'),

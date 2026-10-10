@@ -17,6 +17,14 @@
 //   K  the calendar is local-day, repeatable, the same on a weekend
 //   L  the Living Model is sound and its floor follows the schedule
 //   M  the app's own job cost, critical path and replay engines read the job the same way
+// Review round (independent review of the builder): D3 a dropped rename is said;
+// E3 every review cycle is disclaimed; F4 the morning brief and the assistant
+// connector leave sample jobs out; G4 One Mind and the bid advisor never see the
+// demo; H5 only the job with the builder's stamp is found or deleted, and the
+// confirmation names it; H6 removal asks the server and sweeps nothing unless
+// the job is gone; H7 presence is by id, so an edited record is not written
+// twice; H8 nothing is offered before the project list is read, and a second
+// tap is stopped by a ref.
 // Every rule has at least one planted mutation that must turn it red.
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { dirname, join } from 'path';
@@ -31,12 +39,13 @@ import { buildCostDatabase } from '../utils/costDatabase';
 import { demoJobAllowedWith } from '../utils/demoJob/allowed';
 import { buildDemoJob, type DemoJob } from '../utils/demoJob/build';
 import { DATA_DAY, demoSeedDayFromStart, makeDemoClock } from '../utils/demoJob/clock';
-import { DEMO_LEAD_SOURCE, DEMO_PROJECT_NAME, demoSafeUpdates, isDemoProject, isDemoProjectName, isKnownDemoProjectId, noteDemoScope } from '../utils/demoJob/marker';
+import { REVIEW_TYPED_NOTE } from '../utils/demoJob/fieldRecords';
+import { DEMO_LEAD_SOURCE, DEMO_PROJECT_NAME, DEMO_RENAME_KEPT_REASON, DEMO_RENAME_KEPT_TITLE, demoRenameDropped, demoSafeUpdates, isDemoProject, isDemoProjectName, isKnownDemoProjectId, isStampedDemoProject, noteDemoScope } from '../utils/demoJob/marker';
 import { BASE_COST, BUDGET_COST, CONTRACT_SUM_TO_DATE, ORIGINAL_CONTRACT_SUM, PAID_PAY_APPS, PAY_APP_PERIOD_END, projectedFinalCost, projectedMarginPercent } from '../utils/demoJob/money';
 import { demoSubcontractorIds, withoutDemoPayees } from '../utils/demoJob/payees';
 import { schedulePercentOn } from '../utils/demoJob/schedule';
 import { EMAIL_RULE, PHONE_RULE } from '../utils/demoJob/world';
-import { DEMO_DELETE_TABLES, QUEUE_CAP, QUEUE_ROOM_NEEDED, createDemoJob, demoAccountIds, demoStatus, removeDemoJob } from '../utils/demoJob/writer';
+import { DEMO_DELETE_TABLES, NOT_THE_BUILDERS_REASON, QUEUE_CAP, QUEUE_ROOM_NEEDED, STILL_THERE_REASON, createDemoJob, demoAccountIds, demoStatus, existingDemoProjects, removeDemoJob } from '../utils/demoJob/writer';
 import { computeCalibration } from '../utils/estimateCalibration';
 import { netBalanceDue } from '../utils/invoiceBilling';
 import { computeJobCost } from '../utils/jobCostEngine';
@@ -51,6 +60,11 @@ import { countsTowardFreeCap } from '../utils/projectCap';
 import { isSampleProject, sampleSendPlan } from '../utils/sampleGuard';
 import { recalculateStartDays } from '../utils/scheduleEngine';
 import { isDemoJobEvent } from '../utils/analytics';
+import { aggregateTypeMargin, realizedMarginPct } from '../utils/judges/typeMargin';
+import { withoutDemoFacts } from '../utils/oneMind/demoFence';
+import type { OneMindBundle } from '../utils/oneMind/factBlocks';
+import { buildTypeProfitability } from '../utils/portfolio/typeProfitability';
+import { isSampleProjectName as serverIsSampleProjectName } from '../supabase/functions/_shared/sampleFence';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string): string => readFileSync(join(ROOT, p), 'utf8');
@@ -81,6 +95,22 @@ const EXCLUSIONS: readonly [string, string, string][] = [
   ['hooks/useLeakCoDrafts.ts', 'projects: withoutDemoProjects(projects)', 'self-drafted change orders'],
   ['app/tax-1099-export.tsx', 'withoutDemoPayees(projects, allSubcontractors, allCommitments)', 'the 1099 export'],
   ['app/insurance-audit.tsx', 'withoutDemoPayees(projects, allSubcontractors, allCommitments)', 'the insurance audit pack'],
+  ['utils/oneMind/answer.ts', 'const bundle = withoutDemoFacts(bundleIn);', 'One Mind, where the bundle is read (every prompt and fallback answer)'],
+  ['components/brain/AskConversation.tsx', 'return withoutDemoFacts({', 'One Mind, where the bundle is built'],
+  ['utils/judges/typeMargin.ts', 'if (isDemoProject(project)) return null;', 'realized margin (the bid advisor, type profitability, prediction grading)'],
+  ['utils/judges/typeMargin.ts', '|| isDemoProject(p)) continue;', 'the bid advisor\'s margin by job type'],
+  ['utils/portfolio/typeProfitability.ts', 'if (!isClosed(p) || isDemoProject(p)) continue;', 'the count of closed jobs behind type profitability'],
+];
+/** Server reads that leave sample jobs out: [file, the code that does it, how many times it must appear, what]. */
+const SERVER_FENCES: readonly [string, string, number, string][] = [
+  ['supabase/functions/morning-digest/index.ts', '.filter((p) => !isSampleProjectName(p.name))', 2, 'the morning brief (the jobs it briefs, and the jobs whose open RFIs it counts)'],
+  ['supabase/functions/morning-digest/index.ts', "import { isSampleProjectName } from '../_shared/sampleFence.ts';", 1, 'the morning brief uses the shared sample rule'],
+  ['supabase/functions/mcp/index.ts', 'if (!isSampleProjectName(r.name)) m[r.id] = r.name;', 2, 'the assistant connector\'s project names (and so its RFIs)'],
+  ['supabase/functions/mcp/index.ts', '.filter(offSample(owned.sampleIds))', 3, 'the assistant connector\'s invoices and change orders'],
+  ['supabase/functions/mcp/index.ts', '.filter((p) => !isSampleProjectName(p.name as string | null))', 1, 'the assistant connector\'s project list'],
+  ['supabase/functions/mcp/index.ts', '!isSampleCompany(s.company_name)', 1, 'the assistant connector\'s subcontractor list'],
+  ['supabase/functions/mcp/index.ts', 'Across ${owned.real} project(s)', 1, 'the assistant connector\'s project count'],
+  ['supabase/functions/mcp/index.ts', 'import { isSampleProjectName } from "../_shared/sampleFence.ts";', 1, 'the assistant connector uses the shared sample rule'],
 ];
 /** Server and app fences the demo leans on by being a sample-named job. Read only: this lane changes none of them. */
 const FENCES: readonly [string, string, string][] = [
@@ -119,12 +149,20 @@ interface Ctx {
 }
 const loadSrc = (): Record<string, string> => {
   const out: Record<string, string> = {};
-  for (const f of new Set([...BUILDER_FILES, ...EXCLUSIONS.map((e) => e[0]), ...FENCES.map((e) => e[0]), 'app/(tabs)/settings/index.tsx', 'constants/featureFlags.ts', 'app/_layout.tsx', 'hooks/useDemoJobCopy.ts'])) out[f] = read(f);
+  for (const f of new Set([...BUILDER_FILES, ...EXCLUSIONS.map((e) => e[0]), ...FENCES.map((e) => e[0]), ...SERVER_FENCES.map((e) => e[0]), 'app/(tabs)/settings/index.tsx', 'constants/featureFlags.ts', 'app/_layout.tsx', 'hooks/useDemoJobCopy.ts', 'hooks/useTimeEntries.ts'])) out[f] = read(f);
   return out;
 };
 
 const money = (n: number): string => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 const eq = (out: string[], what: string, got: number, want: number): void => { if (Math.abs(got - want) > 0.005) out.push(`${what}: ${money(got)}, expected ${money(want)}`); };
+
+/** Source without its comment lines (a rule that forbids a word must not trip on the comment explaining why). */
+const codeOf = (text: string): string => text.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+const count = (text: string, needle: string): number => text.split(needle).length - 1;
+/** Each needle must be in the file's code; the message names what was lost. */
+const pins = (out: string[], src: Record<string, string>, list: readonly [string, string, string][]): void => {
+  for (const [file, needle, what] of list) if (!codeOf(src[file]).includes(needle)) out.push(`${file}: ${what}`);
+};
 
 /** Every string in a value, with the path it sits at. */
 function strings(v: unknown, path = '', out: [string, string][] = []): [string, string][] {
@@ -393,6 +431,20 @@ const RULES: Rule[] = [
     for (const c of job.crew) { if (!EMAIL_RULE.test(c.email ?? '')) out.push(`${c.fullName} email`); if (!PHONE_RULE.test(c.phone ?? '')) out.push(`${c.fullName} phone`); }
     return out;
   } },
+  { id: 'D3', what: 'a rename the demo job refuses is said to the user, in one sentence', run: ({ job, src }) => {
+    const out: string[] = [];
+    const p = job.project;
+    const tell = (prior: { name?: string | null; leadSource?: string | null }, asked: Partial<Project>): boolean => demoRenameDropped(prior, asked, demoSafeUpdates(prior, asked));
+    if (!tell(p, { name: 'Harbor Point Mixed-Use' })) out.push('a dropped rename is not noticed');
+    if (tell(p, { name: `${p.name} (Copy)` })) out.push('a rename that was kept is reported as dropped');
+    if (tell(p, { description: 'x' })) out.push('an edit with no rename is reported as a dropped rename');
+    if (tell({ name: 'A Real Job', leadSource: 'referral' }, { name: 'Renamed' })) out.push('a real job\'s rename is reported as dropped');
+    if ((DEMO_RENAME_KEPT_REASON.match(/[.?!]/g) ?? []).length !== 1 || !DEMO_RENAME_KEPT_REASON.endsWith('.')) out.push('the reason is not one sentence');
+    if (/—|&|!|e\.g\./.test(DEMO_RENAME_KEPT_REASON + DEMO_RENAME_KEPT_TITLE)) out.push('the reason has a dash, an and sign or an exclamation mark');
+    if (!/sample name/.test(DEMO_RENAME_KEPT_REASON)) out.push('the reason does not say why');
+    pins(out, src, [['contexts/ProjectContext.tsx', 'if (demoRenameDropped(prior, updatesIn, rawUpdates)) showAlert(DEMO_RENAME_KEPT_TITLE, DEMO_RENAME_KEPT_REASON);', 'a dropped rename is no longer said']]);
+    return out;
+  } },
   // ── E. No fabricated evidence ─────────────────────────────────────────────
   { id: 'E1', what: 'no signature, seal, verification, certificate or delivery stamp is set on any record', run: ({ job }) => {
     const out: string[] = [];
@@ -427,14 +479,25 @@ const RULES: Rule[] = [
     if (job.dailyReports.filter((d) => d.incident?.hasIncident).length !== 1) out.push('expected one first-aid note in the daily reports');
     return out;
   } },
+  { id: 'E3', what: 'every submittal review cycle says it was typed in by the contractor, with or without a comment', run: ({ job }) => {
+    const out: string[] = [];
+    let bare = 0;
+    for (const s of job.submittals) {
+      for (const c of s.reviewCycles ?? []) {
+        if (!(c.comments ?? '').endsWith(REVIEW_TYPED_NOTE)) out.push(`${s.title}, cycle ${c.cycleNumber}: a reviewer and a result with no "typed in by the contractor"`);
+        if (c.comments === REVIEW_TYPED_NOTE) bare += 1;
+      }
+    }
+    if (bare === 0) out.push('no review cycle is without a comment: this check proves nothing');
+    return out;
+  } },
   // ── F. Nothing leaves the account ─────────────────────────────────────────
   { id: 'F1', what: 'no record can be addressed to anyone: portal off, nobody invited, no client email, no insurance expiry', run: ({ job }) => {
     const out: string[] = [];
     const p = job.project;
-    if (p.clientPortal?.enabled !== false) out.push('the client portal is on');
-    if ((p.clientPortal?.invites ?? []).length) out.push('someone is invited to the portal');
-    if (p.clientPortal?.weeklyDigest) out.push('the weekly client digest is set');
-    if (p.clientPortal?.passcode || p.clientPortal?.accessToken || p.clientPortal?.autoShare) out.push('the portal has a token or auto-share');
+    // No client portal settings at all: a project row that carries a portal id makes the server mint a live portal key.
+    if (p.clientPortal) out.push('the project carries client portal settings (a portal id makes the server mint a portal key)');
+    for (const [path, k] of setKeys(dataOf(job))) if (/^portalId$|^accessToken$|^passcode$/.test(k)) out.push(`${path} is set`);
     if (p.primaryContact?.email) out.push('the project has a client email');
     if ((p.collaborators ?? []).length) out.push('the project has collaborators');
     if (p.publicProfile) out.push('the project has a public page');
@@ -468,6 +531,17 @@ const RULES: Rule[] = [
   } },
   { id: 'F3', what: 'the fences the demo leans on are still in the server and the app', run: ({ src }) =>
     FENCES.filter(([file, needle]) => !src[file].includes(needle)).map(([file, , what]) => `${file}: ${what}`) },
+  { id: 'F4', what: 'the morning brief and the assistant connector leave sample jobs out', run: ({ job, src }) => {
+    const out: string[] = [];
+    for (const [file, needle, n, what] of SERVER_FENCES) {
+      const got = count(codeOf(src[file]), needle);
+      if (got !== n) out.push(`${file}: ${what} (${got} of ${n})`);
+    }
+    // The server's rule, run: the demo's name is a sample name, a real job's is not.
+    if (!serverIsSampleProjectName(job.project.name) || serverIsSampleProjectName('Harbor Point Mixed-Use')) out.push('the server does not read the demo\'s name as a sample job');
+    for (const sub of job.subcontractors) if (!sub.companyName.startsWith('Sample ')) out.push(`${sub.companyName} would be listed by the assistant connector`);
+    return out;
+  } },
   // ── G. Teaches and reports nothing ────────────────────────────────────────
   { id: 'G1', what: 'the cost book and bid calibration learn nothing from the demo, even closed', run: ({ job }) => {
     const out: string[] = [];
@@ -501,6 +575,43 @@ const RULES: Rule[] = [
     if (isDemoJobEvent({ project_id: 'real-project' }) || isDemoJobEvent({})) out.push('real events are dropped');
     noteDemoScope([]);
     if (isKnownDemoProjectId(job.project.id)) out.push('the registry is not emptied on sign-out');
+    return out;
+  } },
+  { id: 'G4', what: 'One Mind and the bid advisor never see the demo: no fact in a prompt, no margin by job type', run: ({ job }) => {
+    const out: string[] = [];
+    const pid = job.project.id;
+    const closedDemo: Project = { ...job.project, status: 'closed', closedAt: job.clock.at(DATA_DAY, 12) };
+    const control: Project = { ...closedDemo, name: 'Harbor Point Mixed-Use', leadSource: 'referral' };
+    if (realizedMarginPct(control, job.commitments, job.changeOrders) === null) out.push('the control job has no realized margin: this check proves nothing');
+    if (realizedMarginPct(closedDemo, job.commitments, job.changeOrders) !== null) out.push('a closed demo job has a realized margin (it would grade bid predictions)');
+    if (aggregateTypeMargin([control], control.type, job.commitments, job.changeOrders).jobCount !== 1) out.push('the control job is not in the margin by type: this check proves nothing');
+    if (aggregateTypeMargin([closedDemo], closedDemo.type, job.commitments, job.changeOrders).jobCount !== 0) out.push('a closed demo job feeds the bid advisor\'s margin by job type');
+    if (buildTypeProfitability([closedDemo], job.commitments, job.changeOrders).coverage.closedTotal !== 0) out.push('a closed demo job is counted in type profitability');
+    // One Mind: the bundle with the demo, one real job and one real row of each kind.
+    const real = { id: 'real-project', name: 'A Real Job', status: 'in_progress' };
+    const row = { id: 'real-row', projectId: 'real-project' };
+    const realSub = { id: 'real-sub', companyName: 'His Own Electric' };
+    const bundle = {
+      projects: [job.project, real], commitments: [...job.commitments, row], changeOrders: [...job.changeOrders, row], invoices: [...job.invoices, row],
+      rfis: [...job.rfis, row], leads: [], dailyReports: [...job.dailyReports, row], permits: [...job.permits, row], submittals: [...job.submittals, row],
+      punchItems: [...job.punchItems, row], expiringCertifications: [], bidResponses: [], aiaPayApps: [...job.payApps, row], receipts: [row],
+      laborSamples: [{ projectId: pid }, row],
+      costSources: { subcontractors: [...job.subcontractors, realSub], timeEntries: [{ id: 't', projectId: pid }, row], equipment: [...job.equipment, { id: 'his-machine', currentProjectId: 'real-project' }], permits: [...job.permits, row], receipts: [row] },
+      constraints: { [pid]: [{ id: 'c' }], 'real-project': [{ id: 'c2' }] },
+    } as unknown as OneMindBundle;
+    const fenced = withoutDemoFacts(bundle);
+    const text = JSON.stringify(fenced);
+    if (text.includes(pid) || text.includes('Harbor Point') || text.includes('Sample ')) out.push('a demo fact is still in the One Mind bundle');
+    const lists: [string, unknown[] | undefined][] = [
+      ['projects', fenced.projects], ['commitments', fenced.commitments], ['change orders', fenced.changeOrders], ['invoices', fenced.invoices], ['RFIs', fenced.rfis],
+      ['daily reports', fenced.dailyReports], ['permits', fenced.permits], ['submittals', fenced.submittals], ['punch items', fenced.punchItems], ['pay applications', fenced.aiaPayApps],
+      ['receipts', fenced.receipts], ['labor samples', fenced.laborSamples], ['cost subs', fenced.costSources?.subcontractors], ['cost shifts', fenced.costSources?.timeEntries],
+      ['cost equipment', fenced.costSources?.equipment], ['cost permits', fenced.costSources?.permits],
+    ];
+    for (const [what, list] of lists) if (list?.length !== 1) out.push(`One Mind ${what}: ${list?.length} left, expected the one real row`);
+    if (Object.keys(fenced.constraints ?? {}).join() !== 'real-project') out.push('the demo\'s constraints are still in the bundle');
+    const onlyReal = { ...bundle, projects: [real] } as unknown as OneMindBundle;
+    if (withoutDemoFacts(onlyReal) !== onlyReal) out.push('a bundle with no demo job is rebuilt');
     return out;
   } },
   // ── H. Resumable, idempotent, removable ───────────────────────────────────
@@ -590,8 +701,8 @@ const RULES: Rule[] = [
     const app = makeFakeApp();
     app.lists.subcontractors.push({ id: 'his-own-sub' });
     app.lists.contacts.push({ id: 'his-own-contact' });
-    app.lists.timeEntries.push({ id: 'his-own-shift', projectId: 'real-project', workerName: 'x', date: '2026-01-01' });
-    app.lists.equipment.push({ id: 'his-own-machine', serialNumber: 'SN-1' });
+    app.lists.timeEntries.push({ id: 'his-own-shift', projectId: 'real-project' });
+    app.lists.equipment.push({ id: 'his-own-machine' });
     app.lists.projects.push({ id: 'real-project', name: 'A Real Job' });
     const mine = fakeRecordCount(app);
     await createDemoJob(job, app.ports, () => {});
@@ -602,9 +713,9 @@ const RULES: Rule[] = [
     if (!app.lists.subcontractors.some((s) => s.id === 'his-own-sub') || !app.lists.projects.some((p) => p.id === 'real-project') || !app.lists.equipment.some((e) => e.id === 'his-own-machine') || !app.lists.timeEntries.some((e) => e.id === 'his-own-shift')) out.push('removal took a record that was not the demo\'s');
     const deleted = (table: string) => app.serverDeletes.filter((d) => d.table === table).length;
     const acct = demoAccountIds(job.project.id);
-    const wantDeletes: [string, number][] = [['projects', 1], ['cois', job.cois.length], ['oac_meetings', job.oacMeetings.length], ['delay_events', job.delayEvents.length], ['field_tickets', job.fieldTickets.length], ['time_entries', job.timeEntries.length], ['equipment', job.equipment.length], ['crew_members', acct.crew.length], ['contacts', acct.contacts.length], ['subcontractors', acct.subcontractors.length]];
+    const wantDeletes: [string, number][] = [['projects', 1], ['cois', job.cois.length], ['oac_meetings', job.oacMeetings.length], ['delay_events', job.delayEvents.length], ['field_tickets', job.fieldTickets.length], ['time_entries', job.timeEntries.length], ['equipment', acct.equipment.length], ['crew_members', acct.crew.length], ['contacts', acct.contacts.length], ['subcontractors', acct.subcontractors.length]];
     for (const [table, n] of wantDeletes) if (deleted(table) !== n) out.push(`${table}: ${deleted(table)} server deletes, expected ${n}`);
-    if (acct.subcontractors.length !== job.subcontractors.length || acct.contacts.length !== job.contacts.length || acct.crew.length !== job.crew.length) out.push('removal does not know every account-level record');
+    if (acct.subcontractors.length !== job.subcontractors.length || acct.contacts.length !== job.contacts.length || acct.crew.length !== job.crew.length || acct.equipment.slice().sort().join() !== job.equipment.map((e) => e.id).sort().join()) out.push('removal does not know every account-level record');
     if (!app.log.includes('removeJobModel') || app.models.size) out.push('the Living Model was left on the device');
     const next = mkJob(SEED, '7a7a7a7a-1111-4222-8333-444455556666');
     if (!(await createDemoJob(next, app.ports, () => {})).ok) out.push('a job could not be made after removal');
@@ -616,6 +727,139 @@ const RULES: Rule[] = [
     const refused = await removeDemoJob(job.project.id, held.ports);
     if (refused.ok || !refused.reason) out.push('a job with a safety incident was removed');
     if (fakeRecordCount(held) !== count || held.serverDeletes.length) out.push('a refused removal still deleted something');
+    return out;
+  } },
+  { id: 'H5', what: 'the builder finds, finishes and deletes only the job with its stamp, and the confirmation names the jobs and their count', run: async ({ job, src, tweak }) => {
+    const out: string[] = [];
+    const makeFakeApp = () => { const a = makeFakeAppRaw(); tweak?.(a); return a; };
+    const app = makeFakeApp();
+    // A job somebody named by hand (or a copy of the demo): the sample name, no stamp.
+    const lookalike = { id: 'hand-named', name: `${DEMO_PROJECT_NAME} (My Copy)` };
+    app.lists.projects.push(lookalike);
+    app.lists.dailyReports.push({ id: 'his-report', projectId: 'hand-named' });
+    if (!isDemoProject(lookalike)) out.push('a job with the demo name is no longer left out of the learning paths');
+    if (isStampedDemoProject(lookalike) || !isStampedDemoProject(job.project)) out.push('the stamp test reads the name');
+    if (isStampedDemoProject({ name: 'Renamed By Hand', leadSource: DEMO_LEAD_SOURCE }) !== true) out.push('a stamped job is not found once renamed');
+    if (existingDemoProjects(app.ports.world()).length !== 0) out.push('the builder counts a hand-named job as its own');
+    const before = fakeRecordCount(app);
+    const refused = await removeDemoJob('hand-named', app.ports);
+    if (refused.ok || refused.reason !== NOT_THE_BUILDERS_REASON) out.push('removal accepted a job that only has the name');
+    if (fakeRecordCount(app) !== before || app.serverDeletes.length || app.deleteCalls.length) out.push('removal touched a job that only has the name');
+    const made = await createDemoJob(job, app.ports, () => {});
+    const found = existingDemoProjects(app.ports.world());
+    if (!made.ok || found.length !== 1 || found[0].id !== job.project.id || found[0].name !== DEMO_PROJECT_NAME) out.push('the builder did not make and find its own job beside a hand-named one');
+    if (app.lists.dailyReports.filter((r) => r.projectId === 'hand-named').length !== 1) out.push('the builder wrote into a hand-named job');
+    await removeDemoJob(job.project.id, app.ports);
+    if (!app.lists.projects.some((p) => p.id === 'hand-named') || !app.lists.dailyReports.some((r) => r.id === 'his-report')) out.push('removing the demo took a hand-named job with it');
+    if (/isDemoProject\(/.test(codeOf(src['utils/demoJob/writer.ts']))) out.push('the writer tests the name (isDemoProject): it may only test the stamp');
+    pins(out, src, [
+      ['utils/demoJob/marker.ts', 'return !!project && project.leadSource === DEMO_LEAD_SOURCE;', 'the stamp test is no longer the stamp alone'],
+      ['utils/demoJob/writer.ts', 'return world.projects.filter((p) => isStampedDemoProject(p)).map(', 'the builder no longer finds its job by the stamp alone'],
+      ['utils/demoJob/writer.ts', 'if (project && !isStampedDemoProject(project)) return { ok: false, reason: NOT_THE_BUILDERS_REASON };', 'removal no longer refuses a job without the stamp'],
+      ['components/demoJob/DemoJobScreen.tsx', "copy.confirmRemoveBody(confirmJobs.length, confirmJobs.map((j) => j.name).join(', '))", 'the confirmation no longer names the jobs and their count'],
+      ['components/demoJob/DemoJobScreen.tsx', 'for (const p of named) {', 'Remove no longer deletes exactly the jobs it named'],
+      ['components/demoJob/DemoJobScreen.tsx', 'if (!still.has(p.id)) continue;', 'Remove no longer re-checks the stamp before each delete'],
+    ]);
+    const en = EN_SHARD as Record<string, string>;
+    if (!/^Remove 1 demo job .*\{names\}/.test(en['office.demoJob.confirmRemoveOneBody'] ?? '')) out.push('the confirmation for one job does not say the count and the name');
+    if (!/\{count\} demo jobs .*\{names\}/.test(en['office.demoJob.confirmRemoveManyBody'] ?? '')) out.push('the confirmation for several jobs does not say the count and the names');
+    return out;
+  } },
+  { id: 'H6', what: 'removal lets the server be asked about safety records, and sweeps nothing unless the job is gone', run: async ({ job, src, tweak }) => {
+    const out: string[] = [];
+    const makeFakeApp = () => { const a = makeFakeAppRaw(); tweak?.(a); return a; };
+    // An incident only the server knows of (logged on another phone): this device's list is empty.
+    const app = makeFakeApp();
+    await createDemoJob(job, app.ports, () => {});
+    app.set({ serverIncidents: 1 });
+    const before = fakeRecordCount(app);
+    const res = await removeDemoJob(job.project.id, app.ports);
+    if (res.ok || !res.reason) out.push('a job with a safety record on the server was removed');
+    if (fakeRecordCount(app) !== before || app.serverDeletes.length || app.log.includes('removeJobModel')) out.push('a refused removal still deleted something');
+    if (app.deleteCalls.length !== 1 || app.deleteCalls.some((c) => c.opts !== undefined)) out.push('the delete was handed a count from this device, so the server was never asked');
+    // The app says yes and the job is still there: nothing else may go.
+    const kept = makeFakeApp();
+    await createDemoJob(job, kept.ports, () => {});
+    kept.set({ deleteKeepsJob: true });
+    const count0 = fakeRecordCount(kept);
+    const stuck = await removeDemoJob(job.project.id, kept.ports);
+    if (stuck.ok || stuck.reason !== STILL_THERE_REASON) out.push('removal reported success with the job still in the account');
+    if (fakeRecordCount(kept) !== count0 || kept.serverDeletes.length || kept.log.includes('removeJobModel') || kept.log.some((l) => l.startsWith('queueDelete'))) out.push('subs, contacts, crew, shifts or stray rows were swept with the job still in the account');
+    if (/safetyIncidentCount/.test(codeOf(src['utils/demoJob/writer.ts']))) out.push('the writer hands the delete a safety count');
+    pins(out, src, [
+      ['utils/demoJob/writer.ts', 'const res = await ports.actions().deleteProject(projectId);', 'the delete is no longer called with the id alone'],
+      ['utils/demoJob/writer.ts', 'if (stillThere()) return { ok: false, reason: STILL_THERE_REASON };', 'removal no longer stops when the job is still there'],
+      ['utils/demoJob/writer.ts', 'deleteProject: (id: string) => Promise<', 'the delete port takes more than the id'],
+      ['hooks/useDemoJobPorts.ts', 'deleteProject: (id) => api.deleteProject(id),', 'the port can pass the app\'s delete a count'],
+    ]);
+    return out;
+  } },
+  { id: 'H7', what: 'presence is by the builder\'s own id: Finish Creating adds no duplicate of a record the user edited', run: async ({ job, src, tweak }) => {
+    const out: string[] = [];
+    const makeFakeApp = () => { const a = makeFakeAppRaw(); tweak?.(a); return a; };
+    const app = makeFakeApp();
+    const first = await createDemoJob(job, app.ports, () => {});
+    if (!first.ok) out.push(`create failed: ${JSON.stringify(first.failures)}`);
+    const ownIds: [string, string[]][] = [['submittal', job.submittals.map((r) => r.id)], ['permit', job.permits.map((r) => r.id)], ['machine', job.equipment.map((r) => r.id)], ['shift', job.timeEntries.map((r) => r.id)]];
+    for (const [what, ids] of ownIds) if (ids.length === 0 || ids.some((id) => !/^[0-9a-f-]{36}$/.test(id))) out.push(`a ${what} has no id of the builder's own`);
+    // The user edits the very fields the builder used to look for: a title, a permit number, a serial number, a worker's name and day.
+    const edit = (key: 'submittals' | 'permits' | 'equipment' | 'timeEntries', change: Record<string, unknown>) => {
+      const rows = app.lists[key] as Record<string, unknown>[];
+      const [field, value] = Object.entries(change)[0];
+      for (let i = 0; i < rows.length; i += 1) rows[i] = { ...rows[i], ...change, [field]: `${String(value)} ${i}` };
+    };
+    edit('submittals', { title: 'Retitled by hand' });
+    edit('permits', { permitNumber: 'RENUMBERED' });
+    edit('equipment', { serialNumber: 'NEW-SERIAL' });
+    edit('timeEntries', { workerName: 'Renamed Worker', date: '2020-01-01' });
+    // One record really is missing, so this is "Finish Creating".
+    app.lists.dailyReports = app.lists.dailyReports.slice(1);
+    if ((await demoStatus(job, app.ports)).state !== 'partial') out.push('a job missing one daily report does not read as part way');
+    const before = app.adds();
+    const again = await createDemoJob(job, app.ports, () => {});
+    if (!again.ok || app.adds() - before !== 1) out.push(`finishing made ${app.adds() - before} writes, expected the 1 missing daily report`);
+    const want: [string, number, number][] = [['submittals', app.lists.submittals.length, job.submittals.length], ['permits', app.lists.permits.length, job.permits.length], ['equipment', app.lists.equipment.length, job.equipment.length], ['time entries', app.lists.timeEntries.length, job.timeEntries.length], ['daily reports', app.lists.dailyReports.length, job.dailyReports.length]];
+    for (const [what, got, n] of want) if (got !== n) out.push(`${what}: ${got} after finishing, expected ${n}`);
+    // An edited machine is still the demo's, and still goes when the job is removed.
+    await removeDemoJob(job.project.id, app.ports);
+    if (app.lists.equipment.length || app.lists.timeEntries.length) out.push('an edited machine or shift was left behind by removal');
+    pins(out, src, [
+      ['utils/demoJob/writer.ts', "batchArea(ports, 'submittals', job.submittals, (s) => s.id, (w) => idsOf(w.submittals),", 'submittals are no longer found by id'],
+      ['utils/demoJob/writer.ts', "byId('permits', job.permits,", 'permits are no longer found by id'],
+      ['utils/demoJob/writer.ts', "byId('equipment', job.equipment,", 'equipment is no longer found by id'],
+      ['utils/demoJob/writer.ts', "byId('timeEntries', job.timeEntries,", 'shifts are no longer found by id'],
+      ['hooks/useDemoJobPorts.ts', 'api.addPermit(permit, { id })', 'the permit is not handed the builder\'s id'],
+      ['hooks/useDemoJobPorts.ts', 'api.addEquipment(equip, { id })', 'the machine is not handed the builder\'s id'],
+      ['hooks/useDemoJobPorts.ts', '{ ids: subs.map((s) => s.id) }', 'the submittals are not handed the builder\'s ids'],
+      ['hooks/useTimeEntries.ts', 'id: args.id ?? generateUUID(),', 'a manual shift ignores the id it is handed'],
+      ['contexts/ProjectContext.tsx', 'const newPermit: Permit = { ...permit, id: opts?.id ?? generateUUID(), createdAt: now, updatedAt: now };', 'addPermit ignores the id it is handed'],
+      ['contexts/ProjectContext.tsx', 'const newEquip: Equipment = { ...equip, id: opts?.id ?? generateUUID(), createdAt: now };', 'addEquipment ignores the id it is handed'],
+      ['contexts/ProjectContext.tsx', 'buildSubmittal(subs[i], working, opts?.ids?.[i])', 'addSubmittals ignores the ids it is handed'],
+    ]);
+    return out;
+  } },
+  { id: 'H8', what: 'nothing is offered or written before the project list is read, and a second tap is stopped by a ref', run: async ({ job, src, tweak }) => {
+    const out: string[] = [];
+    const makeFakeApp = () => { const a = makeFakeAppRaw(); tweak?.(a); return a; };
+    const app = makeFakeApp();
+    app.set({ ready: false });
+    const early = await createDemoJob(job, app.ports, () => {});
+    if (early.refused !== 'not_ready' || app.adds() !== 0) out.push('a job was written before the project list was read');
+    app.set({ ready: true });
+    if (!(await createDemoJob(job, app.ports, () => {})).ok) out.push('a job could not be made once the list was read');
+    const screen = codeOf(src['components/demoJob/DemoJobScreen.tsx']);
+    if (/if \(phase !== 'idle'\) return;/.test(screen)) out.push('a second tap is stopped by state, which two taps in one frame both pass');
+    if (count(screen, 'running.current = true;') !== 2 || count(screen, 'running.current = false;') !== 2) out.push('create and remove do not each take and release the one-at-a-time ref');
+    pins(out, src, [
+      ['components/demoJob/DemoJobScreen.tsx', 'const running = useRef(false);', 'the one-at-a-time guard is not a ref'],
+      ['components/demoJob/DemoJobScreen.tsx', 'if (!ready || running.current) return;', 'Create runs before the list is read, or twice'],
+      ['components/demoJob/DemoJobScreen.tsx', 'if (!ready || !named || named.length === 0 || running.current) return;', 'Remove runs before the list is read, or twice'],
+      ['components/demoJob/DemoJobScreen.tsx', 'if (!ready) return;', 'the screen reads the account before the list is read'],
+      ['components/demoJob/DemoJobScreen.tsx', ") : phase === 'checking' ? null : (", 'the buttons are drawn while the screen is still checking'],
+      ['app/demo-job.tsx', 'ready={projectsLoaded}', 'the route does not tell the screen when the project list is read'],
+      ['hooks/useDemoJobPorts.ts', 'ready: () => apiRef.current.projectsLoaded,', 'the ports do not know when the project list is read'],
+      ['utils/demoJob/writer.ts', "if (!ports.ready()) return { ok: false, failures: [], refused: 'not_ready' };", 'the writer creates before the project list is read'],
+    ]);
     return out;
   } },
   // ── I. Owner only ─────────────────────────────────────────────────────────
@@ -803,9 +1047,9 @@ const MUTATIONS: Mut[] = [
   data('E1', 'a toolbox talk sign-in time', (j) => { j.toolboxTalks[0].attendees[0].signedAt = j.clock.at(100, 7); }),
   data('E2', 'weather marked as read from a live source', (j) => { j.dailyReports[4].weather.source = 'openweather'; j.dailyReports[4].weather.isManual = false; }),
   data('E2', 'an OSHA answer on the first-aid note', (j) => { const d = j.dailyReports.find((x) => x.incident)!; d.incident!.oshaRecordable = false; }),
-  data('F1', 'the client portal switched on', (j) => { j.project.clientPortal!.enabled = true; }),
-  data('F1', 'a portal invite', (j) => { j.project.clientPortal!.invites = [{ id: 'i', email: 'dana.placeholder@example.com', name: 'Dana', createdAt: 'x' } as never]; }),
-  data('F1', 'the weekly client digest on', (j) => { j.project.clientPortal!.weeklyDigest = { enabled: true }; }),
+  data('F1', 'the client portal switched on', (j) => { j.project.clientPortal = { enabled: true } as never; }),
+  data('F1', 'portal settings that are off but carry a portal id (the server would mint a live portal key)', (j) => { j.project.clientPortal = { enabled: false, portalId: 'demo-1234abcd', invites: [] } as never; }),
+  data('F1', 'a portal id hidden on another record', (j) => { (j.contract as unknown as { portalId: string }).portalId = 'demo-1234abcd'; }),
   data('F1', 'an insurance expiry date on a sub', (j) => { j.subcontractors[1].coiExpiry = '2027-01-01'; }),
   data('F1', 'an insurance expiry date on a certificate', (j) => { j.cois[0].coverages![0].expiresAt = '2027-01-01'; }),
   data('F1', 'a client email on the project', (j) => { j.project.primaryContact!.email = 'dana.placeholder@example.com'; }),
@@ -835,6 +1079,35 @@ const MUTATIONS: Mut[] = [
   app('H3', 'an app whose queue length cannot be read as full', (a) => { a.ports.queuedWrites = async () => 0; }),
   app('H4', 'an app that will not delete a subcontractor', (a) => { a.ports.actions().deleteSubcontractor = () => undefined; }),
   app('H4', 'an app that keeps the Living Model', (a) => { a.ports.model.remove = async () => undefined; }),
+  text('D3', 'a dropped rename said to nobody', 'contexts/ProjectContext.tsx', 'if (demoRenameDropped(prior, updatesIn, rawUpdates)) showAlert(DEMO_RENAME_KEPT_TITLE, DEMO_RENAME_KEPT_REASON);', ''),
+  data('E3', 'a review cycle with a reviewer and a result and no disclaimer', (j) => { const c = j.submittals.flatMap((x) => x.reviewCycles ?? []).find((x) => x.comments === REVIEW_TYPED_NOTE)!; delete c.comments; }),
+  data('E3', 'a reviewer\'s comment with the disclaimer cut off', (j) => { const c = j.submittals.flatMap((x) => x.reviewCycles ?? []).find((x) => (x.comments ?? '').length > REVIEW_TYPED_NOTE.length)!; c.comments = c.comments!.replace(` ${REVIEW_TYPED_NOTE}`, ''); }),
+  ...SERVER_FENCES.map(([file, needle, , what]) => text('F4', `${what}: fence removed`, file, needle, '/* removed */')),
+  data('F4', 'a demo sub the assistant connector would list', (j) => { j.subcontractors[0].companyName = 'Harbor Earthwork Co.'; }),
+  data('G4', 'a job that is not marked as a demo (the fences must be what keeps it out)', (j) => { j.project.name = 'Harbor Point Mixed-Use'; j.project.leadSource = 'referral'; }),
+  text('H5', 'the builder finds its job by the name as well', 'utils/demoJob/writer.ts', 'return world.projects.filter((p) => isStampedDemoProject(p)).map(', 'return world.projects.filter((p) => isDemoProject(p)).map('),
+  text('H5', 'the stamp test also accepts the name', 'utils/demoJob/marker.ts', 'return !!project && project.leadSource === DEMO_LEAD_SOURCE;', 'return !!project && (project.leadSource === DEMO_LEAD_SOURCE || isDemoProjectName(project.name));'),
+  text('H5', 'removal no longer refuses a job without the stamp', 'utils/demoJob/writer.ts', 'if (project && !isStampedDemoProject(project)) return { ok: false, reason: NOT_THE_BUILDERS_REASON };', ''),
+  text('H5', 'Remove loops over every match it can find', 'components/demoJob/DemoJobScreen.tsx', 'for (const p of named) {', 'for (const p of existingDemoProjects(ports.world())) {'),
+  text('H5', 'a confirmation that names nothing', 'components/demoJob/DemoJobScreen.tsx', "copy.confirmRemoveBody(confirmJobs.length, confirmJobs.map((j) => j.name).join(', '))", 'copy.confirmRemoveBody(1, \'\')'),
+  text('H6', 'the delete is handed this device\'s count again', 'utils/demoJob/writer.ts', 'const res = await ports.actions().deleteProject(projectId);', 'const res = await ports.actions().deleteProject(projectId, { safetyIncidentCount: 0 });'),
+  text('H6', 'the sweep runs with the job still there', 'utils/demoJob/writer.ts', 'if (stillThere()) return { ok: false, reason: STILL_THERE_REASON };', ''),
+  text('H6', 'the port passes the app\'s delete through whole', 'hooks/useDemoJobPorts.ts', 'deleteProject: (id) => api.deleteProject(id),', 'deleteProject: api.deleteProject,'),
+  app('H6', 'an app whose delete is handed a count of zero from the device', (a) => {
+    const del = a.ports.actions().deleteProject as unknown as (id: string, opts?: { safetyIncidentCount?: number }) => Promise<{ ok: true } | { ok: false; reason: string }>;
+    a.ports.actions().deleteProject = (id) => del(id, { safetyIncidentCount: 0 });
+  }),
+  text('H7', 'permits found by their number again', 'utils/demoJob/writer.ts', "byId('permits', job.permits,", "listArea(ports, 'permits', job.permits,"),
+  text('H7', 'the app\'s add ignores the id it is handed', 'contexts/ProjectContext.tsx', 'const newPermit: Permit = { ...permit, id: opts?.id ?? generateUUID(), createdAt: now, updatedAt: now };', 'const newPermit: Permit = { ...permit, id: generateUUID(), createdAt: now, updatedAt: now };'),
+  app('H7', 'an app that gives a permit an id of its own', (a) => {
+    const add = a.ports.actions().addPermit;
+    let n = 0;
+    a.ports.actions().addPermit = (p) => add({ ...p, id: `app-made-${(n += 1)}` });
+  }),
+  text('H8', 'a second tap stopped by state, not a ref', 'components/demoJob/DemoJobScreen.tsx', 'if (!ready || running.current) return;', "if (phase !== 'idle') return;"),
+  text('H8', 'the buttons drawn while still checking', 'components/demoJob/DemoJobScreen.tsx', ") : phase === 'checking' ? null : (", ') : ('),
+  text('H8', 'a route that says the list is always read', 'app/demo-job.tsx', 'ready={projectsLoaded}', 'ready'),
+  app('H8', 'an app that says its list is read when it is not', (a) => { a.ports.ready = () => true; }),
   { rule: 'K1', name: 'a builder that reads the tap day, not the data date', plant: (c) => ({ ...c, build: (day) => { const j = buildDemoJob({ userId: USER, projectId: PID, today: day, contractorName: 'Example Builder' }); j.project.updatedAt = `${day}T12:00:00.000Z`; return j; } }) },
   text('I1', 'the route mounts the builder for anyone', 'app/demo-job.tsx', "if (!user?.id || !demoJobAllowed(user.email)) return <Redirect href=\"/(tabs)/(home)\" />;", 'if (!user?.id) return null;'),
   text('I1', 'the Settings row shown to every owner-section viewer', 'app/(tabs)/settings/index.tsx', '{demoJobAllowed(user?.email) ? (', '{true ? ('),

@@ -103,10 +103,18 @@ server to a few writes a second.
 
 ## The marker
 
-One marker, one helper: `isDemoProject(project)` in `utils/demoJob/marker.ts`.
-A project is the demo when its name starts with `Sample — Demo: ` or its
-`leadSource` is `mage_demo_job` (stamped at creation, synced, on no edit
-screen). No migration, no new column.
+Two tests in `utils/demoJob/marker.ts`, for two different jobs. No migration,
+no new column.
+
+- **Leaving it out** (`isDemoProject`): the name starts with `Sample — Demo: `
+  OR `leadSource` is `mage_demo_job` (stamped at creation, synced, on no edit
+  screen). Loose on purpose: leaving one job too many out of the cost book
+  costs nothing.
+- **Finding, finishing and deleting it** (`isStampedDemoProject`): the stamp
+  ALONE. The builder (`utils/demoJob/writer`) uses nothing else. A job named
+  `Sample — Demo: ...` by hand, or a copy of the demo, is not the builder's: it
+  is not counted, not finished and never deleted, and `removeDemoJob` refuses
+  it by id (rule H5).
 
 The name starts with the app's existing sample prefix on purpose. A sample job
 is already fenced by the app and by the server, and the demo inherits all of it:
@@ -120,11 +128,24 @@ is already fenced by the app and by the server, and the demo inherits all of it:
   labor rates.
 
 The demo job cannot be renamed out of that prefix: `updateProject` drops such
-an edit (`demoSafeUpdates`), because the name is what the fences test.
+an edit (`demoSafeUpdates`), because the name is what the fences test, and
+says so in one sentence ("Name Not Changed", rule D3).
+
+The project carries **no client portal settings at all**. A project row with a
+portal id makes the server mint a live portal key for it
+(`portal_set_access_token`), and the demo must not have a credential (rule F1).
 
 What a sample job cannot do, so the owner cannot try it on the demo: be the
 active job in the desktop job switcher, appear in Ready to Bill, enable the
 client portal, seal the final punch, sync a takeoff to the cloud.
+
+## Who can open it
+
+`utils/demoJob/allowed.ts`: an account in `utils/owner.ts` `OWNER_EMAILS`, and
+only while `DEMO_JOB_BUILDER_ENABLED` is on. That list holds the founder's
+account and the support account, and the repo has no helper that tells the two
+apart, so both can open the builder. Narrowing it to the founder alone needs a
+new "primary owner" rule, which is a decision, not a fix.
 
 ## What the demo is kept out of
 
@@ -143,6 +164,10 @@ pinned by `validate-demo-job` rule G2 with a planted mutation.
 | 1099 export, insurance audit pack | `app/tax-1099-export.tsx`, `app/insurance-audit.tsx` | Demo subs, subcontracts and what is recorded against them are dropped (`utils/demoJob/payees.ts`). |
 | Analytics | `utils/analytics.ts` `track` | Events for a demo project id are dropped, not tagged. The id is registered before the first write. |
 | Geocoder | `contexts/ProjectContext.tsx` | The made-up street is never sent out. Coordinates are stamped at creation. |
+| One Mind (Ask), every prompt and every fallback answer | `utils/oneMind/demoFence.ts`, applied in `components/brain/AskConversation.tsx` (where the bundle is built) and in `utils/oneMind/answer.ts` `askOneMind` (where it is read) | The demo project, every row that names it, its made-up subs and its constraints are dropped. Rule G4 runs it. |
+| Bid advisor margin by job type, type profitability, prediction grading | `utils/judges/typeMargin.ts` `realizedMarginPct` and `aggregateTypeMargin`, `utils/portfolio/typeProfitability.ts` | A demo job has no realized margin and is not a closed job. Rule G4 runs it. |
+| Morning brief email | `supabase/functions/morning-digest/index.ts` | Sample jobs are not briefed and their open RFIs are not counted (rule F4). **Needs a deploy.** |
+| Assistant connector (`mcp`) | `supabase/functions/mcp/index.ts` | Sample jobs are left out of the project list, project names, RFIs, invoices, change orders, the money roll-up and the project count; the demo's "Sample ..." subs are left out of the sub list while the account holds a sample job (rule F4). **Needs a deploy.** |
 | Payroll, labor rates, free plan cap, onboarding steps, Ready to Bill | existing sample rules | By name. |
 | Tape and room-scan learning | none needed | It reads scans on the device, not projects. |
 
@@ -167,31 +192,42 @@ Every kind of record was traced through the app and the migrations:
 - No invoice is overdue on the day the job is made. Application 9 is due about
   two weeks later; the reminder job still skips it by name.
 
-**One thing the builder cannot fence.** `morning-digest` is an opt-in email to
-the account owner himself. It reads his in-progress projects and open RFIs and
-has no sample check, and this lane may not edit edge functions. If his morning
-brief is on, it will mention the demo job until he removes it. The screen says
-so. The fix is one line in `supabase/functions/morning-digest/index.ts`.
+**The morning brief.** `morning-digest` is an opt-in email to the account
+owner himself. It now leaves sample jobs out (see the table above), but only
+once the function is deployed. Until then, if his morning brief is on, it will
+mention the demo job; the screen still says so. Take that sentence
+(`office.demoJob.briefBody`) off the screen after the deploy.
 
 ## Removal
 
-**Remove Demo Job** asks first, then:
+**Remove Demo Job** asks first, naming the job or jobs it will delete and how
+many, then deletes exactly those, each only if it still carries the builder's
+stamp:
 
-1. deletes the project through the app's `deleteProject`. The server cascades
-   its child tables and the app forgets its own copies. If this is refused,
-   nothing else is touched and the reason is shown;
+1. deletes the project through the app's `deleteProject`, handed the id and
+   nothing else, so the app's own check runs: it asks the server (not only this
+   device) whether the job holds a safety record, and refuses when it does or
+   when it cannot ask. If this is refused, or the app says yes and the job is
+   still in its list, **nothing else is touched** and the reason is shown
+   (rule H6);
 2. queues a delete by id for the four project tables the server does not
    cascade (`cois`, `oac_meetings`, `delay_events`, `field_tickets`);
 3. deletes the shifts, the equipment, the crew, the contacts and the
    subcontractors through their own delete functions. They are recognised by
-   ids worked out from the project's id, or by project id, so removal works on
-   any device and never touches a record the owner made;
+   ids worked out from the project's id, or by project id, never by a name, a
+   number or a serial, so removal works on any device and never touches a
+   record the owner made;
 4. removes the Living Model from this device.
 
 Creation is resumable: the screen reads the account, not a note on the device.
 A job that is part way shows **Finish Creating** and **Remove**, and finishing
-adds only what is missing. One demo at a time: Create is not offered while one
-exists.
+adds only what is missing. Every record has an id worked out from the
+project's id; the four kinds whose id the app normally makes (submittals,
+permits, equipment, manual shifts) are handed theirs through a second argument
+of the app's add function, so a record the owner has edited is still found and
+never written twice (rule H7). One demo at a time: Create is not offered while
+one exists, and nothing is offered at all until the app has read its project
+list (rule H8).
 
 What removal cannot take back:
 
@@ -199,6 +235,9 @@ What removal cannot take back:
   not delete a project's files with it;
 - a safety incident the owner adds to the demo by hand: the job then cannot be
   deleted until that incident is (the screen shows the app's own reason);
+- a demo job whose stamp was lost (nothing in the app clears it): the builder
+  no longer sees it, and it is deleted from its own project screen, which
+  leaves its made-up subs, contacts, crew and equipment to delete by hand;
 - records he adds himself to account-level lists while playing (a new sub, a
   new piece of equipment) and anything he sends himself from the job;
 - a Living Model saved on another device for the same job.

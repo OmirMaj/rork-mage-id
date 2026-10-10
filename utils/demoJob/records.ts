@@ -260,24 +260,11 @@ export function buildProject(id: IdOf, clock: DemoClock, userId: string): { proj
     ownerUserId: userId,
     contractMode: 'fixed',
     retainagePercent: RETAINAGE_PERCENT,
-    // Set up, switched OFF, with nobody invited: the portal screen has something to show and nobody can be reached.
-    clientPortal: {
-      enabled: false,
-      portalId: `demo-${id('portal').slice(0, 8)}`,
-      showSchedule: true,
-      showChangeOrders: true,
-      showInvoices: true,
-      showPhotos: true,
-      showBudgetSummary: false,
-      showDailyReports: true,
-      showPunchList: true,
-      showRFIs: false,
-      showDocuments: false,
-      welcomeMessage: 'Made-up demo job. This portal is switched off and nobody has been invited.',
-      invites: [],
-      coApprovalEnabled: false,
-      clientCanSetBudget: false,
-    },
+    // NO CLIENT PORTAL SETTINGS AT ALL. A project row that carries a portal id
+    // makes the server mint a live portal key for it (portal_set_access_token),
+    // and the demo must never have a credential. With nothing here the portal
+    // screen opens in its ordinary "not set up" state, and a sample job cannot
+    // turn the portal on (utils/sampleGuard).
   };
   return { project, schedule: parts };
 }
