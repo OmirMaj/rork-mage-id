@@ -120,6 +120,16 @@ export const EXPECTED_REDIRECTS: ExpectedRedirect[] = [
     states: ['empty', 'populated'],
   },
   {
+    from: '/demo-job',
+    to: '/',
+    why:
+      'The Demo Job builder is for the app owner only (utils/demoJob/allowed: '
+      + 'the owner account AND DEMO_JOB_BUILDER_ENABLED). The test world is not '
+      + 'the app owner, so app/demo-job.tsx redirects to Home before it mounts '
+      + 'anything. This entry stays: the builder is never opened to anyone else.',
+    states: ['empty', 'populated'],
+  },
+  {
     from: '/construction-news',
     to: '/discover',
     why:
