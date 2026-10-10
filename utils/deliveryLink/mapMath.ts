@@ -17,7 +17,9 @@ export interface Point { x: number; y: number }
 export const TILE = 256;
 /** OpenStreetMap's standard tiles stop at 19; a yard next door to the job does not need more than 15. */
 export const MAX_ZOOM = 15;
-export const MIN_ZOOM = 3;
+export const MIN_ZOOM = 2;
+/** Past this many straight-line miles the yard was most likely looked up to the wrong town: no map is drawn. */
+export const MAX_MAP_MILES = 3000;
 /** Web Mercator has no picture past these latitudes. */
 const MAX_LAT = 85.05112878;
 
@@ -49,16 +51,16 @@ export function straightLineMiles(a: LatLng, b: LatLng): number {
   return 3958.8 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** The closest zoom at which both places fit in the picture with `pad` px to spare on every side. */
-export function fitZoom(a: LatLng, b: LatLng, size: Size, pad: number): number {
+/** The closest zoom at which both places fit in the picture with `pad` px to spare on every side, or null when even the widest one does not fit them. */
+export function fitZoom(a: LatLng, b: LatLng, size: Size, pad: number): number | null {
   const w = Math.max(1, size.width - pad * 2);
   const h = Math.max(1, size.height - pad * 2);
-  for (let z = MAX_ZOOM; z > MIN_ZOOM; z--) {
+  for (let z = MAX_ZOOM; z >= MIN_ZOOM; z--) {
     const pa = worldPixel(a, z);
     const pb = worldPixel(b, z);
     if (Math.abs(pa.x - pb.x) <= w && Math.abs(pa.y - pb.y) <= h) return z;
   }
-  return MIN_ZOOM;
+  return null;
 }
 
 /** One map picture: which tile, where its top-left corner goes, and how big it is drawn. */
@@ -75,10 +77,22 @@ export interface MapView {
   tiles: MapTile[];
 }
 
-/** The picture: a zoom, the two ends in picture pixels, and the tiles to draw. Null when either end is not a place or the picture has no size. */
+/** True when a yard and a job are close enough to be one trip on one map. */
+export function isMappablePair(from: LatLng | null | undefined, to: LatLng | null | undefined): boolean {
+  return isPlace(from) && isPlace(to) && straightLineMiles(from, to) <= MAX_MAP_MILES;
+}
+
+/**
+ * The picture: a zoom, the two ends in picture pixels, and the tiles to draw.
+ * Null when either end is not a place, the picture has no size, the two are
+ * more than MAX_MAP_MILES apart, or they do not both fit at the widest zoom:
+ * a map that cannot show both ends is not drawn at all.
+ */
 export function buildMapView(from: LatLng | null | undefined, to: LatLng | null | undefined, size: Size, pad = 44): MapView | null {
   if (!isPlace(from) || !isPlace(to) || !(size.width >= 80) || !(size.height >= 80)) return null;
+  if (!isMappablePair(from, to)) return null;
   const zoom = fitZoom(from, to, size, pad);
+  if (zoom === null) return null;
   const a = worldPixel(from, zoom);
   const b = worldPixel(to, zoom);
   const origin = { x: Math.round((a.x + b.x) / 2 - size.width / 2), y: Math.round((a.y + b.y) / 2 - size.height / 2) };

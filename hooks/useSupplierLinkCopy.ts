@@ -76,6 +76,10 @@ export interface SupplierLinkCopy {
   mapNoteBody: (miles: string) => string;
   mapCreditSub: string;
   mapNoPlaceBody: (from: string) => string;
+  mapYardBody: (matched: string) => string;
+  mapTooFarBody: string;
+  mapTilesBody: string;
+  mapCreditHintSub: string;
   failBody: string;
   refusedBody: string;
   noteFor: (name: string) => string;
@@ -140,8 +144,12 @@ export function useSupplierLinkCopy(): SupplierLinkCopy {
     comingFromLabel: t('office.deliverySupplierLink.comingFromLabel', 'Coming From'),
     yourJobLabel: t('office.deliverySupplierLink.yourJobLabel', 'Your Job'),
     mapNoteBody: (miles) => t('office.deliverySupplierLink.mapNoteBody', 'About {miles} miles in a straight line. The line is not the road. The truck is drawn from the step that was tapped, so this is not where it is.', { miles }),
-    mapCreditSub: t('office.deliverySupplierLink.mapCreditSub', 'Map: OpenStreetMap contributors'),
-    mapNoPlaceBody: (from) => t('office.deliverySupplierLink.mapNoPlaceBody', 'No map: MAGE ID could not find "{from}" on a map, or this job has no address it could place.', { from }),
+    mapCreditSub: t('office.deliverySupplierLink.mapCreditSub', '© OpenStreetMap contributors'),
+    mapNoPlaceBody: (from) => t('office.deliverySupplierLink.mapNoPlaceBody', 'No map: "{from}" could not be found on a map just now, or this job has no address that could be placed.', { from }),
+    mapYardBody: (matched) => t('office.deliverySupplierLink.mapYardBody', 'The yard pin is where a map lookup put the words typed on the link: {matched}. It can be the wrong place.', { matched }),
+    mapTooFarBody: t('office.deliverySupplierLink.mapTooFarBody', 'No map: the two places are too far apart to draw, or the lookup put the yard in the wrong part of the world.'),
+    mapTilesBody: t('office.deliverySupplierLink.mapTilesBody', 'Some of the map did not load. The pins and the line are still in the right place.'),
+    mapCreditHintSub: t('office.deliverySupplierLink.mapCreditHintSub', 'Opens the OpenStreetMap copyright page'),
     failBody: t('office.deliverySupplierLink.failBody', 'That did not go through. Check your connection and try again.'),
     refusedBody: t('office.deliverySupplierLink.refusedBody', 'That was not saved. You may not have the right to do this on this job, or this delivery has not reached the server yet. Try again in a minute.'),
     noteFor: (name) => t('office.deliverySupplierLink.noteFor', 'through the supplier link, typed by {name}', { name }),

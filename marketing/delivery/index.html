@@ -65,6 +65,7 @@
   .trip-in { padding: 0 14px 16px; }
   .trip-who { margin: 8px 14px 4px; overflow-wrap: anywhere; }
   .trip-who:empty { display: none; }
+  .trip-err { margin: 10px 14px 0; }
   .state { margin-top: 26px; padding: 18px 16px; background: var(--sheet); border: 1px solid var(--ink); }
   .state h2 { font: 700 28px/1.05 var(--disp); text-transform: uppercase; }
   .state p { margin-top: 8px; color: var(--ink2); }
@@ -149,10 +150,11 @@
           <button type="button" class="stepbtn" data-step="arrived" aria-pressed="false">Arrived<small>Not yet</small></button>
         </div>
         <p class="say trip-who" id="tripWho"></p>
+        <p class="err trip-err" id="tripErr" role="alert" hidden></p>
         <div class="trip-in" id="tripIn">
           <div class="field"><label for="tFrom">Coming From <span>Optional</span></label><input id="tFrom" name="from" type="text" maxlength="120" placeholder="Yard or town" autocomplete="off" /></div>
           <div class="field"><label for="tName">Your Name</label><input id="tName" name="tripname" type="text" maxlength="80" autocomplete="name" /></div>
-          <p class="err" id="tripErr" role="alert" hidden></p>
+          <button type="button" class="btn ghost" id="saveFrom" hidden>Save Coming From</button>
           <p class="say" id="tripSay"></p>
         </div>
       </div>
@@ -242,11 +244,13 @@
   /* The three taps. A step that has a time is done; the buttons are read from what the server stored. */
   var STEPS = ['loaded', 'on_the_way', 'arrived'];
   var stepBtns = Array.prototype.slice.call(document.querySelectorAll('.stepbtn'));
-  var tripOpen = false, sending = false, armed = null;
+  var tripOpen = false, sending = false, armed = null, lastTrip = null;
   function paintTrip(trip, open) {
     var t = trip && typeof trip === 'object' ? trip : {};
     var at = t.arrived ? 3 : t.on_the_way ? 2 : t.loaded ? 1 : 0;
-    tripOpen = !!open; armed = null;
+    tripOpen = !!open; armed = null; lastTrip = trip && typeof trip === 'object' ? trip : null;
+    // Coming From can be added or corrected once a step has been tapped, without tapping a step that has not happened.
+    $('saveFrom').hidden = !open || at === 0;
     stepBtns.forEach(function (b, i) {
       var when = stampLong(t[STEPS[i]]);
       b.classList.toggle('done', !!when);
@@ -263,39 +267,51 @@
     not_found: 'This link is not active any more. Ask the contractor for a new one.',
     closed: 'This delivery is closed. Nothing more is needed here.',
     name: 'Type your name first, so the contractor knows who tapped.',
-    too_long: 'That name is too long. Shorten it and tap again.',
+    too_long: 'That is too long. Shorten it and try again.',
+    too_many: 'This link has taken as many changes as it can. Call the contractor if something is still wrong.',
     back: 'The load is already past that step.',
     step: 'That did not go through. Try again.'
   };
   function tripFail(msg) { var err = $('tripErr'); err.textContent = msg; err.hidden = false; }
   function busy(on) { sending = on; stepBtns.forEach(function (x) { if (on) x.disabled = true; }); }
+  /* One place sends a step: a tap of a button, or Save Coming From (which sends the step the load is already at). */
+  function sendStep(step) {
+    var name = text($('tName').value, 200);
+    if (name.length < 2) { tripFail(STEP_REASONS.name); $('tName').focus(); return; }
+    busy(true);
+    rpc('delivery_link_step', { p_token: TOKEN, p_step: step, p_name: name, p_from: text($('tFrom').value, 200) || null }).then(function (r) {
+      sending = false;
+      if (r && r.ok === true) { paintTrip(r.trip, true); return; }
+      var reason = r && r.reason;
+      // The page may be out of step with the server (the load moved on, the delivery closed, the link was turned off):
+      // read it again and draw the whole page from the answer. If that read fails, keep what was on the page.
+      rpc('delivery_link_view', { p_token: TOKEN }).then(function (v) {
+        if (v && v.found === true) paint(v); else only('stGone');
+        tripFail(STEP_REASONS[reason] || STEP_REASONS.step);
+      }).catch(function () { paintTrip(lastTrip, tripOpen); tripFail(STEP_REASONS[reason] || STEP_REASONS.step); });
+    }).catch(function (e) {
+      sending = false;
+      paintTrip(lastTrip, tripOpen);
+      tripFail(e && e.status ? STEP_REASONS.step : 'Could not reach the server. Nothing was sent. Check your connection and try again.');
+    });
+  }
   stepBtns.forEach(function (b) {
     b.addEventListener('click', function () {
       if (sending || !tripOpen) return;
       $('tripErr').hidden = true;
       var step = b.getAttribute('data-step');
-      var name = text($('tName').value, 200);
-      if (name.length < 2) { tripFail(STEP_REASONS.name); $('tName').focus(); return; }
       // Arrived cannot be taken back, so it takes two taps.
-      if (step === 'arrived' && armed !== b) { armed = b; b.firstChild.nodeValue = 'Tap Again'; b.querySelector('small').textContent = 'To say it arrived'; return; }
-      busy(true);
-      rpc('delivery_link_step', { p_token: TOKEN, p_step: step, p_name: name, p_from: text($('tFrom').value, 200) || null }).then(function (r) {
-        sending = false;
-        if (r && r.ok === true) { paintTrip(r.trip, true); return; }
-        var reason = r && r.reason;
-        tripFail(STEP_REASONS[reason] || STEP_REASONS.step);
-        // The page was out of step with the server (the load moved on, the delivery closed, the link was turned off): read it again.
-        if (reason === 'back' || reason === 'closed' || reason === 'not_found') {
-          rpc('delivery_link_view', { p_token: TOKEN }).then(function (v) { if (v && v.found === true) { show('tripIn', v.open === true); paintTrip(v.trip, v.open === true); } else only('stGone'); }).catch(function () { paintTrip(null, false); });
-        } else {
-          rpc('delivery_link_view', { p_token: TOKEN }).then(function (v) { paintTrip(v && v.trip, !!(v && v.open === true)); }).catch(function () { stepBtns.forEach(function (x) { x.disabled = false; }); });
-        }
-      }).catch(function (e) {
-        sending = false;
-        tripFail(e && e.status ? STEP_REASONS.step : 'Could not reach the server. Your tap was not sent. Check your connection and try again.');
-        stepBtns.forEach(function (x) { x.disabled = x.classList.contains('done'); });
-      });
+      if (step === 'arrived' && armed !== b) {
+        if (text($('tName').value, 200).length < 2) { tripFail(STEP_REASONS.name); $('tName').focus(); return; }
+        armed = b; b.firstChild.nodeValue = 'Tap Again'; b.querySelector('small').textContent = 'To say it arrived'; return;
+      }
+      sendStep(step);
     });
+  });
+  $('saveFrom').addEventListener('click', function () {
+    if (sending || !tripOpen || !lastTrip) return;
+    $('tripErr').hidden = true;
+    sendStep(lastTrip.arrived ? 'arrived' : lastTrip.on_the_way ? 'on_the_way' : 'loaded');
   });
 
   function paint(v) {
@@ -316,7 +332,7 @@
     // A closed delivery shows what was tapped and asks for nothing more.
     show('tripIn', open);
     paintTrip(v.trip, open);
-    $('tripSay').textContent = 'A tap tells ' + company + ' what you tapped and when. Coming From is only the words you type: it lets them see the trip on a map. It does not share your location, and it does not mark the delivery as received.';
+    $('tripSay').textContent = 'A tap tells ' + company + ' what you tapped and when. Coming From is only the words you type. Their app looks those words up on OpenStreetMap to draw the trip on a map. It does not share your location, and it does not mark the delivery as received.';
     if (!$('tName').value) $('tName').value = text((v.trip && v.trip.name) || (v.reply && v.reply.name), 80);
     if (!$('tFrom').value) $('tFrom').value = text(v.trip && v.trip.from, 120);
     $('formTitle').textContent = v.reply ? 'Send A New Answer' : 'Your Answer';

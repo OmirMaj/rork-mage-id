@@ -30,7 +30,7 @@ import {
   MAX_REPLIES, SHOWN_KEYS, SUPPLIER_LINK_BASE, buildShown, linkMessage, readLinkRow, replyDateDiffers, replyDatePatch,
   replyIsNew, supplierLinkAllowedWith, supplierLinkUrl, tripStop,
 } from '../utils/deliveryLink/core';
-import { buildMapView, fitZoom, isPlace, straightLineMiles, tileUrl, truckPoint, worldPixel } from '../utils/deliveryLink/mapMath';
+import { buildMapView, fitZoom, isMappablePair, isPlace, straightLineMiles, tileUrl, truckPoint, worldPixel } from '../utils/deliveryLink/mapMath';
 import { RECIPIENT_NOTICE_PARTS } from '../utils/recipientNotice';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -132,6 +132,14 @@ ok('no map without two real places or without a size: (0, 0), a missing end and 
 ok('a yard and a job at the same spot still give a picture, at the closest zoom', buildMapView(JOB_PT, JOB_PT, { width: 340, height: 220 })?.zoom === 15);
 ok('a far-apart pair (New York to Los Angeles) zooms out and still fits', (() => { const far = buildMapView(JOB_PT, { latitude: 34.05, longitude: -118.24 }, { width: 340, height: 220 }); return !!far && far.zoom <= 5 && [far.from, far.to].every((p) => p.x >= 0 && p.x <= 340 && p.y >= 0 && p.y <= 220); })());
 
+const PARIS = { latitude: 48.8566, longitude: 2.3522 };
+ok('a yard looked up to the wrong side of the world draws no map: New York to Paris, and a pair across the date line', buildMapView(JOB_PT, PARIS, { width: 340, height: 240 }) === null && !isMappablePair(JOB_PT, PARIS)
+  && buildMapView({ latitude: -17.7, longitude: 178.0 }, { latitude: -13.8, longitude: -171.8 }, { width: 340, height: 240 }) === null);
+ok('two places in range that still cannot both fit a small picture draw no map, never a map with an end outside it', (() => {
+  for (const w of [100, 140, 200, 340, 760]) { const v = buildMapView(JOB_PT, { latitude: 34.05, longitude: -118.24 }, { width: w, height: 240 }); if (v && ![v.from, v.to].every((p) => p.x >= 0 && p.x <= w && p.y >= 0 && p.y <= 240)) return false; }
+  return fitZoom(JOB_PT, { latitude: 61.2, longitude: -149.9 }, { width: 100, height: 100 }, 44) === null;
+})());
+
 // ═══ B. The lane's lines ════════════════════════════════════════════════════
 type Files = Map<string, string>;
 const LANE_CODE = [
@@ -185,7 +193,9 @@ const RULES: Rule[] = [
     for (const file of LANE_CODE) {
       const src = strip(f.get(file)!);
       if (/functions\.invoke|\.rpc\(|\bfetch\(|XMLHttpRequest|sendBeacon/.test(src)) out.push(`${file} calls a server function or the network`);
-      if (/Linking\.|mailto:|sms:|tel:|MailComposer|expo-sms|expo-mail-composer|Notifications\.|schedulePushNotification|notify\(/.test(src)) out.push(`${file} opens a URL, a mail or text composer, or a notification`);
+      // The one URL the lane opens: the map's credit goes to OpenStreetMap's copyright page, as its tile policy asks.
+      const opened = file === MAP ? src.replace("Linking.openURL(OSM_COPYRIGHT)", '').replace(/\bLinking, /, '') : src;
+      if (/Linking\.|mailto:|sms:|tel:|MailComposer|expo-sms|expo-mail-composer|Notifications\.|schedulePushNotification|notify\(/.test(opened)) out.push(`${file} opens a URL, a mail or text composer, or a notification`);
       if (/updateProject|updateSchedule|setSchedule|saveSchedule|proposedTasks|releasedTasks|runCpm|\bschedule\s*:/.test(src)) out.push(`${file} reaches for the schedule`);
       if (/supabaseWrite|offlineQueue/.test(src)) out.push(`${file} writes through the queue itself`);
       if (file !== HOOK && /supabase\b/.test(src)) out.push(`${file} talks to the server (only the one hook may)`);
@@ -314,8 +324,8 @@ const RULES: Rule[] = [
     if ((sql.match(/security definer\s+set search_path = ''/g) ?? []).length !== 2) out.push('a trip function is not SECURITY DEFINER with an empty search_path');
     if (!/if v_want < v_at then\s+return jsonb_build_object\('ok', false, 'reason', 'back'\);/.test(sql)) out.push('a tap can go back');
     if (!/create or replace function public\.delivery_link_step\(p_token uuid, p_step text, p_name text, p_from text default null\)/.test(sql)) out.push('the step function takes something other than a token, a step, a name and the words for Coming From');
-    const written = [...sql.matchAll(/jsonb_build_object\('([a-z_]+)', v_(?:now|name|from)\)/g)].map((m) => m[1]).sort().join(',');
-    if (written !== 'arrived,from,loaded,name,on_the_way') out.push(`the trip is written with the keys ${written}`);
+    const written = [...sql.matchAll(/jsonb_build_object\('([a-z_]+)', v_(?:now|name|from|n \+ 1)\)/g)].map((m) => m[1]).sort().join(',');
+    if (written !== 'arrived,from,loaded,n,name,on_the_way') out.push(`the trip is written with the keys ${written}`);
     if (/\b(gps|coords?|coordinates?|latitude|longitude|lat|lng|lon|geolocation|heading|speed|accuracy)\b/i.test(sql)) out.push('the trip migration names a position');
     const strip = strip_(f.get(STRIP)!);
     if (/useEffect|useState|useQuery|supabase|fetch\(|setInterval|setTimeout|Animated|Location|expo-location/.test(strip)) out.push('the strip has an effect, a timer, an animation, a request or a location');
@@ -333,13 +343,19 @@ const RULES: Rule[] = [
     const out: string[] = [];
     const map = strip(f.get(MAP)!);
     if (/useEffect|useQuery|supabase|\bfetch\(|setInterval|setTimeout|Animated|expo-location|Location\.|geolocation|requestAnimationFrame/.test(map)) out.push('the map has an effect, a timer, an animation, a request of its own or a device location');
-    if (!/<Text style=\{styles\.note\} testID="dsl-map-note">\{copy\.mapNoteBody\(/.test(map)) out.push('the map does not print that the truck is a drawing and the line is not the road');
+    if (!/const note = copy\.mapNoteBody\(/.test(map) || !/<Text style=\{styles\.note\} testID="dsl-map-note">\{note\}<\/Text>/.test(map)) out.push('the map does not print that the truck is a drawing and the line is not the road');
+    if (!/\{matched \? <Text style=\{styles\.note\} testID="dsl-map-yard">\{copy\.mapYardBody\(matched\)\}<\/Text> : null\}/.test(map)) out.push('the map does not say the yard pin is a lookup of typed words');
+    if (!/if \(!isMappablePair\(from, to\) \|\| \(width >= 80 && !view\)\) return <Text[^>]*>\{copy\.mapTooFarBody\}/.test(map)) out.push('two places that cannot be one trip are drawn anyway');
+    if (!/const OSM_COPYRIGHT = 'https:\/\/www\.openstreetmap\.org\/copyright';/.test(map) || !/accessibilityRole="link"/.test(map)) out.push('the credit does not link to the OpenStreetMap copyright page');
+    if (!/headers: TILE_HEADERS/.test(map) || !/onError=\{\(\) => setMissing\(true\)\}/.test(map)) out.push('the tiles are asked for with no name, or a tile that fails is not said');
     if (!/\{copy\.mapCreditSub\}/.test(map)) out.push('the map does not credit OpenStreetMap');
     if (!/truckPoint\(view, stop\)/.test(map)) out.push('the truck is placed by something other than the step that was tapped');
     if (!/if \(!from \|\| !to\) return null;/.test(map)) out.push('the map draws without both ends');
     const math = strip(f.get('utils/deliveryLink/mapMath.ts')!);
     const hosts = [...(map + math).matchAll(/https?:\/\/([a-z0-9.-]+)/g)].map((m) => m[1]);
-    if (hosts.length !== 1 || hosts[0] !== 'tile.openstreetmap.org') out.push(`map pictures come from ${hosts.join(', ') || 'nowhere'}`);
+    const allowed = ['mageid.app', 'tile.openstreetmap.org', 'www.openstreetmap.org'];
+    if ([...new Set(hosts)].sort().join(',') !== allowed.join(',')) out.push(`the map names the hosts ${[...new Set(hosts)].sort().join(', ') || 'none'}`);
+    if (!/return `https:\/\/tile\.openstreetmap\.org\/\$\{t\.z\}\/\$\{t\.x\}\/\$\{t\.y\}\.png`;/.test(math)) out.push('map pictures come from somewhere other than OpenStreetMap');
     if (/import /.test(math)) out.push('the map arithmetic imports something');
     const yard = strip(f.get(YARD)!);
     if (!/await geocodeProjectLocation\(words\)/.test(yard) || /expo-location|Location\.|geolocation|supabase/.test(yard)) out.push('the yard is placed by something other than the typed words and the app\'s address lookup');
@@ -349,7 +365,8 @@ const RULES: Rule[] = [
     const lines = english(f.get(COPY)!).join('\n');
     if (!/The line is not the road\. The truck is drawn from the step that was tapped, so this is not where it is\./.test(lines)) out.push('the map note does not say the line is not the road and the truck is not a position');
     const page = f.get(PAGE)!;
-    if (!/Coming From is only the words you type/.test(page)) out.push('the page does not say Coming From is only typed words');
+    if (!/Coming From is only the words you type\./.test(page)) out.push('the page does not say Coming From is only typed words');
+    if (!/Their app looks those words up on OpenStreetMap to draw the trip on a map\./.test(page)) out.push('the page does not say the typed words go to OpenStreetMap');
     return out;
   } },
   { name: 'the page is routed, kept out of search, and held to the notice by the protections check', run: (f) => {
@@ -437,14 +454,19 @@ const PLANTS: [string, number, string, string, string][] = [
   ['Arrived stops saying it is not Received', 8, STRIP, '{at === 3 ? <Text style={styles.note} testID="dsl-trip-arrived">{copy.tripArrivedBody}</Text> : null}', ''],
   ['the words stop saying MAGE ID does not know where the truck is', 8, COPY, "'Last tapped on the link by someone who gave the name {name}. MAGE ID does not know where the truck is.'", "'Last tapped on the link by someone who gave the name {name}.'"],
   ['the step function takes a position', 8, MIGRATION_TRIP, 'p_name text, p_from text default null)\nreturns jsonb', 'p_name text, p_from text default null, p_lat double precision default null)\nreturns jsonb'],
-  ['the trip stores a position key', 8, MIGRATION_TRIP, "  v_trip := v_trip || jsonb_build_object('name', v_name);", "  v_trip := v_trip || jsonb_build_object('name', v_name) || jsonb_build_object('gps', v_now);"],
+  ['the trip stores a position key', 8, MIGRATION_TRIP, "  v_trip := v_trip || jsonb_build_object('name', v_name) || jsonb_build_object('n', v_n + 1);", "  v_trip := v_trip || jsonb_build_object('name', v_name) || jsonb_build_object('n', v_n + 1) || jsonb_build_object('gps', v_now);"],
   ['the map moves the truck on a timer', 9, MAP, '  const [width, setWidth] = useState(0);', '  const [width, setWidth] = useState(0);\n  useEffect(() => { const id = setInterval(() => {}, 1000); return () => clearInterval(id); }, []);'],
-  ['the map drops its honest note', 9, MAP, '      <Text style={styles.note} testID="dsl-map-note">{copy.mapNoteBody(miles < 10 ? miles.toFixed(1) : String(Math.round(miles)))}</Text>', ''],
+  ['the map drops its honest note', 9, MAP, '      <Text style={styles.note} testID="dsl-map-note">{note}</Text>', ''],
+  ['the map stops saying the yard pin is a lookup', 9, MAP, '{matched ? <Text style={styles.note} testID="dsl-map-yard">{copy.mapYardBody(matched)}</Text> : null}', ''],
+  ['a yard in the wrong part of the world is drawn anyway', 9, MAP, 'if (!isMappablePair(from, to) || (width >= 80 && !view)) return', 'if (false) return'],
+  ['the tiles are asked for with no name', 9, MAP, 'source={{ uri: tileUrl(tile), headers: TILE_HEADERS }}', 'source={{ uri: tileUrl(tile) }}'],
+  ['the map opens some other page', 1, MAP, 'void Linking.openURL(OSM_COPYRIGHT).catch(() => {});', "void Linking.openURL('https://example.com/ad').catch(() => {});"],
   ['the map drops the OpenStreetMap credit', 9, MAP, '{copy.mapCreditSub}', "{''}"],
   ['the map loads pictures from another host', 9, 'utils/deliveryLink/mapMath.ts', 'https://tile.openstreetmap.org/', 'https://tiles.example.com/'],
   ['the yard is placed from the phone\'s own location', 9, YARD, 'const hit = await geocodeProjectLocation(words);', "const hit = await Location.getCurrentPositionAsync({}).then((p) => p.coords);"],
   ['the map note stops saying the truck is not a position', 9, COPY, ' The truck is drawn from the step that was tapped, so this is not where it is.', ''],
-  ['the page stops saying Coming From is only typed words', 9, PAGE, ' Coming From is only the words you type: it lets them see the trip on a map.', ''],
+  ['the page stops saying Coming From is only typed words', 9, PAGE, ' Coming From is only the words you type.', ''],
+  ['the page stops saying the words are looked up on OpenStreetMap', 9, PAGE, ' Their app looks those words up on OpenStreetMap to draw the trip on a map.', ''],
   ['the page asks for the driver\'s location', 6, PAGE, "var STEPS = ['loaded', 'on_the_way', 'arrived'];", "var STEPS = ['loaded', 'on_the_way', 'arrived']; navigator.geolocation.getCurrentPosition(function () {});"],
   ['the page stops saying a tap is not a location', 6, PAGE, ' It does not share your location, and it does not mark the delivery as received.', ''],
   ['the path rule is dropped from _redirects', 10, 'marketing/_redirects', '/delivery/*  /delivery/index.html  200', ''],

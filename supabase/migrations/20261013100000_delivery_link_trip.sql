@@ -11,7 +11,8 @@
 -- WHAT IS ADDED
 --   public.delivery_supplier_links.trip   jsonb object, at most 1,000 bytes, or
 --     NULL. {"loaded": "<when>", "on_the_way": "<when>", "arrived": "<when>",
---     "name": "<who tapped last>", "from": "<where it is coming from>"}.
+--     "name": "<who tapped last>", "from": "<where it is coming from>",
+--     "n": <how many times the trip has been written>}.
 --     "from" is WORDS A PERSON TYPED on the page (a yard, a town), at most 120
 --     characters. It is not a reading from any device: nothing here asks for,
 --     receives or stores a position. Each step's time is written ONCE, the first
@@ -22,7 +23,9 @@
 --       p_from text default null) returns jsonb
 --     SECURITY DEFINER, search_path empty. Returns {"ok": true, "trip": {...}}
 --     or {"ok": false, "reason"} with reason one of: not_found, closed, name,
---     step, too_long, back.
+--     step, too_long, back, too_many.
+--       - A trip is written at most 20 times (three taps and corrections of
+--         Coming From), then refused ('too_many').
 --       - p_step is 'loaded', 'on_the_way' or 'arrived'.
 --       - FORWARD ONLY. A step earlier than one already tapped is refused
 --         ('back'). Tapping the step the load is already at changes nothing and
@@ -62,6 +65,9 @@
 --   (and re-create delivery_link_view from 20261013090000)
 
 alter table public.delivery_supplier_links add column if not exists trip jsonb;
+-- An earlier draft of this file had a three-argument step function. Never applied to production; dropped here so a
+-- database that did run the draft is not left with two overloads (PostgREST cannot choose between them).
+drop function if exists public.delivery_link_step(uuid, text, text);
 alter table public.delivery_supplier_links drop constraint if exists dsl_trip_check;
 alter table public.delivery_supplier_links add constraint dsl_trip_check
   check (trip is null or (jsonb_typeof(trip) = 'object' and octet_length(trip::text) <= 1000));
@@ -110,6 +116,7 @@ declare
   v_trip jsonb;
   v_want int;
   v_at int;
+  v_n int;
 begin
   if p_token is null then
     return jsonb_build_object('ok', false, 'reason', 'not_found');
@@ -142,11 +149,16 @@ begin
     return jsonb_build_object('ok', true, 'trip', v_trip);
   end if;
 
+  v_n := case when (v_trip ->> 'n') ~ '^[0-9]{1,3}$' then (v_trip ->> 'n')::int else 0 end;
+  if v_n >= 20 then
+    return jsonb_build_object('ok', false, 'reason', 'too_many');
+  end if;
+
   -- Each step's time is written once. A step skipped over takes the same time, so there is never a gap.
   if v_want >= 1 and not (v_trip ? 'loaded') then v_trip := v_trip || jsonb_build_object('loaded', v_now); end if;
   if v_want >= 2 and not (v_trip ? 'on_the_way') then v_trip := v_trip || jsonb_build_object('on_the_way', v_now); end if;
   if v_want >= 3 and not (v_trip ? 'arrived') then v_trip := v_trip || jsonb_build_object('arrived', v_now); end if;
-  v_trip := v_trip || jsonb_build_object('name', v_name);
+  v_trip := v_trip || jsonb_build_object('name', v_name) || jsonb_build_object('n', v_n + 1);
   if v_from is not null then v_trip := v_trip || jsonb_build_object('from', v_from); end if;
 
   update public.delivery_supplier_links set trip = v_trip where delivery_id = v_link.delivery_id;

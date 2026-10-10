@@ -14,20 +14,28 @@ import { useQuery } from '@tanstack/react-query';
 import { geocodeProjectLocation } from '@/utils/geocodeProject';
 import { isPlace, type LatLng } from '@/utils/deliveryLink/mapMath';
 
+/** The yard on the map, with the name of the place the lookup matched (so the screen can say which place it took the words to mean). */
+export interface YardPlace extends LatLng { matched: string }
+
 /** `place` is the yard on the map, or null. `looked` is true once the lookup has answered (so "could not find it" is not said while it is still asking). */
-export function useDeliveryYardPlace(comingFrom: string, enabled: boolean): { place: LatLng | null; looked: boolean } {
+export function useDeliveryYardPlace(comingFrom: string, enabled: boolean): { place: YardPlace | null; looked: boolean } {
   const words = comingFrom.trim();
   const query = useQuery({
     queryKey: ['delivery-yard-place', words.toLowerCase()],
-    queryFn: async (): Promise<LatLng | null> => {
+    queryFn: async (): Promise<YardPlace | null> => {
       const hit = await geocodeProjectLocation(words);
-      return hit && isPlace(hit) ? { latitude: hit.latitude, longitude: hit.longitude } : null;
+      if (!hit || !isPlace(hit)) return null;
+      // The first three parts of the matched name: "Red Hook, Brooklyn, Kings County".
+      const matched = (hit.displayName ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 3).join(', ');
+      return { latitude: hit.latitude, longitude: hit.longitude, matched };
     },
     enabled: enabled && words.length >= 3,
-    staleTime: 24 * 60 * 60 * 1000,
+    // A place that was found is kept for the day. "Nothing found" is asked again after a minute: the lookup
+    // gives the same empty answer for no signal as for words it cannot place.
+    staleTime: (q) => (q.state.data ? 24 * 60 * 60 * 1000 : 60 * 1000),
     retry: false,
   });
-  return { place: query.data ?? null, looked: query.isSuccess || query.isError };
+  return { place: query.data ?? null, looked: words.length < 3 || query.isSuccess || query.isError };
 }
 
 export default useDeliveryYardPlace;

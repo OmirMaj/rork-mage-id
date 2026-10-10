@@ -198,7 +198,7 @@ export function SupplierLinkSection({
       )}
 
       {yard.place && job ? (
-        <TruckRouteMap from={yard.place} to={job} stop={tripStop(link.trip)} fromLabel={comingFrom} toLabel={copy.yourJobLabel} copy={copy} styles={styles} />
+        <TruckRouteMap from={yard.place} to={job} stop={tripStop(link.trip)} fromLabel={comingFrom} toLabel={copy.yourJobLabel} matched={yard.place.matched} copy={copy} styles={styles} />
       ) : comingFrom && (yard.looked || !job) ? (
         <Text style={styles.note} testID="dsl-map-none">{copy.mapNoPlaceBody(comingFrom)}</Text>
       ) : null}

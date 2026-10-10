@@ -27,6 +27,7 @@ if (process.argv[3] === '--all') {
     10: ['3'],       // the view does not return the trip
     11: ['13'],      // Coming From is not cleaned or capped
     12: ['13b'],     // Coming From can be left off a later tap and is then erased
+    13: ['14'],      // the cap on writes removed: Coming From can be rewritten for ever
   });
 }
 
@@ -49,6 +50,7 @@ switch (MUTATE) {
   case 10: rep("    'reply', v_link.reply,\n    'trip', v_link.trip", "    'reply', v_link.reply"); break;
   case 11: rep("  v_from text := nullif(btrim(regexp_replace(coalesce(p_from, ''), '[[:cntrl:][:space:]]+', ' ', 'g')), '');", "  v_from text := nullif(p_from, '');"); rep(" or char_length(coalesce(v_from, '')) > 120 then", ' then'); break;
   case 12: rep("  if v_from is not null then v_trip := v_trip || jsonb_build_object('from', v_from); end if;", "  v_trip := (v_trip - 'from') || jsonb_strip_nulls(jsonb_build_object('from', v_from));"); break;
+  case 13: rep("  if v_n >= 20 then\n    return jsonb_build_object('ok', false, 'reason', 'too_many');\n  end if;", ''); break;
   default: console.error('unknown MUTATE'); process.exit(2);
 }
 if (MUTATE) console.log(`(planted mutation M${MUTATE} applied)`);
@@ -165,7 +167,13 @@ ok('11 both functions are SECURITY DEFINER with an empty search_path, callable b
   const t5b = (await rows(`select trip from public.delivery_supplier_links where delivery_id = '${D(5)}'`))[0]?.trip;
   ok('13b a later tap without Coming From keeps it, and a tap at the same step can correct it', later.rows?.[0]?.r?.trip?.from === 'Sample Stone Yard, Red Hook, Brooklyn' && fixed.rows?.[0]?.r?.ok === true && t5b?.from === 'Sample Stone Yard, Gowanus, Brooklyn' && !!t5b?.on_the_way && !('arrived' in t5b), JSON.stringify([later.rows?.[0]?.r, t5b]));
   const keys = Object.keys(t5b ?? {}).sort().join(',');
-  ok('13c the trip holds the three times, a name and Coming From, and no other key: no position of any kind', keys === 'from,loaded,name,on_the_way', keys);
+  ok('13c the trip holds the times, a name, Coming From and a count of writes, and no other key: no position of any kind', keys === 'from,loaded,n,name,on_the_way', keys);
+  let lastWrite = null;
+  for (let i = 0; i < 25; i++) lastWrite = await call(`'on_the_way', 'Lee', 'Yard number ${i}'`);
+  const t5c = (await rows(`select trip from public.delivery_supplier_links where delivery_id = '${D(5)}'`))[0]?.trip;
+  ok('14 a trip is written at most 20 times, then refused', lastWrite.rows?.[0]?.r?.reason === 'too_many' && t5c?.n === 20, JSON.stringify([lastWrite.rows?.[0]?.r, t5c?.n]));
+  const overloads = (await rows(`select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace where ns.nspname = 'public' and p.proname = 'delivery_link_step'`))[0].n;
+  ok('15 there is one step function, not two overloads', overloads === 1, String(overloads));
 }
 
 const big = await tryRun('service_role', `update public.delivery_supplier_links set trip = jsonb_build_object('name', repeat('x', 1200)) where delivery_id = '${D(4)}'`);
