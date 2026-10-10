@@ -50,7 +50,7 @@ import type { Delivery } from '../utils/deliverySchedule';
 import { runCpm } from '../utils/cpm';
 import { buildSchedulePreviewOverlay } from '../utils/schedulePreviewOverlay';
 import { slipDays, computeSupplierScorecards } from '../utils/supplierScorecard';
-import { isWorkedDay, stepWorkingDays, workingDaysFromTo, stepCalendarDays, compareDays } from '../utils/deliveries/calendar';
+import { isWorkedDay, stepWorkingDays, workingDaysFromTo, stepCalendarDays } from '../utils/deliveries/calendar';
 import { DEFAULT_BUFFER_WORKING_DAYS, bufferDaysOf, neededByForStart, neededOnSiteBy, scheduleDays, type ScheduleForDeliveries } from '../utils/deliveries/neededBy';
 import { flagsFor, scheduleMovedFlag, supplierGap, supplierLateFlag, toReviewCount } from '../utils/deliveries/flags';
 import { proposedTasks, supplierJobEffect } from '../utils/deliveries/jobEffect';

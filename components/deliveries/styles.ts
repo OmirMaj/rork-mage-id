@@ -20,7 +20,7 @@ export const makeDeliveriesFollowStyles = (t: ThemeColors) => StyleSheet.create(
 
   card: { backgroundColor: t.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line, padding: 14, gap: 4 },
   cardHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
-  iconTile: { width: 34, height: 34, borderRadius: 9, borderWidth: 1, borderColor: t.accent + '55', alignItems: 'center' as const, justifyContent: 'center' as const },
+  iconTile: { width: 34, height: 34, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: t.accent + '55', alignItems: 'center' as const, justifyContent: 'center' as const },
   cardTitles: { flex: 1 },
   cardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
   cardMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1 },
@@ -94,9 +94,9 @@ export const makeDeliveriesFollowStyles = (t: ThemeColors) => StyleSheet.create(
   barHead: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, gap: 8 },
   barTitle: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
   barDelta: { fontSize: Type.caption2.fontSize, color: t.textMuted },
-  barTrack: { height: 12, borderRadius: 3, backgroundColor: t.surfaceAlt, marginTop: 4 },
-  barWas: { position: 'absolute' as const, top: 1, height: 10, borderRadius: 2, borderWidth: 1, borderStyle: 'dashed' as const, borderColor: t.textMuted },
-  barNow: { position: 'absolute' as const, top: 1, height: 10, borderRadius: 2 },
+  barTrack: { height: 12, borderRadius: Tokens.radius.xs, backgroundColor: t.surfaceAlt, marginTop: 4 },
+  barWas: { position: 'absolute' as const, top: 1, height: 10, borderRadius: Tokens.radius.xs, borderWidth: 1, borderStyle: 'dashed' as const, borderColor: t.textMuted },
+  barNow: { position: 'absolute' as const, top: 1, height: 10, borderRadius: Tokens.radius.xs },
 
   historyRow: { paddingVertical: 6, borderTopWidth: 1, borderTopColor: t.line },
   historyText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
