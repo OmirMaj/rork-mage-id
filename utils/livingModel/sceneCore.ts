@@ -36,6 +36,8 @@ export interface BoxBuf {
 }
 
 export interface TriBuf { p: number[]; n: number[] }
+/** Flat shapes that carry a place on a picture as well: u, v per corner. */
+export interface UvBuf { p: number[]; n: number[]; uv: number[] }
 
 export interface RoomGeometry {
   roomId: string;
@@ -54,6 +56,12 @@ export interface RoomGeometry {
   /** Baseboard and door leaves. */
   trim: BoxBuf;
   glass: BoxBuf;
+  /** A lid on the top of every solid stretch of wall, a sill under each window and a lining on each door's two jambs: the wall reads as a thick thing with a top, not two sheets. */
+  cap: BoxBuf;
+  /** A second, narrower lid lying on `cap`, set in from each face of the wall by `lidInsetM`. Empty when that is 0. Game Style draws `cap` dark and this pale, so a wall's top is pale with a dark line down each side. */
+  lid: BoxBuf;
+  /** A frame round each window the model has: two jambs, a sill and (where the cut leaves it) a head. Nothing is drawn where the model has no window. */
+  frames: BoxBuf;
 }
 
 export type Rgb = readonly [number, number, number];
@@ -64,6 +72,13 @@ export interface SceneOptions {
   pipeCold: Rgb;
   pipeHot: Rgb;
   pipeDrain: Rgb;
+  /** How thick every wall is drawn. WALL_T when left out; a look may draw them chunkier (utils/livingModel/looks.ts). */
+  wallT: number;
+  /** Half the width of a stud on the wall, and the gap from one stud to the next. */
+  studHalf: number;
+  studGap: number;
+  /** How far the pale lid is set in from each face of the wall. 0 draws none. */
+  lidInsetM: number;
 }
 
 const newBuf = (): BoxBuf => ({ p: [], n: [], c: [], boxes: 0 });
@@ -122,12 +137,87 @@ export const FLOOR_BAND_TOP_M = 0.02;
  * room's stage colour (utils/livingModel/looks.ts), so the stage reads while the floor keeps its material. Each box
  * stops a wall's thickness short of the corner, so it never pokes through the next wall.
  */
-export function buildFloorBand(room: PlacedRoom, widthM: number): BoxBuf {
+export function buildFloorBand(room: PlacedRoom, widthM: number, wallT: number = WALL_T): BoxBuf {
   const B = newBuf();
   const w = Number.isFinite(widthM) && widthM > 0 ? widthM : 0;
   if (!w) return B;
-  for (const wall of worldWalls(room)) wallBox(B, wall, WALL_T, wall.lengthM - WALL_T, 0.004, FLOOR_BAND_TOP_M, WALL_T + w / 2, w / 2);
+  const T = Number.isFinite(wallT) && wallT > 0 ? wallT : WALL_T;
+  for (const wall of worldWalls(room)) wallBox(B, wall, T, wall.lengthM - T, 0.004, FLOOR_BAND_TOP_M, T + w / 2, w / 2);
   return B;
+}
+
+/**
+ * THE INK ROUND A ROOM'S WALLS (Game Style). One box per solid stretch of wall, larger than the wall and its lid by
+ * `inkM` on every side but the bottom. Drawn inside out in the ink colour, only the rim that sticks out past the wall
+ * shows: a dark line of even width along the top, the ends and each door and window, with no line drawn by hand.
+ * Returns nothing for a width that is not a positive number.
+ */
+export function buildRoomInk(room: PlacedRoom, inkM: number, options: Partial<SceneOptions> = {}): BoxBuf {
+  const B = newBuf();
+  const e = Number.isFinite(inkM) && inkM > 0 ? inkM : 0;
+  if (!e) return B;
+  const o: SceneOptions = { ...DEFAULT_SCENE_OPTIONS, ...options };
+  const { T } = measures(o);
+  const full = roomHeightM(room) || 2.44;
+  const H = o.cutHeightM != null ? Math.min(full, o.cutHeightM) : full;
+  for (const w of worldWalls(room)) {
+    const wallH = Math.min(H, w.heightM > 0 ? w.heightM : H);
+    if (w.lengthM <= 0 || wallH <= 0) continue;
+    wallSpans(w.openings, w.lengthM, wallH, 1000, (s0, s1, y0, y1) => { if (y0 === 0) wallBox(B, w, s0 - e, s1 + e, 0, y1 + CAP_H + LID_H + e, T / 2, T / 2 + e); });
+  }
+  return B;
+}
+
+/**
+ * THE SHADE WHERE A WALL MEETS THE FLOOR (Realistic). A flat strip on the floor along the foot of each wall, `widthM`
+ * wide, skipping the doors. Its v runs 0 at the wall to 1 at its open edge, so a picture that fades along v is dark in
+ * the corner and gone a step into the room. Two strips cross in a corner, which is darker, as a real corner is.
+ */
+export function buildWallShade(room: PlacedRoom, widthM: number, wallT: number = WALL_T): UvBuf {
+  const B: UvBuf = { p: [], n: [], uv: [] };
+  const wd = Number.isFinite(widthM) && widthM > 0 ? widthM : 0;
+  if (!wd) return B;
+  const T = Number.isFinite(wallT) && wallT > 0 ? wallT : WALL_T;
+  // Just over the floor and under the band of stage colour, which covers it where the two meet.
+  const y = 0.008;
+  for (const w of worldWalls(room)) {
+    const L = w.lengthM;
+    if (L <= T * 2) continue;
+    const ux = (w.b.x - w.a.x) / L;
+    const uz = (w.b.y - w.a.y) / L;
+    wallSpans(w.openings.filter((h) => h.y0 <= 0), L, 1, 1000, (s0, s1, y0) => {
+      if (y0 !== 0) return;
+      const a = Math.max(s0, T);
+      const b = Math.min(s1, L - T);
+      if (b - a < 0.02) return;
+      const at = (sv: number, d: number): [number, number, number] => [w.a.x + ux * sv + w.inward.x * d, y, w.a.y + uz * sv + w.inward.y * d];
+      const q = [at(a, T), at(b, T), at(b, T + wd), at(a, T + wd)];
+      const v = [0, 0, 1, 1];
+      // Wound so the strip looks up, whichever way the wall runs.
+      const up = (q[1][2] - q[0][2]) * (q[2][0] - q[0][0]) - (q[1][0] - q[0][0]) * (q[2][2] - q[0][2]);
+      for (const i of up >= 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]) { B.p.push(q[i][0], q[i][1], q[i][2]); B.n.push(0, 1, 0); B.uv.push(i === 1 || i === 2 ? 1 : 0, v[i]); }
+    });
+  }
+  return B;
+}
+
+/**
+ * Where each corner of a shape sits on a picture laid over it by the metre: a face that looks up or down takes its
+ * place from the plan (x, z); a wall face takes the way along it and the height. `perMetre` is how many pictures fit
+ * in a metre. So a floor's boards and a slab's speckle keep one size on every room, whatever its shape.
+ */
+export function planarUV(p: readonly number[], n: readonly number[], perMetre: number): number[] {
+  const k = Number.isFinite(perMetre) && perMetre > 0 ? perMetre : 1;
+  const uv: number[] = [];
+  for (let i = 0; i + 2 < p.length; i += 3) {
+    const ax = Math.abs(n[i]);
+    const ay = Math.abs(n[i + 1]);
+    const az = Math.abs(n[i + 2]);
+    if (ay >= ax && ay >= az) uv.push(p[i] * k, p[i + 2] * k);
+    else if (ax >= az) uv.push(p[i + 2] * k, p[i + 1] * k);
+    else uv.push(p[i] * k, p[i + 1] * k);
+  }
+  return uv;
 }
 
 /** Walk a wall and call back for every solid piece, skipping the doors and windows. Pieces are at most `step` long. */
@@ -186,7 +276,24 @@ export const DEFAULT_SCENE_OPTIONS: SceneOptions = {
   pipeCold: [0.18, 0.5, 0.72],
   pipeHot: [0.77, 0.33, 0.23],
   pipeDrain: [0.36, 0.42, 0.45],
+  wallT: WALL_T,
+  studHalf: 0.019,
+  studGap: STUD_GAP,
+  lidInsetM: 0,
 };
+
+/** The lid on a wall is this thick, and a window's frame this wide. */
+export const CAP_H = 0.03;
+export const LID_H = 0.012;
+/** The plate that closes the end of a wall, and lines a door's jamb. */
+export const END_T = 0.014;
+export const FRAME_W = 0.05;
+
+/** A look's wall measures, kept inside what draws sensibly: a wall from WALL_T to 0.3 m thick, a stud from 19 to 60 mm half-wide, studs from 0.3 to 1.2 m apart. */
+function measures(o: SceneOptions): { T: number; studHalf: number; studGap: number } {
+  const num = (v: number, lo: number, hi: number, d: number) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
+  return { T: num(o.wallT, WALL_T, 0.3, WALL_T), studHalf: num(o.studHalf, 0.019, 0.06, 0.019), studGap: num(o.studGap, 0.3, 1.2, STUD_GAP) };
+}
 
 /** The shapes for one room. */
 export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOptions> = {}): RoomGeometry {
@@ -194,7 +301,7 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
   const full = roomHeightM(room) || 2.44;
   const H = o.cutHeightM != null ? Math.min(full, o.cutHeightM) : full;
   const walls = worldWalls(room);
-  const T = WALL_T;
+  const { T, studHalf: SH, studGap: SG } = measures(o);
 
   // floor
   const floorPts = worldFloor(room);
@@ -217,6 +324,10 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
   const insulation = newBuf();
   const trim = newBuf();
   const glass = newBuf();
+  const cap = newBuf();
+  const lid = newBuf();
+  const frames = newBuf();
+  const inset = Number.isFinite(o.lidInsetM) && o.lidInsetM > 0 ? Math.min(o.lidInsetM, T / 2 - 0.01) : 0;
 
   // The longest wall; of two the same length, the one nearest the top left of the plan (the far side in the default view).
   const corner = (w: WorldWall): number => w.a.x + w.b.x + w.a.y + w.b.y;
@@ -233,14 +344,18 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
     // The far face, always there, and the room-side surface, in pieces, each with holes for the doors and windows.
     wallSpans(op, L, wallH, 2.4, (s0, s1, y0, y1) => wallBox(shell, w, s0, s1, y0, y1, SHELL_T / 2, SHELL_T / 2));
     wallSpans(op, L, wallH, 1.2, (s0, s1, y0, y1) => wallBox(skin, w, s0, s1, y0, y1, T - SKIN_T / 2, SKIN_T / 2));
+    // Each end of the wall is closed with a thin plate, so its inside never shows from the side at a corner.
+    if (L > END_T * 4) { wallBox(shell, w, 0, END_T, 0, wallH, T / 2, T / 2); wallBox(shell, w, L - END_T, L, 0, wallH, T / 2, T / 2); }
 
     // The frame: a bottom plate, studs, and the framing round each opening.
     wallSpans(op, L, 0.04, 2.4, (s0, s1, y0) => { if (y0 === 0) wallBox(studs, w, s0, s1, 0, 0.04, T / 2, T / 2 - 0.018); });
-    for (let s = 0.02; s < L; s += STUD_GAP) {
+    // A fat stud starts a little further in, so it never pokes out past the corner.
+    const firstStud = SH > 0.02 ? SH + END_T : 0.02;
+    for (let s = firstStud; s < L - (SH > 0.02 ? SH : 0); s += SG) {
       const hole = holeAt(op, s);
       let top = wallH;
       if (hole) { if (hole.y0 <= 0) continue; top = Math.min(hole.y0, wallH); }
-      wallBox(studs, w, s - 0.019, s + 0.019, 0.04, top - 0.01, T / 2, T / 2 - 0.018);
+      wallBox(studs, w, s - SH, s + SH, 0.04, top - 0.01, T / 2, T / 2 - 0.018);
     }
     for (const h of op) {
       wallBox(studs, w, h.s0 - 0.045, h.s0 - 0.005, 0.04, wallH - 0.01, T / 2, T / 2 - 0.018);
@@ -277,9 +392,10 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
     }
 
     // Batts between the studs.
-    for (let s = 0.045; s < L - 0.06; s += STUD_GAP) {
-      const e = Math.min(L - 0.02, s + STUD_GAP - 0.05);
-      const hole = holeAt(op, (s + e) / 2);
+    for (let s = firstStud + SH + 0.006; s < L - 0.06; s += SG) {
+      const e = Math.min(L - 0.02, s + SG - SH * 2 - 0.012);
+      // A batt that would reach into a door is left out; one under a window stops at the sill.
+      const hole = holeAt(op, (s + e) / 2) ?? op.find((h) => h.s0 < e && h.s1 > s) ?? null;
       let top = wallH;
       if (hole) { if (hole.y0 <= 0) continue; top = Math.min(hole.y0, wallH); }
       wallBox(insulation, w, s, e, 0.04, top, T * 0.42, T * 0.24);
@@ -287,12 +403,28 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
 
     // Baseboard, skipping doors. A door leaf standing a little open.
     wallSpans(op, L, 0.1, 1.2, (s0, s1, y0) => { if (y0 === 0 && !holeAt(op, (s0 + s1) / 2)) wallBox(trim, w, s0, s1, 0, 0.1, T + 0.011, 0.011); });
+    // The lid: on every stretch that reaches the top of the wall as drawn, and on the sill under a window.
+    wallSpans(op, L, wallH, 1.2, (s0, s1, _y0, y1) => {
+      wallBox(cap, w, s0, s1, y1, y1 + CAP_H, T / 2, T / 2);
+      if (inset > 0) wallBox(lid, w, s0 <= 0 ? inset : s0, s1 >= L ? L - inset : s1, y1 + CAP_H, y1 + CAP_H + LID_H, T / 2, T / 2 - inset);
+    });
     for (const h of op) {
       if (h.kind === 'window') {
-        if (h.y0 < wallH) wallBox(glass, w, h.s0, h.s1, h.y0, Math.min(wallH, h.y1), T / 2, 0.01);
+        if (h.y0 < wallH) {
+          const top = Math.min(wallH, h.y1);
+          wallBox(glass, w, h.s0, h.s1, h.y0, top, T / 2, 0.01);
+          wallBox(frames, w, h.s0, h.s0 + FRAME_W, h.y0 + CAP_H, top, T / 2, T / 2 + 0.012);
+          wallBox(frames, w, h.s1 - FRAME_W, h.s1, h.y0 + CAP_H, top, T / 2, T / 2 + 0.012);
+          wallBox(frames, w, h.s0, h.s1, h.y0 + CAP_H, h.y0 + CAP_H + FRAME_W, T / 2, T / 2 + 0.012);
+          if (h.y1 <= wallH) wallBox(frames, w, h.s0, h.s1, h.y1 - FRAME_W, h.y1, T / 2, T / 2 + 0.012);
+        }
         continue;
       }
       if (h.kind !== 'door') continue;
+      // A door's two jambs are lined with the wall's lid, so a closed wall is closed at its doors too.
+      const jambTop = Math.min(h.y1, wallH);
+      wallBox(cap, w, h.s0 - END_T, h.s0, 0, jambTop, T / 2, T / 2);
+      wallBox(cap, w, h.s1, h.s1 + END_T, 0, jambTop, T / 2, T / 2);
       const ux = (w.b.x - w.a.x) / L;
       const uz = (w.b.y - w.a.y) / L;
       const ang = 1.05;
@@ -307,7 +439,7 @@ export function buildRoomGeometry(room: PlacedRoom, options: Partial<SceneOption
   }
 
   const c = roomCentre(room) ?? { x: 0, y: 0 };
-  return { roomId: room.id, heightM: H, centre: { x: c.x, z: c.y }, floor, shell, skin, studs, pipes, wires, insulation, trim, glass };
+  return { roomId: room.id, heightM: H, centre: { x: c.x, z: c.y }, floor, shell, skin, studs, pipes, wires, insulation, trim, glass, cap, lid, frames };
 }
 
 /**

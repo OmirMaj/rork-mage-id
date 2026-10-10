@@ -18,8 +18,8 @@
 // TWO LOOKS. Under the 3D view a switch picks Realistic or Game Style
 // (utils/livingModel/looks.ts), on the web and on the phone. The choice is
 // kept on this device (utils/livingModel/lookStore.ts) and read when the
-// screen opens, before Job Replay is on the glass. Game Style is the look the
-// view has always had and is what a device that never chose sees.
+// screen opens, before Job Replay is on the glass. Game Style is the default:
+// what a device that never chose sees.
 //
 // The model is SAVED ON THIS DEVICE FIRST (utils/livingModel/storeCore), at
 // every change, and then to the person's account when it can be

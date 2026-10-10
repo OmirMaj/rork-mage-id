@@ -30,7 +30,9 @@
 //            thirds of the view and scaled back up, so it has 2 pixels a point.
 //            A look (Realistic or Game Style) may spend only what
 //            utils/livingModel/looks.lookCost allows this phone at this
-//            quality: at Standard, Realistic keeps the shading Game Style uses.
+//            quality: at Standard both looks keep the flat shading; High adds
+//            Game Style's three steps of light, or Realistic's rough and
+//            smooth surfaces and grains.
 //   The page while a finger is on the model the page behind is told to hold
 //            still (onHold): an iPhone's scrolling page would otherwise take
 //            an up-and-down drag for itself. The page scrolls from anywhere

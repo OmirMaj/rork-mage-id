@@ -71,16 +71,16 @@ jest.mock('expo-gl', () => {
 
 jest.mock('three', () => ({ WebGLRenderer: function WebGLRenderer() { /* never constructed: the scene builder is faked */ } }));
 
-interface MockScene { canvas: { getContext: (n: string) => unknown }; log: string[]; disposed: boolean; opts: Record<string, unknown> | undefined; cost: Record<string, boolean> | null }
+interface MockScene { canvas: { getContext: (n: string) => unknown }; log: string[]; disposed: boolean; opts: Record<string, unknown> | undefined; cost: Record<string, boolean | string> | null; look: string | null }
 const mockScenes: MockScene[] = [];
 let mockStartThrows = false;
 let mockRenderThrows = false;
 jest.mock('@/components/livingModel/threeScene', () => ({
   DEFAULT_VIEW: { azimuth: 0.72, elevation: 0.9 },
-  createJobScene: (_three: unknown, canvas: MockScene['canvas'], palette: { finish?: { cost: Record<string, boolean> } } | null, opts?: Record<string, unknown>) => {
+  createJobScene: (_three: unknown, canvas: MockScene['canvas'], palette: { finish?: { look: string; cost: Record<string, boolean | string> } } | null, opts?: Record<string, unknown>) => {
     if (mockStartThrows) throw new Error('no context');
-    // A palette with no finish is Game Style, the look the view has always drawn.
-    const rec: MockScene = { canvas, log: [], disposed: false, opts, cost: palette?.finish?.cost ?? null };
+    // The palette says which look, and what this phone may spend on it at this quality.
+    const rec: MockScene = { canvas, log: [], disposed: false, opts, cost: palette?.finish?.cost ?? null, look: palette?.finish?.look ?? null };
     mockScenes.push(rec);
     return {
       setRooms: (list: unknown[], cut: number | null) => { rec.log.push(`rooms ${list.length} ${cut == null ? 'full' : 'cut'}`); },
@@ -324,7 +324,7 @@ describe('the phone 3D view on a build with the engine', () => {
     expect(surface.transform).toEqual([{ translateX: 0 }, { translateY: 0 }, { scale: 1 }]);
   });
 
-  it('10b a new look is a new drawing surface: Realistic at Standard keeps the flat shading, High adds the surfaces, and no phone makes the sky dome', async () => {
+  it('10b a new look is a new drawing surface: at Standard both looks keep the flat shading, High adds the three steps or the surfaces and grains, and no phone makes the sky dome', async () => {
     const { view, props } = await mount();
     await refresh();
     const relaid = async () => {
@@ -333,27 +333,30 @@ describe('the phone 3D view on a build with the engine', () => {
       await settle();
       await refresh();
     };
-    // No look given: Game Style, with nothing new asked of the phone.
+    // No look given: Game Style, flat at Standard, with its dark lines and the tile's shadow.
     expect(mockScenes).toHaveLength(1);
-    expect(mockScenes[0].cost).toBeNull();
+    expect(mockScenes[0].look).toBe('game');
+    expect(mockScenes[0].cost).toEqual({ shading: 'flat', shadows: true, skyDome: false, groundPatch: true, textures: false, outlines: true, wallShade: false });
     view.rerender(<JobReplay3D {...props} look="realistic" />);
     await relaid();
     expect(mockScenes).toHaveLength(2);
     expect(mockScenes[0].disposed).toBe(true);
-    expect(mockScenes[1].cost).toEqual({ surfaces: false, shadows: true, skyDome: false, groundPatch: true });
+    expect(mockScenes[1].look).toBe('realistic');
+    expect(mockScenes[1].cost).toEqual({ shading: 'flat', shadows: true, skyDome: false, groundPatch: true, textures: false, outlines: false, wallShade: true });
     // The shadow map is still the quality's own.
     expect(mockScenes[1].opts).toMatchObject({ shadowMapSize: 1024 });
     view.rerender(<JobReplay3D {...props} look="realistic" quality="high" />);
     await relaid();
     expect(mockScenes).toHaveLength(3);
     expect(mockScenes[1].disposed).toBe(true);
-    expect(mockScenes[2].cost).toEqual({ surfaces: true, shadows: true, skyDome: false, groundPatch: true });
+    expect(mockScenes[2].cost).toEqual({ shading: 'surface', shadows: true, skyDome: false, groundPatch: true, textures: true, outlines: false, wallShade: true });
     expect(mockScenes[2].opts).toMatchObject({ shadowMapSize: 2048 });
     view.rerender(<JobReplay3D {...props} look="game" quality="high" />);
     await relaid();
     expect(mockScenes).toHaveLength(4);
     expect(mockScenes[2].disposed).toBe(true);
-    expect(mockScenes[3].cost).toBeNull();
+    expect(mockScenes[3].look).toBe('game');
+    expect(mockScenes[3].cost).toEqual({ shading: 'toon', shadows: true, skyDome: false, groundPatch: true, textures: false, outlines: true, wallShade: false });
   });
 
   it('11 a finger on the model holds the page; lifting, or leaving with the finger down, gives it back', async () => {
