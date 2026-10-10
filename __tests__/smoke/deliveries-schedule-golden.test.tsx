@@ -40,6 +40,29 @@ export const GOLDEN_DELIVERIES: Delivery[] = [
   { ...base, id: 'dddddddd-0000-4000-8000-000000000004', description: 'Framing Lumber Package', supplier: 'Kessler Lumber Yard', expectedDate: '2026-10-05', status: 'delivered', deliveredAt: '2026-10-05T15:00:00.000Z' },
 ];
 
+type Json = { type?: string; props?: Record<string, unknown>; children?: unknown[] | null } | string | null;
+
+function holds(n: Json | Json[], id: string): boolean {
+  if (Array.isArray(n)) return n.some((c) => holds(c, id));
+  if (!n || typeof n === 'string') return false;
+  if (n.props?.testID === id) return true;
+  return (n.children ?? []).some((c) => holds(c as Json, id));
+}
+
+/**
+ * The smallest node that holds every one of `ids`: the Deliveries screen
+ * itself (or its sheet), without the app shell around it. Other lanes change
+ * the shell; this golden is about this screen.
+ */
+export function smallestHolding(n: Json | Json[], ids: string[]): Json {
+  const kids: Json[] = Array.isArray(n) ? n : (n && typeof n !== 'string' ? ((n.children ?? []) as Json[]) : []);
+  for (const c of kids) if (ids.every((id) => holds(c, id))) return smallestHolding(c, ids);
+  return Array.isArray(n) ? null : n;
+}
+
+export const SCREEN_IDS = ['deliveries-arrived', 'deliveries-horizon-7', 'deliveries-building-access'];
+export const SHEET_IDS = ['delivery-description', 'delivery-supplier', 'delivery-date', 'delivery-save'];
+
 function phone() {
   Dimensions.set({ window: { width: 390, height: 844, scale: 3, fontScale: 1 }, screen: { width: 390, height: 844, scale: 3, fontScale: 1 } });
 }
@@ -57,7 +80,9 @@ describe('Deliveries, flag off and not the owner account: the screen is what it 
     await settle();
     expect(tree.queryByText('Roof Trusses')).toBeTruthy();
     expect(tree.queryByText('3 days late')).toBeTruthy();
-    expect(tree.toJSON()).toMatchSnapshot();
+    const screen = smallestHolding(tree.toJSON() as Json, SCREEN_IDS);
+    expect(screen).toBeTruthy();
+    expect(screen).toMatchSnapshot();
   });
 
   it('b. the Expecting a Delivery sheet', async () => {
@@ -66,6 +91,8 @@ describe('Deliveries, flag off and not the owner account: the screen is what it 
     await act(async () => { fireEvent.press(tree.getByLabelText('Add Delivery')); });
     await settle();
     expect(tree.queryByText('Expecting a Delivery')).toBeTruthy();
-    expect(tree.toJSON()).toMatchSnapshot();
+    const sheet = smallestHolding(tree.toJSON() as Json, SHEET_IDS);
+    expect(sheet).toBeTruthy();
+    expect(sheet).toMatchSnapshot();
   });
 });
