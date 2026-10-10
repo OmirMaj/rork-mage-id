@@ -30,10 +30,13 @@ import type { Delivery } from '@/utils/deliverySchedule';
 import { isSettled } from '@/utils/deliveries/flags';
 import { useDeliverySupplierLinks, type LinkActionResult } from '@/hooks/useDeliverySupplierLinks';
 import { useSupplierLinkCopy } from '@/hooks/useSupplierLinkCopy';
-import { buildShown, linkMessage, replyDateDiffers, replyDatePatch, replyIsNew, supplierLinkUrl, type SupplierLinkShown } from '@/utils/deliveryLink/core';
+import { buildShown, linkMessage, replyDateDiffers, replyDatePatch, replyIsNew, supplierLinkUrl, tripStop, type SupplierLinkShown } from '@/utils/deliveryLink/core';
 import { DateRow } from '@/components/deliveries/DeliveryDatesCard';
 import type { DeliveriesFollowStyles } from '@/components/deliveries/styles';
 import { TruckRouteStrip } from './TruckRouteStrip';
+import { TruckRouteMap } from './TruckRouteMap';
+import { useDeliveryYardPlace } from '@/hooks/useDeliveryYardPlace';
+import { isPlace } from '@/utils/deliveryLink/mapMath';
 
 /** The card's own spacing: the sheet's shared card has none between its rows and buttons. */
 const local = StyleSheet.create({ stack: { gap: 10 } });
@@ -53,15 +56,24 @@ export function SupplierLinkSection({
   const { colors: t } = useTheme();
   const { lang } = useT();
   const copy = useSupplierLinkCopy();
-  const { settings } = useProjects();
+  const { settings, projects } = useProjects();
   const links = useDeliverySupplierLinks(projectId);
   const [showNeededBy, setShowNeededBy] = useState(true);
 
   const company = settings?.branding?.companyName ?? '';
   const draft = useMemo<SupplierLinkShown>(() => buildShown({ delivery, company, neededBy, showNeededBy }), [delivery, company, neededBy, showNeededBy]);
 
+  // The map's two ends. The yard is looked up from the words typed on the link; the job is the job's own address.
+  const link = links.on ? links.linkFor(delivery.id) : null;
+  const comingFrom = link?.trip?.from ?? '';
+  const yard = useDeliveryYardPlace(comingFrom, links.on && !isSettled(delivery));
+  const job = useMemo(() => {
+    const p = projects.find((x) => x.id === projectId);
+    const place = { latitude: p?.locationLatitude ?? NaN, longitude: p?.locationLongitude ?? NaN };
+    return isPlace(place) ? place : null;
+  }, [projects, projectId]);
+
   if (!links.on || isSettled(delivery)) return null;
-  const link = links.linkFor(delivery.id);
   const day = (d: string) => formatCalendarDay(d, { weekday: 'short', month: 'short', day: 'numeric' }, lang);
   /** An instant as a day and a time of day, in the phone's own zone: "Oct 8, 8:15 AM". */
   const whenLine = (at: string) => {
@@ -185,6 +197,11 @@ export function SupplierLinkSection({
         <Text style={styles.body} testID="dsl-no-answer">{copy.noAnswerBody}</Text>
       )}
 
+      {yard.place && job ? (
+        <TruckRouteMap from={yard.place} to={job} stop={tripStop(link.trip)} fromLabel={comingFrom} toLabel={copy.yourJobLabel} copy={copy} styles={styles} />
+      ) : comingFrom && (yard.looked || !job) ? (
+        <Text style={styles.note} testID="dsl-map-none">{copy.mapNoPlaceBody(comingFrom)}</Text>
+      ) : null}
       <TruckRouteStrip trip={link.trip} copy={copy} styles={styles} formatWhen={whenLine} />
 
       <Text style={styles.sectionLabel}>{copy.showsLabel}</Text>

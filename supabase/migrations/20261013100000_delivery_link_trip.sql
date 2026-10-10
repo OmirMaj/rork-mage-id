@@ -11,11 +11,15 @@
 -- WHAT IS ADDED
 --   public.delivery_supplier_links.trip   jsonb object, at most 1,000 bytes, or
 --     NULL. {"loaded": "<when>", "on_the_way": "<when>", "arrived": "<when>",
---     "name": "<who tapped last>"}. Each step's time is written ONCE, the first
+--     "name": "<who tapped last>", "from": "<where it is coming from>"}.
+--     "from" is WORDS A PERSON TYPED on the page (a yard, a town), at most 120
+--     characters. It is not a reading from any device: nothing here asks for,
+--     receives or stores a position. Each step's time is written ONCE, the first
 --     time that step (or a later one) is tapped. Written ONLY by
 --     delivery_link_step. No column grant is given for it, so a signed-in
 --     client cannot write it (the table's update grant is reply_seen_at alone).
---   public.delivery_link_step(p_token uuid, p_step text, p_name text) returns jsonb
+--   public.delivery_link_step(p_token uuid, p_step text, p_name text,
+--       p_from text default null) returns jsonb
 --     SECURITY DEFINER, search_path empty. Returns {"ok": true, "trip": {...}}
 --     or {"ok": false, "reason"} with reason one of: not_found, closed, name,
 --     step, too_long, back.
@@ -24,6 +28,8 @@
 --         ('back'). Tapping the step the load is already at changes nothing and
 --         is ok. Tapping a later step also stamps any step skipped over with
 --         the same time, so the strip never shows a gap.
+--       - p_from, when given, replaces "from" (also on a tap of the step the
+--         load is already at, so a typo can be corrected).
 --   public.delivery_link_view(uuid) is replaced by the same function with one
 --     more key in its answer: "trip".
 --
@@ -48,10 +54,10 @@
 --   select column_name, is_nullable from information_schema.columns
 --    where table_schema = 'public' and table_name = 'delivery_supplier_links' and column_name = 'trip';  -- trip, YES
 --   select has_column_privilege('authenticated', 'public.delivery_supplier_links', 'trip', 'update'),
---          has_function_privilege('anon', 'public.delivery_link_step(uuid, text, text)', 'execute');     -- false, true
+--          has_function_privilege('anon', 'public.delivery_link_step(uuid, text, text, text)', 'execute');     -- false, true
 --
 -- UNDO (by hand)
---   drop function if exists public.delivery_link_step(uuid, text, text);
+--   drop function if exists public.delivery_link_step(uuid, text, text, text);
 --   alter table public.delivery_supplier_links drop column if exists trip;
 --   (and re-create delivery_link_view from 20261013090000)
 
@@ -89,7 +95,7 @@ begin
 end;
 $function$;
 
-create or replace function public.delivery_link_step(p_token uuid, p_step text, p_name text)
+create or replace function public.delivery_link_step(p_token uuid, p_step text, p_name text, p_from text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -99,6 +105,7 @@ declare
   v_link public.delivery_supplier_links%rowtype;
   v_status text;
   v_name text := nullif(btrim(regexp_replace(coalesce(p_name, ''), '[[:cntrl:][:space:]]+', ' ', 'g')), '');
+  v_from text := nullif(btrim(regexp_replace(coalesce(p_from, ''), '[[:cntrl:][:space:]]+', ' ', 'g')), '');
   v_now text := to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
   v_trip jsonb;
   v_want int;
@@ -118,7 +125,7 @@ begin
   if v_name is null or char_length(v_name) < 2 then
     return jsonb_build_object('ok', false, 'reason', 'name');
   end if;
-  if char_length(v_name) > 80 then
+  if char_length(v_name) > 80 or char_length(coalesce(v_from, '')) > 120 then
     return jsonb_build_object('ok', false, 'reason', 'too_long');
   end if;
   v_want := case p_step when 'loaded' then 1 when 'on_the_way' then 2 when 'arrived' then 3 else 0 end;
@@ -131,7 +138,7 @@ begin
   if v_want < v_at then
     return jsonb_build_object('ok', false, 'reason', 'back');
   end if;
-  if v_want = v_at then
+  if v_want = v_at and (v_from is null or v_from is not distinct from (v_trip ->> 'from')) then
     return jsonb_build_object('ok', true, 'trip', v_trip);
   end if;
 
@@ -140,14 +147,15 @@ begin
   if v_want >= 2 and not (v_trip ? 'on_the_way') then v_trip := v_trip || jsonb_build_object('on_the_way', v_now); end if;
   if v_want >= 3 and not (v_trip ? 'arrived') then v_trip := v_trip || jsonb_build_object('arrived', v_now); end if;
   v_trip := v_trip || jsonb_build_object('name', v_name);
+  if v_from is not null then v_trip := v_trip || jsonb_build_object('from', v_from); end if;
 
   update public.delivery_supplier_links set trip = v_trip where delivery_id = v_link.delivery_id;
   return jsonb_build_object('ok', true, 'trip', v_trip);
 end;
 $function$;
 
-revoke all on function public.delivery_link_step(uuid, text, text) from public;
-grant execute on function public.delivery_link_step(uuid, text, text) to anon, authenticated, service_role;
+revoke all on function public.delivery_link_step(uuid, text, text, text) from public;
+grant execute on function public.delivery_link_step(uuid, text, text, text) to anon, authenticated, service_role;
 revoke all on function public.delivery_link_view(uuid) from public;
 grant execute on function public.delivery_link_view(uuid) to anon, authenticated, service_role;
 

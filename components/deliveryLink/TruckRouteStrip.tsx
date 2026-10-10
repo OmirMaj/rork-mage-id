@@ -50,19 +50,19 @@ export function TruckRouteStrip({
   return (
     <View style={local.wrap} testID="dsl-trip">
       <Text style={styles.sectionLabel}>{copy.tripLabel}</Text>
-      <View style={local.strip} accessible accessibilityLabel={`${copy.tripLabel}: ${at === 0 ? copy.notYetSub : stops[at - 1].label}`}>
+      <View style={local.strip}>
         {stops.map((s, i) => {
           const done = i + 1 <= at;
           const here = i + 1 === at;
           return (
-            <View key={s.label} style={local.stop} testID={`dsl-trip-stop-${i + 1}`}>
+            <View key={i} style={local.stop} accessible accessibilityLabel={`${s.label}: ${s.when ? formatWhen(s.when) : copy.notYetSub}`} testID={`dsl-trip-stop-${i + 1}`}>
               <View style={local.truckSlot}>{here ? <Truck size={26} color={t.accent} strokeWidth={1.9} testID="dsl-trip-truck" /> : null}</View>
               <View style={local.rail}>
-                <View style={[local.bar, { backgroundColor: i === 0 ? 'transparent' : done ? t.accent : t.line }]} />
-                <View style={[local.dot, { borderColor: done ? t.accent : t.line, backgroundColor: done ? t.accent : t.surface }]}>
+                <View style={[local.bar, { backgroundColor: i === 0 ? 'transparent' : done ? t.accent : t.textMuted }]} />
+                <View style={[local.dot, { borderColor: done ? t.accent : t.textMuted, backgroundColor: done ? t.accent : t.surface }]}>
                   {done ? <Check size={12} color={t.surface} strokeWidth={3} /> : null}
                 </View>
-                <View style={[local.bar, { backgroundColor: i === 2 ? 'transparent' : i + 2 <= at ? t.accent : t.line }]} />
+                <View style={[local.bar, { backgroundColor: i === 2 ? 'transparent' : i + 2 <= at ? t.accent : t.textMuted }]} />
               </View>
               <Text style={[styles.dateLabel, local.label]}>{s.label}</Text>
               <Text style={[styles.dateBasis, local.when]}>{s.when ? formatWhen(s.when) : copy.notYetSub}</Text>
@@ -70,7 +70,7 @@ export function TruckRouteStrip({
           );
         })}
       </View>
-      <Text style={styles.note} testID="dsl-trip-source">{at === 0 ? copy.tripNoneBody : copy.tripSourceBody(trip?.name ?? '')}</Text>
+      <Text style={styles.note} testID="dsl-trip-source">{at === 0 ? copy.tripNoneBody : trip?.name ? copy.tripSourceBody(trip.name) : copy.tripNoNameBody}</Text>
       {at === 3 ? <Text style={styles.note} testID="dsl-trip-arrived">{copy.tripArrivedBody}</Text> : null}
     </View>
   );

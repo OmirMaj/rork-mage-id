@@ -25,6 +25,8 @@ if (process.argv[3] === '--all') {
     8: ['8b'],       // any text is taken as a step
     9: ['11'],       // the step function is SECURITY INVOKER: anon cannot use it
     10: ['3'],       // the view does not return the trip
+    11: ['13'],      // Coming From is not cleaned or capped
+    12: ['13b'],     // Coming From can be left off a later tap and is then erased
   });
 }
 
@@ -45,6 +47,8 @@ switch (MUTATE) {
   case 8: rep("  v_want := case p_step when 'loaded' then 1 when 'on_the_way' then 2 when 'arrived' then 3 else 0 end;", "  v_want := case p_step when 'loaded' then 1 when 'on_the_way' then 2 when 'arrived' then 3 else 1 end;"); break;
   case 9: rep("returns jsonb\nlanguage plpgsql\nsecurity definer\nset search_path = ''\nas $function$\ndeclare\n  v_link public.delivery_supplier_links%rowtype;\n  v_status text;\n  v_name", "returns jsonb\nlanguage plpgsql\nsecurity invoker\nset search_path = ''\nas $function$\ndeclare\n  v_link public.delivery_supplier_links%rowtype;\n  v_status text;\n  v_name"); noSelfCheck(); break;
   case 10: rep("    'reply', v_link.reply,\n    'trip', v_link.trip", "    'reply', v_link.reply"); break;
+  case 11: rep("  v_from text := nullif(btrim(regexp_replace(coalesce(p_from, ''), '[[:cntrl:][:space:]]+', ' ', 'g')), '');", "  v_from text := nullif(p_from, '');"); rep(" or char_length(coalesce(v_from, '')) > 120 then", ' then'); break;
+  case 12: rep("  if v_from is not null then v_trip := v_trip || jsonb_build_object('from', v_from); end if;", "  v_trip := (v_trip - 'from') || jsonb_strip_nulls(jsonb_build_object('from', v_from));"); break;
   default: console.error('unknown MUTATE'); process.exit(2);
 }
 if (MUTATE) console.log(`(planted mutation M${MUTATE} applied)`);
@@ -146,6 +150,23 @@ ok('11 both functions are SECURITY DEFINER with an empty search_path, callable b
   fns.length === 2 && fns.every((f) => f.definer === true && /search_path=(""|)$/.test(f.config) && f.anon === true && f.pub === false) && anonStep.ok && anonStep.rows[0].r.ok === true
     && (stepSrc.match(/\bupdate\s+public\.[a-z_]+/g) ?? []).every((u) => u.endsWith('delivery_supplier_links')) && !/\b(insert|delete|perform|notify|pg_notify|net\.|http)\b/i.test(stepSrc),
   fns.map((f) => `${f.proname}: definer ${f.definer} anon ${f.anon} public ${f.pub}`).join('; ') + ` anon call ${anonStep.ok ? JSON.stringify(anonStep.rows[0].r.ok) : anonStep.err}`);
+
+{
+  const d5 = await tryRun('authenticated', `insert into public.deliveries (id, user_id, project_id, description, supplier, expected_date, status, created_at, updated_at) values ('${D(5)}', '${OWNER}', '${P1}', 'Tile', 'Yard', '2026-11-12', 'scheduled', now(), now())`, OWNER);
+  const l5 = await tryRun('authenticated', `insert into public.delivery_supplier_links (delivery_id, project_id, user_id, shown) values ('${D(5)}', '${P1}', '${OWNER}', $1::jsonb) returning token`, OWNER, [SHOWN]);
+  const T5 = l5.rows?.[0]?.token;
+  const call = (args) => tryRun('anon', `select public.delivery_link_step('${T5}', ${args}) as r`);
+  const withFrom = await call(`'loaded', 'Dana', E'  Sample Stone Yard,\n Red Hook,   Brooklyn '`);
+  const tooLong = await call(`'on_the_way', 'Dana', '${'y'.repeat(121)}'`);
+  const t5 = (await rows(`select trip from public.delivery_supplier_links where delivery_id = '${D(5)}'`))[0]?.trip;
+  ok('13 Coming From is words someone typed: cleaned, at most 120 characters, and an over-long one stores nothing', d5.ok && withFrom.rows?.[0]?.r?.ok === true && t5?.from === 'Sample Stone Yard, Red Hook, Brooklyn' && tooLong.rows?.[0]?.r?.reason === 'too_long' && !('on_the_way' in t5), JSON.stringify([withFrom.rows?.[0]?.r ?? withFrom.err, tooLong.rows?.[0]?.r, t5]));
+  const later = await call(`'on_the_way', 'Lee'`);
+  const fixed = await call(`'on_the_way', 'Lee', 'Sample Stone Yard, Gowanus, Brooklyn'`);
+  const t5b = (await rows(`select trip from public.delivery_supplier_links where delivery_id = '${D(5)}'`))[0]?.trip;
+  ok('13b a later tap without Coming From keeps it, and a tap at the same step can correct it', later.rows?.[0]?.r?.trip?.from === 'Sample Stone Yard, Red Hook, Brooklyn' && fixed.rows?.[0]?.r?.ok === true && t5b?.from === 'Sample Stone Yard, Gowanus, Brooklyn' && !!t5b?.on_the_way && !('arrived' in t5b), JSON.stringify([later.rows?.[0]?.r, t5b]));
+  const keys = Object.keys(t5b ?? {}).sort().join(',');
+  ok('13c the trip holds the three times, a name and Coming From, and no other key: no position of any kind', keys === 'from,loaded,name,on_the_way', keys);
+}
 
 const big = await tryRun('service_role', `update public.delivery_supplier_links set trip = jsonb_build_object('name', repeat('x', 1200)) where delivery_id = '${D(4)}'`);
 ok('12 the trip column is an object of at most 1,000 bytes', !big.ok);
